@@ -31,6 +31,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   };
 
   const handleDownloadBridge = () => {
+      // UPDATED SCRIPT with verbose logging for localhost debugging
       const scriptContent = `
 const WebSocket = require('ws');
 const dgram = require('dgram');
@@ -39,18 +40,30 @@ const WS_PORT = 8080;
 const wss = new WebSocket.Server({ port: WS_PORT });
 const udpSocket = dgram.createSocket('udp4');
 
+// Enable broadcast to allow local discovery if needed
+udpSocket.bind(() => {
+    udpSocket.setBroadcast(true);
+});
+
 console.log('ARTLUX Bridge running on ws://localhost:' + WS_PORT);
+console.log('Waiting for browser connection...');
 
 wss.on('connection', ws => {
-    console.log('Client connected');
+    console.log('Browser connected!');
     
     ws.on('message', message => {
         try {
             const payload = JSON.parse(message);
             if (payload.type === 'broadcast-artnet' && payload.data && payload.host && payload.port) {
                 const buffer = Buffer.from(payload.data);
+                
                 udpSocket.send(buffer, payload.port, payload.host, (err) => {
-                    if (err) console.error('UDP Send Error:', err);
+                    if (err) {
+                        console.error('UDP Send Error:', err);
+                    } else {
+                        // Verbose logging for verification
+                        process.stdout.write(\`\\rSent \${buffer.length} bytes to \${payload.host}:\${payload.port} (Seq: \${payload.data[12]})\`);
+                    }
                 });
             }
         } catch (e) {
@@ -58,11 +71,11 @@ wss.on('connection', ws => {
         }
     });
 
-    ws.on('close', () => console.log('Client disconnected'));
+    ws.on('close', () => console.log('\\nBrowser disconnected'));
 });
 
 udpSocket.on('error', (err) => {
-    console.error(\`UDP Error: \${err.stack}\`);
+    console.error(\`\\nUDP Error: \${err.stack}\`);
     udpSocket.close();
 });
 `;
@@ -205,8 +218,7 @@ udpSocket.on('error', (err) => {
         </div>
         <div className="mt-auto">
              <div className={`text-xs flex items-center gap-2 ${settings.useWsBridge ? 'text-green-500' : 'text-slate-500'}`}>
-                <div className={`w-2 h-2 rounded-full ${settings.useWsBridge ? 'bg-green-500 animate-pulse' : 'bg-slate-600'}`}></div>
-                {settings.useWsBridge ? "Ready to transmit" : "Output Disabled"}
+                {/* Visual feedback for connection state is handled in parent via settings.useWsBridge but logic is separate */}
              </div>
         </div>
       </div>

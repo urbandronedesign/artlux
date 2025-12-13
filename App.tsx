@@ -5,7 +5,7 @@ import { InspectorPanel } from './components/InspectorPanel';
 import { ScenePanel } from './components/ScenePanel';
 import { Stage } from './components/Stage';
 import { DMXMonitor } from './components/DMXMonitor';
-import { sendDmxData, connectToBridge, disconnectBridge } from './services/mockSocketService';
+import { sendDmxData, connectToBridge, disconnectBridge, addStatusListener } from './services/mockSocketService';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
@@ -35,19 +35,32 @@ const App: React.FC = () => {
   const [globalBrightness, setGlobalBrightness] = useState(1.0);
   const [currentView, setCurrentView] = useState<ViewMode>(ViewMode.MAPPING);
   
+  // Real connection status
+  const [isBridgeConnected, setIsBridgeConnected] = useState(false);
+
   // Performance monitoring
   const [fps, setFps] = useState(0);
   const frameCount = React.useRef(0);
   const lastTime = React.useRef(performance.now());
 
+  // Socket Connection Logic
   useEffect(() => {
+    const unsubscribe = addStatusListener((status) => {
+        setIsBridgeConnected(status);
+    });
+
     if (settings.useWsBridge && settings.wsBridgeUrl) {
       connectToBridge(settings.wsBridgeUrl);
     } else {
       disconnectBridge();
     }
+
+    return () => {
+        unsubscribe();
+    };
   }, [settings.useWsBridge, settings.wsBridgeUrl]);
 
+  // Main Loop
   useEffect(() => {
     let animationFrameId: number;
     
@@ -60,7 +73,7 @@ const App: React.FC = () => {
         lastTime.current = time;
       }
 
-      if (settings.useWsBridge) {
+      if (settings.useWsBridge && isBridgeConnected) {
         sendDmxData(fixtures, settings);
       }
       animationFrameId = requestAnimationFrame(loop);
@@ -68,7 +81,7 @@ const App: React.FC = () => {
     
     loop(performance.now());
     return () => cancelAnimationFrame(animationFrameId);
-  }, [fixtures, settings]);
+  }, [fixtures, settings, isBridgeConnected]);
 
   const handleAddFixture = () => {
     const newId = generateId();
@@ -126,10 +139,9 @@ const App: React.FC = () => {
               const data = JSON.parse(content);
               
               if (data.fixtures && Array.isArray(data.fixtures)) {
-                  // Rehydrate fixtures, ensuring colorData exists
                   const cleanFixtures = data.fixtures.map((f: any) => ({
                       ...f,
-                      colorData: [] // clear data on load, it will regenerate from source
+                      colorData: [] 
                   }));
                   setFixtures(cleanFixtures);
               }
@@ -141,8 +153,6 @@ const App: React.FC = () => {
               if (typeof data.globalBrightness === 'number') {
                   setGlobalBrightness(data.globalBrightness);
               }
-
-              // Reset selection
               setSelectedFixtureId(null);
           } catch (err) {
               console.error("Failed to parse project file", err);
@@ -162,7 +172,8 @@ const App: React.FC = () => {
           isVideoPlaying={isVideoPlaying}
           onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)}
           fps={fps}
-          artNetStatus={settings.useWsBridge}
+          // Now using real connection status for visual feedback
+          artNetStatus={isBridgeConnected}
           artNetIp={settings.artNetIp}
           currentView={currentView}
           onChangeView={setCurrentView}
@@ -173,9 +184,8 @@ const App: React.FC = () => {
       {/* Main Workspace */}
       <div className="flex flex-1 overflow-hidden relative">
         
-        {/* MAPPING VIEW - 3 Column Layout */}
+        {/* MAPPING VIEW */}
         <div className={`absolute inset-0 flex transition-opacity duration-300 ${currentView === ViewMode.MAPPING ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
-            {/* Left: Inspector Panel */}
             <InspectorPanel 
                 sourceType={sourceType}
                 onSetSource={(type, url) => {
@@ -189,9 +199,7 @@ const App: React.FC = () => {
                 onUpdateSettings={setSettings}
             />
 
-            {/* Center: Viewport */}
             <div className="flex-1 bg-[#050505] relative flex flex-col items-center justify-center">
-                {/* Ruler/Header for Viewport */}
                 <div className="absolute top-0 w-full h-6 bg-[#0a0a0a] border-b border-[#222] flex items-center px-2 text-[10px] text-gray-600 font-mono z-50">
                     VIEWPORT: 512x512 (UV 1:1)
                 </div>
@@ -209,7 +217,6 @@ const App: React.FC = () => {
                 />
             </div>
 
-            {/* Right: Scene Graph */}
             <ScenePanel 
                 fixtures={fixtures}
                 selectedFixtureId={selectedFixtureId}
