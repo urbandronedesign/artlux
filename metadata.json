@@ -1,0 +1,7 @@
+{
+  "name": "ARTLUX",
+  "description": "A browser-based pixel mapping tool for RGBW LED strips. Sample colors from video, images, or camera and generate DMX/ArtNet data.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
