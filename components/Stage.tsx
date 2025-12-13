@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { Fixture, SourceType, RGBW } from '../types';
-import { Maximize, RotateCw, Move } from 'lucide-react';
+import { Maximize, RotateCw, Move, AlertCircle } from 'lucide-react';
 import { GPUMapper } from '../services/GPUMapper';
 
 interface StageProps {
@@ -33,6 +33,7 @@ export const Stage: React.FC<StageProps> = ({
   const requestRef = useRef<number>(0);
   
   const mapper = useRef<GPUMapper | null>(null);
+  const [webglError, setWebglError] = useState(false);
   
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -42,7 +43,12 @@ export const Stage: React.FC<StageProps> = ({
   // Initialize GPU Mapper with Square dimensions
   useEffect(() => {
     if (!mapper.current) {
-        mapper.current = new GPUMapper(512, 512);
+        try {
+            mapper.current = new GPUMapper(512, 512);
+        } catch (e) {
+            console.error("Failed to initialize GPU Mapper:", e);
+            setWebglError(true);
+        }
     }
   }, []);
 
@@ -211,7 +217,7 @@ export const Stage: React.FC<StageProps> = ({
 
     // Use the CANVAs as the source for GPU mapping
     // This ensures that black bars and fitting are respected in the mapping
-    if (canvasRef.current && isEngineRunning) {
+    if (canvasRef.current && isEngineRunning && mapper.current) {
         mapper.current.updateSource(canvasRef.current);
         const rawBytes = mapper.current.read();
 
@@ -330,6 +336,14 @@ export const Stage: React.FC<StageProps> = ({
         className="relative shadow-2xl bg-black border border-[#222]"
         style={{ width: '512px', height: '512px' }} 
       >
+        {webglError && (
+          <div className="absolute inset-0 z-[100] bg-black/90 flex flex-col items-center justify-center text-red-500 font-mono text-xs text-center p-4">
+            <AlertCircle className="w-8 h-8 mb-2" />
+            <p>WebGL Initialization Failed</p>
+            <p className="opacity-50 mt-1">Check browser hardware acceleration settings</p>
+          </div>
+        )}
+
         <video 
             ref={videoRef} 
             src={sourceType === SourceType.VIDEO ? sourceUrl || undefined : undefined} 

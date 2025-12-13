@@ -20,8 +20,15 @@ export class GPUMapper {
     this.canvas.width = 1; // Will resize based on LED count
     this.canvas.height = 1;
     
-    const gl = this.canvas.getContext('webgl', { preserveDrawingBuffer: true });
-    if (!gl) throw new Error("WebGL not supported");
+    // Try standard WebGL first, then experimental
+    let gl = this.canvas.getContext('webgl', { preserveDrawingBuffer: true });
+    if (!gl) {
+        gl = this.canvas.getContext('experimental-webgl', { preserveDrawingBuffer: true }) as WebGLRenderingContext | null;
+    }
+
+    if (!gl) {
+        throw new Error("WebGL not supported");
+    }
     this.gl = gl;
     
     // Enable Float Textures for coordinate mapping
@@ -179,12 +186,6 @@ export class GPUMapper {
         }
 
         // Rotate
-        // To rotate correctly in non-square UV space, we must:
-        // 1. Convert to aspect-corrected space
-        // 2. Rotate
-        // 3. Convert back
-        // Or simpler: Convert to pixels conceptually, rotate, convert back.
-        
         const lx_px = lx * this.width;
         const ly_px = ly * this.height;
 
@@ -197,9 +198,7 @@ export class GPUMapper {
 
         // Store
         data[offset] = u;
-        data[offset + 1] = v; // In WebGL texture 0,0 is usually bottom-left? 
-                              // Video textures usually upload with 0,0 top-left relative to standard UVs if UNPACK_FLIP_Y_WEBGL is false.
-                              // We'll stick to 0=top logic and see.
+        data[offset + 1] = v; 
         data[offset + 2] = 0;
         data[offset + 3] = 1;
         offset += 4;
