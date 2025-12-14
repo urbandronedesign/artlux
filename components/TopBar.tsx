@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Play, Pause, Monitor, Save, FolderOpen, Activity } from 'lucide-react';
+import { Play, Pause, Monitor, Save, FolderOpen, Activity, Undo, Redo } from 'lucide-react';
 import { Button } from './Button';
 import { ViewMode } from '../types';
 
@@ -10,6 +10,10 @@ interface TopBarProps {
     onChangeView: (view: ViewMode) => void;
     onSaveProject: () => void;
     onLoadProject: (file: File) => void;
+    onUndo: () => void;
+    onRedo: () => void;
+    canUndo: boolean;
+    canRedo: boolean;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({ 
@@ -18,7 +22,11 @@ export const TopBar: React.FC<TopBarProps> = ({
     currentView,
     onChangeView,
     onSaveProject,
-    onLoadProject
+    onLoadProject,
+    onUndo,
+    onRedo,
+    canUndo,
+    canRedo
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -37,6 +45,32 @@ export const TopBar: React.FC<TopBarProps> = ({
                 <div className="flex items-center gap-2">
                     <div className="w-6 h-6 bg-gradient-to-br from-cyan-600 to-blue-700 rounded flex items-center justify-center font-bold text-xs text-white">A</div>
                     <span className="font-bold text-gray-300 text-sm tracking-wide">ARTLUX</span>
+                </div>
+
+                <div className="h-5 w-px bg-[#333] mx-1"></div>
+
+                 {/* Undo/Redo */}
+                 <div className="flex gap-1">
+                    <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className={`h-6 px-2 ${!canUndo ? 'opacity-30 cursor-default' : 'text-gray-400 hover:text-white'}`}
+                        onClick={onUndo} 
+                        disabled={!canUndo}
+                        title="Undo (Ctrl+Z)"
+                    >
+                        <Undo size={14} />
+                    </Button>
+                    <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className={`h-6 px-2 ${!canRedo ? 'opacity-30 cursor-default' : 'text-gray-400 hover:text-white'}`}
+                        onClick={onRedo} 
+                        disabled={!canRedo}
+                        title="Redo (Ctrl+Y)"
+                    >
+                        <Redo size={14} />
+                    </Button>
                 </div>
 
                 <div className="h-5 w-px bg-[#333] mx-1"></div>

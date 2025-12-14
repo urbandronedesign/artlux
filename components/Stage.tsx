@@ -13,6 +13,7 @@ interface StageProps {
   isEngineRunning: boolean;
   isVideoPlaying: boolean;
   globalBrightness: number;
+  onRecordHistory: () => void;
 }
 
 export const Stage: React.FC<StageProps> = ({
@@ -24,7 +25,8 @@ export const Stage: React.FC<StageProps> = ({
   onSelectFixture,
   isEngineRunning,
   isVideoPlaying,
-  globalBrightness
+  globalBrightness,
+  onRecordHistory
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -62,7 +64,8 @@ export const Stage: React.FC<StageProps> = ({
       startX: 0,
       startY: 0,
       initialFixture: null as null | { x: number, y: number, w: number, h: number, r: number },
-      initialView: { x: 0, y: 0 }
+      initialView: { x: 0, y: 0 },
+      hasMoved: false
   });
 
   // Initialize GPU Mapper
@@ -272,6 +275,12 @@ export const Stage: React.FC<StageProps> = ({
 
     if (!containerRef.current || !state.targetId || !state.initialFixture) return;
     
+    // Check if we need to record history on FIRST move
+    if (!state.hasMoved) {
+        state.hasMoved = true;
+        onRecordHistory(); // Snapshot before any changes apply
+    }
+
     // Find the fixture index in the LATEST ref array
     const fixtures = fixturesRef.current;
     const fixtureIndex = fixtures.findIndex(f => f.id === state.targetId);
@@ -465,12 +474,13 @@ export const Stage: React.FC<StageProps> = ({
     // Trigger React Update
     onUpdateFixtures(nextFixtures);
 
-  }, [snapEnabled, onUpdateFixtures]);
+  }, [snapEnabled, onUpdateFixtures, onRecordHistory]);
 
   const handleWindowMouseUp = useCallback(() => {
     dragState.current.isDragging = false;
     dragState.current.mode = null;
     dragState.current.targetId = null;
+    dragState.current.hasMoved = false;
     setActiveSnapLines({ x: [], y: [] });
     
     // Remove listeners
@@ -488,6 +498,7 @@ export const Stage: React.FC<StageProps> = ({
       dragState.current.startX = e.clientX;
       dragState.current.startY = e.clientY;
       dragState.current.initialView = { ...viewStateRef.current };
+      dragState.current.hasMoved = false; // Reset move tracking
 
       if (fixtureId) {
           onSelectFixture(fixtureId);

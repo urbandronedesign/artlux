@@ -7,6 +7,7 @@ import { Stage } from './components/Stage';
 import { DMXMonitor } from './components/DMXMonitor';
 import { sendDmxData, connectToBridge, disconnectBridge, addStatusListener } from './services/mockSocketService';
 import { PanelLeft, PanelRight, Activity, Wifi } from 'lucide-react';
+import { useHistory } from './hooks/useHistory';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
@@ -18,7 +19,16 @@ const DEFAULT_SETTINGS: AppSettings = {
 };
 
 const App: React.FC = () => {
-  const [fixtures, setFixtures] = useState<Fixture[]>([
+  // Use History Hook for Fixtures
+  const { 
+      state: fixtures, 
+      set: setFixtures, 
+      undo, 
+      redo, 
+      canUndo, 
+      canRedo,
+      record: recordHistory
+  } = useHistory<Fixture[]>([
     {
       id: 'fix-1',
       name: 'Main Arch',
@@ -65,6 +75,27 @@ const App: React.FC = () => {
     };
   }, [settings.useWsBridge, settings.wsBridgeUrl]);
 
+  // Keyboard Shortcuts for Undo/Redo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+            if (e.shiftKey) {
+                redo();
+            } else {
+                undo();
+            }
+            e.preventDefault();
+        }
+        else if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+            redo();
+            e.preventDefault();
+        }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo]);
+
   // Main Loop
   useEffect(() => {
     let animationFrameId: number;
@@ -89,6 +120,7 @@ const App: React.FC = () => {
   }, [fixtures, settings, isBridgeConnected]);
 
   const handleAddFixture = () => {
+    recordHistory();
     const newId = generateId();
     setFixtures([
       ...fixtures,
@@ -104,11 +136,13 @@ const App: React.FC = () => {
   };
 
   const handleRemoveFixture = (id: string) => {
+    recordHistory();
     setFixtures(fixtures.filter(f => f.id !== id));
     if (selectedFixtureId === id) setSelectedFixtureId(null);
   };
 
   const handleUpdateFixture = (id: string, updates: Partial<Fixture>) => {
+    recordHistory();
     setFixtures(fixtures.map(f => f.id === id ? { ...f, ...updates } : f));
   };
 
@@ -144,6 +178,8 @@ const App: React.FC = () => {
               const data = JSON.parse(content);
               
               if (data.fixtures && Array.isArray(data.fixtures)) {
+                  // We record history before wiping state for load
+                  recordHistory();
                   const cleanFixtures = data.fixtures.map((f: any) => ({
                       ...f,
                       colorData: [] 
@@ -180,6 +216,10 @@ const App: React.FC = () => {
           onChangeView={setCurrentView}
           onSaveProject={handleSaveProject}
           onLoadProject={handleLoadProject}
+          onUndo={undo}
+          onRedo={redo}
+          canUndo={canUndo}
+          canRedo={canRedo}
       />
 
       {/* Main Workspace */}
@@ -222,6 +262,7 @@ const App: React.FC = () => {
                     isEngineRunning={true}
                     isVideoPlaying={isVideoPlaying}
                     globalBrightness={globalBrightness}
+                    onRecordHistory={recordHistory}
                 />
             </div>
 
