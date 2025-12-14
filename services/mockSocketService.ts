@@ -24,28 +24,46 @@ export const addStatusListener = (listener: StatusListener) => {
     };
 };
 
-// Helper to construct an ArtNet III DMX Packet (OpOutput)
+// Reusable buffers to reduce GC pressure
+const ARTNET_HEADER = [65, 114, 116, 45, 78, 101, 116, 0, 0, 80, 0, 14]; // Header + OpCode + ProtoVer
+// Pre-allocate universe buffers map to avoid recreation
+const universeDataCache: Record<number, number[]> = {};
+
+// Helper to construct an ArtNet III DMX Packet (OpOutput) efficiently
 const buildArtNetPacket = (universe: number, dmxData: number[]): number[] => {
-    const header = [65, 114, 116, 45, 78, 101, 116, 0]; 
-    const opCode = [0x00, 0x50]; 
-    const protoVer = [0x00, 0x0e];
-    const seq = [sequence];
-    const physical = [0];
-    const uni = [universe & 0xFF, (universe >> 8) & 0xFF];
-    const lenVal = dmxData.length;
-    const len = [(lenVal >> 8) & 0xFF, lenVal & 0xFF];
+    // Fixed size: Header(12) + Seq(1) + Phy(1) + Uni(2) + Len(2) + Data(512)
+    // We construct a standard array because JSON.stringify needs to serialize it for the bridge.
+    // We avoid spread operators (...) for large arrays to prevent stack overflow and excessive GC.
     
-    return [ ...header, ...opCode, ...protoVer, ...seq, ...physical, ...uni, ...len, ...dmxData ];
+    const lenVal = dmxData.length;
+    // Header is 18 bytes total before data
+    const packet = new Array(18 + lenVal);
+    
+    // 0-11: Fixed Header
+    for(let i=0; i<12; i++) packet[i] = ARTNET_HEADER[i];
+    
+    packet[12] = sequence; // Sequence
+    packet[13] = 0;        // Physical
+    packet[14] = universe & 0xFF;        // Uni Low
+    packet[15] = (universe >> 8) & 0xFF; // Uni High
+    packet[16] = (lenVal >> 8) & 0xFF;   // Len High
+    packet[17] = lenVal & 0xFF;          // Len Low
+    
+    // Copy Data
+    for(let i=0; i<lenVal; i++) {
+        packet[18+i] = dmxData[i];
+    }
+    
+    return packet;
 };
 
 export const connectToBridge = (url: string) => {
-    // If we are already trying to connect or connected to this URL, skip
     if (socket && activeUrl === url) {
         if (socket.readyState === WebSocket.OPEN) return;
         if (socket.readyState === WebSocket.CONNECTING) return;
     }
 
-    disconnectBridge(false); // Clean up existing socket but don't clear intent if just retrying
+    disconnectBridge(false); 
 
     try {
         console.log(`Connecting to ArtNet Bridge: ${url}`);
@@ -65,7 +83,6 @@ export const connectToBridge = (url: string) => {
             console.log("ArtNet Bridge Disconnected");
             notifyListeners(false);
             socket = null;
-            // Attempt reconnect if we still have an activeUrl (intent to connect)
             if (activeUrl && !reconnectTimer) {
                 reconnectTimer = window.setTimeout(() => {
                     reconnectTimer = null;
@@ -76,7 +93,6 @@ export const connectToBridge = (url: string) => {
 
         socket.onerror = (e) => {
             console.warn("ArtNet Bridge Error", e);
-            // Error usually precedes close, so close logic handles retry
         };
     } catch (err) {
         console.error("Failed to create WebSocket", err);
@@ -91,10 +107,9 @@ export const disconnectBridge = (fully: boolean = true) => {
         reconnectTimer = null;
     }
     if (socket) {
-        // Prevent reconnect loop if manually disconnecting
         const s = socket;
-        socket = null; // Detach first
-        s.onclose = null; // Remove listener to prevent trigger
+        socket = null; 
+        s.onclose = null; 
         s.close();
     }
     notifyListeners(false);
@@ -105,37 +120,66 @@ export const sendDmxData = (fixtures: Fixture[], settings: AppSettings) => {
     if (!settings.useWsBridge || !socket || socket.readyState !== WebSocket.OPEN) return;
 
     const now = performance.now();
-    // Cap at ~40fps (25ms)
-    if (now - lastSendTime < 25) return;
+    // Cap at ~44fps (approx 22.7ms). Using 22ms as threshold.
+    if (now - lastSendTime < 22) return;
     lastSendTime = now;
 
-    // 1. Map Fixtures to Universe Buffers
-    const universeData: Record<number, number[]> = {};
+    // Reset cache for this frame
+    // We don't delete keys, just reset values to 0 if needed, or overwrite.
+    // However, to be safe and simple, we clear content but maybe we can optimize structure later.
+    // For now, let's just create the clean 512 arrays only if missing, and zero them out.
+    // Actually, iterating to zero out might be as expensive as new Array(512).fill(0).
+    // Let's use a temporary map for the frame.
+    const currentFrameData: Record<number, number[]> = {};
 
     fixtures.forEach(fixture => {
         const globalStart = (fixture.universe * 512) + (fixture.startAddress - 1);
-        fixture.colorData.forEach((color, i) => {
-            const channels = [color.r, color.g, color.b, color.w];
-            channels.forEach((val, offset) => {
-                const absAddr = globalStart + (i * 4) + offset;
-                const u = Math.floor(absAddr / 512);
-                const ch = absAddr % 512;
-                if (!universeData[u]) {
-                    universeData[u] = new Array(512).fill(0);
-                }
-                universeData[u][ch] = val;
-            });
-        });
+        
+        // Optimization: Use a simpler loop
+        const count = fixture.ledCount;
+        const colors = fixture.colorData;
+        
+        // Guard against mismatch
+        if (!colors || colors.length !== count) return;
+
+        for(let i=0; i<count; i++) {
+            const color = colors[i];
+            const baseAddr = globalStart + (i * 4);
+            
+            // Unroll loop for R,G,B,W (4 channels)
+            // Channel 0 (R)
+            let absAddr = baseAddr;
+            let u = (absAddr / 512) | 0; // Fast floor
+            let ch = absAddr % 512;
+            if (!currentFrameData[u]) currentFrameData[u] = new Array(512).fill(0);
+            currentFrameData[u][ch] = color.r;
+
+            // Channel 1 (G)
+            absAddr++;
+            if (ch === 511) { u++; ch = 0; if (!currentFrameData[u]) currentFrameData[u] = new Array(512).fill(0); } else { ch++; }
+            currentFrameData[u][ch] = color.g;
+
+            // Channel 2 (B)
+            absAddr++;
+            if (ch === 511) { u++; ch = 0; if (!currentFrameData[u]) currentFrameData[u] = new Array(512).fill(0); } else { ch++; }
+            currentFrameData[u][ch] = color.b;
+
+            // Channel 3 (W)
+            absAddr++;
+            if (ch === 511) { u++; ch = 0; if (!currentFrameData[u]) currentFrameData[u] = new Array(512).fill(0); } else { ch++; }
+            currentFrameData[u][ch] = color.w;
+        }
     });
 
     sequence = (sequence + 1) % 256;
 
-    Object.entries(universeData).forEach(([uKey, data]) => {
+    for (const uKey in currentFrameData) {
         const uIndex = parseInt(uKey);
+        const data = currentFrameData[uIndex];
         const packet = buildArtNetPacket(uIndex, data);
 
         try {
-            socket?.send(JSON.stringify({
+            socket.send(JSON.stringify({
                 type: 'broadcast-artnet',
                 host: settings.artNetIp,
                 port: settings.artNetPort,
@@ -144,5 +188,5 @@ export const sendDmxData = (fixtures: Fixture[], settings: AppSettings) => {
         } catch (e) {
             console.error("Socket Send Error", e);
         }
-    });
+    }
 };

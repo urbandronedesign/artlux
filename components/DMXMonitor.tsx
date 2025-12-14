@@ -1,10 +1,60 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useEffect } from 'react';
 import { Fixture, RGBW } from '../types';
 import { Activity, Zap } from 'lucide-react';
 
 interface DMXMonitorProps {
   fixtures: Fixture[];
 }
+
+// Canvas component to render fixture strip efficiently
+const FixtureStrip: React.FC<{ fixture: Fixture }> = ({ fixture }) => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    
+    useEffect(() => {
+        const cvs = canvasRef.current;
+        if (!cvs) return;
+        const ctx = cvs.getContext('2d');
+        if (!ctx) return;
+
+        // Resize
+        // We render at 1x height but N width equal to LED count
+        if (cvs.width !== fixture.ledCount) cvs.width = fixture.ledCount;
+        if (cvs.height !== 1) cvs.height = 1;
+
+        const imgData = ctx.createImageData(fixture.ledCount, 1);
+        const data = imgData.data;
+        const colors = fixture.colorData;
+        
+        if (colors && colors.length > 0) {
+            for (let i = 0; i < fixture.ledCount; i++) {
+                const c = colors[i] || { r:0, g:0, b:0, w:0 };
+                const ptr = i * 4;
+                // Add White channel to RGB for preview brightness
+                // Standard RGBW to Screen RGB approximation
+                const w = c.w || 0;
+                data[ptr] = Math.min(255, c.r + w);
+                data[ptr + 1] = Math.min(255, c.g + w);
+                data[ptr + 2] = Math.min(255, c.b + w);
+                data[ptr + 3] = 255; // Alpha
+            }
+        } else {
+             data.fill(0);
+             // Alpha 255
+             for(let i=3; i<data.length; i+=4) data[i] = 255;
+        }
+
+        ctx.putImageData(imgData, 0, 0);
+
+    }, [fixture.colorData, fixture.ledCount]);
+
+    return (
+        <canvas 
+            ref={canvasRef}
+            className="w-full h-8 bg-[#0a0a0a] rounded border border-[#333] image-pixelated"
+            style={{ imageRendering: 'pixelated' }}
+        />
+    );
+};
 
 export const DMXMonitor: React.FC<DMXMonitorProps> = ({ fixtures }) => {
   
@@ -82,21 +132,8 @@ export const DMXMonitor: React.FC<DMXMonitorProps> = ({ fixtures }) => {
 
                         {/* Content */}
                         <div className="p-4 space-y-4">
-                            {/* Visual Strip */}
-                            <div className="w-full h-8 bg-[#0a0a0a] rounded flex overflow-hidden border border-[#333]">
-                                {fixture.colorData && fixture.colorData.map((color, idx) => (
-                                    <div 
-                                        key={idx} 
-                                        className="flex-1 h-full"
-                                        style={{ 
-                                            backgroundColor: `rgb(${color.r},${color.g},${color.b})`,
-                                            // Visual hint for white channel intensity overlay
-                                            backgroundImage: color.w > 0 ? `linear-gradient(to top, rgba(255,255,255,${color.w/510}) 0%, transparent 100%)` : 'none'
-                                        }}
-                                        title={`Pixel ${idx+1}: R${color.r} G${color.g} B${color.b} W${color.w}`}
-                                    />
-                                ))}
-                            </div>
+                            {/* Canvas Strip */}
+                            <FixtureStrip fixture={fixture} />
 
                             {/* Data Grid Preview (First 32 pixels max to save rendering) */}
                             <div className="grid grid-cols-8 gap-1 text-[9px] font-mono text-gray-500">

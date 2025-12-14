@@ -6,7 +6,7 @@ export class GPUMapper {
   private program: WebGLProgram | null = null;
   private mapTexture: WebGLTexture | null = null;
   private sourceTexture: WebGLTexture | null = null;
-  private framebuffer: WebGLFramebuffer | null = null;
+  private vertexBuffer: WebGLBuffer | null = null;
   
   private totalLeds: number = 0;
   private width: number = 512;
@@ -33,7 +33,7 @@ export class GPUMapper {
     
     // Enable Float Textures for coordinate mapping
     const ext = gl.getExtension('OES_texture_float');
-    if (!ext) console.warn("OES_texture_float not supported, mapping precision might be low if fallback used (fallback not impl)");
+    if (!ext) console.warn("OES_texture_float not supported, mapping precision might be low");
 
     this.initShaders();
     this.initBuffers();
@@ -42,7 +42,7 @@ export class GPUMapper {
   private initShaders() {
     const gl = this.gl;
 
-    // Vertex Shader: Renders a fullscreen quad (technically a 1xN line)
+    // Vertex Shader
     const vsSource = `
       attribute vec2 position;
       varying vec2 vTexCoord;
@@ -53,7 +53,7 @@ export class GPUMapper {
       }
     `;
 
-    // Fragment Shader: Samples source at mapped position and converts to RGBW
+    // Fragment Shader
     const fsSource = `
       precision mediump float;
       uniform sampler2D u_source;
@@ -62,20 +62,14 @@ export class GPUMapper {
       varying vec2 vTexCoord;
 
       void main() {
-        // 1. Get the sampling coordinate from the map texture
-        // The map texture contains (u, v, 0, 1) in float format
+        // Map texture contains (u, v, 0, 1)
         vec2 samplePos = texture2D(u_map, vTexCoord).xy;
-        
-        // 2. Sample the source video/image
-        // Y-flip is handled during upload or coord gen. Let's assume coords are correct.
         vec4 color = texture2D(u_source, samplePos);
         
-        // 3. Encode RGBW (GPU Compute)
-        // Simple Min-Subtraction algorithm
+        // RGBW Encoding (Min-Subtraction)
         float minVal = min(min(color.r, color.g), color.b);
         float factor = 1.0;
         
-        // Apply brightness scaling
         gl_FragColor = vec4(
           (color.r - (minVal * factor)) * u_brightness,
           (color.g - (minVal * factor)) * u_brightness,
@@ -94,6 +88,10 @@ export class GPUMapper {
     gl.attachShader(this.program, vs);
     gl.attachShader(this.program, fs);
     gl.linkProgram(this.program);
+    
+    // Clean up individual shaders after link
+    gl.deleteShader(vs);
+    gl.deleteShader(fs);
 
     if (!gl.getProgramParameter(this.program, gl.LINK_STATUS)) {
       console.error('Shader program init failed:', gl.getProgramInfoLog(this.program));
@@ -116,15 +114,14 @@ export class GPUMapper {
 
   private initBuffers() {
     const gl = this.gl;
-    // Full coverage quad
     const positions = new Float32Array([
       -1.0, -1.0,
        1.0, -1.0,
       -1.0,  1.0,
        1.0,  1.0,
     ]);
-    const buffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    this.vertexBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
   }
 
@@ -132,40 +129,27 @@ export class GPUMapper {
       this.brightness = Math.max(0, Math.min(1, value));
   }
 
-  /**
-   * Updates the mapping texture based on fixture positions.
-   * This generates the U,V coordinates for every LED.
-   */
   public updateMapping(fixtures: Fixture[]) {
     const gl = this.gl;
     
-    // 1. Calculate total LEDs
     this.totalLeds = fixtures.reduce((acc, f) => acc + f.ledCount, 0);
     if (this.totalLeds === 0) return;
 
-    // 2. Resize Canvas/Viewport to N x 1
-    // We map 1 pixel per LED in the X axis
     if (this.canvas.width !== this.totalLeds || this.canvas.height !== 1) {
       this.canvas.width = this.totalLeds;
       this.canvas.height = 1;
       gl.viewport(0, 0, this.totalLeds, 1);
     }
 
-    // 3. Generate Coordinate Data (Float)
-    // Format: R=u, G=v, B=0, A=1
     const data = new Float32Array(this.totalLeds * 4);
     let offset = 0;
 
     fixtures.forEach(f => {
-      // Logic copied from Stage.tsx but generating normalized UVs
       const cx = f.x + f.width / 2;
       const cy = f.y + f.height / 2;
-      
       const rads = (f.rotation || 0) * (Math.PI / 180);
       const cos = Math.cos(rads);
       const sin = Math.sin(rads);
-
-      // Width/Height in UV space
       const fw = f.width;
       const fh = f.height;
       const isHorizontal = fw * this.width >= fh * this.height;
@@ -174,29 +158,21 @@ export class GPUMapper {
         let lx = 0;
         let ly = 0;
 
-        // Calculate local pos in 0..1 UV space relative to center
         if (isHorizontal) {
            const step = fw / f.ledCount;
            lx = ((i * step) + (step / 2)) - (fw / 2);
-           ly = 0;
         } else {
            const step = fh / f.ledCount;
-           lx = 0;
            ly = ((i * step) + (step / 2)) - (fh / 2);
         }
 
-        // Rotate
         const lx_px = lx * this.width;
         const ly_px = ly * this.height;
-
         const rx_px = lx_px * cos - ly_px * sin;
         const ry_px = lx_px * sin + ly_px * cos;
-
-        // Back to UV and add center
         const u = cx + (rx_px / this.width);
         const v = cy + (ry_px / this.height);
 
-        // Store
         data[offset] = u;
         data[offset + 1] = v; 
         data[offset + 2] = 0;
@@ -205,7 +181,6 @@ export class GPUMapper {
       }
     });
 
-    // 4. Upload to Texture
     if (!this.mapTexture) this.mapTexture = gl.createTexture();
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, this.mapTexture);
@@ -213,8 +188,6 @@ export class GPUMapper {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    
-    // Upload float data
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.totalLeds, 1, 0, gl.RGBA, gl.FLOAT, data);
   }
 
@@ -224,16 +197,12 @@ export class GPUMapper {
     
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.sourceTexture);
-    
-    // Flip Y so 0,0 is top-left matching our UV generation
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
     
-    // Upload
-    // Note: If source is not ready, this might warn, caller should check
     try {
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
     } catch (e) {
-        return; // Source not ready
+        return; 
     }
 
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
@@ -248,26 +217,42 @@ export class GPUMapper {
 
     gl.useProgram(this.program);
 
-    // Bind Uniforms
     const uSource = gl.getUniformLocation(this.program, "u_source");
     const uMap = gl.getUniformLocation(this.program, "u_map");
     const uBrightness = gl.getUniformLocation(this.program, "u_brightness");
     
-    gl.uniform1i(uSource, 0); // Unit 0
-    gl.uniform1i(uMap, 1);    // Unit 1
+    gl.uniform1i(uSource, 0); 
+    gl.uniform1i(uMap, 1);    
     gl.uniform1f(uBrightness, this.brightness);
 
-    // Draw
     const positionLocation = gl.getAttribLocation(this.program, "position");
     gl.enableVertexAttribArray(positionLocation);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
     gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
     
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
-    // Read Pixels
     const pixels = new Uint8Array(this.totalLeds * 4);
     gl.readPixels(0, 0, this.totalLeds, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
     
     return pixels;
+  }
+
+  public dispose() {
+      const gl = this.gl;
+      // Lose Context extension if available (force cleanup)
+      const loseContext = gl.getExtension('WEBGL_lose_context');
+      
+      if (this.program) gl.deleteProgram(this.program);
+      if (this.mapTexture) gl.deleteTexture(this.mapTexture);
+      if (this.sourceTexture) gl.deleteTexture(this.sourceTexture);
+      if (this.vertexBuffer) gl.deleteBuffer(this.vertexBuffer);
+      
+      this.program = null;
+      this.mapTexture = null;
+      this.sourceTexture = null;
+      this.vertexBuffer = null;
+
+      if (loseContext) loseContext.loseContext();
   }
 }

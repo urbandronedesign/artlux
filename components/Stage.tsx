@@ -78,6 +78,13 @@ export const Stage: React.FC<StageProps> = ({
             setWebglError(true);
         }
     }
+    // Cleanup on unmount
+    return () => {
+        if (mapper.current) {
+            mapper.current.dispose();
+            mapper.current = null;
+        }
+    };
   }, []);
 
   const fixtureLayoutSignature = useMemo(() => {
@@ -331,21 +338,17 @@ export const Stage: React.FC<StageProps> = ({
         let newY = init.y + deltaY;
 
         if (snapEnabled) {
-             // X Snapping
              const sLeft = applySnap(newX, guidesX);
              const sRight = applySnap(newX + init.w, guidesX);
              const sCenter = applySnap(newX + init.w/2, guidesX);
 
-             // Find best X snap
              let diff = SNAP_THRES;
-             if (sLeft.snapped !== null) { newX = sLeft.val; currentSnapsX.push(sLeft.snapped); diff = 0; } // Priority
+             if (sLeft.snapped !== null) { newX = sLeft.val; currentSnapsX.push(sLeft.snapped); diff = 0; } 
              else if (sRight.snapped !== null) { 
-                 // Only snap if we haven't snapped left or if this is closer (implicit in applySnap threshold logic but simplified here)
                  newX = sRight.val - init.w; currentSnapsX.push(sRight.snapped); 
              }
              else if (sCenter.snapped !== null) { newX = sCenter.val - init.w/2; currentSnapsX.push(sCenter.snapped); }
 
-             // Y Snapping
              const sTop = applySnap(newY, guidesY);
              const sBottom = applySnap(newY + init.h, guidesY);
              const sMid = applySnap(newY + init.h/2, guidesY);
@@ -359,7 +362,6 @@ export const Stage: React.FC<StageProps> = ({
         target.y = newY;
     }
     else if (state.mode === 'rotate') {
-        // Calculate angle relative to center of fixture
         const cx = containerRect.left + (init.x + init.w/2) * containerRect.width;
         const cy = containerRect.top + (init.y + init.h/2) * containerRect.height;
         const angleRad = Math.atan2(e.clientY - cy, e.clientX - cx);
@@ -381,8 +383,6 @@ export const Stage: React.FC<StageProps> = ({
         target.rotation = angleDeg;
     }
     else if (state.mode && state.mode.startsWith('resize')) {
-        // Projection logic for rotated resizing
-        // We calculate delta in the local rotated space
         const angleRad = (init.r * Math.PI) / 180;
         const cos = Math.cos(-angleRad);
         const sin = Math.sin(-angleRad);
@@ -393,7 +393,6 @@ export const Stage: React.FC<StageProps> = ({
         let newW = init.w;
         let newH = init.h;
         
-        // Calculate new dims
         if (state.mode === 'resize-x' || state.mode === 'resize-xy') {
             newW = Math.max(0.01, init.w + localDx);
         }
@@ -401,7 +400,6 @@ export const Stage: React.FC<StageProps> = ({
             newH = Math.max(0.01, init.h + localDy);
         }
 
-        // Snapping (Simplified, only snaps right/bottom edges if changing)
         if (snapEnabled && Math.abs(init.r % 90) < 1) {
             if (state.mode.includes('x') || state.mode.includes('xy')) {
                  const sRight = applySnap(target.x + newW, guidesX);
@@ -414,44 +412,33 @@ export const Stage: React.FC<StageProps> = ({
             }
         }
 
-        // ANCHOR COMPENSATION
-        // When rotating around center, changing W/H shifts the visual edges unless X/Y is adjusted.
-        // We define an anchor point (e.g., Left-Center for Right-Resize) and ensure it stays fixed in World Space.
-        
         let anchorU = 0, anchorV = 0;
-        if (state.mode === 'resize-x') { anchorU = 0; anchorV = 0.5; } // Keep Left fixed
-        else if (state.mode === 'resize-y') { anchorU = 0.5; anchorV = 0; } // Keep Top fixed
-        else { anchorU = 0; anchorV = 0; } // Keep Top-Left fixed (Standard)
+        if (state.mode === 'resize-x') { anchorU = 0; anchorV = 0.5; } 
+        else if (state.mode === 'resize-y') { anchorU = 0.5; anchorV = 0; } 
+        else { anchorU = 0; anchorV = 0; } 
 
-        // Helper to get World Pos of a Local UV point (0..1)
         const getAnchorWorld = (fx: number, fy: number, fw: number, fh: number, fr: number) => {
              const cx = fx + fw/2;
              const cy = fy + fh/2;
              const rad = fr * (Math.PI / 180);
              const c = Math.cos(rad);
              const s = Math.sin(rad);
-             
-             // Offset from center (Rotated)
              const ox = (anchorU - 0.5) * fw;
              const oy = (anchorV - 0.5) * fh;
-             
              const rx = ox * c - oy * s;
              const ry = ox * s + oy * c;
-             
              return { x: cx + rx, y: cy + ry };
         };
 
         const oldAnchor = getAnchorWorld(init.x, init.y, init.w, init.h, init.r);
         const newAnchorUncorrected = getAnchorWorld(init.x, init.y, newW, newH, init.r);
         
-        // Apply difference to target pos
         target.width = newW;
         target.height = newH;
         target.x = init.x + (oldAnchor.x - newAnchorUncorrected.x);
         target.y = init.y + (oldAnchor.y - newAnchorUncorrected.y);
     }
 
-    // Direct DOM Update
     const el = fixtureRefs.current.get(state.targetId);
     if (el) {
         el.style.left = `${target.x * 100}%`;
@@ -461,17 +448,10 @@ export const Stage: React.FC<StageProps> = ({
         el.style.transform = `rotate(${target.rotation}deg)`;
     }
 
-    // React State Update (throttled by react render cycle, but DOM is instant)
     setActiveSnapLines({ x: currentSnapsX, y: currentSnapsY });
-    
-    // Construct new fixtures array efficiently
     const nextFixtures = [...fixtures];
     nextFixtures[fixtureIndex] = target;
-    
-    // Update the ref immediately so next mouse event sees it
     fixturesRef.current = nextFixtures; 
-    
-    // Trigger React Update
     onUpdateFixtures(nextFixtures);
 
   }, [snapEnabled, onUpdateFixtures, onRecordHistory]);
@@ -482,8 +462,6 @@ export const Stage: React.FC<StageProps> = ({
     dragState.current.targetId = null;
     dragState.current.hasMoved = false;
     setActiveSnapLines({ x: [], y: [] });
-    
-    // Remove listeners
     window.removeEventListener('mousemove', handleWindowMouseMove);
     window.removeEventListener('mouseup', handleWindowMouseUp);
   }, [handleWindowMouseMove]);
@@ -491,14 +469,12 @@ export const Stage: React.FC<StageProps> = ({
   const startDrag = (e: React.MouseEvent, mode: 'move' | 'pan' | 'rotate' | 'resize-x' | 'resize-y' | 'resize-xy', fixtureId?: string) => {
       e.stopPropagation();
       e.preventDefault();
-
-      // Setup Drag State
       dragState.current.isDragging = true;
       dragState.current.mode = mode;
       dragState.current.startX = e.clientX;
       dragState.current.startY = e.clientY;
       dragState.current.initialView = { ...viewStateRef.current };
-      dragState.current.hasMoved = false; // Reset move tracking
+      dragState.current.hasMoved = false; 
 
       if (fixtureId) {
           onSelectFixture(fixtureId);
@@ -510,32 +486,52 @@ export const Stage: React.FC<StageProps> = ({
               };
           }
       }
-
-      // Add Global Listeners
       window.addEventListener('mousemove', handleWindowMouseMove);
       window.addEventListener('mouseup', handleWindowMouseUp);
   };
 
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
-    const scaleFactor = 0.001;
-    const newScale = Math.min(Math.max(viewState.scale - e.deltaY * scaleFactor, 0.1), 5);
-    setViewState(prev => ({ ...prev, scale: newScale }));
+    if (!viewportRef.current) return;
+
+    const rect = viewportRef.current.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    const sensitivity = 0.001;
+    const delta = -e.deltaY * sensitivity;
+
+    setViewState(prev => {
+        const oldScale = prev.scale;
+        let newScale = oldScale + delta;
+        newScale = Math.min(Math.max(newScale, 0.1), 5);
+
+        if (newScale === oldScale) return prev;
+
+        const ratio = newScale / oldScale;
+        
+        const newX = mouseX - (mouseX - prev.x) * ratio;
+        const newY = mouseY - (mouseY - prev.y) * ratio;
+
+        return {
+            x: newX,
+            y: newY,
+            scale: newScale
+        };
+    });
   };
 
   const resetView = () => {
       setViewState({ x: 0, y: 0, scale: 0.8 });
   };
 
-  // Helper for dynamic cursors based on rotation
   const getResizeCursor = (rotation: number, offset: number) => {
     const a = (rotation + offset) % 180; 
     const angle = a < 0 ? a + 180 : a;
-    
-    if (angle < 22.5 || angle >= 157.5) return 'ns-resize'; // Verticalish
-    if (angle >= 22.5 && angle < 67.5) return 'nesw-resize'; // / diagonal
-    if (angle >= 67.5 && angle < 112.5) return 'ew-resize'; // Horizontalish
-    if (angle >= 112.5 && angle < 157.5) return 'nwse-resize'; // \ diagonal
+    if (angle < 22.5 || angle >= 157.5) return 'ns-resize'; 
+    if (angle >= 22.5 && angle < 67.5) return 'nesw-resize'; 
+    if (angle >= 67.5 && angle < 112.5) return 'ew-resize'; 
+    if (angle >= 112.5 && angle < 157.5) return 'nwse-resize'; 
     return 'move';
   };
 
@@ -545,16 +541,13 @@ export const Stage: React.FC<StageProps> = ({
       className="relative w-full h-full bg-[#111] overflow-hidden select-none cursor-default"
       onWheel={handleWheel}
       onMouseDown={(e) => {
-         // Middle click or Space+Click
          if (e.button === 1 || (e.button === 0 && e.shiftKey === false)) {
              startDrag(e, 'pan');
          } else {
-             // Deselect if clicking bg
              onSelectFixture('');
          }
       }}
     >
-        {/* Infinite Background Grid Pattern */}
         {showGrid && (
              <div 
                 className="absolute inset-0 pointer-events-none"
@@ -567,7 +560,6 @@ export const Stage: React.FC<StageProps> = ({
             />
         )}
 
-      {/* Transformed Container */}
       <div 
         style={{
             transform: `translate(${viewState.x}px, ${viewState.y}px) scale(${viewState.scale})`,
@@ -576,7 +568,6 @@ export const Stage: React.FC<StageProps> = ({
             height: '100%',
         }}
       >
-          {/* Centered Content Wrapper (512x512) centered in the view */}
           <div 
             ref={containerRef}
             className="absolute shadow-2xl bg-black border border-[#222]"
@@ -589,7 +580,6 @@ export const Stage: React.FC<StageProps> = ({
                 marginTop: '-256px'
             }} 
           >
-            {/* Snap Lines (Visual Feedback) */}
             {activeSnapLines.x.map((x, i) => (
                 <div key={`sx-${i}`} className="absolute top-0 bottom-0 w-px bg-cyan-500 z-[60] shadow-[0_0_4px_rgba(6,182,212,0.8)]" style={{ left: `${x * 100}%` }}></div>
             ))}
@@ -646,18 +636,14 @@ export const Stage: React.FC<StageProps> = ({
                     transformOrigin: 'center center'
                 }}
                 >
-                    {/* Main Outline */}
                     <div className={`w-full h-full border ${selectedFixtureId === fixture.id ? 'border-accent shadow-[0_0_10px_rgba(6,182,212,0.3)]' : 'border-white/30'}`}></div>
                     
-                    {/* Center Handle */}
                     {selectedFixtureId === fixture.id && (
                         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-accent/50"></div>
                     )}
 
-                    {/* Handles */}
                     {selectedFixtureId === fixture.id && (
                         <>
-                            {/* Rotate Handle */}
                             <div 
                                 className="absolute -top-6 left-1/2 -translate-x-1/2 w-px h-6 bg-accent origin-bottom cursor-alias flex flex-col items-center justify-start z-50 pointer-events-auto"
                                 onMouseDown={(e) => startDrag(e, 'rotate', fixture.id)}
@@ -665,28 +651,24 @@ export const Stage: React.FC<StageProps> = ({
                                 <div className="w-2.5 h-2.5 bg-black border border-accent rounded-full -mt-1 hover:bg-accent transition-colors"></div>
                             </div>
                             
-                            {/* Resize XY (Corner) */}
                             <div 
                                 className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-black border border-accent hover:bg-accent transition-colors z-50 pointer-events-auto"
                                 style={{ cursor: getResizeCursor(fixture.rotation || 0, 135) }}
                                 onMouseDown={(e) => startDrag(e, 'resize-xy', fixture.id)}
                             ></div>
 
-                            {/* Resize X (Right) */}
                             <div 
                                 className="absolute top-1/2 -right-1.5 -translate-y-1/2 w-1.5 h-4 bg-black border border-accent hover:bg-accent transition-colors z-50 pointer-events-auto"
                                 style={{ cursor: getResizeCursor(fixture.rotation || 0, 90) }}
                                 onMouseDown={(e) => startDrag(e, 'resize-x', fixture.id)}
                             ></div>
 
-                            {/* Resize Y (Bottom) */}
                             <div 
                                 className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-4 h-1.5 bg-black border border-accent hover:bg-accent transition-colors z-50 pointer-events-auto"
                                 style={{ cursor: getResizeCursor(fixture.rotation || 0, 180) }}
                                 onMouseDown={(e) => startDrag(e, 'resize-y', fixture.id)}
                             ></div>
                             
-                            {/* Info Label */}
                             <div 
                                 className="absolute -top-6 left-0 text-[10px] font-mono text-accent bg-black/80 px-1 border border-accent/20 whitespace-nowrap z-50 pointer-events-none"
                                 style={{ transform: `rotate(-${fixture.rotation || 0}deg)` }}
@@ -701,7 +683,6 @@ export const Stage: React.FC<StageProps> = ({
         </div>
       </div>
         
-        {/* Floating Toolbar */}
         <div className="absolute top-2 right-2 flex gap-1 z-[100]">
             <button 
                 onClick={resetView}
