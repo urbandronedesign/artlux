@@ -52,7 +52,7 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
     };
 
     return (
-        <div className="w-64 bg-[#121212] border-l border-[#222] flex flex-col h-full text-xs">
+        <div className="flex flex-col h-full bg-[#121212] border-l border-[#222] text-xs">
             {/* Header */}
             <div className="h-8 bg-[#161616] flex items-center px-2 justify-between border-b border-[#222]">
                 <span className="font-bold text-gray-400 uppercase tracking-wider text-[10px]">Scene Graph</span>
@@ -119,7 +119,7 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
             </div>
             
             {/* Global Parameters / Preview (Bottom of Right Panel) */}
-            <div className="h-1/3 border-t border-[#222] bg-[#141414] flex flex-col">
+            <div className="h-auto border-t border-[#222] bg-[#141414] flex flex-col">
                  <div className="h-8 bg-[#161616] flex items-center px-2 border-b border-[#222]">
                     <span className="font-bold text-gray-400 uppercase tracking-wider text-[10px]">Global Params</span>
                 </div>
@@ -136,20 +136,6 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
                             onChange={(e) => onMasterBrightnessChange(parseFloat(e.target.value))}
                             className="w-full h-1 bg-[#333] rounded-lg appearance-none cursor-pointer" 
                          />
-                     </div>
-                     <div>
-                         <div className="flex justify-between text-gray-500 mb-1">
-                            <span>Speed</span>
-                            <span>1.0x</span>
-                         </div>
-                         <input type="range" className="w-full h-1 bg-[#333] rounded-lg appearance-none cursor-pointer" />
-                     </div>
-                     <div>
-                         <div className="flex justify-between text-gray-500 mb-1">
-                            <span>Contrast</span>
-                            <span>50%</span>
-                         </div>
-                         <input type="range" className="w-full h-1 bg-[#333] rounded-lg appearance-none cursor-pointer" />
                      </div>
                 </div>
             </div>

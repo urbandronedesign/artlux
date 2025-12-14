@@ -123,7 +123,7 @@ udpSocket.on('error', (err) => {
     };
 
     return (
-        <div className="w-64 bg-[#121212] border-r border-[#222] flex flex-col h-full overflow-y-auto">
+        <div className="flex flex-col h-full bg-[#121212] border-r border-[#222] overflow-y-auto">
             {/* Input Source Section */}
             <PanelSection title="Input Source" icon={<Monitor size={12}/>}>
                 <div className="grid grid-cols-3 gap-1">
@@ -147,23 +147,10 @@ udpSocket.on('error', (err) => {
                 </div>
             </PanelSection>
 
-            {/* Transform Section */}
+            {/* Transform section removed as requested to expose editing in viewport only */}
+
             {selectedFixture ? (
                 <>
-                <PanelSection title="Transform" icon={<Crosshair size={12}/>}>
-                    <div className="space-y-2">
-                        <div className="flex gap-2">
-                            <NumberInput label="X" value={Math.round(selectedFixture.x * 1000)/1000} step={0.01} onChange={(v) => onUpdateFixture(selectedFixture.id, { x: v })} />
-                            <NumberInput label="Y" value={Math.round(selectedFixture.y * 1000)/1000} step={0.01} onChange={(v) => onUpdateFixture(selectedFixture.id, { y: v })} />
-                        </div>
-                        <div className="flex gap-2">
-                            <NumberInput label="W" value={Math.round(selectedFixture.width * 1000)/1000} step={0.01} onChange={(v) => onUpdateFixture(selectedFixture.id, { width: v })} />
-                            <NumberInput label="H" value={Math.round(selectedFixture.height * 1000)/1000} step={0.01} onChange={(v) => onUpdateFixture(selectedFixture.id, { height: v })} />
-                        </div>
-                        <NumberInput label="Rotation" value={Math.round(selectedFixture.rotation || 0)} step={1} onChange={(v) => onUpdateFixture(selectedFixture.id, { rotation: v })} />
-                    </div>
-                </PanelSection>
-
                 <PanelSection title="Mapping" icon={<Map size={12}/>}>
                     <NumberInput label="LED Count" value={selectedFixture.ledCount} step={1} onChange={(v) => onUpdateFixture(selectedFixture.id, { ledCount: Math.max(1, v) })} />
                     <NumberInput label="Universe" value={selectedFixture.universe} step={1} onChange={(v) => onUpdateFixture(selectedFixture.id, { universe: Math.max(0, v) })} />
@@ -269,4 +256,4 @@ udpSocket.on('error', (err) => {
              </div>
         </div>
     );
-};
+}

@@ -1,14 +1,11 @@
 import React, { useRef } from 'react';
-import { Play, Pause, Activity, Monitor, Wifi, Save, FolderOpen } from 'lucide-react';
+import { Play, Pause, Monitor, Save, FolderOpen, Activity } from 'lucide-react';
 import { Button } from './Button';
 import { ViewMode } from '../types';
 
 interface TopBarProps {
     isVideoPlaying: boolean;
     onTogglePlay: () => void;
-    fps: number;
-    artNetStatus: boolean;
-    artNetIp: string;
     currentView: ViewMode;
     onChangeView: (view: ViewMode) => void;
     onSaveProject: () => void;
@@ -18,9 +15,6 @@ interface TopBarProps {
 export const TopBar: React.FC<TopBarProps> = ({ 
     isVideoPlaying, 
     onTogglePlay, 
-    fps,
-    artNetStatus,
-    artNetIp,
     currentView,
     onChangeView,
     onSaveProject,
@@ -122,20 +116,8 @@ export const TopBar: React.FC<TopBarProps> = ({
                 </button>
             </div>
 
-            {/* Right: Status */}
-            <div className="flex items-center gap-3 text-xs font-mono text-gray-400">
-                <div className="flex items-center gap-1.5" title="Render FPS">
-                    <Activity size={10} className="text-green-500" />
-                    <span>{fps.toFixed(0)} FPS</span>
-                </div>
-                <div className="h-4 w-px bg-[#333]"></div>
-                <div className="flex items-center gap-1.5" title={`Target: ${artNetIp}`}>
-                    <Wifi size={10} className={artNetStatus ? "text-accent" : "text-gray-600"} />
-                    <span className={artNetStatus ? "text-accent" : "text-gray-600"}>
-                        {artNetStatus ? "LIVE" : "OFFLINE"}
-                    </span>
-                </div>
-            </div>
+            {/* Right: Placeholder for balance */}
+            <div className="w-20"></div>
         </div>
     );
 }
