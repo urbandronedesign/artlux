@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import { Fixture, SourceType, RGBW } from '../types';
 import { Maximize, RotateCw, Move, AlertCircle, Magnet, Grid3X3, ZoomIn } from 'lucide-react';
 import { GPUMapper } from '../services/GPUMapper';
+import { dmxSignal } from '../services/dmxSignal';
 
 interface StageProps {
   sourceType: SourceType;
@@ -35,28 +36,23 @@ export const Stage: React.FC<StageProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>(0);
   
-  // Direct DOM Refs for high-performance updates
   const fixtureRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  
-  // Keep a ref to fixtures to access latest state in event listeners without re-binding
   const fixturesRef = useRef(fixtures);
   useEffect(() => { fixturesRef.current = fixtures; }, [fixtures]);
 
   const mapper = useRef<GPUMapper | null>(null);
   const [webglError, setWebglError] = useState(false);
   
-  // Viewport State
   const [viewState, setViewState] = useState({ x: 0, y: 0, scale: 0.8 });
-  // We use a ref for viewState in events to avoid staleness
   const viewStateRef = useRef(viewState);
   useEffect(() => { viewStateRef.current = viewState; }, [viewState]);
 
-  // Snapping State
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [showGrid, setShowGrid] = useState(true);
   const [activeSnapLines, setActiveSnapLines] = useState<{ x: number[], y: number[] }>({ x: [], y: [] });
 
-  // --- INTERACTION STATE REFS (The solution to fluidity and state persistence) ---
+  const universeBuffers = useRef<Record<number, number[]>>({});
+
   const dragState = useRef({
       isDragging: false,
       mode: null as 'move' | 'pan' | 'rotate' | 'resize-x' | 'resize-y' | 'resize-xy' | null,
@@ -68,7 +64,6 @@ export const Stage: React.FC<StageProps> = ({
       hasMoved: false
   });
 
-  // Initialize GPU Mapper
   useEffect(() => {
     if (!mapper.current) {
         try {
@@ -78,7 +73,6 @@ export const Stage: React.FC<StageProps> = ({
             setWebglError(true);
         }
     }
-    // Cleanup on unmount
     return () => {
         if (mapper.current) {
             mapper.current.dispose();
@@ -105,7 +99,6 @@ export const Stage: React.FC<StageProps> = ({
     }
   }, [globalBrightness]);
 
-  // RESOURCE MANAGEMENT EFFECT
   useEffect(() => {
       const videoEl = videoRef.current;
       if (!videoEl) return;
@@ -155,7 +148,6 @@ export const Stage: React.FC<StageProps> = ({
       };
   }, [sourceType, sourceUrl]); 
 
-  // PLAYBACK CONTROL EFFECT
   useEffect(() => {
     const videoEl = videoRef.current;
     if (videoEl && (sourceType === SourceType.VIDEO || sourceType === SourceType.CAMERA)) {
@@ -182,40 +174,36 @@ export const Stage: React.FC<StageProps> = ({
 
     if (canvasRef.current) {
         const ctx = canvasRef.current.getContext('2d');
-        if (ctx) {
+        if (ctx && sourceElement) {
             const cw = canvasRef.current.width;
             const ch = canvasRef.current.height;
-            // Simple clear only if needed, optimize?
-            // ctx.clearRect(0,0,cw,ch); // Optional if drawing full rect
             
-            if (sourceElement) {
-                let ready = true;
-                if (sourceElement instanceof HTMLVideoElement && sourceElement.readyState < 2) ready = false;
-                if (sourceElement instanceof HTMLImageElement && !sourceElement.complete) ready = false;
+            let ready = true;
+            if (sourceElement instanceof HTMLVideoElement && sourceElement.readyState < 2) ready = false;
+            if (sourceElement instanceof HTMLImageElement && !sourceElement.complete) ready = false;
 
-                if (ready) {
-                     let sw = 0, sh = 0;
-                     if (sourceElement instanceof HTMLVideoElement) {
-                         sw = sourceElement.videoWidth;
-                         sh = sourceElement.videoHeight;
+            if (ready) {
+                 let sw = 0, sh = 0;
+                 if (sourceElement instanceof HTMLVideoElement) {
+                     sw = sourceElement.videoWidth;
+                     sh = sourceElement.videoHeight;
+                 } else {
+                     sw = sourceElement.naturalWidth || sourceElement.width;
+                     sh = sourceElement.naturalHeight || sourceElement.height;
+                 }
+
+                 if (sw > 0 && sh > 0) {
+                     const ca = cw / ch;
+                     const sa = sw / sh;
+                     let dw, dh, dx, dy;
+
+                     if (sa > ca) {
+                         dw = cw; dh = cw / sa; dx = 0; dy = (ch - dh) / 2;
                      } else {
-                         sw = sourceElement.naturalWidth || sourceElement.width;
-                         sh = sourceElement.naturalHeight || sourceElement.height;
+                         dh = ch; dw = ch * sa; dy = 0; dx = (cw - dw) / 2;
                      }
-
-                     if (sw > 0 && sh > 0) {
-                         const ca = cw / ch;
-                         const sa = sw / sh;
-                         let dw, dh, dx, dy;
-
-                         if (sa > ca) {
-                             dw = cw; dh = cw / sa; dx = 0; dy = (ch - dh) / 2;
-                         } else {
-                             dh = ch; dw = ch * sa; dy = 0; dx = (cw - dw) / 2;
-                         }
-                         ctx.drawImage(sourceElement, dx, dy, dw, dh);
-                     }
-                }
+                     ctx.drawImage(sourceElement, dx, dy, dw, dh);
+                 }
             }
         }
     }
@@ -226,34 +214,60 @@ export const Stage: React.FC<StageProps> = ({
 
         if (rawBytes) {
             let offset = 0;
-            // Map raw bytes back to fixtures
-            // We use fixturesRef to get the structure without depending on React prop updates
-            // But we must call onUpdateFixtures to propagate changes up
-            const updatedFixtures = fixturesRef.current.map(f => {
-                const colors: RGBW[] = [];
+            const bufferMap = universeBuffers.current;
+            
+            // Clear buffers to zero to prevent ghosting when configuration changes
+            Object.values(bufferMap).forEach((arr) => (arr as number[]).fill(0));
+            
+            // 1. Prepare Universe Data
+            const currentFixtures = fixturesRef.current;
+            
+            for (let fIdx = 0; fIdx < currentFixtures.length; fIdx++) {
+                const f = currentFixtures[fIdx];
+                
+                // Track writing position (Universe/Channel)
+                let currentUniverse = f.universe;
+                let currentChannel = f.startAddress - 1; // 0-based index
+
                 for (let i = 0; i < f.ledCount; i++) {
                     const idx = offset * 4;
-                    if (idx < rawBytes.length) {
-                        colors.push({
-                            r: rawBytes[idx],
-                            g: rawBytes[idx + 1],
-                            b: rawBytes[idx + 2],
-                            w: rawBytes[idx + 3]
-                        });
-                    } else {
-                        colors.push({r:0, g:0, b:0, w:0});
+                    // Safety check against raw buffer bounds
+                    if (idx + 3 >= rawBytes.length) break;
+
+                    const pixelValues = [
+                        rawBytes[idx],     // R
+                        rawBytes[idx + 1], // G
+                        rawBytes[idx + 2], // B
+                        rawBytes[idx + 3]  // W
+                    ];
+
+                    // Write each channel, handling universe spanning
+                    for (const val of pixelValues) {
+                         if (!bufferMap[currentUniverse]) {
+                             bufferMap[currentUniverse] = new Array(512).fill(0);
+                         }
+                         
+                         bufferMap[currentUniverse][currentChannel] = val;
+                         currentChannel++;
+                         
+                         // Spanning logic: overflow to next universe
+                         if (currentChannel >= 512) {
+                             currentUniverse++;
+                             currentChannel = 0;
+                         }
                     }
+                    
                     offset++;
                 }
-                if (f.reverse) colors.reverse();
-                return { ...f, colorData: colors };
-            });
-            onUpdateFixtures(updatedFixtures);
+            }
+            
+            // 2. Broadcast Data via Signal Bus
+            dmxSignal.publish(rawBytes, bufferMap);
         }
     }
     
     requestRef.current = requestAnimationFrame(tick);
-  }, [sourceType, isEngineRunning, onUpdateFixtures]);
+  }, [sourceType, isEngineRunning]);
 
   useEffect(() => {
     requestRef.current = requestAnimationFrame(tick);
@@ -262,9 +276,6 @@ export const Stage: React.FC<StageProps> = ({
     };
   }, [tick]);
 
-  // --- MOUSE EVENT HANDLERS ---
-
-  // Global Mouse Move Handler
   const handleWindowMouseMove = useCallback((e: MouseEvent) => {
     const state = dragState.current;
     if (!state.isDragging) return;
@@ -282,13 +293,11 @@ export const Stage: React.FC<StageProps> = ({
 
     if (!containerRef.current || !state.targetId || !state.initialFixture) return;
     
-    // Check if we need to record history on FIRST move
     if (!state.hasMoved) {
         state.hasMoved = true;
-        onRecordHistory(); // Snapshot before any changes apply
+        onRecordHistory(); 
     }
 
-    // Find the fixture index in the LATEST ref array
     const fixtures = fixturesRef.current;
     const fixtureIndex = fixtures.findIndex(f => f.id === state.targetId);
     if (fixtureIndex === -1) return;
@@ -296,14 +305,11 @@ export const Stage: React.FC<StageProps> = ({
     const containerRect = containerRef.current.getBoundingClientRect();
     const init = state.initialFixture;
     
-    // Raw deltas in 0..1 space
     const deltaX = (e.clientX - state.startX) / containerRect.width;
     const deltaY = (e.clientY - state.startY) / containerRect.height;
     
-    // Create a mutable copy of the target fixture
     const target = { ...fixtures[fixtureIndex] };
 
-    // Snapping Logic Helpers
     const currentSnapsX: number[] = [];
     const currentSnapsY: number[] = [];
     const SNAP_THRES = 0.02; 
