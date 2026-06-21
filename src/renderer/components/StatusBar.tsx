@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { PanelLeft, Activity, Wifi } from 'lucide-react';
+import { helpBus } from '../services/helpBus';
 
 interface Props {
   help: string;
@@ -11,17 +12,22 @@ interface Props {
   targetIp: string;
 }
 
-export const StatusBar: React.FC<Props> = ({ help, renderFps, connected, outputStats, leftOpen, onToggleLeft, targetIp }) => (
+export const StatusBar: React.FC<Props> = ({ help, renderFps, connected, outputStats, leftOpen, onToggleLeft, targetIp }) => {
+  const [hint, setHint] = useState<string | null>(null);
+  useEffect(() => helpBus.subscribe(setHint), []);
+
+  return (
   <div className="h-7 shrink-0 bg-surface-1 border-t border-line-1 flex items-center justify-between px-3 text-xs text-fg-2 select-none">
     <div className="flex items-center gap-3 min-w-0">
       <button
         onClick={onToggleLeft}
         title="Toggle panel"
+        aria-label="Toggle left panel"
         className={`inline-flex items-center justify-center h-5 w-5 rounded-[var(--r-sm)] hover:text-fg-1 hover:bg-surface-3 ${leftOpen ? 'text-accent' : 'text-fg-3'}`}
       >
         <PanelLeft size={13} />
       </button>
-      <span className="truncate text-fg-3">{help}</span>
+      <span className={`truncate ${hint ? 'text-fg-2' : 'text-fg-3'}`}>{hint ?? help}</span>
     </div>
 
     <div className="flex items-center gap-4 shrink-0">
@@ -44,4 +50,5 @@ export const StatusBar: React.FC<Props> = ({ help, renderFps, connected, outputS
       )}
     </div>
   </div>
-);
+  );
+};

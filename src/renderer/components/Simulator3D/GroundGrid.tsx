@@ -10,7 +10,7 @@ export const GroundGrid: React.FC = () => (
     cellColor="#1f1f1f"
     sectionSize={1}
     sectionThickness={1}
-    sectionColor="#06b6d4"
+    sectionColor="#27b6c4"
     fadeDistance={22}
     fadeStrength={1}
     infiniteGrid

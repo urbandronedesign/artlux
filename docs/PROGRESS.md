@@ -226,8 +226,20 @@ Reference: MadMapper (Art-Net LED-strip workflow). Full plan in the session plan
   as a compact dock grid (stat bar + per-fixture live pixel strip with an intensity meter); new
   **`FixtureEditor`** dock tab (Patch / Pixel Type = color order + channels / Geometry = shape +
   matrix + serpentine / Wiring preview with serpentine "assignation" path) on the `ui/` kit.
-- **U5 (todo)**: polish (hover help, focus-visible rings, motion 150–300ms + reduced-motion, empty
-  states) + accessibility pass (contrast, aria-labels) + packaged smoke test.
+- **U5 (done)**: polish + a11y. Contextual **hover help** bus (`services/helpBus.ts`) → StatusBar
+  shows the hovered control's hint (falls back to the module help); wired into ModuleSwitcher,
+  TopBar history/project/monitor/prefs, and the transport. Global **focus-visible** ring + slider
+  focus; **motion** (modal/overlay entrance keyframes, dock height transition) all gated by a
+  `prefers-reduced-motion` guard. A11y: icon-only buttons get accessible names (IconButton
+  auto-derives `aria-label` from `title`; raw buttons labelled), `role=tablist/tab` +
+  `aria-selected` on module/dock tabs, `aria-pressed`/`aria-expanded`, Preferences as a
+  `role=dialog` with **Escape** to close. Token cleanup: removed leftover `red/green/gray/#hex`
+  (deleted the dead legacy `components/Button.tsx`). **Packaged smoke test**: `npm run package:dir`
+  → `release/win-unpacked/ArtLux.exe` launches, native Rust engine + WebGPU load, styled from the
+  build (no CDN).
+
+**UI/UX refactor (U1–U5) complete.** Backlog: contrast retune of tertiary `fg-3` text if needed,
+keyboard focus-trap inside the modal, vendor the ui-ux-pro-max skill.
 
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.

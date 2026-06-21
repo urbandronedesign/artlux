@@ -77,7 +77,7 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
             <div className="h-8 bg-surface-2 flex items-center px-2 justify-between border-b border-line-1">
                 <span className="font-bold text-fg-2 uppercase tracking-wider text-[10px]">Scene Graph</span>
                 <div className="flex gap-1">
-                     <button onClick={onAdd} className="text-fg-2 hover:text-white" title="Add Fixture"><Plus size={14}/></button>
+                     <button onClick={onAdd} className="text-fg-2 hover:text-fg-1" title="Add Fixture"><Plus size={14}/></button>
                 </div>
             </div>
 
@@ -118,7 +118,7 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
                                     
                                     <div className="opacity-0 group-hover:opacity-100 flex gap-1">
                                          <button 
-                                            className="p-0.5 hover:text-red-400 text-fg-3"
+                                            className="p-0.5 hover:text-danger text-fg-3"
                                             onClick={(e) => { e.stopPropagation(); onRemove(f.id); }}
                                             title="Remove Fixture"
                                          >
@@ -127,7 +127,7 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
                                     </div>
                                     
                                     {/* Active Indicator dots */}
-                                    <div className="w-1 h-1 rounded-full bg-green-500 ml-2 shadow-[0_0_4px_rgba(34,197,94,0.5)]"></div>
+                                    <div className="w-1 h-1 rounded-full bg-ok ml-2 shadow-[0_0_4px_rgba(63,185,80,0.5)]"></div>
                                 </div>
                             );
                         })}
@@ -142,7 +142,7 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
             <div className="border-t border-line-1">
                 <div className="h-8 bg-surface-2 flex items-center px-2 justify-between border-b border-line-1">
                     <span className="font-bold text-fg-2 uppercase tracking-wider text-[10px]">Groups</span>
-                    <button onClick={onCreateGroup} className="text-fg-2 hover:text-white" title="New group from selection"><Plus size={14}/></button>
+                    <button onClick={onCreateGroup} className="text-fg-2 hover:text-fg-1" title="New group from selection"><Plus size={14}/></button>
                 </div>
                 <div className="p-1 space-y-0.5 max-h-28 overflow-y-auto">
                     {groups.map(g => (
@@ -152,7 +152,7 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
                             <div className="opacity-0 group-hover:opacity-100 flex gap-1.5">
                                 <button title="Add selected fixture" onClick={() => onAddSelectedToGroup(g.id)} className="hover:text-accent text-fg-3"><Plus size={11} /></button>
                                 <button title="Apply selected look to group" onClick={() => onApplyLookToGroup(g)} className="hover:text-accent text-fg-3"><Copy size={11} /></button>
-                                <button title="Delete group" onClick={() => onRemoveGroup(g.id)} className="hover:text-red-400 text-fg-3"><Trash2 size={10} /></button>
+                                <button title="Delete group" onClick={() => onRemoveGroup(g.id)} className="hover:text-danger text-fg-3"><Trash2 size={10} /></button>
                             </div>
                         </div>
                     ))}
@@ -164,7 +164,7 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
             <div className="border-t border-line-1">
                 <div className="h-8 bg-surface-2 flex items-center px-2 justify-between border-b border-line-1">
                     <span className="font-bold text-fg-2 uppercase tracking-wider text-[10px]">Scenes</span>
-                    <button onClick={onCaptureScene} className="text-fg-2 hover:text-white" title="Capture current look"><Camera size={14}/></button>
+                    <button onClick={onCaptureScene} className="text-fg-2 hover:text-fg-1" title="Capture current look"><Camera size={14}/></button>
                 </div>
                 <div className="p-1 space-y-0.5 max-h-28 overflow-y-auto">
                     {scenes.map(s => (
@@ -172,7 +172,7 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
                             <button className="flex-1 flex items-center text-left truncate" onClick={() => onRecallScene(s)} title="Recall scene">
                                 <Play size={11} className="mr-2 text-fg-3" /> {s.name}
                             </button>
-                            <button className="opacity-0 group-hover:opacity-100 hover:text-red-400 text-fg-3" onClick={() => onRemoveScene(s.id)} title="Delete scene"><Trash2 size={10} /></button>
+                            <button className="opacity-0 group-hover:opacity-100 hover:text-danger text-fg-3" onClick={() => onRemoveScene(s.id)} title="Delete scene"><Trash2 size={10} /></button>
                         </div>
                     ))}
                     {scenes.length === 0 && <div className="text-fg-3 italic px-2 py-1">No scenes</div>}
@@ -195,7 +195,7 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
                             min={0} max={1} step={0.01}
                             value={masterBrightness}
                             onChange={(e) => onMasterBrightnessChange(parseFloat(e.target.value))}
-                            className="w-full h-1 bg-[#333] rounded-lg appearance-none cursor-pointer" 
+                            className="w-full h-1 bg-line-2 rounded-lg appearance-none cursor-pointer"
                          />
                      </div>
                 </div>

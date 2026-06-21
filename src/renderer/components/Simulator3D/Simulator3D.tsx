@@ -30,6 +30,8 @@ const Simulator3D: React.FC<Props> = ({
           onClick={() => setMode('translate')}
           className={`p-1.5 rounded-[var(--r-sm)] border transition-colors ${mode === 'translate' ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2/80 backdrop-blur-sm border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
           title="Move (W)"
+          aria-label="Move tool"
+          aria-pressed={mode === 'translate'}
         >
           <Move3d size={14} />
         </button>
@@ -37,6 +39,8 @@ const Simulator3D: React.FC<Props> = ({
           onClick={() => setMode('rotate')}
           className={`p-1.5 rounded-[var(--r-sm)] border transition-colors ${mode === 'rotate' ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2/80 backdrop-blur-sm border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
           title="Rotate (E)"
+          aria-label="Rotate tool"
+          aria-pressed={mode === 'rotate'}
         >
           <Rotate3d size={14} />
         </button>
@@ -46,7 +50,7 @@ const Simulator3D: React.FC<Props> = ({
         camera={{ position: [0, 1.2, 3], fov: 50 }}
         onPointerMissed={() => onSelectFixture('')}
       >
-        <color attach="background" args={['#0a0a0a']} />
+        <color attach="background" args={['#0d0d0d']} />
         <Lighting />
         <GroundGrid />
         <InstancedLeds fixtures={fixtures} onSelectFixture={onSelectFixture} />

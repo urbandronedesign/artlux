@@ -58,8 +58,14 @@ with token classes (`bg-surface-1`, `text-fg-2`) and swap bespoke rows for kit p
   dock grid (stat bar + per-fixture live strip + intensity meter); new **`FixtureEditor`** dock tab
   (Patch / Pixel Type = colorOrder + channels / Geometry = shape + matrix + serpentine / Wiring
   preview showing the serpentine assignation path), all on the `ui/` kit.
-- **U5**: contextual hover help line, focus-visible rings, motion 150–300ms + reduced-motion,
-  empty states, accessibility pass (contrast ≥4.5:1, icon-button aria-labels), packaged smoke test.
+- **U5 done**: contextual hover-help bus (`services/helpBus.ts`) feeding the StatusBar; global
+  focus-visible rings (+ slider) and modal/dock motion, all gated by `prefers-reduced-motion`;
+  accessible names on icon-only buttons (IconButton auto-derives `aria-label` from `title`),
+  tab/dialog roles + `aria-selected/pressed/expanded`, Preferences Escape-to-close; token cleanup
+  (dead `components/Button.tsx` removed); packaged smoke test via `npm run package:dir`.
+
+**Refactor U1–U5 complete.** Open polish backlog: tertiary-text contrast retune, modal focus-trap,
+vendoring the ui-ux-pro-max skill.
 
 ## Verification per phase
 `npx tsc --noEmit` (clean) → `npm run build` → `env -u ELECTRON_RUN_AS_NODE ELECTRON_ENABLE_LOGGING=1

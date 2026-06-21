@@ -803,6 +803,7 @@ export const Stage: React.FC<StageProps> = ({
                 onClick={resetView}
                 className="p-1.5 rounded-[var(--r-sm)] border bg-surface-2/80 backdrop-blur-sm border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1 transition-colors"
                 title="Reset View"
+                aria-label="Reset view"
             >
                 <ZoomIn size={14} />
             </button>
@@ -811,6 +812,8 @@ export const Stage: React.FC<StageProps> = ({
                 onClick={() => setShowGrid(!showGrid)}
                 className={`p-1.5 rounded-[var(--r-sm)] border transition-colors ${showGrid ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2/80 backdrop-blur-sm border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
                 title="Toggle Grid"
+                aria-label="Toggle grid"
+                aria-pressed={showGrid}
             >
                 <Grid3X3 size={14} />
             </button>
@@ -818,6 +821,8 @@ export const Stage: React.FC<StageProps> = ({
                 onClick={() => setSnapEnabled(!snapEnabled)}
                 className={`p-1.5 rounded-[var(--r-sm)] border transition-colors ${snapEnabled ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2/80 backdrop-blur-sm border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
                 title="Toggle Snapping"
+                aria-label="Toggle snapping"
+                aria-pressed={snapEnabled}
             >
                 <Magnet size={14} />
             </button>

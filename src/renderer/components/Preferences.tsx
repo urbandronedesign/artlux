@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { X, Cpu } from 'lucide-react';
 import { AppSettings } from '../types';
 import { Section, Field, NumberField, Toggle, Select, Slider, Button } from './ui';
@@ -12,16 +12,26 @@ interface Props {
 
 // Tabbed-modal-style Preferences (output + engine), replacing inline settings.
 export const Preferences: React.FC<Props> = ({ open, onClose, settings, onChange }) => {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60" onClick={onClose}>
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 animate-overlay-in" onClick={onClose}>
       <div
-        className="w-[460px] max-h-[80vh] overflow-auto bg-surface-1 border border-line-2 rounded-[var(--r-lg)] shadow-2xl"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Preferences"
+        className="w-[460px] max-h-[80vh] overflow-auto bg-surface-1 border border-line-2 rounded-[var(--r-lg)] shadow-2xl animate-modal-in"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="h-10 px-3 flex items-center justify-between border-b border-line-1 bg-surface-2">
           <span className="text-xs font-semibold text-fg-1 uppercase tracking-wider">Preferences</span>
-          <button onClick={onClose} className="text-fg-2 hover:text-fg-1"><X size={16} /></button>
+          <button onClick={onClose} aria-label="Close preferences" title="Close" className="text-fg-2 hover:text-fg-1"><X size={16} /></button>
         </div>
 
         <Section title="DMX Output" icon={<Cpu size={12} />}>

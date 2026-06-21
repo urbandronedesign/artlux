@@ -199,7 +199,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                                     {segs!.map((s, i) => (
                                         <div key={i} className={`flex items-center justify-between text-[10px] px-1.5 py-1 rounded border ${i === idx ? 'border-accent bg-accent/10' : 'border-line-1 bg-surface-2'}`}>
                                             <button className="flex-1 text-left text-fg-1" onClick={() => setSegSel(i)}>Seg {i + 1} · LEDs {s.start}–{s.stop}</button>
-                                            <button className="text-fg-3 hover:text-red-400 px-1" onClick={() => removeSegment(i)}>✕</button>
+                                            <button aria-label={`Remove segment ${i + 1}`} className="text-fg-3 hover:text-danger px-1" onClick={() => removeSegment(i)}>✕</button>
                                         </div>
                                     ))}
                                     <div className="flex gap-2 pt-1">

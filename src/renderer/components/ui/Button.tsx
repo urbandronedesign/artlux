@@ -28,6 +28,9 @@ interface IconBtnProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 
 export const IconButton: React.FC<IconBtnProps> = ({ active = false, className = '', ...rest }) => (
   <button
+    // Icon-only buttons need an accessible name; fall back to the tooltip text.
+    aria-label={rest['aria-label'] ?? (typeof rest.title === 'string' ? rest.title : undefined)}
+    aria-pressed={active || undefined}
     className={`inline-flex items-center justify-center h-7 w-7 rounded-[var(--r-sm)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 ${
       active ? 'bg-accent/10 text-accent' : 'text-fg-2 hover:text-fg-1 hover:bg-surface-3'
     } ${className}`}
