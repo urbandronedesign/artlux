@@ -25,6 +25,6 @@ export const dmxSignal = {
     },
     subscribe: (cb: Listener) => {
         listeners.add(cb);
-        return () => listeners.delete(cb);
+        return () => { listeners.delete(cb); };
     }
 };

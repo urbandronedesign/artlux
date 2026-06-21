@@ -1,0 +1,36 @@
+/* ArtLux design tokens — semantic dark theme (MadMapper-class console). */
+:root {
+  /* Surfaces (layered dark) */
+  --bg-stage: #000000;
+  --surface-0: #0d0d0d;
+  --surface-1: #161616;
+  --surface-2: #1e1e1e;
+  --surface-3: #2a2a2a;
+  --line-1: #2a2a2a;
+  --line-2: #383838;
+
+  /* Text tiers */
+  --text-1: #e8e8e8;
+  --text-2: #9a9a9a;
+  --text-3: #6a6a6a;
+
+  /* Accent (muted teal) */
+  --accent: #27b6c4;
+  --accent-hover: #34c8d6;
+  --accent-press: #1f97a3;
+  --accent-dim: rgba(39, 182, 196, 0.14);
+
+  /* Canvas selection (cyan = surfaces, red = DMX fixtures) */
+  --sel-surface: #27b6c4;
+  --sel-fixture: #ff3b3b;
+
+  /* Semantic */
+  --danger: #e5484d;
+  --ok: #3fb950;
+  --warn: #e3b341;
+
+  /* Radii */
+  --r-sm: 3px;
+  --r-md: 5px;
+  --r-lg: 8px;
+}

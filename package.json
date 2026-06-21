@@ -29,9 +29,12 @@
     "@types/three": "^0.184.1",
     "@vitejs/plugin-react": "^5.0.0",
     "@webgpu/types": "^0.1.70",
+    "autoprefixer": "^10.5.0",
     "electron": "^42.4.1",
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
+    "postcss": "^8.5.15",
+    "tailwindcss": "^3.4.19",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   },
@@ -47,9 +50,24 @@
         "to": "output-engine.node"
       }
     ],
-    "win": { "target": ["nsis", "portable"] },
-    "mac": { "target": ["dmg"], "category": "public.app-category.utilities" },
-    "linux": { "target": ["AppImage"], "category": "AudioVideo" },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.utilities"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "AudioVideo"
+    },
     "directories": {
       "output": "release"
     }
