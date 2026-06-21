@@ -2,22 +2,36 @@
   "name": "artlux",
   "private": true,
   "version": "0.0.0",
-  "type": "module",
+  "main": "out/main/index.js",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "package": "electron-vite build && electron-builder"
   },
   "dependencies": {
-    "react-dom": "^19.2.3",
-    "uuid": "^13.0.0",
     "lucide-react": "^0.561.0",
-    "react": "^19.2.3"
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "electron": "^42.4.1",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
+  },
+  "build": {
+    "appId": "com.urbandronedesign.artlux",
+    "productName": "ArtLux",
+    "files": [
+      "out/**/*"
+    ],
+    "directories": {
+      "output": "release"
+    }
   }
 }

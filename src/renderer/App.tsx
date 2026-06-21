@@ -5,7 +5,7 @@ import { InspectorPanel } from './components/InspectorPanel';
 import { ScenePanel } from './components/ScenePanel';
 import { Stage } from './components/Stage';
 import { DMXMonitor } from './components/DMXMonitor';
-import { sendArtNetFrame, connectToBridge, disconnectBridge, addStatusListener } from './services/mockSocketService';
+import { sendArtNetFrame, configureOutput, addStatusListener } from './services/mockSocketService';
 import { dmxSignal } from './services/dmxSignal';
 import { PanelLeft, PanelRight, Activity, Wifi } from 'lucide-react';
 import { useHistory } from './hooks/useHistory';
@@ -15,8 +15,8 @@ const generateId = () => Math.random().toString(36).substr(2, 9);
 const DEFAULT_SETTINGS: AppSettings = {
   artNetIp: '127.0.0.1',
   artNetPort: 6454,
-  wsBridgeUrl: 'ws://localhost:8080',
-  useWsBridge: true
+  outputEnabled: true,
+  broadcast: false
 };
 
 const App: React.FC = () => {
@@ -58,27 +58,25 @@ const App: React.FC = () => {
     const unsubscribe = addStatusListener((status) => {
         setIsBridgeConnected(status);
     });
-
-    if (settings.useWsBridge && settings.wsBridgeUrl) {
-      connectToBridge(settings.wsBridgeUrl);
-    } else {
-      disconnectBridge();
-    }
-
     return () => {
         unsubscribe();
     };
-  }, [settings.useWsBridge, settings.wsBridgeUrl]);
+  }, []);
+
+  // Push output settings to the native transport whenever they change.
+  useEffect(() => {
+    configureOutput(settings);
+  }, [settings.outputEnabled, settings.broadcast, settings.artNetIp, settings.artNetPort]);
 
   // Subscribe to DMX Signal for ArtNet Output
   useEffect(() => {
       const unsubscribe = dmxSignal.subscribe((data) => {
-          if (settings.useWsBridge && isBridgeConnected) {
+          if (settings.outputEnabled) {
               sendArtNetFrame(data.universes, settings);
           }
       });
       return () => unsubscribe();
-  }, [settings, isBridgeConnected]);
+  }, [settings]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

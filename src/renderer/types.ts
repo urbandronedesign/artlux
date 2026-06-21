@@ -43,8 +43,8 @@ export enum SourceType {
 export interface AppSettings {
   artNetIp: string;
   artNetPort: number;
-  wsBridgeUrl: string;
-  useWsBridge: boolean;
+  outputEnabled: boolean; // master enable for native Art-Net output
+  broadcast: boolean;     // broadcast vs unicast to artNetIp
 }
 
 export enum ViewMode {
