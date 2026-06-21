@@ -24,18 +24,18 @@ const Simulator3D: React.FC<Props> = ({
   const selected = fixtures.find(f => f.id === selectedFixtureId) || null;
 
   return (
-    <div className="relative w-full h-full bg-[#0a0a0a]">
+    <div className="relative w-full h-full bg-surface-0">
       <div className="absolute top-2 left-2 z-10 flex gap-1">
         <button
           onClick={() => setMode('translate')}
-          className={`p-1.5 rounded border ${mode === 'translate' ? 'bg-accent/20 border-accent text-accent' : 'bg-black/50 border-white/10 text-gray-400 hover:bg-black/80'}`}
+          className={`p-1.5 rounded-[var(--r-sm)] border transition-colors ${mode === 'translate' ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2/80 backdrop-blur-sm border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
           title="Move (W)"
         >
           <Move3d size={14} />
         </button>
         <button
           onClick={() => setMode('rotate')}
-          className={`p-1.5 rounded border ${mode === 'rotate' ? 'bg-accent/20 border-accent text-accent' : 'bg-black/50 border-white/10 text-gray-400 hover:bg-black/80'}`}
+          className={`p-1.5 rounded-[var(--r-sm)] border transition-colors ${mode === 'rotate' ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2/80 backdrop-blur-sm border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
           title="Rotate (E)"
         >
           <Rotate3d size={14} />

@@ -653,7 +653,7 @@ export const Stage: React.FC<StageProps> = ({
   return (
     <div 
       ref={viewportRef}
-      className="relative w-full h-full bg-[#111] overflow-hidden select-none cursor-default"
+      className="relative w-full h-full bg-surface-0 overflow-hidden select-none cursor-default"
       onWheel={handleWheel}
       onMouseDown={(e) => {
          if (e.button === 1 || (e.button === 0 && e.shiftKey === false)) {
@@ -667,7 +667,7 @@ export const Stage: React.FC<StageProps> = ({
              <div 
                 className="absolute inset-0 pointer-events-none"
                 style={{ 
-                    backgroundImage: 'linear-gradient(#222 1px, transparent 1px), linear-gradient(90deg, #222 1px, transparent 1px)',
+                    backgroundImage: 'linear-gradient(var(--line-1) 1px, transparent 1px), linear-gradient(90deg, var(--line-1) 1px, transparent 1px)',
                     backgroundSize: `${32 * viewState.scale}px ${32 * viewState.scale}px`,
                     backgroundPosition: `${viewState.x}px ${viewState.y}px`,
                     opacity: 0.3
@@ -685,7 +685,7 @@ export const Stage: React.FC<StageProps> = ({
       >
           <div 
             ref={containerRef}
-            className="absolute shadow-2xl bg-black border border-[#222]"
+            className="absolute shadow-2xl bg-black border border-line-1"
             style={{ 
                 width: '512px', 
                 height: '512px',
@@ -696,14 +696,14 @@ export const Stage: React.FC<StageProps> = ({
             }} 
           >
             {activeSnapLines.x.map((x, i) => (
-                <div key={`sx-${i}`} className="absolute top-0 bottom-0 w-px bg-cyan-500 z-[60] shadow-[0_0_4px_rgba(6,182,212,0.8)]" style={{ left: `${x * 100}%` }}></div>
+                <div key={`sx-${i}`} className="absolute top-0 bottom-0 w-px bg-sel-surface z-[60] shadow-[0_0_4px_rgba(39,182,196,0.8)]" style={{ left: `${x * 100}%` }}></div>
             ))}
             {activeSnapLines.y.map((y, i) => (
-                <div key={`sy-${i}`} className="absolute left-0 right-0 h-px bg-cyan-500 z-[60] shadow-[0_0_4px_rgba(6,182,212,0.8)]" style={{ top: `${y * 100}%` }}></div>
+                <div key={`sy-${i}`} className="absolute left-0 right-0 h-px bg-sel-surface z-[60] shadow-[0_0_4px_rgba(39,182,196,0.8)]" style={{ top: `${y * 100}%` }}></div>
             ))}
 
             {webglError && (
-            <div className="absolute inset-0 z-[100] bg-black/90 flex flex-col items-center justify-center text-red-500 font-mono text-xs text-center p-4">
+            <div className="absolute inset-0 z-[100] bg-black/90 flex flex-col items-center justify-center text-danger font-mono text-xs text-center p-4">
                 <AlertCircle className="w-8 h-8 mb-2" />
                 <p>WebGL Initialization Failed</p>
                 <p className="opacity-50 mt-1">Check browser hardware acceleration settings</p>
@@ -751,44 +751,44 @@ export const Stage: React.FC<StageProps> = ({
                     transformOrigin: 'center center'
                 }}
                 >
-                    <div className={`w-full h-full border ${selectedFixtureId === fixture.id ? 'border-accent shadow-[0_0_10px_rgba(6,182,212,0.3)]' : 'border-white/30'}`}></div>
-                    
+                    <div className={`w-full h-full border ${selectedFixtureId === fixture.id ? 'border-sel-fixture shadow-[0_0_10px_rgba(255,59,59,0.35)]' : 'border-white/25'}`}></div>
+
                     {selectedFixtureId === fixture.id && (
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-accent/50"></div>
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-sel-fixture/60"></div>
                     )}
 
                     {selectedFixtureId === fixture.id && (
                         <>
-                            <div 
-                                className="absolute -top-6 left-1/2 -translate-x-1/2 w-px h-6 bg-accent origin-bottom cursor-alias flex flex-col items-center justify-start z-50 pointer-events-auto"
+                            <div
+                                className="absolute -top-6 left-1/2 -translate-x-1/2 w-px h-6 bg-sel-fixture origin-bottom cursor-alias flex flex-col items-center justify-start z-50 pointer-events-auto"
                                 onMouseDown={(e) => startDrag(e, 'rotate', fixture.id)}
                             >
-                                <div className="w-2.5 h-2.5 bg-black border border-accent rounded-full -mt-1 hover:bg-accent transition-colors"></div>
+                                <div className="w-2.5 h-2.5 bg-black border border-sel-fixture rounded-full -mt-1 hover:bg-sel-fixture transition-colors"></div>
                             </div>
-                            
-                            <div 
-                                className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-black border border-accent hover:bg-accent transition-colors z-50 pointer-events-auto"
+
+                            <div
+                                className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-black border border-sel-fixture hover:bg-sel-fixture transition-colors z-50 pointer-events-auto"
                                 style={{ cursor: getResizeCursor(fixture.rotation || 0, 135) }}
                                 onMouseDown={(e) => startDrag(e, 'resize-xy', fixture.id)}
                             ></div>
 
-                            <div 
-                                className="absolute top-1/2 -right-1.5 -translate-y-1/2 w-1.5 h-4 bg-black border border-accent hover:bg-accent transition-colors z-50 pointer-events-auto"
+                            <div
+                                className="absolute top-1/2 -right-1.5 -translate-y-1/2 w-1.5 h-4 bg-black border border-sel-fixture hover:bg-sel-fixture transition-colors z-50 pointer-events-auto"
                                 style={{ cursor: getResizeCursor(fixture.rotation || 0, 90) }}
                                 onMouseDown={(e) => startDrag(e, 'resize-x', fixture.id)}
                             ></div>
 
-                            <div 
-                                className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-4 h-1.5 bg-black border border-accent hover:bg-accent transition-colors z-50 pointer-events-auto"
+                            <div
+                                className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-4 h-1.5 bg-black border border-sel-fixture hover:bg-sel-fixture transition-colors z-50 pointer-events-auto"
                                 style={{ cursor: getResizeCursor(fixture.rotation || 0, 180) }}
                                 onMouseDown={(e) => startDrag(e, 'resize-y', fixture.id)}
                             ></div>
-                            
-                            <div 
-                                className="absolute -top-6 left-0 text-[10px] font-mono text-accent bg-black/80 px-1 border border-accent/20 whitespace-nowrap z-50 pointer-events-none"
+
+                            <div
+                                className="absolute -top-6 left-0 text-[10px] font-mono text-sel-fixture bg-black/80 px-1 border border-sel-fixture/25 whitespace-nowrap z-50 pointer-events-none"
                                 style={{ transform: `rotate(-${fixture.rotation || 0}deg)` }}
                             >
-                                {fixture.name} <span className="text-gray-500">|</span> U:{fixture.universe}.{fixture.startAddress}
+                                {fixture.name} <span className="text-fg-3">|</span> U:{fixture.universe}.{fixture.startAddress}
                             </div>
                         </>
                     )}
@@ -798,25 +798,25 @@ export const Stage: React.FC<StageProps> = ({
         </div>
       </div>
         
-        <div className="absolute top-2 right-2 flex gap-1 z-[100]">
-            <button 
+        <div className="absolute top-2 right-2 flex items-center gap-1 z-[100]">
+            <button
                 onClick={resetView}
-                className="p-1.5 rounded border bg-black/50 border-white/10 text-gray-400 hover:bg-black/80"
+                className="p-1.5 rounded-[var(--r-sm)] border bg-surface-2/80 backdrop-blur-sm border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1 transition-colors"
                 title="Reset View"
             >
                 <ZoomIn size={14} />
             </button>
-            <div className="w-px h-6 bg-white/10 mx-1"></div>
-            <button 
+            <div className="w-px h-5 bg-line-2 mx-1"></div>
+            <button
                 onClick={() => setShowGrid(!showGrid)}
-                className={`p-1.5 rounded border ${showGrid ? 'bg-accent/20 border-accent text-accent' : 'bg-black/50 border-white/10 text-gray-400 hover:bg-black/80'}`}
+                className={`p-1.5 rounded-[var(--r-sm)] border transition-colors ${showGrid ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2/80 backdrop-blur-sm border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
                 title="Toggle Grid"
             >
                 <Grid3X3 size={14} />
             </button>
-            <button 
+            <button
                 onClick={() => setSnapEnabled(!snapEnabled)}
-                className={`p-1.5 rounded border ${snapEnabled ? 'bg-accent/20 border-accent text-accent' : 'bg-black/50 border-white/10 text-gray-400 hover:bg-black/80'}`}
+                className={`p-1.5 rounded-[var(--r-sm)] border transition-colors ${snapEnabled ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2/80 backdrop-blur-sm border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
                 title="Toggle Snapping"
             >
                 <Magnet size={14} />

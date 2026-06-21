@@ -53,9 +53,11 @@ with token classes (`bg-surface-1`, `text-fg-2`) and swap bespoke rows for kit p
 - **U3 (next)**: restyle `InspectorPanel` (its local `PanelSection`/`NumberInput` → kit + tokens;
   gradient R/G/B sliders; tabular values) and `ScenePanel` (browser rows → `ListRow`, swatch chips,
   teal selection); finish any hardcoded hex in panels.
-- **U4**: `Stage` toolbar + canvas handle colors (cyan surfaces / red fixtures); `DMXMonitor` dock
-  grid restyle (number+value intensity shading); real **Fixture Editor** (pixel type=colorOrder,
-  matrix=pixels W×H, serpentine=assignation, channels); `Simulator3D` toolbar.
+- **U4 done**: `Stage` toolbar + canvas handles on tokens (red selection handles = DMX fixtures,
+  cyan snap guides = surfaces); `Simulator3D` toolbar restyled; `DMXMonitor` rebuilt as a compact
+  dock grid (stat bar + per-fixture live strip + intensity meter); new **`FixtureEditor`** dock tab
+  (Patch / Pixel Type = colorOrder + channels / Geometry = shape + matrix + serpentine / Wiring
+  preview showing the serpentine assignation path), all on the `ui/` kit.
 - **U5**: contextual hover help line, focus-visible rings, motion 150–300ms + reduced-motion,
   empty states, accessibility pass (contrast ≥4.5:1, icon-button aria-labels), packaged smoke test.
 

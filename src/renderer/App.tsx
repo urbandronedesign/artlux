@@ -5,13 +5,14 @@ import { InspectorPanel } from './components/InspectorPanel';
 import { ScenePanel } from './components/ScenePanel';
 import { Stage } from './components/Stage';
 import { DMXMonitor } from './components/DMXMonitor';
+import { FixtureEditor } from './components/FixtureEditor';
 import { Dock } from './components/Dock';
 import { Preferences } from './components/Preferences';
 import { StatusBar } from './components/StatusBar';
 import { sendArtNetFrame, configureOutput, addStatusListener } from './services/mockSocketService';
 import { dmxSignal } from './services/dmxSignal';
 import { startInput, stopInput } from './services/dmxInput';
-import { Activity } from 'lucide-react';
+import { Activity, SlidersHorizontal } from 'lucide-react';
 import { useHistory } from './hooks/useHistory';
 
 const Simulator3D = React.lazy(() => import('./components/Simulator3D/Simulator3D'));
@@ -276,7 +277,7 @@ const App: React.FC = () => {
 
   const dockTabs = [
     { id: DockTab.MONITOR, label: 'DMX Monitor', icon: <Activity size={13} /> },
-    { id: DockTab.FIXTURE_EDITOR, label: 'Fixture Editor' },
+    { id: DockTab.FIXTURE_EDITOR, label: 'Fixture Editor', icon: <SlidersHorizontal size={13} /> },
   ];
 
   return (
@@ -386,7 +387,7 @@ const App: React.FC = () => {
             >
                 {dockTab === DockTab.MONITOR
                     ? <DMXMonitor fixtures={fixtures} />
-                    : <div className="p-4 text-fg-3 text-xs">Fixture Editor — coming soon.</div>}
+                    : <FixtureEditor fixture={selectedFixture} onUpdateFixture={handleUpdateFixture} />}
             </Dock>
         </div>
       </div>

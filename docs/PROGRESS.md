@@ -221,8 +221,13 @@ Reference: MadMapper (Art-Net LED-strip workflow). Full plan in the session plan
   types, `ModuleSwitcher`, `Dock`, `Preferences`, `StatusBar`; TopBar rebuilt on the kit.
 - **U3 (done)**: migrated `InspectorPanel` + `ScenePanel` off hardcoded hex onto the design tokens
   (surfaces/lines/text/accent) — consistent teal/dark MadMapper look across the panels.
-- **U4–U5 (todo)**: Stage toolbar + canvas handle colors, DMXMonitor dock grid restyle, real
-  Fixture Editor, 3D toolbar; then polish (hover help, focus, motion) + a11y.
+- **U4 (done)**: Stage toolbar + canvas handles onto tokens (**red** selection handles for DMX
+  fixtures, **cyan** snap guides for surfaces); `Simulator3D` toolbar restyled; `DMXMonitor` rebuilt
+  as a compact dock grid (stat bar + per-fixture live pixel strip with an intensity meter); new
+  **`FixtureEditor`** dock tab (Patch / Pixel Type = color order + channels / Geometry = shape +
+  matrix + serpentine / Wiring preview with serpentine "assignation" path) on the `ui/` kit.
+- **U5 (todo)**: polish (hover help, focus-visible rings, motion 150–300ms + reduced-motion, empty
+  states) + accessibility pass (contrast, aria-labels) + packaged smoke test.
 
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
