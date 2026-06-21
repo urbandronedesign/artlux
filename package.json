@@ -1,7 +1,7 @@
 {
   "name": "artlux",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "GPU-accelerated addressable-LED pixel mapping for Art-Net / sACN",
   "author": "urbandronedesign <urbandrone@gmail.com>",
   "main": "out/main/index.js",
