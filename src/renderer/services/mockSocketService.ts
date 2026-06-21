@@ -1,5 +1,6 @@
 import { AppSettings } from '../types';
 import { UniverseTarget } from '../../../shared/protocol';
+import { encodeFrame } from '../../../shared/frameCodec';
 
 // Thin renderer-side wrapper over the Electron native Art-Net transport
 // (exposed as `window.artlux` by the preload). Packet construction + UDP send
@@ -61,5 +62,5 @@ export const sendArtNetFrame = (targets: UniverseTarget[]) => {
     if (now - lastSendTime < 22) return; // ~44 FPS cap
     lastSendTime = now;
 
-    window.artlux.sendArtNet({ targets });
+    window.artlux.sendArtNet(encodeFrame(targets));
 };

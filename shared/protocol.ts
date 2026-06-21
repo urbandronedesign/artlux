@@ -36,7 +36,8 @@ export interface ArtNetFramePayload {
 /** API surface exposed on `window.artlux` by the preload via contextBridge. */
 export interface ArtluxApi {
   configureOutput(cfg: OutputConfig): void;
-  sendArtNet(payload: ArtNetFramePayload): void;
+  /** One frame, encoded by shared/frameCodec.encodeFrame (binary handoff). */
+  sendArtNet(frame: ArrayBuffer): void;
   onStatus(cb: (connected: boolean) => void): () => void;
 }
 

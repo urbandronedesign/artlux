@@ -119,8 +119,15 @@ src/renderer/                  (the React app)
 - Verified: cargo build OK; the addon loads in Node and Electron; a UDP round-trip test
   asserted valid **Art-Net + sACN** straight from Rust (7/7 checks); app boots with
   "[output] native Rust engine loaded".
-- Still future (optimization): **SharedArrayBuffer + dedicated send thread** (the engine
-  currently receives targets via napi each frame, which already removes per-packet JS work).
+- **Dedicated send thread + binary handoff (done):** the addon spawns an OS thread that owns
+  the UDP socket and paces transmission, woken by a condvar; `pushFrame(buffer)` just memcpys
+  the frame + notifies (no socket work on the JS thread, no event-loop jitter). Frames are
+  encoded once into a compact binary `ArrayBuffer` (`shared/frameCodec.ts`) and sent over IPC
+  as one contiguous buffer instead of cloning an object-of-number-arrays.
+  - Note: a true cross-process **SharedArrayBuffer** is not possible in Electron (renderer and
+    main are separate processes; SAB only shares within one process). The binary buffer + Rust
+    thread is the functional equivalent. The TS transport decodes the same binary frame for the
+    fallback path.
 
 ## Phase F notes (sACN in TypeScript — the fallback path)
 - Delivered: **native sACN / E1.31** in `src/main/transport/sacn.ts` (Root +
@@ -135,8 +142,8 @@ src/renderer/                  (the React app)
   app boots clean with the dual-protocol manager.
 
 ## Open items
-- **Native engine optimization**: SharedArrayBuffer + dedicated send thread (and packaging
-  the `.node` via electron-builder `asarUnpack` for distribution).
+- **Packaging**: bundle the `.node` for distribution via electron-builder (`asarUnpack` /
+  `extraResources`) and per-platform native prebuilds in CI.
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
 - Deferred effects: stateful **fire2012**, **multi-segment** subdivision per fixture.
 - **Parity check**: WebGPU vs WebGL pixel output verified only as "initializes + runs"; confirm visually with a loaded source against the DMX Monitor.

@@ -1,23 +1,21 @@
 import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import type { OutputConfig, ArtNetFramePayload } from '../../../shared/protocol';
+import type { OutputConfig } from '../../../shared/protocol';
+import { decodeFrame } from '../../../shared/frameCodec';
 import * as artnet from './artnet';
 import * as sacn from './sacn';
 
 // Prefers the native Rust engine (native/output-engine/output-engine.node) when
 // present; otherwise routes to the TypeScript Art-Net/sACN transports. The native
-// addon builds + sends packets in Rust (run `npm run build:native` to produce it).
+// addon owns a dedicated send thread: pushFrame() hands off the binary frame
+// (one memcpy + condvar notify) and the thread paces UDP transmission.
+// Build the addon with `npm run build:native`.
 
-interface NativeUniverse { universe: number; data: Buffer; }
-interface NativeTarget {
-  ip: string; port: number; protocol: string; broadcast: boolean;
-  sparse: boolean; priority: number; universes: NativeUniverse[];
-}
 interface NativeEngine {
   configure(broadcast: boolean): void;
   isReady(): boolean;
-  sendFrame(targets: NativeTarget[]): void;
+  pushFrame(frame: Buffer): void;
   close(): void;
 }
 
@@ -41,11 +39,21 @@ function loadNative(): NativeEngine | null {
 const native = loadNative();
 console.log(native ? '[output] native Rust engine loaded' : '[output] using TypeScript transport');
 
+function toBuffer(frame: ArrayBuffer | Uint8Array): Buffer {
+  return Buffer.isBuffer(frame)
+    ? frame
+    : frame instanceof Uint8Array
+      ? Buffer.from(frame.buffer, frame.byteOffset, frame.byteLength)
+      : Buffer.from(frame);
+}
+
+function toArrayBuffer(frame: ArrayBuffer | Uint8Array): ArrayBuffer {
+  if (frame instanceof ArrayBuffer) return frame;
+  return frame.buffer.slice(frame.byteOffset, frame.byteOffset + frame.byteLength) as ArrayBuffer;
+}
+
 export function configure(cfg: OutputConfig): void {
-  if (native) {
-    native.configure(cfg.broadcast);
-    return;
-  }
+  if (native) { native.configure(cfg.broadcast); return; }
   artnet.configure(cfg);
   sacn.configure(cfg);
 }
@@ -55,28 +63,16 @@ export function isReady(): boolean {
   return artnet.isReady() || sacn.isReady();
 }
 
-export function sendFrame(payload: ArtNetFramePayload): void {
-  if (!payload?.targets?.length) return;
-
+export function sendFrame(frame: ArrayBuffer | Uint8Array): void {
   if (native) {
-    const targets: NativeTarget[] = payload.targets.map(t => ({
-      ip: t.ip,
-      port: t.port,
-      protocol: t.protocol,
-      broadcast: t.broadcast,
-      sparse: t.sparse,
-      priority: t.priority ?? 100,
-      universes: Object.entries(t.universes).map(([u, arr]) => ({
-        universe: Number(u),
-        data: Buffer.from(arr),
-      })),
-    }));
-    native.sendFrame(targets);
+    native.pushFrame(toBuffer(frame)); // hand off to the dedicated send thread
     return;
   }
-
-  const artnetTargets = payload.targets.filter(t => t.protocol !== 'sacn');
-  const sacnTargets = payload.targets.filter(t => t.protocol === 'sacn');
+  // TS fallback: decode the binary frame and route per protocol.
+  const targets = decodeFrame(toArrayBuffer(frame));
+  if (!targets.length) return;
+  const artnetTargets = targets.filter(t => t.protocol !== 'sacn');
+  const sacnTargets = targets.filter(t => t.protocol === 'sacn');
   if (artnetTargets.length) artnet.sendFrame({ targets: artnetTargets });
   if (sacnTargets.length) sacn.sendFrame({ targets: sacnTargets });
 }
