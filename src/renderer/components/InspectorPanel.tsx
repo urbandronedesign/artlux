@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Fixture, SourceType, AppSettings, RGBW, PixelSource } from '../types';
-import { Monitor, Image as ImageIcon, Video, Map, ChevronDown, Cpu, Sparkles } from 'lucide-react';
+import { Fixture, SourceType, AppSettings, RGBW, PixelSource, LedShape, ColorOrder, RGBWMode } from '../types';
+import { Monitor, Image as ImageIcon, Video, Map, ChevronDown, Cpu, Sparkles, Grid3x3 } from 'lucide-react';
 import { addStatusListener } from '../services/mockSocketService';
 import { EFFECT_NAMES } from '../gpu/effects';
 import { PALETTE_NAMES } from '../gpu/palettes';
@@ -62,6 +62,24 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
             const url = URL.createObjectURL(file);
             onSetSource(type, url);
         }
+    };
+
+    // Load a WLED-style ledmap.json ({"map":[...]} or a bare array) -> physical->geometry order.
+    const handleLedmapUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !selectedFixture) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            try {
+                const parsed = JSON.parse(ev.target?.result as string);
+                const map: number[] = Array.isArray(parsed) ? parsed : parsed.map;
+                if (Array.isArray(map)) onUpdateFixture(selectedFixture.id, { ledMap: map });
+                else alert('Unrecognized ledmap format (expected an array or {"map":[...]})');
+            } catch {
+                alert('Failed to parse ledmap JSON');
+            }
+        };
+        reader.readAsText(file);
     };
 
     return (
@@ -176,6 +194,79 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                         </div>
                     )}
                 </PanelSection>
+
+                <PanelSection title="2D / Output" icon={<Grid3x3 size={12}/>}>
+                    {/* Shape: line vs matrix */}
+                    <div className="grid grid-cols-2 gap-1">
+                        {([LedShape.LINE, LedShape.MATRIX] as const).map((sh) => {
+                            const active = (selectedFixture.shape ?? LedShape.LINE) === sh;
+                            return (
+                                <button
+                                    key={sh}
+                                    onClick={() => onUpdateFixture(selectedFixture.id, { shape: sh })}
+                                    className={`text-[10px] py-1.5 rounded border transition-all ${active ? 'bg-accent/10 border-accent text-accent' : 'bg-[#181818] border-[#222] text-gray-500 hover:bg-[#202020]'}`}
+                                >
+                                    {sh === LedShape.LINE ? 'Line' : 'Matrix'}
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    {(selectedFixture.shape ?? LedShape.LINE) === LedShape.MATRIX && (
+                        <div className="space-y-2 pt-1">
+                            <NumberInput label="Cols" value={selectedFixture.matrixWidth ?? 8} step={1} onChange={(v) => onUpdateFixture(selectedFixture.id, { matrixWidth: Math.max(1, v) })} />
+                            <NumberInput label="Rows" value={selectedFixture.matrixHeight ?? 8} step={1} onChange={(v) => onUpdateFixture(selectedFixture.id, { matrixHeight: Math.max(1, v) })} />
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs text-gray-500">Serpentine</span>
+                                <input type="checkbox" checked={selectedFixture.serpentine ?? false}
+                                    onChange={(e) => onUpdateFixture(selectedFixture.id, { serpentine: e.target.checked })}
+                                    className="bg-[#0a0a0a] border-[#333] rounded text-accent focus:ring-0" />
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="flex items-center justify-between text-xs gap-2 pt-1">
+                        <label className="text-gray-500 w-16 truncate">Color Order</label>
+                        <select
+                            value={selectedFixture.colorOrder ?? ColorOrder.RGB}
+                            onChange={(e) => onUpdateFixture(selectedFixture.id, { colorOrder: e.target.value as ColorOrder })}
+                            className="flex-1 bg-[#0a0a0a] border border-[#222] rounded px-1.5 py-1 text-gray-300 focus:border-accent focus:outline-none"
+                        >
+                            {Object.values(ColorOrder).map((o) => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs gap-2">
+                        <label className="text-gray-500 w-16 truncate">Channels</label>
+                        <select
+                            value={selectedFixture.channelsPerPixel ?? 4}
+                            onChange={(e) => onUpdateFixture(selectedFixture.id, { channelsPerPixel: parseInt(e.target.value) as 3 | 4 })}
+                            className="flex-1 bg-[#0a0a0a] border border-[#222] rounded px-1.5 py-1 text-gray-300 focus:border-accent focus:outline-none"
+                        >
+                            <option value={3}>RGB (3)</option>
+                            <option value={4}>RGBW (4)</option>
+                        </select>
+                    </div>
+
+                    {(selectedFixture.channelsPerPixel ?? 4) === 4 && (
+                        <div className="flex items-center justify-between text-xs gap-2">
+                            <label className="text-gray-500 w-16 truncate">White</label>
+                            <select
+                                value={selectedFixture.rgbwMode ?? RGBWMode.SUBTRACT}
+                                onChange={(e) => onUpdateFixture(selectedFixture.id, { rgbwMode: e.target.value as RGBWMode })}
+                                className="flex-1 bg-[#0a0a0a] border border-[#222] rounded px-1.5 py-1 text-gray-300 focus:border-accent focus:outline-none"
+                            >
+                                <option value={RGBWMode.SUBTRACT}>Subtract min</option>
+                                <option value={RGBWMode.NONE}>None</option>
+                            </select>
+                        </div>
+                    )}
+
+                    <label className="flex items-center justify-center gap-2 text-[10px] text-gray-400 bg-[#1a1a1a] hover:bg-[#202020] border border-[#333] rounded py-1.5 cursor-pointer mt-1">
+                        <input type="file" accept=".json,application/json" className="hidden" onChange={handleLedmapUpload} />
+                        {selectedFixture.ledMap ? `Ledmap: ${selectedFixture.ledMap.length} pts` : 'Load ledmap.json'}
+                    </label>
+                </PanelSection>
                 </>
             ) : (
                 <div className="p-4 text-center text-gray-600 text-xs italic mt-10">
@@ -236,6 +327,18 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                                     onChange={(e) => onUpdateSettings({...settings, broadcast: e.target.checked})}
                                     className="bg-[#0a0a0a] border-[#333] rounded text-accent focus:ring-0"
                                     title="Send as UDP broadcast instead of unicast"
+                                />
+                             </div>
+
+                             <div className="space-y-1">
+                                <div className="flex items-center justify-between text-xs">
+                                    <label className="text-gray-500">Gamma</label>
+                                    <span className="text-gray-400 font-mono text-[10px]">{(settings.gamma ?? 1).toFixed(2)}</span>
+                                </div>
+                                <input type="range" min={1} max={3} step={0.05}
+                                    value={settings.gamma ?? 1}
+                                    onChange={(e) => onUpdateSettings({...settings, gamma: parseFloat(e.target.value)})}
+                                    className="w-full"
                                 />
                              </div>
 

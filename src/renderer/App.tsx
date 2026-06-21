@@ -16,7 +16,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   artNetIp: '127.0.0.1',
   artNetPort: 6454,
   outputEnabled: true,
-  broadcast: false
+  broadcast: false,
+  gamma: 1.0
 };
 
 const App: React.FC = () => {
@@ -226,6 +227,7 @@ const App: React.FC = () => {
                     isEngineRunning={true}
                     isVideoPlaying={isVideoPlaying}
                     globalBrightness={globalBrightness}
+                    gamma={settings.gamma}
                     onRecordHistory={recordHistory}
                 />
             </div>

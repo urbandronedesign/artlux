@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
-import { Fixture, SourceType, RGBW } from '../types';
+import { Fixture, SourceType, RGBW, ColorOrder } from '../types';
 import { Maximize, RotateCw, Move, AlertCircle, Magnet, Grid3X3, ZoomIn } from 'lucide-react';
 import { GPUMapper } from '../services/GPUMapper';
 import { WebGPUMapper } from '../gpu/WebGPUMapper';
@@ -16,8 +16,19 @@ interface StageProps {
   isEngineRunning: boolean;
   isVideoPlaying: boolean;
   globalBrightness: number;
+  gamma: number;
   onRecordHistory: () => void;
 }
+
+// Output channel source-index order per ColorOrder ([R=0,G=1,B=2]).
+const COLOR_ORDER: Record<ColorOrder, [number, number, number]> = {
+  [ColorOrder.RGB]: [0, 1, 2],
+  [ColorOrder.RBG]: [0, 2, 1],
+  [ColorOrder.GRB]: [1, 0, 2],
+  [ColorOrder.GBR]: [1, 2, 0],
+  [ColorOrder.BRG]: [2, 0, 1],
+  [ColorOrder.BGR]: [2, 1, 0],
+};
 
 export const Stage: React.FC<StageProps> = ({
   sourceType,
@@ -29,6 +40,7 @@ export const Stage: React.FC<StageProps> = ({
   isEngineRunning,
   isVideoPlaying,
   globalBrightness,
+  gamma,
   onRecordHistory
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -46,6 +58,16 @@ export const Stage: React.FC<StageProps> = ({
   const [webglError, setWebglError] = useState(false);
   const brightnessRef = useRef(globalBrightness);
   useEffect(() => { brightnessRef.current = globalBrightness; }, [globalBrightness]);
+
+  // Output gamma LUT (applied during universe packing). Identity when gamma=1.
+  const gammaLut = useMemo(() => {
+    const lut = new Uint8Array(256);
+    const g = gamma && gamma > 0 ? gamma : 1;
+    for (let i = 0; i < 256; i++) lut[i] = Math.round(Math.pow(i / 255, g) * 255);
+    return lut;
+  }, [gamma]);
+  const gammaLutRef = useRef(gammaLut);
+  useEffect(() => { gammaLutRef.current = gammaLut; }, [gammaLut]);
   
   const [viewState, setViewState] = useState({ x: 0, y: 0, scale: 0.8 });
   const viewStateRef = useRef(viewState);
@@ -106,7 +128,9 @@ export const Stage: React.FC<StageProps> = ({
 
   const fixtureLayoutSignature = useMemo(() => {
      return JSON.stringify(fixtures.map(f => ({
-         id: f.id, x: f.x, y: f.y, w: f.width, h: f.height, r: f.rotation, c: f.ledCount
+         id: f.id, x: f.x, y: f.y, w: f.width, h: f.height, r: f.rotation, c: f.ledCount,
+         rev: f.reverse, sh: f.shape, mw: f.matrixWidth, mh: f.matrixHeight, sp: f.serpentine,
+         lm: f.ledMap ? f.ledMap.length : 0
      })));
   }, [fixtures]);
 
@@ -119,7 +143,7 @@ export const Stage: React.FC<StageProps> = ({
   // Cheap per-fixture effect/palette param updates (sliders/dropdowns) — no realloc.
   const fixtureParamSignature = useMemo(() => {
      return JSON.stringify(fixtures.map(f => ({
-         s: f.source, e: f.effectId, p: f.paletteId, sp: f.speed, it: f.intensity
+         s: f.source, e: f.effectId, p: f.paletteId, sp: f.speed, it: f.intensity, rw: f.rgbwMode
      })));
   }, [fixtures]);
 
@@ -263,34 +287,41 @@ export const Stage: React.FC<StageProps> = ({
                 let currentUniverse = f.universe;
                 let currentChannel = f.startAddress - 1; // 0-based index
 
+                // Output corrections (color order, channels, gamma).
+                const order = COLOR_ORDER[f.colorOrder ?? ColorOrder.RGB];
+                const cpp = f.channelsPerPixel ?? 4;
+                const lut = gammaLutRef.current;
+
                 for (let i = 0; i < f.ledCount; i++) {
                     const idx = offset * 4;
                     // Safety check against raw buffer bounds
                     if (idx + 3 >= rawBytes.length) break;
 
-                    const pixelValues = [
-                        rawBytes[idx],     // R
-                        rawBytes[idx + 1], // G
-                        rawBytes[idx + 2], // B
-                        rawBytes[idx + 3]  // W
+                    // Canonical RGB(W) from the GPU, reordered + gamma-corrected.
+                    const rgb = [rawBytes[idx], rawBytes[idx + 1], rawBytes[idx + 2]];
+                    const channels = [
+                        lut[rgb[order[0]]],
+                        lut[rgb[order[1]]],
+                        lut[rgb[order[2]]],
                     ];
+                    if (cpp === 4) channels.push(lut[rawBytes[idx + 3]]);
 
                     // Write each channel, handling universe spanning
-                    for (const val of pixelValues) {
+                    for (const val of channels) {
                          if (!bufferMap[currentUniverse]) {
                              bufferMap[currentUniverse] = new Array(512).fill(0);
                          }
-                         
+
                          bufferMap[currentUniverse][currentChannel] = val;
                          currentChannel++;
-                         
+
                          // Spanning logic: overflow to next universe
                          if (currentChannel >= 512) {
                              currentUniverse++;
                              currentChannel = 0;
                          }
                     }
-                    
+
                     offset++;
                 }
             }

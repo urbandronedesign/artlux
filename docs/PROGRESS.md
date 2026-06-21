@@ -10,8 +10,8 @@ Newest decisions at the bottom of each section. Commit hashes are on `main`.
 | 0 | Docs, README rewrite, strip Gemini/API, skill | ✅ done (skill pending) | `eacc45f`, `bd02f91` |
 | A | Electron migration + native Art-Net (drop bridge) | ✅ done | `7a0b5bb` |
 | B | WebGPU compute mapper + async readback | ✅ done | `b1404da` |
-| C | WLED effects + palettes (per-fixture) | ✅ done (segments/fire deferred) | `<pending>` |
-| D | 2D matrix + ledmap + color correctness | ⏳ todo | — |
+| C | WLED effects + palettes (per-fixture) | ✅ done (segments/fire deferred) | `254cff8` |
+| D | 2D matrix + ledmap + color correctness | ✅ done | `<pending>` |
 | E | Per-fixture routing + output targeting (TS) | ⏳ todo | — |
 | F | Rust output engine (napi-rs) + sACN | ⏳ todo | — |
 | G | 3D LED fixture editor + simulator (r3f) | ⏳ todo (independent) | — |
@@ -57,6 +57,18 @@ src/renderer/                  (the React app)
   `updateParams()`.
 - Known wart: `onUpdateFixture` records undo history on every change, so dragging a slider
   spams the undo stack (pre-existing pattern). Debounce later.
+
+## Phase D notes
+- **Geometry on GPU** (`WebGPUMapper`): `LedShape.MATRIX` lays LEDs in a cols×rows grid
+  with optional **serpentine**; `ledMap` remaps physical output index → geometry index
+  (WLED ledmap, loadable from `.json` via the Inspector — accepts a bare array or `{map:[...]}`).
+- **Auto-white on GPU**: per-fixture `rgbwMode` — `SUBTRACT` (default, W=min) or `NONE`
+  (full RGB, W=0 for RGB strips). Stored as a 2nd vec4 per fixture in `fixParams`.
+- **Output corrections in Stage packing** (keeps the raw RGBW buffer canonical for the
+  monitor/3D): per-fixture **color order** (RGB/GRB/…), **channels** (3=RGB / 4=RGBW), and a
+  global **gamma** LUT (`AppSettings.gamma`, default 1.0 = off; slider 1–3 in Output Config).
+- Defaults preserve prior output exactly: LINE / RGB / SUBTRACT / 4ch / gamma 1.0.
+- WebGL fallback still has no effects/matrix (Electron has WebGPU).
 
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.

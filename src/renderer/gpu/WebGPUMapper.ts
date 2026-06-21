@@ -1,4 +1,4 @@
-import { Fixture, PixelSource } from '../types';
+import { Fixture, PixelSource, LedShape, RGBWMode } from '../types';
 import { IPixelMapper } from '../services/PixelMapper';
 import { buildPaletteLut } from './palettes';
 
@@ -59,23 +59,26 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
   let uv = d.xy;
   let t = d.z;
   let fi = u32(d.w + 0.5);
-  let fp = fixParams[fi];
-  let mode = fp.x; // < 0 => media, else effect id
+  let fp0 = fixParams[2u * fi];        // effectOrMedia, paletteId, speed, intensity
+  let fp1 = fixParams[2u * fi + 1u];   // rgbwMode, ...
+  let mode = fp0.x; // < 0 => media, else effect id
 
   var color: vec4<f32>;
   if (mode < 0.0) {
     color = textureSampleLevel(srcTex, samp, uv, 0.0);
   } else {
-    color = effectColor(i32(mode + 0.5), t, params.time, fp.z, fp.w, u32(fp.y + 0.5));
+    color = effectColor(i32(mode + 0.5), t, params.time, fp0.z, fp0.w, u32(fp0.y + 0.5));
   }
 
-  let minVal = min(min(color.r, color.g), color.b);
   let b = params.brightness;
-  let r = toByte((color.r - minVal) * b);
-  let g = toByte((color.g - minVal) * b);
-  let bl = toByte((color.b - minVal) * b);
-  let w = toByte(minVal * b);
-  outBuf[i] = r | (g << 8u) | (bl << 16u) | (w << 24u);
+  var rr: f32; var gg: f32; var bb: f32; var ww: f32;
+  if (fp1.x > 0.5) {        // RGBWMode.NONE -> full RGB, no white
+    rr = color.r * b; gg = color.g * b; bb = color.b * b; ww = 0.0;
+  } else {                  // RGBWMode.SUBTRACT (default)
+    let m = min(min(color.r, color.g), color.b);
+    rr = (color.r - m) * b; gg = (color.g - m) * b; bb = (color.b - m) * b; ww = m * b;
+  }
+  outBuf[i] = toByte(rr) | (toByte(gg) << 8u) | (toByte(bb) << 16u) | (toByte(ww) << 24u);
 }
 `;
 
@@ -167,12 +170,18 @@ export class WebGPUMapper implements IPixelMapper {
     this.brightness = Math.max(0, Math.min(1, value));
   }
 
+  // Two vec4 per fixture: [effectOrMedia, paletteId, speed, intensity], [rgbwMode,...]
   private fixtureParamVec(f: Fixture, out: Float32Array, k: number): void {
+    const base = k * 8;
     const isEffect = f.source === PixelSource.EFFECT;
-    out[k * 4 + 0] = isEffect ? (f.effectId ?? 0) : -1;
-    out[k * 4 + 1] = f.paletteId ?? 0;
-    out[k * 4 + 2] = f.speed ?? 0.5;
-    out[k * 4 + 3] = f.intensity ?? 0.5;
+    out[base + 0] = isEffect ? (f.effectId ?? 0) : -1;
+    out[base + 1] = f.paletteId ?? 0;
+    out[base + 2] = f.speed ?? 0.5;
+    out[base + 3] = f.intensity ?? 0.5;
+    out[base + 4] = f.rgbwMode === RGBWMode.NONE ? 1 : 0;
+    out[base + 5] = 0;
+    out[base + 6] = 0;
+    out[base + 7] = 0;
   }
 
   updateMapping(fixtures: Fixture[]): void {
@@ -183,7 +192,7 @@ export class WebGPUMapper implements IPixelMapper {
     if (newTotal === 0) return;
 
     const led = new Float32Array(newTotal * 4);   // (u, v, t, fixtureIndex)
-    const fix = new Float32Array(fixtures.length * 4);
+    const fix = new Float32Array(fixtures.length * 8); // 2 vec4 per fixture
     let o = 0;
 
     fixtures.forEach((f, k) => {
@@ -194,22 +203,41 @@ export class WebGPUMapper implements IPixelMapper {
       const rads = (f.rotation || 0) * (Math.PI / 180);
       const cos = Math.cos(rads);
       const sin = Math.sin(rads);
+      const isMatrix = f.shape === LedShape.MATRIX;
+      const cols = Math.max(1, f.matrixWidth ?? 1);
+      const rows = Math.max(1, f.matrixHeight ?? 1);
+      const cells = cols * rows;
       const isHoriz = f.width >= f.height;
 
       for (let i = 0; i < f.ledCount; i++) {
+        // ledmap: physical output index i -> geometry index g
+        const g = f.ledMap ? (f.ledMap[i] ?? i) : i;
+
         let relX = 0, relY = 0;
-        if (isHoriz) {
+        let t: number;
+        if (isMatrix) {
+          const gg = Math.min(g, cells - 1);
+          const row = Math.floor(gg / cols);
+          let col = gg % cols;
+          if (f.serpentine && row % 2 === 1) col = cols - 1 - col;
+          const cellW = f.width / cols;
+          const cellH = f.height / rows;
+          relX = (col + 0.5) * cellW - f.width / 2;
+          relY = (row + 0.5) * cellH - f.height / 2;
+          t = cells > 1 ? gg / (cells - 1) : 0;
+        } else if (isHoriz) {
           const step = f.width / f.ledCount;
-          relX = i * step + step / 2 - f.width / 2;
+          relX = g * step + step / 2 - f.width / 2;
+          t = f.ledCount > 1 ? g / (f.ledCount - 1) : 0;
         } else {
           const step = f.height / f.ledCount;
-          relY = i * step + step / 2 - f.height / 2;
+          relY = g * step + step / 2 - f.height / 2;
+          t = f.ledCount > 1 ? g / (f.ledCount - 1) : 0;
         }
-        const rx = relX * cos - relY * sin;
-        const ry = relX * sin + relY * cos;
-        let t = f.ledCount > 1 ? i / (f.ledCount - 1) : 0;
         if (f.reverse) t = 1 - t;
 
+        const rx = relX * cos - relY * sin;
+        const ry = relX * sin + relY * cos;
         led[o++] = cx + rx;
         led[o++] = cy + ry;
         led[o++] = t;
@@ -226,7 +254,7 @@ export class WebGPUMapper implements IPixelMapper {
 
     this.fixParamsBuffer?.destroy();
     this.fixParamsBuffer = this.device.createBuffer({
-      size: Math.max(16, fix.byteLength),
+      size: Math.max(32, fix.byteLength),
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
     });
     this.queue.writeBuffer(this.fixParamsBuffer, 0, fix);
@@ -269,7 +297,7 @@ export class WebGPUMapper implements IPixelMapper {
   updateParams(fixtures: Fixture[]): void {
     if (this.disposed || !this.fixParamsBuffer) return;
     if (fixtures.length !== this.fixCount) return; // count change -> updateMapping handles it
-    const fix = new Float32Array(fixtures.length * 4);
+    const fix = new Float32Array(fixtures.length * 8);
     fixtures.forEach((f, k) => this.fixtureParamVec(f, fix, k));
     this.queue.writeBuffer(this.fixParamsBuffer, 0, fix);
   }

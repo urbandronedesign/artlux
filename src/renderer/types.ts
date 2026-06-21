@@ -23,6 +23,22 @@ export enum PixelSource {
   EFFECT = 'EFFECT'  // generate color from a built-in effect + palette
 }
 
+export enum LedShape {
+  LINE = 'LINE',
+  MATRIX = 'MATRIX'
+}
+
+// Physical wiring order of the color channels on the strip/pixel.
+export enum ColorOrder {
+  RGB = 'RGB', RBG = 'RBG', GRB = 'GRB', GBR = 'GBR', BRG = 'BRG', BGR = 'BGR'
+}
+
+// How the white channel is derived (RGBW fixtures).
+export enum RGBWMode {
+  SUBTRACT = 'SUBTRACT', // W = min(r,g,b); colored channels get min removed (default)
+  NONE = 'NONE'          // W = 0; full RGB kept (use for RGB strips)
+}
+
 export interface Fixture {
   id: string;
   name: string;
@@ -42,6 +58,16 @@ export interface Fixture {
   paletteId?: number;  // index into PALETTE_NAMES
   speed?: number;      // 0..1
   intensity?: number;  // 0..1
+  // Phase D — 2D matrix + ledmap + color correctness (optional; defaults keep
+  // existing output identical: LINE / RGB order / SUBTRACT / 4 channels).
+  shape?: LedShape;
+  matrixWidth?: number;
+  matrixHeight?: number;
+  serpentine?: boolean;
+  ledMap?: number[];          // physical index -> geometry index
+  colorOrder?: ColorOrder;
+  rgbwMode?: RGBWMode;
+  channelsPerPixel?: 3 | 4;
 }
 
 export enum SourceType {
@@ -56,6 +82,7 @@ export interface AppSettings {
   artNetPort: number;
   outputEnabled: boolean; // master enable for native Art-Net output
   broadcast: boolean;     // broadcast vs unicast to artNetIp
+  gamma: number;          // output gamma correction (1.0 = off)
 }
 
 export enum ViewMode {
