@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Fixture, SourceType, AppSettings, ViewMode, FixtureGroup, Scene } from './types';
+import { Fixture, SourceType, AppSettings, Module, DockTab, FixtureGroup, Scene } from './types';
 import { TopBar } from './components/TopBar';
 import { InspectorPanel } from './components/InspectorPanel';
 import { ScenePanel } from './components/ScenePanel';
 import { Stage } from './components/Stage';
 import { DMXMonitor } from './components/DMXMonitor';
+import { Dock } from './components/Dock';
+import { Preferences } from './components/Preferences';
+import { StatusBar } from './components/StatusBar';
 import { sendArtNetFrame, configureOutput, addStatusListener } from './services/mockSocketService';
 import { dmxSignal } from './services/dmxSignal';
 import { startInput, stopInput } from './services/dmxInput';
-import { PanelLeft, PanelRight, Activity, Wifi } from 'lucide-react';
+import { Activity } from 'lucide-react';
 import { useHistory } from './hooks/useHistory';
 
 const Simulator3D = React.lazy(() => import('./components/Simulator3D/Simulator3D'));
@@ -53,10 +56,12 @@ const App: React.FC = () => {
   const [globalBrightness, setGlobalBrightness] = useState(1.0);
   const [groups, setGroups] = useState<FixtureGroup[]>([]);
   const [scenes, setScenes] = useState<Scene[]>([]);
-  const [currentView, setCurrentView] = useState<ViewMode>(ViewMode.MAPPING);
-  
+  const [module, setModule] = useState<Module>(Module.MAP);
+  const [dockOpen, setDockOpen] = useState(false);
+  const [dockTab, setDockTab] = useState<DockTab>(DockTab.MONITOR);
+  const [prefsOpen, setPrefsOpen] = useState(false);
+
   const [showLeftPanel, setShowLeftPanel] = useState(true);
-  const [showRightPanel, setShowRightPanel] = useState(true);
   
   const [isBridgeConnected, setIsBridgeConnected] = useState(false);
   const [outputStats, setOutputStats] = useState<{ pps: number; fps: number; universes: number } | null>(null);
@@ -258,63 +263,49 @@ const App: React.FC = () => {
       reader.readAsText(file);
   };
 
+  const updateSettings = (patch: Partial<AppSettings>) => setSettings(s => ({ ...s, ...patch }));
+
   const selectedFixture = fixtures.find(f => f.id === selectedFixtureId) || null;
 
+  const moduleHelp: Record<Module, string> = {
+    [Module.MEDIA]: 'Media — choose a content source (video, image, camera, or DMX in).',
+    [Module.MAP]: 'Map — drag fixtures over the content on the stage.',
+    [Module.FIXTURES]: 'Fixtures — patch DMX: universe, address, color order, segments, routing.',
+    [Module.THREE_D]: '3D — arrange fixtures in space; drag the gizmo to move/rotate.',
+  };
+
+  const dockTabs = [
+    { id: DockTab.MONITOR, label: 'DMX Monitor', icon: <Activity size={13} /> },
+    { id: DockTab.FIXTURE_EDITOR, label: 'Fixture Editor' },
+  ];
+
   return (
-    <div className="flex flex-col h-screen w-screen bg-black text-slate-200 font-sans overflow-hidden">
-      <TopBar 
+    <div className="flex flex-col h-screen w-screen bg-stage text-fg-1 font-sans overflow-hidden">
+      <TopBar
           isVideoPlaying={isVideoPlaying}
           onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)}
-          currentView={currentView}
-          onChangeView={setCurrentView}
+          module={module}
+          onChangeModule={setModule}
           onSaveProject={handleSaveProject}
           onLoadProject={handleLoadProject}
           onUndo={undo}
           onRedo={redo}
           canUndo={canUndo}
           canRedo={canRedo}
+          onOpenPreferences={() => setPrefsOpen(true)}
+          monitorOpen={dockOpen && dockTab === DockTab.MONITOR}
+          onToggleMonitor={() => {
+            if (dockOpen && dockTab === DockTab.MONITOR) setDockOpen(false);
+            else { setDockTab(DockTab.MONITOR); setDockOpen(true); }
+          }}
       />
 
-      <div className="flex flex-1 overflow-hidden relative">
-        <div className={`absolute inset-0 flex transition-opacity duration-300 ${currentView === ViewMode.MAPPING ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
-            <div className={`h-full transition-all duration-300 ease-in-out border-r border-[#222] bg-[#121212] overflow-hidden ${showLeftPanel ? 'w-64 opacity-100' : 'w-0 opacity-0 border-none'}`}>
-                <div className="w-64 h-full">
-                    <InspectorPanel 
-                        sourceType={sourceType}
-                        onSetSource={(type, url) => { setSourceType(type); setSourceUrl(url); setIsVideoPlaying(true); }}
-                        selectedFixture={selectedFixture}
-                        onUpdateFixture={handleUpdateFixture}
-                        settings={settings}
-                        onUpdateSettings={setSettings}
-                    />
-                </div>
-            </div>
-
-            <div className="flex-1 bg-[#050505] relative flex flex-col items-center justify-center min-w-0">
-                <div className="absolute top-0 w-full h-6 bg-[#0a0a0a] border-b border-[#222] flex items-center px-2 text-[10px] text-gray-600 font-mono z-50">
-                    VIEWPORT: 512x512 (UV 1:1)
-                </div>
-                <Stage 
-                    sourceType={sourceType}
-                    sourceUrl={sourceUrl}
-                    fixtures={fixtures}
-                    onUpdateFixtures={setFixtures}
-                    selectedFixtureId={selectedFixtureId}
-                    onSelectFixture={setSelectedFixtureId}
-                    isEngineRunning={true}
-                    isVideoPlaying={isVideoPlaying}
-                    globalBrightness={globalBrightness}
-                    gamma={settings.gamma}
-                    targetIp={settings.artNetIp}
-                    broadcast={settings.broadcast}
-                    protocol={settings.protocol}
-                    onRecordHistory={recordHistory}
-                />
-            </div>
-
-            <div className={`h-full transition-all duration-300 ease-in-out border-l border-[#222] bg-[#121212] overflow-hidden ${showRightPanel ? 'w-64 opacity-100' : 'w-0 opacity-0 border-none'}`}>
-                <div className="w-64 h-full">
-                    <ScenePanel 
+      <div className="flex flex-1 min-h-0">
+        {/* Left: browser (top) + inspector (bottom) */}
+        <div className={`h-full border-r border-line-1 bg-surface-1 transition-all duration-200 ${showLeftPanel ? 'w-72' : 'w-0 overflow-hidden border-none'}`}>
+            <div className="w-72 h-full flex flex-col min-h-0">
+                <div className="h-[45%] min-h-0 overflow-y-auto border-b border-line-1">
+                    <ScenePanel
                         fixtures={fixtures}
                         selectedFixtureId={selectedFixtureId}
                         onSelect={setSelectedFixtureId}
@@ -335,67 +326,82 @@ const App: React.FC = () => {
                         onRemoveScene={handleRemoveScene}
                     />
                 </div>
+                <div className="flex-1 min-h-0 overflow-y-auto">
+                    <InspectorPanel
+                        module={module}
+                        sourceType={sourceType}
+                        onSetSource={(type, url) => { setSourceType(type); setSourceUrl(url); setIsVideoPlaying(true); }}
+                        selectedFixture={selectedFixture}
+                        onUpdateFixture={handleUpdateFixture}
+                        settings={settings}
+                    />
+                </div>
             </div>
         </div>
 
-        <div className={`absolute inset-0 flex transition-opacity duration-300 ${currentView === ViewMode.MONITORING ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
-            <DMXMonitor fixtures={fixtures} />
-        </div>
-
-        <div className={`absolute inset-0 ${currentView === ViewMode.SIMULATOR_3D ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
-            {currentView === ViewMode.SIMULATOR_3D && (
-                <React.Suspense fallback={<div className="w-full h-full flex items-center justify-center text-gray-600 text-xs">Loading 3D…</div>}>
-                    <Simulator3D
+        {/* Center: persistent stage host + bottom dock */}
+        <div className="flex-1 min-w-0 flex flex-col bg-surface-0">
+            <div className="flex-1 min-h-0 relative">
+                {/* 2D stage (Media/Map/Fixtures) — kept mounted so dmxSignal keeps flowing */}
+                <div className={`absolute inset-0 ${module === Module.THREE_D ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+                    <Stage
+                        sourceType={sourceType}
+                        sourceUrl={sourceUrl}
                         fixtures={fixtures}
+                        onUpdateFixtures={setFixtures}
                         selectedFixtureId={selectedFixtureId}
                         onSelectFixture={setSelectedFixtureId}
-                        onCommitFixture3D={handleCommitFixture3D}
+                        isEngineRunning={true}
+                        isVideoPlaying={isVideoPlaying}
+                        globalBrightness={globalBrightness}
+                        gamma={settings.gamma}
+                        targetIp={settings.artNetIp}
+                        broadcast={settings.broadcast}
+                        protocol={settings.protocol}
                         onRecordHistory={recordHistory}
                     />
-                </React.Suspense>
-            )}
+                </div>
+                {/* 3D simulator */}
+                <div className={`absolute inset-0 ${module === Module.THREE_D ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                    {module === Module.THREE_D && (
+                        <React.Suspense fallback={<div className="w-full h-full flex items-center justify-center text-fg-3 text-xs">Loading 3D…</div>}>
+                            <Simulator3D
+                                fixtures={fixtures}
+                                selectedFixtureId={selectedFixtureId}
+                                onSelectFixture={setSelectedFixtureId}
+                                onCommitFixture3D={handleCommitFixture3D}
+                                onRecordHistory={recordHistory}
+                            />
+                        </React.Suspense>
+                    )}
+                </div>
+            </div>
+
+            <Dock
+                open={dockOpen}
+                onToggle={() => setDockOpen(!dockOpen)}
+                tabs={dockTabs}
+                activeTab={dockTab}
+                onTab={(id) => setDockTab(id as DockTab)}
+            >
+                {dockTab === DockTab.MONITOR
+                    ? <DMXMonitor fixtures={fixtures} />
+                    : <div className="p-4 text-fg-3 text-xs">Fixture Editor — coming soon.</div>}
+            </Dock>
         </div>
       </div>
 
-      <div className="h-7 bg-[#121212] border-t border-[#222] flex items-center justify-between px-3 text-xs text-gray-500 select-none z-50">
-          <button 
-             onClick={() => setShowLeftPanel(!showLeftPanel)}
-             className={`flex items-center gap-2 hover:text-gray-300 transition-colors ${showLeftPanel ? 'text-accent' : ''}`}
-          >
-             <PanelLeft size={14} />
-             <span className="text-[10px] uppercase font-bold tracking-wider">Inspector</span>
-          </button>
+      <StatusBar
+          help={moduleHelp[module]}
+          renderFps={fps}
+          connected={isBridgeConnected}
+          outputStats={outputStats}
+          leftOpen={showLeftPanel}
+          onToggleLeft={() => setShowLeftPanel(!showLeftPanel)}
+          targetIp={settings.artNetIp}
+      />
 
-          <div className="flex items-center gap-4">
-               <div className="flex items-center gap-1.5" title="Render FPS">
-                    <Activity size={12} className="text-green-500" />
-                    <span className="font-mono">{fps.toFixed(0)} FPS</span>
-                </div>
-                <div className="h-3 w-px bg-[#333]"></div>
-                <div className="flex items-center gap-1.5" title={`Target: ${settings.artNetIp}`}>
-                    <Wifi size={12} className={isBridgeConnected ? "text-accent" : "text-gray-600"} />
-                    <span className={isBridgeConnected ? "text-accent" : "text-gray-600"}>
-                        {isBridgeConnected ? "LIVE" : "OFFLINE"}
-                    </span>
-                </div>
-                {outputStats && (outputStats.pps > 0 || outputStats.universes > 0) && (
-                    <>
-                        <div className="h-3 w-px bg-[#333]"></div>
-                        <div className="flex items-center gap-1.5 font-mono text-gray-500" title="Native engine: frames/s · packets/s · universes">
-                            <span>{outputStats.fps}Hz · {outputStats.pps}pps · {outputStats.universes}u</span>
-                        </div>
-                    </>
-                )}
-          </div>
-
-          <button 
-             onClick={() => setShowRightPanel(!showRightPanel)}
-             className={`flex items-center gap-2 hover:text-gray-300 transition-colors ${showRightPanel ? 'text-accent' : ''}`}
-          >
-             <span className="text-[10px] uppercase font-bold tracking-wider">Scene Graph</span>
-             <PanelRight size={14} />
-          </button>
-      </div>
+      <Preferences open={prefsOpen} onClose={() => setPrefsOpen(false)} settings={settings} onChange={updateSettings} />
     </div>
   );
 };

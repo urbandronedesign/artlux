@@ -145,6 +145,20 @@ export enum ViewMode {
   SIMULATOR_3D = 'SIMULATOR_3D'
 }
 
+// MadMapper-style top-level modules (drive the left panel + center stage).
+export enum Module {
+  MEDIA = 'MEDIA',       // content source + effects
+  MAP = 'MAP',           // 2D placement on the stage
+  FIXTURES = 'FIXTURES', // DMX patch (universe/addr/color/segments/routing)
+  THREE_D = 'THREE_D',   // 3D simulator
+}
+
+// Bottom dock tabs.
+export enum DockTab {
+  MONITOR = 'MONITOR',
+  FIXTURE_EDITOR = 'FIXTURE_EDITOR',
+}
+
 // Phase I — named selection set for batch operations.
 export interface FixtureGroup {
   id: string;

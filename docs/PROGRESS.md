@@ -213,8 +213,14 @@ Reference: MadMapper (Art-Net LED-strip workflow). Full plan in the session plan
   (`#27b6c4`); seed `ui/` primitive kit (`Button/IconButton, Section, Field, NumberField, Slider,
   Select, Toggle, Segmented, ListRow`). Removed dead `SettingsPanel`/`FixtureList`; `tsc` clean.
   Existing classes kept working (legacy color names retained). Build/launch verified.
-- **U2–U5 (todo)**: AppShell + module switcher + bottom dock + Preferences modal; restyle
-  Inspector/Scene/TopBar/Stage/DMXMonitor/3D with the kit; polish + a11y.
+- **U2 (done)**: **AppShell** IA — top-left **module switcher** (Media/Map/Fixtures/3D) drives the
+  center (2D Stage kept mounted for Media/Map/Fixtures, lazy 3D for the 3D module); left panel
+  consolidated to **browser (ScenePanel) + inspector (InspectorPanel)** (right panel removed);
+  **bottom Dock** (DMX Monitor + Fixture Editor placeholder); **StatusBar** (help line + stats);
+  **Preferences modal** (output/engine settings moved out of the inspector). New: `Module`/`DockTab`
+  types, `ModuleSwitcher`, `Dock`, `Preferences`, `StatusBar`; TopBar rebuilt on the kit.
+- **U3–U5 (todo)**: restyle Inspector/Scene/Stage/DMXMonitor/3D with tokens+kit; Fixture Editor;
+  polish + a11y.
 
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.

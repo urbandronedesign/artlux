@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { Fixture, SourceType, AppSettings, RGBW, PixelSource, LedShape, ColorOrder, RGBWMode, Layout3DType } from '../types';
-import { Monitor, Image as ImageIcon, Video, Map, ChevronDown, Cpu, Sparkles, Grid3x3, Network, Box } from 'lucide-react';
-import { addStatusListener } from '../services/mockSocketService';
+import React, { useState } from 'react';
+import { Fixture, SourceType, AppSettings, RGBW, PixelSource, LedShape, ColorOrder, RGBWMode, Layout3DType, Module } from '../types';
+import { Monitor, Image as ImageIcon, Video, Map, ChevronDown, Sparkles, Grid3x3, Network, Box } from 'lucide-react';
 import { EFFECT_NAMES } from '../gpu/effects';
 import { PALETTE_NAMES } from '../gpu/palettes';
 import { effectivePosObj, effectiveRotObj, effectiveLayout } from '../services/led3dDefaults';
@@ -12,7 +11,7 @@ interface InspectorPanelProps {
     selectedFixture: Fixture | null;
     onUpdateFixture: (id: string, updates: Partial<Fixture>) => void;
     settings: AppSettings;
-    onUpdateSettings: (s: AppSettings) => void;
+    module: Module;
 }
 
 const PanelSection: React.FC<{ title: string; children: React.ReactNode; icon?: React.ReactNode }> = ({ title, children, icon }) => (
@@ -49,14 +48,9 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
     selectedFixture,
     onUpdateFixture,
     settings,
-    onUpdateSettings
+    module
 }) => {
-    const [isBridgeConnected, setIsBridgeConnected] = useState(false);
     const [segSel, setSegSel] = useState(0);
-
-    useEffect(() => {
-        return addStatusListener(setIsBridgeConnected);
-    }, []);
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: SourceType) => {
         const file = e.target.files?.[0];
@@ -86,7 +80,8 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
 
     return (
         <div className="flex flex-col h-full bg-[#121212] border-r border-[#222] overflow-y-auto">
-            {/* Input Source Section */}
+            {/* Input Source Section (Media module) */}
+            {module === Module.MEDIA && (
             <PanelSection title="Input Source" icon={<Monitor size={12}/>}>
                 <div className="grid grid-cols-3 gap-1">
                     <button 
@@ -116,6 +111,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                     <span className="text-[10px]">DMX In (Art-Net / sACN)</span>
                 </button>
             </PanelSection>
+            )}
 
             {/* Transform section removed as requested to expose editing in viewport only */}
 
@@ -445,102 +441,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                 </div>
             )}
             
-            {/* Global Settings */}
-             <div className="mt-auto border-t border-[#222]">
-                <PanelSection title="Output Config" icon={<Cpu size={12}/>}>
-                     <div className="space-y-3">
-                        {/* ArtNet Target */}
-                        <div className="space-y-1">
-                            <div className="flex items-center justify-between text-xs gap-2">
-                                <label className="text-gray-500 w-16 truncate">Target IP</label>
-                                <input 
-                                    type="text" 
-                                    value={settings.artNetIp}
-                                    onChange={(e) => onUpdateSettings({...settings, artNetIp: e.target.value})}
-                                    className="flex-1 bg-[#0a0a0a] border border-[#222] rounded px-1.5 py-1 text-right text-gray-300 focus:border-accent focus:outline-none font-mono"
-                                    placeholder="2.0.0.1"
-                                />
-                            </div>
-                            
-                            <NumberInput 
-                                label="Port" 
-                                value={settings.artNetPort} 
-                                onChange={(v) => onUpdateSettings({...settings, artNetPort: v})} 
-                                step={1}
-                            />
-                        </div>
-
-                        {/* Native Output Config */}
-                        <div className="border-t border-[#222] pt-2 space-y-2">
-                             <div className="flex items-center justify-between text-xs gap-2">
-                                <label className="text-gray-500 w-16 truncate">Protocol</label>
-                                <select
-                                    value={settings.protocol}
-                                    onChange={(e) => onUpdateSettings({...settings, protocol: e.target.value as AppSettings['protocol']})}
-                                    className="flex-1 bg-[#0a0a0a] border border-[#222] rounded px-1.5 py-1 text-gray-300 focus:border-accent focus:outline-none"
-                                >
-                                    <option value="artnet">Art-Net</option>
-                                    <option value="sacn">sACN (E1.31)</option>
-                                </select>
-                             </div>
-                             <div className="flex items-center justify-between">
-                                <span className="text-xs text-gray-400 font-medium">Output Enabled</span>
-                                 <div className="flex items-center gap-2">
-                                    <input
-                                        type="checkbox"
-                                        checked={settings.outputEnabled}
-                                        onChange={(e) => onUpdateSettings({...settings, outputEnabled: e.target.checked})}
-                                        className="bg-[#0a0a0a] border-[#333] rounded text-accent focus:ring-0"
-                                        title="Toggle Art-Net output"
-                                    />
-                                    {/* Status Indicator */}
-                                    <div className={`w-2 h-2 rounded-full transition-colors ${
-                                        !settings.outputEnabled ? 'bg-gray-700' :
-                                        isBridgeConnected ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]' : 'bg-red-500 animate-pulse'
-                                    }`}></div>
-                                 </div>
-                             </div>
-
-                             <div className="flex items-center justify-between">
-                                <span className="text-xs text-gray-500">Broadcast</span>
-                                <input
-                                    type="checkbox"
-                                    checked={settings.broadcast}
-                                    onChange={(e) => onUpdateSettings({...settings, broadcast: e.target.checked})}
-                                    className="bg-[#0a0a0a] border-[#333] rounded text-accent focus:ring-0"
-                                    title="Send as UDP broadcast instead of unicast"
-                                />
-                             </div>
-
-                             <div className="space-y-1">
-                                <div className="flex items-center justify-between text-xs">
-                                    <label className="text-gray-500">Gamma</label>
-                                    <span className="text-gray-400 font-mono text-[10px]">{(settings.gamma ?? 1).toFixed(2)}</span>
-                                </div>
-                                <input type="range" min={1} max={3} step={0.05}
-                                    value={settings.gamma ?? 1}
-                                    onChange={(e) => onUpdateSettings({...settings, gamma: parseFloat(e.target.value)})}
-                                    className="w-full"
-                                />
-                             </div>
-
-                             <NumberInput label="FPS" value={settings.fps} step={1} onChange={(v) => onUpdateSettings({ ...settings, fps: Math.max(1, Math.min(1000, Math.round(v))) })} />
-
-                             <div className="flex items-center justify-between">
-                                <span className="text-xs text-gray-500" title="Re-send last frame at FPS so receivers never starve">Keep-alive</span>
-                                <input type="checkbox" checked={settings.keepAlive}
-                                    onChange={(e) => onUpdateSettings({ ...settings, keepAlive: e.target.checked })}
-                                    className="bg-[#0a0a0a] border-[#333] rounded text-accent focus:ring-0" />
-                             </div>
-
-                             <div className="text-[9px] text-gray-600 font-mono">
-                                Native UDP — no bridge required
-                             </div>
-                        </div>
-
-                     </div>
-                </PanelSection>
-             </div>
+            {/* Output config now lives in the Preferences modal */}
         </div>
     );
 }
