@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { IPC, type OutputConfig, type ArtluxApi } from '../../shared/protocol';
+import { IPC, type OutputConfig, type InputConfig, type InputFrame, type ArtluxApi } from '../../shared/protocol';
 
 const api: ArtluxApi = {
     configureOutput: (cfg: OutputConfig) => ipcRenderer.send(IPC.CONFIGURE, cfg),
@@ -8,6 +8,12 @@ const api: ArtluxApi = {
         const listener = (_e: unknown, connected: boolean) => cb(connected);
         ipcRenderer.on(IPC.STATUS, listener);
         return () => { ipcRenderer.removeListener(IPC.STATUS, listener); };
+    },
+    configureInput: (cfg: InputConfig) => ipcRenderer.send(IPC.INPUT_CONFIGURE, cfg),
+    onDmxInput: (cb: (frames: InputFrame[]) => void) => {
+        const listener = (_e: unknown, frames: InputFrame[]) => cb(frames);
+        ipcRenderer.on(IPC.INPUT_FRAME, listener);
+        return () => { ipcRenderer.removeListener(IPC.INPUT_FRAME, listener); };
     },
 };
 

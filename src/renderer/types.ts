@@ -124,6 +124,7 @@ export enum SourceType {
   VIDEO = 'VIDEO',
   IMAGE = 'IMAGE',
   CAMERA = 'CAMERA',
+  DMX_IN = 'DMX_IN',
   NONE = 'NONE'
 }
 

@@ -107,6 +107,14 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                         <span className="text-[9px]">Image</span>
                     </label>
                 </div>
+                <button
+                    onClick={() => onSetSource(SourceType.DMX_IN, null)}
+                    className={`mt-1 w-full flex items-center justify-center gap-2 p-2 rounded border transition-all ${sourceType === SourceType.DMX_IN ? 'bg-accent/10 border-accent text-accent' : 'bg-[#181818] border-[#222] text-gray-500 hover:bg-[#202020]'}`}
+                    title="Capture incoming Art-Net / sACN as the content source"
+                >
+                    <Network size={14} />
+                    <span className="text-[10px]">DMX In (Art-Net / sACN)</span>
+                </button>
             </PanelSection>
 
             {/* Transform section removed as requested to expose editing in viewport only */}

@@ -5,6 +5,7 @@ import { GPUMapper } from '../services/GPUMapper';
 import { WebGPUMapper } from '../gpu/WebGPUMapper';
 import { IPixelMapper } from '../services/PixelMapper';
 import { dmxSignal } from '../services/dmxSignal';
+import { getInputCanvas } from '../services/dmxInput';
 
 interface StageProps {
   sourceType: SourceType;
@@ -244,6 +245,17 @@ export const Stage: React.FC<StageProps> = ({
       sourceElement = videoRef.current;
     } else if (sourceType === SourceType.IMAGE) {
       sourceElement = imgRef.current;
+    }
+
+    // DMX input as a content source: draw the assembled input texture.
+    if (sourceType === SourceType.DMX_IN && canvasRef.current) {
+        const ctx = canvasRef.current.getContext('2d');
+        const inCanvas = getInputCanvas();
+        if (ctx && inCanvas) {
+            ctx.imageSmoothingEnabled = false;
+            ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+            ctx.drawImage(inCanvas, 0, 0, canvasRef.current.width, canvasRef.current.height);
+        }
     }
 
     if (canvasRef.current) {

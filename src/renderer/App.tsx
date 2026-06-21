@@ -7,6 +7,7 @@ import { Stage } from './components/Stage';
 import { DMXMonitor } from './components/DMXMonitor';
 import { sendArtNetFrame, configureOutput, addStatusListener } from './services/mockSocketService';
 import { dmxSignal } from './services/dmxSignal';
+import { startInput, stopInput } from './services/dmxInput';
 import { PanelLeft, PanelRight, Activity, Wifi } from 'lucide-react';
 import { useHistory } from './hooks/useHistory';
 
@@ -73,6 +74,17 @@ const App: React.FC = () => {
   useEffect(() => {
     configureOutput(settings);
   }, [settings.outputEnabled, settings.broadcast, settings.artNetIp, settings.artNetPort]);
+
+  // Enable Art-Net/sACN input capture only while DMX-in is the active source.
+  useEffect(() => {
+    if (sourceType === SourceType.DMX_IN) {
+      window.artlux?.configureInput({ enabled: true, protocol: 'both', universes: [0, 1, 2, 3, 4, 5, 6, 7] });
+      startInput();
+    } else {
+      window.artlux?.configureInput({ enabled: false, protocol: 'both', universes: [] });
+      stopInput();
+    }
+  }, [sourceType]);
 
   // Subscribe to DMX Signal for ArtNet Output (per-fixture routing).
   useEffect(() => {

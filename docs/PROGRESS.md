@@ -165,6 +165,20 @@ src/renderer/                  (the React app)
   recall (records history → undoable), delete. UI in `ScenePanel.tsx`.
 - Cue/timeline playback (crossfades) intentionally deferred.
 
+## Phase J — Art-Net / sACN input capture (done)
+- `src/main/transport/input.ts`: UDP listeners — Art-Net (6454) and sACN (5568 + multicast
+  join). Parses OpOutput / E1.31 → `{protocol, universe, data}`, coalesces per-universe and
+  forwards to the renderer at ~30 Hz via IPC `input:frame`. `configureInput({enabled,protocol,
+  universes})` over `input:configure`.
+- `shared/protocol.ts` (InputConfig/InputFrame + channels), `preload` (`configureInput`,
+  `onDmxInput`), `ipc.ts` wire it up.
+- Renderer `services/dmxInput.ts` assembles incoming universes into a canvas (row = universe,
+  RGB triples). New `SourceType.DMX_IN`: Stage draws that canvas as the content source, so
+  incoming DMX drives fixtures through the normal mapping/effects pipeline. Inspector has a
+  "DMX In" source button; App enables/disables the listener with the source.
+- Not full HTP/LTP merge (deferred). Verified: input parser UDP round-trip passes (Art-Net +
+  sACN, 4/4); app builds + launches clean.
+
 ## Open items
 - **Packaging**: bundle the `.node` for distribution via electron-builder (`asarUnpack` /
   `extraResources`) and per-platform native prebuilds in CI.

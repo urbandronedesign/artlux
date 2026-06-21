@@ -8,7 +8,23 @@ export const IPC = {
   FRAME: 'dmx:frame',
   /** Main → renderer: output connection/health status. */
   STATUS: 'dmx:status',
+  /** Renderer → main: start/stop Art-Net/sACN input capture. */
+  INPUT_CONFIGURE: 'input:configure',
+  /** Main → renderer: latest received input universes. */
+  INPUT_FRAME: 'input:frame',
 } as const;
+
+export interface InputConfig {
+  enabled: boolean;
+  protocol: 'artnet' | 'sacn' | 'both';
+  universes: number[]; // sACN multicast groups to join
+}
+
+export interface InputFrame {
+  protocol: 'artnet' | 'sacn';
+  universe: number;
+  data: number[];
+}
 
 export interface OutputConfig {
   ip: string;
@@ -39,6 +55,8 @@ export interface ArtluxApi {
   /** One frame, encoded by shared/frameCodec.encodeFrame (binary handoff). */
   sendArtNet(frame: ArrayBuffer): void;
   onStatus(cb: (connected: boolean) => void): () => void;
+  configureInput(cfg: InputConfig): void;
+  onDmxInput(cb: (frames: InputFrame[]) => void): () => void;
 }
 
 declare global {
