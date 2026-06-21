@@ -2,6 +2,8 @@ import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import { Fixture, SourceType, RGBW } from '../types';
 import { Maximize, RotateCw, Move, AlertCircle, Magnet, Grid3X3, ZoomIn } from 'lucide-react';
 import { GPUMapper } from '../services/GPUMapper';
+import { WebGPUMapper } from '../gpu/WebGPUMapper';
+import { IPixelMapper } from '../services/PixelMapper';
 import { dmxSignal } from '../services/dmxSignal';
 
 interface StageProps {
@@ -40,8 +42,10 @@ export const Stage: React.FC<StageProps> = ({
   const fixturesRef = useRef(fixtures);
   useEffect(() => { fixturesRef.current = fixtures; }, [fixtures]);
 
-  const mapper = useRef<GPUMapper | null>(null);
+  const mapper = useRef<IPixelMapper | null>(null);
   const [webglError, setWebglError] = useState(false);
+  const brightnessRef = useRef(globalBrightness);
+  useEffect(() => { brightnessRef.current = globalBrightness; }, [globalBrightness]);
   
   const [viewState, setViewState] = useState({ x: 0, y: 0, scale: 0.8 });
   const viewStateRef = useRef(viewState);
@@ -65,15 +69,33 @@ export const Stage: React.FC<StageProps> = ({
   });
 
   useEffect(() => {
-    if (!mapper.current) {
+    let cancelled = false;
+    (async () => {
+        let m: IPixelMapper | null = null;
         try {
-            mapper.current = new GPUMapper(512, 512);
+            m = await WebGPUMapper.create();
+            if (m) console.log('[Stage] Using WebGPU compute mapper');
         } catch (e) {
-            console.error("Failed to initialize GPU Mapper:", e);
-            setWebglError(true);
+            m = null;
         }
-    }
+        if (!m) {
+            try {
+                m = new GPUMapper(512, 512);
+                console.log('[Stage] Using WebGL mapper (fallback)');
+            } catch (e) {
+                console.error('Failed to initialize GPU Mapper:', e);
+                setWebglError(true);
+                return;
+            }
+        }
+        if (cancelled) { m.dispose(); return; }
+        mapper.current = m;
+        // Apply current state captured after the async init.
+        m.updateMapping(fixturesRef.current);
+        m.setBrightness(brightnessRef.current);
+    })();
     return () => {
+        cancelled = true;
         if (mapper.current) {
             mapper.current.dispose();
             mapper.current = null;
