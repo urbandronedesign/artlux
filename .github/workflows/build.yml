@@ -42,6 +42,9 @@ jobs:
       - name: Build native engine
         run: npm run build:native
 
+      - name: Build app (main/preload/renderer)
+        run: npm run build
+
       - name: Package
         run: npx electron-builder --publish never
         env:
