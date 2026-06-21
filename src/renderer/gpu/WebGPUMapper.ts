@@ -1,23 +1,24 @@
-import { Fixture, PixelSource, LedShape, RGBWMode } from '../types';
+import { Fixture, Segment, PixelSource, LedShape, RGBWMode } from '../types';
 import { IPixelMapper } from '../services/PixelMapper';
 import { buildPaletteLut } from './palettes';
 
-// WebGPU compute-based pixel mapper. Drop-in for the WebGL GPUMapper. Per LED it
-// either samples the media source at the LED's UV, or generates a color from a
-// built-in effect + palette (WLED-style), then converts RGB->RGBW (subtract-min,
-// parity with the WebGL shader) on the GPU. Output is read back asynchronously
-// (mapAsync + a staging-buffer ring) to avoid the synchronous readPixels stall.
+// WebGPU compute pixel mapper. Per LED it samples the media source or generates a
+// color from an effect + palette (per **segment** of a fixture), converts RGB->RGBW,
+// and writes the result; read back asynchronously (mapAsync + staging ring).
 //
-// Per-LED static layout (uv, strip position t, fixture index) lives in `ledData`;
-// per-fixture dynamic effect params live in `fixParams` so slider tweaks only
-// rewrite a tiny buffer instead of reallocating.
+// Multi-segment: each fixture flattens to 1+ segments (a fixture with no segments
+// acts as one implicit segment). Per-LED `ledData.w` is the global segment index;
+// `segParams` holds 2x vec4 per segment (+1 trailing "off" entry for gap LEDs).
+// Stateful fire2012 uses a persistent `heat` buffer updated by a separate compute
+// pass each frame (in-place; races are fine for fire), then mapped through a palette.
 
 const SOURCE_SIZE = 512;
 const WORKGROUP = 64;
 const STAGING_COUNT = 3;
+const FIRE_EFFECT = 4;
 
 const SHADER = /* wgsl */ `
-struct Params { brightness: f32, time: f32, count: u32, paletteCount: u32 };
+struct Params { brightness: f32, time: f32, count: u32, paletteCount: u32, frame: u32, p0: u32, p1: u32, p2: u32 };
 
 @group(0) @binding(0) var samp: sampler;
 @group(0) @binding(1) var srcTex: texture_2d<f32>;
@@ -25,9 +26,16 @@ struct Params { brightness: f32, time: f32, count: u32, paletteCount: u32 };
 @group(0) @binding(3) var<storage, read_write> outBuf: array<u32>;
 @group(0) @binding(4) var<uniform> params: Params;
 @group(0) @binding(5) var palTex: texture_2d<f32>;
-@group(0) @binding(6) var<storage, read> fixParams: array<vec4<f32>>;
+@group(0) @binding(6) var<storage, read> segParams: array<vec4<f32>>;
+@group(0) @binding(7) var<storage, read> ledMeta: array<vec4<f32>>;
+@group(0) @binding(8) var<storage, read_write> heat: array<f32>;
+
+const FIRE: i32 = ${FIRE_EFFECT};
 
 fn toByte(v: f32) -> u32 { return u32(clamp(v, 0.0, 1.0) * 255.0 + 0.5); }
+
+fn hashU(x0: u32) -> u32 { var x = x0; x ^= x >> 16u; x *= 0x7feb352du; x ^= x >> 15u; x *= 0x846ca68bu; x ^= x >> 16u; return x; }
+fn rand01(a: u32, b: u32) -> f32 { return f32(hashU(a * 747796405u + b * 2891336453u + 1u) & 0xffffffu) / 16777216.0; }
 
 fn samplePalette(pid: u32, idx: f32) -> vec4<f32> {
   let u = clamp(fract(idx), 0.0, 0.9999);
@@ -37,17 +45,50 @@ fn samplePalette(pid: u32, idx: f32) -> vec4<f32> {
 
 fn effectColor(eid: i32, t: f32, time: f32, speed: f32, intensity: f32, pid: u32) -> vec4<f32> {
   let sp = speed * 2.0;
-  if (eid == 1) {            // Rainbow — palette swept along strip, scrolling
+  if (eid == 1) {
     return samplePalette(pid, t + time * sp * 0.1);
-  } else if (eid == 2) {     // Palette Flow — scaled by intensity, scrolling
+  } else if (eid == 2) {
     let scale = 0.5 + intensity * 4.0;
     return samplePalette(pid, t * scale + time * sp * 0.15);
-  } else if (eid == 3) {     // Wave — travelling brightness sine over palette
+  } else if (eid == 3) {
     let c = samplePalette(pid, t);
     let w = 0.5 + 0.5 * sin((t * (1.0 + intensity * 6.0) - time * sp * 0.5) * 6.2831853);
     return vec4<f32>(c.rgb * w, c.a);
   }
   return samplePalette(pid, intensity); // 0 — Solid
+}
+
+// Stateful fire2012 — evolves the per-LED heat buffer along each segment.
+@compute @workgroup_size(${WORKGROUP})
+fn fire(@builtin(global_invocation_id) gid: vec3<u32>) {
+  let i = gid.x;
+  if (i >= params.count) { return; }
+  let segIdx = u32(ledData[i].w + 0.5);
+  let fp0 = segParams[2u * segIdx];
+  if (fp0.x < 0.0 || i32(fp0.x + 0.5) != FIRE) { return; }
+  let intensity = fp0.w;
+  let lm = ledMeta[i];
+  let segLen = u32(lm.y + 0.5);
+  let local = u32(lm.z + 0.5);
+
+  let cooling = 0.015 + (1.0 - intensity) * 0.05;
+  var h = heat[i] - rand01(i, params.frame) * cooling;
+  if (h < 0.0) { h = 0.0; }
+  // propagate from below (cells closer to base); reads prior values in-buffer
+  if (local >= 2u) {
+    h = (heat[i - 1u] + heat[i - 2u] + h) / 3.0;
+  } else if (local == 1u) {
+    h = (heat[i - 1u] + h) / 2.0;
+  }
+  // sparks near the base
+  let baseZone = max(1u, segLen / 8u);
+  if (local < baseZone) {
+    if (rand01(i, params.frame + 7777u) < (0.12 + intensity * 0.4)) {
+      let spark = 0.6 + rand01(i, params.frame + 13u) * 0.4;
+      if (spark > h) { h = spark; }
+    }
+  }
+  heat[i] = clamp(h, 0.0, 1.0);
 }
 
 @compute @workgroup_size(${WORKGROUP})
@@ -58,23 +99,27 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
   let d = ledData[i];
   let uv = d.xy;
   let t = d.z;
-  let fi = u32(d.w + 0.5);
-  let fp0 = fixParams[2u * fi];        // effectOrMedia, paletteId, speed, intensity
-  let fp1 = fixParams[2u * fi + 1u];   // rgbwMode, ...
-  let mode = fp0.x; // < 0 => media, else effect id
+  let segIdx = u32(d.w + 0.5);
+  let fp0 = segParams[2u * segIdx];
+  let fp1 = segParams[2u * segIdx + 1u];
+  let mode = fp0.x; // -2 off, -1 media, >=0 effect id
+
+  if (mode < -1.5) { outBuf[i] = 0u; return; }
 
   var color: vec4<f32>;
   if (mode < 0.0) {
     color = textureSampleLevel(srcTex, samp, uv, 0.0);
+  } else if (i32(mode + 0.5) == FIRE) {
+    color = samplePalette(u32(fp0.y + 0.5), heat[i]);
   } else {
     color = effectColor(i32(mode + 0.5), t, params.time, fp0.z, fp0.w, u32(fp0.y + 0.5));
   }
 
   let b = params.brightness;
   var rr: f32; var gg: f32; var bb: f32; var ww: f32;
-  if (fp1.x > 0.5) {        // RGBWMode.NONE -> full RGB, no white
+  if (fp1.x > 0.5) { // RGBWMode.NONE
     rr = color.r * b; gg = color.g * b; bb = color.b * b; ww = 0.0;
-  } else {                  // RGBWMode.SUBTRACT (default)
+  } else {
     let m = min(min(color.r, color.g), color.b);
     rr = (color.r - m) * b; gg = (color.g - m) * b; bb = (color.b - m) * b; ww = m * b;
   }
@@ -82,29 +127,41 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 }
 `;
 
+interface SegLike { start: number; stop: number; source?: PixelSource; effectId?: number; paletteId?: number; speed?: number; intensity?: number; }
+
+function fixtureSegments(f: Fixture): SegLike[] {
+  if (f.segments && f.segments.length) return f.segments;
+  return [{ start: 0, stop: f.ledCount, source: f.source, effectId: f.effectId, paletteId: f.paletteId, speed: f.speed, intensity: f.intensity }];
+}
+
 export class WebGPUMapper implements IPixelMapper {
   private device: GPUDevice;
   private queue: GPUQueue;
-  private pipeline: GPUComputePipeline;
+  private mainPipeline: GPUComputePipeline;
+  private firePipeline: GPUComputePipeline;
   private sampler: GPUSampler;
   private srcTexture: GPUTexture;
   private paletteTexture: GPUTexture;
   private paletteCount: number;
 
-  private mapBuffer: GPUBuffer | null = null;
-  private fixParamsBuffer: GPUBuffer | null = null;
+  private ledBuffer: GPUBuffer | null = null;
+  private metaBuffer: GPUBuffer | null = null;
+  private segParamsBuffer: GPUBuffer | null = null;
+  private heatBuffer: GPUBuffer | null = null;
   private outBuffer: GPUBuffer | null = null;
   private paramsBuffer: GPUBuffer;
-  private bindGroup: GPUBindGroup | null = null;
+  private mainBind: GPUBindGroup | null = null;
+  private fireBind: GPUBindGroup | null = null;
 
   private staging: GPUBuffer[] = [];
   private stagingBusy: boolean[] = [];
   private stagingCursor = 0;
 
   private totalLeds = 0;
-  private fixCount = 0;
+  private segCount = 0;
   private brightness = 1.0;
   private startTime = performance.now();
+  private frame = 0;
   private latest: Uint8Array | null = null;
   private disposed = false;
 
@@ -113,16 +170,12 @@ export class WebGPUMapper implements IPixelMapper {
     this.queue = device.queue;
 
     const module = device.createShaderModule({ code: SHADER });
-    this.pipeline = device.createComputePipeline({
-      layout: 'auto',
-      compute: { module, entryPoint: 'main' },
-    });
+    this.mainPipeline = device.createComputePipeline({ layout: 'auto', compute: { module, entryPoint: 'main' } });
+    this.firePipeline = device.createComputePipeline({ layout: 'auto', compute: { module, entryPoint: 'fire' } });
 
     this.sampler = device.createSampler({
-      magFilter: 'linear',
-      minFilter: 'linear',
-      addressModeU: 'clamp-to-edge',
-      addressModeV: 'clamp-to-edge',
+      magFilter: 'linear', minFilter: 'linear',
+      addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge',
     });
 
     this.srcTexture = device.createTexture({
@@ -131,7 +184,6 @@ export class WebGPUMapper implements IPixelMapper {
       usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
     });
 
-    // Palette LUT (256 x paletteCount).
     const lut = buildPaletteLut();
     this.paletteCount = lut.count;
     this.paletteTexture = device.createTexture({
@@ -139,17 +191,9 @@ export class WebGPUMapper implements IPixelMapper {
       format: 'rgba8unorm',
       usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
     });
-    this.queue.writeTexture(
-      { texture: this.paletteTexture },
-      lut.data,
-      { bytesPerRow: lut.width * 4, rowsPerImage: lut.count },
-      [lut.width, lut.count],
-    );
+    this.queue.writeTexture({ texture: this.paletteTexture }, lut.data, { bytesPerRow: lut.width * 4, rowsPerImage: lut.count }, [lut.width, lut.count]);
 
-    this.paramsBuffer = device.createBuffer({
-      size: 16, // brightness(f32) + time(f32) + count(u32) + paletteCount(u32)
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    });
+    this.paramsBuffer = device.createBuffer({ size: 32, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   }
 
   static async create(): Promise<WebGPUMapper | null> {
@@ -170,39 +214,51 @@ export class WebGPUMapper implements IPixelMapper {
     this.brightness = Math.max(0, Math.min(1, value));
   }
 
-  // Two vec4 per fixture: [effectOrMedia, paletteId, speed, intensity], [rgbwMode,...]
-  private fixtureParamVec(f: Fixture, out: Float32Array, k: number): void {
-    const base = k * 8;
-    const isEffect = f.source === PixelSource.EFFECT;
-    out[base + 0] = isEffect ? (f.effectId ?? 0) : -1;
-    out[base + 1] = f.paletteId ?? 0;
-    out[base + 2] = f.speed ?? 0.5;
-    out[base + 3] = f.intensity ?? 0.5;
-    out[base + 4] = f.rgbwMode === RGBWMode.NONE ? 1 : 0;
-    out[base + 5] = 0;
-    out[base + 6] = 0;
-    out[base + 7] = 0;
+  // Build the segParams buffer contents: 2x vec4 per segment + 1 trailing "off" entry.
+  private buildSegParams(fixtures: Fixture[]): Float32Array {
+    const segs: { s: SegLike; f: Fixture }[] = [];
+    for (const f of fixtures) for (const s of fixtureSegments(f)) segs.push({ s, f });
+    const out = new Float32Array((segs.length + 1) * 8);
+    segs.forEach(({ s, f }, k) => {
+      const base = k * 8;
+      const isEffect = (s.source ?? PixelSource.MEDIA) === PixelSource.EFFECT;
+      out[base + 0] = isEffect ? (s.effectId ?? 0) : -1;
+      out[base + 1] = s.paletteId ?? 0;
+      out[base + 2] = s.speed ?? 0.5;
+      out[base + 3] = s.intensity ?? 0.5;
+      out[base + 4] = f.rgbwMode === RGBWMode.NONE ? 1 : 0;
+    });
+    // trailing off-segment for gap LEDs
+    out[segs.length * 8 + 0] = -2;
+    return out;
+  }
+
+  private countSegments(fixtures: Fixture[]): number {
+    let n = 0;
+    for (const f of fixtures) n += fixtureSegments(f).length;
+    return n;
   }
 
   updateMapping(fixtures: Fixture[]): void {
     if (this.disposed) return;
     const newTotal = fixtures.reduce((acc, f) => acc + f.ledCount, 0);
     this.totalLeds = newTotal;
-    this.fixCount = fixtures.length;
+    this.segCount = this.countSegments(fixtures);
     if (newTotal === 0) return;
 
-    const led = new Float32Array(newTotal * 4);   // (u, v, t, fixtureIndex)
-    const fix = new Float32Array(fixtures.length * 8); // 2 vec4 per fixture
-    let o = 0;
+    const led = new Float32Array(newTotal * 4);   // (u, v, t, segIndex)
+    const meta = new Float32Array(newTotal * 4);  // (segStartGlobal, segLen, localIndex, 0)
+    let o = 0, m = 0;
+    let ledBase = 0;   // global LED index of this fixture's first LED
+    let segCursor = 0; // global segment index of this fixture's first segment
+    const offSeg = this.segCount;
 
-    fixtures.forEach((f, k) => {
-      this.fixtureParamVec(f, fix, k);
-
+    fixtures.forEach((f) => {
+      const segs = fixtureSegments(f);
       const cx = f.x + f.width / 2;
       const cy = f.y + f.height / 2;
       const rads = (f.rotation || 0) * (Math.PI / 180);
-      const cos = Math.cos(rads);
-      const sin = Math.sin(rads);
+      const cos = Math.cos(rads), sin = Math.sin(rads);
       const isMatrix = f.shape === LedShape.MATRIX;
       const cols = Math.max(1, f.matrixWidth ?? 1);
       const rows = Math.max(1, f.matrixHeight ?? 1);
@@ -210,133 +266,148 @@ export class WebGPUMapper implements IPixelMapper {
       const isHoriz = f.width >= f.height;
 
       for (let i = 0; i < f.ledCount; i++) {
-        // ledmap: physical output index i -> geometry index g
-        const g = f.ledMap ? (f.ledMap[i] ?? i) : i;
+        // which segment contains output index i
+        let j = -1;
+        for (let q = 0; q < segs.length; q++) { if (i >= segs[q].start && i < segs[q].stop) { j = q; break; } }
+        let segIndex: number, segStartGlobal: number, segLen: number, local: number, tt: number;
+        if (j < 0) {
+          segIndex = offSeg; segStartGlobal = 0; segLen = 0; local = 0; tt = 0;
+        } else {
+          const s = segs[j];
+          segIndex = segCursor + j;
+          segStartGlobal = ledBase + s.start;
+          segLen = s.stop - s.start;
+          local = i - s.start;
+          tt = segLen > 1 ? local / (segLen - 1) : 0;
+          if (f.reverse) tt = 1 - tt;
+        }
 
+        // geometry (uv) from the geometry index g (ledmap-aware)
+        const g = f.ledMap ? (f.ledMap[i] ?? i) : i;
         let relX = 0, relY = 0;
-        let t: number;
         if (isMatrix) {
           const gg = Math.min(g, cells - 1);
           const row = Math.floor(gg / cols);
           let col = gg % cols;
           if (f.serpentine && row % 2 === 1) col = cols - 1 - col;
-          const cellW = f.width / cols;
-          const cellH = f.height / rows;
-          relX = (col + 0.5) * cellW - f.width / 2;
-          relY = (row + 0.5) * cellH - f.height / 2;
-          t = cells > 1 ? gg / (cells - 1) : 0;
+          relX = (col + 0.5) * (f.width / cols) - f.width / 2;
+          relY = (row + 0.5) * (f.height / rows) - f.height / 2;
         } else if (isHoriz) {
           const step = f.width / f.ledCount;
           relX = g * step + step / 2 - f.width / 2;
-          t = f.ledCount > 1 ? g / (f.ledCount - 1) : 0;
         } else {
           const step = f.height / f.ledCount;
           relY = g * step + step / 2 - f.height / 2;
-          t = f.ledCount > 1 ? g / (f.ledCount - 1) : 0;
         }
-        if (f.reverse) t = 1 - t;
-
         const rx = relX * cos - relY * sin;
         const ry = relX * sin + relY * cos;
-        led[o++] = cx + rx;
-        led[o++] = cy + ry;
-        led[o++] = t;
-        led[o++] = k;
+
+        led[o++] = cx + rx; led[o++] = cy + ry; led[o++] = tt; led[o++] = segIndex;
+        meta[m++] = segStartGlobal; meta[m++] = segLen; meta[m++] = local; meta[m++] = 0;
       }
+      ledBase += f.ledCount;
+      segCursor += segs.length;
     });
 
-    this.mapBuffer?.destroy();
-    this.mapBuffer = this.device.createBuffer({
-      size: led.byteLength,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-    });
-    this.queue.writeBuffer(this.mapBuffer, 0, led);
+    const segData = this.buildSegParams(fixtures);
 
-    this.fixParamsBuffer?.destroy();
-    this.fixParamsBuffer = this.device.createBuffer({
-      size: Math.max(32, fix.byteLength),
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-    });
-    this.queue.writeBuffer(this.fixParamsBuffer, 0, fix);
+    this.ledBuffer?.destroy();
+    this.ledBuffer = this.device.createBuffer({ size: led.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+    this.queue.writeBuffer(this.ledBuffer, 0, led);
+
+    this.metaBuffer?.destroy();
+    this.metaBuffer = this.device.createBuffer({ size: meta.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+    this.queue.writeBuffer(this.metaBuffer, 0, meta);
+
+    this.segParamsBuffer?.destroy();
+    this.segParamsBuffer = this.device.createBuffer({ size: Math.max(32, segData.byteLength), usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+    this.queue.writeBuffer(this.segParamsBuffer, 0, segData);
+
+    this.heatBuffer?.destroy();
+    this.heatBuffer = this.device.createBuffer({ size: newTotal * 4, usage: GPUBufferUsage.STORAGE }); // zero-initialized
 
     const outBytes = newTotal * 4;
     this.outBuffer?.destroy();
-    this.outBuffer = this.device.createBuffer({
-      size: outBytes,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC,
-    });
+    this.outBuffer = this.device.createBuffer({ size: outBytes, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
 
     for (const s of this.staging) s.destroy();
-    this.staging = [];
-    this.stagingBusy = [];
+    this.staging = []; this.stagingBusy = [];
     for (let i = 0; i < STAGING_COUNT; i++) {
-      this.staging.push(this.device.createBuffer({
-        size: outBytes,
-        usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
-      }));
+      this.staging.push(this.device.createBuffer({ size: outBytes, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST }));
       this.stagingBusy.push(false);
     }
     this.stagingCursor = 0;
     this.latest = new Uint8Array(outBytes);
 
-    this.bindGroup = this.device.createBindGroup({
-      layout: this.pipeline.getBindGroupLayout(0),
+    this.mainBind = this.device.createBindGroup({
+      layout: this.mainPipeline.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: this.sampler },
         { binding: 1, resource: this.srcTexture.createView() },
-        { binding: 2, resource: { buffer: this.mapBuffer } },
+        { binding: 2, resource: { buffer: this.ledBuffer } },
         { binding: 3, resource: { buffer: this.outBuffer } },
         { binding: 4, resource: { buffer: this.paramsBuffer } },
         { binding: 5, resource: this.paletteTexture.createView() },
-        { binding: 6, resource: { buffer: this.fixParamsBuffer } },
+        { binding: 6, resource: { buffer: this.segParamsBuffer } },
+        { binding: 8, resource: { buffer: this.heatBuffer } },
+      ],
+    });
+    this.fireBind = this.device.createBindGroup({
+      layout: this.firePipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 2, resource: { buffer: this.ledBuffer } },
+        { binding: 4, resource: { buffer: this.paramsBuffer } },
+        { binding: 6, resource: { buffer: this.segParamsBuffer } },
+        { binding: 7, resource: { buffer: this.metaBuffer } },
+        { binding: 8, resource: { buffer: this.heatBuffer } },
       ],
     });
   }
 
-  // Cheap path: only the per-fixture effect params changed (sliders/dropdowns).
+  // Cheap path: only segment effect params changed (same segment structure).
   updateParams(fixtures: Fixture[]): void {
-    if (this.disposed || !this.fixParamsBuffer) return;
-    if (fixtures.length !== this.fixCount) return; // count change -> updateMapping handles it
-    const fix = new Float32Array(fixtures.length * 8);
-    fixtures.forEach((f, k) => this.fixtureParamVec(f, fix, k));
-    this.queue.writeBuffer(this.fixParamsBuffer, 0, fix);
+    if (this.disposed || !this.segParamsBuffer) return;
+    if (this.countSegments(fixtures) !== this.segCount) return; // structure change -> updateMapping
+    this.queue.writeBuffer(this.segParamsBuffer, 0, this.buildSegParams(fixtures));
   }
 
   updateSource(source: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement): void {
     if (this.disposed) return;
     try {
-      this.queue.copyExternalImageToTexture(
-        { source: source as GPUCopyExternalImageSource, flipY: false },
-        { texture: this.srcTexture },
-        [SOURCE_SIZE, SOURCE_SIZE],
-      );
-    } catch {
-      // Source not ready yet; ignore this frame.
-    }
+      this.queue.copyExternalImageToTexture({ source: source as GPUCopyExternalImageSource, flipY: false }, { texture: this.srcTexture }, [SOURCE_SIZE, SOURCE_SIZE]);
+    } catch { /* source not ready */ }
   }
 
   read(): Uint8Array | null {
-    if (this.disposed || this.totalLeds === 0 || !this.bindGroup || !this.outBuffer) {
+    if (this.disposed || this.totalLeds === 0 || !this.mainBind || !this.fireBind || !this.outBuffer) {
       return this.latest && this.totalLeds > 0 ? this.latest : null;
     }
 
-    const params = new ArrayBuffer(16);
+    this.frame = (this.frame + 1) >>> 0;
+    const params = new ArrayBuffer(32);
     const dv = new DataView(params);
     dv.setFloat32(0, this.brightness, true);
     dv.setFloat32(4, (performance.now() - this.startTime) / 1000, true);
     dv.setUint32(8, this.totalLeds, true);
     dv.setUint32(12, this.paletteCount, true);
+    dv.setUint32(16, this.frame, true);
     this.queue.writeBuffer(this.paramsBuffer, 0, params);
 
     const idx = this.findFreeStaging();
     if (idx === -1) return this.latest;
 
+    const groups = Math.ceil(this.totalLeds / WORKGROUP);
     const encoder = this.device.createCommandEncoder();
-    const pass = encoder.beginComputePass();
-    pass.setPipeline(this.pipeline);
-    pass.setBindGroup(0, this.bindGroup);
-    pass.dispatchWorkgroups(Math.ceil(this.totalLeds / WORKGROUP));
-    pass.end();
+    const fp = encoder.beginComputePass();
+    fp.setPipeline(this.firePipeline);
+    fp.setBindGroup(0, this.fireBind);
+    fp.dispatchWorkgroups(groups);
+    fp.end();
+    const mp = encoder.beginComputePass();
+    mp.setPipeline(this.mainPipeline);
+    mp.setBindGroup(0, this.mainBind);
+    mp.dispatchWorkgroups(groups);
+    mp.end();
     encoder.copyBufferToBuffer(this.outBuffer, 0, this.staging[idx], 0, this.totalLeds * 4);
     this.queue.submit([encoder.finish()]);
 
@@ -348,9 +419,7 @@ export class WebGPUMapper implements IPixelMapper {
       if (this.latest && this.latest.length === copy.length) this.latest.set(copy);
       buf.unmap();
       this.stagingBusy[idx] = false;
-    }).catch(() => {
-      this.stagingBusy[idx] = false;
-    });
+    }).catch(() => { this.stagingBusy[idx] = false; });
 
     return this.latest;
   }
@@ -358,25 +427,22 @@ export class WebGPUMapper implements IPixelMapper {
   private findFreeStaging(): number {
     for (let n = 0; n < this.staging.length; n++) {
       const i = (this.stagingCursor + n) % this.staging.length;
-      if (!this.stagingBusy[i]) {
-        this.stagingCursor = (i + 1) % this.staging.length;
-        return i;
-      }
+      if (!this.stagingBusy[i]) { this.stagingCursor = (i + 1) % this.staging.length; return i; }
     }
     return -1;
   }
 
   dispose(): void {
     this.disposed = true;
-    this.mapBuffer?.destroy();
-    this.fixParamsBuffer?.destroy();
+    this.ledBuffer?.destroy();
+    this.metaBuffer?.destroy();
+    this.segParamsBuffer?.destroy();
+    this.heatBuffer?.destroy();
     this.outBuffer?.destroy();
     this.paramsBuffer?.destroy();
     this.srcTexture?.destroy();
     this.paletteTexture?.destroy();
-    for (const s of this.staging) {
-      try { s.destroy(); } catch { /* may be mapped */ }
-    }
+    for (const s of this.staging) { try { s.destroy(); } catch { /* mapped */ } }
     this.staging = [];
     this.latest = null;
     this.device.destroy();

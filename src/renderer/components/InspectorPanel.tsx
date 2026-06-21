@@ -52,6 +52,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
     onUpdateSettings
 }) => {
     const [isBridgeConnected, setIsBridgeConnected] = useState(false);
+    const [segSel, setSegSel] = useState(0);
 
     useEffect(() => {
         return addStatusListener(setIsBridgeConnected);
@@ -128,73 +129,132 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                     </div>
                 </PanelSection>
 
-                <PanelSection title="Effect" icon={<Sparkles size={12}/>}>
-                    {/* Content source: media vs generated effect */}
-                    <div className="grid grid-cols-2 gap-1">
-                        {([PixelSource.MEDIA, PixelSource.EFFECT] as const).map((src) => {
-                            const active = (selectedFixture.source ?? PixelSource.MEDIA) === src;
-                            return (
-                                <button
-                                    key={src}
-                                    onClick={() => onUpdateFixture(selectedFixture.id, { source: src })}
-                                    className={`text-[10px] py-1.5 rounded border transition-all ${active ? 'bg-accent/10 border-accent text-accent' : 'bg-[#181818] border-[#222] text-gray-500 hover:bg-[#202020]'}`}
-                                >
-                                    {src === PixelSource.MEDIA ? 'Media' : 'Effect'}
-                                </button>
-                            );
-                        })}
-                    </div>
+                {(() => {
+                    const segs = selectedFixture.segments;
+                    const hasSegs = !!(segs && segs.length);
+                    const idx = Math.min(segSel, (segs?.length ?? 1) - 1);
+                    const vals = hasSegs
+                        ? segs![idx]
+                        : {
+                            source: selectedFixture.source ?? PixelSource.MEDIA,
+                            effectId: selectedFixture.effectId ?? 0,
+                            paletteId: selectedFixture.paletteId ?? 0,
+                            speed: selectedFixture.speed ?? 0.5,
+                            intensity: selectedFixture.intensity ?? 0.5,
+                        };
+                    const setVals = (patch: Partial<typeof vals>) => {
+                        if (hasSegs) {
+                            onUpdateFixture(selectedFixture.id, { segments: segs!.map((s, i) => i === idx ? { ...s, ...patch } : s) });
+                        } else {
+                            onUpdateFixture(selectedFixture.id, patch);
+                        }
+                    };
+                    const enableSegments = () => {
+                        const half = Math.max(1, Math.floor(selectedFixture.ledCount / 2));
+                        const base = { source: vals.source, effectId: vals.effectId, paletteId: vals.paletteId, speed: vals.speed, intensity: vals.intensity };
+                        onUpdateFixture(selectedFixture.id, { segments: [
+                            { ...base, start: 0, stop: half },
+                            { ...base, start: half, stop: selectedFixture.ledCount },
+                        ] });
+                        setSegSel(0);
+                    };
+                    const addSegment = () => {
+                        const list = [...segs!];
+                        const last = list[list.length - 1];
+                        const mid = Math.floor((last.start + last.stop) / 2);
+                        if (mid <= last.start || mid >= last.stop) return;
+                        list[list.length - 1] = { ...last, stop: mid };
+                        list.push({ ...last, start: mid, stop: last.stop });
+                        onUpdateFixture(selectedFixture.id, { segments: list });
+                    };
+                    const removeSegment = (i: number) => {
+                        if (!segs || segs.length <= 1) { onUpdateFixture(selectedFixture.id, { segments: undefined }); return; }
+                        onUpdateFixture(selectedFixture.id, { segments: segs.filter((_, k) => k !== i) });
+                        setSegSel(0);
+                    };
 
-                    {(selectedFixture.source ?? PixelSource.MEDIA) === PixelSource.EFFECT && (
-                        <div className="space-y-3 pt-1">
-                            <div className="flex items-center justify-between text-xs gap-2">
-                                <label className="text-gray-500 w-16 truncate">Effect</label>
-                                <select
-                                    value={selectedFixture.effectId ?? 0}
-                                    onChange={(e) => onUpdateFixture(selectedFixture.id, { effectId: parseInt(e.target.value) })}
-                                    className="flex-1 bg-[#0a0a0a] border border-[#222] rounded px-1.5 py-1 text-gray-300 focus:border-accent focus:outline-none"
-                                >
-                                    {EFFECT_NAMES.map((name, i) => <option key={i} value={i}>{name}</option>)}
-                                </select>
+                    return (
+                        <PanelSection title="Effect" icon={<Sparkles size={12}/>}>
+                            {/* Segments toolbar */}
+                            <div className="flex items-center justify-between">
+                                <span className="text-[10px] text-gray-600 uppercase tracking-wider">
+                                    {hasSegs ? `${segs!.length} segments` : 'Whole fixture'}
+                                </span>
+                                {hasSegs ? (
+                                    <div className="flex gap-1">
+                                        <button onClick={addSegment} className="text-[10px] px-1.5 py-0.5 rounded border border-[#333] text-gray-400 hover:bg-[#202020]">+ Split</button>
+                                        <button onClick={() => onUpdateFixture(selectedFixture.id, { segments: undefined })} className="text-[10px] px-1.5 py-0.5 rounded border border-[#333] text-gray-400 hover:bg-[#202020]">Merge</button>
+                                    </div>
+                                ) : (
+                                    <button onClick={enableSegments} className="text-[10px] px-1.5 py-0.5 rounded border border-[#333] text-gray-400 hover:bg-[#202020]">Split</button>
+                                )}
                             </div>
 
-                            <div className="flex items-center justify-between text-xs gap-2">
-                                <label className="text-gray-500 w-16 truncate">Palette</label>
-                                <select
-                                    value={selectedFixture.paletteId ?? 0}
-                                    onChange={(e) => onUpdateFixture(selectedFixture.id, { paletteId: parseInt(e.target.value) })}
-                                    className="flex-1 bg-[#0a0a0a] border border-[#222] rounded px-1.5 py-1 text-gray-300 focus:border-accent focus:outline-none"
-                                >
-                                    {PALETTE_NAMES.map((name, i) => <option key={i} value={i}>{name}</option>)}
-                                </select>
-                            </div>
-
-                            <div className="space-y-1">
-                                <div className="flex items-center justify-between text-xs">
-                                    <label className="text-gray-500">Speed</label>
-                                    <span className="text-gray-400 font-mono text-[10px]">{Math.round((selectedFixture.speed ?? 0.5) * 100)}%</span>
+                            {hasSegs && (
+                                <div className="space-y-1">
+                                    {segs!.map((s, i) => (
+                                        <div key={i} className={`flex items-center justify-between text-[10px] px-1.5 py-1 rounded border ${i === idx ? 'border-accent bg-accent/10' : 'border-[#222] bg-[#181818]'}`}>
+                                            <button className="flex-1 text-left text-gray-300" onClick={() => setSegSel(i)}>Seg {i + 1} · LEDs {s.start}–{s.stop}</button>
+                                            <button className="text-gray-600 hover:text-red-400 px-1" onClick={() => removeSegment(i)}>✕</button>
+                                        </div>
+                                    ))}
+                                    <div className="flex gap-2 pt-1">
+                                        <NumberInput label="Start" value={vals && 'start' in vals ? (vals as any).start : 0} step={1} onChange={(v) => setVals({ start: Math.max(0, Math.round(v)) } as any)} />
+                                        <NumberInput label="Stop" value={vals && 'stop' in vals ? (vals as any).stop : 0} step={1} onChange={(v) => setVals({ stop: Math.round(v) } as any)} />
+                                    </div>
                                 </div>
-                                <input type="range" min={0} max={1} step={0.01}
-                                    value={selectedFixture.speed ?? 0.5}
-                                    onChange={(e) => onUpdateFixture(selectedFixture.id, { speed: parseFloat(e.target.value) })}
-                                    className="w-full"
-                                />
+                            )}
+
+                            {/* Content source: media vs effect (targets fixture or selected segment) */}
+                            <div className="grid grid-cols-2 gap-1 pt-1">
+                                {([PixelSource.MEDIA, PixelSource.EFFECT] as const).map((src) => {
+                                    const active = (vals.source ?? PixelSource.MEDIA) === src;
+                                    return (
+                                        <button key={src} onClick={() => setVals({ source: src })}
+                                            className={`text-[10px] py-1.5 rounded border transition-all ${active ? 'bg-accent/10 border-accent text-accent' : 'bg-[#181818] border-[#222] text-gray-500 hover:bg-[#202020]'}`}>
+                                            {src === PixelSource.MEDIA ? 'Media' : 'Effect'}
+                                        </button>
+                                    );
+                                })}
                             </div>
 
-                            <div className="space-y-1">
-                                <div className="flex items-center justify-between text-xs">
-                                    <label className="text-gray-500">Intensity</label>
-                                    <span className="text-gray-400 font-mono text-[10px]">{Math.round((selectedFixture.intensity ?? 0.5) * 100)}%</span>
+                            {(vals.source ?? PixelSource.MEDIA) === PixelSource.EFFECT && (
+                                <div className="space-y-3 pt-1">
+                                    <div className="flex items-center justify-between text-xs gap-2">
+                                        <label className="text-gray-500 w-16 truncate">Effect</label>
+                                        <select value={vals.effectId ?? 0} onChange={(e) => setVals({ effectId: parseInt(e.target.value) })}
+                                            className="flex-1 bg-[#0a0a0a] border border-[#222] rounded px-1.5 py-1 text-gray-300 focus:border-accent focus:outline-none">
+                                            {EFFECT_NAMES.map((name, i) => <option key={i} value={i}>{name}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="flex items-center justify-between text-xs gap-2">
+                                        <label className="text-gray-500 w-16 truncate">Palette</label>
+                                        <select value={vals.paletteId ?? 0} onChange={(e) => setVals({ paletteId: parseInt(e.target.value) })}
+                                            className="flex-1 bg-[#0a0a0a] border border-[#222] rounded px-1.5 py-1 text-gray-300 focus:border-accent focus:outline-none">
+                                            {PALETTE_NAMES.map((name, i) => <option key={i} value={i}>{name}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <div className="flex items-center justify-between text-xs">
+                                            <label className="text-gray-500">Speed</label>
+                                            <span className="text-gray-400 font-mono text-[10px]">{Math.round((vals.speed ?? 0.5) * 100)}%</span>
+                                        </div>
+                                        <input type="range" min={0} max={1} step={0.01} value={vals.speed ?? 0.5}
+                                            onChange={(e) => setVals({ speed: parseFloat(e.target.value) })} className="w-full" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <div className="flex items-center justify-between text-xs">
+                                            <label className="text-gray-500">Intensity</label>
+                                            <span className="text-gray-400 font-mono text-[10px]">{Math.round((vals.intensity ?? 0.5) * 100)}%</span>
+                                        </div>
+                                        <input type="range" min={0} max={1} step={0.01} value={vals.intensity ?? 0.5}
+                                            onChange={(e) => setVals({ intensity: parseFloat(e.target.value) })} className="w-full" />
+                                    </div>
                                 </div>
-                                <input type="range" min={0} max={1} step={0.01}
-                                    value={selectedFixture.intensity ?? 0.5}
-                                    onChange={(e) => onUpdateFixture(selectedFixture.id, { intensity: parseFloat(e.target.value) })}
-                                    className="w-full"
-                                />
-                            </div>
-                        </div>
-                    )}
-                </PanelSection>
+                            )}
+                        </PanelSection>
+                    );
+                })()}
 
                 <PanelSection title="2D / Output" icon={<Grid3x3 size={12}/>}>
                     {/* Shape: line vs matrix */}

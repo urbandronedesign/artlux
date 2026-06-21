@@ -6,4 +6,5 @@ export const EFFECT_NAMES: string[] = [
   'Rainbow',      // 1 — palette swept along the strip, scrolling by speed
   'Palette Flow', // 2 — palette scaled by intensity, scrolling by speed
   'Wave',         // 3 — palette with a travelling brightness sine
+  'Fire',         // 4 — stateful fire2012 (heat sim -> palette)
 ];

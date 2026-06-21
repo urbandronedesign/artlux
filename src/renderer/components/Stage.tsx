@@ -144,7 +144,8 @@ export const Stage: React.FC<StageProps> = ({
      return JSON.stringify(fixtures.map(f => ({
          id: f.id, x: f.x, y: f.y, w: f.width, h: f.height, r: f.rotation, c: f.ledCount,
          rev: f.reverse, sh: f.shape, mw: f.matrixWidth, mh: f.matrixHeight, sp: f.serpentine,
-         lm: f.ledMap ? f.ledMap.length : 0
+         lm: f.ledMap ? f.ledMap.length : 0,
+         seg: f.segments ? f.segments.map(s => `${s.start}-${s.stop}`).join(',') : ''
      })));
   }, [fixtures]);
 
@@ -157,7 +158,8 @@ export const Stage: React.FC<StageProps> = ({
   // Cheap per-fixture effect/palette param updates (sliders/dropdowns) — no realloc.
   const fixtureParamSignature = useMemo(() => {
      return JSON.stringify(fixtures.map(f => ({
-         s: f.source, e: f.effectId, p: f.paletteId, sp: f.speed, it: f.intensity, rw: f.rgbwMode
+         s: f.source, e: f.effectId, p: f.paletteId, sp: f.speed, it: f.intensity, rw: f.rgbwMode,
+         segp: f.segments ? f.segments.map(s => `${s.source},${s.effectId},${s.paletteId},${s.speed},${s.intensity}`).join('|') : ''
      })));
   }, [fixtures]);
 

@@ -28,6 +28,18 @@ export enum LedShape {
   MATRIX = 'MATRIX'
 }
 
+// A contiguous LED sub-range of a fixture with its own effect/palette. When a
+// fixture has no segments, the whole fixture acts as one implicit segment.
+export interface Segment {
+  start: number;   // first LED index within the fixture (inclusive)
+  stop: number;    // last LED index (exclusive)
+  source: PixelSource;
+  effectId: number;
+  paletteId: number;
+  speed: number;
+  intensity: number;
+}
+
 // Physical wiring order of the color channels on the strip/pixel.
 export enum ColorOrder {
   RGB = 'RGB', RBG = 'RBG', GRB = 'GRB', GBR = 'GBR', BRG = 'BRG', BGR = 'BGR'
@@ -58,6 +70,7 @@ export interface Fixture {
   paletteId?: number;  // index into PALETTE_NAMES
   speed?: number;      // 0..1
   intensity?: number;  // 0..1
+  segments?: Segment[]; // Phase H — multi-segment effects (optional)
   // Phase D — 2D matrix + ledmap + color correctness (optional; defaults keep
   // existing output identical: LINE / RGB order / SUBTRACT / 4 channels).
   shape?: LedShape;

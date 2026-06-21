@@ -141,6 +141,22 @@ src/renderer/                  (the React app)
 - Verified: build passes; E1.31 packet validated over UDP (11/11 structural checks);
   app boots clean with the dual-protocol manager.
 
+## Phase H — fire2012 + multi-segment effects (done)
+- `Segment { start, stop, source, effectId, paletteId, speed, intensity }` on `Fixture.segments?`
+  (optional; no segments ⇒ one implicit full-range segment = identical to before).
+- `WebGPUMapper`: per-LED `ledData.w` is now a **global segment index**; `segParams` holds
+  2×vec4 per segment (+ a trailing "off" entry for gap LEDs); a per-LED `ledMeta`
+  (segStart/segLen/localIndex) supports fire. `updateParams` rewrites only `segParams` when the
+  segment count is unchanged.
+- **fire2012** (effect id 4): persistent `heat` storage buffer + a separate `fire` compute pass
+  (cool → propagate-up within segment → base sparks, hashed PRNG, in-place) run before `main`,
+  which maps `heat`→palette. New `Params.frame` uniform; two pipelines (`main`, `fire`) with
+  separate auto-layout bind groups.
+- Inspector "Effect" section is segment-aware: Split/Merge, per-segment list with start/stop, and
+  the effect/palette/speed/intensity controls retarget the selected segment.
+- Verified: build + launch clean (no WGSL/validation errors). Two bugs caught at runtime and
+  fixed: `meta` is a reserved WGSL keyword; the `main` auto-layout omits unused binding 7.
+
 ## Open items
 - **Packaging**: bundle the `.node` for distribution via electron-builder (`asarUnpack` /
   `extraResources`) and per-platform native prebuilds in CI.
