@@ -13,7 +13,7 @@ Newest decisions at the bottom of each section. Commit hashes are on `main`.
 | C | WLED effects + palettes (per-fixture) | ✅ done (segments/fire deferred) | `254cff8` |
 | D | 2D matrix + ledmap + color correctness | ✅ done | `063be08` |
 | E | Per-fixture routing + output targeting (TS) | ✅ done | `4e5fe09` |
-| F | sACN/E1.31 (TS) ✅ · Rust engine ⏳ deferred | ◑ partial | `<pending>` |
+| F | Native sACN/E1.31 + **Rust output engine (napi-rs)** | ✅ done | `290d353`, `<pending>` |
 | G | 3D LED fixture editor + simulator (r3f) | ✅ done | `2c59917` |
 
 ## What works today
@@ -103,11 +103,27 @@ src/renderer/                  (the React app)
 - Verified: build passes; with the view temporarily defaulted to 3D the scene rendered with
   no errors (only a benign THREE.Clock deprecation warning from a dep).
 
-## Phase F notes (partial — sACN in TS; Rust engine deferred)
-- **No Rust toolchain** in this environment (cargo/rustc/rustup absent; install likely
-  sandbox-blocked). So the napi-rs native engine is deferred to a Rust-equipped machine;
-  the design is in ARCHITECTURE_PLAN Phase F.
-- Delivered now (verifiable): **native sACN / E1.31** in `src/main/transport/sacn.ts` (Root +
+## Phase F native engine (Rust napi-rs) — done
+- Rust toolchain installed on this machine (rustc/cargo **1.96**, MSVC). The native engine
+  is built and wired in.
+- `native/output-engine/` — Rust crate (napi-rs) building Art-Net + sACN packets and sending
+  UDP in Rust (`src/lib.rs`): `configure(broadcast)`, `sendFrame(targets)`, `isReady()`,
+  `close()`. Per-universe sACN sequence + changed-only (sparse) dirty-tracking, multicast/
+  unicast, priority — parity with the TS transports.
+- Build: `npm run build:native` (cargo build --release + `scripts/copy-native.cjs` copies the
+  cdylib to `native/output-engine/output-engine.node`). The `.node` and `native/**/target`
+  are gitignored — **run `npm run build:native` after cloning** (or when the crate changes).
+- `outputManager.ts` loads the `.node` at runtime via `createRequire` (candidate paths:
+  `cwd` and `out/main/../../native/...`); **falls back to the TS artnet/sacn transport** if the
+  addon is absent. N-API is ABI-stable, so the addon built with system Node loads in Electron.
+- Verified: cargo build OK; the addon loads in Node and Electron; a UDP round-trip test
+  asserted valid **Art-Net + sACN** straight from Rust (7/7 checks); app boots with
+  "[output] native Rust engine loaded".
+- Still future (optimization): **SharedArrayBuffer + dedicated send thread** (the engine
+  currently receives targets via napi each frame, which already removes per-packet JS work).
+
+## Phase F notes (sACN in TypeScript — the fallback path)
+- Delivered: **native sACN / E1.31** in `src/main/transport/sacn.ts` (Root +
   Framing + DMP layers, CID, priority, per-universe sequence, multicast `239.255.x.x:5568`
   or unicast). `outputManager.ts` routes each frame's targets to Art-Net or sACN by
   `target.protocol`; `ipc.ts` now uses outputManager.
@@ -119,14 +135,14 @@ src/renderer/                  (the React app)
   app boots clean with the dual-protocol manager.
 
 ## Open items
-- **Rust output engine (Phase F native)**: napi-rs addon for the high-rate send loop +
-  SharedArrayBuffer handoff (design in ARCHITECTURE_PLAN). Needs a Rust toolchain; build on a
-  Rust-equipped machine. The TS artnet/sacn transport is the working path and fallback.
+- **Native engine optimization**: SharedArrayBuffer + dedicated send thread (and packaging
+  the `.node` via electron-builder `asarUnpack` for distribution).
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
 - Deferred effects: stateful **fire2012**, **multi-segment** subdivision per fixture.
 - **Parity check**: WebGPU vs WebGL pixel output verified only as "initializes + runs"; confirm visually with a loaded source against the DMX Monitor.
 
 ## Verification cheatsheet
 - Build: `npm run build` (compiles main+preload+renderer).
+- Native engine: `npm run build:native` (Rust → `output-engine.node`). Required once after clone.
 - Run: `env -u ELECTRON_RUN_AS_NODE npm run dev`.
 - Art-Net bytes: a UDP listener on `127.0.0.1:6454` + the transport produces a valid `Art-Net` OpOutput packet (header, `0x5000`, universe, length, payload, non-zero seq) — validated during Phase A.

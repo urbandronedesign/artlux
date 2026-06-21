@@ -7,6 +7,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
+    "build:native": "cargo build --release --manifest-path native/output-engine/Cargo.toml && node scripts/copy-native.cjs",
     "package": "electron-vite build && electron-builder"
   },
   "dependencies": {
@@ -20,6 +21,7 @@
     "uuid": "^13.0.0"
   },
   "devDependencies": {
+    "@napi-rs/cli": "^3.7.2",
     "@types/node": "^22.14.0",
     "@types/three": "^0.184.1",
     "@vitejs/plugin-react": "^5.0.0",

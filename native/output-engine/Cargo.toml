@@ -1,0 +1,19 @@
+[package]
+name = "artlux-output-engine"
+version = "0.0.0"
+edition = "2021"
+description = "Native Art-Net / sACN output engine for ArtLux (napi-rs)"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+napi = { version = "2", default-features = false, features = ["napi4"] }
+napi-derive = "2"
+
+[build-dependencies]
+napi-build = "2"
+
+[profile.release]
+lto = true
+opt-level = 3

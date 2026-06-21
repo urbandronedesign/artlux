@@ -14,6 +14,10 @@ out
 release
 *.local
 
+# Rust / native addon build artifacts
+native/**/target
+*.node
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
