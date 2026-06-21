@@ -9,7 +9,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "build:native": "cargo build --release --manifest-path native/output-engine/Cargo.toml && node scripts/copy-native.cjs",
+    "build:native": "cargo build --release --manifest-path native/output-engine/Cargo.toml && cargo build --release --manifest-path native/spout-receiver/Cargo.toml && node scripts/copy-native.cjs",
     "package": "electron-vite build && electron-builder",
     "package:dir": "electron-vite build && electron-builder --dir"
   },
@@ -48,6 +48,10 @@
       {
         "from": "native/output-engine/output-engine.node",
         "to": "output-engine.node"
+      },
+      {
+        "from": "native/spout-receiver/spout-receiver.node",
+        "to": "spout-receiver.node"
       }
     ],
     "win": {

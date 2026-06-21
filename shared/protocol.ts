@@ -30,7 +30,24 @@ export const IPC = {
   PREFS_SET: 'prefs:set',
   /** Renderer → main (invoke): ArtPoll broadcast → discovered Art-Net nodes. */
   ARTNET_DISCOVER: 'artnet:discover',
+  /** Renderer → main (invoke): list available Spout sender names. */
+  SPOUT_LIST: 'spout:list',
+  /** Renderer → main: connect/disconnect the Spout receiver. */
+  SPOUT_CONFIGURE: 'spout:configure',
+  /** Main → renderer: a received Spout frame (downscaled 512² RGBA). */
+  SPOUT_FRAME: 'spout:frame',
 } as const;
+
+export interface SpoutConfig {
+  enabled: boolean;
+  name?: string; // empty/undefined = active sender
+}
+
+export interface SpoutFrame {
+  width: number;
+  height: number;
+  data: Uint8Array; // RGBA
+}
 
 // One Art-Net node found via ArtPoll/ArtPollReply discovery.
 export interface ArtNetDevice {
@@ -136,6 +153,10 @@ export interface ArtluxApi {
   getPrefs(): Promise<Prefs>;
   setPrefs(patch: Partial<Prefs>): Promise<void>;
   discoverDevices(): Promise<ArtNetDevice[]>;
+  // Spout
+  listSpoutSenders(): Promise<string[]>;
+  configureSpout(cfg: SpoutConfig): void;
+  onSpoutFrame(cb: (frame: SpoutFrame) => void): () => void;
 }
 
 declare global {

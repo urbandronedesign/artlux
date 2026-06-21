@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Fixture, SourceType, AppSettings, RGBW, PixelSource, LedShape, ColorOrder, RGBWMode, Layout3DType, Module } from '../types';
-import { Monitor, Image as ImageIcon, Video, Map, ChevronDown, Sparkles, Grid3x3, Network, Box } from 'lucide-react';
+import { Monitor, Image as ImageIcon, Video, Map, ChevronDown, Sparkles, Grid3x3, Network, Box, Cast, RefreshCw } from 'lucide-react';
 import { EFFECT_NAMES } from '../gpu/effects';
 import { PALETTE_NAMES } from '../gpu/palettes';
 import { effectivePosObj, effectiveRotObj, effectiveLayout } from '../services/led3dDefaults';
+import { listSpoutSenders } from '../services/spoutReceiver';
 
 interface InspectorPanelProps {
     sourceType: SourceType;
@@ -51,6 +52,9 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
     module
 }) => {
     const [segSel, setSegSel] = useState(0);
+    const [spoutSender, setSpoutSender] = useState('');
+    const [spoutSenders, setSpoutSenders] = useState<string[]>([]);
+    const refreshSpout = async () => setSpoutSenders(await listSpoutSenders());
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: SourceType) => {
         const file = e.target.files?.[0];
@@ -110,6 +114,27 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                     <Network size={14} />
                     <span className="text-[10px]">DMX In (Art-Net / sACN)</span>
                 </button>
+                <button
+                    onClick={() => { onSetSource(SourceType.SPOUT, spoutSender); refreshSpout(); }}
+                    className={`mt-1 w-full flex items-center justify-center gap-2 p-2 rounded border transition-all ${sourceType === SourceType.SPOUT ? 'bg-accent/10 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3'}`}
+                    title="Receive a Spout video stream (Resolume / MadMapper / TouchDesigner)"
+                >
+                    <Cast size={14} />
+                    <span className="text-[10px]">Spout In</span>
+                </button>
+                {sourceType === SourceType.SPOUT && (
+                    <div className="flex items-center gap-1 mt-1">
+                        <select
+                            value={spoutSender}
+                            onChange={(e) => { setSpoutSender(e.target.value); onSetSource(SourceType.SPOUT, e.target.value); }}
+                            className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-[10px] focus:border-accent focus:outline-none"
+                        >
+                            <option value="">Active sender</option>
+                            {spoutSenders.map((s) => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                        <button onClick={refreshSpout} title="Refresh Spout senders" className="p-1.5 rounded border border-line-1 text-fg-2 hover:bg-surface-3"><RefreshCw size={12} /></button>
+                    </div>
+                )}
             </PanelSection>
             )}
 

@@ -1,8 +1,9 @@
 import { ipcMain, type BrowserWindow } from 'electron';
-import { IPC, type OutputConfig, type InputConfig, type ProjectData, type RigData, type Prefs } from '../../shared/protocol';
+import { IPC, type OutputConfig, type InputConfig, type ProjectData, type RigData, type Prefs, type SpoutConfig } from '../../shared/protocol';
 import * as output from './transport/outputManager';
 import * as input from './transport/input';
 import * as discovery from './transport/discovery';
+import * as spout from './transport/spoutManager';
 import * as persistence from './persistence';
 
 // Wire renderer IPC to the native Art-Net transport and report status back.
@@ -41,6 +42,16 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     ipcMain.handle(IPC.PREFS_GET, () => persistence.getPrefs());
     ipcMain.handle(IPC.PREFS_SET, (_e, patch: Partial<Prefs>) => { persistence.setPrefs(patch); });
     ipcMain.handle(IPC.ARTNET_DISCOVER, () => discovery.discover());
+
+    // ---- Spout receiver ----
+    ipcMain.handle(IPC.SPOUT_LIST, () => spout.listSenders());
+    ipcMain.on(IPC.SPOUT_CONFIGURE, (_e, cfg: SpoutConfig) => {
+        if (cfg.enabled) {
+            spout.start(cfg.name ?? '', (frame) => getWindow()?.webContents.send(IPC.SPOUT_FRAME, frame));
+        } else {
+            spout.stop();
+        }
+    });
 
     // Poll native engine throughput stats ~1 Hz and push to the renderer.
     setInterval(() => {

@@ -12,6 +12,7 @@ import { StatusBar } from './components/StatusBar';
 import { sendArtNetFrame, configureOutput, addStatusListener } from './services/mockSocketService';
 import { dmxSignal } from './services/dmxSignal';
 import { startInput, stopInput } from './services/dmxInput';
+import { startSpout, stopSpout } from './services/spoutReceiver';
 import { Activity, SlidersHorizontal } from 'lucide-react';
 import { useHistory } from './hooks/useHistory';
 
@@ -99,6 +100,13 @@ const App: React.FC = () => {
       stopInput();
     }
   }, [sourceType]);
+
+  // Spout capture only while Spout is the active source (sourceUrl carries the
+  // selected sender name; empty = active sender).
+  useEffect(() => {
+    if (sourceType === SourceType.SPOUT) startSpout(sourceUrl ?? '');
+    else stopSpout();
+  }, [sourceType, sourceUrl]);
 
   // Subscribe to DMX Signal for ArtNet Output (per-fixture routing).
   useEffect(() => {

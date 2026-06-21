@@ -281,6 +281,23 @@ Plan: Persistence (F1) → Art-Net Poll (F2) → Art-Net Sync (F2b) → Headless
   launch loaded 1 fixture, used WebGPU, and emitted **334 ArtDmx + 334 ArtSync** (~44 fps) to a UDP
   listener over ~7.5s; `tsc`+build clean. Note: media sources aren't in the project format, so
   headless drives EFFECT/DMX-in fixtures (media-source fixtures render black).
+- **F4 — Spout receiver (done)**: new `SourceType.SPOUT` content source (Windows GPU video from
+  Resolume/MadMapper/TouchDesigner). Native addon **`native/spout-receiver`** (napi-rs) wraps the
+  **`spout2-rs`** crate's DX11 receiver (vendors the Spout2 SDK, manages its own D3D11 device, CPU
+  readback) — `listSenders`/`connect`/`disconnect`/`receiveFrame`; downscales to **512² RGBA** before
+  handoff; BGRA→RGBA swap by `sender_format`. `#[cfg(windows)]` real impl + no-op stubs elsewhere
+  (`spout2-rs` is a Windows-only target dep) so CI builds a valid `.node` on all platforms. Loaded in
+  **main** via `src/main/transport/spoutManager.ts` (outputManager-style load + ~60 Hz forward
+  interval → `spout:frame` IPC). Renderer `src/renderer/services/spoutReceiver.ts` mirrors
+  `dmxInput.ts` (`getSpoutCanvas()`); `Stage.tick` SPOUT branch; App lifecycle effect (sourceUrl =
+  sender name); InspectorPanel **Spout In** button + sender dropdown + refresh. Build: `build:native`
+  builds both crates; `copy-native.cjs` generalized; `extraResources` + CI cache extended.
+  Verified: native crate compiles (vendored Spout2 C++ SDK via `spout2-sys`), `.node` loads in main,
+  and the napi boundary works (`listSenders()=[]`, `connect('')`/`receiveFrame()=null`/`disconnect()`
+  with no sender running); `tsc`+build+launch clean (`[spout] native receiver loaded`). Live frame
+  receive needs a running Spout sender (not available in this sandbox).
+
+**New-features roadmap F1–F4 complete.**
 
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.

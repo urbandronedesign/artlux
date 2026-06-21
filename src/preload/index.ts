@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import {
     IPC, type OutputConfig, type OutputStats, type InputConfig, type InputFrame, type ArtluxApi,
-    type ProjectData, type RigData, type Prefs,
+    type ProjectData, type RigData, type Prefs, type SpoutConfig, type SpoutFrame,
 } from '../../shared/protocol';
 
 const api: ArtluxApi = {
@@ -32,6 +32,14 @@ const api: ArtluxApi = {
     getPrefs: () => ipcRenderer.invoke(IPC.PREFS_GET),
     setPrefs: (patch: Partial<Prefs>) => ipcRenderer.invoke(IPC.PREFS_SET, patch),
     discoverDevices: () => ipcRenderer.invoke(IPC.ARTNET_DISCOVER),
+    // Spout
+    listSpoutSenders: () => ipcRenderer.invoke(IPC.SPOUT_LIST),
+    configureSpout: (cfg: SpoutConfig) => ipcRenderer.send(IPC.SPOUT_CONFIGURE, cfg),
+    onSpoutFrame: (cb: (frame: SpoutFrame) => void) => {
+        const listener = (_e: unknown, frame: SpoutFrame) => cb(frame);
+        ipcRenderer.on(IPC.SPOUT_FRAME, listener);
+        return () => { ipcRenderer.removeListener(IPC.SPOUT_FRAME, listener); };
+    },
 };
 
 contextBridge.exposeInMainWorld('artlux', api);

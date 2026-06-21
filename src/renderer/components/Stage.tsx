@@ -6,6 +6,7 @@ import { WebGPUMapper } from '../gpu/WebGPUMapper';
 import { IPixelMapper } from '../services/PixelMapper';
 import { dmxSignal } from '../services/dmxSignal';
 import { getInputCanvas } from '../services/dmxInput';
+import { getSpoutCanvas } from '../services/spoutReceiver';
 
 interface StageProps {
   sourceType: SourceType;
@@ -253,6 +254,17 @@ export const Stage: React.FC<StageProps> = ({
         const inCanvas = getInputCanvas();
         if (ctx && inCanvas) {
             ctx.imageSmoothingEnabled = false;
+            ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+            ctx.drawImage(inCanvas, 0, 0, canvasRef.current.width, canvasRef.current.height);
+        }
+    }
+
+    // Spout input as a content source: draw the received texture (already 512²).
+    if (sourceType === SourceType.SPOUT && canvasRef.current) {
+        const ctx = canvasRef.current.getContext('2d');
+        const inCanvas = getSpoutCanvas();
+        if (ctx && inCanvas) {
+            ctx.imageSmoothingEnabled = true;
             ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
             ctx.drawImage(inCanvas, 0, 0, canvasRef.current.width, canvasRef.current.height);
         }

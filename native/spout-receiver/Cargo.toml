@@ -1,0 +1,23 @@
+[package]
+name = "artlux-spout-receiver"
+version = "0.0.0"
+edition = "2021"
+description = "Native Spout receiver for ArtLux (napi-rs, Windows-only)"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+napi = { version = "2", default-features = false, features = ["napi4"] }
+napi-derive = "2"
+
+# Spout is Windows-only; the crate stubs to empty elsewhere so CI still builds.
+[target.'cfg(windows)'.dependencies]
+spout2-rs = { version = "0.1.1", default-features = false, features = ["dx"] }
+
+[build-dependencies]
+napi-build = "2"
+
+[profile.release]
+lto = true
+opt-level = 3
