@@ -42,6 +42,7 @@ struct Shared {
     stats: Mutex<StatsData>,
     fps: AtomicU32,
     keep_alive: AtomicBool,
+    sync: AtomicBool,
 }
 
 static ENGINE: OnceLock<Arc<Shared>> = OnceLock::new();
@@ -54,7 +55,7 @@ pub struct Stats {
 }
 
 #[napi]
-pub fn configure(broadcast: bool, fps: f64, keep_alive: bool) -> napi::Result<()> {
+pub fn configure(broadcast: bool, fps: f64, keep_alive: bool, sync: bool) -> napi::Result<()> {
     let shared = ENGINE.get_or_init(|| {
         let shared = Arc::new(Shared {
             slot: Mutex::new(Slot { bytes: Vec::new(), version: 0, stop: false }),
@@ -62,6 +63,7 @@ pub fn configure(broadcast: bool, fps: f64, keep_alive: bool) -> napi::Result<()
             stats: Mutex::new(StatsData::default()),
             fps: AtomicU32::new(44),
             keep_alive: AtomicBool::new(true),
+            sync: AtomicBool::new(false),
         });
         let worker = shared.clone();
         thread::spawn(move || sender_loop(worker, broadcast));
@@ -69,6 +71,7 @@ pub fn configure(broadcast: bool, fps: f64, keep_alive: bool) -> napi::Result<()
     });
     shared.fps.store((fps.max(1.0) as u32).clamp(1, 1000), Ordering::Relaxed);
     shared.keep_alive.store(keep_alive, Ordering::Relaxed);
+    shared.sync.store(sync, Ordering::Relaxed);
     Ok(())
 }
 
@@ -133,6 +136,7 @@ fn sender_loop(shared: Arc<Shared>, init_broadcast: bool) {
         let fps = shared.fps.load(Ordering::Relaxed).max(1);
         let timeout = Duration::from_millis((1000 / fps as u64).max(1));
         let keep_alive = shared.keep_alive.load(Ordering::Relaxed);
+        let sync = shared.sync.load(Ordering::Relaxed);
 
         // wait for a new frame or the pacing timeout
         let mut to_send: Option<(Vec<u8>, bool)> = None; // (bytes, force)
@@ -157,7 +161,7 @@ fn sender_loop(shared: Arc<Shared>, init_broadcast: bool) {
 
         if let Some((bytes, force)) = to_send {
             let (pkts, unis) = send_frame_bytes(
-                &bytes, force, &socket, &mut cur_broadcast, &mut artnet_seq, &mut sacn_seq, &mut last_sent,
+                &bytes, force, sync, &socket, &mut cur_broadcast, &mut artnet_seq, &mut sacn_seq, &mut last_sent,
             );
             pkt_count += pkts;
             frame_count += 1;
@@ -194,6 +198,7 @@ fn rd_u32(b: &[u8], i: &mut usize) -> u32 {
 fn send_frame_bytes(
     b: &[u8],
     force: bool,
+    sync: bool,
     socket: &UdpSocket,
     cur_broadcast: &mut bool,
     artnet_seq: &mut u8,
@@ -202,6 +207,8 @@ fn send_frame_bytes(
 ) -> (u32, u32) {
     let mut packets: u32 = 0;
     let mut universes: u32 = 0;
+    // Unique Art-Net destinations this frame, for a trailing ArtSync (ip, port, broadcast).
+    let mut artnet_dests: Vec<(String, u16, bool)> = Vec::new();
     if b.len() < 4 {
         return (0, 0);
     }
@@ -226,6 +233,9 @@ fn send_frame_bytes(
         if !is_sacn && *cur_broadcast != broadcast {
             socket.set_broadcast(broadcast).ok();
             *cur_broadcast = broadcast;
+        }
+        if !is_sacn && sync && !artnet_dests.iter().any(|(d, p, _)| d == &ip && *p == port) {
+            artnet_dests.push((ip.clone(), port, broadcast));
         }
 
         for _ in 0..uni_count {
@@ -267,7 +277,30 @@ fn send_frame_bytes(
             packets += 1;
         }
     }
+
+    // After all ArtDmx packets, broadcast/unicast an ArtSync so nodes latch + output
+    // simultaneously (tear-free multi-universe). One per unique Art-Net destination.
+    if sync && !artnet_dests.is_empty() {
+        let pkt = build_artsync();
+        for (dest, port, bcast) in &artnet_dests {
+            if *cur_broadcast != *bcast {
+                socket.set_broadcast(*bcast).ok();
+                *cur_broadcast = *bcast;
+            }
+            let _ = socket.send_to(&pkt, format!("{}:{}", dest, port));
+            packets += 1;
+        }
+    }
+
     (packets, universes)
+}
+
+// ArtSync (OpSync 0x5200): 8-byte ID + opcode + ProtVer + 2 aux bytes.
+fn build_artsync() -> [u8; 14] {
+    let mut p = [0u8; 14];
+    p[..12].copy_from_slice(&ARTNET_HEADER);
+    p[9] = 0x52; // OpSync high byte (override OpOutput 0x50)
+    p
 }
 
 fn build_artnet(seq: u8, universe: u16, data: &[u8]) -> Vec<u8> {

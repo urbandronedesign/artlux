@@ -49,6 +49,7 @@ export const configureOutput = (settings: AppSettings) => {
             broadcast: settings.broadcast,
             fps: settings.fps,
             keepAlive: settings.keepAlive,
+            sync: settings.artNetSync,
         });
         // main emits STATUS=true once the socket is ready
     } else {

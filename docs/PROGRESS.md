@@ -261,6 +261,15 @@ Plan: Persistence (F1) → Art-Net Poll (F2) → Art-Net Sync (F2b) → Headless
   `protocol.ts`/`preload`/`ipc.ts`; `ArtNetDevice` type. **Preferences → DMX Output** gained a
   **Discover** button + clickable device list that sets `artNetIp`. Verified: UDP round-trip test
   (fake node → reply parsed: ip/names/MAC) **PASS**; `tsc`+build+launch clean.
+- **F2b — Art-Net Sync (done)**: after each frame's ArtDmx packets, emit an **ArtSync** (`0x5200`)
+  per unique Art-Net destination so nodes latch + output simultaneously (tear-free multi-universe).
+  Implemented in **both** paths: Rust engine (`native/output-engine/src/lib.rs` — `sync` atomic +
+  `configure(broadcast,fps,keepAlive,sync)` + `build_artsync()`; rebuilt via `build:native`) and the
+  TS fallback (`src/main/transport/artnet.ts` — constant `ARTSYNC` buffer, dest collection). New
+  `artNetSync` in `AppSettings`/`OutputConfig`, threaded through `mockSocketService` →
+  `outputManager` → native; a **Preferences** toggle. Verified: ArtSync emission test (2 ArtDmx + 1
+  ArtSync) **PASS**; native engine loads with the new 4-arg configure; `tsc`+build+launch clean.
+  Note: `cargo` lives in `~/.cargo/bin` (prepend to PATH before `npm run build:native`).
 
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.

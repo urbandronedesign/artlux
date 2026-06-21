@@ -27,7 +27,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   gamma: 1.0,
   protocol: 'artnet',
   fps: 44,
-  keepAlive: true
+  keepAlive: true,
+  artNetSync: false
 };
 
 const App: React.FC = () => {
@@ -86,7 +87,7 @@ const App: React.FC = () => {
   // Push output settings to the native transport whenever they change.
   useEffect(() => {
     configureOutput(settings);
-  }, [settings.outputEnabled, settings.broadcast, settings.artNetIp, settings.artNetPort, settings.fps, settings.keepAlive]);
+  }, [settings.outputEnabled, settings.broadcast, settings.artNetIp, settings.artNetPort, settings.fps, settings.keepAlive, settings.artNetSync]);
 
   // Enable Art-Net/sACN input capture only while DMX-in is the active source.
   useEffect(() => {

@@ -137,6 +137,7 @@ export interface AppSettings {
   protocol: OutputProtocol; // default output protocol (per-fixture can override)
   fps: number;            // native engine output pacing rate
   keepAlive: boolean;     // re-send last frame on pacer timeout
+  artNetSync: boolean;    // emit ArtSync (OpSync 0x5200) after each frame
 }
 
 export enum ViewMode {

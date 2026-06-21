@@ -59,6 +59,7 @@ export interface OutputConfig {
   broadcast: boolean;
   fps?: number;       // native pacer rate
   keepAlive?: boolean; // re-send last frame on pacer timeout
+  sync?: boolean;     // emit ArtSync (OpSync 0x5200) after each frame
 }
 
 export interface OutputStats {
