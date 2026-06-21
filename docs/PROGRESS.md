@@ -157,6 +157,14 @@ src/renderer/                  (the React app)
 - Verified: build + launch clean (no WGSL/validation errors). Two bugs caught at runtime and
   fixed: `meta` is a reserved WGSL keyword; the `main` auto-layout omits unused binding 7.
 
+## Phase I — fixture groups & scenes (done)
+- `FixtureGroup { id, name, fixtureIds }` and `Scene { id, name, fixtures, globalBrightness }`
+  in `types.ts`; `groups`/`scenes` state in `App.tsx`; both persisted in project save/load.
+- Groups: create from selection, add selected, **apply selected fixture's look** (effect/segments/
+  palette) to all members (one history record), select, delete. Scenes: capture snapshot, instant
+  recall (records history → undoable), delete. UI in `ScenePanel.tsx`.
+- Cue/timeline playback (crossfades) intentionally deferred.
+
 ## Open items
 - **Packaging**: bundle the `.node` for distribution via electron-builder (`asarUnpack` /
   `extraResources`) and per-platform native prebuilds in CI.

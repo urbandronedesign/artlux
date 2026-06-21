@@ -141,3 +141,18 @@ export enum ViewMode {
   MONITORING = 'MONITORING',
   SIMULATOR_3D = 'SIMULATOR_3D'
 }
+
+// Phase I — named selection set for batch operations.
+export interface FixtureGroup {
+  id: string;
+  name: string;
+  fixtureIds: string[];
+}
+
+// Phase I — a named snapshot of the look (instant recall).
+export interface Scene {
+  id: string;
+  name: string;
+  fixtures: Fixture[];
+  globalBrightness: number;
+}

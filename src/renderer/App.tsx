@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Fixture, SourceType, AppSettings, ViewMode } from './types';
+import { Fixture, SourceType, AppSettings, ViewMode, FixtureGroup, Scene } from './types';
 import { TopBar } from './components/TopBar';
 import { InspectorPanel } from './components/InspectorPanel';
 import { ScenePanel } from './components/ScenePanel';
@@ -48,6 +48,8 @@ const App: React.FC = () => {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [isVideoPlaying, setIsVideoPlaying] = useState(true);
   const [globalBrightness, setGlobalBrightness] = useState(1.0);
+  const [groups, setGroups] = useState<FixtureGroup[]>([]);
+  const [scenes, setScenes] = useState<Scene[]>([]);
   const [currentView, setCurrentView] = useState<ViewMode>(ViewMode.MAPPING);
   
   const [showLeftPanel, setShowLeftPanel] = useState(true);
@@ -156,13 +158,53 @@ const App: React.FC = () => {
     setFixtures(fixtures.map(f => f.id === id ? { ...f, ...updates } : f));
   };
 
+  // --- Groups ---
+  const handleCreateGroup = () => {
+    const ids = selectedFixtureId ? [selectedFixtureId] : [];
+    setGroups([...groups, { id: generateId(), name: `Group ${groups.length + 1}`, fixtureIds: ids }]);
+  };
+  const handleAddSelectedToGroup = (groupId: string) => {
+    if (!selectedFixtureId) return;
+    setGroups(groups.map(g => g.id === groupId && !g.fixtureIds.includes(selectedFixtureId)
+      ? { ...g, fixtureIds: [...g.fixtureIds, selectedFixtureId] } : g));
+  };
+  const handleRemoveGroup = (groupId: string) => setGroups(groups.filter(g => g.id !== groupId));
+  const handleSelectGroup = (group: FixtureGroup) => {
+    if (group.fixtureIds.length) setSelectedFixtureId(group.fixtureIds[0]);
+  };
+  // Copy the selected fixture's "look" (effect/segments/palette) to all group members.
+  const handleApplyLookToGroup = (group: FixtureGroup) => {
+    const src = fixtures.find(f => f.id === selectedFixtureId);
+    if (!src) return;
+    const look: Partial<Fixture> = {
+      source: src.source, effectId: src.effectId, paletteId: src.paletteId,
+      speed: src.speed, intensity: src.intensity, segments: src.segments,
+    };
+    recordHistory();
+    setFixtures(fixtures.map(f => group.fixtureIds.includes(f.id) ? { ...f, ...look } : f));
+  };
+
+  // --- Scenes (snapshots) ---
+  const handleCaptureScene = () => {
+    const snapshot = fixtures.map(f => ({ ...f, colorData: [] }));
+    setScenes([...scenes, { id: generateId(), name: `Scene ${scenes.length + 1}`, fixtures: snapshot, globalBrightness }]);
+  };
+  const handleRecallScene = (scene: Scene) => {
+    recordHistory();
+    setFixtures(scene.fixtures.map(f => ({ ...f, colorData: [] })));
+    setGlobalBrightness(scene.globalBrightness);
+  };
+  const handleRemoveScene = (id: string) => setScenes(scenes.filter(s => s.id !== id));
+
   const handleSaveProject = () => {
     const projectData = {
         version: '1.0',
         timestamp: new Date().toISOString(),
         fixtures,
         settings,
-        globalBrightness
+        globalBrightness,
+        groups,
+        scenes
     };
     const blob = new Blob([JSON.stringify(projectData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -188,6 +230,8 @@ const App: React.FC = () => {
               }
               if (data.settings) setSettings(prev => ({ ...prev, ...data.settings }));
               if (typeof data.globalBrightness === 'number') setGlobalBrightness(data.globalBrightness);
+              setGroups(Array.isArray(data.groups) ? data.groups : []);
+              setScenes(Array.isArray(data.scenes) ? data.scenes : []);
               setSelectedFixtureId(null);
           } catch (err) {
               console.error("Failed to parse project file", err);
@@ -262,6 +306,16 @@ const App: React.FC = () => {
                         onRename={handleRenameFixture}
                         masterBrightness={globalBrightness}
                         onMasterBrightnessChange={setGlobalBrightness}
+                        groups={groups}
+                        scenes={scenes}
+                        onCreateGroup={handleCreateGroup}
+                        onAddSelectedToGroup={handleAddSelectedToGroup}
+                        onRemoveGroup={handleRemoveGroup}
+                        onSelectGroup={handleSelectGroup}
+                        onApplyLookToGroup={handleApplyLookToGroup}
+                        onCaptureScene={handleCaptureScene}
+                        onRecallScene={handleRecallScene}
+                        onRemoveScene={handleRemoveScene}
                     />
                 </div>
             </div>

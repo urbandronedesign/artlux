@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Fixture } from '../types';
-import { Plus, Trash2, Folder, Box } from 'lucide-react';
+import { Fixture, FixtureGroup, Scene } from '../types';
+import { Plus, Trash2, Folder, Box, Users, Camera, Play, Copy } from 'lucide-react';
 
 interface ScenePanelProps {
     fixtures: Fixture[];
@@ -11,6 +11,16 @@ interface ScenePanelProps {
     onRename: (id: string, newName: string) => void;
     masterBrightness: number;
     onMasterBrightnessChange: (val: number) => void;
+    groups: FixtureGroup[];
+    scenes: Scene[];
+    onCreateGroup: () => void;
+    onAddSelectedToGroup: (groupId: string) => void;
+    onRemoveGroup: (groupId: string) => void;
+    onSelectGroup: (group: FixtureGroup) => void;
+    onApplyLookToGroup: (group: FixtureGroup) => void;
+    onCaptureScene: () => void;
+    onRecallScene: (scene: Scene) => void;
+    onRemoveScene: (id: string) => void;
 }
 
 export const ScenePanel: React.FC<ScenePanelProps> = ({
@@ -21,7 +31,17 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
     onRemove,
     onRename,
     masterBrightness,
-    onMasterBrightnessChange
+    onMasterBrightnessChange,
+    groups,
+    scenes,
+    onCreateGroup,
+    onAddSelectedToGroup,
+    onRemoveGroup,
+    onSelectGroup,
+    onApplyLookToGroup,
+    onCaptureScene,
+    onRecallScene,
+    onRemoveScene
 }) => {
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editName, setEditName] = useState('');
@@ -118,6 +138,47 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
                 </div>
             </div>
             
+            {/* Groups */}
+            <div className="border-t border-[#222]">
+                <div className="h-8 bg-[#161616] flex items-center px-2 justify-between border-b border-[#222]">
+                    <span className="font-bold text-gray-400 uppercase tracking-wider text-[10px]">Groups</span>
+                    <button onClick={onCreateGroup} className="text-gray-400 hover:text-white" title="New group from selection"><Plus size={14}/></button>
+                </div>
+                <div className="p-1 space-y-0.5 max-h-28 overflow-y-auto">
+                    {groups.map(g => (
+                        <div key={g.id} className="flex items-center group px-2 py-1 rounded hover:bg-[#1a1a1a] text-gray-400">
+                            <Users size={12} className="mr-2 text-gray-600" />
+                            <button className="flex-1 text-left truncate" onClick={() => onSelectGroup(g)}>{g.name} <span className="text-gray-600">({g.fixtureIds.length})</span></button>
+                            <div className="opacity-0 group-hover:opacity-100 flex gap-1.5">
+                                <button title="Add selected fixture" onClick={() => onAddSelectedToGroup(g.id)} className="hover:text-accent text-gray-600"><Plus size={11} /></button>
+                                <button title="Apply selected look to group" onClick={() => onApplyLookToGroup(g)} className="hover:text-accent text-gray-600"><Copy size={11} /></button>
+                                <button title="Delete group" onClick={() => onRemoveGroup(g.id)} className="hover:text-red-400 text-gray-600"><Trash2 size={10} /></button>
+                            </div>
+                        </div>
+                    ))}
+                    {groups.length === 0 && <div className="text-gray-700 italic px-2 py-1">No groups</div>}
+                </div>
+            </div>
+
+            {/* Scenes */}
+            <div className="border-t border-[#222]">
+                <div className="h-8 bg-[#161616] flex items-center px-2 justify-between border-b border-[#222]">
+                    <span className="font-bold text-gray-400 uppercase tracking-wider text-[10px]">Scenes</span>
+                    <button onClick={onCaptureScene} className="text-gray-400 hover:text-white" title="Capture current look"><Camera size={14}/></button>
+                </div>
+                <div className="p-1 space-y-0.5 max-h-28 overflow-y-auto">
+                    {scenes.map(s => (
+                        <div key={s.id} className="flex items-center group px-2 py-1 rounded hover:bg-[#1a1a1a] text-gray-400">
+                            <button className="flex-1 flex items-center text-left truncate" onClick={() => onRecallScene(s)} title="Recall scene">
+                                <Play size={11} className="mr-2 text-gray-600" /> {s.name}
+                            </button>
+                            <button className="opacity-0 group-hover:opacity-100 hover:text-red-400 text-gray-600" onClick={() => onRemoveScene(s.id)} title="Delete scene"><Trash2 size={10} /></button>
+                        </div>
+                    ))}
+                    {scenes.length === 0 && <div className="text-gray-700 italic px-2 py-1">No scenes</div>}
+                </div>
+            </div>
+
             {/* Global Parameters / Preview (Bottom of Right Panel) */}
             <div className="h-auto border-t border-[#222] bg-[#141414] flex flex-col">
                  <div className="h-8 bg-[#161616] flex items-center px-2 border-b border-[#222]">
