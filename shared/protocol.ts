@@ -28,7 +28,18 @@ export const IPC = {
   PREFS_GET: 'prefs:get',
   /** Renderer → main (invoke): merge + persist preferences. */
   PREFS_SET: 'prefs:set',
+  /** Renderer → main (invoke): ArtPoll broadcast → discovered Art-Net nodes. */
+  ARTNET_DISCOVER: 'artnet:discover',
 } as const;
+
+// One Art-Net node found via ArtPoll/ArtPollReply discovery.
+export interface ArtNetDevice {
+  ip: string;
+  shortName: string;
+  longName: string;
+  mac?: string;
+  oem?: number;
+}
 
 export interface InputConfig {
   enabled: boolean;
@@ -123,6 +134,7 @@ export interface ArtluxApi {
   importRig(): Promise<RigData | null>;
   getPrefs(): Promise<Prefs>;
   setPrefs(patch: Partial<Prefs>): Promise<void>;
+  discoverDevices(): Promise<ArtNetDevice[]>;
 }
 
 declare global {

@@ -254,6 +254,13 @@ Plan: Persistence (F1) → Art-Net Poll (F2) → Art-Net Sync (F2b) → Headless
   Save (to current path) / Save As / Open / Open Recent / Export Rig / Import Rig. `TopBar` gained a
   **File menu** (caret dropdown) for Save As/Open/recents/rig. Verified: `tsc`+build clean; launch
   writes `artlux-prefs.json` and round-trips prefs with no errors.
+- **F2 — Art-Net Poll (done)**: `src/main/transport/discovery.ts` broadcasts **ArtPoll** (`0x2000`)
+  on UDP 6454 (coexists with `input.ts` via `reuseAddr`), collects **ArtPollReply** (`0x2100`) for
+  ~3s, parses node IP/short+long name/MAC/OEM per the Art-Net offsets (matching the `artnet_protocol`
+  crate's `PollReply` layout), de-dups by IP. IPC `artnet:discover` (invoke) →
+  `protocol.ts`/`preload`/`ipc.ts`; `ArtNetDevice` type. **Preferences → DMX Output** gained a
+  **Discover** button + clickable device list that sets `artNetIp`. Verified: UDP round-trip test
+  (fake node → reply parsed: ip/names/MAC) **PASS**; `tsc`+build+launch clean.
 
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.

@@ -31,6 +31,7 @@ const api: ArtluxApi = {
     importRig: () => ipcRenderer.invoke(IPC.RIG_IMPORT),
     getPrefs: () => ipcRenderer.invoke(IPC.PREFS_GET),
     setPrefs: (patch: Partial<Prefs>) => ipcRenderer.invoke(IPC.PREFS_SET, patch),
+    discoverDevices: () => ipcRenderer.invoke(IPC.ARTNET_DISCOVER),
 };
 
 contextBridge.exposeInMainWorld('artlux', api);

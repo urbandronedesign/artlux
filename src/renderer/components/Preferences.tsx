@@ -1,6 +1,7 @@
-import React, { useEffect } from 'react';
-import { X, Cpu } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { X, Cpu, Radar, Check } from 'lucide-react';
 import { AppSettings } from '../types';
+import type { ArtNetDevice } from '../../../shared/protocol';
 import { Section, Field, NumberField, Toggle, Select, Slider, Button } from './ui';
 
 interface Props {
@@ -12,6 +13,20 @@ interface Props {
 
 // Tabbed-modal-style Preferences (output + engine), replacing inline settings.
 export const Preferences: React.FC<Props> = ({ open, onClose, settings, onChange }) => {
+  const [scanning, setScanning] = useState(false);
+  const [scanned, setScanned] = useState(false);
+  const [devices, setDevices] = useState<ArtNetDevice[]>([]);
+
+  const scan = async () => {
+    setScanning(true);
+    try {
+      setDevices((await window.artlux?.discoverDevices?.()) ?? []);
+    } finally {
+      setScanning(false);
+      setScanned(true);
+    }
+  };
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -52,6 +67,37 @@ export const Preferences: React.FC<Props> = ({ open, onClose, settings, onChange
           </Field>
           <NumberField label="Port" value={settings.artNetPort} step={1} onChange={(v) => onChange({ artNetPort: v })} />
           <Toggle label="Broadcast / multicast" checked={settings.broadcast} onChange={(v) => onChange({ broadcast: v })} />
+
+          {/* Art-Net device discovery (ArtPoll) */}
+          <div className="space-y-1.5 pt-1">
+            <Button variant="tonal" size="sm" onClick={scan} disabled={scanning} className="w-full">
+              <Radar size={13} className={scanning ? 'animate-spin' : ''} /> {scanning ? 'Scanning…' : 'Discover devices'}
+            </Button>
+            {devices.length > 0 && (
+              <div className="border border-line-1 rounded-[var(--r-sm)] divide-y divide-line-1 max-h-32 overflow-auto">
+                {devices.map((d) => {
+                  const active = settings.artNetIp === d.ip;
+                  return (
+                    <button
+                      key={d.ip}
+                      onClick={() => onChange({ artNetIp: d.ip })}
+                      title={d.longName || d.shortName}
+                      className={`w-full flex items-center justify-between gap-2 px-2 py-1 text-left transition-colors hover:bg-surface-3 ${active ? 'bg-accent/10' : ''}`}
+                    >
+                      <span className="min-w-0">
+                        <span className="block text-[11px] text-fg-1 truncate">{d.shortName || d.longName || 'Art-Net node'}</span>
+                        <span className="block num text-[10px] text-fg-3">{d.ip}{d.mac ? ` · ${d.mac}` : ''}</span>
+                      </span>
+                      {active && <Check size={12} className="text-accent shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {scanned && !scanning && devices.length === 0 && (
+              <div className="text-[10px] text-fg-3 italic px-0.5">No Art-Net nodes replied.</div>
+            )}
+          </div>
         </Section>
 
         <Section title="Engine" icon={<Cpu size={12} />}>
