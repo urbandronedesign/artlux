@@ -16,9 +16,17 @@ export interface OutputConfig {
   broadcast: boolean;
 }
 
-export interface ArtNetFramePayload {
-  // universe index -> array of DMX channel values (0..255), up to 512 per universe
+// One routing destination: a controller and the universes destined for it.
+export interface UniverseTarget {
+  ip: string;
+  port: number;
+  broadcast: boolean;
+  sparse: boolean; // skip universes unchanged since last send
   universes: Record<number, number[]>;
+}
+
+export interface ArtNetFramePayload {
+  targets: UniverseTarget[];
 }
 
 /** API surface exposed on `window.artlux` by the preload via contextBridge. */

@@ -68,6 +68,14 @@ export interface Fixture {
   colorOrder?: ColorOrder;
   rgbwMode?: RGBWMode;
   channelsPerPixel?: 3 | 4;
+  // Phase E — per-fixture output routing ("jump from fixture to fixture").
+  output?: OutputTarget;
+}
+
+export interface OutputTarget {
+  ip?: string;        // override controller IP (else global AppSettings.artNetIp)
+  broadcast?: boolean;
+  sparse?: boolean;   // skip universes whose data is unchanged since last send
 }
 
 export enum SourceType {

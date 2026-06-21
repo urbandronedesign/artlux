@@ -1,4 +1,5 @@
 import { AppSettings } from '../types';
+import { UniverseTarget } from '../../../shared/protocol';
 
 // Thin renderer-side wrapper over the Electron native Art-Net transport
 // (exposed as `window.artlux` by the preload). Packet construction + UDP send
@@ -52,13 +53,13 @@ export const configureOutput = (settings: AppSettings) => {
     }
 };
 
-// Send one frame of universe data. Throttled to ~44 FPS to match DMX refresh.
-export const sendArtNetFrame = (universeData: Record<number, number[]>, settings: AppSettings) => {
-    if (!settings.outputEnabled || !window.artlux) return;
+// Send one frame as a set of routing targets. Throttled to ~44 FPS.
+export const sendArtNetFrame = (targets: UniverseTarget[]) => {
+    if (!window.artlux || targets.length === 0) return;
 
     const now = performance.now();
     if (now - lastSendTime < 22) return; // ~44 FPS cap
     lastSendTime = now;
 
-    window.artlux.sendArtNet({ universes: universeData });
+    window.artlux.sendArtNet({ targets });
 };

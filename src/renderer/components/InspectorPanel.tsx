@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Fixture, SourceType, AppSettings, RGBW, PixelSource, LedShape, ColorOrder, RGBWMode } from '../types';
-import { Monitor, Image as ImageIcon, Video, Map, ChevronDown, Cpu, Sparkles, Grid3x3 } from 'lucide-react';
+import { Monitor, Image as ImageIcon, Video, Map, ChevronDown, Cpu, Sparkles, Grid3x3, Network } from 'lucide-react';
 import { addStatusListener } from '../services/mockSocketService';
 import { EFFECT_NAMES } from '../gpu/effects';
 import { PALETTE_NAMES } from '../gpu/palettes';
@@ -266,6 +266,34 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                         <input type="file" accept=".json,application/json" className="hidden" onChange={handleLedmapUpload} />
                         {selectedFixture.ledMap ? `Ledmap: ${selectedFixture.ledMap.length} pts` : 'Load ledmap.json'}
                     </label>
+                </PanelSection>
+
+                <PanelSection title="Routing" icon={<Network size={12}/>}>
+                    <div className="flex items-center justify-between text-xs gap-2">
+                        <label className="text-gray-500 w-16 truncate">Target IP</label>
+                        <input
+                            type="text"
+                            value={selectedFixture.output?.ip ?? ''}
+                            onChange={(e) => onUpdateFixture(selectedFixture.id, { output: { ...selectedFixture.output, ip: e.target.value || undefined } })}
+                            placeholder={settings.artNetIp + ' (default)'}
+                            className="flex-1 bg-[#0a0a0a] border border-[#222] rounded px-1.5 py-1 text-right text-gray-300 focus:border-accent focus:outline-none font-mono"
+                        />
+                    </div>
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-500">Broadcast (override)</span>
+                        <input type="checkbox" checked={selectedFixture.output?.broadcast ?? false}
+                            onChange={(e) => onUpdateFixture(selectedFixture.id, { output: { ...selectedFixture.output, broadcast: e.target.checked } })}
+                            className="bg-[#0a0a0a] border-[#333] rounded text-accent focus:ring-0" />
+                    </div>
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-500" title="Skip universes whose data is unchanged">Sparse output</span>
+                        <input type="checkbox" checked={selectedFixture.output?.sparse ?? false}
+                            onChange={(e) => onUpdateFixture(selectedFixture.id, { output: { ...selectedFixture.output, sparse: e.target.checked } })}
+                            className="bg-[#0a0a0a] border-[#333] rounded text-accent focus:ring-0" />
+                    </div>
+                    <div className="text-[9px] text-gray-600 font-mono">
+                        Blank IP → global target. Each fixture can address its own controller.
+                    </div>
                 </PanelSection>
                 </>
             ) : (

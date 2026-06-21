@@ -11,8 +11,8 @@ Newest decisions at the bottom of each section. Commit hashes are on `main`.
 | A | Electron migration + native Art-Net (drop bridge) | ✅ done | `7a0b5bb` |
 | B | WebGPU compute mapper + async readback | ✅ done | `b1404da` |
 | C | WLED effects + palettes (per-fixture) | ✅ done (segments/fire deferred) | `254cff8` |
-| D | 2D matrix + ledmap + color correctness | ✅ done | `<pending>` |
-| E | Per-fixture routing + output targeting (TS) | ⏳ todo | — |
+| D | 2D matrix + ledmap + color correctness | ✅ done | `063be08` |
+| E | Per-fixture routing + output targeting (TS) | ✅ done | `<pending>` |
 | F | Rust output engine (napi-rs) + sACN | ⏳ todo | — |
 | G | 3D LED fixture editor + simulator (r3f) | ⏳ todo (independent) | — |
 
@@ -69,6 +69,19 @@ src/renderer/                  (the React app)
   global **gamma** LUT (`AppSettings.gamma`, default 1.0 = off; slider 1–3 in Output Config).
 - Defaults preserve prior output exactly: LINE / RGB / SUBTRACT / 4ch / gamma 1.0.
 - WebGL fallback still has no effects/matrix (Electron has WebGPU).
+
+## Phase E notes
+- **Per-fixture routing** ("jump from fixture to fixture"): `Fixture.output?` =
+  `{ ip?, broadcast?, sparse? }`. Blank IP → global `AppSettings.artNetIp`.
+- Stage groups universes by destination (`${ip}|${broadcast}`) into a pooled per-dest map and
+  publishes `dmxSignal(pixels, destinations)`; App turns destinations into `UniverseTarget[]`
+  and sends via IPC. `mockSocketService.sendArtNetFrame(targets)`.
+- `main/transport/artnet.ts` fans out a packet per universe to each destination; **sparse**
+  destinations skip universes whose bytes are unchanged since last send (dirty-tracking).
+- **Bug fixed during verify**: `dgram.send` is async, so reusing one packet Buffer across
+  sends corrupted in-flight packets (all got the last universe). Now copies per packet
+  (`Buffer.from`). The Phase F Rust engine will avoid the per-packet copy.
+- Verified with a 2-destination + sparse-skip UDP round-trip test (passed).
 
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.

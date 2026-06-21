@@ -69,12 +69,18 @@ const App: React.FC = () => {
     configureOutput(settings);
   }, [settings.outputEnabled, settings.broadcast, settings.artNetIp, settings.artNetPort]);
 
-  // Subscribe to DMX Signal for ArtNet Output
+  // Subscribe to DMX Signal for ArtNet Output (per-fixture routing).
   useEffect(() => {
       const unsubscribe = dmxSignal.subscribe((data) => {
-          if (settings.outputEnabled) {
-              sendArtNetFrame(data.universes, settings);
-          }
+          if (!settings.outputEnabled) return;
+          const targets = Object.values(data.destinations).map(d => ({
+              ip: d.ip,
+              port: settings.artNetPort,
+              broadcast: d.broadcast,
+              sparse: d.sparse,
+              universes: d.universes,
+          }));
+          sendArtNetFrame(targets);
       });
       return () => unsubscribe();
   }, [settings]);
@@ -228,6 +234,8 @@ const App: React.FC = () => {
                     isVideoPlaying={isVideoPlaying}
                     globalBrightness={globalBrightness}
                     gamma={settings.gamma}
+                    targetIp={settings.artNetIp}
+                    broadcast={settings.broadcast}
                     onRecordHistory={recordHistory}
                 />
             </div>

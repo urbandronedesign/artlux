@@ -17,6 +17,8 @@ interface StageProps {
   isVideoPlaying: boolean;
   globalBrightness: number;
   gamma: number;
+  targetIp: string;
+  broadcast: boolean;
   onRecordHistory: () => void;
 }
 
@@ -41,6 +43,8 @@ export const Stage: React.FC<StageProps> = ({
   isVideoPlaying,
   globalBrightness,
   gamma,
+  targetIp,
+  broadcast,
   onRecordHistory
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -68,6 +72,11 @@ export const Stage: React.FC<StageProps> = ({
   }, [gamma]);
   const gammaLutRef = useRef(gammaLut);
   useEffect(() => { gammaLutRef.current = gammaLut; }, [gammaLut]);
+
+  const targetIpRef = useRef(targetIp);
+  useEffect(() => { targetIpRef.current = targetIp; }, [targetIp]);
+  const broadcastRef = useRef(broadcast);
+  useEffect(() => { broadcastRef.current = broadcast; }, [broadcast]);
   
   const [viewState, setViewState] = useState({ x: 0, y: 0, scale: 0.8 });
   const viewStateRef = useRef(viewState);
@@ -77,7 +86,8 @@ export const Stage: React.FC<StageProps> = ({
   const [showGrid, setShowGrid] = useState(true);
   const [activeSnapLines, setActiveSnapLines] = useState<{ x: number[], y: number[] }>({ x: [], y: [] });
 
-  const universeBuffers = useRef<Record<number, number[]>>({});
+  // Pool of 512-channel arrays keyed by `${destKey}#${universe}` (reused across frames).
+  const universeBuffers = useRef<Record<string, number[]>>({});
 
   const dragState = useRef({
       isDragging: false,
@@ -272,32 +282,54 @@ export const Stage: React.FC<StageProps> = ({
 
         if (rawBytes) {
             let offset = 0;
-            const bufferMap = universeBuffers.current;
-            
-            // Clear buffers to zero to prevent ghosting when configuration changes
-            Object.values(bufferMap).forEach((arr) => (arr as number[]).fill(0));
-            
-            // 1. Prepare Universe Data
+            const pool = universeBuffers.current;
+
+            // Zero all pooled arrays (prevents ghosting when config changes).
+            for (const k in pool) pool[k].fill(0);
+
+            const defaultIp = targetIpRef.current;
+            const defaultBroadcast = broadcastRef.current;
             const currentFixtures = fixturesRef.current;
-            
+
+            // Per-destination universe maps, keyed by `${ip}|${broadcast}`.
+            const destinations: Record<string, {
+                ip: string; broadcast: boolean; sparse: boolean; universes: Record<number, number[]>;
+            }> = {};
+
             for (let fIdx = 0; fIdx < currentFixtures.length; fIdx++) {
                 const f = currentFixtures[fIdx];
-                
-                // Track writing position (Universe/Channel)
-                let currentUniverse = f.universe;
-                let currentChannel = f.startAddress - 1; // 0-based index
 
-                // Output corrections (color order, channels, gamma).
+                const ip = f.output?.ip || defaultIp;
+                const bcast = f.output?.broadcast ?? defaultBroadcast;
+                const sparse = f.output?.sparse ?? false;
+                const destKey = `${ip}|${bcast ? 1 : 0}`;
+                let dest = destinations[destKey];
+                if (!dest) {
+                    dest = { ip, broadcast: bcast, sparse: false, universes: {} };
+                    destinations[destKey] = dest;
+                }
+                dest.sparse = dest.sparse || sparse;
+
+                // Fetch (or lazily create) a pooled 512-array for a universe in this dest.
+                const getArr = (u: number): number[] => {
+                    const pk = `${destKey}#${u}`;
+                    let arr = pool[pk];
+                    if (!arr) { arr = new Array(512).fill(0); pool[pk] = arr; }
+                    if (!dest!.universes[u]) dest!.universes[u] = arr;
+                    return arr;
+                };
+
+                let currentUniverse = f.universe;
+                let currentChannel = f.startAddress - 1; // 0-based
+
                 const order = COLOR_ORDER[f.colorOrder ?? ColorOrder.RGB];
                 const cpp = f.channelsPerPixel ?? 4;
                 const lut = gammaLutRef.current;
 
                 for (let i = 0; i < f.ledCount; i++) {
                     const idx = offset * 4;
-                    // Safety check against raw buffer bounds
                     if (idx + 3 >= rawBytes.length) break;
 
-                    // Canonical RGB(W) from the GPU, reordered + gamma-corrected.
                     const rgb = [rawBytes[idx], rawBytes[idx + 1], rawBytes[idx + 2]];
                     const channels = [
                         lut[rgb[order[0]]],
@@ -306,28 +338,19 @@ export const Stage: React.FC<StageProps> = ({
                     ];
                     if (cpp === 4) channels.push(lut[rawBytes[idx + 3]]);
 
-                    // Write each channel, handling universe spanning
                     for (const val of channels) {
-                         if (!bufferMap[currentUniverse]) {
-                             bufferMap[currentUniverse] = new Array(512).fill(0);
-                         }
-
-                         bufferMap[currentUniverse][currentChannel] = val;
-                         currentChannel++;
-
-                         // Spanning logic: overflow to next universe
-                         if (currentChannel >= 512) {
-                             currentUniverse++;
-                             currentChannel = 0;
-                         }
+                        const arr = getArr(currentUniverse);
+                        arr[currentChannel] = val;
+                        currentChannel++;
+                        if (currentChannel >= 512) { currentUniverse++; currentChannel = 0; }
                     }
 
                     offset++;
                 }
             }
-            
-            // 2. Broadcast Data via Signal Bus
-            dmxSignal.publish(rawBytes, bufferMap);
+
+            // Broadcast canonical pixels (monitor/3D) + routing destinations (output).
+            dmxSignal.publish(rawBytes, destinations);
         }
     }
     
