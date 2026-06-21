@@ -4,6 +4,16 @@ import { registerIpc } from './ipc';
 
 let mainWindow: BrowserWindow | null = null;
 
+// --headless [--project=<path>]: run only the Stage compute + output loop in an
+// invisible, GPU-backed window (no UI/3D/monitor) to minimize compute.
+const argv = process.argv.slice(1);
+const HEADLESS = argv.includes('--headless');
+const projectArg = argv.find((a) => a.startsWith('--project='));
+const PROJECT_PATH = projectArg ? projectArg.slice('--project='.length) : '';
+
+// Keep the renderer process full-speed even when the window is hidden/occluded.
+if (HEADLESS) app.commandLine.appendSwitch('disable-renderer-backgrounding');
+
 function createWindow(): void {
     mainWindow = new BrowserWindow({
         width: 1440,
@@ -18,15 +28,27 @@ function createWindow(): void {
             contextIsolation: true,
             nodeIntegration: false,
             sandbox: true,
+            // Hidden headless window must not be throttled by Chromium.
+            backgroundThrottling: !HEADLESS,
         },
     });
 
-    mainWindow.on('ready-to-show', () => mainWindow?.show());
+    // GUI mode shows when ready; headless stays invisible.
+    if (!HEADLESS) mainWindow.on('ready-to-show', () => mainWindow?.show());
     mainWindow.on('closed', () => { mainWindow = null; });
 
     // electron-vite provides the dev server URL; fall back to the built file.
     const devUrl = process.env['ELECTRON_RENDERER_URL'];
-    if (devUrl) {
+    if (HEADLESS) {
+        const query = { headless: '1', project: PROJECT_PATH };
+        if (devUrl) {
+            const qs = new URLSearchParams(query).toString();
+            mainWindow.loadURL(`${devUrl}/headless.html?${qs}`);
+        } else {
+            mainWindow.loadFile(join(__dirname, '../renderer/headless.html'), { query });
+        }
+        console.log(`[main] headless mode — project: ${PROJECT_PATH || '(last opened)'}`);
+    } else if (devUrl) {
         mainWindow.loadURL(devUrl);
     } else {
         mainWindow.loadFile(join(__dirname, '../renderer/index.html'));

@@ -270,6 +270,17 @@ Plan: Persistence (F1) → Art-Net Poll (F2) → Art-Net Sync (F2b) → Headless
   `outputManager` → native; a **Preferences** toggle. Verified: ArtSync emission test (2 ArtDmx + 1
   ArtSync) **PASS**; native engine loads with the new 4-arg configure; `tsc`+build+launch clean.
   Note: `cargo` lives in `~/.cargo/bin` (prepend to PATH before `npm run build:native`).
+- **F3 — Headless (done)**: `--headless [--project=<path>]` runs only the Stage compute + output loop
+  in an **invisible GPU-backed window** (no UI/3D/monitor). Second renderer entry
+  (`electron.vite.config.ts` rollup input `headless`) → `src/renderer/headless.html` + `headless.tsx`
+  (no StrictMode) + `HeadlessRunner.tsx` (loads the project via `loadProjectPath` IPC, renders
+  `Stage` in a 1×1 offscreen host — the 512² canvas buffer is unaffected — and replicates App's
+  `configureOutput` + `dmxSignal → sendArtNetFrame` wiring). `src/main/index.ts` parses argv, creates
+  the window with `show:false` + `backgroundThrottling:false` (skips `ready-to-show→show`), loads the
+  headless entry with `?project=`, and adds `disable-renderer-backgrounding`. Verified: headless
+  launch loaded 1 fixture, used WebGPU, and emitted **334 ArtDmx + 334 ArtSync** (~44 fps) to a UDP
+  listener over ~7.5s; `tsc`+build clean. Note: media sources aren't in the project format, so
+  headless drives EFFECT/DMX-in fixtures (media-source fixtures render black).
 
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
