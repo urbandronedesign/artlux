@@ -92,6 +92,7 @@ export const Stage: React.FC<StageProps> = ({
         mapper.current = m;
         // Apply current state captured after the async init.
         m.updateMapping(fixturesRef.current);
+        m.updateParams?.(fixturesRef.current);
         m.setBrightness(brightnessRef.current);
     })();
     return () => {
@@ -114,6 +115,17 @@ export const Stage: React.FC<StageProps> = ({
         mapper.current.updateMapping(fixtures);
     }
   }, [fixtureLayoutSignature]);
+
+  // Cheap per-fixture effect/palette param updates (sliders/dropdowns) — no realloc.
+  const fixtureParamSignature = useMemo(() => {
+     return JSON.stringify(fixtures.map(f => ({
+         s: f.source, e: f.effectId, p: f.paletteId, sp: f.speed, it: f.intensity
+     })));
+  }, [fixtures]);
+
+  useEffect(() => {
+    mapper.current?.updateParams?.(fixtures);
+  }, [fixtureParamSignature]);
 
   useEffect(() => {
     if (mapper.current) {

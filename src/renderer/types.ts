@@ -18,6 +18,11 @@ export interface RGBW extends RGB {
   w: number;
 }
 
+export enum PixelSource {
+  MEDIA = 'MEDIA',   // sample the video/image source at the fixture's position
+  EFFECT = 'EFFECT'  // generate color from a built-in effect + palette
+}
+
 export interface Fixture {
   id: string;
   name: string;
@@ -31,6 +36,12 @@ export interface Fixture {
   ledCount: number;
   reverse: boolean;
   colorData: RGBW[]; // Live data
+  // Phase C — effects/palettes (optional for back-compat; default to MEDIA).
+  source?: PixelSource;
+  effectId?: number;   // index into EFFECT_NAMES
+  paletteId?: number;  // index into PALETTE_NAMES
+  speed?: number;      // 0..1
+  intensity?: number;  // 0..1
 }
 
 export enum SourceType {

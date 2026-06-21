@@ -5,6 +5,8 @@ import { Fixture } from '../types';
 export interface IPixelMapper {
   setBrightness(value: number): void;
   updateMapping(fixtures: Fixture[]): void;
+  /** Cheap per-fixture effect/palette param refresh (no buffer realloc). Optional. */
+  updateParams?(fixtures: Fixture[]): void;
   updateSource(source: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement): void;
   /** Returns the latest RGBW bytes (4 per LED, in fixture order), or null if not ready. */
   read(): Uint8Array | null;

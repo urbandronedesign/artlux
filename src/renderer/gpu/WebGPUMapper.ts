@@ -1,27 +1,53 @@
-import { Fixture } from '../types';
+import { Fixture, PixelSource } from '../types';
 import { IPixelMapper } from '../services/PixelMapper';
+import { buildPaletteLut } from './palettes';
 
-// WebGPU compute-based pixel mapper. Drop-in replacement for the WebGL GPUMapper:
-// samples the source at each LED's UV and converts RGB->RGBW (subtract-min, for
-// parity with the WebGL shader) entirely on the GPU, then reads back the result
-// asynchronously (mapAsync + a staging-buffer ring) to avoid the synchronous
-// gl.readPixels stall. `read()` returns the most recently resolved frame.
+// WebGPU compute-based pixel mapper. Drop-in for the WebGL GPUMapper. Per LED it
+// either samples the media source at the LED's UV, or generates a color from a
+// built-in effect + palette (WLED-style), then converts RGB->RGBW (subtract-min,
+// parity with the WebGL shader) on the GPU. Output is read back asynchronously
+// (mapAsync + a staging-buffer ring) to avoid the synchronous readPixels stall.
+//
+// Per-LED static layout (uv, strip position t, fixture index) lives in `ledData`;
+// per-fixture dynamic effect params live in `fixParams` so slider tweaks only
+// rewrite a tiny buffer instead of reallocating.
 
-const SOURCE_SIZE = 512;          // Stage canvas is 512x512
+const SOURCE_SIZE = 512;
 const WORKGROUP = 64;
 const STAGING_COUNT = 3;
 
 const SHADER = /* wgsl */ `
-struct Params { brightness: f32, count: u32 };
+struct Params { brightness: f32, time: f32, count: u32, paletteCount: u32 };
 
-@group(0) @binding(0) var srcSampler: sampler;
+@group(0) @binding(0) var samp: sampler;
 @group(0) @binding(1) var srcTex: texture_2d<f32>;
-@group(0) @binding(2) var<storage, read> ledUV: array<vec2<f32>>;
+@group(0) @binding(2) var<storage, read> ledData: array<vec4<f32>>;
 @group(0) @binding(3) var<storage, read_write> outBuf: array<u32>;
 @group(0) @binding(4) var<uniform> params: Params;
+@group(0) @binding(5) var palTex: texture_2d<f32>;
+@group(0) @binding(6) var<storage, read> fixParams: array<vec4<f32>>;
 
-fn toByte(v: f32) -> u32 {
-  return u32(clamp(v, 0.0, 1.0) * 255.0 + 0.5);
+fn toByte(v: f32) -> u32 { return u32(clamp(v, 0.0, 1.0) * 255.0 + 0.5); }
+
+fn samplePalette(pid: u32, idx: f32) -> vec4<f32> {
+  let u = clamp(fract(idx), 0.0, 0.9999);
+  let v = (f32(pid) + 0.5) / f32(params.paletteCount);
+  return textureSampleLevel(palTex, samp, vec2<f32>(u, v), 0.0);
+}
+
+fn effectColor(eid: i32, t: f32, time: f32, speed: f32, intensity: f32, pid: u32) -> vec4<f32> {
+  let sp = speed * 2.0;
+  if (eid == 1) {            // Rainbow — palette swept along strip, scrolling
+    return samplePalette(pid, t + time * sp * 0.1);
+  } else if (eid == 2) {     // Palette Flow — scaled by intensity, scrolling
+    let scale = 0.5 + intensity * 4.0;
+    return samplePalette(pid, t * scale + time * sp * 0.15);
+  } else if (eid == 3) {     // Wave — travelling brightness sine over palette
+    let c = samplePalette(pid, t);
+    let w = 0.5 + 0.5 * sin((t * (1.0 + intensity * 6.0) - time * sp * 0.5) * 6.2831853);
+    return vec4<f32>(c.rgb * w, c.a);
+  }
+  return samplePalette(pid, intensity); // 0 — Solid
 }
 
 @compute @workgroup_size(${WORKGROUP})
@@ -29,8 +55,19 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
   let i = gid.x;
   if (i >= params.count) { return; }
 
-  let uv = ledUV[i];
-  let color = textureSampleLevel(srcTex, srcSampler, uv, 0.0);
+  let d = ledData[i];
+  let uv = d.xy;
+  let t = d.z;
+  let fi = u32(d.w + 0.5);
+  let fp = fixParams[fi];
+  let mode = fp.x; // < 0 => media, else effect id
+
+  var color: vec4<f32>;
+  if (mode < 0.0) {
+    color = textureSampleLevel(srcTex, samp, uv, 0.0);
+  } else {
+    color = effectColor(i32(mode + 0.5), t, params.time, fp.z, fp.w, u32(fp.y + 0.5));
+  }
 
   let minVal = min(min(color.r, color.g), color.b);
   let b = params.brightness;
@@ -38,8 +75,6 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
   let g = toByte((color.g - minVal) * b);
   let bl = toByte((color.b - minVal) * b);
   let w = toByte(minVal * b);
-
-  // Pack RGBW into one u32; little-endian readback yields bytes [r,g,b,w].
   outBuf[i] = r | (g << 8u) | (bl << 16u) | (w << 24u);
 }
 `;
@@ -50,8 +85,11 @@ export class WebGPUMapper implements IPixelMapper {
   private pipeline: GPUComputePipeline;
   private sampler: GPUSampler;
   private srcTexture: GPUTexture;
+  private paletteTexture: GPUTexture;
+  private paletteCount: number;
 
   private mapBuffer: GPUBuffer | null = null;
+  private fixParamsBuffer: GPUBuffer | null = null;
   private outBuffer: GPUBuffer | null = null;
   private paramsBuffer: GPUBuffer;
   private bindGroup: GPUBindGroup | null = null;
@@ -61,7 +99,9 @@ export class WebGPUMapper implements IPixelMapper {
   private stagingCursor = 0;
 
   private totalLeds = 0;
+  private fixCount = 0;
   private brightness = 1.0;
+  private startTime = performance.now();
   private latest: Uint8Array | null = null;
   private disposed = false;
 
@@ -88,8 +128,23 @@ export class WebGPUMapper implements IPixelMapper {
       usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
     });
 
+    // Palette LUT (256 x paletteCount).
+    const lut = buildPaletteLut();
+    this.paletteCount = lut.count;
+    this.paletteTexture = device.createTexture({
+      size: [lut.width, lut.count],
+      format: 'rgba8unorm',
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+    });
+    this.queue.writeTexture(
+      { texture: this.paletteTexture },
+      lut.data,
+      { bytesPerRow: lut.width * 4, rowsPerImage: lut.count },
+      [lut.width, lut.count],
+    );
+
     this.paramsBuffer = device.createBuffer({
-      size: 8, // f32 brightness + u32 count
+      size: 16, // brightness(f32) + time(f32) + count(u32) + paletteCount(u32)
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
   }
@@ -112,23 +167,35 @@ export class WebGPUMapper implements IPixelMapper {
     this.brightness = Math.max(0, Math.min(1, value));
   }
 
+  private fixtureParamVec(f: Fixture, out: Float32Array, k: number): void {
+    const isEffect = f.source === PixelSource.EFFECT;
+    out[k * 4 + 0] = isEffect ? (f.effectId ?? 0) : -1;
+    out[k * 4 + 1] = f.paletteId ?? 0;
+    out[k * 4 + 2] = f.speed ?? 0.5;
+    out[k * 4 + 3] = f.intensity ?? 0.5;
+  }
+
   updateMapping(fixtures: Fixture[]): void {
     if (this.disposed) return;
     const newTotal = fixtures.reduce((acc, f) => acc + f.ledCount, 0);
     this.totalLeds = newTotal;
+    this.fixCount = fixtures.length;
     if (newTotal === 0) return;
 
-    // Per-LED UVs (same math as the WebGL GPUMapper, but without the Y flip:
-    // WebGPU copies the canvas top-row to texture y=0, so v is used directly).
-    const data = new Float32Array(newTotal * 2);
+    const led = new Float32Array(newTotal * 4);   // (u, v, t, fixtureIndex)
+    const fix = new Float32Array(fixtures.length * 4);
     let o = 0;
-    for (const f of fixtures) {
+
+    fixtures.forEach((f, k) => {
+      this.fixtureParamVec(f, fix, k);
+
       const cx = f.x + f.width / 2;
       const cy = f.y + f.height / 2;
       const rads = (f.rotation || 0) * (Math.PI / 180);
       const cos = Math.cos(rads);
       const sin = Math.sin(rads);
       const isHoriz = f.width >= f.height;
+
       for (let i = 0; i < f.ledCount; i++) {
         let relX = 0, relY = 0;
         if (isHoriz) {
@@ -140,18 +207,29 @@ export class WebGPUMapper implements IPixelMapper {
         }
         const rx = relX * cos - relY * sin;
         const ry = relX * sin + relY * cos;
-        data[o++] = cx + rx;
-        data[o++] = cy + ry;
-      }
-    }
+        let t = f.ledCount > 1 ? i / (f.ledCount - 1) : 0;
+        if (f.reverse) t = 1 - t;
 
-    // (Re)allocate GPU buffers sized to the LED count.
+        led[o++] = cx + rx;
+        led[o++] = cy + ry;
+        led[o++] = t;
+        led[o++] = k;
+      }
+    });
+
     this.mapBuffer?.destroy();
     this.mapBuffer = this.device.createBuffer({
-      size: data.byteLength,
+      size: led.byteLength,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
     });
-    this.queue.writeBuffer(this.mapBuffer, 0, data);
+    this.queue.writeBuffer(this.mapBuffer, 0, led);
+
+    this.fixParamsBuffer?.destroy();
+    this.fixParamsBuffer = this.device.createBuffer({
+      size: Math.max(16, fix.byteLength),
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+    });
+    this.queue.writeBuffer(this.fixParamsBuffer, 0, fix);
 
     const outBytes = newTotal * 4;
     this.outBuffer?.destroy();
@@ -181,8 +259,19 @@ export class WebGPUMapper implements IPixelMapper {
         { binding: 2, resource: { buffer: this.mapBuffer } },
         { binding: 3, resource: { buffer: this.outBuffer } },
         { binding: 4, resource: { buffer: this.paramsBuffer } },
+        { binding: 5, resource: this.paletteTexture.createView() },
+        { binding: 6, resource: { buffer: this.fixParamsBuffer } },
       ],
     });
+  }
+
+  // Cheap path: only the per-fixture effect params changed (sliders/dropdowns).
+  updateParams(fixtures: Fixture[]): void {
+    if (this.disposed || !this.fixParamsBuffer) return;
+    if (fixtures.length !== this.fixCount) return; // count change -> updateMapping handles it
+    const fix = new Float32Array(fixtures.length * 4);
+    fixtures.forEach((f, k) => this.fixtureParamVec(f, fix, k));
+    this.queue.writeBuffer(this.fixParamsBuffer, 0, fix);
   }
 
   updateSource(source: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement): void {
@@ -203,13 +292,14 @@ export class WebGPUMapper implements IPixelMapper {
       return this.latest && this.totalLeds > 0 ? this.latest : null;
     }
 
-    // Update params (brightness + count).
-    const params = new ArrayBuffer(8);
-    new DataView(params).setFloat32(0, this.brightness, true);
-    new DataView(params).setUint32(4, this.totalLeds, true);
+    const params = new ArrayBuffer(16);
+    const dv = new DataView(params);
+    dv.setFloat32(0, this.brightness, true);
+    dv.setFloat32(4, (performance.now() - this.startTime) / 1000, true);
+    dv.setUint32(8, this.totalLeds, true);
+    dv.setUint32(12, this.paletteCount, true);
     this.queue.writeBuffer(this.paramsBuffer, 0, params);
 
-    // Pick a free staging buffer; if all are in flight, skip dispatch this frame.
     const idx = this.findFreeStaging();
     if (idx === -1) return this.latest;
 
@@ -251,9 +341,11 @@ export class WebGPUMapper implements IPixelMapper {
   dispose(): void {
     this.disposed = true;
     this.mapBuffer?.destroy();
+    this.fixParamsBuffer?.destroy();
     this.outBuffer?.destroy();
     this.paramsBuffer?.destroy();
     this.srcTexture?.destroy();
+    this.paletteTexture?.destroy();
     for (const s of this.staging) {
       try { s.destroy(); } catch { /* may be mapped */ }
     }

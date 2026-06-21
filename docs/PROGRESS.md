@@ -10,7 +10,7 @@ Newest decisions at the bottom of each section. Commit hashes are on `main`.
 | 0 | Docs, README rewrite, strip Gemini/API, skill | ✅ done (skill pending) | `eacc45f`, `bd02f91` |
 | A | Electron migration + native Art-Net (drop bridge) | ✅ done | `7a0b5bb` |
 | B | WebGPU compute mapper + async readback | ✅ done | `b1404da` |
-| C | WLED effects + palettes + segments | ▶ in progress | — |
+| C | WLED effects + palettes (per-fixture) | ✅ done (segments/fire deferred) | `<pending>` |
 | D | 2D matrix + ledmap + color correctness | ⏳ todo | — |
 | E | Per-fixture routing + output targeting (TS) | ⏳ todo | — |
 | F | Rust output engine (napi-rs) + sACN | ⏳ todo | — |
@@ -43,6 +43,20 @@ src/renderer/                  (the React app)
 - The `electron` npm **postinstall was skipped** here; if `node_modules/electron/path.txt` is missing, run `node node_modules/electron/install.js`.
 - Use `ELECTRON_ENABLE_LOGGING=1` to surface renderer `console.log` on stdout when verifying.
 - WebGPU **is** available in this Electron/Chromium (confirmed: "Using WebGPU compute mapper").
+
+## Phase C notes
+- Per-**fixture** effects (not yet multi-segment): each fixture has `source` (MEDIA|EFFECT),
+  `effectId`, `paletteId`, `speed`, `intensity` (all optional, default MEDIA → back-compat).
+- Effects run on the **WebGPU** path only (`src/renderer/gpu/{WebGPUMapper,effects,palettes}.ts`).
+  The WebGL fallback ignores effects (samples media) — acceptable since Electron has WebGPU.
+- Palettes: 7 WLED-style LUTs (Rainbow generated + 6 gradients) in a 256×N texture.
+- Effects (stateless): Solid, Rainbow, Palette Flow, Wave. **Deferred**: stateful fire2012
+  (needs ping-pong heat buffer) and multi-segment subdivision per fixture.
+- Perf: per-LED static layout (`ledData`) vs per-fixture params (`fixParams`) are separate
+  buffers; slider/dropdown changes only rewrite the tiny `fixParams` (no realloc) via
+  `updateParams()`.
+- Known wart: `onUpdateFixture` records undo history on every change, so dragging a slider
+  spams the undo stack (pre-existing pattern). Debounce later.
 
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.

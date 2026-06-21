@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Fixture, SourceType, AppSettings, RGBW } from '../types';
-import { Monitor, Image as ImageIcon, Video, Map, ChevronDown, Cpu } from 'lucide-react';
+import { Fixture, SourceType, AppSettings, RGBW, PixelSource } from '../types';
+import { Monitor, Image as ImageIcon, Video, Map, ChevronDown, Cpu, Sparkles } from 'lucide-react';
 import { addStatusListener } from '../services/mockSocketService';
+import { EFFECT_NAMES } from '../gpu/effects';
+import { PALETTE_NAMES } from '../gpu/palettes';
 
 interface InspectorPanelProps {
     sourceType: SourceType;
@@ -98,13 +100,81 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                     
                     <div className="flex items-center justify-between mt-2 pt-2 border-t border-[#222]">
                         <span className="text-xs text-gray-500">Reverse Direction</span>
-                        <input 
-                            type="checkbox" 
-                            checked={selectedFixture.reverse} 
+                        <input
+                            type="checkbox"
+                            checked={selectedFixture.reverse}
                             onChange={(e) => onUpdateFixture(selectedFixture.id, { reverse: e.target.checked })}
                             className="bg-[#0a0a0a] border-[#333] rounded text-accent focus:ring-0"
                         />
                     </div>
+                </PanelSection>
+
+                <PanelSection title="Effect" icon={<Sparkles size={12}/>}>
+                    {/* Content source: media vs generated effect */}
+                    <div className="grid grid-cols-2 gap-1">
+                        {([PixelSource.MEDIA, PixelSource.EFFECT] as const).map((src) => {
+                            const active = (selectedFixture.source ?? PixelSource.MEDIA) === src;
+                            return (
+                                <button
+                                    key={src}
+                                    onClick={() => onUpdateFixture(selectedFixture.id, { source: src })}
+                                    className={`text-[10px] py-1.5 rounded border transition-all ${active ? 'bg-accent/10 border-accent text-accent' : 'bg-[#181818] border-[#222] text-gray-500 hover:bg-[#202020]'}`}
+                                >
+                                    {src === PixelSource.MEDIA ? 'Media' : 'Effect'}
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    {(selectedFixture.source ?? PixelSource.MEDIA) === PixelSource.EFFECT && (
+                        <div className="space-y-3 pt-1">
+                            <div className="flex items-center justify-between text-xs gap-2">
+                                <label className="text-gray-500 w-16 truncate">Effect</label>
+                                <select
+                                    value={selectedFixture.effectId ?? 0}
+                                    onChange={(e) => onUpdateFixture(selectedFixture.id, { effectId: parseInt(e.target.value) })}
+                                    className="flex-1 bg-[#0a0a0a] border border-[#222] rounded px-1.5 py-1 text-gray-300 focus:border-accent focus:outline-none"
+                                >
+                                    {EFFECT_NAMES.map((name, i) => <option key={i} value={i}>{name}</option>)}
+                                </select>
+                            </div>
+
+                            <div className="flex items-center justify-between text-xs gap-2">
+                                <label className="text-gray-500 w-16 truncate">Palette</label>
+                                <select
+                                    value={selectedFixture.paletteId ?? 0}
+                                    onChange={(e) => onUpdateFixture(selectedFixture.id, { paletteId: parseInt(e.target.value) })}
+                                    className="flex-1 bg-[#0a0a0a] border border-[#222] rounded px-1.5 py-1 text-gray-300 focus:border-accent focus:outline-none"
+                                >
+                                    {PALETTE_NAMES.map((name, i) => <option key={i} value={i}>{name}</option>)}
+                                </select>
+                            </div>
+
+                            <div className="space-y-1">
+                                <div className="flex items-center justify-between text-xs">
+                                    <label className="text-gray-500">Speed</label>
+                                    <span className="text-gray-400 font-mono text-[10px]">{Math.round((selectedFixture.speed ?? 0.5) * 100)}%</span>
+                                </div>
+                                <input type="range" min={0} max={1} step={0.01}
+                                    value={selectedFixture.speed ?? 0.5}
+                                    onChange={(e) => onUpdateFixture(selectedFixture.id, { speed: parseFloat(e.target.value) })}
+                                    className="w-full"
+                                />
+                            </div>
+
+                            <div className="space-y-1">
+                                <div className="flex items-center justify-between text-xs">
+                                    <label className="text-gray-500">Intensity</label>
+                                    <span className="text-gray-400 font-mono text-[10px]">{Math.round((selectedFixture.intensity ?? 0.5) * 100)}%</span>
+                                </div>
+                                <input type="range" min={0} max={1} step={0.01}
+                                    value={selectedFixture.intensity ?? 0.5}
+                                    onChange={(e) => onUpdateFixture(selectedFixture.id, { intensity: parseFloat(e.target.value) })}
+                                    className="w-full"
+                                />
+                            </div>
+                        </div>
+                    )}
                 </PanelSection>
                 </>
             ) : (
