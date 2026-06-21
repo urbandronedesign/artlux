@@ -72,12 +72,12 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
     };
 
     return (
-        <div className="flex flex-col h-full bg-[#121212] border-l border-[#222] text-xs">
+        <div className="flex flex-col h-full bg-surface-1 border-l border-line-1 text-xs">
             {/* Header */}
-            <div className="h-8 bg-[#161616] flex items-center px-2 justify-between border-b border-[#222]">
-                <span className="font-bold text-gray-400 uppercase tracking-wider text-[10px]">Scene Graph</span>
+            <div className="h-8 bg-surface-2 flex items-center px-2 justify-between border-b border-line-1">
+                <span className="font-bold text-fg-2 uppercase tracking-wider text-[10px]">Scene Graph</span>
                 <div className="flex gap-1">
-                     <button onClick={onAdd} className="text-gray-400 hover:text-white" title="Add Fixture"><Plus size={14}/></button>
+                     <button onClick={onAdd} className="text-fg-2 hover:text-white" title="Add Fixture"><Plus size={14}/></button>
                 </div>
             </div>
 
@@ -85,11 +85,11 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
             <div className="flex-1 overflow-y-auto p-1">
                 {/* Mock Folder for visual structure */}
                 <div className="mb-1">
-                    <div className="flex items-center px-2 py-1 text-gray-400 hover:bg-[#1a1a1a] rounded cursor-default">
-                         <Folder size={12} className="mr-2 text-gray-600" />
+                    <div className="flex items-center px-2 py-1 text-fg-2 hover:bg-surface-3 rounded cursor-default">
+                         <Folder size={12} className="mr-2 text-fg-3" />
                          <span className="font-medium">Master Layer</span>
                     </div>
-                    <div className="pl-4 border-l border-[#222] ml-2.5 mt-1 space-y-0.5">
+                    <div className="pl-4 border-l border-line-1 ml-2.5 mt-1 space-y-0.5">
                         {fixtures.map(f => {
                             const isSelected = f.id === selectedFixtureId;
                             return (
@@ -97,9 +97,9 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
                                     key={f.id}
                                     onClick={() => onSelect(f.id)}
                                     onDoubleClick={() => startEditing(f)}
-                                    className={`flex items-center group px-2 py-1.5 rounded cursor-pointer transition-colors ${isSelected ? 'bg-accent/20 text-white' : 'text-gray-400 hover:bg-[#1a1a1a]'}`}
+                                    className={`flex items-center group px-2 py-1.5 rounded cursor-pointer transition-colors ${isSelected ? 'bg-accent/20 text-white' : 'text-fg-2 hover:bg-surface-3'}`}
                                 >
-                                    <Box size={12} className={`mr-2 ${isSelected ? 'text-accent' : 'text-gray-600'}`} />
+                                    <Box size={12} className={`mr-2 ${isSelected ? 'text-accent' : 'text-fg-3'}`} />
                                     
                                     {editingId === f.id ? (
                                         <input 
@@ -118,7 +118,7 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
                                     
                                     <div className="opacity-0 group-hover:opacity-100 flex gap-1">
                                          <button 
-                                            className="p-0.5 hover:text-red-400 text-gray-600"
+                                            className="p-0.5 hover:text-red-400 text-fg-3"
                                             onClick={(e) => { e.stopPropagation(); onRemove(f.id); }}
                                             title="Remove Fixture"
                                          >
@@ -132,61 +132,61 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
                             );
                         })}
                         {fixtures.length === 0 && (
-                            <div className="text-gray-700 italic px-2 py-1">No fixtures</div>
+                            <div className="text-fg-3 italic px-2 py-1">No fixtures</div>
                         )}
                     </div>
                 </div>
             </div>
             
             {/* Groups */}
-            <div className="border-t border-[#222]">
-                <div className="h-8 bg-[#161616] flex items-center px-2 justify-between border-b border-[#222]">
-                    <span className="font-bold text-gray-400 uppercase tracking-wider text-[10px]">Groups</span>
-                    <button onClick={onCreateGroup} className="text-gray-400 hover:text-white" title="New group from selection"><Plus size={14}/></button>
+            <div className="border-t border-line-1">
+                <div className="h-8 bg-surface-2 flex items-center px-2 justify-between border-b border-line-1">
+                    <span className="font-bold text-fg-2 uppercase tracking-wider text-[10px]">Groups</span>
+                    <button onClick={onCreateGroup} className="text-fg-2 hover:text-white" title="New group from selection"><Plus size={14}/></button>
                 </div>
                 <div className="p-1 space-y-0.5 max-h-28 overflow-y-auto">
                     {groups.map(g => (
-                        <div key={g.id} className="flex items-center group px-2 py-1 rounded hover:bg-[#1a1a1a] text-gray-400">
-                            <Users size={12} className="mr-2 text-gray-600" />
-                            <button className="flex-1 text-left truncate" onClick={() => onSelectGroup(g)}>{g.name} <span className="text-gray-600">({g.fixtureIds.length})</span></button>
+                        <div key={g.id} className="flex items-center group px-2 py-1 rounded hover:bg-surface-3 text-fg-2">
+                            <Users size={12} className="mr-2 text-fg-3" />
+                            <button className="flex-1 text-left truncate" onClick={() => onSelectGroup(g)}>{g.name} <span className="text-fg-3">({g.fixtureIds.length})</span></button>
                             <div className="opacity-0 group-hover:opacity-100 flex gap-1.5">
-                                <button title="Add selected fixture" onClick={() => onAddSelectedToGroup(g.id)} className="hover:text-accent text-gray-600"><Plus size={11} /></button>
-                                <button title="Apply selected look to group" onClick={() => onApplyLookToGroup(g)} className="hover:text-accent text-gray-600"><Copy size={11} /></button>
-                                <button title="Delete group" onClick={() => onRemoveGroup(g.id)} className="hover:text-red-400 text-gray-600"><Trash2 size={10} /></button>
+                                <button title="Add selected fixture" onClick={() => onAddSelectedToGroup(g.id)} className="hover:text-accent text-fg-3"><Plus size={11} /></button>
+                                <button title="Apply selected look to group" onClick={() => onApplyLookToGroup(g)} className="hover:text-accent text-fg-3"><Copy size={11} /></button>
+                                <button title="Delete group" onClick={() => onRemoveGroup(g.id)} className="hover:text-red-400 text-fg-3"><Trash2 size={10} /></button>
                             </div>
                         </div>
                     ))}
-                    {groups.length === 0 && <div className="text-gray-700 italic px-2 py-1">No groups</div>}
+                    {groups.length === 0 && <div className="text-fg-3 italic px-2 py-1">No groups</div>}
                 </div>
             </div>
 
             {/* Scenes */}
-            <div className="border-t border-[#222]">
-                <div className="h-8 bg-[#161616] flex items-center px-2 justify-between border-b border-[#222]">
-                    <span className="font-bold text-gray-400 uppercase tracking-wider text-[10px]">Scenes</span>
-                    <button onClick={onCaptureScene} className="text-gray-400 hover:text-white" title="Capture current look"><Camera size={14}/></button>
+            <div className="border-t border-line-1">
+                <div className="h-8 bg-surface-2 flex items-center px-2 justify-between border-b border-line-1">
+                    <span className="font-bold text-fg-2 uppercase tracking-wider text-[10px]">Scenes</span>
+                    <button onClick={onCaptureScene} className="text-fg-2 hover:text-white" title="Capture current look"><Camera size={14}/></button>
                 </div>
                 <div className="p-1 space-y-0.5 max-h-28 overflow-y-auto">
                     {scenes.map(s => (
-                        <div key={s.id} className="flex items-center group px-2 py-1 rounded hover:bg-[#1a1a1a] text-gray-400">
+                        <div key={s.id} className="flex items-center group px-2 py-1 rounded hover:bg-surface-3 text-fg-2">
                             <button className="flex-1 flex items-center text-left truncate" onClick={() => onRecallScene(s)} title="Recall scene">
-                                <Play size={11} className="mr-2 text-gray-600" /> {s.name}
+                                <Play size={11} className="mr-2 text-fg-3" /> {s.name}
                             </button>
-                            <button className="opacity-0 group-hover:opacity-100 hover:text-red-400 text-gray-600" onClick={() => onRemoveScene(s.id)} title="Delete scene"><Trash2 size={10} /></button>
+                            <button className="opacity-0 group-hover:opacity-100 hover:text-red-400 text-fg-3" onClick={() => onRemoveScene(s.id)} title="Delete scene"><Trash2 size={10} /></button>
                         </div>
                     ))}
-                    {scenes.length === 0 && <div className="text-gray-700 italic px-2 py-1">No scenes</div>}
+                    {scenes.length === 0 && <div className="text-fg-3 italic px-2 py-1">No scenes</div>}
                 </div>
             </div>
 
             {/* Global Parameters / Preview (Bottom of Right Panel) */}
-            <div className="h-auto border-t border-[#222] bg-[#141414] flex flex-col">
-                 <div className="h-8 bg-[#161616] flex items-center px-2 border-b border-[#222]">
-                    <span className="font-bold text-gray-400 uppercase tracking-wider text-[10px]">Global Params</span>
+            <div className="h-auto border-t border-line-1 bg-surface-1 flex flex-col">
+                 <div className="h-8 bg-surface-2 flex items-center px-2 border-b border-line-1">
+                    <span className="font-bold text-fg-2 uppercase tracking-wider text-[10px]">Global Params</span>
                 </div>
                 <div className="p-3 space-y-4">
                      <div>
-                         <div className="flex justify-between text-gray-500 mb-1">
+                         <div className="flex justify-between text-fg-2 mb-1">
                             <span>Master Brightness</span>
                             <span>{Math.round(masterBrightness * 100)}%</span>
                          </div>

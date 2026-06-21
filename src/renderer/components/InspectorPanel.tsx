@@ -15,15 +15,15 @@ interface InspectorPanelProps {
 }
 
 const PanelSection: React.FC<{ title: string; children: React.ReactNode; icon?: React.ReactNode }> = ({ title, children, icon }) => (
-    <div className="border-b border-[#222]">
-        <div className="px-3 py-2 bg-[#161616] flex items-center justify-between cursor-pointer hover:bg-[#1a1a1a]">
-            <div className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-wider">
-                {icon && <span className="text-gray-500">{icon}</span>}
+    <div className="border-b border-line-1">
+        <div className="px-3 py-2 bg-surface-2 flex items-center justify-between cursor-pointer hover:bg-surface-3">
+            <div className="flex items-center gap-2 text-xs font-bold text-fg-2 uppercase tracking-wider">
+                {icon && <span className="text-fg-2">{icon}</span>}
                 {title}
             </div>
-            <ChevronDown size={12} className="text-gray-600" />
+            <ChevronDown size={12} className="text-fg-3" />
         </div>
-        <div className="p-3 bg-[#121212] space-y-3">
+        <div className="p-3 bg-surface-1 space-y-3">
             {children}
         </div>
     </div>
@@ -31,13 +31,13 @@ const PanelSection: React.FC<{ title: string; children: React.ReactNode; icon?: 
 
 const NumberInput: React.FC<{ label: string; value: number; onChange: (v: number) => void; step?: number }> = ({ label, value, onChange, step = 1 }) => (
     <div className="flex items-center justify-between text-xs gap-2">
-        <label className="text-gray-500 cursor-e-resize w-16 truncate">{label}</label>
+        <label className="text-fg-2 cursor-e-resize w-16 truncate">{label}</label>
         <input 
             type="number"
             step={step}
             value={value}
             onChange={(e) => onChange(parseFloat(e.target.value))}
-            className="flex-1 bg-[#0a0a0a] border border-[#222] rounded px-1.5 py-1 text-right text-gray-300 focus:border-accent focus:outline-none font-mono"
+            className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-right text-fg-1 focus:border-accent focus:outline-none font-mono"
         />
     </div>
 );
@@ -79,24 +79,24 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
     };
 
     return (
-        <div className="flex flex-col h-full bg-[#121212] border-r border-[#222] overflow-y-auto">
+        <div className="flex flex-col h-full bg-surface-1 border-r border-line-1 overflow-y-auto">
             {/* Input Source Section (Media module) */}
             {module === Module.MEDIA && (
             <PanelSection title="Input Source" icon={<Monitor size={12}/>}>
                 <div className="grid grid-cols-3 gap-1">
                     <button 
                         onClick={() => onSetSource(SourceType.CAMERA, null)}
-                        className={`flex flex-col items-center justify-center p-2 rounded border transition-all ${sourceType === SourceType.CAMERA ? 'bg-accent/10 border-accent text-accent' : 'bg-[#181818] border-[#222] text-gray-500 hover:bg-[#202020]'}`}
+                        className={`flex flex-col items-center justify-center p-2 rounded border transition-all ${sourceType === SourceType.CAMERA ? 'bg-accent/10 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3'}`}
                     >
                         <Video size={16} className="mb-1"/>
                         <span className="text-[9px]">Camera</span>
                     </button>
-                    <label className={`relative cursor-pointer flex flex-col items-center justify-center p-2 rounded border transition-all ${sourceType === SourceType.VIDEO ? 'bg-accent/10 border-accent text-accent' : 'bg-[#181818] border-[#222] text-gray-500 hover:bg-[#202020]'}`}>
+                    <label className={`relative cursor-pointer flex flex-col items-center justify-center p-2 rounded border transition-all ${sourceType === SourceType.VIDEO ? 'bg-accent/10 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3'}`}>
                         <input type="file" accept="video/*" className="hidden" onChange={(e) => handleFileUpload(e, SourceType.VIDEO)} />
                         <Monitor size={16} className="mb-1"/>
                         <span className="text-[9px]">Video</span>
                     </label>
-                    <label className={`relative cursor-pointer flex flex-col items-center justify-center p-2 rounded border transition-all ${sourceType === SourceType.IMAGE ? 'bg-accent/10 border-accent text-accent' : 'bg-[#181818] border-[#222] text-gray-500 hover:bg-[#202020]'}`}>
+                    <label className={`relative cursor-pointer flex flex-col items-center justify-center p-2 rounded border transition-all ${sourceType === SourceType.IMAGE ? 'bg-accent/10 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3'}`}>
                          <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, SourceType.IMAGE)} />
                         <ImageIcon size={16} className="mb-1"/>
                         <span className="text-[9px]">Image</span>
@@ -104,7 +104,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                 </div>
                 <button
                     onClick={() => onSetSource(SourceType.DMX_IN, null)}
-                    className={`mt-1 w-full flex items-center justify-center gap-2 p-2 rounded border transition-all ${sourceType === SourceType.DMX_IN ? 'bg-accent/10 border-accent text-accent' : 'bg-[#181818] border-[#222] text-gray-500 hover:bg-[#202020]'}`}
+                    className={`mt-1 w-full flex items-center justify-center gap-2 p-2 rounded border transition-all ${sourceType === SourceType.DMX_IN ? 'bg-accent/10 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3'}`}
                     title="Capture incoming Art-Net / sACN as the content source"
                 >
                     <Network size={14} />
@@ -122,13 +122,13 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                     <NumberInput label="Universe" value={selectedFixture.universe} step={1} onChange={(v) => onUpdateFixture(selectedFixture.id, { universe: Math.max(0, v) })} />
                     <NumberInput label="Start Addr" value={selectedFixture.startAddress} step={1} onChange={(v) => onUpdateFixture(selectedFixture.id, { startAddress: Math.max(1, v) })} />
                     
-                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-[#222]">
-                        <span className="text-xs text-gray-500">Reverse Direction</span>
+                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-line-1">
+                        <span className="text-xs text-fg-2">Reverse Direction</span>
                         <input
                             type="checkbox"
                             checked={selectedFixture.reverse}
                             onChange={(e) => onUpdateFixture(selectedFixture.id, { reverse: e.target.checked })}
-                            className="bg-[#0a0a0a] border-[#333] rounded text-accent focus:ring-0"
+                            className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0"
                         />
                     </div>
                 </PanelSection>
@@ -181,25 +181,25 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                         <PanelSection title="Effect" icon={<Sparkles size={12}/>}>
                             {/* Segments toolbar */}
                             <div className="flex items-center justify-between">
-                                <span className="text-[10px] text-gray-600 uppercase tracking-wider">
+                                <span className="text-[10px] text-fg-3 uppercase tracking-wider">
                                     {hasSegs ? `${segs!.length} segments` : 'Whole fixture'}
                                 </span>
                                 {hasSegs ? (
                                     <div className="flex gap-1">
-                                        <button onClick={addSegment} className="text-[10px] px-1.5 py-0.5 rounded border border-[#333] text-gray-400 hover:bg-[#202020]">+ Split</button>
-                                        <button onClick={() => onUpdateFixture(selectedFixture.id, { segments: undefined })} className="text-[10px] px-1.5 py-0.5 rounded border border-[#333] text-gray-400 hover:bg-[#202020]">Merge</button>
+                                        <button onClick={addSegment} className="text-[10px] px-1.5 py-0.5 rounded border border-line-2 text-fg-2 hover:bg-surface-3">+ Split</button>
+                                        <button onClick={() => onUpdateFixture(selectedFixture.id, { segments: undefined })} className="text-[10px] px-1.5 py-0.5 rounded border border-line-2 text-fg-2 hover:bg-surface-3">Merge</button>
                                     </div>
                                 ) : (
-                                    <button onClick={enableSegments} className="text-[10px] px-1.5 py-0.5 rounded border border-[#333] text-gray-400 hover:bg-[#202020]">Split</button>
+                                    <button onClick={enableSegments} className="text-[10px] px-1.5 py-0.5 rounded border border-line-2 text-fg-2 hover:bg-surface-3">Split</button>
                                 )}
                             </div>
 
                             {hasSegs && (
                                 <div className="space-y-1">
                                     {segs!.map((s, i) => (
-                                        <div key={i} className={`flex items-center justify-between text-[10px] px-1.5 py-1 rounded border ${i === idx ? 'border-accent bg-accent/10' : 'border-[#222] bg-[#181818]'}`}>
-                                            <button className="flex-1 text-left text-gray-300" onClick={() => setSegSel(i)}>Seg {i + 1} · LEDs {s.start}–{s.stop}</button>
-                                            <button className="text-gray-600 hover:text-red-400 px-1" onClick={() => removeSegment(i)}>✕</button>
+                                        <div key={i} className={`flex items-center justify-between text-[10px] px-1.5 py-1 rounded border ${i === idx ? 'border-accent bg-accent/10' : 'border-line-1 bg-surface-2'}`}>
+                                            <button className="flex-1 text-left text-fg-1" onClick={() => setSegSel(i)}>Seg {i + 1} · LEDs {s.start}–{s.stop}</button>
+                                            <button className="text-fg-3 hover:text-red-400 px-1" onClick={() => removeSegment(i)}>✕</button>
                                         </div>
                                     ))}
                                     <div className="flex gap-2 pt-1">
@@ -215,7 +215,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                                     const active = (vals.source ?? PixelSource.MEDIA) === src;
                                     return (
                                         <button key={src} onClick={() => setVals({ source: src })}
-                                            className={`text-[10px] py-1.5 rounded border transition-all ${active ? 'bg-accent/10 border-accent text-accent' : 'bg-[#181818] border-[#222] text-gray-500 hover:bg-[#202020]'}`}>
+                                            className={`text-[10px] py-1.5 rounded border transition-all ${active ? 'bg-accent/10 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3'}`}>
                                             {src === PixelSource.MEDIA ? 'Media' : 'Effect'}
                                         </button>
                                     );
@@ -225,31 +225,31 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                             {(vals.source ?? PixelSource.MEDIA) === PixelSource.EFFECT && (
                                 <div className="space-y-3 pt-1">
                                     <div className="flex items-center justify-between text-xs gap-2">
-                                        <label className="text-gray-500 w-16 truncate">Effect</label>
+                                        <label className="text-fg-2 w-16 truncate">Effect</label>
                                         <select value={vals.effectId ?? 0} onChange={(e) => setVals({ effectId: parseInt(e.target.value) })}
-                                            className="flex-1 bg-[#0a0a0a] border border-[#222] rounded px-1.5 py-1 text-gray-300 focus:border-accent focus:outline-none">
+                                            className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent focus:outline-none">
                                             {EFFECT_NAMES.map((name, i) => <option key={i} value={i}>{name}</option>)}
                                         </select>
                                     </div>
                                     <div className="flex items-center justify-between text-xs gap-2">
-                                        <label className="text-gray-500 w-16 truncate">Palette</label>
+                                        <label className="text-fg-2 w-16 truncate">Palette</label>
                                         <select value={vals.paletteId ?? 0} onChange={(e) => setVals({ paletteId: parseInt(e.target.value) })}
-                                            className="flex-1 bg-[#0a0a0a] border border-[#222] rounded px-1.5 py-1 text-gray-300 focus:border-accent focus:outline-none">
+                                            className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent focus:outline-none">
                                             {PALETTE_NAMES.map((name, i) => <option key={i} value={i}>{name}</option>)}
                                         </select>
                                     </div>
                                     <div className="space-y-1">
                                         <div className="flex items-center justify-between text-xs">
-                                            <label className="text-gray-500">Speed</label>
-                                            <span className="text-gray-400 font-mono text-[10px]">{Math.round((vals.speed ?? 0.5) * 100)}%</span>
+                                            <label className="text-fg-2">Speed</label>
+                                            <span className="text-fg-2 font-mono text-[10px]">{Math.round((vals.speed ?? 0.5) * 100)}%</span>
                                         </div>
                                         <input type="range" min={0} max={1} step={0.01} value={vals.speed ?? 0.5}
                                             onChange={(e) => setVals({ speed: parseFloat(e.target.value) })} className="w-full" />
                                     </div>
                                     <div className="space-y-1">
                                         <div className="flex items-center justify-between text-xs">
-                                            <label className="text-gray-500">Intensity</label>
-                                            <span className="text-gray-400 font-mono text-[10px]">{Math.round((vals.intensity ?? 0.5) * 100)}%</span>
+                                            <label className="text-fg-2">Intensity</label>
+                                            <span className="text-fg-2 font-mono text-[10px]">{Math.round((vals.intensity ?? 0.5) * 100)}%</span>
                                         </div>
                                         <input type="range" min={0} max={1} step={0.01} value={vals.intensity ?? 0.5}
                                             onChange={(e) => setVals({ intensity: parseFloat(e.target.value) })} className="w-full" />
@@ -269,7 +269,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                                 <button
                                     key={sh}
                                     onClick={() => onUpdateFixture(selectedFixture.id, { shape: sh })}
-                                    className={`text-[10px] py-1.5 rounded border transition-all ${active ? 'bg-accent/10 border-accent text-accent' : 'bg-[#181818] border-[#222] text-gray-500 hover:bg-[#202020]'}`}
+                                    className={`text-[10px] py-1.5 rounded border transition-all ${active ? 'bg-accent/10 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3'}`}
                                 >
                                     {sh === LedShape.LINE ? 'Line' : 'Matrix'}
                                 </button>
@@ -282,31 +282,31 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                             <NumberInput label="Cols" value={selectedFixture.matrixWidth ?? 8} step={1} onChange={(v) => onUpdateFixture(selectedFixture.id, { matrixWidth: Math.max(1, v) })} />
                             <NumberInput label="Rows" value={selectedFixture.matrixHeight ?? 8} step={1} onChange={(v) => onUpdateFixture(selectedFixture.id, { matrixHeight: Math.max(1, v) })} />
                             <div className="flex items-center justify-between">
-                                <span className="text-xs text-gray-500">Serpentine</span>
+                                <span className="text-xs text-fg-2">Serpentine</span>
                                 <input type="checkbox" checked={selectedFixture.serpentine ?? false}
                                     onChange={(e) => onUpdateFixture(selectedFixture.id, { serpentine: e.target.checked })}
-                                    className="bg-[#0a0a0a] border-[#333] rounded text-accent focus:ring-0" />
+                                    className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0" />
                             </div>
                         </div>
                     )}
 
                     <div className="flex items-center justify-between text-xs gap-2 pt-1">
-                        <label className="text-gray-500 w-16 truncate">Color Order</label>
+                        <label className="text-fg-2 w-16 truncate">Color Order</label>
                         <select
                             value={selectedFixture.colorOrder ?? ColorOrder.RGB}
                             onChange={(e) => onUpdateFixture(selectedFixture.id, { colorOrder: e.target.value as ColorOrder })}
-                            className="flex-1 bg-[#0a0a0a] border border-[#222] rounded px-1.5 py-1 text-gray-300 focus:border-accent focus:outline-none"
+                            className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent focus:outline-none"
                         >
                             {Object.values(ColorOrder).map((o) => <option key={o} value={o}>{o}</option>)}
                         </select>
                     </div>
 
                     <div className="flex items-center justify-between text-xs gap-2">
-                        <label className="text-gray-500 w-16 truncate">Channels</label>
+                        <label className="text-fg-2 w-16 truncate">Channels</label>
                         <select
                             value={selectedFixture.channelsPerPixel ?? 4}
                             onChange={(e) => onUpdateFixture(selectedFixture.id, { channelsPerPixel: parseInt(e.target.value) as 3 | 4 })}
-                            className="flex-1 bg-[#0a0a0a] border border-[#222] rounded px-1.5 py-1 text-gray-300 focus:border-accent focus:outline-none"
+                            className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent focus:outline-none"
                         >
                             <option value={3}>RGB (3)</option>
                             <option value={4}>RGBW (4)</option>
@@ -315,11 +315,11 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
 
                     {(selectedFixture.channelsPerPixel ?? 4) === 4 && (
                         <div className="flex items-center justify-between text-xs gap-2">
-                            <label className="text-gray-500 w-16 truncate">White</label>
+                            <label className="text-fg-2 w-16 truncate">White</label>
                             <select
                                 value={selectedFixture.rgbwMode ?? RGBWMode.SUBTRACT}
                                 onChange={(e) => onUpdateFixture(selectedFixture.id, { rgbwMode: e.target.value as RGBWMode })}
-                                className="flex-1 bg-[#0a0a0a] border border-[#222] rounded px-1.5 py-1 text-gray-300 focus:border-accent focus:outline-none"
+                                className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent focus:outline-none"
                             >
                                 <option value={RGBWMode.SUBTRACT}>Subtract min</option>
                                 <option value={RGBWMode.NONE}>None</option>
@@ -327,7 +327,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                         </div>
                     )}
 
-                    <label className="flex items-center justify-center gap-2 text-[10px] text-gray-400 bg-[#1a1a1a] hover:bg-[#202020] border border-[#333] rounded py-1.5 cursor-pointer mt-1">
+                    <label className="flex items-center justify-center gap-2 text-[10px] text-fg-2 bg-surface-3 hover:bg-surface-3 border border-line-2 rounded py-1.5 cursor-pointer mt-1">
                         <input type="file" accept=".json,application/json" className="hidden" onChange={handleLedmapUpload} />
                         {selectedFixture.ledMap ? `Ledmap: ${selectedFixture.ledMap.length} pts` : 'Load ledmap.json'}
                     </label>
@@ -335,11 +335,11 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
 
                 <PanelSection title="Routing" icon={<Network size={12}/>}>
                     <div className="flex items-center justify-between text-xs gap-2">
-                        <label className="text-gray-500 w-16 truncate">Protocol</label>
+                        <label className="text-fg-2 w-16 truncate">Protocol</label>
                         <select
                             value={selectedFixture.output?.protocol ?? ''}
                             onChange={(e) => onUpdateFixture(selectedFixture.id, { output: { ...selectedFixture.output, protocol: (e.target.value || undefined) as ('artnet' | 'sacn' | undefined) } })}
-                            className="flex-1 bg-[#0a0a0a] border border-[#222] rounded px-1.5 py-1 text-gray-300 focus:border-accent focus:outline-none"
+                            className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent focus:outline-none"
                         >
                             <option value="">Default ({settings.protocol})</option>
                             <option value="artnet">Art-Net</option>
@@ -351,28 +351,28 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                             onChange={(v) => onUpdateFixture(selectedFixture.id, { output: { ...selectedFixture.output, priority: Math.max(0, Math.min(200, Math.round(v))) } })} />
                     )}
                     <div className="flex items-center justify-between text-xs gap-2">
-                        <label className="text-gray-500 w-16 truncate">Target IP</label>
+                        <label className="text-fg-2 w-16 truncate">Target IP</label>
                         <input
                             type="text"
                             value={selectedFixture.output?.ip ?? ''}
                             onChange={(e) => onUpdateFixture(selectedFixture.id, { output: { ...selectedFixture.output, ip: e.target.value || undefined } })}
                             placeholder={settings.artNetIp + ' (default)'}
-                            className="flex-1 bg-[#0a0a0a] border border-[#222] rounded px-1.5 py-1 text-right text-gray-300 focus:border-accent focus:outline-none font-mono"
+                            className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-right text-fg-1 focus:border-accent focus:outline-none font-mono"
                         />
                     </div>
                     <div className="flex items-center justify-between">
-                        <span className="text-xs text-gray-500">Broadcast (override)</span>
+                        <span className="text-xs text-fg-2">Broadcast (override)</span>
                         <input type="checkbox" checked={selectedFixture.output?.broadcast ?? false}
                             onChange={(e) => onUpdateFixture(selectedFixture.id, { output: { ...selectedFixture.output, broadcast: e.target.checked } })}
-                            className="bg-[#0a0a0a] border-[#333] rounded text-accent focus:ring-0" />
+                            className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0" />
                     </div>
                     <div className="flex items-center justify-between">
-                        <span className="text-xs text-gray-500" title="Skip universes whose data is unchanged">Sparse output</span>
+                        <span className="text-xs text-fg-2" title="Skip universes whose data is unchanged">Sparse output</span>
                         <input type="checkbox" checked={selectedFixture.output?.sparse ?? false}
                             onChange={(e) => onUpdateFixture(selectedFixture.id, { output: { ...selectedFixture.output, sparse: e.target.checked } })}
-                            className="bg-[#0a0a0a] border-[#333] rounded text-accent focus:ring-0" />
+                            className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0" />
                     </div>
-                    <div className="text-[9px] text-gray-600 font-mono">
+                    <div className="text-[9px] text-fg-3 font-mono">
                         Blank IP → global target. Each fixture can address its own controller.
                     </div>
                 </PanelSection>
@@ -389,21 +389,21 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                         onUpdateFixture(selectedFixture.id, { layout3D: { ...L, ...patch } });
                     return (
                         <PanelSection title="3D Layout" icon={<Box size={12}/>}>
-                            <div className="text-[9px] text-gray-600 uppercase tracking-wider">Position (m)</div>
+                            <div className="text-[9px] text-fg-3 uppercase tracking-wider">Position (m)</div>
                             <NumberInput label="X" value={+p.x.toFixed(3)} step={0.05} onChange={(v) => setPos('x', v)} />
                             <NumberInput label="Y" value={+p.y.toFixed(3)} step={0.05} onChange={(v) => setPos('y', v)} />
                             <NumberInput label="Z" value={+p.z.toFixed(3)} step={0.05} onChange={(v) => setPos('z', v)} />
-                            <div className="text-[9px] text-gray-600 uppercase tracking-wider pt-1">Rotation (°)</div>
+                            <div className="text-[9px] text-fg-3 uppercase tracking-wider pt-1">Rotation (°)</div>
                             <NumberInput label="Pitch" value={+rotDeg.pitch.toFixed(1)} step={1} onChange={(v) => setRot('pitch', v)} />
                             <NumberInput label="Yaw" value={+rotDeg.yaw.toFixed(1)} step={1} onChange={(v) => setRot('yaw', v)} />
                             <NumberInput label="Roll" value={+rotDeg.roll.toFixed(1)} step={1} onChange={(v) => setRot('roll', v)} />
 
                             <div className="flex items-center justify-between text-xs gap-2 pt-1">
-                                <label className="text-gray-500 w-16 truncate">Layout</label>
+                                <label className="text-fg-2 w-16 truncate">Layout</label>
                                 <select
                                     value={L.type}
                                     onChange={(e) => setLayout({ type: e.target.value as Layout3DType })}
-                                    className="flex-1 bg-[#0a0a0a] border border-[#222] rounded px-1.5 py-1 text-gray-300 focus:border-accent focus:outline-none"
+                                    className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent focus:outline-none"
                                 >
                                     <option value="line">Line</option>
                                     <option value="matrix">Matrix</option>
@@ -418,10 +418,10 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                                     <NumberInput label="Cols" value={L.matrixCols} step={1} onChange={(v) => setLayout({ matrixCols: Math.max(1, Math.round(v)) })} />
                                     <NumberInput label="Rows" value={L.matrixRows} step={1} onChange={(v) => setLayout({ matrixRows: Math.max(1, Math.round(v)) })} />
                                     <div className="flex items-center justify-between">
-                                        <span className="text-xs text-gray-500">Serpentine</span>
+                                        <span className="text-xs text-fg-2">Serpentine</span>
                                         <input type="checkbox" checked={L.serpentine}
                                             onChange={(e) => setLayout({ serpentine: e.target.checked })}
-                                            className="bg-[#0a0a0a] border-[#333] rounded text-accent focus:ring-0" />
+                                            className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0" />
                                     </div>
                                 </>
                             )}
@@ -436,7 +436,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                 })()}
                 </>
             ) : (
-                <div className="p-4 text-center text-gray-600 text-xs italic mt-10">
+                <div className="p-4 text-center text-fg-3 text-xs italic mt-10">
                     Select a fixture to edit properties
                 </div>
             )}
