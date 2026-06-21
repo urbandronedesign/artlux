@@ -1,0 +1,60 @@
+name: Build
+
+# Per-platform native prebuilds + packaged apps. Each OS runner builds the Rust
+# napi addon natively (so the bundled output-engine.node matches the platform)
+# and produces an installer via electron-builder.
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            native/output-engine/target
+          key: ${{ matrix.os }}-cargo-${{ hashFiles('native/output-engine/Cargo.lock') }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build native engine
+        run: npm run build:native
+
+      - name: Package
+        run: npx electron-builder --publish never
+        env:
+          # Skip macOS code-signing in CI (unsigned artifacts).
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artlux-${{ matrix.os }}
+          path: |
+            release/*.exe
+            release/*.dmg
+            release/*.AppImage
+          if-no-files-found: ignore

@@ -194,10 +194,19 @@ src/renderer/                  (the React app)
   keep-alive and `getStats` reports fps/pps/universes; app builds + launches clean with stats in
   the status bar.
 
+## Packaging & CI (done)
+- `npm run package` (installer) / `npm run package:dir` (unpacked, no signing). electron-builder
+  config: per-OS targets (win nsis+portable, mac dmg, linux AppImage); `output-engine.node`
+  bundled via `extraResources`; `release/` is gitignored.
+- **Per-platform native prebuilds**: `.github/workflows/build.yml` — matrix (windows/macos/ubuntu)
+  installs Rust, runs `build:native` (so each bundle's `.node` matches the OS), then
+  `electron-builder --publish never`, uploading installers as artifacts. Triggers on `v*` tags or
+  manual dispatch. (Runs on GitHub runners; not executed locally.)
+- **Packaged smoke test (Windows)**: built `release/win-unpacked`; launched `ArtLux.exe` →
+  `[output] native Rust engine loaded` from `resources/output-engine.node`, WebGPU engaged, no
+  errors.
+
 ## Open items
-- **CI**: per-platform native prebuilds (the `.node` is built locally via `npm run build:native`;
-  packaging copies it via `extraResources`). A full packaged-build smoke test on each OS is still
-  worthwhile.
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
 - Deferred effects: stateful **fire2012**, **multi-segment** subdivision per fixture.
 - **Parity check**: WebGPU vs WebGL pixel output verified only as "initializes + runs"; confirm visually with a loaded source against the DMX Monitor.

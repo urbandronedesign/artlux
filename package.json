@@ -2,13 +2,16 @@
   "name": "artlux",
   "private": true,
   "version": "0.0.0",
+  "description": "GPU-accelerated addressable-LED pixel mapping for Art-Net / sACN",
+  "author": "urbandronedesign <urbandrone@gmail.com>",
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "build:native": "cargo build --release --manifest-path native/output-engine/Cargo.toml && node scripts/copy-native.cjs",
-    "package": "electron-vite build && electron-builder"
+    "package": "electron-vite build && electron-builder",
+    "package:dir": "electron-vite build && electron-builder --dir"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
@@ -44,6 +47,9 @@
         "to": "output-engine.node"
       }
     ],
+    "win": { "target": ["nsis", "portable"] },
+    "mac": { "target": ["dmg"], "category": "public.app-category.utilities" },
+    "linux": { "target": ["AppImage"], "category": "AudioVideo" },
     "directories": {
       "output": "release"
     }
