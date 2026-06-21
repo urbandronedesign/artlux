@@ -1,7 +1,8 @@
 import { ipcMain, type BrowserWindow } from 'electron';
-import { IPC, type OutputConfig, type InputConfig } from '../../shared/protocol';
+import { IPC, type OutputConfig, type InputConfig, type ProjectData, type RigData, type Prefs } from '../../shared/protocol';
 import * as output from './transport/outputManager';
 import * as input from './transport/input';
+import * as persistence from './persistence';
 
 // Wire renderer IPC to the native Art-Net transport and report status back.
 export function registerIpc(getWindow: () => BrowserWindow | null): void {
@@ -29,6 +30,15 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
             getWindow()?.webContents.send(IPC.INPUT_FRAME, frames);
         });
     });
+
+    // ---- Persistence (request/response via handle/invoke) ----
+    ipcMain.handle(IPC.PROJECT_SAVE, (_e, data: ProjectData, path?: string) => persistence.saveProject(getWindow(), data, path));
+    ipcMain.handle(IPC.PROJECT_OPEN, () => persistence.openProject(getWindow()));
+    ipcMain.handle(IPC.PROJECT_LOAD_PATH, (_e, path: string) => persistence.loadProjectPath(path));
+    ipcMain.handle(IPC.RIG_EXPORT, (_e, rig: RigData) => persistence.exportRig(getWindow(), rig));
+    ipcMain.handle(IPC.RIG_IMPORT, () => persistence.importRig(getWindow()));
+    ipcMain.handle(IPC.PREFS_GET, () => persistence.getPrefs());
+    ipcMain.handle(IPC.PREFS_SET, (_e, patch: Partial<Prefs>) => { persistence.setPrefs(patch); });
 
     // Poll native engine throughput stats ~1 Hz and push to the renderer.
     setInterval(() => {

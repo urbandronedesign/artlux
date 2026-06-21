@@ -1,5 +1,5 @@
-import React, { useRef } from 'react';
-import { Play, Pause, Save, FolderOpen, Undo, Redo, Settings, Activity } from 'lucide-react';
+import React, { useState } from 'react';
+import { Play, Pause, Save, FolderOpen, ChevronDown, Undo, Redo, Settings, Activity, FileDown, FileUp, Clock } from 'lucide-react';
 import { Module } from '../types';
 import { ModuleSwitcher } from './ModuleSwitcher';
 import { IconButton } from './ui';
@@ -11,7 +11,12 @@ interface TopBarProps {
   module: Module;
   onChangeModule: (m: Module) => void;
   onSaveProject: () => void;
-  onLoadProject: (file: File) => void;
+  onSaveAs: () => void;
+  onOpenProject: () => void;
+  recentFiles: string[];
+  onOpenRecent: (path: string) => void;
+  onExportRig: () => void;
+  onImportRig: () => void;
   onUndo: () => void;
   onRedo: () => void;
   canUndo: boolean;
@@ -21,16 +26,26 @@ interface TopBarProps {
   onToggleMonitor: () => void;
 }
 
+const basename = (p: string) => p.replace(/\\/g, '/').split('/').pop() || p;
+
 export const TopBar: React.FC<TopBarProps> = ({
   isVideoPlaying, onTogglePlay, module, onChangeModule,
-  onSaveProject, onLoadProject, onUndo, onRedo, canUndo, canRedo,
+  onSaveProject, onSaveAs, onOpenProject, recentFiles, onOpenRecent, onExportRig, onImportRig,
+  onUndo, onRedo, canUndo, canRedo,
   onOpenPreferences, monitorOpen, onToggleMonitor,
 }) => {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) onLoadProject(e.target.files[0]);
-    e.target.value = '';
-  };
+  const [menuOpen, setMenuOpen] = useState(false);
+  const run = (fn: () => void) => () => { setMenuOpen(false); fn(); };
+
+  const MenuItem: React.FC<{ icon?: React.ReactNode; onClick: () => void; children: React.ReactNode }> = ({ icon, onClick, children }) => (
+    <button
+      onClick={onClick}
+      className="w-full flex items-center gap-2 px-3 h-7 text-left text-[11px] text-fg-2 hover:text-fg-1 hover:bg-surface-3"
+    >
+      {icon}
+      {children}
+    </button>
+  );
 
   return (
     <div className="h-10 shrink-0 bg-surface-1 border-b border-line-1 flex items-center justify-between px-3 select-none">
@@ -46,10 +61,41 @@ export const TopBar: React.FC<TopBarProps> = ({
           <IconButton onClick={onRedo} disabled={!canRedo} title="Redo (Ctrl+Y)" {...helpProps('Redo the last undone change (Ctrl+Y).')}><Redo size={14} /></IconButton>
         </div>
         <div className="h-5 w-px bg-line-2" />
-        <div className="flex gap-0.5">
-          <IconButton onClick={onSaveProject} title="Save Project (JSON)" {...helpProps('Save the project (fixtures, settings, scenes) to a JSON file.')}><Save size={14} /></IconButton>
-          <IconButton onClick={() => fileInputRef.current?.click()} title="Load Project (JSON)" {...helpProps('Load a project from a JSON file.')}><FolderOpen size={14} /></IconButton>
-          <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={handleFileChange} />
+        <div className="flex items-center gap-0.5">
+          <IconButton onClick={onSaveProject} title="Save Project" {...helpProps('Save the project to its file (prompts the first time).')}><Save size={14} /></IconButton>
+          <IconButton onClick={onOpenProject} title="Open Project" {...helpProps('Open a project file (.artlux).')}><FolderOpen size={14} /></IconButton>
+          <div className="relative">
+            <IconButton active={menuOpen} onClick={() => setMenuOpen((o) => !o)} title="File menu" aria-haspopup="menu" aria-expanded={menuOpen}><ChevronDown size={14} /></IconButton>
+            {menuOpen && (
+              <>
+                <div className="fixed inset-0 z-[140]" onClick={() => setMenuOpen(false)} />
+                <div role="menu" className="absolute left-0 mt-1 w-56 z-[150] bg-surface-2 border border-line-2 rounded-[var(--r-md)] shadow-2xl py-1 animate-modal-in">
+                  <MenuItem icon={<Save size={13} />} onClick={run(onSaveProject)}>Save</MenuItem>
+                  <MenuItem icon={<Save size={13} />} onClick={run(onSaveAs)}>Save As…</MenuItem>
+                  <MenuItem icon={<FolderOpen size={13} />} onClick={run(onOpenProject)}>Open…</MenuItem>
+                  <div className="my-1 border-t border-line-1" />
+                  <MenuItem icon={<FileDown size={13} />} onClick={run(onExportRig)}>Export Rig…</MenuItem>
+                  <MenuItem icon={<FileUp size={13} />} onClick={run(onImportRig)}>Import Rig…</MenuItem>
+                  <div className="my-1 border-t border-line-1" />
+                  <div className="px-3 py-1 text-[9px] uppercase tracking-wider text-fg-3 flex items-center gap-1.5"><Clock size={10} /> Recent</div>
+                  {recentFiles.length === 0 ? (
+                    <div className="px-3 py-1 text-[11px] text-fg-3 italic">No recent files</div>
+                  ) : (
+                    recentFiles.slice(0, 8).map((p) => (
+                      <button
+                        key={p}
+                        onClick={run(() => onOpenRecent(p))}
+                        title={p}
+                        className="w-full px-3 h-7 text-left text-[11px] text-fg-2 hover:text-fg-1 hover:bg-surface-3 truncate"
+                      >
+                        {basename(p)}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         </div>
         <div className="h-5 w-px bg-line-2" />
         <ModuleSwitcher module={module} onChange={onChangeModule} />

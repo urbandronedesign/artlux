@@ -241,6 +241,20 @@ Reference: MadMapper (Art-Net LED-strip workflow). Full plan in the session plan
 **UI/UX refactor (U1–U5) complete.** Backlog: contrast retune of tertiary `fg-3` text if needed,
 keyboard focus-trap inside the modal, vendor the ui-ux-pro-max skill.
 
+## New features (post-refactor)
+Plan: Persistence (F1) → Art-Net Poll (F2) → Art-Net Sync (F2b) → Headless (F3) → Spout (F4).
+- **F1 — Persistence (done)**: all file I/O moved to the main process (the renderer is sandboxed).
+  New `src/main/persistence.ts`: native **Save/Open dialogs** (`.artlux`), **userData prefs**
+  (`artlux-prefs.json` = appSettings + globalBrightness + recentFiles + lastProjectPath), **rig
+  export/import** (`.artrig` = fixtures with patch/wiring/routing/geometry only — strips
+  effects/segments/scenes/media), and `loadProjectPath` (recents/headless). IPC via
+  `ipcMain.handle`/`invoke` (`project:*`, `rig:*`, `prefs:*`) in `shared/protocol.ts` +
+  `src/preload/index.ts` + `src/main/ipc.ts`. `App.tsx`: restores settings + master brightness +
+  recents (and auto-reopens the last project) on launch; debounced `setPrefs` on settings change;
+  Save (to current path) / Save As / Open / Open Recent / Export Rig / Import Rig. `TopBar` gained a
+  **File menu** (caret dropdown) for Save As/Open/recents/rig. Verified: `tsc`+build clean; launch
+  writes `artlux-prefs.json` and round-trips prefs with no errors.
+
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
 - Deferred effects: stateful **fire2012**, **multi-segment** subdivision per fixture.

@@ -1,5 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { IPC, type OutputConfig, type OutputStats, type InputConfig, type InputFrame, type ArtluxApi } from '../../shared/protocol';
+import {
+    IPC, type OutputConfig, type OutputStats, type InputConfig, type InputFrame, type ArtluxApi,
+    type ProjectData, type RigData, type Prefs,
+} from '../../shared/protocol';
 
 const api: ArtluxApi = {
     configureOutput: (cfg: OutputConfig) => ipcRenderer.send(IPC.CONFIGURE, cfg),
@@ -20,6 +23,14 @@ const api: ArtluxApi = {
         ipcRenderer.on(IPC.INPUT_FRAME, listener);
         return () => { ipcRenderer.removeListener(IPC.INPUT_FRAME, listener); };
     },
+    // Persistence
+    saveProject: (data: ProjectData, path?: string) => ipcRenderer.invoke(IPC.PROJECT_SAVE, data, path),
+    openProject: () => ipcRenderer.invoke(IPC.PROJECT_OPEN),
+    loadProjectPath: (path: string) => ipcRenderer.invoke(IPC.PROJECT_LOAD_PATH, path),
+    exportRig: (rig: RigData) => ipcRenderer.invoke(IPC.RIG_EXPORT, rig),
+    importRig: () => ipcRenderer.invoke(IPC.RIG_IMPORT),
+    getPrefs: () => ipcRenderer.invoke(IPC.PREFS_GET),
+    setPrefs: (patch: Partial<Prefs>) => ipcRenderer.invoke(IPC.PREFS_SET, patch),
 };
 
 contextBridge.exposeInMainWorld('artlux', api);

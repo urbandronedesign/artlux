@@ -14,6 +14,20 @@ export const IPC = {
   INPUT_CONFIGURE: 'input:configure',
   /** Main → renderer: latest received input universes. */
   INPUT_FRAME: 'input:frame',
+  /** Renderer → main (invoke): write a project; opens a Save dialog when no path. */
+  PROJECT_SAVE: 'project:save',
+  /** Renderer → main (invoke): Open dialog → { path, data }. */
+  PROJECT_OPEN: 'project:open',
+  /** Renderer → main (invoke): read a project from a known path (recents/headless). */
+  PROJECT_LOAD_PATH: 'project:load-path',
+  /** Renderer → main (invoke): export a rig (patch/wiring/routing only). */
+  RIG_EXPORT: 'rig:export',
+  /** Renderer → main (invoke): import a rig file. */
+  RIG_IMPORT: 'rig:import',
+  /** Renderer → main (invoke): read persisted preferences. */
+  PREFS_GET: 'prefs:get',
+  /** Renderer → main (invoke): merge + persist preferences. */
+  PREFS_SET: 'prefs:set',
 } as const;
 
 export interface InputConfig {
@@ -59,6 +73,39 @@ export interface ArtNetFramePayload {
   targets: UniverseTarget[];
 }
 
+// ---- Persistence (project / rig / preferences) -------------------------------
+
+// Full project file (kept loose here so shared/ stays decoupled from renderer types).
+export interface ProjectData {
+  version: string;
+  timestamp?: string;
+  fixtures: unknown[];
+  settings: unknown;
+  globalBrightness: number;
+  groups: unknown[];
+  scenes: unknown[];
+}
+
+// A reusable rig: fixtures with patch/wiring/routing only (no scenes/media/effects).
+export interface RigData {
+  version: string;
+  kind: 'rig';
+  fixtures: unknown[];
+}
+
+// Persisted across launches in userData.
+export interface Prefs {
+  appSettings?: unknown;
+  globalBrightness?: number;
+  recentFiles: string[];
+  lastProjectPath?: string;
+}
+
+export interface OpenProjectResult {
+  path: string;
+  data: ProjectData;
+}
+
 /** API surface exposed on `window.artlux` by the preload via contextBridge. */
 export interface ArtluxApi {
   configureOutput(cfg: OutputConfig): void;
@@ -68,6 +115,14 @@ export interface ArtluxApi {
   onDmxStats(cb: (stats: OutputStats) => void): () => void;
   configureInput(cfg: InputConfig): void;
   onDmxInput(cb: (frames: InputFrame[]) => void): () => void;
+  // Persistence
+  saveProject(data: ProjectData, path?: string): Promise<string | null>;
+  openProject(): Promise<OpenProjectResult | null>;
+  loadProjectPath(path: string): Promise<ProjectData | null>;
+  exportRig(rig: RigData): Promise<string | null>;
+  importRig(): Promise<RigData | null>;
+  getPrefs(): Promise<Prefs>;
+  setPrefs(patch: Partial<Prefs>): Promise<void>;
 }
 
 declare global {

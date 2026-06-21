@@ -61,6 +61,8 @@ const App: React.FC = () => {
   const [dockOpen, setDockOpen] = useState(false);
   const [dockTab, setDockTab] = useState<DockTab>(DockTab.MONITOR);
   const [prefsOpen, setPrefsOpen] = useState(false);
+  const [currentProjectPath, setCurrentProjectPath] = useState<string | null>(null);
+  const [recentFiles, setRecentFiles] = useState<string[]>([]);
 
   const [showLeftPanel, setShowLeftPanel] = useState(true);
   
@@ -219,50 +221,92 @@ const App: React.FC = () => {
   };
   const handleRemoveScene = (id: string) => setScenes(scenes.filter(s => s.id !== id));
 
-  const handleSaveProject = () => {
-    const projectData = {
-        version: '1.0',
-        timestamp: new Date().toISOString(),
-        fixtures,
-        settings,
-        globalBrightness,
-        groups,
-        scenes
-    };
-    const blob = new Blob([JSON.stringify(projectData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `artlux-project-${new Date().getTime()}.json`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+  const buildProjectData = () => ({
+      version: '1.0',
+      timestamp: new Date().toISOString(),
+      fixtures,
+      settings,
+      globalBrightness,
+      groups,
+      scenes,
+  });
+
+  // Apply a loaded project (or rig-free project) to app state. Strips live colorData.
+  const applyProjectData = (data: any) => {
+      if (data?.fixtures && Array.isArray(data.fixtures)) {
+          recordHistory();
+          setFixtures(data.fixtures.map((f: any) => ({ ...f, colorData: [] })));
+      }
+      if (data?.settings) setSettings(prev => ({ ...prev, ...data.settings }));
+      if (typeof data?.globalBrightness === 'number') setGlobalBrightness(data.globalBrightness);
+      setGroups(Array.isArray(data?.groups) ? data.groups : []);
+      setScenes(Array.isArray(data?.scenes) ? data.scenes : []);
+      setSelectedFixtureId(null);
   };
 
-  const handleLoadProject = (file: File) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-          try {
-              const content = e.target?.result as string;
-              const data = JSON.parse(content);
-              if (data.fixtures && Array.isArray(data.fixtures)) {
-                  recordHistory();
-                  const cleanFixtures = data.fixtures.map((f: any) => ({ ...f, colorData: [] }));
-                  setFixtures(cleanFixtures);
-              }
-              if (data.settings) setSettings(prev => ({ ...prev, ...data.settings }));
-              if (typeof data.globalBrightness === 'number') setGlobalBrightness(data.globalBrightness);
-              setGroups(Array.isArray(data.groups) ? data.groups : []);
-              setScenes(Array.isArray(data.scenes) ? data.scenes : []);
-              setSelectedFixtureId(null);
-          } catch (err) {
-              console.error("Failed to parse project file", err);
-              alert("Error loading project file.");
-          }
-      };
-      reader.readAsText(file);
+  const refreshRecents = async () => {
+      const prefs = await window.artlux?.getPrefs?.();
+      if (prefs) setRecentFiles(prefs.recentFiles ?? []);
   };
+
+  // Save to the current file (Save) or prompt for a location (Save As / first save).
+  const handleSaveProject = async () => {
+      const path = await window.artlux?.saveProject?.(buildProjectData(), currentProjectPath ?? undefined);
+      if (path) { setCurrentProjectPath(path); refreshRecents(); }
+  };
+  const handleSaveAs = async () => {
+      const path = await window.artlux?.saveProject?.(buildProjectData(), undefined);
+      if (path) { setCurrentProjectPath(path); refreshRecents(); }
+  };
+  const handleOpenProject = async () => {
+      const res = await window.artlux?.openProject?.();
+      if (res) { applyProjectData(res.data); setCurrentProjectPath(res.path); refreshRecents(); }
+  };
+  const handleOpenRecent = async (path: string) => {
+      const data = await window.artlux?.loadProjectPath?.(path);
+      if (data) { applyProjectData(data); setCurrentProjectPath(path); refreshRecents(); }
+  };
+
+  // Rig = patch/wiring/routing/geometry only (no effects/segments/scenes/media).
+  const handleExportRig = async () => {
+      const rigFixtures = fixtures.map((f: any) => {
+          const { source, effectId, paletteId, speed, intensity, segments, colorData, ...rig } = f;
+          return rig;
+      });
+      await window.artlux?.exportRig?.({ version: '1.0', kind: 'rig', fixtures: rigFixtures });
+  };
+  const handleImportRig = async () => {
+      const rig = await window.artlux?.importRig?.();
+      if (rig?.fixtures?.length) {
+          recordHistory();
+          const imported = rig.fixtures.map((f: any) => ({ ...f, id: generateId(), colorData: [] }));
+          setFixtures([...fixtures, ...imported]);
+      }
+  };
+
+  // Restore persisted prefs (settings + master brightness + recents + last project) on launch.
+  useEffect(() => {
+      (async () => {
+          const prefs = await window.artlux?.getPrefs?.();
+          if (!prefs) return;
+          if (prefs.appSettings) setSettings(s => ({ ...s, ...(prefs.appSettings as Partial<AppSettings>) }));
+          if (typeof prefs.globalBrightness === 'number') setGlobalBrightness(prefs.globalBrightness);
+          setRecentFiles(prefs.recentFiles ?? []);
+          if (prefs.lastProjectPath) {
+              const data = await window.artlux?.loadProjectPath?.(prefs.lastProjectPath);
+              if (data) { applyProjectData(data); setCurrentProjectPath(prefs.lastProjectPath); }
+          }
+      })();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist settings + master brightness (debounced) so they survive restarts.
+  useEffect(() => {
+      const t = setTimeout(() => {
+          window.artlux?.setPrefs?.({ appSettings: settings, globalBrightness });
+      }, 400);
+      return () => clearTimeout(t);
+  }, [settings, globalBrightness]);
 
   const updateSettings = (patch: Partial<AppSettings>) => setSettings(s => ({ ...s, ...patch }));
 
@@ -288,7 +332,12 @@ const App: React.FC = () => {
           module={module}
           onChangeModule={setModule}
           onSaveProject={handleSaveProject}
-          onLoadProject={handleLoadProject}
+          onSaveAs={handleSaveAs}
+          onOpenProject={handleOpenProject}
+          recentFiles={recentFiles}
+          onOpenRecent={handleOpenRecent}
+          onExportRig={handleExportRig}
+          onImportRig={handleImportRig}
           onUndo={undo}
           onRedo={redo}
           canUndo={canUndo}
