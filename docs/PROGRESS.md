@@ -13,8 +13,8 @@ Newest decisions at the bottom of each section. Commit hashes are on `main`.
 | C | WLED effects + palettes (per-fixture) | ✅ done (segments/fire deferred) | `254cff8` |
 | D | 2D matrix + ledmap + color correctness | ✅ done | `063be08` |
 | E | Per-fixture routing + output targeting (TS) | ✅ done | `4e5fe09` |
-| F | Rust output engine (napi-rs) + sACN | ⏳ todo | — |
-| G | 3D LED fixture editor + simulator (r3f) | ✅ done | `<pending>` |
+| F | sACN/E1.31 (TS) ✅ · Rust engine ⏳ deferred | ◑ partial | `<pending>` |
+| G | 3D LED fixture editor + simulator (r3f) | ✅ done | `2c59917` |
 
 ## What works today
 - Runs as a native **Electron** desktop app: `npm run dev` (electron-vite). Three-process build: main / preload / renderer.
@@ -103,8 +103,27 @@ src/renderer/                  (the React app)
 - Verified: build passes; with the view temporarily defaulted to 3D the scene rendered with
   no errors (only a benign THREE.Clock deprecation warning from a dep).
 
+## Phase F notes (partial — sACN in TS; Rust engine deferred)
+- **No Rust toolchain** in this environment (cargo/rustc/rustup absent; install likely
+  sandbox-blocked). So the napi-rs native engine is deferred to a Rust-equipped machine;
+  the design is in ARCHITECTURE_PLAN Phase F.
+- Delivered now (verifiable): **native sACN / E1.31** in `src/main/transport/sacn.ts` (Root +
+  Framing + DMP layers, CID, priority, per-universe sequence, multicast `239.255.x.x:5568`
+  or unicast). `outputManager.ts` routes each frame's targets to Art-Net or sACN by
+  `target.protocol`; `ipc.ts` now uses outputManager.
+- Data model: `OutputProtocol`, `OutputTarget.protocol`/`priority`, `AppSettings.protocol`
+  (global default; per-fixture override). Stage groups destinations by
+  `${protocol}|${ip}|${broadcast}` (broadcast = UDP broadcast for Art-Net, multicast for sACN).
+- Inspector: global Protocol select (Output Config) + per-fixture Protocol/Priority (Routing).
+- Verified: build passes; E1.31 packet validated over UDP (11/11 structural checks);
+  app boots clean with the dual-protocol manager.
+
 ## Open items
+- **Rust output engine (Phase F native)**: napi-rs addon for the high-rate send loop +
+  SharedArrayBuffer handoff (design in ARCHITECTURE_PLAN). Needs a Rust toolchain; build on a
+  Rust-equipped machine. The TS artnet/sacn transport is the working path and fallback.
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
+- Deferred effects: stateful **fire2012**, **multi-segment** subdivision per fixture.
 - **Parity check**: WebGPU vs WebGL pixel output verified only as "initializes + runs"; confirm visually with a loaded source against the DMX Monitor.
 
 ## Verification cheatsheet

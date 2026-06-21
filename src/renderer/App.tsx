@@ -19,7 +19,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   artNetPort: 6454,
   outputEnabled: true,
   broadcast: false,
-  gamma: 1.0
+  gamma: 1.0,
+  protocol: 'artnet'
 };
 
 const App: React.FC = () => {
@@ -78,8 +79,10 @@ const App: React.FC = () => {
           const targets = Object.values(data.destinations).map(d => ({
               ip: d.ip,
               port: settings.artNetPort,
+              protocol: d.protocol,
               broadcast: d.broadcast,
               sparse: d.sparse,
+              priority: d.priority,
               universes: d.universes,
           }));
           sendArtNetFrame(targets);
@@ -243,6 +246,7 @@ const App: React.FC = () => {
                     gamma={settings.gamma}
                     targetIp={settings.artNetIp}
                     broadcast={settings.broadcast}
+                    protocol={settings.protocol}
                     onRecordHistory={recordHistory}
                 />
             </div>

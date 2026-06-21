@@ -2,8 +2,10 @@
 // A lightweight event bus to decouple the Render Loop from React Components.
 export interface DmxDestination {
     ip: string;
+    protocol: 'artnet' | 'sacn';
     broadcast: boolean;
     sparse: boolean;
+    priority?: number;
     universes: Record<number, number[]>;
 }
 

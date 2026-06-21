@@ -97,10 +97,14 @@ export const defaultLayout3D = (): Layout3D => ({
   arcRadius: 1, arcAngle: 180,
 });
 
+export type OutputProtocol = 'artnet' | 'sacn';
+
 export interface OutputTarget {
-  ip?: string;        // override controller IP (else global AppSettings.artNetIp)
-  broadcast?: boolean;
-  sparse?: boolean;   // skip universes whose data is unchanged since last send
+  ip?: string;             // override controller IP (else global AppSettings.artNetIp)
+  protocol?: OutputProtocol; // override global protocol
+  broadcast?: boolean;     // Art-Net: UDP broadcast; sACN: multicast (239.255.x.x)
+  sparse?: boolean;        // skip universes whose data is unchanged since last send
+  priority?: number;       // sACN priority (1..200, default 100)
 }
 
 export enum SourceType {
@@ -113,9 +117,10 @@ export enum SourceType {
 export interface AppSettings {
   artNetIp: string;
   artNetPort: number;
-  outputEnabled: boolean; // master enable for native Art-Net output
+  outputEnabled: boolean; // master enable for native output
   broadcast: boolean;     // broadcast vs unicast to artNetIp
   gamma: number;          // output gamma correction (1.0 = off)
+  protocol: OutputProtocol; // default output protocol (per-fixture can override)
 }
 
 export enum ViewMode {

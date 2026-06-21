@@ -16,12 +16,16 @@ export interface OutputConfig {
   broadcast: boolean;
 }
 
+export type OutputProtocol = 'artnet' | 'sacn';
+
 // One routing destination: a controller and the universes destined for it.
 export interface UniverseTarget {
   ip: string;
   port: number;
-  broadcast: boolean;
-  sparse: boolean; // skip universes unchanged since last send
+  protocol: OutputProtocol;
+  broadcast: boolean; // Art-Net: UDP broadcast; sACN: multicast
+  sparse: boolean;    // skip universes unchanged since last send
+  priority?: number;  // sACN priority (default 100)
   universes: Record<number, number[]>;
 }
 

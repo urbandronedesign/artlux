@@ -271,6 +271,22 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
 
                 <PanelSection title="Routing" icon={<Network size={12}/>}>
                     <div className="flex items-center justify-between text-xs gap-2">
+                        <label className="text-gray-500 w-16 truncate">Protocol</label>
+                        <select
+                            value={selectedFixture.output?.protocol ?? ''}
+                            onChange={(e) => onUpdateFixture(selectedFixture.id, { output: { ...selectedFixture.output, protocol: (e.target.value || undefined) as ('artnet' | 'sacn' | undefined) } })}
+                            className="flex-1 bg-[#0a0a0a] border border-[#222] rounded px-1.5 py-1 text-gray-300 focus:border-accent focus:outline-none"
+                        >
+                            <option value="">Default ({settings.protocol})</option>
+                            <option value="artnet">Art-Net</option>
+                            <option value="sacn">sACN (E1.31)</option>
+                        </select>
+                    </div>
+                    {(selectedFixture.output?.protocol ?? settings.protocol) === 'sacn' && (
+                        <NumberInput label="Priority" value={selectedFixture.output?.priority ?? 100} step={1}
+                            onChange={(v) => onUpdateFixture(selectedFixture.id, { output: { ...selectedFixture.output, priority: Math.max(0, Math.min(200, Math.round(v))) } })} />
+                    )}
+                    <div className="flex items-center justify-between text-xs gap-2">
                         <label className="text-gray-500 w-16 truncate">Target IP</label>
                         <input
                             type="text"
@@ -388,8 +404,19 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
 
                         {/* Native Output Config */}
                         <div className="border-t border-[#222] pt-2 space-y-2">
+                             <div className="flex items-center justify-between text-xs gap-2">
+                                <label className="text-gray-500 w-16 truncate">Protocol</label>
+                                <select
+                                    value={settings.protocol}
+                                    onChange={(e) => onUpdateSettings({...settings, protocol: e.target.value as AppSettings['protocol']})}
+                                    className="flex-1 bg-[#0a0a0a] border border-[#222] rounded px-1.5 py-1 text-gray-300 focus:border-accent focus:outline-none"
+                                >
+                                    <option value="artnet">Art-Net</option>
+                                    <option value="sacn">sACN (E1.31)</option>
+                                </select>
+                             </div>
                              <div className="flex items-center justify-between">
-                                <span className="text-xs text-gray-400 font-medium">Art-Net Output</span>
+                                <span className="text-xs text-gray-400 font-medium">Output Enabled</span>
                                  <div className="flex items-center gap-2">
                                     <input
                                         type="checkbox"

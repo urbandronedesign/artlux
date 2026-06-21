@@ -19,6 +19,7 @@ interface StageProps {
   gamma: number;
   targetIp: string;
   broadcast: boolean;
+  protocol: 'artnet' | 'sacn';
   onRecordHistory: () => void;
 }
 
@@ -45,6 +46,7 @@ export const Stage: React.FC<StageProps> = ({
   gamma,
   targetIp,
   broadcast,
+  protocol,
   onRecordHistory
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -77,6 +79,8 @@ export const Stage: React.FC<StageProps> = ({
   useEffect(() => { targetIpRef.current = targetIp; }, [targetIp]);
   const broadcastRef = useRef(broadcast);
   useEffect(() => { broadcastRef.current = broadcast; }, [broadcast]);
+  const protocolRef = useRef(protocol);
+  useEffect(() => { protocolRef.current = protocol; }, [protocol]);
   
   const [viewState, setViewState] = useState({ x: 0, y: 0, scale: 0.8 });
   const viewStateRef = useRef(viewState);
@@ -289,23 +293,26 @@ export const Stage: React.FC<StageProps> = ({
 
             const defaultIp = targetIpRef.current;
             const defaultBroadcast = broadcastRef.current;
+            const defaultProtocol = protocolRef.current;
             const currentFixtures = fixturesRef.current;
 
-            // Per-destination universe maps, keyed by `${ip}|${broadcast}`.
+            // Per-destination universe maps, keyed by `${protocol}|${ip}|${broadcast}`.
             const destinations: Record<string, {
-                ip: string; broadcast: boolean; sparse: boolean; universes: Record<number, number[]>;
+                ip: string; protocol: 'artnet' | 'sacn'; broadcast: boolean; sparse: boolean;
+                priority?: number; universes: Record<number, number[]>;
             }> = {};
 
             for (let fIdx = 0; fIdx < currentFixtures.length; fIdx++) {
                 const f = currentFixtures[fIdx];
 
+                const proto = f.output?.protocol || defaultProtocol;
                 const ip = f.output?.ip || defaultIp;
                 const bcast = f.output?.broadcast ?? defaultBroadcast;
                 const sparse = f.output?.sparse ?? false;
-                const destKey = `${ip}|${bcast ? 1 : 0}`;
+                const destKey = `${proto}|${ip}|${bcast ? 1 : 0}`;
                 let dest = destinations[destKey];
                 if (!dest) {
-                    dest = { ip, broadcast: bcast, sparse: false, universes: {} };
+                    dest = { ip, protocol: proto, broadcast: bcast, sparse: false, priority: f.output?.priority, universes: {} };
                     destinations[destKey] = dest;
                 }
                 dest.sparse = dest.sparse || sparse;
