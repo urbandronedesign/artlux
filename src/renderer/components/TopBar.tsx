@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Play, Pause, Monitor, Save, FolderOpen, Activity, Undo, Redo } from 'lucide-react';
+import { Play, Pause, Monitor, Save, FolderOpen, Activity, Undo, Redo, Box } from 'lucide-react';
 import { Button } from './Button';
 import { ViewMode } from '../types';
 
@@ -130,6 +130,18 @@ export const TopBar: React.FC<TopBarProps> = ({
                         onClick={() => onChangeView(ViewMode.MONITORING)}
                      >
                         <Activity size={12} className="mr-1.5"/> Monitoring
+                     </Button>
+                     <Button
+                        variant="ghost"
+                        size="sm"
+                        className={`h-6 text-xs px-2 rounded-sm border transition-all ${
+                            currentView === ViewMode.SIMULATOR_3D
+                            ? 'text-accent bg-accent/10 border-accent/20'
+                            : 'text-gray-500 border-transparent hover:text-gray-300'
+                        }`}
+                        onClick={() => onChangeView(ViewMode.SIMULATOR_3D)}
+                     >
+                        <Box size={12} className="mr-1.5"/> 3D
                      </Button>
                 </div>
             </div>

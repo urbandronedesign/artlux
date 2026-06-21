@@ -12,9 +12,9 @@ Newest decisions at the bottom of each section. Commit hashes are on `main`.
 | B | WebGPU compute mapper + async readback | ✅ done | `b1404da` |
 | C | WLED effects + palettes (per-fixture) | ✅ done (segments/fire deferred) | `254cff8` |
 | D | 2D matrix + ledmap + color correctness | ✅ done | `063be08` |
-| E | Per-fixture routing + output targeting (TS) | ✅ done | `<pending>` |
+| E | Per-fixture routing + output targeting (TS) | ✅ done | `4e5fe09` |
 | F | Rust output engine (napi-rs) + sACN | ⏳ todo | — |
-| G | 3D LED fixture editor + simulator (r3f) | ⏳ todo (independent) | — |
+| G | 3D LED fixture editor + simulator (r3f) | ✅ done | `<pending>` |
 
 ## What works today
 - Runs as a native **Electron** desktop app: `npm run dev` (electron-vite). Three-process build: main / preload / renderer.
@@ -82,6 +82,26 @@ src/renderer/                  (the React app)
   sends corrupted in-flight packets (all got the last universe). Now copies per packet
   (`Buffer.from`). The Phase F Rust engine will avoid the per-packet copy.
 - Verified with a 2-destination + sparse-skip UDP round-trip test (passed).
+
+## Phase G notes
+- **3D LED editor + live simulator** (`ViewMode.SIMULATOR_3D`, third TopBar toggle) built with
+  **react-three-fiber v9** + drei + postprocessing. `components/Simulator3D/`.
+- True per-fixture 3D transform on `Fixture`: `position3D`, `rotation3D` (deg), `layout3D`
+  (`line|matrix|arc` + spacing/rows/cols/serpentine/arc params) — all optional; derived from
+  the 2D layout when absent (migration), so old projects appear immediately.
+- One `InstancedMesh` for all LEDs; `instanceIndex` matches the dmxSignal pixel order, so
+  `useLedColors` writes live colors each frame with zero React re-renders. Bloom for glow.
+- Editing: click an LED selects its fixture (shared `selectedFixtureId`); drei
+  `<TransformControls>` (translate/rotate, toolbar toggle) with `<OrbitControls makeDefault>`
+  auto-disabled while dragging. History recorded at drag-start; commit via
+  `handleCommitFixture3D` (no re-record). Numeric "3D Layout" section in the Inspector.
+- **Bundle hygiene**: three is heavy, so `Simulator3D` is `React.lazy` and the three-free
+  effective-value helpers live in `services/led3dDefaults.ts` (the Inspector imports those,
+  not `led3dLayout`). Result: main bundle ~695 KB; three lives only in the lazy 3D chunk
+  (~2.25 MB) loaded on first 3D entry.
+- Stage stays mounted (opacity, not unmount) so dmxSignal keeps flowing while in 3D.
+- Verified: build passes; with the view temporarily defaulted to 3D the scene rendered with
+  no errors (only a benign THREE.Clock deprecation warning from a dep).
 
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.

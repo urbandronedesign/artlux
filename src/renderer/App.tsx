@@ -10,6 +10,8 @@ import { dmxSignal } from './services/dmxSignal';
 import { PanelLeft, PanelRight, Activity, Wifi } from 'lucide-react';
 import { useHistory } from './hooks/useHistory';
 
+const Simulator3D = React.lazy(() => import('./components/Simulator3D/Simulator3D'));
+
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -146,6 +148,11 @@ const App: React.FC = () => {
     handleUpdateFixture(id, { name: newName });
   };
 
+  // 3D gizmo commit: history already recorded at drag-start, so don't re-record.
+  const handleCommitFixture3D = (id: string, updates: Partial<Fixture>) => {
+    setFixtures(fixtures.map(f => f.id === id ? { ...f, ...updates } : f));
+  };
+
   const handleSaveProject = () => {
     const projectData = {
         version: '1.0',
@@ -258,6 +265,20 @@ const App: React.FC = () => {
 
         <div className={`absolute inset-0 flex transition-opacity duration-300 ${currentView === ViewMode.MONITORING ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
             <DMXMonitor fixtures={fixtures} />
+        </div>
+
+        <div className={`absolute inset-0 ${currentView === ViewMode.SIMULATOR_3D ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
+            {currentView === ViewMode.SIMULATOR_3D && (
+                <React.Suspense fallback={<div className="w-full h-full flex items-center justify-center text-gray-600 text-xs">Loading 3D…</div>}>
+                    <Simulator3D
+                        fixtures={fixtures}
+                        selectedFixtureId={selectedFixtureId}
+                        onSelectFixture={setSelectedFixtureId}
+                        onCommitFixture3D={handleCommitFixture3D}
+                        onRecordHistory={recordHistory}
+                    />
+                </React.Suspense>
+            )}
         </div>
       </div>
 

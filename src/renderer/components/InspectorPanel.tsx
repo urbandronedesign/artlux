@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Fixture, SourceType, AppSettings, RGBW, PixelSource, LedShape, ColorOrder, RGBWMode } from '../types';
-import { Monitor, Image as ImageIcon, Video, Map, ChevronDown, Cpu, Sparkles, Grid3x3, Network } from 'lucide-react';
+import { Fixture, SourceType, AppSettings, RGBW, PixelSource, LedShape, ColorOrder, RGBWMode, Layout3DType } from '../types';
+import { Monitor, Image as ImageIcon, Video, Map, ChevronDown, Cpu, Sparkles, Grid3x3, Network, Box } from 'lucide-react';
 import { addStatusListener } from '../services/mockSocketService';
 import { EFFECT_NAMES } from '../gpu/effects';
 import { PALETTE_NAMES } from '../gpu/palettes';
+import { effectivePosObj, effectiveRotObj, effectiveLayout } from '../services/led3dDefaults';
 
 interface InspectorPanelProps {
     sourceType: SourceType;
@@ -295,6 +296,64 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                         Blank IP → global target. Each fixture can address its own controller.
                     </div>
                 </PanelSection>
+
+                {(() => {
+                    const p = effectivePosObj(selectedFixture);
+                    const rotDeg = effectiveRotObj(selectedFixture);
+                    const L = effectiveLayout(selectedFixture);
+                    const setPos = (k: 'x' | 'y' | 'z', v: number) =>
+                        onUpdateFixture(selectedFixture.id, { position3D: { x: p.x, y: p.y, z: p.z, [k]: v } });
+                    const setRot = (k: 'pitch' | 'yaw' | 'roll', v: number) =>
+                        onUpdateFixture(selectedFixture.id, { rotation3D: { ...rotDeg, [k]: v } });
+                    const setLayout = (patch: Partial<typeof L>) =>
+                        onUpdateFixture(selectedFixture.id, { layout3D: { ...L, ...patch } });
+                    return (
+                        <PanelSection title="3D Layout" icon={<Box size={12}/>}>
+                            <div className="text-[9px] text-gray-600 uppercase tracking-wider">Position (m)</div>
+                            <NumberInput label="X" value={+p.x.toFixed(3)} step={0.05} onChange={(v) => setPos('x', v)} />
+                            <NumberInput label="Y" value={+p.y.toFixed(3)} step={0.05} onChange={(v) => setPos('y', v)} />
+                            <NumberInput label="Z" value={+p.z.toFixed(3)} step={0.05} onChange={(v) => setPos('z', v)} />
+                            <div className="text-[9px] text-gray-600 uppercase tracking-wider pt-1">Rotation (°)</div>
+                            <NumberInput label="Pitch" value={+rotDeg.pitch.toFixed(1)} step={1} onChange={(v) => setRot('pitch', v)} />
+                            <NumberInput label="Yaw" value={+rotDeg.yaw.toFixed(1)} step={1} onChange={(v) => setRot('yaw', v)} />
+                            <NumberInput label="Roll" value={+rotDeg.roll.toFixed(1)} step={1} onChange={(v) => setRot('roll', v)} />
+
+                            <div className="flex items-center justify-between text-xs gap-2 pt-1">
+                                <label className="text-gray-500 w-16 truncate">Layout</label>
+                                <select
+                                    value={L.type}
+                                    onChange={(e) => setLayout({ type: e.target.value as Layout3DType })}
+                                    className="flex-1 bg-[#0a0a0a] border border-[#222] rounded px-1.5 py-1 text-gray-300 focus:border-accent focus:outline-none"
+                                >
+                                    <option value="line">Line</option>
+                                    <option value="matrix">Matrix</option>
+                                    <option value="arc">Arc</option>
+                                </select>
+                            </div>
+                            {L.type !== 'arc' && (
+                                <NumberInput label="Spacing" value={+L.ledSpacing.toFixed(4)} step={0.001} onChange={(v) => setLayout({ ledSpacing: Math.max(0.001, v) })} />
+                            )}
+                            {L.type === 'matrix' && (
+                                <>
+                                    <NumberInput label="Cols" value={L.matrixCols} step={1} onChange={(v) => setLayout({ matrixCols: Math.max(1, Math.round(v)) })} />
+                                    <NumberInput label="Rows" value={L.matrixRows} step={1} onChange={(v) => setLayout({ matrixRows: Math.max(1, Math.round(v)) })} />
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs text-gray-500">Serpentine</span>
+                                        <input type="checkbox" checked={L.serpentine}
+                                            onChange={(e) => setLayout({ serpentine: e.target.checked })}
+                                            className="bg-[#0a0a0a] border-[#333] rounded text-accent focus:ring-0" />
+                                    </div>
+                                </>
+                            )}
+                            {L.type === 'arc' && (
+                                <>
+                                    <NumberInput label="Radius" value={+L.arcRadius.toFixed(3)} step={0.05} onChange={(v) => setLayout({ arcRadius: Math.max(0.01, v) })} />
+                                    <NumberInput label="Angle" value={L.arcAngle} step={5} onChange={(v) => setLayout({ arcAngle: v })} />
+                                </>
+                            )}
+                        </PanelSection>
+                    );
+                })()}
                 </>
             ) : (
                 <div className="p-4 text-center text-gray-600 text-xs italic mt-10">

@@ -70,7 +70,32 @@ export interface Fixture {
   channelsPerPixel?: 3 | 4;
   // Phase E — per-fixture output routing ("jump from fixture to fixture").
   output?: OutputTarget;
+  // Phase G — 3D physical layout (optional; derived from 2D when absent).
+  position3D?: Vec3;
+  rotation3D?: Euler3;   // degrees
+  layout3D?: Layout3D;
 }
+
+export interface Vec3 { x: number; y: number; z: number; }
+export interface Euler3 { pitch: number; yaw: number; roll: number; } // degrees
+
+export type Layout3DType = 'line' | 'matrix' | 'arc';
+
+export interface Layout3D {
+  type: Layout3DType;
+  ledSpacing: number;   // meters between adjacent LEDs (line/matrix)
+  matrixRows: number;
+  matrixCols: number;
+  serpentine: boolean;
+  arcRadius: number;    // meters
+  arcAngle: number;     // degrees of total sweep
+}
+
+export const defaultLayout3D = (): Layout3D => ({
+  type: 'line', ledSpacing: 0.0166, // ~60 LEDs/m
+  matrixRows: 8, matrixCols: 8, serpentine: true,
+  arcRadius: 1, arcAngle: 180,
+});
 
 export interface OutputTarget {
   ip?: string;        // override controller IP (else global AppSettings.artNetIp)
@@ -95,5 +120,6 @@ export interface AppSettings {
 
 export enum ViewMode {
   MAPPING = 'MAPPING',
-  MONITORING = 'MONITORING'
+  MONITORING = 'MONITORING',
+  SIMULATOR_3D = 'SIMULATOR_3D'
 }
