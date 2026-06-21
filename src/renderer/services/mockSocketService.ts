@@ -47,6 +47,8 @@ export const configureOutput = (settings: AppSettings) => {
             ip: settings.artNetIp,
             port: settings.artNetPort,
             broadcast: settings.broadcast,
+            fps: settings.fps,
+            keepAlive: settings.keepAlive,
         });
         // main emits STATUS=true once the socket is ready
     } else {

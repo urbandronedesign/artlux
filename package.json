@@ -38,6 +38,12 @@
     "files": [
       "out/**/*"
     ],
+    "extraResources": [
+      {
+        "from": "native/output-engine/output-engine.node",
+        "to": "output-engine.node"
+      }
+    ],
     "directories": {
       "output": "release"
     }

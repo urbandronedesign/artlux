@@ -29,4 +29,10 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
             getWindow()?.webContents.send(IPC.INPUT_FRAME, frames);
         });
     });
+
+    // Poll native engine throughput stats ~1 Hz and push to the renderer.
+    setInterval(() => {
+        const stats = output.getStats();
+        if (stats) getWindow()?.webContents.send(IPC.STATS, stats);
+    }, 1000);
 }

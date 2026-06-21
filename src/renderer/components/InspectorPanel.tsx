@@ -524,6 +524,15 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                                 />
                              </div>
 
+                             <NumberInput label="FPS" value={settings.fps} step={1} onChange={(v) => onUpdateSettings({ ...settings, fps: Math.max(1, Math.min(1000, Math.round(v))) })} />
+
+                             <div className="flex items-center justify-between">
+                                <span className="text-xs text-gray-500" title="Re-send last frame at FPS so receivers never starve">Keep-alive</span>
+                                <input type="checkbox" checked={settings.keepAlive}
+                                    onChange={(e) => onUpdateSettings({ ...settings, keepAlive: e.target.checked })}
+                                    className="bg-[#0a0a0a] border-[#333] rounded text-accent focus:ring-0" />
+                             </div>
+
                              <div className="text-[9px] text-gray-600 font-mono">
                                 Native UDP — no bridge required
                              </div>

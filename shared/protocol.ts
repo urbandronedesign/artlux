@@ -8,6 +8,8 @@ export const IPC = {
   FRAME: 'dmx:frame',
   /** Main → renderer: output connection/health status. */
   STATUS: 'dmx:status',
+  /** Main → renderer: native engine throughput stats (~1 Hz). */
+  STATS: 'dmx:stats',
   /** Renderer → main: start/stop Art-Net/sACN input capture. */
   INPUT_CONFIGURE: 'input:configure',
   /** Main → renderer: latest received input universes. */
@@ -30,6 +32,14 @@ export interface OutputConfig {
   ip: string;
   port: number;
   broadcast: boolean;
+  fps?: number;       // native pacer rate
+  keepAlive?: boolean; // re-send last frame on pacer timeout
+}
+
+export interface OutputStats {
+  pps: number;        // packets/sec
+  fps: number;        // frames/sec (incl. keep-alive)
+  universes: number;  // universes in the last frame
 }
 
 export type OutputProtocol = 'artnet' | 'sacn';
@@ -55,6 +65,7 @@ export interface ArtluxApi {
   /** One frame, encoded by shared/frameCodec.encodeFrame (binary handoff). */
   sendArtNet(frame: ArrayBuffer): void;
   onStatus(cb: (connected: boolean) => void): () => void;
+  onDmxStats(cb: (stats: OutputStats) => void): () => void;
   configureInput(cfg: InputConfig): void;
   onDmxInput(cb: (frames: InputFrame[]) => void): () => void;
 }

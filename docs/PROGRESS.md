@@ -179,9 +179,25 @@ src/renderer/                  (the React app)
 - Not full HTP/LTP merge (deferred). Verified: input parser UDP round-trip passes (Art-Net +
   sACN, 4/4); app builds + launches clean.
 
+## Phase K — native pacer + keep-alive + stats + packaging (done)
+- Rust `configure(broadcast, fps, keepAlive)`: the send thread waits on the condvar with a
+  pacing **timeout = 1000/fps**; on timeout it **re-sends the last frame** (keep-alive, forced
+  past sparse) so receivers never starve. New frames still send immediately. `fps`/`keepAlive`
+  are atomics, updatable at runtime.
+- **Stats**: the thread tallies packets/sec, frames/sec, and universes; `getStats()` (napi) is
+  polled by main ~1 Hz and pushed to the renderer over IPC `dmx:stats`. Shown in the status bar
+  (`44Hz · Npps · Nu`). `AppSettings.fps`/`keepAlive` + Inspector controls.
+- **Packaging**: electron-builder `extraResources` copies `output-engine.node` into the app's
+  resources; `outputManager` resolves `process.resourcesPath/output-engine.node` first (then dev
+  paths), falling back to the TS transport.
+- Verified: native rebuild OK; pacer test — a single `pushFrame` yields ~20 packets/s via
+  keep-alive and `getStats` reports fps/pps/universes; app builds + launches clean with stats in
+  the status bar.
+
 ## Open items
-- **Packaging**: bundle the `.node` for distribution via electron-builder (`asarUnpack` /
-  `extraResources`) and per-platform native prebuilds in CI.
+- **CI**: per-platform native prebuilds (the `.node` is built locally via `npm run build:native`;
+  packaging copies it via `extraResources`). A full packaged-build smoke test on each OS is still
+  worthwhile.
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
 - Deferred effects: stateful **fire2012**, **multi-segment** subdivision per fixture.
 - **Parity check**: WebGPU vs WebGL pixel output verified only as "initializes + runs"; confirm visually with a loaded source against the DMX Monitor.

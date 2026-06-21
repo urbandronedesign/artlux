@@ -21,7 +21,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   outputEnabled: true,
   broadcast: false,
   gamma: 1.0,
-  protocol: 'artnet'
+  protocol: 'artnet',
+  fps: 44,
+  keepAlive: true
 };
 
 const App: React.FC = () => {
@@ -57,6 +59,7 @@ const App: React.FC = () => {
   const [showRightPanel, setShowRightPanel] = useState(true);
   
   const [isBridgeConnected, setIsBridgeConnected] = useState(false);
+  const [outputStats, setOutputStats] = useState<{ pps: number; fps: number; universes: number } | null>(null);
   const [fps, setFps] = useState(0);
   const frameCount = React.useRef(0);
   const lastTime = React.useRef(performance.now());
@@ -65,15 +68,17 @@ const App: React.FC = () => {
     const unsubscribe = addStatusListener((status) => {
         setIsBridgeConnected(status);
     });
+    const unsubStats = window.artlux?.onDmxStats?.(setOutputStats);
     return () => {
         unsubscribe();
+        unsubStats?.();
     };
   }, []);
 
   // Push output settings to the native transport whenever they change.
   useEffect(() => {
     configureOutput(settings);
-  }, [settings.outputEnabled, settings.broadcast, settings.artNetIp, settings.artNetPort]);
+  }, [settings.outputEnabled, settings.broadcast, settings.artNetIp, settings.artNetPort, settings.fps, settings.keepAlive]);
 
   // Enable Art-Net/sACN input capture only while DMX-in is the active source.
   useEffect(() => {
@@ -373,6 +378,14 @@ const App: React.FC = () => {
                         {isBridgeConnected ? "LIVE" : "OFFLINE"}
                     </span>
                 </div>
+                {outputStats && (outputStats.pps > 0 || outputStats.universes > 0) && (
+                    <>
+                        <div className="h-3 w-px bg-[#333]"></div>
+                        <div className="flex items-center gap-1.5 font-mono text-gray-500" title="Native engine: frames/s · packets/s · universes">
+                            <span>{outputStats.fps}Hz · {outputStats.pps}pps · {outputStats.universes}u</span>
+                        </div>
+                    </>
+                )}
           </div>
 
           <button 

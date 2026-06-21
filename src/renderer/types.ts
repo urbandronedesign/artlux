@@ -135,6 +135,8 @@ export interface AppSettings {
   broadcast: boolean;     // broadcast vs unicast to artNetIp
   gamma: number;          // output gamma correction (1.0 = off)
   protocol: OutputProtocol; // default output protocol (per-fixture can override)
+  fps: number;            // native engine output pacing rate
+  keepAlive: boolean;     // re-send last frame on pacer timeout
 }
 
 export enum ViewMode {

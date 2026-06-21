@@ -13,9 +13,10 @@ import * as sacn from './sacn';
 // Build the addon with `npm run build:native`.
 
 interface NativeEngine {
-  configure(broadcast: boolean): void;
+  configure(broadcast: boolean, fps: number, keepAlive: boolean): void;
   isReady(): boolean;
   pushFrame(frame: Buffer): void;
+  getStats(): { pps: number; fps: number; universes: number };
   close(): void;
 }
 
@@ -23,6 +24,7 @@ const req = createRequire(__filename);
 
 function loadNative(): NativeEngine | null {
   const candidates = [
+    join(process.resourcesPath ?? '', 'output-engine.node'), // packaged (extraResources)
     join(process.cwd(), 'native/output-engine/output-engine.node'),
     join(__dirname, '../../native/output-engine/output-engine.node'),
   ];
@@ -53,9 +55,13 @@ function toArrayBuffer(frame: ArrayBuffer | Uint8Array): ArrayBuffer {
 }
 
 export function configure(cfg: OutputConfig): void {
-  if (native) { native.configure(cfg.broadcast); return; }
+  if (native) { native.configure(cfg.broadcast, cfg.fps ?? 44, cfg.keepAlive ?? true); return; }
   artnet.configure(cfg);
   sacn.configure(cfg);
+}
+
+export function getStats(): { pps: number; fps: number; universes: number } | null {
+  return native ? native.getStats() : null;
 }
 
 export function isReady(): boolean {

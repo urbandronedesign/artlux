@@ -10,8 +10,10 @@ extern crate napi_derive;
 use napi::bindgen_prelude::Buffer;
 use std::collections::HashMap;
 use std::net::UdpSocket;
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Condvar, Mutex, OnceLock};
 use std::thread;
+use std::time::{Duration, Instant};
 
 const ARTNET_HEADER: [u8; 12] = [65, 114, 116, 45, 78, 101, 116, 0, 0, 80, 0, 14];
 const ACN_ID: [u8; 12] = [0x41, 0x53, 0x43, 0x2d, 0x45, 0x31, 0x2e, 0x31, 0x37, 0, 0, 0];
@@ -27,25 +29,57 @@ struct Slot {
     stop: bool,
 }
 
+#[derive(Default, Clone, Copy)]
+struct StatsData {
+    pps: u32,        // packets per second
+    fps: u32,        // frames sent per second (incl. keep-alive)
+    universes: u32,  // universes in the last frame
+}
+
 struct Shared {
     slot: Mutex<Slot>,
     cv: Condvar,
+    stats: Mutex<StatsData>,
+    fps: AtomicU32,
+    keep_alive: AtomicBool,
 }
 
 static ENGINE: OnceLock<Arc<Shared>> = OnceLock::new();
 
+#[napi(object)]
+pub struct Stats {
+    pub pps: u32,
+    pub fps: u32,
+    pub universes: u32,
+}
+
 #[napi]
-pub fn configure(broadcast: bool) -> napi::Result<()> {
-    ENGINE.get_or_init(|| {
+pub fn configure(broadcast: bool, fps: f64, keep_alive: bool) -> napi::Result<()> {
+    let shared = ENGINE.get_or_init(|| {
         let shared = Arc::new(Shared {
             slot: Mutex::new(Slot { bytes: Vec::new(), version: 0, stop: false }),
             cv: Condvar::new(),
+            stats: Mutex::new(StatsData::default()),
+            fps: AtomicU32::new(44),
+            keep_alive: AtomicBool::new(true),
         });
         let worker = shared.clone();
         thread::spawn(move || sender_loop(worker, broadcast));
         shared
     });
+    shared.fps.store((fps.max(1.0) as u32).clamp(1, 1000), Ordering::Relaxed);
+    shared.keep_alive.store(keep_alive, Ordering::Relaxed);
     Ok(())
+}
+
+#[napi]
+pub fn get_stats() -> Stats {
+    if let Some(shared) = ENGINE.get() {
+        let s = *shared.stats.lock().unwrap();
+        Stats { pps: s.pps, fps: s.fps, universes: s.universes }
+    } else {
+        Stats { pps: 0, fps: 0, universes: 0 }
+    }
 }
 
 #[napi]
@@ -90,22 +124,57 @@ fn sender_loop(shared: Arc<Shared>, init_broadcast: bool) {
     let mut sacn_seq: HashMap<String, u8> = HashMap::new();
     let mut last_sent: HashMap<String, Vec<u8>> = HashMap::new();
     let mut last_version: u64 = 0;
+    let mut last_bytes: Vec<u8> = Vec::new();
+    let mut win_start = Instant::now();
+    let mut pkt_count: u32 = 0;
+    let mut frame_count: u32 = 0;
 
     loop {
-        let bytes = {
-            let mut s = shared.slot.lock().unwrap();
-            while s.version == last_version && !s.stop {
-                s = shared.cv.wait(s).unwrap();
-            }
+        let fps = shared.fps.load(Ordering::Relaxed).max(1);
+        let timeout = Duration::from_millis((1000 / fps as u64).max(1));
+        let keep_alive = shared.keep_alive.load(Ordering::Relaxed);
+
+        // wait for a new frame or the pacing timeout
+        let mut to_send: Option<(Vec<u8>, bool)> = None; // (bytes, force)
+        {
+            let s = shared.slot.lock().unwrap();
+            let (s, _res) = shared
+                .cv
+                .wait_timeout_while(s, timeout, |s| s.version == last_version && !s.stop)
+                .unwrap();
             if s.stop {
                 break;
             }
-            last_version = s.version;
-            s.bytes.clone()
-        };
-        send_frame_bytes(
-            &bytes, &socket, &mut cur_broadcast, &mut artnet_seq, &mut sacn_seq, &mut last_sent,
-        );
+            if s.version != last_version {
+                last_version = s.version;
+                last_bytes = s.bytes.clone();
+                to_send = Some((last_bytes.clone(), false));
+            } else if keep_alive && !last_bytes.is_empty() {
+                // pacing timeout, no new frame -> re-send last frame (force past sparse)
+                to_send = Some((last_bytes.clone(), true));
+            }
+        }
+
+        if let Some((bytes, force)) = to_send {
+            let (pkts, unis) = send_frame_bytes(
+                &bytes, force, &socket, &mut cur_broadcast, &mut artnet_seq, &mut sacn_seq, &mut last_sent,
+            );
+            pkt_count += pkts;
+            frame_count += 1;
+            if let Ok(mut st) = shared.stats.lock() {
+                st.universes = unis;
+            }
+        }
+
+        if win_start.elapsed() >= Duration::from_secs(1) {
+            if let Ok(mut st) = shared.stats.lock() {
+                st.pps = pkt_count;
+                st.fps = frame_count;
+            }
+            pkt_count = 0;
+            frame_count = 0;
+            win_start = Instant::now();
+        }
     }
 }
 
@@ -124,20 +193,23 @@ fn rd_u32(b: &[u8], i: &mut usize) -> u32 {
 
 fn send_frame_bytes(
     b: &[u8],
+    force: bool,
     socket: &UdpSocket,
     cur_broadcast: &mut bool,
     artnet_seq: &mut u8,
     sacn_seq: &mut HashMap<String, u8>,
     last_sent: &mut HashMap<String, Vec<u8>>,
-) {
+) -> (u32, u32) {
+    let mut packets: u32 = 0;
+    let mut universes: u32 = 0;
     if b.len() < 4 {
-        return;
+        return (0, 0);
     }
     let mut i = 0usize;
     let target_count = rd_u32(b, &mut i);
     for _ in 0..target_count {
         if i + 8 > b.len() {
-            return;
+            return (packets, universes);
         }
         let protocol = b[i]; i += 1;
         let broadcast = b[i] != 0; i += 1;
@@ -145,7 +217,7 @@ fn send_frame_bytes(
         let priority = b[i]; i += 1;
         let port = rd_u16(b, &mut i);
         let ip_len = rd_u16(b, &mut i) as usize;
-        if i + ip_len > b.len() { return; }
+        if i + ip_len > b.len() { return (packets, universes); }
         let ip = String::from_utf8_lossy(&b[i..i + ip_len]).to_string();
         i += ip_len;
         let uni_count = rd_u16(b, &mut i);
@@ -157,12 +229,13 @@ fn send_frame_bytes(
         }
 
         for _ in 0..uni_count {
-            if i + 4 > b.len() { return; }
+            if i + 4 > b.len() { return (packets, universes); }
             let universe = rd_u16(b, &mut i);
             let dlen = rd_u16(b, &mut i) as usize;
-            if i + dlen > b.len() { return; }
+            if i + dlen > b.len() { return (packets, universes); }
             let data = &b[i..i + dlen];
             i += dlen;
+            universes += 1;
 
             let dest = if is_sacn && broadcast {
                 format!("239.255.{}.{}", (universe >> 8) & 0xff, universe & 0xff)
@@ -172,7 +245,7 @@ fn send_frame_bytes(
             let dport = if is_sacn { SACN_PORT } else { port };
             let key = format!("{}:{}:{}", dest, dport, universe);
 
-            if sparse {
+            if sparse && !force {
                 if let Some(prev) = last_sent.get(&key) {
                     if prev.as_slice() == data {
                         continue;
@@ -191,8 +264,10 @@ fn send_frame_bytes(
                 build_artnet(*artnet_seq, universe, data)
             };
             let _ = socket.send_to(&pkt, format!("{}:{}", dest, dport));
+            packets += 1;
         }
     }
+    (packets, universes)
 }
 
 fn build_artnet(seq: u8, universe: u16, data: &[u8]) -> Vec<u8> {
