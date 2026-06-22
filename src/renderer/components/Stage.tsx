@@ -140,7 +140,7 @@ export const Stage: React.FC<StageProps> = ({
         if (cancelled) { m.dispose(); return; }
         mapper.current = m;
         // Apply current state captured after the async init.
-        m.updateMapping(fixturesRef.current);
+        m.updateMapping(fixturesRef.current, surfacesRef.current);
         m.updateParams?.(fixturesRef.current);
         m.setBrightness(brightnessRef.current);
     })();
@@ -157,16 +157,21 @@ export const Stage: React.FC<StageProps> = ({
      return JSON.stringify(fixtures.map(f => ({
          id: f.id, x: f.x, y: f.y, w: f.width, h: f.height, r: f.rotation, c: f.ledCount,
          rev: f.reverse, sh: f.shape, mw: f.matrixWidth, mh: f.matrixHeight, sp: f.serpentine,
-         lm: f.ledMap ? f.ledMap.length : 0,
+         lm: f.ledMap ? f.ledMap.length : 0, surf: f.surfaceId ?? '',
          seg: f.segments ? f.segments.map(s => `${s.start}-${s.stop}`).join(',') : ''
      })));
   }, [fixtures]);
 
+  // Surface geometry/linkage affects per-LED surface-local UVs and pass order.
+  const surfaceLayoutSignature = useMemo(() => {
+     return JSON.stringify(surfaces.map(s => ({ id: s.id, x: s.x, y: s.y, w: s.width, h: s.height, r: s.rotation, z: s.zIndex })));
+  }, [surfaces]);
+
   useEffect(() => {
     if (mapper.current) {
-        mapper.current.updateMapping(fixtures);
+        mapper.current.updateMapping(fixturesRef.current, surfacesRef.current);
     }
-  }, [fixtureLayoutSignature]);
+  }, [fixtureLayoutSignature, surfaceLayoutSignature]);
 
   // Cheap per-fixture effect/palette param updates (sliders/dropdowns) — no realloc.
   const fixtureParamSignature = useMemo(() => {
@@ -220,7 +225,16 @@ export const Stage: React.FC<StageProps> = ({
     }
 
     if (canvasRef.current && isEngineRunning && mapper.current) {
-        mapper.current.updateSource(canvasRef.current);
+        // WebGPU samples each fixture strictly from its linked surface; the WebGL
+        // fallback samples the composite preview canvas.
+        if (mapper.current.perSurface && mapper.current.renderSurfaces) {
+            mapper.current.renderSurfaces((id) => {
+                const s = surfacesRef.current.find((x) => x.id === id);
+                return s ? surfaceMedia.getDrawable(s) : null;
+            });
+        } else {
+            mapper.current.updateSource(canvasRef.current);
+        }
         const rawBytes = mapper.current.read();
 
         if (rawBytes) {

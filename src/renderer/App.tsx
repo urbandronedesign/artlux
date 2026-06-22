@@ -47,7 +47,7 @@ const App: React.FC = () => {
       name: 'Main Arch',
       x: 0.15, y: 0.15, width: 0.7, height: 0.1,
       universe: 0, startAddress: 1, ledCount: 60, reverse: false, rotation: 0,
-      colorData: []
+      colorData: [], surfaceId: 'surf-1'
     }
   ]);
   
@@ -177,7 +177,8 @@ const App: React.FC = () => {
         name: `Fixture ${fixtures.length + 1}`,
         x: 0.4, y: 0.4, width: 0.2, height: 0.2,
         universe: 0, startAddress: 1, ledCount: 30, reverse: false, rotation: 0,
-        colorData: []
+        colorData: [],
+        surfaceId: selectedSurfaceId ?? surfaces[0]?.id,
       }
     ]);
     handleSelectFixture(newId);
@@ -258,13 +259,15 @@ const App: React.FC = () => {
 
   // Apply a loaded project (or rig-free project) to app state. Strips live colorData.
   const applyProjectData = (data: any) => {
-      if (data?.fixtures && Array.isArray(data.fixtures)) {
-          recordHistory();
-          setFixtures(data.fixtures.map((f: any) => ({ ...f, colorData: [] })));
-      }
       // Surfaces: use the saved ones, or fall back to a default full-stage surface
       // (back-compat with pre-surfaces projects).
-      setSurfaces(Array.isArray(data?.surfaces) && data.surfaces.length ? data.surfaces : defaultSurfaces());
+      const surf = Array.isArray(data?.surfaces) && data.surfaces.length ? data.surfaces as Surface[] : defaultSurfaces();
+      setSurfaces(surf);
+      if (data?.fixtures && Array.isArray(data.fixtures)) {
+          recordHistory();
+          // Default-link any unlinked fixture to the first surface (strict per-surface).
+          setFixtures(data.fixtures.map((f: any) => ({ ...f, colorData: [], surfaceId: f.surfaceId ?? surf[0]?.id })));
+      }
       if (data?.settings) setSettings(prev => ({ ...prev, ...data.settings }));
       if (typeof data?.globalBrightness === 'number') setGlobalBrightness(data.globalBrightness);
       setGroups(Array.isArray(data?.groups) ? data.groups : []);
@@ -315,12 +318,14 @@ const App: React.FC = () => {
 
   const handleNewProject = () => {
       recordHistory();
+      const surf = defaultSurfaces();
+      setSurfaces(surf);
       setFixtures([{
           id: generateId(), name: 'Fixture 1',
           x: 0.15, y: 0.15, width: 0.7, height: 0.1,
           universe: 0, startAddress: 1, ledCount: 60, reverse: false, rotation: 0, colorData: [],
+          surfaceId: surf[0].id,
       }]);
-      setSurfaces(defaultSurfaces());
       setGroups([]);
       setScenes([]);
       setSelectedFixtureId(null);
@@ -458,6 +463,7 @@ const App: React.FC = () => {
                 <div className="flex-1 min-h-0 overflow-y-auto">
                     <InspectorPanel
                         module={module}
+                        surfaces={surfaces}
                         selectedSurface={selectedSurface}
                         onUpdateSurface={handleUpdateSurface}
                         selectedFixture={selectedFixture}

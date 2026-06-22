@@ -324,6 +324,19 @@ S4 fixture library → S5 controllers + auto-patch → S6 routing spreadsheet.
   surface-EFFECT block gained speed/intensity sliders. Verified headless: an effect surface drives a
   fixture → **552 ArtDmx packets, maxByte 255** (after freeing 6454 from Artnetominator). Per-fixture
   effect engine retained for now; UI retirement deferred.
+- **S3 (done)**: **strict per-surface sampling + fixture↔surface linking** (the engine rewrite). Each
+  fixture has `surfaceId` and samples ONLY its linked surface's texture, regardless of overlap.
+  `WebGPUMapper`: `ledData` now stores **surface-local UVs**; each LED's surface index is in
+  `ledMeta.w`; `renderSurfaces(getDrawable)` runs one compute pass per surface (binds that surface's
+  drawable stretched into the 512² source via a scratch canvas; `params.p0` = active surface; the
+  shader gates `if (surfIdx != p0) return`), clearing `outBuf` each frame so unlinked LEDs are black;
+  one readback. Per-fixture effects retired in the engine (all segments = media). `IPixelMapper` gains
+  `perSurface` + `renderSurfaces`; `updateMapping(fixtures, surfaces)`. `Stage` still composites a
+  **preview** canvas (and the WebGL fallback samples it — degraded, not strict on overlap), but the
+  WebGPU path uses `renderSurfaces`. App default-links fixtures (add/new/load → first surface);
+  InspectorPanel fixture Mapping gained a **Surface** link dropdown. Verified headless: a fixture
+  linked to an effect surface A with a black surface B composited ON TOP still output A's colors
+  (**dmx 531, maxByte 255**) — composite-sampling would be black, proving strict isolation.
 
 ## Desktop chrome (post-features)
 - **App icon** — authored `build/icon.svg` (teal "A" squircle matching the brand); `npm run gen:icon`

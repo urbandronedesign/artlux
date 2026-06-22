@@ -1,4 +1,4 @@
-import { Fixture, Segment, PixelSource, LedShape, RGBWMode } from '../types';
+import { Fixture, Surface, PixelSource, LedShape, RGBWMode } from '../types';
 import { IPixelMapper } from '../services/PixelMapper';
 import { buildPaletteLut } from './palettes';
 
@@ -96,6 +96,11 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
   let i = gid.x;
   if (i >= params.count) { return; }
 
+  // Per-surface pass: only LEDs linked to params.p0 (the active surface) are
+  // written this pass; others are left untouched (outBuf is cleared each frame).
+  let surfIdx = u32(ledMeta[i].w + 0.5);
+  if (surfIdx != params.p0) { return; }
+
   let d = ledData[i];
   let uv = d.xy;
   let t = d.z;
@@ -165,9 +170,19 @@ export class WebGPUMapper implements IPixelMapper {
   private latest: Uint8Array | null = null;
   private disposed = false;
 
+  // Strict per-surface sampling (S3).
+  readonly perSurface = true;
+  private surfaceOrder: string[] = []; // index → surfaceId (the active-surface id per pass)
+  private zeroBytes: Uint8Array = new Uint8Array(0);
+  private scratch: HTMLCanvasElement;
+  private scratchCtx: CanvasRenderingContext2D;
+
   private constructor(device: GPUDevice) {
     this.device = device;
     this.queue = device.queue;
+    this.scratch = document.createElement('canvas');
+    this.scratch.width = SOURCE_SIZE; this.scratch.height = SOURCE_SIZE;
+    this.scratchCtx = this.scratch.getContext('2d')!;
 
     const module = device.createShaderModule({ code: SHADER });
     this.mainPipeline = device.createComputePipeline({ layout: 'auto', compute: { module, entryPoint: 'main' } });
@@ -221,11 +236,10 @@ export class WebGPUMapper implements IPixelMapper {
     const out = new Float32Array((segs.length + 1) * 8);
     segs.forEach(({ s, f }, k) => {
       const base = k * 8;
-      const isEffect = (s.source ?? PixelSource.MEDIA) === PixelSource.EFFECT;
-      out[base + 0] = isEffect ? (s.effectId ?? 0) : -1;
-      out[base + 1] = s.paletteId ?? 0;
-      out[base + 2] = s.speed ?? 0.5;
-      out[base + 3] = s.intensity ?? 0.5;
+      // S3: every fixture samples its linked surface's texture (media). Per-fixture
+      // effects are retired — effects live on surfaces now.
+      void s;
+      out[base + 0] = -1; // media
       out[base + 4] = f.rgbwMode === RGBWMode.NONE ? 1 : 0;
     });
     // trailing off-segment for gap LEDs
@@ -239,11 +253,15 @@ export class WebGPUMapper implements IPixelMapper {
     return n;
   }
 
-  updateMapping(fixtures: Fixture[]): void {
+  updateMapping(fixtures: Fixture[], surfaces: Surface[] = []): void {
     if (this.disposed) return;
     const newTotal = fixtures.reduce((acc, f) => acc + f.ledCount, 0);
     this.totalLeds = newTotal;
     this.segCount = this.countSegments(fixtures);
+    // Surfaces referenced by ≥1 fixture, in surface order. The pass index for a
+    // surface is its position here; LEDs store this index in ledMeta.w.
+    this.surfaceOrder = surfaces.filter(s => fixtures.some(f => f.surfaceId === s.id)).map(s => s.id);
+    const OFF = 65535; // unlinked LEDs — never matched by a pass, left black
     if (newTotal === 0) return;
 
     const led = new Float32Array(newTotal * 4);   // (u, v, t, segIndex)
@@ -259,6 +277,16 @@ export class WebGPUMapper implements IPixelMapper {
       const cy = f.y + f.height / 2;
       const rads = (f.rotation || 0) * (Math.PI / 180);
       const cos = Math.cos(rads), sin = Math.sin(rads);
+
+      // Linked surface → inverse transform a global point into surface-local UV.
+      const surf = surfaces.find(s => s.id === f.surfaceId) || null;
+      const sIdx = surf ? this.surfaceOrder.indexOf(surf.id) : OFF;
+      const scx = surf ? surf.x + surf.width / 2 : 0;
+      const scy = surf ? surf.y + surf.height / 2 : 0;
+      const sr = surf ? -(surf.rotation || 0) * (Math.PI / 180) : 0;
+      const scos = Math.cos(sr), ssin = Math.sin(sr);
+      const sw = surf ? (surf.width || 1) : 1;
+      const sh = surf ? (surf.height || 1) : 1;
       const isMatrix = f.shape === LedShape.MATRIX;
       const cols = Math.max(1, f.matrixWidth ?? 1);
       const rows = Math.max(1, f.matrixHeight ?? 1);
@@ -301,9 +329,20 @@ export class WebGPUMapper implements IPixelMapper {
         }
         const rx = relX * cos - relY * sin;
         const ry = relX * sin + relY * cos;
+        const gx = cx + rx, gy = cy + ry;
 
-        led[o++] = cx + rx; led[o++] = cy + ry; led[o++] = tt; led[o++] = segIndex;
-        meta[m++] = segStartGlobal; meta[m++] = segLen; meta[m++] = local; meta[m++] = 0;
+        // Surface-local UV (clamped sampler handles out-of-range); falls back to
+        // the global point when unlinked (those LEDs are off / cleared anyway).
+        let uu = gx, vv = gy;
+        if (surf) {
+          const ddx = gx - scx, ddy = gy - scy;
+          const lx = ddx * scos - ddy * ssin;
+          const ly = ddx * ssin + ddy * scos;
+          uu = lx / sw + 0.5; vv = ly / sh + 0.5;
+        }
+
+        led[o++] = uu; led[o++] = vv; led[o++] = tt; led[o++] = segIndex;
+        meta[m++] = segStartGlobal; meta[m++] = segLen; meta[m++] = local; meta[m++] = sIdx;
       }
       ledBase += f.ledCount;
       segCursor += segs.length;
@@ -328,7 +367,8 @@ export class WebGPUMapper implements IPixelMapper {
 
     const outBytes = newTotal * 4;
     this.outBuffer?.destroy();
-    this.outBuffer = this.device.createBuffer({ size: outBytes, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
+    this.outBuffer = this.device.createBuffer({ size: outBytes, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
+    this.zeroBytes = new Uint8Array(outBytes); // cleared into outBuf each frame
 
     for (const s of this.staging) s.destroy();
     this.staging = []; this.stagingBusy = [];
@@ -349,6 +389,7 @@ export class WebGPUMapper implements IPixelMapper {
         { binding: 4, resource: { buffer: this.paramsBuffer } },
         { binding: 5, resource: this.paletteTexture.createView() },
         { binding: 6, resource: { buffer: this.segParamsBuffer } },
+        { binding: 7, resource: { buffer: this.metaBuffer } },
         { binding: 8, resource: { buffer: this.heatBuffer } },
       ],
     });
@@ -378,39 +419,52 @@ export class WebGPUMapper implements IPixelMapper {
     } catch { /* source not ready */ }
   }
 
-  read(): Uint8Array | null {
-    if (this.disposed || this.totalLeds === 0 || !this.mainBind || !this.fireBind || !this.outBuffer) {
-      return this.latest && this.totalLeds > 0 ? this.latest : null;
-    }
+  // Strict per-surface render: one compute pass per surface, each binding that
+  // surface's drawable and writing only its LEDs (gated by ledMeta.w). One readback.
+  renderSurfaces(getDrawable: (surfaceId: string) => CanvasImageSource | null): void {
+    if (this.disposed || this.totalLeds === 0 || !this.mainBind || !this.outBuffer) return;
+
+    // Clear last frame's output so unlinked LEDs (and removed surfaces) go black.
+    this.queue.writeBuffer(this.outBuffer, 0, this.zeroBytes);
 
     this.frame = (this.frame + 1) >>> 0;
-    const params = new ArrayBuffer(32);
-    const dv = new DataView(params);
-    dv.setFloat32(0, this.brightness, true);
-    dv.setFloat32(4, (performance.now() - this.startTime) / 1000, true);
-    dv.setUint32(8, this.totalLeds, true);
-    dv.setUint32(12, this.paletteCount, true);
-    dv.setUint32(16, this.frame, true);
-    this.queue.writeBuffer(this.paramsBuffer, 0, params);
+    const time = (performance.now() - this.startTime) / 1000;
+    const groups = Math.ceil(this.totalLeds / WORKGROUP);
+
+    for (let k = 0; k < this.surfaceOrder.length; k++) {
+      const d = getDrawable(this.surfaceOrder[k]);
+      if (!d) continue;
+      // Stretch the surface's drawable into the 512² source texture.
+      try {
+        this.scratchCtx.clearRect(0, 0, SOURCE_SIZE, SOURCE_SIZE);
+        this.scratchCtx.drawImage(d, 0, 0, SOURCE_SIZE, SOURCE_SIZE);
+        this.queue.copyExternalImageToTexture({ source: this.scratch, flipY: false }, { texture: this.srcTexture }, [SOURCE_SIZE, SOURCE_SIZE]);
+      } catch { continue; }
+
+      const params = new ArrayBuffer(32);
+      const dv = new DataView(params);
+      dv.setFloat32(0, this.brightness, true);
+      dv.setFloat32(4, time, true);
+      dv.setUint32(8, this.totalLeds, true);
+      dv.setUint32(12, this.paletteCount, true);
+      dv.setUint32(16, this.frame, true);
+      dv.setUint32(20, k, true); // params.p0 = active surface
+      this.queue.writeBuffer(this.paramsBuffer, 0, params);
+
+      const enc = this.device.createCommandEncoder();
+      const mp = enc.beginComputePass();
+      mp.setPipeline(this.mainPipeline);
+      mp.setBindGroup(0, this.mainBind);
+      mp.dispatchWorkgroups(groups);
+      mp.end();
+      this.queue.submit([enc.finish()]);
+    }
 
     const idx = this.findFreeStaging();
-    if (idx === -1) return this.latest;
-
-    const groups = Math.ceil(this.totalLeds / WORKGROUP);
-    const encoder = this.device.createCommandEncoder();
-    const fp = encoder.beginComputePass();
-    fp.setPipeline(this.firePipeline);
-    fp.setBindGroup(0, this.fireBind);
-    fp.dispatchWorkgroups(groups);
-    fp.end();
-    const mp = encoder.beginComputePass();
-    mp.setPipeline(this.mainPipeline);
-    mp.setBindGroup(0, this.mainBind);
-    mp.dispatchWorkgroups(groups);
-    mp.end();
-    encoder.copyBufferToBuffer(this.outBuffer, 0, this.staging[idx], 0, this.totalLeds * 4);
-    this.queue.submit([encoder.finish()]);
-
+    if (idx === -1) return;
+    const enc2 = this.device.createCommandEncoder();
+    enc2.copyBufferToBuffer(this.outBuffer, 0, this.staging[idx], 0, this.totalLeds * 4);
+    this.queue.submit([enc2.finish()]);
     this.stagingBusy[idx] = true;
     const buf = this.staging[idx];
     buf.mapAsync(GPUMapMode.READ).then(() => {
@@ -420,8 +474,10 @@ export class WebGPUMapper implements IPixelMapper {
       buf.unmap();
       this.stagingBusy[idx] = false;
     }).catch(() => { this.stagingBusy[idx] = false; });
+  }
 
-    return this.latest;
+  read(): Uint8Array | null {
+    return this.latest && this.totalLeds > 0 ? this.latest : null;
   }
 
   private findFreeStaging(): number {

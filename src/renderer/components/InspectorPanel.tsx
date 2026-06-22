@@ -7,6 +7,7 @@ import { effectivePosObj, effectiveRotObj, effectiveLayout } from '../services/l
 import { listSpoutSenders } from '../services/spoutReceiver';
 
 interface InspectorPanelProps {
+    surfaces: Surface[];
     selectedSurface: Surface | null;
     onUpdateSurface: (id: string, updates: Partial<Surface>) => void;
     selectedFixture: Fixture | null;
@@ -44,6 +45,7 @@ const NumberInput: React.FC<{ label: string; value: number; onChange: (v: number
 );
 
 export const InspectorPanel: React.FC<InspectorPanelProps> = ({
+    surfaces,
     selectedSurface,
     onUpdateSurface,
     selectedFixture,
@@ -189,6 +191,17 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
             {!selectedSurface && selectedFixture ? (
                 <>
                 <PanelSection title="Mapping" icon={<Map size={12}/>}>
+                    <div className="flex items-center justify-between text-xs gap-2">
+                        <label className="text-fg-2 w-16 truncate">Surface</label>
+                        <select
+                            value={selectedFixture.surfaceId ?? ''}
+                            onChange={(e) => onUpdateFixture(selectedFixture.id, { surfaceId: e.target.value || undefined })}
+                            className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent focus:outline-none"
+                        >
+                            <option value="">— none (off) —</option>
+                            {surfaces.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
+                    </div>
                     <NumberInput label="LED Count" value={selectedFixture.ledCount} step={1} onChange={(v) => onUpdateFixture(selectedFixture.id, { ledCount: Math.max(1, v) })} />
                     <NumberInput label="Universe" value={selectedFixture.universe} step={1} onChange={(v) => onUpdateFixture(selectedFixture.id, { universe: Math.max(0, v) })} />
                     <NumberInput label="Start Addr" value={selectedFixture.startAddress} step={1} onChange={(v) => onUpdateFixture(selectedFixture.id, { startAddress: Math.max(1, v) })} />
