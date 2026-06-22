@@ -10,58 +10,73 @@
 
 # ArtLux
 
-ArtLux is a GPU-accelerated **pixel-mapping tool for addressable RGB/RGBW LEDs**. Sample
-colors from video, images, or a live camera, lay out LED fixtures on a 2D stage, and stream
-the result to your lighting hardware over **Art-Net / DMX**.
+ArtLux is a **professional addressable-LED pixel-mapping console** for Windows/macOS/Linux —
+a MadMapper-class tool for driving RGB/RGBW LED rigs. Sample color from video, images, a live
+camera, incoming DMX, or a **Spout** stream; lay fixtures out in 2D (and 3D); and stream the
+result to your hardware over **Art-Net** or **sACN/E1.31** with a native, threaded output engine.
+
+It runs as a native **Electron** desktop app with a **WebGPU** compute pixel-mapper (WebGL
+fallback) and a **Rust** output engine (napi-rs) that owns UDP transmission on a dedicated thread.
 
 ## Features
 
-- **GPU color sampling** — WebGL maps source pixels onto each LED in real time.
-- **Interactive stage** — drag, resize, rotate, and snap fixtures on a 2D canvas.
-- **Multi-source input** — video files, images, and live camera (`getUserMedia`).
-- **RGBW conversion** — automatic white-channel extraction with master brightness.
-- **DMX / Art-Net output** — multi-universe with automatic 512-channel spanning.
-- **Live DMX monitor** — per-fixture pixel preview of the outgoing data.
-- **Undo / redo** and JSON **project save / load**.
-- **Dockable panels** — collapsible inspector and scene panels.
+- **GPU pixel mapping** — a WebGPU compute shader samples the source per-LED in real time.
+- **WLED-style effects** — gradient palettes, stateful fire2012, and multi-segment fixtures.
+- **Content sources** — video, image, live camera, **DMX in** (Art-Net/sACN), and **Spout** (Windows).
+- **2D + 3D** — drag/resize/rotate/snap on a 2D stage; arrange the same fixtures in a 3D simulator.
+- **Per-pixel correctness** — color order, RGBW white extraction, gamma, matrix + serpentine, ledmap.
+- **Per-fixture routing** — each fixture can target its own controller IP / protocol / priority.
+- **Native output** — Art-Net + sACN over UDP from a Rust send thread (pacer, keep-alive, sparse,
+  **ArtSync**).
+- **Art-Net device discovery** — ArtPoll/ArtPollReply; pick a controller instead of typing its IP.
+- **Headless mode** — run the compute + output engine with no UI to save resources.
+- **Projects & rigs** — native save/load (`.artlux`), auto-restore on launch, recent files, and a
+  reusable patch/wiring/routing **rig** export (`.artrig`).
+- **Groups & scenes**, **undo/redo**, live **DMX monitor**, and a tokenized MadMapper-style UI.
+
+See **[docs/FEATURES.md](docs/FEATURES.md)** for a usage guide.
 
 ## Run locally
 
-**Prerequisites:** [Node.js](https://nodejs.org/)
+**Prerequisites:** [Node.js](https://nodejs.org/) and the [Rust toolchain](https://rustup.rs/)
+(MSVC on Windows) to build the native engine.
 
 ```bash
 npm install
-npm run dev
+npm run build:native   # builds the Rust output engine + Spout receiver -> .node addons
+npm run dev            # launch the Electron app
 ```
 
-Then open the app in your browser (default `http://localhost:3000`).
-
-To build a production bundle:
+### Build / package
 
 ```bash
-npm run build
-npm run preview
+npm run build          # main + preload + renderer bundles
+npm run package        # installers (electron-builder)
+npm run package:dir    # unpacked app for a quick smoke test
 ```
 
-### Art-Net output
-
-Browsers can't send raw UDP, so DMX/Art-Net is forwarded through a small local bridge
-(`artlux-bridge.cjs`) that relays packets over UDP to your hardware. Run it alongside the
-app:
+### Headless
 
 ```bash
-node artlux-bridge.cjs
+ArtLux.exe --headless --project="C:\path\to\show.artlux"
 ```
 
-> Note: the bridge is being replaced by a native Electron transport — see the roadmap.
-
-## Roadmap
-
-ArtLux is moving to a full **Electron** desktop app with **WebGPU compute**, a **WLED-style
-effects/palette/segment engine**, 2D matrix + ledmap support, and a **native Rust output
-engine** (Art-Net + sACN/E1.31, per-fixture routing). The complete plan lives in
-[docs/ARCHITECTURE_PLAN.md](docs/ARCHITECTURE_PLAN.md).
+Runs only the Stage compute + output loop in an invisible, GPU-backed window. See
+[docs/FEATURES.md](docs/FEATURES.md#headless-mode).
 
 ## Tech stack
 
-React 19 · TypeScript · Vite · Tailwind CSS · WebGL
+Electron · React 19 · TypeScript · Vite · Tailwind CSS · WebGPU (WebGL fallback) ·
+react-three-fiber · Rust (napi-rs) · Art-Net + sACN/E1.31
+
+## Documentation
+
+- [docs/FEATURES.md](docs/FEATURES.md) — feature/usage guide.
+- [docs/ARCHITECTURE_PLAN.md](docs/ARCHITECTURE_PLAN.md) — engine architecture.
+- [docs/UI_REFACTOR.md](docs/UI_REFACTOR.md) — design system + UI architecture.
+- [docs/PROGRESS.md](docs/PROGRESS.md) — build log / decisions.
+
+## Releases
+
+Pushing a `v*` tag triggers a GitHub Actions matrix build that produces per-OS installers and
+publishes a Release.
