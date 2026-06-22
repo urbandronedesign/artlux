@@ -20,13 +20,14 @@ See [SURFACES.md](SURFACES.md) for the full design.
    corner to resize, top handle to rotate; or use the inspector Transform).
 2. **Feed it content** — with the surface selected, pick its **Content**: video / image / camera /
    Spout / DMX-in / effect (effects render in S2). One live input (camera/Spout) at a time.
-3. **Create & place Fixtures** — add LED fixtures (red) and position them over the content.
+3. **Create & place Fixtures** — add LED fixtures (red), position them over the content, and **link**
+   each to a surface (inspector → Mapping → **Surface**; new fixtures auto-link to the first surface).
 4. **Patch** — universe, start address, LED count, color order, channels, matrix/serpentine, ledmap.
 5. **Monitor & output** — the DMX Monitor dock shows live values; Art-Net/sACN streams to hardware.
 
-Fixtures currently sample the composited stage; **strict per-surface sampling** (a fixture linked to
-one surface, sampling only it) lands in a later phase (S3). Automatic universe/address allocation and
-a multi-controller **routing spreadsheet** are S5/S6.
+Each fixture samples **only its linked surface** (strict per-surface, regardless of overlap) on the
+WebGPU path; the WebGL fallback samples the composite (degraded). Automatic universe/address
+allocation and a multi-controller **routing spreadsheet** are coming next (S5/S6).
 
 ## Surface content sources
 Select a surface, then in the inspector **Content** section:
@@ -38,8 +39,9 @@ Select a surface, then in the inspector **Content** section:
 - **Effect** — a generative shader fills the surface (rendering arrives in S2; params save now).
 
 ## Effects & palettes
-Effects are becoming a **surface content type** (a 2D shader filling a surface). The legacy
-per-fixture effect engine remains during migration. Groups can still copy a fixture's look.
+Effects are a **surface content type** — a 2D shader (Solid / Rainbow / Palette Flow / Wave / Fire)
+fills the surface; linked fixtures sample it like any media. Per-fixture effects are retired (the
+engine now samples each fixture's surface). Groups can still copy a fixture's look.
 
 ## Output: Art-Net / sACN
 Open **Preferences → DMX Output**:

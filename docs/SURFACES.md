@@ -36,11 +36,16 @@ Per-surface render → per-surface sample, reusing the compute shader's normaliz
   z-order (fixtures sample the composite for now); cyan on-canvas surfaces (move/resize/rotate);
   Surfaces browser; surface Content+Transform inspector; project persistence + default-surface
   migration.
-- **S2 — Effect surfaces.** A 2D generative effect render path (`gpu/surfaceFx.ts`) into surface
-  textures; retire the per-fixture effect UI.
-- **S3 — Strict per-surface sampling + fixture↔surface linking.** The engine rewrite: per-surface
-  dispatch + surface-local UVs; fixture placement becomes surface-local when linked. Parity check:
-  output identical to today for a single full-stage surface.
+- **S2 — Effect surfaces (DONE).** 2D generative effects (`gpu/surfaceFx.ts`: Solid/Rainbow/Palette
+  Flow/Wave/Fire) rendered into a per-surface canvas from the palette LUT; surface-EFFECT inspector
+  with effect/palette/speed/intensity.
+- **S3 — Strict per-surface sampling + fixture↔surface linking (DONE).** `WebGPUMapper` stores
+  surface-local UVs + per-LED surface index (`ledMeta.w`); `renderSurfaces(getDrawable)` runs one
+  compute pass per surface (gate `surfIdx == params.p0`), clearing `outBuf` each frame so unlinked
+  LEDs are black. Fixtures carry `surfaceId` (default-linked on add/load) + a Surface dropdown in the
+  inspector. Per-fixture effects retired in the engine. WebGL fallback keeps composite sampling
+  (degraded; not strict on overlap). Verified: a fixture linked to surface A still samples A with a
+  black surface B composited on top.
 - **S4 — Fixture library.** Save/recall reusable fixture templates (LED definition only).
 - **S5 — Controllers + auto-patch.** `services/addressing.ts`: pack universes/addresses sequentially
   per controller (channelsPerPixel-aware, wrap at 512); `patchLocked` keeps manual; Stage resolves
