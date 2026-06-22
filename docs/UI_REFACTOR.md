@@ -67,6 +67,39 @@ with token classes (`bg-surface-1`, `text-fg-2`) and swap bespoke rows for kit p
 **Refactor U1–U5 complete.** Open polish backlog: tertiary-text contrast retune, modal focus-trap,
 vendoring the ui-ux-pro-max skill.
 
+## Workspace layout v2 (supersedes the "Left panel / Right panel removed / Dock placeholder" notes above)
+Three-region shell in `App.tsx`: **left** `ScenePanel` (outliners + sliders) · **center** `Stage`
++ bottom `Dock` · **right** `InspectorPanel` (the contextual properties/"content"). Both side
+panels toggle from the `StatusBar` (`PanelLeft` / `PanelRight`); widths `w-72` (left) / `w-80` (right).
+
+- **CollapsibleSection** (`components/CollapsibleSection.tsx`): the one reusable section — header
+  click toggles (chevron rotates), optional `action` slot swallows its own clicks. `grow` mode makes
+  the section `flex-1 min-h-0` and scroll its body internally; **Surfaces** + **Fixtures** use it so
+  they fill the panel (left wrapper is `overflow-hidden`, sections scroll, not the panel). It replaced
+  the decorative chevrons; `InspectorPanel`'s local `PanelSection` is now a thin wrapper over it.
+- **Dock fixture workspace**: the `FIXTURE_EDITOR` tab (`FixtureEditor.tsx`) renders **Create**
+  (add / auto-patch) + **Library** (templates) cards beside Patch/Pixel/Geometry/Wiring; the dock
+  opens on this tab by default (`dockOpen=true`, `dockTab=FIXTURE_EDITOR`). The Library left the
+  `ScenePanel`.
+- **Multi-select** (for grouping): `App` holds `selectedFixtureId` (primary — drives Inspector +
+  on-stage gizmo) **and** `selectedFixtureIds` (full set). Handlers: `handleSelectFixture(id, additive)`,
+  `handleSelectFixtures(ids)`, `handleSelectAllFixtures`. Outliner: click / ctrl·cmd toggle / shift
+  range / "Master Layer" = all; **Ctrl·Cmd+A** global (ignored while typing). Stage: click + modifier;
+  every selected fixture gets the red border, only the primary keeps transform handles. Group
+  create / add-to-group act on the whole set; selecting a group reselects its members.
+- **Preview fidelity**: the composite preview canvas draws at full opacity (was `opacity-50`);
+  `DMXMonitor` folds the **RGBW white channel** back into R/G/B so whites display (output already
+  carried W — preview-only). Both were display bugs, not output bugs.
+- **Slider smoothness + live preview** (perf): `ui/Slider` keeps a **local value during the drag and
+  commits React state only on release** (`onChange` on pointer/key-up), so a drag re-renders just the
+  slider, not all of `App`. Optional `onInput` drives a **render-free** live preview. Master Brightness
+  uses it via `services/livePreview.ts` — a singleton that sets a `--preview-brightness` CSS var
+  (consumed by the Stage canvas `filter: brightness(var(--preview-brightness,1))`) and a plain value
+  the Stage rAF loop reads each frame to feed the GPU mapper. So brightness preview **and** output
+  follow the drag live with zero React renders; state commits once on release. All range sliders
+  (Master Brightness, surface + fixture effect Speed/Intensity, Gamma) route through `Slider`; the
+  non-brightness ones update their value on release (no cheap imperative path).
+
 ## Verification per phase
 `npx tsc --noEmit` (clean) → `npm run build` → `env -u ELECTRON_RUN_AS_NODE ELECTRON_ENABLE_LOGGING=1
 npm run dev` and check logs for `[output] native Rust engine loaded` + `[Stage] Using WebGPU` and
