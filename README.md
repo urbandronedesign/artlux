@@ -76,6 +76,7 @@ react-three-fiber · Rust (napi-rs) · Art-Net + sACN/E1.31
 - [docs/ARCHITECTURE_PLAN.md](docs/ARCHITECTURE_PLAN.md) — engine architecture.
 - [docs/UI_REFACTOR.md](docs/UI_REFACTOR.md) — design system + UI architecture.
 - [docs/PROGRESS.md](docs/PROGRESS.md) — build log / decisions.
+- [CHANGELOG.md](CHANGELOG.md) — release notes.
 
 ## Releases
 
