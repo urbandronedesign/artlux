@@ -133,6 +133,25 @@ export function syncSurfaces(surfaces: Surface[], isPlaying: boolean): void {
   }
 }
 
+// Natural aspect ratio (w/h) of a surface's current content once it's loaded, or null
+// if unknown / not applicable. Used by the Stage to fit the surface rect to its media.
+export function getContentAspect(s: Surface): number | null {
+  switch (s.content.type) {
+    case SourceType.IMAGE: {
+      const e = media.get(s.id);
+      return e && e.type === 'IMAGE' && e.el.naturalWidth > 0 ? e.el.naturalWidth / e.el.naturalHeight : null;
+    }
+    case SourceType.VIDEO: {
+      const e = media.get(s.id);
+      return e && e.type === 'VIDEO' && e.el.videoWidth > 0 ? e.el.videoWidth / e.el.videoHeight : null;
+    }
+    case SourceType.CAMERA:
+      return cameraOwner === s.id && cameraEl && cameraEl.videoWidth > 0 ? cameraEl.videoWidth / cameraEl.videoHeight : null;
+    default:
+      return null; // EFFECT / SPOUT / DMX_IN / NONE — no intrinsic aspect to fit
+  }
+}
+
 // Drawable for a surface this frame, or null if not ready / no content.
 export function getDrawable(s: Surface): Drawable | null {
   switch (s.content.type) {

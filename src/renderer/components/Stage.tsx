@@ -71,6 +71,8 @@ export const Stage: React.FC<StageProps> = ({
   // Surfaces composited each frame; the media service owns element lifecycle.
   const surfacesRef = useRef(surfaces);
   useEffect(() => { surfacesRef.current = surfaces; }, [surfaces]);
+  // Per-surface key of the content we've already aspect-fitted, so we fit once per source.
+  const fittedAspect = useRef<Map<string, string>>(new Map());
   useEffect(() => { surfaceMedia.syncSurfaces(surfaces, isVideoPlaying); }, [surfaces, isVideoPlaying]);
 
   const controllersRef = useRef(controllers);
@@ -102,13 +104,19 @@ export const Stage: React.FC<StageProps> = ({
   const viewStateRef = useRef(viewState);
   useEffect(() => { viewStateRef.current = viewState; }, [viewState]);
 
-  // The stage is the composition canvas; surfaces are placed within it. Fixed
-  // 16:9 for now (project canvas aspect could become a setting later). The 512²
-  // backing buffer is displayed object-fill so normalized LED sampling is unaffected.
-  const contentAspect = 16 / 9;
+  // The stage is the composition canvas; surfaces are placed within it. Square (1:1)
+  // so the 512² backing buffer maps 1:1 to the displayed canvas — a normalized UV
+  // texture square. Surfaces/LEDs use normalized 0–1 coords, so sampling is unaffected.
+  const contentAspect = 1;
 
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [showGrid, setShowGrid] = useState(true);
+  const [gridDivisions, setGridDivisions] = useState(8);
+  // Refs so the (mouse-move) drag handlers read live snap/grid settings without re-binding.
+  const snapRef = useRef(snapEnabled);
+  const gridRef = useRef({ show: showGrid, divisions: gridDivisions });
+  useEffect(() => { snapRef.current = snapEnabled; }, [snapEnabled]);
+  useEffect(() => { gridRef.current = { show: showGrid, divisions: gridDivisions }; }, [showGrid, gridDivisions]);
   const [activeSnapLines, setActiveSnapLines] = useState<{ x: number[], y: number[] }>({ x: [], y: [] });
 
   // Pool of 512-channel arrays keyed by `${destKey}#${universe}` (reused across frames).
@@ -201,6 +209,26 @@ export const Stage: React.FC<StageProps> = ({
     if (!containerRef.current || !mapper.current) {
       requestRef.current = requestAnimationFrame(tick);
       return;
+    }
+
+    // Fit each surface's rect to its content's aspect ratio once the media is loaded
+    // (once per source). Keeps width + top-left, derives height (canvas is square, so a
+    // normalized w/h ratio equals the displayed pixel ratio). User scale stays uniform.
+    {
+      let fitUpdate: Surface[] | null = null;
+      for (const s of surfacesRef.current) {
+        const aspect = surfaceMedia.getContentAspect(s);
+        if (!aspect) continue;
+        const key = `${s.content.type}:${s.content.url ?? s.content.spoutName ?? ''}`;
+        if (fittedAspect.current.get(s.id) === key) continue;
+        fittedAspect.current.set(s.id, key);
+        if (Math.abs(s.width / s.height - aspect) > 0.01) {
+          if (!fitUpdate) fitUpdate = [...surfacesRef.current];
+          const i = fitUpdate.findIndex(x => x.id === s.id);
+          fitUpdate[i] = { ...s, height: Math.max(0.01, s.width / aspect) };
+        }
+      }
+      if (fitUpdate) { surfacesRef.current = fitUpdate; onUpdateSurfaces(fitUpdate); }
     }
 
     // Composite every surface's content into the 512² canvas (z-order). Fixtures
@@ -351,8 +379,16 @@ export const Stage: React.FC<StageProps> = ({
     if (idx === -1) return;
     const init = st.init;
     const next = { ...cur[idx] };
-    if (st.mode === 'move') { next.x = init.x + dx; next.y = init.y + dy; }
-    else if (st.mode === 'resize') { next.width = Math.max(0.01, init.w + dx); next.height = Math.max(0.01, init.h + dy); }
+    // Snap a normalized coord to the nearest grid line when snapping + grid are both on.
+    const g = gridRef.current;
+    const snapG = (v: number) => (snapRef.current && g.show ? Math.round(v * g.divisions) / g.divisions : v);
+    if (st.mode === 'move') { next.x = snapG(init.x + dx); next.y = snapG(init.y + dy); }
+    else if (st.mode === 'resize') {
+      // Uniform scale from the corner — preserve the surface's (content) aspect ratio.
+      const w = Math.max(0.01, snapG(init.w + dx));
+      next.width = w;
+      next.height = Math.max(0.01, w * (init.h / init.w));
+    }
     else if (st.mode === 'rotate') {
       const cx = rect.left + (init.x + init.w / 2) * rect.width;
       const cy = rect.top + (init.y + init.h / 2) * rect.height;
@@ -439,6 +475,11 @@ export const Stage: React.FC<StageProps> = ({
             guidesX.push(f.x, f.x + f.width, f.x + f.width/2);
             guidesY.push(f.y, f.y + f.height, f.y + f.height/2);
         });
+        // Grid lines as additional snap targets.
+        const g = gridRef.current;
+        if (g.show) {
+            for (let k = 0; k <= g.divisions; k++) { guidesX.push(k / g.divisions); guidesY.push(k / g.divisions); }
+        }
     }
 
     if (state.mode === 'move') {
@@ -660,19 +701,7 @@ export const Stage: React.FC<StageProps> = ({
          }
       }}
     >
-        {showGrid && (
-             <div 
-                className="absolute inset-0 pointer-events-none"
-                style={{ 
-                    backgroundImage: 'linear-gradient(var(--line-1) 1px, transparent 1px), linear-gradient(90deg, var(--line-1) 1px, transparent 1px)',
-                    backgroundSize: `${32 * viewState.scale}px ${32 * viewState.scale}px`,
-                    backgroundPosition: `${viewState.x}px ${viewState.y}px`,
-                    opacity: 0.3
-                }}
-            />
-        )}
-
-      <div 
+      <div
         style={{
             transform: `translate(${viewState.x}px, ${viewState.y}px) scale(${viewState.scale})`,
             transformOrigin: '0 0',
@@ -682,7 +711,7 @@ export const Stage: React.FC<StageProps> = ({
       >
           <div
             ref={containerRef}
-            className="absolute shadow-2xl bg-black border border-line-1"
+            className="absolute shadow-2xl bg-[#404040] border border-line-1"
             style={{
                 width: `${stageW}px`,
                 height: `${stageH}px`,
@@ -692,6 +721,16 @@ export const Stage: React.FC<StageProps> = ({
                 marginTop: `${-stageH / 2}px`,
             }}
           >
+            {/* Layout grid — divides the square into `gridDivisions` cells for placement. */}
+            {showGrid && (
+                <div
+                    className="absolute inset-0 pointer-events-none z-[1]"
+                    style={{
+                        backgroundImage: 'linear-gradient(rgba(255,255,255,0.16) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.16) 1px, transparent 1px)',
+                        backgroundSize: `${100 / gridDivisions}% ${100 / gridDivisions}%`,
+                    }}
+                />
+            )}
             {activeSnapLines.x.map((x, i) => (
                 <div key={`sx-${i}`} className="absolute top-0 bottom-0 w-px bg-sel-surface z-[60] shadow-[0_0_4px_rgba(39,182,196,0.8)]" style={{ left: `${x * 100}%` }}></div>
             ))}
@@ -714,15 +753,16 @@ export const Stage: React.FC<StageProps> = ({
                 style={{ filter: 'brightness(var(--preview-brightness, 1))' }}
             />
 
-            {/* Surfaces (cyan) — behind fixtures */}
-            <div className="absolute top-0 left-0 w-full h-full z-[5]">
+            {/* Surfaces (cyan) — behind fixtures. Container ignores pointer events so empty
+                areas fall through to the viewport; each surface re-enables them. */}
+            <div className="absolute top-0 left-0 w-full h-full z-[5] pointer-events-none">
             {surfaces.map((s) => {
                 const sel = s.id === selectedSurfaceId;
                 return (
                     <div
                         key={s.id}
                         onMouseDown={(e) => startSurfaceDrag(e, 'move', s.id)}
-                        className={`absolute cursor-move ${sel ? 'z-[8]' : ''}`}
+                        className={`absolute cursor-move pointer-events-auto ${sel ? 'z-[8]' : ''}`}
                         style={{
                             left: `${s.x * 100}%`, top: `${s.y * 100}%`,
                             width: `${s.width * 100}%`, height: `${s.height * 100}%`,
@@ -753,7 +793,7 @@ export const Stage: React.FC<StageProps> = ({
             })}
             </div>
 
-            <div className="absolute top-0 left-0 w-full h-full z-10 overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-full z-10 overflow-hidden pointer-events-none">
             {fixtures.map((fixture) => {
                 const isPrimary = selectedFixtureId === fixture.id;
                 const isSel = isPrimary || selectedFixtureIds.includes(fixture.id);
@@ -765,7 +805,7 @@ export const Stage: React.FC<StageProps> = ({
                     else fixtureRefs.current.delete(fixture.id);
                 }}
                 onMouseDown={(e) => startDrag(e, 'move', fixture.id)}
-                className={`absolute group cursor-move flex items-center justify-center ${
+                className={`absolute group cursor-move flex items-center justify-center pointer-events-auto ${
                     isPrimary ? 'z-50' : isSel ? 'z-30' : 'z-20 hover:opacity-80 transition-opacity'
                 }`}
                 style={{
@@ -825,7 +865,10 @@ export const Stage: React.FC<StageProps> = ({
         </div>
       </div>
         
-        <div className="absolute top-2 right-2 flex items-center gap-1 z-[100]">
+        <div
+            className="absolute top-2 right-2 flex items-center gap-1 z-[100]"
+            onMouseDown={(e) => e.stopPropagation()}
+        >
             <button
                 onClick={resetView}
                 className="p-1.5 rounded-[var(--r-sm)] border bg-surface-2/80 backdrop-blur-sm border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1 transition-colors"
@@ -844,6 +887,18 @@ export const Stage: React.FC<StageProps> = ({
             >
                 <Grid3X3 size={14} />
             </button>
+            {showGrid && (
+                <input
+                    type="number"
+                    min={1}
+                    max={64}
+                    value={gridDivisions}
+                    onChange={(e) => setGridDivisions(Math.max(1, Math.min(64, Math.round(parseFloat(e.target.value) || 1))))}
+                    title="Grid divisions"
+                    aria-label="Grid divisions"
+                    className="w-11 px-1.5 py-1 text-center num text-[11px] rounded-[var(--r-sm)] border border-line-1 bg-surface-2/80 backdrop-blur-sm text-fg-1 focus:border-accent focus:outline-none"
+                />
+            )}
             <button
                 onClick={() => setSnapEnabled(!snapEnabled)}
                 className={`p-1.5 rounded-[var(--r-sm)] border transition-colors ${snapEnabled ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2/80 backdrop-blur-sm border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
