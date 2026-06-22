@@ -23,6 +23,7 @@ export default defineConfig({
         input: {
           index: resolve(__dirname, 'src/renderer/index.html'),
           headless: resolve(__dirname, 'src/renderer/headless.html'),
+          scene: resolve(__dirname, 'src/renderer/scene.html'),
         },
       },
     },

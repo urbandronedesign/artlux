@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Fixture, Surface, SourceType, AppSettings, Module, DockTab, FixtureGroup, Scene, FixtureTemplate, Controller } from './types';
-import type { AppInfo, UpdateEvent } from '../../shared/protocol';
+import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, FixtureTemplate, Controller, Timeline, defaultTimeline } from './types';
+import { defaultScene3D } from '../../shared/protocol';
+import type { AppInfo, UpdateEvent, Scene3D } from '../../shared/protocol';
+import type { SceneToMain } from './scene/bridge';
 import { UpdateNotice } from './components/UpdateNotice';
 import { autoPatch } from './services/addressing';
 import { TopBar } from './components/TopBar';
@@ -12,14 +14,14 @@ import { Stage } from './components/Stage';
 import { DMXMonitor } from './components/DMXMonitor';
 import { FixtureEditor } from './components/FixtureEditor';
 import { Dock } from './components/Dock';
+import { Timeline as TimelinePanel } from './components/Timeline';
 import { Preferences } from './components/Preferences';
 import { StatusBar } from './components/StatusBar';
 import { sendArtNetFrame, configureOutput, addStatusListener } from './services/mockSocketService';
 import { dmxSignal } from './services/dmxSignal';
-import { Activity, SlidersHorizontal } from 'lucide-react';
+import { timeline as timelineEngine } from './services/timeline';
+import { Activity, SlidersHorizontal, Film } from 'lucide-react';
 import { useHistory } from './hooks/useHistory';
-
-const Simulator3D = React.lazy(() => import('./components/Simulator3D/Simulator3D'));
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
@@ -72,7 +74,6 @@ const App: React.FC = () => {
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [templates, setTemplates] = useState<FixtureTemplate[]>([]);
   const [controllers, setControllers] = useState<Controller[]>([]);
-  const [module, setModule] = useState<Module>(Module.MAP);
   const [dockOpen, setDockOpen] = useState(true);
   const [dockTab, setDockTab] = useState<DockTab>(DockTab.FIXTURE_EDITOR);
   const [prefsOpen, setPrefsOpen] = useState(false);
@@ -81,6 +82,9 @@ const App: React.FC = () => {
   const [aboutOpen, setAboutOpen] = useState(false);
   const [update, setUpdate] = useState<UpdateEvent | null>(null);
   const [updateUserInitiated, setUpdateUserInitiated] = useState(false);
+  const [scene3D, setScene3D] = useState<Scene3D>(defaultScene3D());
+  const [timeline, setTimeline] = useState<Timeline>(defaultTimeline());
+  const scenePortRef = useRef<MessagePort | null>(null);
   const [routingOpen, setRoutingOpen] = useState(false);
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
 
@@ -356,6 +360,8 @@ const App: React.FC = () => {
       globalBrightness,
       groups,
       scenes,
+      scene3D,
+      timeline,
   });
 
   // Apply a loaded project (or rig-free project) to app state. Strips live colorData.
@@ -374,6 +380,21 @@ const App: React.FC = () => {
       setControllers(Array.isArray(data?.controllers) ? data.controllers : []);
       setGroups(Array.isArray(data?.groups) ? data.groups : []);
       setScenes(Array.isArray(data?.scenes) ? data.scenes : []);
+      setTimeline(data?.timeline && Array.isArray(data.timeline.layers) ? { ...defaultTimeline(), ...data.timeline } : defaultTimeline());
+      setScene3D(() => {
+          const s = data?.scene3D ? { ...defaultScene3D(), ...data.scene3D } : defaultScene3D();
+          if (!Array.isArray(s.models)) s.models = [];
+          // Migrate a legacy single venue model into the models array.
+          if (s.modelPath && s.models.length === 0) {
+              s.models = [{
+                  id: generateId(), name: 'Venue', path: s.modelPath,
+                  position: s.modelPosition ?? { x: 0, y: 0, z: 0 },
+                  rotation: s.modelRotation ?? { x: 0, y: 0, z: 0 },
+                  scale: s.modelScale ?? 1, visible: true,
+              }];
+          }
+          return s;
+      });
       setSelectedFixtureId(null);
       setSelectedFixtureIds([]);
       setSelectedSurfaceId(null);
@@ -388,6 +409,7 @@ const App: React.FC = () => {
   const handleSaveProject = async () => {
       const path = await window.artlux?.saveProject?.(buildProjectData(), currentProjectPath ?? undefined);
       if (path) { setCurrentProjectPath(path); refreshRecents(); }
+      return path ?? null;
   };
   const handleSaveAs = async () => {
       const path = await window.artlux?.saveProject?.(buildProjectData(), undefined);
@@ -477,6 +499,71 @@ const App: React.FC = () => {
       return () => unsub?.();
   }, []);
 
+  // --- 3D Scene window bridge (MessagePort to the separate scene renderer) ---
+  // Handle messages coming back from the scene window. Kept in a ref so the port's
+  // onmessage (set once) always calls the latest closure.
+  const onSceneMsgRef = useRef<(m: SceneToMain) => void>(() => {});
+  onSceneMsgRef.current = (m: SceneToMain) => {
+      if (m.t === 'ready') pushSceneState();
+      else if (m.t === 'select') handleSelectFixture(m.id);
+      else if (m.t === 'commit') handleCommitFixture3D(m.id, { position3D: m.position3D, rotation3D: m.rotation3D, scale3D: m.scale3D });
+      else if (m.t === 'sceneConfig') setScene3D(s => ({ ...s, ...m.patch }));
+      else if (m.t === 'save') handleSaveProject().then((path) => scenePortRef.current?.postMessage({ t: 'saved', ok: !!path }));
+  };
+  const pushSceneState = () => {
+      scenePortRef.current?.postMessage({ t: 'state', fixtures, surfaces, selectedId: selectedFixtureId, scene3D });
+      scenePortRef.current?.postMessage({ t: 'timeline', timeline });
+  };
+  useEffect(() => {
+      const onMsg = (e: MessageEvent) => {
+          if (e.data !== 'artlux:scene-port' || !e.ports[0]) return;
+          const port = e.ports[0];
+          scenePortRef.current = port;
+          port.onmessage = (ev: MessageEvent) => onSceneMsgRef.current(ev.data as SceneToMain);
+          port.start();
+          pushSceneState();
+      };
+      window.addEventListener('message', onMsg);
+      window.postMessage('artlux:scene-port-request', '*');
+      return () => window.removeEventListener('message', onMsg);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // Push fresh state to the scene window whenever anything it renders changes.
+  useEffect(() => {
+      scenePortRef.current?.postMessage({ t: 'state', fixtures, surfaces, selectedId: selectedFixtureId, scene3D });
+  }, [fixtures, surfaces, selectedFixtureId, scene3D]);
+  // Forward the live per-LED pixel buffer to the scene window (~30 fps, copy + transfer).
+  useEffect(() => {
+      let last = 0;
+      const unsub = dmxSignal.subscribe(({ pixels }) => {
+          const port = scenePortRef.current;
+          if (!port) return;
+          const now = performance.now();
+          if (now - last < 33) return;
+          last = now;
+          const copy = pixels.slice();
+          port.postMessage({ t: 'pixels', buf: copy.buffer }, [copy.buffer]);
+      });
+      return () => unsub();
+  }, []);
+
+  // --- Timeline: feed the playback engine + bridge transport/data to the Scene window ---
+  useEffect(() => { timelineEngine.setData(timeline); scenePortRef.current?.postMessage({ t: 'timeline', timeline }); }, [timeline]);
+  useEffect(() => { timelineEngine.setPlaying(isVideoPlaying); }, [isVideoPlaying]);
+  // Stream transport (playing + playhead) to the Scene window ~30 fps so its planes sync.
+  useEffect(() => {
+      let last = 0;
+      const unsub = timelineEngine.subscribe((playhead) => {
+          const port = scenePortRef.current;
+          if (!port) return;
+          const now = performance.now();
+          if (now - last < 33) return;
+          last = now;
+          port.postMessage({ t: 'transport', playing: timelineEngine.isPlaying(), playhead });
+      });
+      return () => unsub();
+  }, []);
+
   // Restore persisted prefs (settings + master brightness + recents + last project) on launch.
   useEffect(() => {
       (async () => {
@@ -507,16 +594,10 @@ const App: React.FC = () => {
   const selectedFixture = fixtures.find(f => f.id === selectedFixtureId) || null;
   const selectedSurface = surfaces.find(s => s.id === selectedSurfaceId) || null;
 
-  const moduleHelp: Record<Module, string> = {
-    [Module.MEDIA]: 'Media — choose a content source (video, image, camera, or DMX in).',
-    [Module.MAP]: 'Map — drag fixtures over the content on the stage.',
-    [Module.FIXTURES]: 'Fixtures — patch DMX: universe, address, color order, segments, routing.',
-    [Module.THREE_D]: '3D — arrange fixtures in space; drag the gizmo to move/rotate.',
-  };
-
   const dockTabs = [
     { id: DockTab.MONITOR, label: 'DMX Monitor', icon: <Activity size={13} /> },
     { id: DockTab.FIXTURE_EDITOR, label: 'Fixture Editor', icon: <SlidersHorizontal size={13} /> },
+    { id: DockTab.TIMELINE, label: 'Timeline', icon: <Film size={13} /> },
   ];
 
   return (
@@ -524,20 +605,8 @@ const App: React.FC = () => {
       <TopBar
           isVideoPlaying={isVideoPlaying}
           onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)}
-          canPlay={surfaces.some(s => s.content.type === SourceType.VIDEO || s.content.type === SourceType.CAMERA)}
-          module={module}
-          onChangeModule={setModule}
-          onSaveProject={handleSaveProject}
-          onSaveAs={handleSaveAs}
-          onOpenProject={handleOpenProject}
-          recentFiles={recentFiles}
-          onOpenRecent={handleOpenRecent}
-          onExportRig={handleExportRig}
-          onImportRig={handleImportRig}
-          onUndo={undo}
-          onRedo={redo}
-          canUndo={canUndo}
-          canRedo={canRedo}
+          canPlay={surfaces.some(s => s.content.type === SourceType.VIDEO || s.content.type === SourceType.CAMERA) || timeline.clips.length > 0}
+          onOpenScene={() => window.artlux?.openSceneWindow?.()}
           onOpenPreferences={() => setPrefsOpen(true)}
           onOpenRouting={() => setRoutingOpen(true)}
           monitorOpen={dockOpen && dockTab === DockTab.MONITOR}
@@ -587,43 +656,27 @@ const App: React.FC = () => {
         {/* Center: persistent stage host + bottom dock */}
         <div className="flex-1 min-w-0 flex flex-col bg-surface-0">
             <div className="flex-1 min-h-0 relative">
-                {/* 2D stage (Media/Map/Fixtures) — kept mounted so dmxSignal keeps flowing */}
-                <div className={`absolute inset-0 ${module === Module.THREE_D ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-                    <Stage
-                        surfaces={surfaces}
-                        onUpdateSurfaces={setSurfaces}
-                        selectedSurfaceId={selectedSurfaceId}
-                        onSelectSurface={handleSelectSurface}
-                        controllers={controllers}
-                        fixtures={fixtures}
-                        onUpdateFixtures={setFixtures}
-                        selectedFixtureId={selectedFixtureId}
-                        selectedFixtureIds={selectedFixtureIds}
-                        onSelectFixture={handleSelectFixture}
-                        isEngineRunning={true}
-                        isVideoPlaying={isVideoPlaying}
-                        globalBrightness={globalBrightness}
-                        gamma={settings.gamma}
-                        targetIp={settings.artNetIp}
-                        broadcast={settings.broadcast}
-                        protocol={settings.protocol}
-                        onRecordHistory={recordHistory}
-                    />
-                </div>
-                {/* 3D simulator */}
-                <div className={`absolute inset-0 ${module === Module.THREE_D ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-                    {module === Module.THREE_D && (
-                        <React.Suspense fallback={<div className="w-full h-full flex items-center justify-center text-fg-3 text-xs">Loading 3D…</div>}>
-                            <Simulator3D
-                                fixtures={fixtures}
-                                selectedFixtureId={selectedFixtureId}
-                                onSelectFixture={(id: string) => handleSelectFixture(id)}
-                                onCommitFixture3D={handleCommitFixture3D}
-                                onRecordHistory={recordHistory}
-                            />
-                        </React.Suspense>
-                    )}
-                </div>
+                {/* 2D mapping stage — the main window's only view; the 3D Scene lives in its own window. */}
+                <Stage
+                    surfaces={surfaces}
+                    onUpdateSurfaces={setSurfaces}
+                    selectedSurfaceId={selectedSurfaceId}
+                    onSelectSurface={handleSelectSurface}
+                    controllers={controllers}
+                    fixtures={fixtures}
+                    onUpdateFixtures={setFixtures}
+                    selectedFixtureId={selectedFixtureId}
+                    selectedFixtureIds={selectedFixtureIds}
+                    onSelectFixture={handleSelectFixture}
+                    isEngineRunning={true}
+                    isVideoPlaying={isVideoPlaying}
+                    globalBrightness={globalBrightness}
+                    gamma={settings.gamma}
+                    targetIp={settings.artNetIp}
+                    broadcast={settings.broadcast}
+                    protocol={settings.protocol}
+                    onRecordHistory={recordHistory}
+                />
             </div>
 
             <Dock
@@ -633,9 +686,12 @@ const App: React.FC = () => {
                 activeTab={dockTab}
                 onTab={(id) => setDockTab(id as DockTab)}
             >
-                {dockTab === DockTab.MONITOR
-                    ? <DMXMonitor fixtures={fixtures} />
-                    : <FixtureEditor
+                {dockTab === DockTab.MONITOR ? (
+                    <DMXMonitor fixtures={fixtures} />
+                ) : dockTab === DockTab.TIMELINE ? (
+                    <TimelinePanel timeline={timeline} onChange={setTimeline} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} />
+                ) : (
+                    <FixtureEditor
                         fixture={selectedFixture}
                         onUpdateFixture={handleUpdateFixture}
                         onAdd={handleAddFixture}
@@ -644,7 +700,8 @@ const App: React.FC = () => {
                         onSaveTemplate={handleSaveTemplate}
                         onAddFromTemplate={handleAddFromTemplate}
                         onRemoveTemplate={handleRemoveTemplate}
-                      />}
+                    />
+                )}
             </Dock>
         </div>
 
@@ -652,20 +709,20 @@ const App: React.FC = () => {
         <div className={`h-full border-l border-line-1 bg-surface-1 transition-all duration-200 ${showRightPanel ? 'w-80' : 'w-0 overflow-hidden border-none'}`}>
             <div className="w-80 h-full overflow-y-auto">
                 <InspectorPanel
-                    module={module}
                     surfaces={surfaces}
                     selectedSurface={selectedSurface}
                     onUpdateSurface={handleUpdateSurface}
                     selectedFixture={selectedFixture}
                     onUpdateFixture={handleUpdateFixture}
                     settings={settings}
+                    layers={timeline.layers}
                 />
             </div>
         </div>
       </div>
 
       <StatusBar
-          help={moduleHelp[module]}
+          help="Map content onto surfaces, then patch fixtures. Open the 3D Scene for venue layout."
           renderFps={fps}
           connected={isBridgeConnected}
           outputStats={outputStats}

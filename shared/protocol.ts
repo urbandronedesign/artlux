@@ -50,6 +50,18 @@ export const IPC = {
   UPDATE_INSTALL: 'update:install',
   /** Main → renderer: auto-update lifecycle events. */
   UPDATE_EVENT: 'update:event',
+  /** Renderer → main: open (or focus) the dedicated 3D Scene window. */
+  SCENE_OPEN: 'scene:open',
+  /** Main → renderer: hand off a MessagePort that bridges main ↔ scene windows. */
+  SCENE_PORT: 'scene:port',
+  /** Renderer → main (invoke): pick a GLB/glTF venue model → absolute path. */
+  SCENE_PICK_MODEL: 'scene:pick-model',
+  /** Renderer → main (invoke): read a model file's bytes by path. */
+  SCENE_READ_MODEL: 'scene:read-model',
+  /** Renderer → main (invoke): read any file's bytes by path (e.g. timeline MP4s). */
+  READ_FILE: 'app:read-file',
+  /** Renderer → main (invoke): pick a video file → absolute path. */
+  PICK_VIDEO: 'app:pick-video',
 } as const;
 
 export interface UpdateEvent {
@@ -133,6 +145,45 @@ export interface ArtNetFramePayload {
 
 // ---- Persistence (project / rig / preferences) -------------------------------
 
+// An object placed in the 3D scene; transformed independently. Either a GLB mesh
+// (kind 'mesh', from `path`) or a flat plane primitive (kind 'plane') that can display
+// a timeline video layer (`layerId`) as a screen/projection.
+export interface SceneModel {
+  id: string;
+  name: string;
+  kind?: 'mesh' | 'plane';            // default 'mesh' (back-compat)
+  path: string;                       // GLB/glTF file path (mesh); '' for planes
+  layerId?: string;                   // plane: which timeline track to show
+  position: { x: number; y: number; z: number };
+  rotation: { x: number; y: number; z: number }; // degrees
+  scale: number;                      // uniform (1 = GLB units are meters)
+  visible: boolean;
+}
+
+// 3D Scene config (venue meshes + lighting), persisted per project.
+export interface Scene3D {
+  models: SceneModel[];
+  lightIntensity: number;             // per-fixture venue light gain
+  environment: boolean;               // ambient/HDR base lighting
+  exposure: number;                   // tone-mapping exposure
+  gridVisible: boolean;
+  reflectiveFloor?: boolean;          // mirror floor reflecting the LEDs/meshes
+  // Legacy single-model fields (pre-multi-model); migrated into `models` on load.
+  modelPath?: string;
+  modelScale?: number;
+  modelPosition?: { x: number; y: number; z: number };
+  modelRotation?: { x: number; y: number; z: number };
+}
+
+export const defaultScene3D = (): Scene3D => ({
+  models: [],
+  lightIntensity: 1,
+  environment: true,
+  exposure: 1,
+  gridVisible: true,
+  reflectiveFloor: false,
+});
+
 // Full project file (kept loose here so shared/ stays decoupled from renderer types).
 export interface ProjectData {
   version: string;
@@ -142,6 +193,8 @@ export interface ProjectData {
   globalBrightness: number;
   groups: unknown[];
   scenes: unknown[];
+  scene3D?: Scene3D;
+  timeline?: unknown; // Timeline (renderer type) — video-layer NLE
 }
 
 // A reusable rig: fixtures with patch/wiring/routing only (no scenes/media/effects).
@@ -196,6 +249,16 @@ export interface ArtluxApi {
   downloadUpdate(): void;
   installUpdate(): void;
   onUpdate(cb: (e: UpdateEvent) => void): () => void;
+  // 3D Scene window. The bridge MessagePort arrives via a window 'artlux:scene-port'
+  // message (forwarded by the preload), not through this API — see App/SceneApp.
+  openSceneWindow(): void;
+  pickModel(): Promise<string | null>;
+  readModel(path: string): Promise<Uint8Array | null>;
+  // Generic file access (timeline video clips)
+  readFile(path: string): Promise<Uint8Array | null>;
+  pickVideo(): Promise<string | null>;
+  /** Resolve a dropped File to its absolute path (Electron webUtils). */
+  getPathForFile(file: File): string;
 }
 
 declare global {

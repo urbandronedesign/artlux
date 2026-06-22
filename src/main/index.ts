@@ -1,12 +1,14 @@
-import { app, BrowserWindow, session, systemPreferences } from 'electron';
+import { app, BrowserWindow, session, systemPreferences, ipcMain, MessageChannelMain } from 'electron';
 import { join } from 'node:path';
 import { registerIpc } from './ipc';
 import { buildAppMenu } from './menu';
 import { setupUpdater } from './updater';
+import { IPC } from '../../shared/protocol';
 
 const APP_ICON = join(__dirname, '../../build/icon.png');
 
 let mainWindow: BrowserWindow | null = null;
+let sceneWindow: BrowserWindow | null = null;
 
 // --headless [--project=<path>]: run only the Stage compute + output loop in an
 // invisible, GPU-backed window (no UI/3D/monitor) to minimize compute.
@@ -15,8 +17,12 @@ const HEADLESS = argv.includes('--headless');
 const projectArg = argv.find((a) => a.startsWith('--project='));
 const PROJECT_PATH = projectArg ? projectArg.slice('--project='.length) : '';
 
-// Keep the renderer process full-speed even when the window is hidden/occluded.
-if (HEADLESS) app.commandLine.appendSwitch('disable-renderer-backgrounding');
+// Keep renderers full-speed even when unfocused/occluded — this is a live tool with two
+// windows (main mapping + 3D Scene), so the compositing loop, video playback, and DMX
+// output must not be throttled when the other window has focus.
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
 
 function createWindow(): void {
     mainWindow = new BrowserWindow({
@@ -33,8 +39,8 @@ function createWindow(): void {
             contextIsolation: true,
             nodeIntegration: false,
             sandbox: true,
-            // Hidden headless window must not be throttled by Chromium.
-            backgroundThrottling: !HEADLESS,
+            // Never throttle: the engine + timeline must run when the Scene window has focus.
+            backgroundThrottling: false,
         },
     });
 
@@ -60,6 +66,42 @@ function createWindow(): void {
     }
 }
 
+// The 3D Scene runs in its own window (second monitor). It needs live state + the
+// per-LED pixel stream from the main window and sends edits back, so we bridge the two
+// renderers with a MessageChannelMain: each gets one port and they talk directly.
+function bridgeSceneToMain(): void {
+    if (!mainWindow || !sceneWindow) return;
+    const { port1, port2 } = new MessageChannelMain();
+    mainWindow.webContents.postMessage(IPC.SCENE_PORT, null, [port1]);
+    sceneWindow.webContents.postMessage(IPC.SCENE_PORT, null, [port2]);
+}
+
+function createSceneWindow(): void {
+    if (sceneWindow && !sceneWindow.isDestroyed()) { sceneWindow.focus(); return; }
+    sceneWindow = new BrowserWindow({
+        width: 1280,
+        height: 800,
+        backgroundColor: '#0d0d0d',
+        title: 'ArtLux — 3D Scene',
+        icon: APP_ICON,
+        autoHideMenuBar: true,
+        webPreferences: {
+            preload: join(__dirname, '../preload/index.js'),
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: true,
+            backgroundThrottling: false,
+        },
+    });
+    sceneWindow.on('closed', () => { sceneWindow = null; });
+    // Re-bridge once the scene renderer is ready to receive the port.
+    sceneWindow.webContents.once('did-finish-load', () => bridgeSceneToMain());
+
+    const devUrl = process.env['ELECTRON_RENDERER_URL'];
+    if (devUrl) sceneWindow.loadURL(`${devUrl}/scene.html`);
+    else sceneWindow.loadFile(join(__dirname, '../renderer/scene.html'));
+}
+
 // Live-input surfaces (Camera / mic) call getUserMedia in the renderer. Electron denies
 // 'media' permission unless the main process grants it, so wire both handlers.
 function grantMediaPermissions(): void {
@@ -79,6 +121,7 @@ app.whenReady().then(() => {
     grantMediaPermissions();
     registerIpc(() => mainWindow);
     if (!HEADLESS) { buildAppMenu(() => mainWindow); setupUpdater(() => mainWindow); }
+    ipcMain.on(IPC.SCENE_OPEN, () => { if (!HEADLESS) createSceneWindow(); });
     createWindow();
 
     app.on('activate', () => {

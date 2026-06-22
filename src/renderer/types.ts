@@ -93,6 +93,7 @@ export interface Fixture {
   position3D?: Vec3;
   rotation3D?: Euler3;   // degrees
   layout3D?: Layout3D;
+  scale3D?: number;      // uniform scale of the physical LED layout (1 = as authored)
 }
 
 export interface Vec3 { x: number; y: number; z: number; }
@@ -144,6 +145,7 @@ export enum SourceType {
   CAMERA = 'CAMERA',
   DMX_IN = 'DMX_IN',
   SPOUT = 'SPOUT',
+  LAYER = 'LAYER',       // a timeline track (by layerId)
   NONE = 'NONE'
 }
 
@@ -154,12 +156,37 @@ export interface SurfaceContent {
   type: SourceType | 'EFFECT';
   url?: string;        // VIDEO / IMAGE object URL or file path
   spoutName?: string;  // SPOUT sender name (empty = active sender)
+  layerId?: string;    // LAYER content: which timeline track to show
   // EFFECT params (S2):
   effectId?: number;
   paletteId?: number;
   speed?: number;
   intensity?: number;
 }
+
+// --- Video-layer timeline (NLE) ---
+// A layer is a track = an addressable output channel; surfaces/3D planes bind to its id.
+export interface VideoLayer {
+  id: string;
+  name: string;
+}
+// A clip placed on a track. All times are seconds.
+export interface VideoClip {
+  id: string;
+  layerId: string;
+  name: string;
+  path: string;          // MP4 file path (loaded per-window via IPC → Blob URL)
+  start: number;         // timeline position where the clip begins
+  duration: number;      // clip length on the timeline
+  inPoint: number;       // offset into the source where playback starts (trim)
+  sourceDuration?: number; // full length of the source video (for trim limits)
+}
+export interface Timeline {
+  layers: VideoLayer[];
+  clips: VideoClip[];
+  duration: number;      // total timeline length (loops at this point)
+}
+export const defaultTimeline = (): Timeline => ({ layers: [], clips: [], duration: 60 });
 
 export interface Surface {
   id: string;
@@ -204,6 +231,7 @@ export enum Module {
 export enum DockTab {
   MONITOR = 'MONITOR',
   FIXTURE_EDITOR = 'FIXTURE_EDITOR',
+  TIMELINE = 'TIMELINE',
 }
 
 // Phase I — named selection set for batch operations.

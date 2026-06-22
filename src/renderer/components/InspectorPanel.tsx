@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Fixture, Surface, SurfaceContent, SourceType, AppSettings, PixelSource, LedShape, ColorOrder, RGBWMode, Layout3DType, Module } from '../types';
-import { Monitor, Image as ImageIcon, Video, Map, Sparkles, Grid3x3, Network, Box, Cast, RefreshCw, Layers, Slash } from 'lucide-react';
+import { Fixture, Surface, SurfaceContent, SourceType, AppSettings, PixelSource, LedShape, ColorOrder, RGBWMode, Layout3DType, VideoLayer } from '../types';
+import { Monitor, Image as ImageIcon, Video, Map, Sparkles, Grid3x3, Network, Box, Cast, RefreshCw, Layers, Slash, Film } from 'lucide-react';
 import { CollapsibleSection } from './CollapsibleSection';
 import { Slider } from './ui';
 import { EFFECT_NAMES } from '../gpu/effects';
@@ -15,7 +15,7 @@ interface InspectorPanelProps {
     selectedFixture: Fixture | null;
     onUpdateFixture: (id: string, updates: Partial<Fixture>) => void;
     settings: AppSettings;
-    module: Module;
+    layers: VideoLayer[];
 }
 
 const PanelSection: React.FC<{ title: string; children: React.ReactNode; icon?: React.ReactNode }> = ({ title, children, icon }) => (
@@ -44,6 +44,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
     selectedFixture,
     onUpdateFixture,
     settings,
+    layers,
 }) => {
     const [segSel, setSegSel] = useState(0);
     const [spoutSenders, setSpoutSenders] = useState<string[]>([]);
@@ -118,7 +119,21 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                         <button onClick={() => setContentType('EFFECT')} className={surfBtnCls(c.type === 'EFFECT')}>
                             <Sparkles size={16} className="mb-1"/><span className="text-[9px]">Effect</span>
                         </button>
+                        <button onClick={() => setContentType(SourceType.LAYER)} className={surfBtnCls(c.type === SourceType.LAYER)} title="A timeline video layer">
+                            <Film size={16} className="mb-1"/><span className="text-[9px]">Layer</span>
+                        </button>
                     </div>
+
+                    {c.type === SourceType.LAYER && (
+                        <div className="flex items-center gap-1 pt-1">
+                            <label className="text-fg-2 w-12 text-[10px]">Track</label>
+                            <select value={c.layerId ?? ''} onChange={(e) => setContent({ layerId: e.target.value })}
+                                className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-[10px] focus:border-accent focus:outline-none">
+                                <option value="">— select a track —</option>
+                                {layers.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                            </select>
+                        </div>
+                    )}
 
                     {c.type === SourceType.SPOUT && (
                         <div className="flex items-center gap-1 pt-1">

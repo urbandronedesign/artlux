@@ -18,7 +18,7 @@ export const InstancedLeds: React.FC<Props> = ({ fixtures, onSelectFixture }) =>
 
   // Rebuild geometry layout only when something affecting positions changes.
   const layoutSig = useMemo(() => JSON.stringify(fixtures.map(f => ({
-    c: f.ledCount, p: f.position3D, r: f.rotation3D, l: f.layout3D, rev: f.reverse,
+    c: f.ledCount, p: f.position3D, r: f.rotation3D, l: f.layout3D, rev: f.reverse, s: f.scale3D,
     x: f.x, y: f.y, w: f.width, h: f.height, rot: f.rotation,
   }))), [fixtures]);
 

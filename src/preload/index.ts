@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import {
     IPC, type OutputConfig, type OutputStats, type InputConfig, type InputFrame, type ArtluxApi,
     type ProjectData, type RigData, type Prefs, type SpoutConfig, type SpoutFrame, type UpdateEvent,
@@ -57,6 +57,31 @@ const api: ArtluxApi = {
         ipcRenderer.on(IPC.UPDATE_EVENT, listener);
         return () => { ipcRenderer.removeListener(IPC.UPDATE_EVENT, listener); };
     },
+    // 3D Scene window
+    openSceneWindow: () => ipcRenderer.send(IPC.SCENE_OPEN),
+    pickModel: () => ipcRenderer.invoke(IPC.SCENE_PICK_MODEL),
+    readModel: (path: string) => ipcRenderer.invoke(IPC.SCENE_READ_MODEL, path),
+    readFile: (path: string) => ipcRenderer.invoke(IPC.READ_FILE, path),
+    pickVideo: () => ipcRenderer.invoke(IPC.PICK_VIDEO),
+    getPathForFile: (file: File) => webUtils.getPathForFile(file),
 };
+
+// Bridge MessagePort: a MessagePort can't survive being passed through a contextBridge
+// callback (contextIsolation strips its methods), so forward it into the main world with
+// window.postMessage — which preserves the transferred port. Buffer it until the renderer
+// signals readiness (it posts 'artlux:scene-port-request' after attaching its listener),
+// because transferring to a not-yet-listening window would drop the port.
+let pendingPort: MessagePort | null = null;
+let rendererReady = false;
+const flushPort = () => {
+    if (!rendererReady || !pendingPort) return;
+    const port = pendingPort;
+    pendingPort = null;
+    window.postMessage('artlux:scene-port', '*', [port]);
+};
+ipcRenderer.on(IPC.SCENE_PORT, (e) => { pendingPort = e.ports[0] ?? null; flushPort(); });
+window.addEventListener('message', (e) => {
+    if (e.data === 'artlux:scene-port-request') { rendererReady = true; flushPort(); }
+});
 
 contextBridge.exposeInMainWorld('artlux', api);

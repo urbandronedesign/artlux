@@ -1,4 +1,5 @@
-import { app, ipcMain, shell, type BrowserWindow } from 'electron';
+import { app, ipcMain, shell, dialog, BrowserWindow } from 'electron';
+import { readFile } from 'node:fs/promises';
 import { IPC, type OutputConfig, type InputConfig, type ProjectData, type RigData, type Prefs, type SpoutConfig } from '../../shared/protocol';
 import * as output from './transport/outputManager';
 import * as input from './transport/input';
@@ -56,6 +57,34 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     ipcMain.handle(IPC.PREFS_GET, () => persistence.getPrefs());
     ipcMain.handle(IPC.PREFS_SET, (_e, patch: Partial<Prefs>) => { persistence.setPrefs(patch); });
     ipcMain.handle(IPC.ARTNET_DISCOVER, () => discovery.discover());
+
+    // 3D Scene venue model: pick a GLB/glTF, and read its bytes (renderer wraps them in
+    // a Blob URL for drei useGLTF — avoids file:// in the sandboxed renderer).
+    ipcMain.handle(IPC.SCENE_PICK_MODEL, async () => {
+        const parent = BrowserWindow.getFocusedWindow() ?? getWindow();
+        const opts = {
+            title: 'Import venue model',
+            properties: ['openFile' as const],
+            filters: [{ name: '3D Model', extensions: ['glb', 'gltf'] }],
+        };
+        const res = parent ? await dialog.showOpenDialog(parent, opts) : await dialog.showOpenDialog(opts);
+        return res.canceled || !res.filePaths[0] ? null : res.filePaths[0];
+    });
+    ipcMain.handle(IPC.SCENE_READ_MODEL, async (_e, path: string) => {
+        try {
+            return new Uint8Array(await readFile(path));
+        } catch (err) { console.error('[scene] read model failed', err); return null; }
+    });
+    ipcMain.handle(IPC.READ_FILE, async (_e, path: string) => {
+        try { return new Uint8Array(await readFile(path)); }
+        catch (err) { console.error('[ipc] read file failed', err); return null; }
+    });
+    ipcMain.handle(IPC.PICK_VIDEO, async () => {
+        const parent = BrowserWindow.getFocusedWindow() ?? getWindow();
+        const opts = { title: 'Import video', properties: ['openFile' as const], filters: [{ name: 'Video', extensions: ['mp4', 'webm', 'mov', 'mkv'] }] };
+        const res = parent ? await dialog.showOpenDialog(parent, opts) : await dialog.showOpenDialog(opts);
+        return res.canceled || !res.filePaths[0] ? null : res.filePaths[0];
+    });
     ipcMain.handle(IPC.APP_INFO, () => ({ name: app.getName(), version: app.getVersion() }));
     ipcMain.on(IPC.OPEN_EXTERNAL, (_e, url: string) => {
         if (/^https?:\/\//i.test(url)) shell.openExternal(url);

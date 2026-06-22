@@ -8,9 +8,9 @@ const DEG = Math.PI / 180;
 
 interface Props {
   fixture: Fixture | null;
-  mode: 'translate' | 'rotate';
+  mode: 'translate' | 'rotate' | 'scale';
   onRecordHistory: () => void;
-  onCommit: (id: string, updates: { position3D: Vec3; rotation3D: Euler3 }) => void;
+  onCommit: (id: string, updates: { position3D?: Vec3; rotation3D?: Euler3; scale3D?: number }) => void;
 }
 
 // drei <OrbitControls makeDefault/> is auto-disabled by TransformControls while
@@ -24,6 +24,7 @@ export const FixtureGizmo: React.FC<Props> = ({ fixture, mode, onRecordHistory, 
     if (!fixture) return;
     anchor.position.copy(effectivePos(fixture));
     anchor.rotation.copy(effectiveRot(fixture));
+    anchor.scale.setScalar(fixture.scale3D && fixture.scale3D > 0 ? fixture.scale3D : 1);
   }, [anchor, fixture]);
 
   // Record history at drag start; commit transform at drag end.
@@ -36,6 +37,7 @@ export const FixtureGizmo: React.FC<Props> = ({ fixture, mode, onRecordHistory, 
       onCommit(fixture.id, {
         position3D: { x: p.x, y: p.y, z: p.z },
         rotation3D: { pitch: e.x / DEG, yaw: e.y / DEG, roll: e.z / DEG },
+        scale3D: Math.max(0.01, anchor.scale.x), // uniform (gizmo scales the layout extent)
       });
     };
     c.addEventListener('mouseDown', onDown);

@@ -55,9 +55,10 @@ export function computeLedPositions(f: Fixture): Float32Array {
 
   if (f.reverse) local.reverse();
 
+  const scale = f.scale3D && f.scale3D > 0 ? f.scale3D : 1;
   const v = new THREE.Vector3();
   for (let i = 0; i < n; i++) {
-    v.copy(local[i]).applyEuler(euler).add(pos);
+    v.copy(local[i]).multiplyScalar(scale).applyEuler(euler).add(pos);
     out[i * 3] = v.x; out[i * 3 + 1] = v.y; out[i * 3 + 2] = v.z;
   }
   return out;

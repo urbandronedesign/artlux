@@ -2,6 +2,7 @@ import { Surface, SourceType } from '../types';
 import { getInputCanvas, startInput, stopInput } from './dmxInput';
 import { getSpoutCanvas, startSpout, stopSpout } from './spoutReceiver';
 import { SurfaceEffect } from '../gpu/surfaceFx';
+import { timeline } from './timeline';
 
 // Owns the media lifecycle for every Surface: one <video>/<img> per VIDEO/IMAGE
 // surface, plus a single live camera / Spout / DMX-in (one live at a time, v1).
@@ -169,6 +170,8 @@ export function getDrawable(s: Surface): Drawable | null {
       return getSpoutCanvas();
     case SourceType.DMX_IN:
       return getInputCanvas();
+    case SourceType.LAYER:
+      return timeline.getLayerDrawable(s.content.layerId);
     case 'EFFECT': {
       let e = effects.get(s.id);
       if (!e) { e = new SurfaceEffect(); effects.set(s.id, e); }
