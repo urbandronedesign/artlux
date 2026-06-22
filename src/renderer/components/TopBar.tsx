@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Play, Pause, Save, FolderOpen, ChevronDown, Undo, Redo, Settings, Activity, FileDown, FileUp, Clock } from 'lucide-react';
+import { Play, Pause, Save, FolderOpen, ChevronDown, Undo, Redo, Settings, Activity, FileDown, FileUp, Clock, Network } from 'lucide-react';
 import { Module } from '../types';
 import { ModuleSwitcher } from './ModuleSwitcher';
 import { IconButton } from './ui';
@@ -23,6 +23,7 @@ interface TopBarProps {
   canUndo: boolean;
   canRedo: boolean;
   onOpenPreferences: () => void;
+  onOpenRouting: () => void;
   monitorOpen: boolean;
   onToggleMonitor: () => void;
 }
@@ -33,7 +34,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   isVideoPlaying, onTogglePlay, canPlay, module, onChangeModule,
   onSaveProject, onSaveAs, onOpenProject, recentFiles, onOpenRecent, onExportRig, onImportRig,
   onUndo, onRedo, canUndo, canRedo,
-  onOpenPreferences, monitorOpen, onToggleMonitor,
+  onOpenPreferences, onOpenRouting, monitorOpen, onToggleMonitor,
 }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const run = (fn: () => void) => () => { setMenuOpen(false); fn(); };
@@ -121,6 +122,7 @@ export const TopBar: React.FC<TopBarProps> = ({
 
       {/* Right: monitor + preferences */}
       <div className="flex items-center gap-1">
+        <IconButton onClick={onOpenRouting} title="Routing" {...helpProps('Open the Routing spreadsheet — controllers + per-fixture patch.')}><Network size={15} /></IconButton>
         <IconButton active={monitorOpen} onClick={onToggleMonitor} title="DMX Monitor" {...helpProps('Toggle the DMX Monitor dock — live per-fixture pixel output.')}><Activity size={15} /></IconButton>
         <IconButton onClick={onOpenPreferences} title="Preferences" {...helpProps('Open Preferences — DMX output protocol/target and engine settings.')}><Settings size={15} /></IconButton>
       </div>

@@ -352,6 +352,15 @@ S4 fixture library → S5 controllers + auto-patch → S6 routing spreadsheet.
   `output` override, then global settings). Controllers management + per-fixture assignment UI is the
   S6 routing spreadsheet. Verified: `autoPatch` unit test (sequential / startUniverse / locked) PASS;
   headless controller routing PASS (output went to the controller IP, not the global setting).
+- **S6 (done)**: **routing spreadsheet modal** (`RoutingModal.tsx`) — opened from the TopBar Network
+  button or File → Routing…. A **Controllers** sub-panel (add/edit/remove: name/protocol/IP/broadcast/
+  start-universe/priority) over a **fixtures patch grid** (rows = fixtures; columns = name · surface ·
+  controller · universe · start · channels · LEDs · span · lock). Inline-editable; universe/start are
+  read-only until a row is **locked** (auto otherwise); **Auto-patch** button. Wired to the S5
+  controller handlers + `autoPatch`. Verified tsc+build+boot.
+
+**Surfaces engine S1–S6 COMPLETE** — surfaces with per-surface content, 2D effect surfaces, strict
+per-surface sampling + fixture linking, fixture library, controllers + auto-patch, routing spreadsheet.
 
 ## Desktop chrome (post-features)
 - **App icon** — authored `build/icon.svg` (teal "A" squircle matching the brand); `npm run gen:icon`

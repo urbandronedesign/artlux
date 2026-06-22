@@ -26,8 +26,18 @@ See [SURFACES.md](SURFACES.md) for the full design.
 5. **Monitor & output** — the DMX Monitor dock shows live values; Art-Net/sACN streams to hardware.
 
 Each fixture samples **only its linked surface** (strict per-surface, regardless of overlap) on the
-WebGPU path; the WebGL fallback samples the composite (degraded). Automatic universe/address
-allocation and a multi-controller **routing spreadsheet** are coming next (S5/S6).
+WebGPU path; the WebGL fallback samples the composite (degraded).
+
+## Routing & auto-patch
+Universes/addresses are assigned **automatically**: as you add/remove fixtures (or change LED count,
+channels, or controller) the patch re-packs sequentially per controller. Open the **Routing**
+spreadsheet (TopBar network icon or File → Routing…) to:
+- manage **Controllers** (physical output devices: name, protocol, IP, broadcast, start universe,
+  sACN priority) — fixtures assigned to a controller are packed into its universes and output to its IP;
+- patch every fixture in a grid (surface link, controller, universe/start, channels, LED count);
+- **lock** a row to set its universe/address manually (auto otherwise), or hit **Auto-patch**.
+A fixture with no controller falls back to the global Preferences target. Save the selected fixture
+as a reusable **template** from the browser **Library**.
 
 ## Surface content sources
 Select a surface, then in the inspector **Content** section:

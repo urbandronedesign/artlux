@@ -4,6 +4,7 @@ import type { AppInfo } from '../../shared/protocol';
 import { autoPatch } from './services/addressing';
 import { TopBar } from './components/TopBar';
 import { About } from './components/About';
+import { RoutingModal } from './components/RoutingModal';
 import { InspectorPanel } from './components/InspectorPanel';
 import { ScenePanel } from './components/ScenePanel';
 import { Stage } from './components/Stage';
@@ -71,6 +72,7 @@ const App: React.FC = () => {
   const [currentProjectPath, setCurrentProjectPath] = useState<string | null>(null);
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [routingOpen, setRoutingOpen] = useState(false);
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
 
   const [showLeftPanel, setShowLeftPanel] = useState(true);
@@ -201,6 +203,24 @@ const App: React.FC = () => {
   };
 
   const handleAutoPatch = () => setFixtures(autoPatch(fixtures, controllers));
+
+  // --- Controllers (output devices) ---
+  const handleAddController = () => {
+    setControllers([...controllers, {
+      id: generateId(), name: `Controller ${controllers.length + 1}`,
+      protocol: settings.protocol, ip: settings.artNetIp, broadcast: settings.broadcast,
+    }]);
+  };
+  const handleUpdateController = (id: string, patch: Partial<Controller>) => {
+    const next = controllers.map(c => c.id === id ? { ...c, ...patch } : c);
+    setControllers(next);
+    if ('startUniverse' in patch) setFixtures(autoPatch(fixtures, next));
+  };
+  const handleRemoveController = (id: string) => {
+    const next = controllers.filter(c => c.id !== id);
+    setControllers(next);
+    setFixtures(autoPatch(fixtures.map(f => f.controllerId === id ? { ...f, controllerId: undefined } : f), next));
+  };
 
   const handleRenameFixture = (id: string, newName: string) => {
     handleUpdateFixture(id, { name: newName });
@@ -388,6 +408,7 @@ const App: React.FC = () => {
           case 'export-rig': handleExportRig(); break;
           case 'import-rig': handleImportRig(); break;
           case 'preferences': setPrefsOpen(true); break;
+          case 'routing': setRoutingOpen(true); break;
           case 'about': setAboutOpen(true); break;
           case 'undo': undo(); break;
           case 'redo': redo(); break;
@@ -462,6 +483,7 @@ const App: React.FC = () => {
           canUndo={canUndo}
           canRedo={canRedo}
           onOpenPreferences={() => setPrefsOpen(true)}
+          onOpenRouting={() => setRoutingOpen(true)}
           monitorOpen={dockOpen && dockTab === DockTab.MONITOR}
           onToggleMonitor={() => {
             if (dockOpen && dockTab === DockTab.MONITOR) setDockOpen(false);
@@ -587,6 +609,19 @@ const App: React.FC = () => {
 
       <Preferences open={prefsOpen} onClose={() => setPrefsOpen(false)} settings={settings} onChange={updateSettings} />
       <About open={aboutOpen} onClose={() => setAboutOpen(false)} info={appInfo} />
+      <RoutingModal
+          open={routingOpen}
+          onClose={() => setRoutingOpen(false)}
+          fixtures={fixtures}
+          surfaces={surfaces}
+          controllers={controllers}
+          settings={settings}
+          onUpdateFixture={handleUpdateFixture}
+          onAddController={handleAddController}
+          onUpdateController={handleUpdateController}
+          onRemoveController={handleRemoveController}
+          onAutoPatch={handleAutoPatch}
+      />
     </div>
   );
 };

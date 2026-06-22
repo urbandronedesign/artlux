@@ -46,13 +46,18 @@ Per-surface render → per-surface sample, reusing the compute shader's normaliz
   inspector. Per-fixture effects retired in the engine. WebGL fallback keeps composite sampling
   (degraded; not strict on overlap). Verified: a fixture linked to surface A still samples A with a
   black surface B composited on top.
-- **S4 — Fixture library.** Save/recall reusable fixture templates (LED definition only).
-- **S5 — Controllers + auto-patch.** `services/addressing.ts`: pack universes/addresses sequentially
-  per controller (channelsPerPixel-aware, wrap at 512); `patchLocked` keeps manual; Stage resolves
-  each fixture's destination from its controller.
-- **S6 — Routing spreadsheet modal.** Rows = fixtures; columns = name · surface · controller ·
-  protocol/IP · universe · start · channels · LEDs · span; inline edit + Auto-assign/Re-patch + a
-  controllers sub-panel.
+- **S4 — Fixture library (DONE).** `FixtureTemplate` (LED definition only) saved to userData prefs;
+  ScenePanel **Library** section (save selected / add instance / delete).
+- **S5 — Controllers + auto-patch (DONE).** `Controller` type + `Fixture.controllerId`/`patchLocked`;
+  `services/addressing.ts` `autoPatch` packs universes/addresses sequentially per controller
+  (channelsPerPixel-aware, wraps at 512; `patchLocked` keeps manual). Auto-runs on add/remove/
+  ledCount/channels/controller changes + a Re-patch button; `Stage` resolves each fixture's
+  destination from its controller → per-fixture `output` override → global settings.
+- **S6 — Routing spreadsheet modal (DONE).** `RoutingModal.tsx` (TopBar Network button / File →
+  Routing…): a Controllers sub-panel + a fixtures patch grid (name · surface · controller · universe ·
+  start · channels · LEDs · span · lock); inline edit, lock-to-edit-address, Auto-patch.
+
+**Surfaces engine S1–S6 complete.**
 
 ## Key files
 `src/renderer/types.ts` (Surface/SurfaceContent/Controller), `src/renderer/services/surfaceMedia.ts`,
