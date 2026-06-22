@@ -6,32 +6,40 @@ How to use ArtLux end-to-end. For the engine internals see
 ## Workspace layout (MadMapper logic)
 - **Top bar**: brand · undo/redo · **File menu** (save/open/recents/rig) · **module switcher**
   (Media · Map · Fixtures · 3D) · transport (play/pause) · DMX-monitor toggle · Preferences.
-- **Left panel**: browser (fixtures tree + groups + scenes) on top, **inspector** below — the
-  inspector's sections change with the active module and the selected fixture.
+- **Left panel**: browser (**Surfaces** tree + Fixtures tree + groups + scenes) on top, **inspector**
+  below — the inspector shows surface properties or fixture properties depending on the selection.
 - **Center**: the persistent 2D **Stage** (Media/Map/Fixtures) or the **3D simulator** (3D module).
+  On the stage, **surfaces are cyan**, **fixtures are red**.
 - **Bottom dock**: **DMX Monitor** (live per-fixture pixel output) and **Fixture Editor**
   (pixel structure).
 - **Status bar**: contextual help (hover any control) · render FPS · LIVE/target · native engine stats.
 
-## The core LED-strip workflow
-1. **Media** — pick a content source (video / image / camera / DMX-in / Spout).
-2. **Map** — drag, resize, rotate, and snap fixtures over the content on the stage.
-3. **Fixtures** — patch DMX: universe, start address, LED count, color order, channels (RGB/RGBW),
-   matrix + serpentine, ledmap, and per-fixture output routing.
-4. **Monitor** — open the DMX Monitor dock to watch the live values; output streams to your hardware.
+## The core workflow (Surfaces model)
+See [SURFACES.md](SURFACES.md) for the full design.
+1. **Create a Surface** — add a surface (cyan rectangle) and place it on the stage (drag to move,
+   corner to resize, top handle to rotate; or use the inspector Transform).
+2. **Feed it content** — with the surface selected, pick its **Content**: video / image / camera /
+   Spout / DMX-in / effect (effects render in S2). One live input (camera/Spout) at a time.
+3. **Create & place Fixtures** — add LED fixtures (red) and position them over the content.
+4. **Patch** — universe, start address, LED count, color order, channels, matrix/serpentine, ledmap.
+5. **Monitor & output** — the DMX Monitor dock shows live values; Art-Net/sACN streams to hardware.
 
-## Content sources
-- **Video / Image / Camera** — load a file or use the webcam (`getUserMedia`).
-- **DMX In** — capture incoming Art-Net/sACN and use it as the content texture.
-- **Spout** (Windows) — receive a live GPU video stream from Resolume, MadMapper, TouchDesigner,
-  etc. In the **Media** module click **Spout In**, then pick a sender from the dropdown (or leave
-  "Active sender") and hit refresh to re-scan. Frames are received natively, downscaled to 512²,
-  and fed to the mapper.
+Fixtures currently sample the composited stage; **strict per-surface sampling** (a fixture linked to
+one surface, sampling only it) lands in a later phase (S3). Automatic universe/address allocation and
+a multi-controller **routing spreadsheet** are S5/S6.
+
+## Surface content sources
+Select a surface, then in the inspector **Content** section:
+- **Video / Image / Camera** — load a file or use the webcam (`getUserMedia`); each video/image
+  surface has its own player.
+- **DMX In** — capture incoming Art-Net/sACN as the surface's content (single live input).
+- **Spout** (Windows) — receive a live GPU stream from Resolume/MadMapper/TouchDesigner; pick a
+  sender (or "Active sender") + refresh. Received natively, downscaled, composited (single live).
+- **Effect** — a generative shader fills the surface (rendering arrives in S2; params save now).
 
 ## Effects & palettes
-Per fixture (or per segment), set the source to **Effect** and choose an effect (incl. **fire2012**)
-+ palette, with speed/intensity. Split a fixture into **segments** to run different looks across one
-strip. Apply a fixture's look to a whole **group** from the browser.
+Effects are becoming a **surface content type** (a 2D shader filling a surface). The legacy
+per-fixture effect engine remains during migration. Groups can still copy a fixture's look.
 
 ## Output: Art-Net / sACN
 Open **Preferences → DMX Output**:
