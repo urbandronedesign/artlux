@@ -9,6 +9,9 @@ import * as surfaceMedia from '../services/surfaceMedia';
 
 interface StageProps {
   surfaces: Surface[];
+  onUpdateSurfaces: (surfaces: Surface[]) => void;
+  selectedSurfaceId: string | null;
+  onSelectSurface: (id: string) => void;
   fixtures: Fixture[];
   onUpdateFixtures: (fixtures: Fixture[]) => void;
   selectedFixtureId: string | null;
@@ -35,6 +38,9 @@ const COLOR_ORDER: Record<ColorOrder, [number, number, number]> = {
 
 export const Stage: React.FC<StageProps> = ({
   surfaces,
+  onUpdateSurfaces,
+  selectedSurfaceId,
+  onSelectSurface,
   fixtures,
   onUpdateFixtures,
   selectedFixtureId,
@@ -303,6 +309,47 @@ export const Stage: React.FC<StageProps> = ({
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
     };
   }, [tick]);
+
+  // --- Surface drag (self-contained; cyan rectangles) ---
+  const surfaceDrag = useRef<{ mode: 'move' | 'resize' | 'rotate' | null; id: string | null; sx: number; sy: number; init: { x: number; y: number; w: number; h: number; r: number } | null }>({ mode: null, id: null, sx: 0, sy: 0, init: null });
+
+  const onSurfaceMove = useCallback((e: MouseEvent) => {
+    const st = surfaceDrag.current;
+    if (!st.mode || !st.id || !st.init || !containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const dx = (e.clientX - st.sx) / rect.width;
+    const dy = (e.clientY - st.sy) / rect.height;
+    const cur = surfacesRef.current;
+    const idx = cur.findIndex(s => s.id === st.id);
+    if (idx === -1) return;
+    const init = st.init;
+    const next = { ...cur[idx] };
+    if (st.mode === 'move') { next.x = init.x + dx; next.y = init.y + dy; }
+    else if (st.mode === 'resize') { next.width = Math.max(0.01, init.w + dx); next.height = Math.max(0.01, init.h + dy); }
+    else if (st.mode === 'rotate') {
+      const cx = rect.left + (init.x + init.w / 2) * rect.width;
+      const cy = rect.top + (init.y + init.h / 2) * rect.height;
+      next.rotation = Math.atan2(e.clientY - cy, e.clientX - cx) * 180 / Math.PI + 90;
+    }
+    const arr = [...cur]; arr[idx] = next; surfacesRef.current = arr; onUpdateSurfaces(arr);
+  }, [onUpdateSurfaces]);
+
+  const onSurfaceUp = useCallback(() => {
+    surfaceDrag.current = { mode: null, id: null, sx: 0, sy: 0, init: null };
+    window.removeEventListener('mousemove', onSurfaceMove);
+    window.removeEventListener('mouseup', onSurfaceUp);
+  }, [onSurfaceMove]);
+
+  const startSurfaceDrag = (e: React.MouseEvent, mode: 'move' | 'resize' | 'rotate', id: string) => {
+    e.stopPropagation();
+    e.preventDefault();
+    onSelectSurface(id);
+    const s = surfacesRef.current.find(x => x.id === id);
+    if (!s) return;
+    surfaceDrag.current = { mode, id, sx: e.clientX, sy: e.clientY, init: { x: s.x, y: s.y, w: s.width, h: s.height, r: s.rotation } };
+    window.addEventListener('mousemove', onSurfaceMove);
+    window.addEventListener('mouseup', onSurfaceUp);
+  };
 
   const handleWindowMouseMove = useCallback((e: MouseEvent) => {
     const state = dragState.current;
@@ -638,6 +685,45 @@ export const Stage: React.FC<StageProps> = ({
                 width={512} height={512}
                 className="absolute top-0 left-0 w-full h-full object-fill pointer-events-none opacity-50"
             />
+
+            {/* Surfaces (cyan) — behind fixtures */}
+            <div className="absolute top-0 left-0 w-full h-full z-[5]">
+            {surfaces.map((s) => {
+                const sel = s.id === selectedSurfaceId;
+                return (
+                    <div
+                        key={s.id}
+                        onMouseDown={(e) => startSurfaceDrag(e, 'move', s.id)}
+                        className={`absolute cursor-move ${sel ? 'z-[8]' : ''}`}
+                        style={{
+                            left: `${s.x * 100}%`, top: `${s.y * 100}%`,
+                            width: `${s.width * 100}%`, height: `${s.height * 100}%`,
+                            transform: `rotate(${s.rotation}deg)`, transformOrigin: 'center center',
+                        }}
+                    >
+                        <div className={`w-full h-full border ${sel ? 'border-sel-surface shadow-[0_0_10px_rgba(39,182,196,0.25)]' : 'border-dashed border-sel-surface/40'}`}></div>
+                        <div
+                            className="absolute -top-5 left-0 text-[9px] font-mono text-sel-surface bg-black/70 px-1 whitespace-nowrap pointer-events-none"
+                            style={{ transform: `rotate(${-s.rotation}deg)` }}
+                        >{s.name}</div>
+                        {sel && (
+                            <>
+                                <div
+                                    className="absolute -top-6 left-1/2 -translate-x-1/2 w-px h-6 bg-sel-surface origin-bottom cursor-alias flex flex-col items-center justify-start pointer-events-auto"
+                                    onMouseDown={(e) => startSurfaceDrag(e, 'rotate', s.id)}
+                                >
+                                    <div className="w-2.5 h-2.5 bg-black border border-sel-surface rounded-full -mt-1 hover:bg-sel-surface transition-colors"></div>
+                                </div>
+                                <div
+                                    className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-black border border-sel-surface hover:bg-sel-surface transition-colors cursor-nwse-resize pointer-events-auto"
+                                    onMouseDown={(e) => startSurfaceDrag(e, 'resize', s.id)}
+                                ></div>
+                            </>
+                        )}
+                    </div>
+                );
+            })}
+            </div>
 
             <div className="absolute top-0 left-0 w-full h-full z-10 overflow-hidden">
             {fixtures.map((fixture) => (

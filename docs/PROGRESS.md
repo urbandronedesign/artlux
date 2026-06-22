@@ -313,7 +313,10 @@ S4 fixture library → S5 controllers + auto-patch → S6 routing spreadsheet.
   tree (add/select/rename/remove, content-type badge); `InspectorPanel` shows **Content** (type +
   Spout sender + effect params placeholder) + **Transform** when a surface is selected (the old global
   Input-Source section is gone). HeadlessRunner loads project surfaces. Verified tsc+build+launch.
-  Next: **S1b** on-canvas cyan surface rectangles (select/move/resize).
+- **S1b (done)**: on-canvas **cyan surface rectangles** on the Stage — click to select, drag body to
+  move, corner handle to resize, top handle to rotate (self-contained surface drag, behind the
+  fixtures layer). Surfaces show name + dashed outline (selected = solid + handles). `Stage` gained
+  `surfaces`/`onUpdateSurfaces`/`selectedSurfaceId`/`onSelectSurface` props. **S1 complete.**
 
 ## Desktop chrome (post-features)
 - **App icon** — authored `build/icon.svg` (teal "A" squircle matching the brand); `npm run gen:icon`

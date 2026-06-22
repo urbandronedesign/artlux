@@ -475,6 +475,9 @@ const App: React.FC = () => {
                 <div className={`absolute inset-0 ${module === Module.THREE_D ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
                     <Stage
                         surfaces={surfaces}
+                        onUpdateSurfaces={setSurfaces}
+                        selectedSurfaceId={selectedSurfaceId}
+                        onSelectSurface={handleSelectSurface}
                         fixtures={fixtures}
                         onUpdateFixtures={setFixtures}
                         selectedFixtureId={selectedFixtureId}

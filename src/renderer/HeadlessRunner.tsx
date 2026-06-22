@@ -83,6 +83,9 @@ export const HeadlessRunner: React.FC<{ projectPath: string | null }> = ({ proje
     <div style={{ position: 'fixed', width: 1, height: 1, overflow: 'hidden', opacity: 0, pointerEvents: 'none' }}>
       <Stage
         surfaces={surfaces}
+        onUpdateSurfaces={setSurfaces}
+        selectedSurfaceId={null}
+        onSelectSurface={() => { /* no-op */ }}
         fixtures={fixtures}
         onUpdateFixtures={setFixtures}
         selectedFixtureId={null}
