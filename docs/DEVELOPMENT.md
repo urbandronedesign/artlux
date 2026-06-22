@@ -1,7 +1,22 @@
 # ArtLux — Development & Release Guide
 
 How to set up, run, build, test, and release ArtLux. See [ARCHITECTURE.md](ARCHITECTURE.md) for how
-the system fits together.
+the system fits together and [PROGRESS.md](PROGRESS.md) for the running build log.
+
+## Day-to-day workflow (the loop)
+1. **Edit** renderer/main/shared code. The renderer hot-reloads in `npm run dev`; **main-process or
+   preload changes need a full app restart** (stop dev + kill stray `electron`, relaunch).
+2. **Typecheck**: `npx tsc --noEmit -p tsconfig.json` (the whole tree; there is no `include`).
+3. **Build** when adding a new HTML entry / dependency / native change: `npm run build`.
+4. **Run** to verify in the real app: `env -u ELECTRON_RUN_AS_NODE npm run dev` (see gotchas).
+5. **Commit on `main`** (this repo commits directly to main), small and scoped; **push only when asked**.
+6. **Release** = bump version + CHANGELOG, commit, **tag `vX.Y.Z`**, push the tag → CI builds + publishes
+   (see Release process).
+
+The app runs **two windows**: the main mapping window (`index.html`/`App.tsx`) and the **3D Scene**
+window (`scene.html`/`scene/SceneApp.tsx`, opened from the top-bar Scene button). They talk over a
+`MessageChannelMain` bridge (`scene/bridge.ts`); the timeline + LED data flow main → scene. Both windows
+disable background throttling so nothing stalls when the other has focus.
 
 ## Prerequisites
 - **Node.js** (≥ 20) and npm.
@@ -45,15 +60,29 @@ There is no unit-test runner wired; verification is done ad-hoc with tsc + targe
   multi-controller routing, sACN, ArtSync, and universe spanning were validated.
 
 ## Release process
-A `v*` tag drives `.github/workflows/build.yml` (matrix: windows/macos/ubuntu) → per-OS installers →
-a published GitHub Release (`softprops/action-gh-release`).
+A `v*` tag drives `.github/workflows/build.yml` (matrix: windows/macos/ubuntu) → per-OS installers +
+`latest*.yml` auto-update metadata → a published GitHub Release (`softprops/action-gh-release`).
 ```bash
-# bump "version" in package.json + update CHANGELOG.md, commit, then:
-git tag -a v0.2.1 -m "ArtLux v0.2.1 — …"
-git push origin main --follow-tags   # or: git push origin v0.2.1
+# bump "version" in package.json + update CHANGELOG.md (+ docs/PROGRESS.md), commit on main, then:
+git push origin main
+git tag -a v0.4.0 -m "ArtLux v0.4.0 — …" && git push origin v0.4.0
+gh run watch <id> --exit-status        # wait for the build
+gh release view v0.4.0                  # confirm draft:false + assets incl. latest.yml
 ```
+If a release re-run is needed, clear the broken one first:
+`gh release delete vX.Y.Z --yes --cleanup-tag`, then re-tag + push.
+
+**Gotchas that have bitten the release:**
+- **Artifact filenames must be space-free.** electron-builder's default names ("ArtLux Setup x.y.z.exe")
+  make `softprops` 404 on the asset-rename step → publish fails. Fixed by `build.artifactName:
+  "${productName}-${version}-${arch}.${ext}"` and dropping the Windows `portable` target (NSIS is the
+  auto-update target). Don't reintroduce spaces.
+- **Auto-update** (`electron-updater`) only works once **two** releases both carry `latest.yml`. v0.3.1's
+  release failed to publish, so **v0.4.0 is the first with working metadata** — updates apply for installs
+  from v0.4.0 onward (Windows/Linux; macOS links to the Releases page, no Developer ID). See
+  `src/main/updater.ts`.
+
 Before tagging, smoke-test locally with `npm run package:dir` so CI won't fail on a packaging error.
-Verify the run with `gh run view <id>` and the release with `gh release view vX.Y.Z`.
 
 ### macOS signing
 No Apple Developer account → the app is **ad-hoc signed** in `scripts/mac-adhoc-sign.cjs`
@@ -69,6 +98,9 @@ dmgs need a one-time Gatekeeper bypass: right-click → Open → "Open Anyway", 
 - A separate **Artnetominator** app may hold UDP **6454** and intercept loopback Art-Net during output
   tests — stop it first (`Get-NetUDPEndpoint -LocalPort 6454`).
 - Commit messages via PowerShell here-strings break on embedded `"` — keep commit bodies quote-free.
+- **Rebuilding a native addon while the app runs fails `EBUSY`** (Electron holds `*.node`). Stop dev +
+  kill stray `electron` first, then `npm run build:native` (or build the one crate +
+  `node scripts/copy-native.cjs`).
 - **Camera / mic surfaces** need the main process to grant the `'media'` permission
   (`session.setPermissionRequestHandler` + `setPermissionCheckHandler` in `src/main/index.ts`); without
   it `getUserMedia` is denied and the live source stays blank. The renderer logs the exact failure as
