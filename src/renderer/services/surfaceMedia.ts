@@ -45,7 +45,8 @@ async function startCamera(ownerId: string): Promise<void> {
     await v.play();
     cameraEl = v;
   } catch (e) {
-    console.error('[surfaceMedia] camera failed', e);
+    const err = e as DOMException;
+    console.error(`[surfaceMedia] camera failed: ${err?.name ?? 'Error'} — ${err?.message ?? String(e)}`);
   }
 }
 function stopCamera(): void {

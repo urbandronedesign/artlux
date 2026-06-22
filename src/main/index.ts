@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, session, systemPreferences } from 'electron';
 import { join } from 'node:path';
 import { registerIpc } from './ipc';
 import { buildAppMenu } from './menu';
@@ -59,7 +59,23 @@ function createWindow(): void {
     }
 }
 
+// Live-input surfaces (Camera / mic) call getUserMedia in the renderer. Electron denies
+// 'media' permission unless the main process grants it, so wire both handlers.
+function grantMediaPermissions(): void {
+    const MEDIA = new Set(['media', 'camera', 'microphone', 'audioCapture', 'videoCapture']);
+    const ses = session.defaultSession;
+    ses.setPermissionRequestHandler((_wc, permission, callback) => {
+        callback(MEDIA.has(permission));
+    });
+    ses.setPermissionCheckHandler((_wc, permission) => MEDIA.has(permission));
+    // macOS additionally gates camera/mic at the OS level.
+    if (process.platform === 'darwin') {
+        systemPreferences.askForMediaAccess('camera').catch(() => {});
+    }
+}
+
 app.whenReady().then(() => {
+    grantMediaPermissions();
     registerIpc(() => mainWindow);
     if (!HEADLESS) buildAppMenu(() => mainWindow);
     createWindow();

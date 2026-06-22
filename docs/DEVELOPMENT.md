@@ -69,6 +69,12 @@ dmgs need a one-time Gatekeeper bypass: right-click → Open → "Open Anyway", 
 - A separate **Artnetominator** app may hold UDP **6454** and intercept loopback Art-Net during output
   tests — stop it first (`Get-NetUDPEndpoint -LocalPort 6454`).
 - Commit messages via PowerShell here-strings break on embedded `"` — keep commit bodies quote-free.
+- **Camera / mic surfaces** need the main process to grant the `'media'` permission
+  (`session.setPermissionRequestHandler` + `setPermissionCheckHandler` in `src/main/index.ts`); without
+  it `getUserMedia` is denied and the live source stays blank. The renderer logs the exact failure as
+  `[surfaceMedia] camera failed: <DOMException name> — <message>` (e.g. `NotReadableError` = the device
+  is held by another app — close the OS camera app). On macOS the OS also gates it via
+  `systemPreferences.askForMediaAccess`; on Windows, enable Settings → Privacy → Camera for desktop apps.
 
 ## CI notes
 `.github/workflows/build.yml` installs Rust, runs `build:native` (both crates; Windows builds the real
