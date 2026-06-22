@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Fixture, Surface, SourceType, AppSettings, Module, DockTab, FixtureGroup, Scene, FixtureTemplate } from './types';
+import { Fixture, Surface, SourceType, AppSettings, Module, DockTab, FixtureGroup, Scene, FixtureTemplate, Controller } from './types';
 import type { AppInfo } from '../../shared/protocol';
+import { autoPatch } from './services/addressing';
 import { TopBar } from './components/TopBar';
 import { About } from './components/About';
 import { InspectorPanel } from './components/InspectorPanel';
@@ -62,6 +63,7 @@ const App: React.FC = () => {
   const [groups, setGroups] = useState<FixtureGroup[]>([]);
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [templates, setTemplates] = useState<FixtureTemplate[]>([]);
+  const [controllers, setControllers] = useState<Controller[]>([]);
   const [module, setModule] = useState<Module>(Module.MAP);
   const [dockOpen, setDockOpen] = useState(false);
   const [dockTab, setDockTab] = useState<DockTab>(DockTab.MONITOR);
@@ -171,30 +173,34 @@ const App: React.FC = () => {
   const handleAddFixture = () => {
     recordHistory();
     const newId = generateId();
-    setFixtures([
-      ...fixtures,
-      {
-        id: newId,
-        name: `Fixture ${fixtures.length + 1}`,
-        x: 0.4, y: 0.4, width: 0.2, height: 0.2,
-        universe: 0, startAddress: 1, ledCount: 30, reverse: false, rotation: 0,
-        colorData: [],
-        surfaceId: selectedSurfaceId ?? surfaces[0]?.id,
-      }
-    ]);
+    const fx: Fixture = {
+      id: newId,
+      name: `Fixture ${fixtures.length + 1}`,
+      x: 0.4, y: 0.4, width: 0.2, height: 0.2,
+      universe: 0, startAddress: 1, ledCount: 30, reverse: false, rotation: 0,
+      colorData: [],
+      surfaceId: selectedSurfaceId ?? surfaces[0]?.id,
+    };
+    setFixtures(autoPatch([...fixtures, fx], controllers));
     handleSelectFixture(newId);
   };
 
   const handleRemoveFixture = (id: string) => {
     recordHistory();
-    setFixtures(fixtures.filter(f => f.id !== id));
+    setFixtures(autoPatch(fixtures.filter(f => f.id !== id), controllers));
     if (selectedFixtureId === id) setSelectedFixtureId(null);
   };
 
+  // Auto re-patch when something that affects addressing changes.
+  const REPATCH_KEYS = ['ledCount', 'channelsPerPixel', 'controllerId', 'patchLocked'] as const;
   const handleUpdateFixture = (id: string, updates: Partial<Fixture>) => {
     recordHistory();
-    setFixtures(fixtures.map(f => f.id === id ? { ...f, ...updates } : f));
+    const mapped = fixtures.map(f => f.id === id ? { ...f, ...updates } : f);
+    const repatch = REPATCH_KEYS.some(k => k in updates);
+    setFixtures(repatch ? autoPatch(mapped, controllers) : mapped);
   };
+
+  const handleAutoPatch = () => setFixtures(autoPatch(fixtures, controllers));
 
   const handleRenameFixture = (id: string, newName: string) => {
     handleUpdateFixture(id, { name: newName });
@@ -282,6 +288,7 @@ const App: React.FC = () => {
       timestamp: new Date().toISOString(),
       surfaces,
       fixtures,
+      controllers,
       settings,
       globalBrightness,
       groups,
@@ -301,6 +308,7 @@ const App: React.FC = () => {
       }
       if (data?.settings) setSettings(prev => ({ ...prev, ...data.settings }));
       if (typeof data?.globalBrightness === 'number') setGlobalBrightness(data.globalBrightness);
+      setControllers(Array.isArray(data?.controllers) ? data.controllers : []);
       setGroups(Array.isArray(data?.groups) ? data.groups : []);
       setScenes(Array.isArray(data?.scenes) ? data.scenes : []);
       setSelectedFixtureId(null);
@@ -357,6 +365,7 @@ const App: React.FC = () => {
           universe: 0, startAddress: 1, ledCount: 60, reverse: false, rotation: 0, colorData: [],
           surfaceId: surf[0].id,
       }]);
+      setControllers([]);
       setGroups([]);
       setScenes([]);
       setSelectedFixtureId(null);
@@ -494,6 +503,7 @@ const App: React.FC = () => {
                         onSaveTemplate={handleSaveTemplate}
                         onAddFromTemplate={handleAddFromTemplate}
                         onRemoveTemplate={handleRemoveTemplate}
+                        onAutoPatch={handleAutoPatch}
                     />
                 </div>
                 <div className="flex-1 min-h-0 overflow-y-auto">
@@ -520,6 +530,7 @@ const App: React.FC = () => {
                         onUpdateSurfaces={setSurfaces}
                         selectedSurfaceId={selectedSurfaceId}
                         onSelectSurface={handleSelectSurface}
+                        controllers={controllers}
                         fixtures={fixtures}
                         onUpdateFixtures={setFixtures}
                         selectedFixtureId={selectedFixtureId}

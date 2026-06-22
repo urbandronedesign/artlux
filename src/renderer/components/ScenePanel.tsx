@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Fixture, FixtureGroup, Scene, Surface, FixtureTemplate } from '../types';
-import { Plus, Trash2, Folder, Box, Users, Camera, Play, Copy, Layers, Save, PackagePlus } from 'lucide-react';
+import { Plus, Trash2, Folder, Box, Users, Camera, Play, Copy, Layers, Save, PackagePlus, Hash } from 'lucide-react';
 
 interface ScenePanelProps {
     surfaces: Surface[];
@@ -31,6 +31,7 @@ interface ScenePanelProps {
     onSaveTemplate: () => void;
     onAddFromTemplate: (t: FixtureTemplate) => void;
     onRemoveTemplate: (id: string) => void;
+    onAutoPatch: () => void;
 }
 
 export const ScenePanel: React.FC<ScenePanelProps> = ({
@@ -62,6 +63,7 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
     onSaveTemplate,
     onAddFromTemplate,
     onRemoveTemplate,
+    onAutoPatch,
 }) => {
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editKind, setEditKind] = useState<'fixture' | 'surface'>('fixture');
@@ -143,7 +145,8 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
             {/* Header */}
             <div className="h-8 bg-surface-2 flex items-center px-2 justify-between border-b border-line-1">
                 <span className="font-bold text-fg-2 uppercase tracking-wider text-[10px]">Fixtures</span>
-                <div className="flex gap-1">
+                <div className="flex gap-1.5">
+                     <button onClick={onAutoPatch} className="text-fg-2 hover:text-fg-1" title="Auto-patch (assign universes/addresses)"><Hash size={13}/></button>
                      <button onClick={onAdd} className="text-fg-2 hover:text-fg-1" title="Add Fixture"><Plus size={14}/></button>
                 </div>
             </div>

@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
-import { Fixture, Surface, ColorOrder } from '../types';
+import { Fixture, Surface, Controller, ColorOrder } from '../types';
 import { AlertCircle, Magnet, Grid3X3, ZoomIn } from 'lucide-react';
 import { GPUMapper } from '../services/GPUMapper';
 import { WebGPUMapper } from '../gpu/WebGPUMapper';
@@ -12,6 +12,7 @@ interface StageProps {
   onUpdateSurfaces: (surfaces: Surface[]) => void;
   selectedSurfaceId: string | null;
   onSelectSurface: (id: string) => void;
+  controllers: Controller[];
   fixtures: Fixture[];
   onUpdateFixtures: (fixtures: Fixture[]) => void;
   selectedFixtureId: string | null;
@@ -41,6 +42,7 @@ export const Stage: React.FC<StageProps> = ({
   onUpdateSurfaces,
   selectedSurfaceId,
   onSelectSurface,
+  controllers,
   fixtures,
   onUpdateFixtures,
   selectedFixtureId,
@@ -67,6 +69,9 @@ export const Stage: React.FC<StageProps> = ({
   const surfacesRef = useRef(surfaces);
   useEffect(() => { surfacesRef.current = surfaces; }, [surfaces]);
   useEffect(() => { surfaceMedia.syncSurfaces(surfaces, isVideoPlaying); }, [surfaces, isVideoPlaying]);
+
+  const controllersRef = useRef(controllers);
+  useEffect(() => { controllersRef.current = controllers; }, [controllers]);
 
   const mapper = useRef<IPixelMapper | null>(null);
   const [webglError, setWebglError] = useState(false);
@@ -258,14 +263,18 @@ export const Stage: React.FC<StageProps> = ({
             for (let fIdx = 0; fIdx < currentFixtures.length; fIdx++) {
                 const f = currentFixtures[fIdx];
 
-                const proto = f.output?.protocol || defaultProtocol;
-                const ip = f.output?.ip || defaultIp;
-                const bcast = f.output?.broadcast ?? defaultBroadcast;
+                // Destination resolves from the fixture's controller (S5), then any
+                // per-fixture output override, then the global settings (back-compat).
+                const ctrl = controllersRef.current.find(c => c.id === f.controllerId);
+                const proto = f.output?.protocol || ctrl?.protocol || defaultProtocol;
+                const ip = f.output?.ip || ctrl?.ip || defaultIp;
+                const bcast = f.output?.broadcast ?? ctrl?.broadcast ?? defaultBroadcast;
+                const priority = f.output?.priority ?? ctrl?.priority;
                 const sparse = f.output?.sparse ?? false;
                 const destKey = `${proto}|${ip}|${bcast ? 1 : 0}`;
                 let dest = destinations[destKey];
                 if (!dest) {
-                    dest = { ip, protocol: proto, broadcast: bcast, sparse: false, priority: f.output?.priority, universes: {} };
+                    dest = { ip, protocol: proto, broadcast: bcast, sparse: false, priority, universes: {} };
                     destinations[destKey] = dest;
                 }
                 dest.sparse = dest.sparse || sparse;

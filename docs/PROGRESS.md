@@ -342,6 +342,16 @@ S4 fixture library → S5 controllers + auto-patch → S6 routing spreadsheet.
   selected fixture as a template, click a template to instantiate a fixture (default placement,
   auto-linked to the current/first surface), delete. App `templates` state + `persistTemplates`
   (writes prefs on change, loaded on launch). Verified tsc+build+boot.
+- **S5 (done)**: **controllers + auto-patch**. `Controller` type (id/name/protocol/ip/broadcast/
+  priority/startUniverse) + `Fixture.controllerId`/`patchLocked`. `services/addressing.ts`
+  `autoPatch(fixtures, controllers)` packs universes/addresses sequentially per controller
+  (channelsPerPixel-aware, wraps at 512; `patchLocked` fixtures keep manual; fixtures with no
+  controller share one bucket). App holds `controllers` state (persisted in project); auto-patch runs
+  on add/remove and on ledCount/channels/controller/lock changes, plus a **Re-patch** button in the
+  Fixtures header. `Stage` resolves each fixture's destination from its controller (then per-fixture
+  `output` override, then global settings). Controllers management + per-fixture assignment UI is the
+  S6 routing spreadsheet. Verified: `autoPatch` unit test (sequential / startUniverse / locked) PASS;
+  headless controller routing PASS (output went to the controller IP, not the global setting).
 
 ## Desktop chrome (post-features)
 - **App icon** — authored `build/icon.svg` (teal "A" squircle matching the brand); `npm run gen:icon`

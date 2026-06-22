@@ -83,9 +83,12 @@ export interface Fixture {
   channelsPerPixel?: 3 | 4;
   // Phase E — per-fixture output routing ("jump from fixture to fixture").
   output?: OutputTarget;
-  // Surfaces — the surface this fixture samples (S3 enforces strict per-surface
-  // sampling; in S1 fixtures still sample the global composite).
+  // Surfaces — the surface this fixture samples (strict per-surface sampling, S3).
   surfaceId?: string;
+  // S5 — physical output device this fixture is patched to; auto-patch computes
+  // universe/startAddress unless patchLocked.
+  controllerId?: string;
+  patchLocked?: boolean;
   // Phase G — 3D physical layout (optional; derived from 2D when absent).
   position3D?: Vec3;
   rotation3D?: Euler3;   // degrees
@@ -114,6 +117,18 @@ export const defaultLayout3D = (): Layout3D => ({
 });
 
 export type OutputProtocol = 'artnet' | 'sacn';
+
+// S5 — a physical output device. Fixtures are assigned to one (controllerId) and
+// auto-patched into its universes; Stage resolves each fixture's destination here.
+export interface Controller {
+  id: string;
+  name: string;
+  protocol: OutputProtocol;
+  ip: string;
+  broadcast: boolean;
+  priority?: number;     // sACN priority
+  startUniverse?: number; // first universe this controller fills (default 0)
+}
 
 export interface OutputTarget {
   ip?: string;             // override controller IP (else global AppSettings.artNetIp)
