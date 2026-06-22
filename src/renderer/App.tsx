@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Fixture, Surface, SourceType, AppSettings, Module, DockTab, FixtureGroup, Scene } from './types';
+import { Fixture, Surface, SourceType, AppSettings, Module, DockTab, FixtureGroup, Scene, FixtureTemplate } from './types';
 import type { AppInfo } from '../../shared/protocol';
 import { TopBar } from './components/TopBar';
 import { About } from './components/About';
@@ -61,6 +61,7 @@ const App: React.FC = () => {
   const [globalBrightness, setGlobalBrightness] = useState(1.0);
   const [groups, setGroups] = useState<FixtureGroup[]>([]);
   const [scenes, setScenes] = useState<Scene[]>([]);
+  const [templates, setTemplates] = useState<FixtureTemplate[]>([]);
   const [module, setModule] = useState<Module>(Module.MAP);
   const [dockOpen, setDockOpen] = useState(false);
   const [dockTab, setDockTab] = useState<DockTab>(DockTab.MONITOR);
@@ -242,6 +243,36 @@ const App: React.FC = () => {
   };
   const handleRemoveScene = (id: string) => setScenes(scenes.filter(s => s.id !== id));
 
+  // --- Fixture library (templates persisted in userData) ---
+  const persistTemplates = (next: FixtureTemplate[]) => {
+    setTemplates(next);
+    window.artlux?.setPrefs?.({ fixtureTemplates: next });
+  };
+  const handleSaveTemplate = () => {
+    if (!selectedFixture) return;
+    const f = selectedFixture;
+    const t: FixtureTemplate = {
+      id: generateId(), name: f.name || `Template ${templates.length + 1}`,
+      ledCount: f.ledCount, shape: f.shape, matrixWidth: f.matrixWidth, matrixHeight: f.matrixHeight,
+      serpentine: f.serpentine, colorOrder: f.colorOrder, rgbwMode: f.rgbwMode, channelsPerPixel: f.channelsPerPixel,
+    };
+    persistTemplates([...templates, t]);
+  };
+  const handleAddFromTemplate = (t: FixtureTemplate) => {
+    recordHistory();
+    const id = generateId();
+    setFixtures([...fixtures, {
+      id, name: `${t.name} ${fixtures.length + 1}`,
+      x: 0.4, y: 0.4, width: 0.2, height: 0.2,
+      universe: 0, startAddress: 1, reverse: false, rotation: 0, colorData: [],
+      ledCount: t.ledCount, shape: t.shape, matrixWidth: t.matrixWidth, matrixHeight: t.matrixHeight,
+      serpentine: t.serpentine, colorOrder: t.colorOrder, rgbwMode: t.rgbwMode, channelsPerPixel: t.channelsPerPixel,
+      surfaceId: selectedSurfaceId ?? surfaces[0]?.id,
+    }]);
+    handleSelectFixture(id);
+  };
+  const handleRemoveTemplate = (id: string) => persistTemplates(templates.filter(t => t.id !== id));
+
   const defaultSurfaces = (): Surface[] => ([
     { id: generateId(), name: 'Surface 1', x: 0, y: 0, width: 1, height: 1, rotation: 0, zIndex: 0, content: { type: SourceType.NONE } },
   ]);
@@ -368,6 +399,7 @@ const App: React.FC = () => {
           if (prefs.appSettings) setSettings(s => ({ ...s, ...(prefs.appSettings as Partial<AppSettings>) }));
           if (typeof prefs.globalBrightness === 'number') setGlobalBrightness(prefs.globalBrightness);
           setRecentFiles(prefs.recentFiles ?? []);
+          if (Array.isArray(prefs.fixtureTemplates)) setTemplates(prefs.fixtureTemplates as FixtureTemplate[]);
           if (prefs.lastProjectPath) {
               const data = await window.artlux?.loadProjectPath?.(prefs.lastProjectPath);
               if (data) { applyProjectData(data); setCurrentProjectPath(prefs.lastProjectPath); }
@@ -458,6 +490,10 @@ const App: React.FC = () => {
                         onCaptureScene={handleCaptureScene}
                         onRecallScene={handleRecallScene}
                         onRemoveScene={handleRemoveScene}
+                        templates={templates}
+                        onSaveTemplate={handleSaveTemplate}
+                        onAddFromTemplate={handleAddFromTemplate}
+                        onRemoveTemplate={handleRemoveTemplate}
                     />
                 </div>
                 <div className="flex-1 min-h-0 overflow-y-auto">

@@ -141,6 +141,7 @@ export interface Prefs {
   globalBrightness?: number;
   recentFiles: string[];
   lastProjectPath?: string;
+  fixtureTemplates?: unknown[]; // saved fixture library (S4)
 }
 
 export interface OpenProjectResult {

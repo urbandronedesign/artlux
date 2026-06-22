@@ -205,3 +205,18 @@ export interface Scene {
   fixtures: Fixture[];
   globalBrightness: number;
 }
+
+// S4 — a saved, reusable fixture definition (LED structure only; no placement,
+// patch, or surface link). Persisted to userData so the library spans projects.
+export interface FixtureTemplate {
+  id: string;
+  name: string;
+  ledCount: number;
+  shape?: LedShape;
+  matrixWidth?: number;
+  matrixHeight?: number;
+  serpentine?: boolean;
+  colorOrder?: ColorOrder;
+  rgbwMode?: RGBWMode;
+  channelsPerPixel?: 3 | 4;
+}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Fixture, FixtureGroup, Scene, Surface } from '../types';
-import { Plus, Trash2, Folder, Box, Users, Camera, Play, Copy, Layers } from 'lucide-react';
+import { Fixture, FixtureGroup, Scene, Surface, FixtureTemplate } from '../types';
+import { Plus, Trash2, Folder, Box, Users, Camera, Play, Copy, Layers, Save, PackagePlus } from 'lucide-react';
 
 interface ScenePanelProps {
     surfaces: Surface[];
@@ -27,6 +27,10 @@ interface ScenePanelProps {
     onCaptureScene: () => void;
     onRecallScene: (scene: Scene) => void;
     onRemoveScene: (id: string) => void;
+    templates: FixtureTemplate[];
+    onSaveTemplate: () => void;
+    onAddFromTemplate: (t: FixtureTemplate) => void;
+    onRemoveTemplate: (id: string) => void;
 }
 
 export const ScenePanel: React.FC<ScenePanelProps> = ({
@@ -53,7 +57,11 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
     onApplyLookToGroup,
     onCaptureScene,
     onRecallScene,
-    onRemoveScene
+    onRemoveScene,
+    templates,
+    onSaveTemplate,
+    onAddFromTemplate,
+    onRemoveTemplate,
 }) => {
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editKind, setEditKind] = useState<'fixture' | 'surface'>('fixture');
@@ -197,6 +205,26 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
                 </div>
             </div>
             
+            {/* Library (fixture templates) */}
+            <div className="border-t border-line-1">
+                <div className="h-8 bg-surface-2 flex items-center px-2 justify-between border-b border-line-1">
+                    <span className="font-bold text-fg-2 uppercase tracking-wider text-[10px]">Library</span>
+                    <button onClick={onSaveTemplate} className="text-fg-2 hover:text-fg-1" title="Save selected fixture as a template"><Save size={13}/></button>
+                </div>
+                <div className="p-1 space-y-0.5 max-h-28 overflow-y-auto">
+                    {templates.map(t => (
+                        <div key={t.id} className="flex items-center group px-2 py-1 rounded hover:bg-surface-3 text-fg-2">
+                            <button className="flex-1 flex items-center text-left truncate" onClick={() => onAddFromTemplate(t)} title="Add a fixture from this template">
+                                <PackagePlus size={12} className="mr-2 text-fg-3" />
+                                {t.name} <span className="text-fg-3 ml-1">({t.ledCount})</span>
+                            </button>
+                            <button className="opacity-0 group-hover:opacity-100 hover:text-danger text-fg-3" onClick={() => onRemoveTemplate(t.id)} title="Delete template"><Trash2 size={10} /></button>
+                        </div>
+                    ))}
+                    {templates.length === 0 && <div className="text-fg-3 italic px-2 py-1">No templates</div>}
+                </div>
+            </div>
+
             {/* Groups */}
             <div className="border-t border-line-1">
                 <div className="h-8 bg-surface-2 flex items-center px-2 justify-between border-b border-line-1">

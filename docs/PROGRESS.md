@@ -337,6 +337,11 @@ S4 fixture library → S5 controllers + auto-patch → S6 routing spreadsheet.
   InspectorPanel fixture Mapping gained a **Surface** link dropdown. Verified headless: a fixture
   linked to an effect surface A with a black surface B composited ON TOP still output A's colors
   (**dmx 531, maxByte 255**) — composite-sampling would be black, proving strict isolation.
+- **S4 (done)**: **fixture library** — `FixtureTemplate` (LED definition only), persisted to userData
+  prefs (`Prefs.fixtureTemplates`) so it spans projects. `ScenePanel` **Library** section: save the
+  selected fixture as a template, click a template to instantiate a fixture (default placement,
+  auto-linked to the current/first surface), delete. App `templates` state + `persistTemplates`
+  (writes prefs on change, loaded on launch). Verified tsc+build+boot.
 
 ## Desktop chrome (post-features)
 - **App icon** — authored `build/icon.svg` (teal "A" squircle matching the brand); `npm run gen:icon`
