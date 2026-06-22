@@ -1,7 +1,7 @@
 # ArtLux → WebGPU Compute + Electron + WLED Feature Port
 
-> Architecture & implementation roadmap. This document is the source of truth for the
-> planned rewrite. Each phase is designed to leave the app runnable.
+> **HISTORICAL** — this is the original pre-Electron rewrite roadmap (all phases shipped). For the
+> current architecture see [ARCHITECTURE.md](ARCHITECTURE.md); kept for context/decisions only.
 
 ## Context
 

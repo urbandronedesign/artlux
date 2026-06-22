@@ -71,11 +71,13 @@ react-three-fiber · Rust (napi-rs) · Art-Net + sACN/E1.31
 
 ## Documentation
 
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — **how the app works today** (canonical).
+- [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) — setup, build, test, release, gotchas.
 - [docs/FEATURES.md](docs/FEATURES.md) — feature/usage guide.
 - [docs/SURFACES.md](docs/SURFACES.md) — surfaces engine design & roadmap.
-- [docs/ARCHITECTURE_PLAN.md](docs/ARCHITECTURE_PLAN.md) — engine architecture.
 - [docs/UI_REFACTOR.md](docs/UI_REFACTOR.md) — design system + UI architecture.
 - [docs/PROGRESS.md](docs/PROGRESS.md) — build log / decisions.
+- [docs/ARCHITECTURE_PLAN.md](docs/ARCHITECTURE_PLAN.md) — original pre-Electron rewrite roadmap (historical).
 - [CHANGELOG.md](CHANGELOG.md) — release notes.
 
 ## Releases
