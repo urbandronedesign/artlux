@@ -706,7 +706,7 @@ export const Stage: React.FC<StageProps> = ({
             <canvas
                 ref={canvasRef}
                 width={512} height={512}
-                className="absolute top-0 left-0 w-full h-full object-fill pointer-events-none opacity-50"
+                className="absolute top-0 left-0 w-full h-full object-fill pointer-events-none"
             />
 
             {/* Surfaces (cyan) — behind fixtures */}
