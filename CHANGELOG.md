@@ -1,5 +1,36 @@
 # Changelog
 
+## v0.3.0
+
+Workspace rework, content-aware surfaces, and an Art-Net output fix.
+
+### Workspace UI
+- **Three-region layout**: left outliners + sliders, center stage + dock, **right Inspector/properties**
+  panel (toggle from the status bar). Left-panel sections are **independently collapsible**, and
+  **Surfaces / Fixtures grow** to fill the panel.
+- **Dock fixture workspace**: the Fixture Editor tab now also holds fixture **Create** (add / auto-patch)
+  and the **Library**, and the dock opens there by default.
+- **Multi-select fixtures** for grouping — click / ctrl·cmd-toggle / shift-range in the outliner and on
+  the stage; "Master Layer" or **Ctrl·Cmd+A** selects all. Group create / add-to-group act on the whole
+  selection.
+- **Smooth sliders**: dragging commits React state only on release; master brightness drives a
+  render-free live preview, so sliders no longer stutter.
+
+### Canvas & surfaces
+- **Square (1:1) UV canvas** with a **mid-grey backdrop** and a **configurable layout grid**
+  (toggle + divisions); surfaces and fixtures **snap to the grid** when snapping is on.
+- **Surfaces keep their content's aspect ratio** — a surface fits its media's aspect on load, and the
+  corner handle **scales uniformly** (no distortion). Move / scale / rotate every surface in the square.
+- **Move surfaces by mouse**: fixed a layering bug where the fixtures layer swallowed all clicks.
+
+### Fixes
+- **Camera / live input**: the main process now grants the `media` permission, so Camera surfaces work
+  (`getUserMedia` was silently denied).
+- **Art-Net dropped-packets warning**: the sequence number is now **per universe** (was a single global
+  counter, which monitors read as missing packets) — in both the native engine and the TS fallback.
+- **Preview fidelity**: surface preview renders at full opacity; the DMX Monitor folds the RGBW white
+  channel back into RGB so whites display. (Output was always correct — these were preview-only.)
+
 ## v0.2.1
 
 - **macOS dmg fix**: the app is now **ad-hoc signed** during packaging (`afterPack` hook), so it runs

@@ -99,6 +99,14 @@ panels toggle from the `StatusBar` (`PanelLeft` / `PanelRight`); widths `w-72` (
   follow the drag live with zero React renders; state commits once on release. All range sliders
   (Master Brightness, surface + fixture effect Speed/Intensity, Gamma) route through `Slider`; the
   non-brightness ones update their value on release (no cheap imperative path).
+- **Square UV canvas + layout grid** (`Stage.tsx`): the composition is square (`contentAspect = 1`,
+  512² buffer 1:1) on a mid-grey (`#404040`) backdrop. A toggleable grid with a divisions field is drawn
+  in the square's normalized space; with snapping on, surfaces (move + uniform corner-scale) and
+  fixtures (move) snap to grid lines. Surfaces **auto-fit their content's aspect** on load
+  (`surfaceMedia.getContentAspect`, applied once per source in the rAF loop) and corner-resize scales
+  uniformly so media never distorts. The fixtures/surfaces layers use `pointer-events-none` containers +
+  `pointer-events-auto` items so empty areas fall through and overlaps resolve by z-order (fixes
+  surfaces being unclickable under the full-size fixtures layer).
 
 ## Verification per phase
 `npx tsc --noEmit` (clean) → `npm run build` → `env -u ELECTRON_RUN_AS_NODE ELECTRON_ENABLE_LOGGING=1
