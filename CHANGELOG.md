@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.2.1
+
+- **macOS dmg fix**: the app is now **ad-hoc signed** during packaging (`afterPack` hook), so it runs
+  on Apple Silicon instead of failing with *"ArtLux is damaged and can't be opened."* It is still not
+  notarized (no Apple Developer account), so first launch needs a one-time Gatekeeper bypass:
+  **right-click → Open → "Open Anyway"**, or `xattr -dr com.apple.quarantine "/Applications/ArtLux.app"`.
+  (Builds are arm64 / Apple Silicon.)
+
 ## v0.2.0
 
 The **Surfaces** release — a MadMapper-class content/mapping/routing model, plus app polish.

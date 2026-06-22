@@ -82,3 +82,15 @@ react-three-fiber · Rust (napi-rs) · Art-Net + sACN/E1.31
 
 Pushing a `v*` tag triggers a GitHub Actions matrix build that produces per-OS installers and
 publishes a Release.
+
+### macOS install note
+
+ArtLux is **ad-hoc signed but not notarized** (no Apple Developer account), so macOS Gatekeeper
+flags the downloaded app. After dragging **ArtLux** to Applications, open it once via **right-click →
+Open → "Open Anyway"**, or run:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/ArtLux.app"
+```
+
+This is a one-time step per install. (Builds are Apple Silicon / arm64.)
