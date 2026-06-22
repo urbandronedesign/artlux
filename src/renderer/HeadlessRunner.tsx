@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Fixture, AppSettings, SourceType } from './types';
+import { Fixture, Surface, AppSettings } from './types';
 import { Stage } from './components/Stage';
 import { dmxSignal } from './services/dmxSignal';
 import { sendArtNetFrame, configureOutput } from './services/mockSocketService';
@@ -22,6 +22,7 @@ const DEFAULTS: AppSettings = {
 
 export const HeadlessRunner: React.FC<{ projectPath: string | null }> = ({ projectPath }) => {
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
+  const [surfaces, setSurfaces] = useState<Surface[]>([]);
   const [settings, setSettings] = useState<AppSettings>(DEFAULTS);
   const [brightness, setBrightness] = useState(1);
   const [loaded, setLoaded] = useState(false);
@@ -31,6 +32,7 @@ export const HeadlessRunner: React.FC<{ projectPath: string | null }> = ({ proje
     (async () => {
       let s = DEFAULTS;
       let fx: Fixture[] = [];
+      let surf: Surface[] = [];
       let gb = 1;
       const prefs = await window.artlux?.getPrefs?.();
       const path = projectPath || prefs?.lastProjectPath;
@@ -38,15 +40,17 @@ export const HeadlessRunner: React.FC<{ projectPath: string | null }> = ({ proje
         const data = await window.artlux?.loadProjectPath?.(path);
         if (data) {
           if (Array.isArray(data.fixtures)) fx = (data.fixtures as Fixture[]).map((f) => ({ ...f, colorData: [] }));
+          if (Array.isArray((data as any).surfaces)) surf = (data as any).surfaces as Surface[];
           if (data.settings) s = { ...DEFAULTS, ...(data.settings as Partial<AppSettings>) };
           if (typeof data.globalBrightness === 'number') gb = data.globalBrightness;
         }
       }
       setFixtures(fx);
+      setSurfaces(surf);
       setSettings(s);
       setBrightness(gb);
       setLoaded(true);
-      console.log(`[headless] loaded ${fx.length} fixtures from ${path ?? '(no project)'}`);
+      console.log(`[headless] loaded ${fx.length} fixtures, ${surf.length} surfaces from ${path ?? '(no project)'}`);
     })();
   }, [projectPath]);
 
@@ -78,8 +82,7 @@ export const HeadlessRunner: React.FC<{ projectPath: string | null }> = ({ proje
   return (
     <div style={{ position: 'fixed', width: 1, height: 1, overflow: 'hidden', opacity: 0, pointerEvents: 'none' }}>
       <Stage
-        sourceType={SourceType.NONE}
-        sourceUrl={null}
+        surfaces={surfaces}
         fixtures={fixtures}
         onUpdateFixtures={setFixtures}
         selectedFixtureId={null}

@@ -1,8 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Fixture, FixtureGroup, Scene } from '../types';
-import { Plus, Trash2, Folder, Box, Users, Camera, Play, Copy } from 'lucide-react';
+import { Fixture, FixtureGroup, Scene, Surface } from '../types';
+import { Plus, Trash2, Folder, Box, Users, Camera, Play, Copy, Layers } from 'lucide-react';
 
 interface ScenePanelProps {
+    surfaces: Surface[];
+    selectedSurfaceId: string | null;
+    onSelectSurface: (id: string) => void;
+    onAddSurface: () => void;
+    onRemoveSurface: (id: string) => void;
+    onRenameSurface: (id: string, newName: string) => void;
     fixtures: Fixture[];
     selectedFixtureId: string | null;
     onSelect: (id: string) => void;
@@ -24,6 +30,12 @@ interface ScenePanelProps {
 }
 
 export const ScenePanel: React.FC<ScenePanelProps> = ({
+    surfaces,
+    selectedSurfaceId,
+    onSelectSurface,
+    onAddSurface,
+    onRemoveSurface,
+    onRenameSurface,
     fixtures,
     selectedFixtureId,
     onSelect,
@@ -44,6 +56,7 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
     onRemoveScene
 }) => {
     const [editingId, setEditingId] = useState<string | null>(null);
+    const [editKind, setEditKind] = useState<'fixture' | 'surface'>('fixture');
     const [editName, setEditName] = useState('');
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -54,14 +67,16 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
         }
     }, [editingId]);
 
-    const startEditing = (f: Fixture) => {
-        setEditingId(f.id);
-        setEditName(f.name);
+    const startEditing = (id: string, name: string, kind: 'fixture' | 'surface') => {
+        setEditingId(id);
+        setEditKind(kind);
+        setEditName(name);
     };
 
     const commitEditing = () => {
         if (editingId && editName.trim()) {
-            onRename(editingId, editName.trim());
+            if (editKind === 'surface') onRenameSurface(editingId, editName.trim());
+            else onRename(editingId, editName.trim());
         }
         setEditingId(null);
     };
@@ -73,9 +88,53 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
 
     return (
         <div className="flex flex-col h-full bg-surface-1 border-l border-line-1 text-xs">
+            {/* Surfaces */}
+            <div className="border-b border-line-1">
+                <div className="h-8 bg-surface-2 flex items-center px-2 justify-between border-b border-line-1">
+                    <span className="font-bold text-fg-2 uppercase tracking-wider text-[10px]">Surfaces</span>
+                    <button onClick={onAddSurface} className="text-fg-2 hover:text-fg-1" title="Add Surface"><Plus size={14}/></button>
+                </div>
+                <div className="p-1 space-y-0.5 max-h-40 overflow-y-auto">
+                    {surfaces.map(s => {
+                        const sel = s.id === selectedSurfaceId;
+                        return (
+                            <div
+                                key={s.id}
+                                onClick={() => onSelectSurface(s.id)}
+                                onDoubleClick={() => startEditing(s.id, s.name, 'surface')}
+                                className={`flex items-center group px-2 py-1.5 rounded cursor-pointer transition-colors ${sel ? 'bg-sel-surface/20 text-fg-1' : 'text-fg-2 hover:bg-surface-3'}`}
+                            >
+                                <Layers size={12} className={`mr-2 ${sel ? 'text-sel-surface' : 'text-fg-3'}`} />
+                                {editingId === s.id ? (
+                                    <input
+                                        ref={inputRef}
+                                        type="text"
+                                        value={editName}
+                                        onChange={(e) => setEditName(e.target.value)}
+                                        onBlur={commitEditing}
+                                        onKeyDown={handleKeyDown}
+                                        className="flex-1 bg-black text-white border border-sel-surface text-xs px-1 py-0.5 rounded outline-none min-w-0"
+                                        onClick={(e) => e.stopPropagation()}
+                                    />
+                                ) : (
+                                    <span className="flex-1 truncate select-none" title="Double-click to rename">{s.name}</span>
+                                )}
+                                <span className="num text-[9px] text-fg-3 mr-1 uppercase">{s.content.type === 'NONE' ? '—' : s.content.type}</span>
+                                <button
+                                    className="opacity-0 group-hover:opacity-100 p-0.5 hover:text-danger text-fg-3"
+                                    onClick={(e) => { e.stopPropagation(); onRemoveSurface(s.id); }}
+                                    title="Remove Surface"
+                                ><Trash2 size={10} /></button>
+                            </div>
+                        );
+                    })}
+                    {surfaces.length === 0 && <div className="text-fg-3 italic px-2 py-1">No surfaces</div>}
+                </div>
+            </div>
+
             {/* Header */}
             <div className="h-8 bg-surface-2 flex items-center px-2 justify-between border-b border-line-1">
-                <span className="font-bold text-fg-2 uppercase tracking-wider text-[10px]">Scene Graph</span>
+                <span className="font-bold text-fg-2 uppercase tracking-wider text-[10px]">Fixtures</span>
                 <div className="flex gap-1">
                      <button onClick={onAdd} className="text-fg-2 hover:text-fg-1" title="Add Fixture"><Plus size={14}/></button>
                 </div>
@@ -96,7 +155,7 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
                                 <div 
                                     key={f.id}
                                     onClick={() => onSelect(f.id)}
-                                    onDoubleClick={() => startEditing(f)}
+                                    onDoubleClick={() => startEditing(f.id, f.name, 'fixture')}
                                     className={`flex items-center group px-2 py-1.5 rounded cursor-pointer transition-colors ${isSelected ? 'bg-accent/20 text-white' : 'text-fg-2 hover:bg-surface-3'}`}
                                 >
                                     <Box size={12} className={`mr-2 ${isSelected ? 'text-accent' : 'text-fg-3'}`} />

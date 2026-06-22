@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Fixture, SourceType, AppSettings, Module, DockTab, FixtureGroup, Scene } from './types';
+import { Fixture, Surface, SourceType, AppSettings, Module, DockTab, FixtureGroup, Scene } from './types';
 import type { AppInfo } from '../../shared/protocol';
 import { TopBar } from './components/TopBar';
 import { About } from './components/About';
@@ -13,8 +13,6 @@ import { Preferences } from './components/Preferences';
 import { StatusBar } from './components/StatusBar';
 import { sendArtNetFrame, configureOutput, addStatusListener } from './services/mockSocketService';
 import { dmxSignal } from './services/dmxSignal';
-import { startInput, stopInput } from './services/dmxInput';
-import { startSpout, stopSpout } from './services/spoutReceiver';
 import { Activity, SlidersHorizontal } from 'lucide-react';
 import { useHistory } from './hooks/useHistory';
 
@@ -54,8 +52,10 @@ const App: React.FC = () => {
   ]);
   
   const [selectedFixtureId, setSelectedFixtureId] = useState<string | null>('fix-1');
-  const [sourceType, setSourceType] = useState<SourceType>(SourceType.NONE);
-  const [sourceUrl, setSourceUrl] = useState<string | null>(null);
+  const [surfaces, setSurfaces] = useState<Surface[]>([
+    { id: 'surf-1', name: 'Surface 1', x: 0, y: 0, width: 1, height: 1, rotation: 0, zIndex: 0, content: { type: SourceType.NONE } },
+  ]);
+  const [selectedSurfaceId, setSelectedSurfaceId] = useState<string | null>(null);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [isVideoPlaying, setIsVideoPlaying] = useState(true);
   const [globalBrightness, setGlobalBrightness] = useState(1.0);
@@ -94,23 +94,8 @@ const App: React.FC = () => {
     configureOutput(settings);
   }, [settings.outputEnabled, settings.broadcast, settings.artNetIp, settings.artNetPort, settings.fps, settings.keepAlive, settings.artNetSync]);
 
-  // Enable Art-Net/sACN input capture only while DMX-in is the active source.
-  useEffect(() => {
-    if (sourceType === SourceType.DMX_IN) {
-      window.artlux?.configureInput({ enabled: true, protocol: 'both', universes: [0, 1, 2, 3, 4, 5, 6, 7] });
-      startInput();
-    } else {
-      window.artlux?.configureInput({ enabled: false, protocol: 'both', universes: [] });
-      stopInput();
-    }
-  }, [sourceType]);
-
-  // Spout capture only while Spout is the active source (sourceUrl carries the
-  // selected sender name; empty = active sender).
-  useEffect(() => {
-    if (sourceType === SourceType.SPOUT) startSpout(sourceUrl ?? '');
-    else stopSpout();
-  }, [sourceType, sourceUrl]);
+  // (Live input lifecycle — camera/Spout/DMX-in — is owned by services/surfaceMedia,
+  // driven by surface content in the Stage.)
 
   // Subscribe to DMX Signal for ArtNet Output (per-fixture routing).
   useEffect(() => {
@@ -160,6 +145,28 @@ const App: React.FC = () => {
     return () => cancelAnimationFrame(animationFrameId);
   }, []);
 
+  // --- Surfaces ---
+  const handleSelectSurface = (id: string | null) => { setSelectedSurfaceId(id); if (id) setSelectedFixtureId(null); };
+  const handleSelectFixture = (id: string | null) => { setSelectedFixtureId(id); if (id) setSelectedSurfaceId(null); };
+  const handleAddSurface = () => {
+    const id = generateId();
+    const z = surfaces.reduce((m, s) => Math.max(m, s.zIndex), -1) + 1;
+    setSurfaces([...surfaces, {
+      id, name: `Surface ${surfaces.length + 1}`,
+      x: 0.25, y: 0.25, width: 0.5, height: 0.5, rotation: 0, zIndex: z,
+      content: { type: SourceType.NONE },
+    }]);
+    handleSelectSurface(id);
+  };
+  const handleRemoveSurface = (id: string) => {
+    setSurfaces(surfaces.filter(s => s.id !== id));
+    if (selectedSurfaceId === id) setSelectedSurfaceId(null);
+  };
+  const handleUpdateSurface = (id: string, patch: Partial<Surface>) => {
+    setSurfaces(surfaces.map(s => s.id === id ? { ...s, ...patch } : s));
+  };
+  const handleRenameSurface = (id: string, name: string) => handleUpdateSurface(id, { name });
+
   const handleAddFixture = () => {
     recordHistory();
     const newId = generateId();
@@ -173,7 +180,7 @@ const App: React.FC = () => {
         colorData: []
       }
     ]);
-    setSelectedFixtureId(newId);
+    handleSelectFixture(newId);
   };
 
   const handleRemoveFixture = (id: string) => {
@@ -234,9 +241,14 @@ const App: React.FC = () => {
   };
   const handleRemoveScene = (id: string) => setScenes(scenes.filter(s => s.id !== id));
 
+  const defaultSurfaces = (): Surface[] => ([
+    { id: generateId(), name: 'Surface 1', x: 0, y: 0, width: 1, height: 1, rotation: 0, zIndex: 0, content: { type: SourceType.NONE } },
+  ]);
+
   const buildProjectData = () => ({
       version: '1.0',
       timestamp: new Date().toISOString(),
+      surfaces,
       fixtures,
       settings,
       globalBrightness,
@@ -250,11 +262,15 @@ const App: React.FC = () => {
           recordHistory();
           setFixtures(data.fixtures.map((f: any) => ({ ...f, colorData: [] })));
       }
+      // Surfaces: use the saved ones, or fall back to a default full-stage surface
+      // (back-compat with pre-surfaces projects).
+      setSurfaces(Array.isArray(data?.surfaces) && data.surfaces.length ? data.surfaces : defaultSurfaces());
       if (data?.settings) setSettings(prev => ({ ...prev, ...data.settings }));
       if (typeof data?.globalBrightness === 'number') setGlobalBrightness(data.globalBrightness);
       setGroups(Array.isArray(data?.groups) ? data.groups : []);
       setScenes(Array.isArray(data?.scenes) ? data.scenes : []);
       setSelectedFixtureId(null);
+      setSelectedSurfaceId(null);
   };
 
   const refreshRecents = async () => {
@@ -304,9 +320,11 @@ const App: React.FC = () => {
           x: 0.15, y: 0.15, width: 0.7, height: 0.1,
           universe: 0, startAddress: 1, ledCount: 60, reverse: false, rotation: 0, colorData: [],
       }]);
+      setSurfaces(defaultSurfaces());
       setGroups([]);
       setScenes([]);
       setSelectedFixtureId(null);
+      setSelectedSurfaceId(null);
       setCurrentProjectPath(null);
   };
 
@@ -364,6 +382,7 @@ const App: React.FC = () => {
   const updateSettings = (patch: Partial<AppSettings>) => setSettings(s => ({ ...s, ...patch }));
 
   const selectedFixture = fixtures.find(f => f.id === selectedFixtureId) || null;
+  const selectedSurface = surfaces.find(s => s.id === selectedSurfaceId) || null;
 
   const moduleHelp: Record<Module, string> = {
     [Module.MEDIA]: 'Media — choose a content source (video, image, camera, or DMX in).',
@@ -382,7 +401,7 @@ const App: React.FC = () => {
       <TopBar
           isVideoPlaying={isVideoPlaying}
           onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)}
-          canPlay={sourceType === SourceType.VIDEO || sourceType === SourceType.CAMERA}
+          canPlay={surfaces.some(s => s.content.type === SourceType.VIDEO || s.content.type === SourceType.CAMERA)}
           module={module}
           onChangeModule={setModule}
           onSaveProject={handleSaveProject}
@@ -410,9 +429,15 @@ const App: React.FC = () => {
             <div className="w-72 h-full flex flex-col min-h-0">
                 <div className="h-[45%] min-h-0 overflow-y-auto border-b border-line-1">
                     <ScenePanel
+                        surfaces={surfaces}
+                        selectedSurfaceId={selectedSurfaceId}
+                        onSelectSurface={handleSelectSurface}
+                        onAddSurface={handleAddSurface}
+                        onRemoveSurface={handleRemoveSurface}
+                        onRenameSurface={handleRenameSurface}
                         fixtures={fixtures}
                         selectedFixtureId={selectedFixtureId}
-                        onSelect={setSelectedFixtureId}
+                        onSelect={handleSelectFixture}
                         onAdd={handleAddFixture}
                         onRemove={handleRemoveFixture}
                         onRename={handleRenameFixture}
@@ -433,8 +458,8 @@ const App: React.FC = () => {
                 <div className="flex-1 min-h-0 overflow-y-auto">
                     <InspectorPanel
                         module={module}
-                        sourceType={sourceType}
-                        onSetSource={(type, url) => { setSourceType(type); setSourceUrl(url); setIsVideoPlaying(true); }}
+                        selectedSurface={selectedSurface}
+                        onUpdateSurface={handleUpdateSurface}
                         selectedFixture={selectedFixture}
                         onUpdateFixture={handleUpdateFixture}
                         settings={settings}
@@ -449,12 +474,11 @@ const App: React.FC = () => {
                 {/* 2D stage (Media/Map/Fixtures) — kept mounted so dmxSignal keeps flowing */}
                 <div className={`absolute inset-0 ${module === Module.THREE_D ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
                     <Stage
-                        sourceType={sourceType}
-                        sourceUrl={sourceUrl}
+                        surfaces={surfaces}
                         fixtures={fixtures}
                         onUpdateFixtures={setFixtures}
                         selectedFixtureId={selectedFixtureId}
-                        onSelectFixture={setSelectedFixtureId}
+                        onSelectFixture={handleSelectFixture}
                         isEngineRunning={true}
                         isVideoPlaying={isVideoPlaying}
                         globalBrightness={globalBrightness}

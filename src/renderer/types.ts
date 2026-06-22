@@ -83,6 +83,9 @@ export interface Fixture {
   channelsPerPixel?: 3 | 4;
   // Phase E — per-fixture output routing ("jump from fixture to fixture").
   output?: OutputTarget;
+  // Surfaces — the surface this fixture samples (S3 enforces strict per-surface
+  // sampling; in S1 fixtures still sample the global composite).
+  surfaceId?: string;
   // Phase G — 3D physical layout (optional; derived from 2D when absent).
   position3D?: Vec3;
   rotation3D?: Euler3;   // degrees
@@ -127,6 +130,33 @@ export enum SourceType {
   DMX_IN = 'DMX_IN',
   SPOUT = 'SPOUT',
   NONE = 'NONE'
+}
+
+// A Surface is a rectangular region on the stage carrying one content source.
+// Fixtures sample surfaces (see Fixture.surfaceId). EFFECT content is rendered
+// in S2; for now it shows nothing.
+export interface SurfaceContent {
+  type: SourceType | 'EFFECT';
+  url?: string;        // VIDEO / IMAGE object URL or file path
+  spoutName?: string;  // SPOUT sender name (empty = active sender)
+  // EFFECT params (S2):
+  effectId?: number;
+  paletteId?: number;
+  speed?: number;
+  intensity?: number;
+}
+
+export interface Surface {
+  id: string;
+  name: string;
+  // Normalized rect on the global stage canvas (0..1).
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;  // degrees
+  zIndex: number;    // composite order (higher = on top)
+  content: SurfaceContent;
 }
 
 export interface AppSettings {

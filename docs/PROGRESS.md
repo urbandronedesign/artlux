@@ -299,6 +299,22 @@ Plan: Persistence (F1) → Art-Net Poll (F2) → Art-Net Sync (F2b) → Headless
 
 **New-features roadmap F1–F4 complete.**
 
+## Surfaces engine (S-series, in progress)
+Plan: S1 Surfaces+compositing → S2 effect surfaces → S3 strict per-surface sampling + linking →
+S4 fixture library → S5 controllers + auto-patch → S6 routing spreadsheet.
+- **S1a (done)**: `Surface`/`SurfaceContent` types + `Fixture.surfaceId`. App owns `surfaces[]` +
+  `selectedSurfaceId` (selecting a surface clears the fixture selection and vice-versa); CRUD;
+  surfaces persist in the project (`buildProjectData`/`applyProjectData`, default full-stage surface
+  for back-compat). Content moved off the single global source onto **per-surface content** via new
+  `services/surfaceMedia.ts` (manages a `<video>`/`<img>` per VIDEO/IMAGE surface + a single live
+  camera/Spout/DMX-in; `getDrawable(surface)` each frame). `Stage` now **composites** every surface's
+  content into the 512² canvas in z-order (fixtures still sample the composite — strict per-surface
+  sampling is S3); stage aspect fixed at 16:9 (composition canvas). `ScenePanel` gained a **Surfaces**
+  tree (add/select/rename/remove, content-type badge); `InspectorPanel` shows **Content** (type +
+  Spout sender + effect params placeholder) + **Transform** when a surface is selected (the old global
+  Input-Source section is gone). HeadlessRunner loads project surfaces. Verified tsc+build+launch.
+  Next: **S1b** on-canvas cyan surface rectangles (select/move/resize).
+
 ## Desktop chrome (post-features)
 - **App icon** — authored `build/icon.svg` (teal "A" squircle matching the brand); `npm run gen:icon`
   (`scripts/gen-icon.cjs`, `@resvg/resvg-js` + `png-to-ico`) rasterizes `build/icon.{png,ico}` +

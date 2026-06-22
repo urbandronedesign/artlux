@@ -1,16 +1,14 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
-import { Fixture, SourceType, RGBW, ColorOrder } from '../types';
-import { Maximize, RotateCw, Move, AlertCircle, Magnet, Grid3X3, ZoomIn } from 'lucide-react';
+import { Fixture, Surface, ColorOrder } from '../types';
+import { AlertCircle, Magnet, Grid3X3, ZoomIn } from 'lucide-react';
 import { GPUMapper } from '../services/GPUMapper';
 import { WebGPUMapper } from '../gpu/WebGPUMapper';
 import { IPixelMapper } from '../services/PixelMapper';
 import { dmxSignal } from '../services/dmxSignal';
-import { getInputCanvas } from '../services/dmxInput';
-import { getSpoutCanvas, getSpoutAspect } from '../services/spoutReceiver';
+import * as surfaceMedia from '../services/surfaceMedia';
 
 interface StageProps {
-  sourceType: SourceType;
-  sourceUrl: string | null;
+  surfaces: Surface[];
   fixtures: Fixture[];
   onUpdateFixtures: (fixtures: Fixture[]) => void;
   selectedFixtureId: string | null;
@@ -36,8 +34,7 @@ const COLOR_ORDER: Record<ColorOrder, [number, number, number]> = {
 };
 
 export const Stage: React.FC<StageProps> = ({
-  sourceType,
-  sourceUrl,
+  surfaces,
   fixtures,
   onUpdateFixtures,
   selectedFixtureId,
@@ -53,14 +50,17 @@ export const Stage: React.FC<StageProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const imgRef = useRef<HTMLImageElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>(0);
-  
+
   const fixtureRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const fixturesRef = useRef(fixtures);
   useEffect(() => { fixturesRef.current = fixtures; }, [fixtures]);
+
+  // Surfaces composited each frame; the media service owns element lifecycle.
+  const surfacesRef = useRef(surfaces);
+  useEffect(() => { surfacesRef.current = surfaces; }, [surfaces]);
+  useEffect(() => { surfaceMedia.syncSurfaces(surfaces, isVideoPlaying); }, [surfaces, isVideoPlaying]);
 
   const mapper = useRef<IPixelMapper | null>(null);
   const [webglError, setWebglError] = useState(false);
@@ -88,18 +88,10 @@ export const Stage: React.FC<StageProps> = ({
   const viewStateRef = useRef(viewState);
   useEffect(() => { viewStateRef.current = viewState; }, [viewState]);
 
-  // The stage proportions follow the active source's aspect (w/h). The 512² canvas
-  // backing buffer is unchanged — the source is drawn stretched-to-fill it and the
-  // canvas is displayed with object-fill, so normalized LED sampling is unaffected.
-  const [contentAspect, setContentAspect] = useState(16 / 9);
-  const contentAspectRef = useRef(contentAspect);
-  const applyAspect = (a: number | null) => {
-    if (!a || !isFinite(a) || a <= 0) return;
-    if (Math.abs(a - contentAspectRef.current) > 0.005) {
-      contentAspectRef.current = a;
-      setContentAspect(a);
-    }
-  };
+  // The stage is the composition canvas; surfaces are placed within it. Fixed
+  // 16:9 for now (project canvas aspect could become a setting later). The 512²
+  // backing buffer is displayed object-fill so normalized LED sampling is unaffected.
+  const contentAspect = 16 / 9;
 
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [showGrid, setShowGrid] = useState(true);
@@ -188,134 +180,35 @@ export const Stage: React.FC<StageProps> = ({
     }
   }, [globalBrightness]);
 
-  useEffect(() => {
-      const videoEl = videoRef.current;
-      if (!videoEl) return;
-
-      const setupMedia = async () => {
-          if (videoEl.srcObject) {
-              const stream = videoEl.srcObject as MediaStream;
-              stream.getTracks().forEach(track => track.stop());
-              videoEl.srcObject = null;
-          }
-          
-          if (sourceType === SourceType.CAMERA) {
-              try {
-                  videoEl.removeAttribute('src');
-                  videoEl.load(); 
-                  const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                  if (videoRef.current === videoEl && sourceType === SourceType.CAMERA) {
-                       videoEl.srcObject = stream;
-                       await videoEl.play();
-                  } else {
-                      stream.getTracks().forEach(t => t.stop());
-                  }
-              } catch (err) {
-                  console.error("Error accessing camera:", err);
-              }
-          } else if (sourceType === SourceType.VIDEO) {
-               videoEl.load();
-               if (isVideoPlaying) {
-                   try {
-                       await videoEl.play();
-                   } catch(e) {
-                       console.warn("Video play failed:", e);
-                   }
-               }
-          }
-      };
-
-      setupMedia();
-
-      return () => {
-          if (videoEl.srcObject) {
-              const stream = videoEl.srcObject as MediaStream;
-              stream.getTracks().forEach(track => track.stop());
-              videoEl.srcObject = null;
-          }
-          videoEl.pause();
-      };
-  }, [sourceType, sourceUrl]); 
-
-  useEffect(() => {
-    const videoEl = videoRef.current;
-    if (videoEl && (sourceType === SourceType.VIDEO || sourceType === SourceType.CAMERA)) {
-        if (isVideoPlaying) {
-            videoEl.play().catch(() => {});
-        } else {
-            videoEl.pause();
-        }
-    }
-  }, [isVideoPlaying, sourceType]);
-
   const tick = useCallback(() => {
     if (!containerRef.current || !mapper.current) {
       requestRef.current = requestAnimationFrame(tick);
       return;
     }
 
-    let sourceElement: HTMLVideoElement | HTMLImageElement | null = null;
-    if (sourceType === SourceType.VIDEO || sourceType === SourceType.CAMERA) {
-      sourceElement = videoRef.current;
-    } else if (sourceType === SourceType.IMAGE) {
-      sourceElement = imgRef.current;
-    }
-
-    // Stage proportions follow the source aspect; sources fill the square canvas
-    // (normalized sampling makes this output-equivalent to letterboxing).
-    if (sourceType === SourceType.DMX_IN || sourceType === SourceType.NONE) {
-        applyAspect(16 / 9); // no meaningful media aspect → neutral landscape
-    }
-
-    // DMX input as a content source: draw the assembled input texture.
-    if (sourceType === SourceType.DMX_IN && canvasRef.current) {
-        const ctx = canvasRef.current.getContext('2d');
-        const inCanvas = getInputCanvas();
-        if (ctx && inCanvas) {
-            ctx.imageSmoothingEnabled = false;
-            ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-            ctx.drawImage(inCanvas, 0, 0, canvasRef.current.width, canvasRef.current.height);
-        }
-    }
-
-    // Spout input as a content source: draw the received texture (already 512²).
-    if (sourceType === SourceType.SPOUT && canvasRef.current) {
-        applyAspect(getSpoutAspect());
-        const ctx = canvasRef.current.getContext('2d');
-        const inCanvas = getSpoutCanvas();
-        if (ctx && inCanvas) {
-            ctx.imageSmoothingEnabled = true;
-            ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-            ctx.drawImage(inCanvas, 0, 0, canvasRef.current.width, canvasRef.current.height);
-        }
-    }
-
+    // Composite every surface's content into the 512² canvas (z-order). Fixtures
+    // sample this composite (S1); strict per-surface sampling arrives in S3.
     if (canvasRef.current) {
         const ctx = canvasRef.current.getContext('2d');
-        if (ctx && sourceElement) {
+        if (ctx) {
             const cw = canvasRef.current.width;
             const ch = canvasRef.current.height;
-
-            let ready = true;
-            if (sourceElement instanceof HTMLVideoElement && sourceElement.readyState < 2) ready = false;
-            if (sourceElement instanceof HTMLImageElement && !sourceElement.complete) ready = false;
-
-            if (ready) {
-                 let sw = 0, sh = 0;
-                 if (sourceElement instanceof HTMLVideoElement) {
-                     sw = sourceElement.videoWidth;
-                     sh = sourceElement.videoHeight;
-                 } else {
-                     sw = sourceElement.naturalWidth || sourceElement.width;
-                     sh = sourceElement.naturalHeight || sourceElement.height;
-                 }
-
-                 if (sw > 0 && sh > 0) {
-                     applyAspect(sw / sh);
-                     // Fill the square canvas (stretched); the stage container carries
-                     // the real aspect, so the displayed preview is un-stretched.
-                     ctx.drawImage(sourceElement, 0, 0, cw, ch);
-                 }
+            ctx.imageSmoothingEnabled = true;
+            ctx.clearRect(0, 0, cw, ch);
+            const ordered = [...surfacesRef.current].sort((a, b) => a.zIndex - b.zIndex);
+            for (const s of ordered) {
+                const d = surfaceMedia.getDrawable(s);
+                if (!d) continue;
+                const x = s.x * cw, y = s.y * ch, w = s.width * cw, h = s.height * ch;
+                if (s.rotation) {
+                    ctx.save();
+                    ctx.translate(x + w / 2, y + h / 2);
+                    ctx.rotate((s.rotation * Math.PI) / 180);
+                    ctx.drawImage(d, -w / 2, -h / 2, w, h);
+                    ctx.restore();
+                } else {
+                    ctx.drawImage(d, x, y, w, h);
+                }
             }
         }
     }
@@ -402,7 +295,7 @@ export const Stage: React.FC<StageProps> = ({
     }
     
     requestRef.current = requestAnimationFrame(tick);
-  }, [sourceType, isEngineRunning]);
+  }, [isEngineRunning]);
 
   useEffect(() => {
     requestRef.current = requestAnimationFrame(tick);
@@ -739,20 +632,6 @@ export const Stage: React.FC<StageProps> = ({
                 <p className="opacity-50 mt-1">Check browser hardware acceleration settings</p>
             </div>
             )}
-
-            <video 
-                ref={videoRef} 
-                src={sourceType === SourceType.VIDEO ? sourceUrl || undefined : undefined} 
-                loop muted playsInline 
-                crossOrigin="anonymous"
-                style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' }}
-            />
-            <img 
-                ref={imgRef} 
-                src={sourceType === SourceType.IMAGE ? sourceUrl || undefined : undefined} 
-                crossOrigin="anonymous" alt="source"
-                style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' }}
-            />
 
             <canvas
                 ref={canvasRef}

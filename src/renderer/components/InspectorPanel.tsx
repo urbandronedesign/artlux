@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
-import { Fixture, SourceType, AppSettings, RGBW, PixelSource, LedShape, ColorOrder, RGBWMode, Layout3DType, Module } from '../types';
-import { Monitor, Image as ImageIcon, Video, Map, ChevronDown, Sparkles, Grid3x3, Network, Box, Cast, RefreshCw } from 'lucide-react';
+import { Fixture, Surface, SurfaceContent, SourceType, AppSettings, PixelSource, LedShape, ColorOrder, RGBWMode, Layout3DType, Module } from '../types';
+import { Monitor, Image as ImageIcon, Video, Map, ChevronDown, Sparkles, Grid3x3, Network, Box, Cast, RefreshCw, Layers, Slash } from 'lucide-react';
 import { EFFECT_NAMES } from '../gpu/effects';
 import { PALETTE_NAMES } from '../gpu/palettes';
 import { effectivePosObj, effectiveRotObj, effectiveLayout } from '../services/led3dDefaults';
 import { listSpoutSenders } from '../services/spoutReceiver';
 
 interface InspectorPanelProps {
-    sourceType: SourceType;
-    onSetSource: (type: SourceType, url: string | null) => void;
+    selectedSurface: Surface | null;
+    onUpdateSurface: (id: string, updates: Partial<Surface>) => void;
     selectedFixture: Fixture | null;
     onUpdateFixture: (id: string, updates: Partial<Fixture>) => void;
     settings: AppSettings;
@@ -44,25 +44,33 @@ const NumberInput: React.FC<{ label: string; value: number; onChange: (v: number
 );
 
 export const InspectorPanel: React.FC<InspectorPanelProps> = ({
-    sourceType,
-    onSetSource,
+    selectedSurface,
+    onUpdateSurface,
     selectedFixture,
     onUpdateFixture,
     settings,
-    module
 }) => {
     const [segSel, setSegSel] = useState(0);
-    const [spoutSender, setSpoutSender] = useState('');
     const [spoutSenders, setSpoutSenders] = useState<string[]>([]);
     const refreshSpout = async () => setSpoutSenders(await listSpoutSenders());
 
+    // Update the selected surface's content (merge).
+    const setContent = (patch: Partial<SurfaceContent>) => {
+        if (!selectedSurface) return;
+        onUpdateSurface(selectedSurface.id, { content: { ...selectedSurface.content, ...patch } });
+    };
+    const setContentType = (type: SurfaceContent['type']) => {
+        if (!selectedSurface) return;
+        onUpdateSurface(selectedSurface.id, { content: { type } });
+        if (type === SourceType.SPOUT) refreshSpout();
+    };
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: SourceType) => {
         const file = e.target.files?.[0];
-        if (file) {
-            const url = URL.createObjectURL(file);
-            onSetSource(type, url);
-        }
+        if (file) setContent({ type, url: URL.createObjectURL(file) });
     };
+
+    const surfBtnCls = (active: boolean) =>
+        `flex flex-col items-center justify-center p-2 rounded border transition-all ${active ? 'bg-sel-surface/10 border-sel-surface text-sel-surface' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3'}`;
 
     // Load a WLED-style ledmap.json ({"map":[...]} or a bare array) -> physical->geometry order.
     const handleLedmapUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -84,63 +92,86 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
 
     return (
         <div className="flex flex-col h-full bg-surface-1 border-r border-line-1 overflow-y-auto">
-            {/* Input Source Section (Media module) */}
-            {module === Module.MEDIA && (
-            <PanelSection title="Input Source" icon={<Monitor size={12}/>}>
-                <div className="grid grid-cols-3 gap-1">
-                    <button 
-                        onClick={() => onSetSource(SourceType.CAMERA, null)}
-                        className={`flex flex-col items-center justify-center p-2 rounded border transition-all ${sourceType === SourceType.CAMERA ? 'bg-accent/10 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3'}`}
-                    >
-                        <Video size={16} className="mb-1"/>
-                        <span className="text-[9px]">Camera</span>
-                    </button>
-                    <label className={`relative cursor-pointer flex flex-col items-center justify-center p-2 rounded border transition-all ${sourceType === SourceType.VIDEO ? 'bg-accent/10 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3'}`}>
-                        <input type="file" accept="video/*" className="hidden" onChange={(e) => handleFileUpload(e, SourceType.VIDEO)} />
-                        <Monitor size={16} className="mb-1"/>
-                        <span className="text-[9px]">Video</span>
-                    </label>
-                    <label className={`relative cursor-pointer flex flex-col items-center justify-center p-2 rounded border transition-all ${sourceType === SourceType.IMAGE ? 'bg-accent/10 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3'}`}>
-                         <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, SourceType.IMAGE)} />
-                        <ImageIcon size={16} className="mb-1"/>
-                        <span className="text-[9px]">Image</span>
-                    </label>
-                </div>
-                <button
-                    onClick={() => onSetSource(SourceType.DMX_IN, null)}
-                    className={`mt-1 w-full flex items-center justify-center gap-2 p-2 rounded border transition-all ${sourceType === SourceType.DMX_IN ? 'bg-accent/10 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3'}`}
-                    title="Capture incoming Art-Net / sACN as the content source"
-                >
-                    <Network size={14} />
-                    <span className="text-[10px]">DMX In (Art-Net / sACN)</span>
-                </button>
-                <button
-                    onClick={() => { onSetSource(SourceType.SPOUT, spoutSender); refreshSpout(); }}
-                    className={`mt-1 w-full flex items-center justify-center gap-2 p-2 rounded border transition-all ${sourceType === SourceType.SPOUT ? 'bg-accent/10 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3'}`}
-                    title="Receive a Spout video stream (Resolume / MadMapper / TouchDesigner)"
-                >
-                    <Cast size={14} />
-                    <span className="text-[10px]">Spout In</span>
-                </button>
-                {sourceType === SourceType.SPOUT && (
-                    <div className="flex items-center gap-1 mt-1">
-                        <select
-                            value={spoutSender}
-                            onChange={(e) => { setSpoutSender(e.target.value); onSetSource(SourceType.SPOUT, e.target.value); }}
-                            className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-[10px] focus:border-accent focus:outline-none"
-                        >
-                            <option value="">Active sender</option>
-                            {spoutSenders.map((s) => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                        <button onClick={refreshSpout} title="Refresh Spout senders" className="p-1.5 rounded border border-line-1 text-fg-2 hover:bg-surface-3"><RefreshCw size={12} /></button>
+            {/* Surface inspector (content + transform) */}
+            {selectedSurface && (() => {
+                const c = selectedSurface.content;
+                const setXf = (patch: Partial<Surface>) => onUpdateSurface(selectedSurface.id, patch);
+                return (
+                <>
+                <PanelSection title="Content" icon={<Layers size={12}/>}>
+                    <div className="grid grid-cols-3 gap-1">
+                        <button onClick={() => setContentType(SourceType.NONE)} className={surfBtnCls(c.type === SourceType.NONE)}>
+                            <Slash size={16} className="mb-1"/><span className="text-[9px]">None</span>
+                        </button>
+                        <button onClick={() => setContentType(SourceType.CAMERA)} className={surfBtnCls(c.type === SourceType.CAMERA)}>
+                            <Video size={16} className="mb-1"/><span className="text-[9px]">Camera</span>
+                        </button>
+                        <label className={`relative cursor-pointer ${surfBtnCls(c.type === SourceType.VIDEO)}`}>
+                            <input type="file" accept="video/*" className="hidden" onChange={(e) => handleFileUpload(e, SourceType.VIDEO)} />
+                            <Monitor size={16} className="mb-1"/><span className="text-[9px]">Video</span>
+                        </label>
+                        <label className={`relative cursor-pointer ${surfBtnCls(c.type === SourceType.IMAGE)}`}>
+                            <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, SourceType.IMAGE)} />
+                            <ImageIcon size={16} className="mb-1"/><span className="text-[9px]">Image</span>
+                        </label>
+                        <button onClick={() => setContentType(SourceType.DMX_IN)} className={surfBtnCls(c.type === SourceType.DMX_IN)} title="Art-Net / sACN in">
+                            <Network size={16} className="mb-1"/><span className="text-[9px]">DMX In</span>
+                        </button>
+                        <button onClick={() => setContentType(SourceType.SPOUT)} className={surfBtnCls(c.type === SourceType.SPOUT)}>
+                            <Cast size={16} className="mb-1"/><span className="text-[9px]">Spout</span>
+                        </button>
+                        <button onClick={() => setContentType('EFFECT')} className={surfBtnCls(c.type === 'EFFECT')}>
+                            <Sparkles size={16} className="mb-1"/><span className="text-[9px]">Effect</span>
+                        </button>
                     </div>
-                )}
-            </PanelSection>
-            )}
 
-            {/* Transform section removed as requested to expose editing in viewport only */}
+                    {c.type === SourceType.SPOUT && (
+                        <div className="flex items-center gap-1 pt-1">
+                            <select
+                                value={c.spoutName ?? ''}
+                                onChange={(e) => setContent({ spoutName: e.target.value })}
+                                className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-[10px] focus:border-accent focus:outline-none"
+                            >
+                                <option value="">Active sender</option>
+                                {spoutSenders.map((s) => <option key={s} value={s}>{s}</option>)}
+                            </select>
+                            <button onClick={refreshSpout} title="Refresh Spout senders" className="p-1.5 rounded border border-line-1 text-fg-2 hover:bg-surface-3"><RefreshCw size={12} /></button>
+                        </div>
+                    )}
 
-            {selectedFixture ? (
+                    {c.type === 'EFFECT' && (
+                        <div className="space-y-3 pt-1">
+                            <div className="text-[9px] text-warn">Effect rendering arrives in S2 (params save now).</div>
+                            <div className="flex items-center justify-between text-xs gap-2">
+                                <label className="text-fg-2 w-16 truncate">Effect</label>
+                                <select value={c.effectId ?? 0} onChange={(e) => setContent({ effectId: parseInt(e.target.value) })}
+                                    className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent focus:outline-none">
+                                    {EFFECT_NAMES.map((name, i) => <option key={i} value={i}>{name}</option>)}
+                                </select>
+                            </div>
+                            <div className="flex items-center justify-between text-xs gap-2">
+                                <label className="text-fg-2 w-16 truncate">Palette</label>
+                                <select value={c.paletteId ?? 0} onChange={(e) => setContent({ paletteId: parseInt(e.target.value) })}
+                                    className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent focus:outline-none">
+                                    {PALETTE_NAMES.map((name, i) => <option key={i} value={i}>{name}</option>)}
+                                </select>
+                            </div>
+                        </div>
+                    )}
+                </PanelSection>
+
+                <PanelSection title="Transform" icon={<Box size={12}/>}>
+                    <NumberInput label="X" value={+selectedSurface.x.toFixed(3)} step={0.01} onChange={(v) => setXf({ x: v })} />
+                    <NumberInput label="Y" value={+selectedSurface.y.toFixed(3)} step={0.01} onChange={(v) => setXf({ y: v })} />
+                    <NumberInput label="Width" value={+selectedSurface.width.toFixed(3)} step={0.01} onChange={(v) => setXf({ width: Math.max(0.01, v) })} />
+                    <NumberInput label="Height" value={+selectedSurface.height.toFixed(3)} step={0.01} onChange={(v) => setXf({ height: Math.max(0.01, v) })} />
+                    <NumberInput label="Rotation" value={selectedSurface.rotation} step={1} onChange={(v) => setXf({ rotation: v })} />
+                </PanelSection>
+                </>
+                );
+            })()}
+
+            {!selectedSurface && selectedFixture ? (
                 <>
                 <PanelSection title="Mapping" icon={<Map size={12}/>}>
                     <NumberInput label="LED Count" value={selectedFixture.ledCount} step={1} onChange={(v) => onUpdateFixture(selectedFixture.id, { ledCount: Math.max(1, v) })} />
@@ -460,12 +491,12 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                     );
                 })()}
                 </>
-            ) : (
+            ) : (!selectedSurface ? (
                 <div className="p-4 text-center text-fg-3 text-xs italic mt-10">
-                    Select a fixture to edit properties
+                    Select a surface or fixture to edit properties
                 </div>
-            )}
-            
+            ) : null)}
+
             {/* Output config now lives in the Preferences modal */}
         </div>
     );
