@@ -141,7 +141,6 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
 
                     {c.type === 'EFFECT' && (
                         <div className="space-y-3 pt-1">
-                            <div className="text-[9px] text-warn">Effect rendering arrives in S2 (params save now).</div>
                             <div className="flex items-center justify-between text-xs gap-2">
                                 <label className="text-fg-2 w-16 truncate">Effect</label>
                                 <select value={c.effectId ?? 0} onChange={(e) => setContent({ effectId: parseInt(e.target.value) })}
@@ -155,6 +154,22 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                                     className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent focus:outline-none">
                                     {PALETTE_NAMES.map((name, i) => <option key={i} value={i}>{name}</option>)}
                                 </select>
+                            </div>
+                            <div className="space-y-1">
+                                <div className="flex items-center justify-between text-xs">
+                                    <label className="text-fg-2">Speed</label>
+                                    <span className="text-fg-2 font-mono text-[10px]">{Math.round((c.speed ?? 0.5) * 100)}%</span>
+                                </div>
+                                <input type="range" min={0} max={1} step={0.01} value={c.speed ?? 0.5}
+                                    onChange={(e) => setContent({ speed: parseFloat(e.target.value) })} className="w-full" />
+                            </div>
+                            <div className="space-y-1">
+                                <div className="flex items-center justify-between text-xs">
+                                    <label className="text-fg-2">Intensity</label>
+                                    <span className="text-fg-2 font-mono text-[10px]">{Math.round((c.intensity ?? 0.5) * 100)}%</span>
+                                </div>
+                                <input type="range" min={0} max={1} step={0.01} value={c.intensity ?? 0.5}
+                                    onChange={(e) => setContent({ intensity: parseFloat(e.target.value) })} className="w-full" />
                             </div>
                         </div>
                     )}

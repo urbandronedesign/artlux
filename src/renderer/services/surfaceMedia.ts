@@ -1,6 +1,7 @@
 import { Surface, SourceType } from '../types';
 import { getInputCanvas, startInput, stopInput } from './dmxInput';
 import { getSpoutCanvas, startSpout, stopSpout } from './spoutReceiver';
+import { SurfaceEffect } from '../gpu/surfaceFx';
 
 // Owns the media lifecycle for every Surface: one <video>/<img> per VIDEO/IMAGE
 // surface, plus a single live camera / Spout / DMX-in (one live at a time, v1).
@@ -11,6 +12,7 @@ type Drawable = CanvasImageSource;
 type Entry = { type: 'VIDEO'; el: HTMLVideoElement; url: string } | { type: 'IMAGE'; el: HTMLImageElement; url: string };
 
 const media = new Map<string, Entry>(); // keyed by surface id
+const effects = new Map<string, SurfaceEffect>(); // EFFECT surfaces, keyed by id
 let cameraEl: HTMLVideoElement | null = null;
 let cameraStream: MediaStream | null = null;
 let cameraOwner: string | null = null;
@@ -58,6 +60,7 @@ function stopCamera(): void {
 export function syncSurfaces(surfaces: Surface[], isPlaying: boolean): void {
   playing = isPlaying;
   const seen = new Set<string>();
+  const seenEffects = new Set<string>();
   let wantCamera: string | null = null;
   let wantDmx = false;
   let wantSpout = false;
@@ -84,6 +87,8 @@ export function syncSurfaces(surfaces: Surface[], isPlaying: boolean): void {
       wantDmx = true;
     } else if (c.type === SourceType.SPOUT) {
       wantSpout = true; wantSpoutName = c.spoutName ?? '';
+    } else if (c.type === 'EFFECT') {
+      seenEffects.add(s.id);
     }
   }
 
@@ -94,6 +99,7 @@ export function syncSurfaces(surfaces: Surface[], isPlaying: boolean): void {
       media.delete(id);
     }
   }
+  for (const id of effects.keys()) if (!seenEffects.has(id)) effects.delete(id);
 
   // Single live camera.
   if (wantCamera !== cameraOwner) {
@@ -143,7 +149,12 @@ export function getDrawable(s: Surface): Drawable | null {
       return getSpoutCanvas();
     case SourceType.DMX_IN:
       return getInputCanvas();
+    case 'EFFECT': {
+      let e = effects.get(s.id);
+      if (!e) { e = new SurfaceEffect(); effects.set(s.id, e); }
+      return e.render(s.content, performance.now() / 1000);
+    }
     default:
-      return null; // NONE / EFFECT (S2)
+      return null; // NONE
   }
 }

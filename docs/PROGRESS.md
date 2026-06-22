@@ -317,6 +317,13 @@ S4 fixture library → S5 controllers + auto-patch → S6 routing spreadsheet.
   move, corner handle to resize, top handle to rotate (self-contained surface drag, behind the
   fixtures layer). Surfaces show name + dashed outline (selected = solid + handles). `Stage` gained
   `surfaces`/`onUpdateSurfaces`/`selectedSurfaceId`/`onSelectSurface` props. **S1 complete.**
+- **S2 (done)**: **effect surfaces** — `gpu/surfaceFx.ts` `SurfaceEffect` renders 2D effects
+  (Solid/Rainbow/Palette-Flow/Wave/Fire) into a 96² offscreen canvas, sampling the shared palette LUT
+  (`buildPaletteLut`). `surfaceMedia` keeps a `SurfaceEffect` per EFFECT surface (pruned on
+  remove/retype) and returns it from `getDrawable`; `Stage` composites it like any source. Inspector
+  surface-EFFECT block gained speed/intensity sliders. Verified headless: an effect surface drives a
+  fixture → **552 ArtDmx packets, maxByte 255** (after freeing 6454 from Artnetominator). Per-fixture
+  effect engine retained for now; UI retirement deferred.
 
 ## Desktop chrome (post-features)
 - **App icon** — authored `build/icon.svg` (teal "A" squircle matching the brand); `npm run gen:icon`
