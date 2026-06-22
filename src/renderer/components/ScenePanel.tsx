@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Fixture, FixtureGroup, Scene, Surface } from '../types';
 import { Plus, Trash2, Folder, Box, Users, Camera, Play, Copy, Layers, Hash, SlidersHorizontal } from 'lucide-react';
 import { CollapsibleSection } from './CollapsibleSection';
+import { Slider } from './ui';
+import { livePreview } from '../services/livePreview';
 
 interface ScenePanelProps {
     surfaces: Surface[];
@@ -12,7 +14,10 @@ interface ScenePanelProps {
     onRenameSurface: (id: string, newName: string) => void;
     fixtures: Fixture[];
     selectedFixtureId: string | null;
-    onSelect: (id: string) => void;
+    selectedFixtureIds: string[];
+    onSelect: (id: string, additive?: boolean) => void;
+    onSelectFixtures: (ids: string[]) => void;
+    onSelectAll: () => void;
     onAdd: () => void;
     onRemove: (id: string) => void;
     onRename: (id: string, newName: string) => void;
@@ -40,7 +45,10 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
     onRenameSurface,
     fixtures,
     selectedFixtureId,
+    selectedFixtureIds,
     onSelect,
+    onSelectFixtures,
+    onSelectAll,
     onAdd,
     onRemove,
     onRename,
@@ -89,15 +97,31 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
         if (e.key === 'Escape') setEditingId(null);
     };
 
+    // Click selection: plain = single, ctrl/cmd = toggle, shift = range from primary.
+    const handleFixtureClick = (e: React.MouseEvent, id: string) => {
+        if (e.shiftKey && selectedFixtureId) {
+            const order = fixtures.map(f => f.id);
+            const a = order.indexOf(selectedFixtureId);
+            const b = order.indexOf(id);
+            if (a !== -1 && b !== -1) {
+                const [lo, hi] = a < b ? [a, b] : [b, a];
+                onSelectFixtures(order.slice(lo, hi + 1));
+                return;
+            }
+        }
+        onSelect(id, e.ctrlKey || e.metaKey);
+    };
+
     return (
-        <div className="flex flex-col h-full bg-surface-1 text-xs">
+        <div className="flex flex-col h-full min-h-0 bg-surface-1 text-xs">
             {/* Surfaces */}
             <CollapsibleSection
                 title="Surfaces"
                 icon={<Layers size={12} />}
+                grow
                 action={<button onClick={onAddSurface} className="text-fg-2 hover:text-fg-1" title="Add Surface"><Plus size={14}/></button>}
             >
-                <div className="p-1 space-y-0.5 max-h-40 overflow-y-auto">
+                <div className="p-1 space-y-0.5">
                     {surfaces.map(s => {
                         const sel = s.id === selectedSurfaceId;
                         return (
@@ -139,25 +163,31 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
             <CollapsibleSection
                 title="Fixtures"
                 icon={<Box size={12} />}
+                grow
                 action={<>
                     <button onClick={onAutoPatch} className="text-fg-2 hover:text-fg-1" title="Auto-patch (assign universes/addresses)"><Hash size={13}/></button>
                     <button onClick={onAdd} className="text-fg-2 hover:text-fg-1" title="Add Fixture"><Plus size={14}/></button>
                 </>}
             >
-                <div className="max-h-72 overflow-y-auto p-1">
+                <div className="p-1">
                 {/* Mock Folder for visual structure */}
                 <div className="mb-1">
-                    <div className="flex items-center px-2 py-1 text-fg-2 hover:bg-surface-3 rounded cursor-default">
+                    <div
+                        onClick={onSelectAll}
+                        className="flex items-center px-2 py-1 text-fg-2 hover:bg-surface-3 rounded cursor-pointer"
+                        title="Select all fixtures"
+                    >
                          <Folder size={12} className="mr-2 text-fg-3" />
                          <span className="font-medium">Master Layer</span>
+                         {fixtures.length > 0 && <span className="ml-auto text-[9px] text-fg-3">{fixtures.length}</span>}
                     </div>
                     <div className="pl-4 border-l border-line-1 ml-2.5 mt-1 space-y-0.5">
                         {fixtures.map(f => {
-                            const isSelected = f.id === selectedFixtureId;
+                            const isSelected = selectedFixtureIds.includes(f.id);
                             return (
-                                <div 
+                                <div
                                     key={f.id}
-                                    onClick={() => onSelect(f.id)}
+                                    onClick={(e) => handleFixtureClick(e, f.id)}
                                     onDoubleClick={() => startEditing(f.id, f.name, 'fixture')}
                                     className={`flex items-center group px-2 py-1.5 rounded cursor-pointer transition-colors ${isSelected ? 'bg-accent/20 text-white' : 'text-fg-2 hover:bg-surface-3'}`}
                                 >
@@ -245,19 +275,14 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
             {/* Global Parameters (sliders) */}
             <CollapsibleSection title="Global Params" icon={<SlidersHorizontal size={12} />}>
                 <div className="p-3 space-y-4">
-                     <div>
-                         <div className="flex justify-between text-fg-2 mb-1">
-                            <span>Master Brightness</span>
-                            <span>{Math.round(masterBrightness * 100)}%</span>
-                         </div>
-                         <input
-                            type="range"
-                            min={0} max={1} step={0.01}
-                            value={masterBrightness}
-                            onChange={(e) => onMasterBrightnessChange(parseFloat(e.target.value))}
-                            className="w-full h-1 bg-line-2 rounded-lg appearance-none cursor-pointer"
-                         />
-                     </div>
+                     <Slider
+                        label="Master Brightness"
+                        value={masterBrightness}
+                        min={0} max={1} step={0.01}
+                        format={(v) => `${Math.round(v * 100)}%`}
+                        onInput={(v) => livePreview.setBrightness(v)}
+                        onChange={onMasterBrightnessChange}
+                     />
                 </div>
             </CollapsibleSection>
         </div>

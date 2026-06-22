@@ -5,6 +5,7 @@ import { GPUMapper } from '../services/GPUMapper';
 import { WebGPUMapper } from '../gpu/WebGPUMapper';
 import { IPixelMapper } from '../services/PixelMapper';
 import { dmxSignal } from '../services/dmxSignal';
+import { livePreview } from '../services/livePreview';
 import * as surfaceMedia from '../services/surfaceMedia';
 
 interface StageProps {
@@ -16,7 +17,8 @@ interface StageProps {
   fixtures: Fixture[];
   onUpdateFixtures: (fixtures: Fixture[]) => void;
   selectedFixtureId: string | null;
-  onSelectFixture: (id: string) => void;
+  selectedFixtureIds?: string[];
+  onSelectFixture: (id: string, additive?: boolean) => void;
   isEngineRunning: boolean;
   isVideoPlaying: boolean;
   globalBrightness: number;
@@ -46,6 +48,7 @@ export const Stage: React.FC<StageProps> = ({
   fixtures,
   onUpdateFixtures,
   selectedFixtureId,
+  selectedFixtureIds = [],
   onSelectFixture,
   isEngineRunning,
   isVideoPlaying,
@@ -190,11 +193,9 @@ export const Stage: React.FC<StageProps> = ({
     mapper.current?.updateParams?.(fixtures);
   }, [fixtureParamSignature]);
 
-  useEffect(() => {
-    if (mapper.current) {
-        mapper.current.setBrightness(globalBrightness);
-    }
-  }, [globalBrightness]);
+  // Mirror committed brightness into the imperative live channel (CSS var + mapper feed),
+  // so scene recall / project load stay in sync. Live drags write here directly.
+  useEffect(() => { livePreview.setBrightness(globalBrightness); }, [globalBrightness]);
 
   const tick = useCallback(() => {
     if (!containerRef.current || !mapper.current) {
@@ -230,6 +231,9 @@ export const Stage: React.FC<StageProps> = ({
     }
 
     if (canvasRef.current && isEngineRunning && mapper.current) {
+        // Pull brightness from the live channel each frame so slider drags affect output
+        // immediately without committing React state (which would re-render the whole app).
+        mapper.current.setBrightness(livePreview.brightness);
         // WebGPU samples each fixture strictly from its linked surface; the WebGL
         // fallback samples the composite preview canvas.
         if (mapper.current.perSurface && mapper.current.renderSurfaces) {
@@ -581,7 +585,7 @@ export const Stage: React.FC<StageProps> = ({
       dragState.current.hasMoved = false; 
 
       if (fixtureId) {
-          onSelectFixture(fixtureId);
+          onSelectFixture(fixtureId, e.ctrlKey || e.metaKey || e.shiftKey);
           dragState.current.targetId = fixtureId;
           const f = fixturesRef.current.find(fx => fx.id === fixtureId);
           if (f) {
@@ -707,6 +711,7 @@ export const Stage: React.FC<StageProps> = ({
                 ref={canvasRef}
                 width={512} height={512}
                 className="absolute top-0 left-0 w-full h-full object-fill pointer-events-none"
+                style={{ filter: 'brightness(var(--preview-brightness, 1))' }}
             />
 
             {/* Surfaces (cyan) — behind fixtures */}
@@ -749,7 +754,10 @@ export const Stage: React.FC<StageProps> = ({
             </div>
 
             <div className="absolute top-0 left-0 w-full h-full z-10 overflow-hidden">
-            {fixtures.map((fixture) => (
+            {fixtures.map((fixture) => {
+                const isPrimary = selectedFixtureId === fixture.id;
+                const isSel = isPrimary || selectedFixtureIds.includes(fixture.id);
+                return (
                 <div
                 key={fixture.id}
                 ref={(el) => {
@@ -758,7 +766,7 @@ export const Stage: React.FC<StageProps> = ({
                 }}
                 onMouseDown={(e) => startDrag(e, 'move', fixture.id)}
                 className={`absolute group cursor-move flex items-center justify-center ${
-                    selectedFixtureId === fixture.id ? 'z-50' : 'z-20 hover:opacity-80 transition-opacity'
+                    isPrimary ? 'z-50' : isSel ? 'z-30' : 'z-20 hover:opacity-80 transition-opacity'
                 }`}
                 style={{
                     left: `${fixture.x * 100}%`,
@@ -769,13 +777,13 @@ export const Stage: React.FC<StageProps> = ({
                     transformOrigin: 'center center'
                 }}
                 >
-                    <div className={`w-full h-full border ${selectedFixtureId === fixture.id ? 'border-sel-fixture shadow-[0_0_10px_rgba(255,59,59,0.35)]' : 'border-white/25'}`}></div>
+                    <div className={`w-full h-full border ${isSel ? 'border-sel-fixture shadow-[0_0_10px_rgba(255,59,59,0.35)]' : 'border-white/25'}`}></div>
 
-                    {selectedFixtureId === fixture.id && (
+                    {isSel && (
                         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-sel-fixture/60"></div>
                     )}
 
-                    {selectedFixtureId === fixture.id && (
+                    {isPrimary && (
                         <>
                             <div
                                 className="absolute -top-6 left-1/2 -translate-x-1/2 w-px h-6 bg-sel-fixture origin-bottom cursor-alias flex flex-col items-center justify-start z-50 pointer-events-auto"
@@ -811,7 +819,8 @@ export const Stage: React.FC<StageProps> = ({
                         </>
                     )}
                 </div>
-            ))}
+                );
+            })}
             </div>
         </div>
       </div>

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Fixture, Surface, SurfaceContent, SourceType, AppSettings, PixelSource, LedShape, ColorOrder, RGBWMode, Layout3DType, Module } from '../types';
 import { Monitor, Image as ImageIcon, Video, Map, Sparkles, Grid3x3, Network, Box, Cast, RefreshCw, Layers, Slash } from 'lucide-react';
 import { CollapsibleSection } from './CollapsibleSection';
+import { Slider } from './ui';
 import { EFFECT_NAMES } from '../gpu/effects';
 import { PALETTE_NAMES } from '../gpu/palettes';
 import { effectivePosObj, effectiveRotObj, effectiveLayout } from '../services/led3dDefaults';
@@ -149,22 +150,10 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                                     {PALETTE_NAMES.map((name, i) => <option key={i} value={i}>{name}</option>)}
                                 </select>
                             </div>
-                            <div className="space-y-1">
-                                <div className="flex items-center justify-between text-xs">
-                                    <label className="text-fg-2">Speed</label>
-                                    <span className="text-fg-2 font-mono text-[10px]">{Math.round((c.speed ?? 0.5) * 100)}%</span>
-                                </div>
-                                <input type="range" min={0} max={1} step={0.01} value={c.speed ?? 0.5}
-                                    onChange={(e) => setContent({ speed: parseFloat(e.target.value) })} className="w-full" />
-                            </div>
-                            <div className="space-y-1">
-                                <div className="flex items-center justify-between text-xs">
-                                    <label className="text-fg-2">Intensity</label>
-                                    <span className="text-fg-2 font-mono text-[10px]">{Math.round((c.intensity ?? 0.5) * 100)}%</span>
-                                </div>
-                                <input type="range" min={0} max={1} step={0.01} value={c.intensity ?? 0.5}
-                                    onChange={(e) => setContent({ intensity: parseFloat(e.target.value) })} className="w-full" />
-                            </div>
+                            <Slider label="Speed" value={c.speed ?? 0.5} min={0} max={1} step={0.01}
+                                format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => setContent({ speed: v })} />
+                            <Slider label="Intensity" value={c.intensity ?? 0.5} min={0} max={1} step={0.01}
+                                format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => setContent({ intensity: v })} />
                         </div>
                     )}
                 </PanelSection>
@@ -314,22 +303,10 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                                             {PALETTE_NAMES.map((name, i) => <option key={i} value={i}>{name}</option>)}
                                         </select>
                                     </div>
-                                    <div className="space-y-1">
-                                        <div className="flex items-center justify-between text-xs">
-                                            <label className="text-fg-2">Speed</label>
-                                            <span className="text-fg-2 font-mono text-[10px]">{Math.round((vals.speed ?? 0.5) * 100)}%</span>
-                                        </div>
-                                        <input type="range" min={0} max={1} step={0.01} value={vals.speed ?? 0.5}
-                                            onChange={(e) => setVals({ speed: parseFloat(e.target.value) })} className="w-full" />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <div className="flex items-center justify-between text-xs">
-                                            <label className="text-fg-2">Intensity</label>
-                                            <span className="text-fg-2 font-mono text-[10px]">{Math.round((vals.intensity ?? 0.5) * 100)}%</span>
-                                        </div>
-                                        <input type="range" min={0} max={1} step={0.01} value={vals.intensity ?? 0.5}
-                                            onChange={(e) => setVals({ intensity: parseFloat(e.target.value) })} className="w-full" />
-                                    </div>
+                                    <Slider label="Speed" value={vals.speed ?? 0.5} min={0} max={1} step={0.01}
+                                        format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => setVals({ speed: v })} />
+                                    <Slider label="Intensity" value={vals.intensity ?? 0.5} min={0} max={1} step={0.01}
+                                        format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => setVals({ intensity: v })} />
                                 </div>
                             )}
                         </PanelSection>

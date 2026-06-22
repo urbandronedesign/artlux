@@ -54,6 +54,12 @@ const App: React.FC = () => {
   ]);
   
   const [selectedFixtureId, setSelectedFixtureId] = useState<string | null>('fix-1');
+  // Full multi-selection set (for grouping/bulk ops); selectedFixtureId is the "primary"
+  // member that drives the inspector + on-stage transform gizmo.
+  const [selectedFixtureIds, setSelectedFixtureIds] = useState<string[]>(['fix-1']);
+  // Live mirror of fixtures for the global keydown handler (avoids stale closure).
+  const fixturesRef = useRef<Fixture[]>(fixtures);
+  fixturesRef.current = fixtures;
   const [surfaces, setSurfaces] = useState<Surface[]>([
     { id: 'surf-1', name: 'Surface 1', x: 0, y: 0, width: 1, height: 1, rotation: 0, zIndex: 0, content: { type: SourceType.NONE } },
   ]);
@@ -131,6 +137,14 @@ const App: React.FC = () => {
             redo();
             e.preventDefault();
         }
+        else if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A')) {
+            const el = e.target as HTMLElement | null;
+            const typing = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+            if (!typing && fixturesRef.current.length) {
+                handleSelectFixtures(fixturesRef.current.map(f => f.id));
+                e.preventDefault();
+            }
+        }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -152,8 +166,32 @@ const App: React.FC = () => {
   }, []);
 
   // --- Surfaces ---
-  const handleSelectSurface = (id: string | null) => { setSelectedSurfaceId(id); if (id) setSelectedFixtureId(null); };
-  const handleSelectFixture = (id: string | null) => { setSelectedFixtureId(id); if (id) setSelectedSurfaceId(null); };
+  const handleSelectSurface = (id: string | null) => { setSelectedSurfaceId(id); if (id) { setSelectedFixtureId(null); setSelectedFixtureIds([]); } };
+  // Single-target selection with optional additive (ctrl/cmd) toggle. Clicking an
+  // already-selected member without a modifier keeps the multi-selection (so it stays
+  // draggable) and just moves the primary; clicking elsewhere selects only that fixture.
+  const handleSelectFixture = (id: string | null, additive = false) => {
+    if (!id) { setSelectedFixtureId(null); setSelectedFixtureIds([]); return; }
+    setSelectedSurfaceId(null);
+    if (additive) {
+      const has = selectedFixtureIds.includes(id);
+      const next = has ? selectedFixtureIds.filter(x => x !== id) : [...selectedFixtureIds, id];
+      setSelectedFixtureIds(next);
+      setSelectedFixtureId(has ? (next[next.length - 1] ?? null) : id);
+    } else if (selectedFixtureIds.includes(id) && selectedFixtureIds.length > 1) {
+      setSelectedFixtureId(id);
+    } else {
+      setSelectedFixtureIds([id]);
+      setSelectedFixtureId(id);
+    }
+  };
+  // Replace the whole selection (range-select, select-all, group recall).
+  const handleSelectFixtures = (ids: string[]) => {
+    setSelectedFixtureIds(ids);
+    setSelectedFixtureId(ids.length ? ids[ids.length - 1] : null);
+    if (ids.length) setSelectedSurfaceId(null);
+  };
+  const handleSelectAllFixtures = () => handleSelectFixtures(fixtures.map(f => f.id));
   const handleAddSurface = () => {
     const id = generateId();
     const z = surfaces.reduce((m, s) => Math.max(m, s.zIndex), -1) + 1;
@@ -191,6 +229,7 @@ const App: React.FC = () => {
   const handleRemoveFixture = (id: string) => {
     recordHistory();
     setFixtures(autoPatch(fixtures.filter(f => f.id !== id), controllers));
+    setSelectedFixtureIds(prev => prev.filter(x => x !== id));
     if (selectedFixtureId === id) setSelectedFixtureId(null);
   };
 
@@ -234,17 +273,17 @@ const App: React.FC = () => {
 
   // --- Groups ---
   const handleCreateGroup = () => {
-    const ids = selectedFixtureId ? [selectedFixtureId] : [];
+    const ids = [...selectedFixtureIds];
     setGroups([...groups, { id: generateId(), name: `Group ${groups.length + 1}`, fixtureIds: ids }]);
   };
   const handleAddSelectedToGroup = (groupId: string) => {
-    if (!selectedFixtureId) return;
-    setGroups(groups.map(g => g.id === groupId && !g.fixtureIds.includes(selectedFixtureId)
-      ? { ...g, fixtureIds: [...g.fixtureIds, selectedFixtureId] } : g));
+    if (!selectedFixtureIds.length) return;
+    setGroups(groups.map(g => g.id === groupId
+      ? { ...g, fixtureIds: Array.from(new Set([...g.fixtureIds, ...selectedFixtureIds])) } : g));
   };
   const handleRemoveGroup = (groupId: string) => setGroups(groups.filter(g => g.id !== groupId));
   const handleSelectGroup = (group: FixtureGroup) => {
-    if (group.fixtureIds.length) setSelectedFixtureId(group.fixtureIds[0]);
+    if (group.fixtureIds.length) handleSelectFixtures(group.fixtureIds);
   };
   // Copy the selected fixture's "look" (effect/segments/palette) to all group members.
   const handleApplyLookToGroup = (group: FixtureGroup) => {
@@ -333,6 +372,7 @@ const App: React.FC = () => {
       setGroups(Array.isArray(data?.groups) ? data.groups : []);
       setScenes(Array.isArray(data?.scenes) ? data.scenes : []);
       setSelectedFixtureId(null);
+      setSelectedFixtureIds([]);
       setSelectedSurfaceId(null);
   };
 
@@ -390,6 +430,7 @@ const App: React.FC = () => {
       setGroups([]);
       setScenes([]);
       setSelectedFixtureId(null);
+      setSelectedFixtureIds([]);
       setSelectedSurfaceId(null);
       setCurrentProjectPath(null);
   };
@@ -495,7 +536,7 @@ const App: React.FC = () => {
       <div className="flex flex-1 min-h-0">
         {/* Left: browser (top) + inspector (bottom) */}
         <div className={`h-full border-r border-line-1 bg-surface-1 transition-all duration-200 ${showLeftPanel ? 'w-72' : 'w-0 overflow-hidden border-none'}`}>
-            <div className="w-72 h-full overflow-y-auto">
+            <div className="w-72 h-full overflow-hidden">
                 <ScenePanel
                     surfaces={surfaces}
                     selectedSurfaceId={selectedSurfaceId}
@@ -505,7 +546,10 @@ const App: React.FC = () => {
                     onRenameSurface={handleRenameSurface}
                     fixtures={fixtures}
                     selectedFixtureId={selectedFixtureId}
+                    selectedFixtureIds={selectedFixtureIds}
                     onSelect={handleSelectFixture}
+                    onSelectFixtures={handleSelectFixtures}
+                    onSelectAll={handleSelectAllFixtures}
                     onAdd={handleAddFixture}
                     onRemove={handleRemoveFixture}
                     onRename={handleRenameFixture}
@@ -540,6 +584,7 @@ const App: React.FC = () => {
                         fixtures={fixtures}
                         onUpdateFixtures={setFixtures}
                         selectedFixtureId={selectedFixtureId}
+                        selectedFixtureIds={selectedFixtureIds}
                         onSelectFixture={handleSelectFixture}
                         isEngineRunning={true}
                         isVideoPlaying={isVideoPlaying}
@@ -558,7 +603,7 @@ const App: React.FC = () => {
                             <Simulator3D
                                 fixtures={fixtures}
                                 selectedFixtureId={selectedFixtureId}
-                                onSelectFixture={setSelectedFixtureId}
+                                onSelectFixture={(id: string) => handleSelectFixture(id)}
                                 onCommitFixture3D={handleCommitFixture3D}
                                 onRecordHistory={recordHistory}
                             />

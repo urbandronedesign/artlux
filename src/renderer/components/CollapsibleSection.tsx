@@ -9,6 +9,8 @@ interface Props {
     defaultOpen?: boolean;
     children: React.ReactNode;
     bodyClassName?: string;
+    /** When open, flex-grow to fill the parent column and scroll the body internally. */
+    grow?: boolean;
 }
 
 /**
@@ -22,14 +24,16 @@ export const CollapsibleSection: React.FC<Props> = ({
     defaultOpen = true,
     children,
     bodyClassName = '',
+    grow = false,
 }) => {
     const [open, setOpen] = useState(defaultOpen);
+    const growing = grow && open;
 
     return (
-        <div className="border-b border-line-1">
+        <div className={`border-b border-line-1 ${growing ? 'flex-1 min-h-0 flex flex-col' : ''}`}>
             <div
                 onClick={() => setOpen(o => !o)}
-                className="h-8 bg-surface-2 flex items-center px-2 justify-between cursor-pointer hover:bg-surface-3 select-none"
+                className="h-8 shrink-0 bg-surface-2 flex items-center px-2 justify-between cursor-pointer hover:bg-surface-3 select-none"
             >
                 <div className="flex items-center gap-1.5 min-w-0">
                     <ChevronDown
@@ -45,7 +49,7 @@ export const CollapsibleSection: React.FC<Props> = ({
                     </div>
                 )}
             </div>
-            {open && <div className={bodyClassName}>{children}</div>}
+            {open && <div className={`${bodyClassName} ${growing ? 'flex-1 min-h-0 overflow-y-auto' : ''}`}>{children}</div>}
         </div>
     );
 };
