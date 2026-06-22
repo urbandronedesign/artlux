@@ -40,6 +40,14 @@ const api: ArtluxApi = {
         ipcRenderer.on(IPC.SPOUT_FRAME, listener);
         return () => { ipcRenderer.removeListener(IPC.SPOUT_FRAME, listener); };
     },
+    // App chrome
+    onMenuAction: (cb: (action: string) => void) => {
+        const listener = (_e: unknown, action: string) => cb(action);
+        ipcRenderer.on(IPC.MENU_ACTION, listener);
+        return () => { ipcRenderer.removeListener(IPC.MENU_ACTION, listener); };
+    },
+    getAppInfo: () => ipcRenderer.invoke(IPC.APP_INFO),
+    openExternal: (url: string) => ipcRenderer.send(IPC.OPEN_EXTERNAL, url),
 };
 
 contextBridge.exposeInMainWorld('artlux', api);

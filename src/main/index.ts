@@ -1,6 +1,9 @@
 import { app, BrowserWindow } from 'electron';
 import { join } from 'node:path';
 import { registerIpc } from './ipc';
+import { buildAppMenu } from './menu';
+
+const APP_ICON = join(__dirname, '../../build/icon.png');
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -22,7 +25,8 @@ function createWindow(): void {
         minHeight: 640,
         backgroundColor: '#000000',
         show: false,
-        autoHideMenuBar: true,
+        icon: APP_ICON,
+        autoHideMenuBar: HEADLESS, // GUI shows the native menu bar; headless hides it
         webPreferences: {
             preload: join(__dirname, '../preload/index.js'),
             contextIsolation: true,
@@ -57,6 +61,7 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
     registerIpc(() => mainWindow);
+    if (!HEADLESS) buildAppMenu(() => mainWindow);
     createWindow();
 
     app.on('activate', () => {

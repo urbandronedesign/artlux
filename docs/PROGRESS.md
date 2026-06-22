@@ -299,6 +299,22 @@ Plan: Persistence (F1) → Art-Net Poll (F2) → Art-Net Sync (F2b) → Headless
 
 **New-features roadmap F1–F4 complete.**
 
+## Desktop chrome (post-features)
+- **App icon** — authored `build/icon.svg` (teal "A" squircle matching the brand); `npm run gen:icon`
+  (`scripts/gen-icon.cjs`, `@resvg/resvg-js` + `png-to-ico`) rasterizes `build/icon.{png,ico}` +
+  `src/renderer/public/icon.png` (favicon), all committed. Wired into electron-builder
+  (`build.win.icon`/`mac`/`linux`), `BrowserWindow.icon`, and both HTML `<link rel=icon>`. Packaging
+  no longer logs "default Electron icon is used".
+- **Native menu** — `src/main/menu.ts` (File / Edit / View / Window / Help) set in `index.ts`
+  (`autoHideMenuBar` now false for GUI, hidden in headless). Renderer-bound items send
+  `IPC.MENU_ACTION`; `App.tsx` dispatches to existing handlers (new/open/save/save-as/rig/prefs/
+  about + open-recent submenu from prefs). Undo/Redo use `registerAccelerator:false` so the
+  renderer keydown owns the shortcut (no double-fire). New `handleNewProject`.
+- **About modal** — `src/renderer/components/About.tsx` (mirrors Preferences); version via
+  `app:get-info` IPC; external links via `app:open-external` (shell.openExternal).
+- **Play/Pause** — replaced the dual-button toggle with a single source-aware toggle in `TopBar`
+  (disabled unless source is VIDEO/CAMERA; icon reflects state). Verified `tsc`+build+launch+package.
+
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
 - Deferred effects: stateful **fire2012**, **multi-segment** subdivision per fixture.

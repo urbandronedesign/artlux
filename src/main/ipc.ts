@@ -1,10 +1,11 @@
-import { ipcMain, type BrowserWindow } from 'electron';
+import { app, ipcMain, shell, type BrowserWindow } from 'electron';
 import { IPC, type OutputConfig, type InputConfig, type ProjectData, type RigData, type Prefs, type SpoutConfig } from '../../shared/protocol';
 import * as output from './transport/outputManager';
 import * as input from './transport/input';
 import * as discovery from './transport/discovery';
 import * as spout from './transport/spoutManager';
 import * as persistence from './persistence';
+import { rebuildAppMenu } from './menu';
 
 // Wire renderer IPC to the native Art-Net transport and report status back.
 export function registerIpc(getWindow: () => BrowserWindow | null): void {
@@ -34,14 +35,31 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     });
 
     // ---- Persistence (request/response via handle/invoke) ----
-    ipcMain.handle(IPC.PROJECT_SAVE, (_e, data: ProjectData, path?: string) => persistence.saveProject(getWindow(), data, path));
-    ipcMain.handle(IPC.PROJECT_OPEN, () => persistence.openProject(getWindow()));
-    ipcMain.handle(IPC.PROJECT_LOAD_PATH, (_e, path: string) => persistence.loadProjectPath(path));
+    // Recents change on save/open/load → rebuild the menu's Open-Recent submenu.
+    ipcMain.handle(IPC.PROJECT_SAVE, async (_e, data: ProjectData, path?: string) => {
+        const r = await persistence.saveProject(getWindow(), data, path);
+        rebuildAppMenu();
+        return r;
+    });
+    ipcMain.handle(IPC.PROJECT_OPEN, async () => {
+        const r = await persistence.openProject(getWindow());
+        rebuildAppMenu();
+        return r;
+    });
+    ipcMain.handle(IPC.PROJECT_LOAD_PATH, (_e, path: string) => {
+        const r = persistence.loadProjectPath(path);
+        rebuildAppMenu();
+        return r;
+    });
     ipcMain.handle(IPC.RIG_EXPORT, (_e, rig: RigData) => persistence.exportRig(getWindow(), rig));
     ipcMain.handle(IPC.RIG_IMPORT, () => persistence.importRig(getWindow()));
     ipcMain.handle(IPC.PREFS_GET, () => persistence.getPrefs());
     ipcMain.handle(IPC.PREFS_SET, (_e, patch: Partial<Prefs>) => { persistence.setPrefs(patch); });
     ipcMain.handle(IPC.ARTNET_DISCOVER, () => discovery.discover());
+    ipcMain.handle(IPC.APP_INFO, () => ({ name: app.getName(), version: app.getVersion() }));
+    ipcMain.on(IPC.OPEN_EXTERNAL, (_e, url: string) => {
+        if (/^https?:\/\//i.test(url)) shell.openExternal(url);
+    });
 
     // ---- Spout receiver ----
     ipcMain.handle(IPC.SPOUT_LIST, () => spout.listSenders());

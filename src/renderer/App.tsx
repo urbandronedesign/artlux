@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Fixture, SourceType, AppSettings, Module, DockTab, FixtureGroup, Scene } from './types';
+import type { AppInfo } from '../../shared/protocol';
 import { TopBar } from './components/TopBar';
+import { About } from './components/About';
 import { InspectorPanel } from './components/InspectorPanel';
 import { ScenePanel } from './components/ScenePanel';
 import { Stage } from './components/Stage';
@@ -65,6 +67,8 @@ const App: React.FC = () => {
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [currentProjectPath, setCurrentProjectPath] = useState<string | null>(null);
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
 
   const [showLeftPanel, setShowLeftPanel] = useState(true);
   
@@ -293,6 +297,46 @@ const App: React.FC = () => {
       }
   };
 
+  const handleNewProject = () => {
+      recordHistory();
+      setFixtures([{
+          id: generateId(), name: 'Fixture 1',
+          x: 0.15, y: 0.15, width: 0.7, height: 0.1,
+          universe: 0, startAddress: 1, ledCount: 60, reverse: false, rotation: 0, colorData: [],
+      }]);
+      setGroups([]);
+      setScenes([]);
+      setSelectedFixtureId(null);
+      setCurrentProjectPath(null);
+  };
+
+  // App info for the About modal.
+  useEffect(() => { window.artlux?.getAppInfo?.().then((i) => setAppInfo(i ?? null)); }, []);
+
+  // Native-menu commands → existing handlers. A ref keeps the latest closures so
+  // the listener can be registered exactly once.
+  const dispatchMenu = (action: string) => {
+      if (action.startsWith('open-recent:')) { handleOpenRecent(action.slice('open-recent:'.length)); return; }
+      switch (action) {
+          case 'new': handleNewProject(); break;
+          case 'open': handleOpenProject(); break;
+          case 'save': handleSaveProject(); break;
+          case 'save-as': handleSaveAs(); break;
+          case 'export-rig': handleExportRig(); break;
+          case 'import-rig': handleImportRig(); break;
+          case 'preferences': setPrefsOpen(true); break;
+          case 'about': setAboutOpen(true); break;
+          case 'undo': undo(); break;
+          case 'redo': redo(); break;
+      }
+  };
+  const dispatchMenuRef = useRef(dispatchMenu);
+  dispatchMenuRef.current = dispatchMenu;
+  useEffect(() => {
+      const unsub = window.artlux?.onMenuAction?.((action) => dispatchMenuRef.current(action));
+      return () => unsub?.();
+  }, []);
+
   // Restore persisted prefs (settings + master brightness + recents + last project) on launch.
   useEffect(() => {
       (async () => {
@@ -338,6 +382,7 @@ const App: React.FC = () => {
       <TopBar
           isVideoPlaying={isVideoPlaying}
           onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)}
+          canPlay={sourceType === SourceType.VIDEO || sourceType === SourceType.CAMERA}
           module={module}
           onChangeModule={setModule}
           onSaveProject={handleSaveProject}
@@ -461,6 +506,7 @@ const App: React.FC = () => {
       />
 
       <Preferences open={prefsOpen} onClose={() => setPrefsOpen(false)} settings={settings} onChange={updateSettings} />
+      <About open={aboutOpen} onClose={() => setAboutOpen(false)} info={appInfo} />
     </div>
   );
 };

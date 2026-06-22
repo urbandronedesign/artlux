@@ -8,6 +8,7 @@ import { helpProps } from '../services/helpBus';
 interface TopBarProps {
   isVideoPlaying: boolean;
   onTogglePlay: () => void;
+  canPlay: boolean;
   module: Module;
   onChangeModule: (m: Module) => void;
   onSaveProject: () => void;
@@ -29,7 +30,7 @@ interface TopBarProps {
 const basename = (p: string) => p.replace(/\\/g, '/').split('/').pop() || p;
 
 export const TopBar: React.FC<TopBarProps> = ({
-  isVideoPlaying, onTogglePlay, module, onChangeModule,
+  isVideoPlaying, onTogglePlay, canPlay, module, onChangeModule,
   onSaveProject, onSaveAs, onOpenProject, recentFiles, onOpenRecent, onExportRig, onImportRig,
   onUndo, onRedo, canUndo, canRedo,
   onOpenPreferences, monitorOpen, onToggleMonitor,
@@ -101,25 +102,20 @@ export const TopBar: React.FC<TopBarProps> = ({
         <ModuleSwitcher module={module} onChange={onChangeModule} />
       </div>
 
-      {/* Center: transport */}
-      <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1 bg-surface-0 rounded-[var(--r-md)] p-0.5 border border-line-1">
+      {/* Center: transport — single play/pause toggle, enabled only for playable
+          (video/camera) sources. */}
+      <div className="absolute left-1/2 -translate-x-1/2 flex items-center bg-surface-0 rounded-[var(--r-md)] p-0.5 border border-line-1">
         <button
           onClick={onTogglePlay}
-          title="Pause"
-          aria-label="Pause playback"
-          {...helpProps('Pause the content source.')}
-          className={`p-1 rounded-[var(--r-sm)] w-8 flex items-center justify-center transition-colors ${!isVideoPlaying ? 'bg-surface-3 text-fg-1' : 'text-fg-3 hover:text-fg-1'}`}
+          disabled={!canPlay}
+          title={!canPlay ? 'Play/Pause (video or camera source)' : isVideoPlaying ? 'Pause' : 'Play'}
+          aria-label={isVideoPlaying ? 'Pause playback' : 'Play playback'}
+          {...helpProps(canPlay ? 'Play / pause the video source.' : 'Play/Pause — only applies to video or camera sources.')}
+          className={`p-1 rounded-[var(--r-sm)] w-9 flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+            canPlay && isVideoPlaying ? 'bg-accent text-black' : 'text-fg-2 hover:text-fg-1'
+          }`}
         >
-          <Pause size={12} fill="currentColor" />
-        </button>
-        <button
-          onClick={onTogglePlay}
-          title="Play"
-          aria-label="Play playback"
-          {...helpProps('Play the content source.')}
-          className={`p-1 rounded-[var(--r-sm)] w-8 flex items-center justify-center transition-colors ${isVideoPlaying ? 'bg-accent text-black' : 'text-fg-3 hover:text-fg-1'}`}
-        >
-          <Play size={12} fill="currentColor" />
+          {isVideoPlaying ? <Pause size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
         </button>
       </div>
 

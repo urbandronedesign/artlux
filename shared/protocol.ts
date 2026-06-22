@@ -36,7 +36,18 @@ export const IPC = {
   SPOUT_CONFIGURE: 'spout:configure',
   /** Main → renderer: a received Spout frame (downscaled 512² RGBA). */
   SPOUT_FRAME: 'spout:frame',
+  /** Main → renderer: a native-menu command (save/open/undo/about/…). */
+  MENU_ACTION: 'menu:action',
+  /** Renderer → main (invoke): app name + version (for About). */
+  APP_INFO: 'app:get-info',
+  /** Renderer → main: open a URL in the default browser. */
+  OPEN_EXTERNAL: 'app:open-external',
 } as const;
+
+export interface AppInfo {
+  name: string;
+  version: string;
+}
 
 export interface SpoutConfig {
   enabled: boolean;
@@ -157,6 +168,10 @@ export interface ArtluxApi {
   listSpoutSenders(): Promise<string[]>;
   configureSpout(cfg: SpoutConfig): void;
   onSpoutFrame(cb: (frame: SpoutFrame) => void): () => void;
+  // App chrome
+  onMenuAction(cb: (action: string) => void): () => void;
+  getAppInfo(): Promise<AppInfo>;
+  openExternal(url: string): void;
 }
 
 declare global {
