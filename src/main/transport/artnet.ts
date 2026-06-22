@@ -12,7 +12,9 @@ const ARTNET_HEADER = [65, 114, 116, 45, 78, 101, 116, 0, 0, 80, 0, 14];
 let socket: dgram.Socket | null = null;
 let ready = false;
 let currentBroadcast = false;
-let sequence = 0;
+// Art-Net sequence is per port-address (per `${ip}:${universe}`); a single global
+// counter makes each universe's sequence jump, which monitors read as dropped packets.
+const sequence = new Map<string, number>();
 let syncEnabled = false;
 
 // ArtSync (OpSync 0x5200): 14-byte header (ID + opcode + ProtVer + 2 aux). Constant.
@@ -74,10 +76,11 @@ export function sendFrame(payload: ArtNetFramePayload): void {
             }
             if (target.sparse && !changed) continue;
 
-            sequence = (sequence + 1) % 256;
-            if (sequence === 0) sequence = 1; // Art-Net: 0 disables sequence tracking
+            let seq = ((sequence.get(mapKey) ?? 0) + 1) % 256;
+            if (seq === 0) seq = 1; // Art-Net: 0 disables sequence tracking
+            sequence.set(mapKey, seq);
 
-            packet[12] = sequence;                 // Sequence
+            packet[12] = seq;                      // Sequence
             packet[13] = 0;                        // Physical
             packet[14] = universe & 0xff;          // Universe low
             packet[15] = (universe >> 8) & 0xff;   // Universe high (Net/SubNet)
@@ -117,4 +120,5 @@ export function close(): void {
     }
     ready = false;
     lastSent.clear();
+    sequence.clear();
 }

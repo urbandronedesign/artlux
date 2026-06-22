@@ -123,7 +123,7 @@ fn sender_loop(shared: Arc<Shared>, init_broadcast: bool) {
         socket.set_broadcast(true).ok();
         cur_broadcast = true;
     }
-    let mut artnet_seq: u8 = 0;
+    let mut artnet_seq: HashMap<String, u8> = HashMap::new();
     let mut sacn_seq: HashMap<String, u8> = HashMap::new();
     let mut last_sent: HashMap<String, Vec<u8>> = HashMap::new();
     let mut last_version: u64 = 0;
@@ -201,7 +201,7 @@ fn send_frame_bytes(
     sync: bool,
     socket: &UdpSocket,
     cur_broadcast: &mut bool,
-    artnet_seq: &mut u8,
+    artnet_seq: &mut HashMap<String, u8>,
     sacn_seq: &mut HashMap<String, u8>,
     last_sent: &mut HashMap<String, Vec<u8>>,
 ) -> (u32, u32) {
@@ -269,9 +269,13 @@ fn send_frame_bytes(
                 sacn_seq.insert(key.clone(), seq);
                 build_sacn(seq, universe, data, priority)
             } else {
-                *artnet_seq = artnet_seq.wrapping_add(1);
-                if *artnet_seq == 0 { *artnet_seq = 1; }
-                build_artnet(*artnet_seq, universe, data)
+                // Art-Net sequence is per port-address (per universe), like sACN — a single
+                // global counter makes each universe's seq jump by N, which monitors read as
+                // dropped packets.
+                let mut seq = artnet_seq.get(&key).copied().unwrap_or(0).wrapping_add(1);
+                if seq == 0 { seq = 1; } // Art-Net: 0 disables sequence tracking
+                artnet_seq.insert(key.clone(), seq);
+                build_artnet(seq, universe, data)
             };
             let _ = socket.send_to(&pkt, format!("{}:{}", dest, dport));
             packets += 1;
