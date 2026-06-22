@@ -66,8 +66,8 @@ const App: React.FC = () => {
   const [templates, setTemplates] = useState<FixtureTemplate[]>([]);
   const [controllers, setControllers] = useState<Controller[]>([]);
   const [module, setModule] = useState<Module>(Module.MAP);
-  const [dockOpen, setDockOpen] = useState(false);
-  const [dockTab, setDockTab] = useState<DockTab>(DockTab.MONITOR);
+  const [dockOpen, setDockOpen] = useState(true);
+  const [dockTab, setDockTab] = useState<DockTab>(DockTab.FIXTURE_EDITOR);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [currentProjectPath, setCurrentProjectPath] = useState<string | null>(null);
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
@@ -76,6 +76,7 @@ const App: React.FC = () => {
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
 
   const [showLeftPanel, setShowLeftPanel] = useState(true);
+  const [showRightPanel, setShowRightPanel] = useState(true);
   
   const [isBridgeConnected, setIsBridgeConnected] = useState(false);
   const [outputStats, setOutputStats] = useState<{ pps: number; fps: number; universes: number } | null>(null);
@@ -494,51 +495,34 @@ const App: React.FC = () => {
       <div className="flex flex-1 min-h-0">
         {/* Left: browser (top) + inspector (bottom) */}
         <div className={`h-full border-r border-line-1 bg-surface-1 transition-all duration-200 ${showLeftPanel ? 'w-72' : 'w-0 overflow-hidden border-none'}`}>
-            <div className="w-72 h-full flex flex-col min-h-0">
-                <div className="h-[45%] min-h-0 overflow-y-auto border-b border-line-1">
-                    <ScenePanel
-                        surfaces={surfaces}
-                        selectedSurfaceId={selectedSurfaceId}
-                        onSelectSurface={handleSelectSurface}
-                        onAddSurface={handleAddSurface}
-                        onRemoveSurface={handleRemoveSurface}
-                        onRenameSurface={handleRenameSurface}
-                        fixtures={fixtures}
-                        selectedFixtureId={selectedFixtureId}
-                        onSelect={handleSelectFixture}
-                        onAdd={handleAddFixture}
-                        onRemove={handleRemoveFixture}
-                        onRename={handleRenameFixture}
-                        masterBrightness={globalBrightness}
-                        onMasterBrightnessChange={setGlobalBrightness}
-                        groups={groups}
-                        scenes={scenes}
-                        onCreateGroup={handleCreateGroup}
-                        onAddSelectedToGroup={handleAddSelectedToGroup}
-                        onRemoveGroup={handleRemoveGroup}
-                        onSelectGroup={handleSelectGroup}
-                        onApplyLookToGroup={handleApplyLookToGroup}
-                        onCaptureScene={handleCaptureScene}
-                        onRecallScene={handleRecallScene}
-                        onRemoveScene={handleRemoveScene}
-                        templates={templates}
-                        onSaveTemplate={handleSaveTemplate}
-                        onAddFromTemplate={handleAddFromTemplate}
-                        onRemoveTemplate={handleRemoveTemplate}
-                        onAutoPatch={handleAutoPatch}
-                    />
-                </div>
-                <div className="flex-1 min-h-0 overflow-y-auto">
-                    <InspectorPanel
-                        module={module}
-                        surfaces={surfaces}
-                        selectedSurface={selectedSurface}
-                        onUpdateSurface={handleUpdateSurface}
-                        selectedFixture={selectedFixture}
-                        onUpdateFixture={handleUpdateFixture}
-                        settings={settings}
-                    />
-                </div>
+            <div className="w-72 h-full overflow-y-auto">
+                <ScenePanel
+                    surfaces={surfaces}
+                    selectedSurfaceId={selectedSurfaceId}
+                    onSelectSurface={handleSelectSurface}
+                    onAddSurface={handleAddSurface}
+                    onRemoveSurface={handleRemoveSurface}
+                    onRenameSurface={handleRenameSurface}
+                    fixtures={fixtures}
+                    selectedFixtureId={selectedFixtureId}
+                    onSelect={handleSelectFixture}
+                    onAdd={handleAddFixture}
+                    onRemove={handleRemoveFixture}
+                    onRename={handleRenameFixture}
+                    masterBrightness={globalBrightness}
+                    onMasterBrightnessChange={setGlobalBrightness}
+                    groups={groups}
+                    scenes={scenes}
+                    onCreateGroup={handleCreateGroup}
+                    onAddSelectedToGroup={handleAddSelectedToGroup}
+                    onRemoveGroup={handleRemoveGroup}
+                    onSelectGroup={handleSelectGroup}
+                    onApplyLookToGroup={handleApplyLookToGroup}
+                    onCaptureScene={handleCaptureScene}
+                    onRecallScene={handleRecallScene}
+                    onRemoveScene={handleRemoveScene}
+                    onAutoPatch={handleAutoPatch}
+                />
             </div>
         </div>
 
@@ -592,8 +576,32 @@ const App: React.FC = () => {
             >
                 {dockTab === DockTab.MONITOR
                     ? <DMXMonitor fixtures={fixtures} />
-                    : <FixtureEditor fixture={selectedFixture} onUpdateFixture={handleUpdateFixture} />}
+                    : <FixtureEditor
+                        fixture={selectedFixture}
+                        onUpdateFixture={handleUpdateFixture}
+                        onAdd={handleAddFixture}
+                        onAutoPatch={handleAutoPatch}
+                        templates={templates}
+                        onSaveTemplate={handleSaveTemplate}
+                        onAddFromTemplate={handleAddFromTemplate}
+                        onRemoveTemplate={handleRemoveTemplate}
+                      />}
             </Dock>
+        </div>
+
+        {/* Right: inspector / properties */}
+        <div className={`h-full border-l border-line-1 bg-surface-1 transition-all duration-200 ${showRightPanel ? 'w-80' : 'w-0 overflow-hidden border-none'}`}>
+            <div className="w-80 h-full overflow-y-auto">
+                <InspectorPanel
+                    module={module}
+                    surfaces={surfaces}
+                    selectedSurface={selectedSurface}
+                    onUpdateSurface={handleUpdateSurface}
+                    selectedFixture={selectedFixture}
+                    onUpdateFixture={handleUpdateFixture}
+                    settings={settings}
+                />
+            </div>
         </div>
       </div>
 
@@ -604,6 +612,8 @@ const App: React.FC = () => {
           outputStats={outputStats}
           leftOpen={showLeftPanel}
           onToggleLeft={() => setShowLeftPanel(!showLeftPanel)}
+          rightOpen={showRightPanel}
+          onToggleRight={() => setShowRightPanel(!showRightPanel)}
           targetIp={settings.artNetIp}
       />
 

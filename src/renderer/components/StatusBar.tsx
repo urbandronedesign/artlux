@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { PanelLeft, Activity, Wifi } from 'lucide-react';
+import { PanelLeft, PanelRight, Activity, Wifi } from 'lucide-react';
 import { helpBus } from '../services/helpBus';
 
 interface Props {
@@ -9,10 +9,12 @@ interface Props {
   outputStats: { pps: number; fps: number; universes: number } | null;
   leftOpen: boolean;
   onToggleLeft: () => void;
+  rightOpen: boolean;
+  onToggleRight: () => void;
   targetIp: string;
 }
 
-export const StatusBar: React.FC<Props> = ({ help, renderFps, connected, outputStats, leftOpen, onToggleLeft, targetIp }) => {
+export const StatusBar: React.FC<Props> = ({ help, renderFps, connected, outputStats, leftOpen, onToggleLeft, rightOpen, onToggleRight, targetIp }) => {
   const [hint, setHint] = useState<string | null>(null);
   useEffect(() => helpBus.subscribe(setHint), []);
 
@@ -21,11 +23,19 @@ export const StatusBar: React.FC<Props> = ({ help, renderFps, connected, outputS
     <div className="flex items-center gap-3 min-w-0">
       <button
         onClick={onToggleLeft}
-        title="Toggle panel"
+        title="Toggle left panel"
         aria-label="Toggle left panel"
         className={`inline-flex items-center justify-center h-5 w-5 rounded-[var(--r-sm)] hover:text-fg-1 hover:bg-surface-3 ${leftOpen ? 'text-accent' : 'text-fg-3'}`}
       >
         <PanelLeft size={13} />
+      </button>
+      <button
+        onClick={onToggleRight}
+        title="Toggle right panel"
+        aria-label="Toggle right panel"
+        className={`inline-flex items-center justify-center h-5 w-5 rounded-[var(--r-sm)] hover:text-fg-1 hover:bg-surface-3 ${rightOpen ? 'text-accent' : 'text-fg-3'}`}
+      >
+        <PanelRight size={13} />
       </button>
       <span className={`truncate ${hint ? 'text-fg-2' : 'text-fg-3'}`}>{hint ?? help}</span>
     </div>

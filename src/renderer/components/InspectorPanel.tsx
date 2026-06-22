@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Fixture, Surface, SurfaceContent, SourceType, AppSettings, PixelSource, LedShape, ColorOrder, RGBWMode, Layout3DType, Module } from '../types';
-import { Monitor, Image as ImageIcon, Video, Map, ChevronDown, Sparkles, Grid3x3, Network, Box, Cast, RefreshCw, Layers, Slash } from 'lucide-react';
+import { Monitor, Image as ImageIcon, Video, Map, Sparkles, Grid3x3, Network, Box, Cast, RefreshCw, Layers, Slash } from 'lucide-react';
+import { CollapsibleSection } from './CollapsibleSection';
 import { EFFECT_NAMES } from '../gpu/effects';
 import { PALETTE_NAMES } from '../gpu/palettes';
 import { effectivePosObj, effectiveRotObj, effectiveLayout } from '../services/led3dDefaults';
@@ -17,18 +18,9 @@ interface InspectorPanelProps {
 }
 
 const PanelSection: React.FC<{ title: string; children: React.ReactNode; icon?: React.ReactNode }> = ({ title, children, icon }) => (
-    <div className="border-b border-line-1">
-        <div className="px-3 py-2 bg-surface-2 flex items-center justify-between cursor-pointer hover:bg-surface-3">
-            <div className="flex items-center gap-2 text-xs font-bold text-fg-2 uppercase tracking-wider">
-                {icon && <span className="text-fg-2">{icon}</span>}
-                {title}
-            </div>
-            <ChevronDown size={12} className="text-fg-3" />
-        </div>
-        <div className="p-3 bg-surface-1 space-y-3">
-            {children}
-        </div>
-    </div>
+    <CollapsibleSection title={title} icon={icon} bodyClassName="p-3 bg-surface-1 space-y-3">
+        {children}
+    </CollapsibleSection>
 );
 
 const NumberInput: React.FC<{ label: string; value: number; onChange: (v: number) => void; step?: number }> = ({ label, value, onChange, step = 1 }) => (
@@ -93,7 +85,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
     };
 
     return (
-        <div className="flex flex-col h-full bg-surface-1 border-r border-line-1 overflow-y-auto">
+        <div className="flex flex-col h-full bg-surface-1 overflow-y-auto">
             {/* Surface inspector (content + transform) */}
             {selectedSurface && (() => {
                 const c = selectedSurface.content;

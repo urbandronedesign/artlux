@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Fixture, FixtureGroup, Scene, Surface, FixtureTemplate } from '../types';
-import { Plus, Trash2, Folder, Box, Users, Camera, Play, Copy, Layers, Save, PackagePlus, Hash } from 'lucide-react';
+import { Fixture, FixtureGroup, Scene, Surface } from '../types';
+import { Plus, Trash2, Folder, Box, Users, Camera, Play, Copy, Layers, Hash, SlidersHorizontal } from 'lucide-react';
+import { CollapsibleSection } from './CollapsibleSection';
 
 interface ScenePanelProps {
     surfaces: Surface[];
@@ -27,10 +28,6 @@ interface ScenePanelProps {
     onCaptureScene: () => void;
     onRecallScene: (scene: Scene) => void;
     onRemoveScene: (id: string) => void;
-    templates: FixtureTemplate[];
-    onSaveTemplate: () => void;
-    onAddFromTemplate: (t: FixtureTemplate) => void;
-    onRemoveTemplate: (id: string) => void;
     onAutoPatch: () => void;
 }
 
@@ -59,10 +56,6 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
     onCaptureScene,
     onRecallScene,
     onRemoveScene,
-    templates,
-    onSaveTemplate,
-    onAddFromTemplate,
-    onRemoveTemplate,
     onAutoPatch,
 }) => {
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -97,13 +90,13 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
     };
 
     return (
-        <div className="flex flex-col h-full bg-surface-1 border-l border-line-1 text-xs">
+        <div className="flex flex-col h-full bg-surface-1 text-xs">
             {/* Surfaces */}
-            <div className="border-b border-line-1">
-                <div className="h-8 bg-surface-2 flex items-center px-2 justify-between border-b border-line-1">
-                    <span className="font-bold text-fg-2 uppercase tracking-wider text-[10px]">Surfaces</span>
-                    <button onClick={onAddSurface} className="text-fg-2 hover:text-fg-1" title="Add Surface"><Plus size={14}/></button>
-                </div>
+            <CollapsibleSection
+                title="Surfaces"
+                icon={<Layers size={12} />}
+                action={<button onClick={onAddSurface} className="text-fg-2 hover:text-fg-1" title="Add Surface"><Plus size={14}/></button>}
+            >
                 <div className="p-1 space-y-0.5 max-h-40 overflow-y-auto">
                     {surfaces.map(s => {
                         const sel = s.id === selectedSurfaceId;
@@ -140,19 +133,18 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
                     })}
                     {surfaces.length === 0 && <div className="text-fg-3 italic px-2 py-1">No surfaces</div>}
                 </div>
-            </div>
+            </CollapsibleSection>
 
-            {/* Header */}
-            <div className="h-8 bg-surface-2 flex items-center px-2 justify-between border-b border-line-1">
-                <span className="font-bold text-fg-2 uppercase tracking-wider text-[10px]">Fixtures</span>
-                <div className="flex gap-1.5">
-                     <button onClick={onAutoPatch} className="text-fg-2 hover:text-fg-1" title="Auto-patch (assign universes/addresses)"><Hash size={13}/></button>
-                     <button onClick={onAdd} className="text-fg-2 hover:text-fg-1" title="Add Fixture"><Plus size={14}/></button>
-                </div>
-            </div>
-
-            {/* Tree View */}
-            <div className="flex-1 overflow-y-auto p-1">
+            {/* Fixtures tree (outliner) */}
+            <CollapsibleSection
+                title="Fixtures"
+                icon={<Box size={12} />}
+                action={<>
+                    <button onClick={onAutoPatch} className="text-fg-2 hover:text-fg-1" title="Auto-patch (assign universes/addresses)"><Hash size={13}/></button>
+                    <button onClick={onAdd} className="text-fg-2 hover:text-fg-1" title="Add Fixture"><Plus size={14}/></button>
+                </>}
+            >
+                <div className="max-h-72 overflow-y-auto p-1">
                 {/* Mock Folder for visual structure */}
                 <div className="mb-1">
                     <div className="flex items-center px-2 py-1 text-fg-2 hover:bg-surface-3 rounded cursor-default">
@@ -206,34 +198,15 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
                         )}
                     </div>
                 </div>
-            </div>
-            
-            {/* Library (fixture templates) */}
-            <div className="border-t border-line-1">
-                <div className="h-8 bg-surface-2 flex items-center px-2 justify-between border-b border-line-1">
-                    <span className="font-bold text-fg-2 uppercase tracking-wider text-[10px]">Library</span>
-                    <button onClick={onSaveTemplate} className="text-fg-2 hover:text-fg-1" title="Save selected fixture as a template"><Save size={13}/></button>
                 </div>
-                <div className="p-1 space-y-0.5 max-h-28 overflow-y-auto">
-                    {templates.map(t => (
-                        <div key={t.id} className="flex items-center group px-2 py-1 rounded hover:bg-surface-3 text-fg-2">
-                            <button className="flex-1 flex items-center text-left truncate" onClick={() => onAddFromTemplate(t)} title="Add a fixture from this template">
-                                <PackagePlus size={12} className="mr-2 text-fg-3" />
-                                {t.name} <span className="text-fg-3 ml-1">({t.ledCount})</span>
-                            </button>
-                            <button className="opacity-0 group-hover:opacity-100 hover:text-danger text-fg-3" onClick={() => onRemoveTemplate(t.id)} title="Delete template"><Trash2 size={10} /></button>
-                        </div>
-                    ))}
-                    {templates.length === 0 && <div className="text-fg-3 italic px-2 py-1">No templates</div>}
-                </div>
-            </div>
+            </CollapsibleSection>
 
             {/* Groups */}
-            <div className="border-t border-line-1">
-                <div className="h-8 bg-surface-2 flex items-center px-2 justify-between border-b border-line-1">
-                    <span className="font-bold text-fg-2 uppercase tracking-wider text-[10px]">Groups</span>
-                    <button onClick={onCreateGroup} className="text-fg-2 hover:text-fg-1" title="New group from selection"><Plus size={14}/></button>
-                </div>
+            <CollapsibleSection
+                title="Groups"
+                icon={<Users size={12} />}
+                action={<button onClick={onCreateGroup} className="text-fg-2 hover:text-fg-1" title="New group from selection"><Plus size={14}/></button>}
+            >
                 <div className="p-1 space-y-0.5 max-h-28 overflow-y-auto">
                     {groups.map(g => (
                         <div key={g.id} className="flex items-center group px-2 py-1 rounded hover:bg-surface-3 text-fg-2">
@@ -248,14 +221,14 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
                     ))}
                     {groups.length === 0 && <div className="text-fg-3 italic px-2 py-1">No groups</div>}
                 </div>
-            </div>
+            </CollapsibleSection>
 
             {/* Scenes */}
-            <div className="border-t border-line-1">
-                <div className="h-8 bg-surface-2 flex items-center px-2 justify-between border-b border-line-1">
-                    <span className="font-bold text-fg-2 uppercase tracking-wider text-[10px]">Scenes</span>
-                    <button onClick={onCaptureScene} className="text-fg-2 hover:text-fg-1" title="Capture current look"><Camera size={14}/></button>
-                </div>
+            <CollapsibleSection
+                title="Scenes"
+                icon={<Camera size={12} />}
+                action={<button onClick={onCaptureScene} className="text-fg-2 hover:text-fg-1" title="Capture current look"><Camera size={14}/></button>}
+            >
                 <div className="p-1 space-y-0.5 max-h-28 overflow-y-auto">
                     {scenes.map(s => (
                         <div key={s.id} className="flex items-center group px-2 py-1 rounded hover:bg-surface-3 text-fg-2">
@@ -267,21 +240,18 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
                     ))}
                     {scenes.length === 0 && <div className="text-fg-3 italic px-2 py-1">No scenes</div>}
                 </div>
-            </div>
+            </CollapsibleSection>
 
-            {/* Global Parameters / Preview (Bottom of Right Panel) */}
-            <div className="h-auto border-t border-line-1 bg-surface-1 flex flex-col">
-                 <div className="h-8 bg-surface-2 flex items-center px-2 border-b border-line-1">
-                    <span className="font-bold text-fg-2 uppercase tracking-wider text-[10px]">Global Params</span>
-                </div>
+            {/* Global Parameters (sliders) */}
+            <CollapsibleSection title="Global Params" icon={<SlidersHorizontal size={12} />}>
                 <div className="p-3 space-y-4">
                      <div>
                          <div className="flex justify-between text-fg-2 mb-1">
                             <span>Master Brightness</span>
                             <span>{Math.round(masterBrightness * 100)}%</span>
                          </div>
-                         <input 
-                            type="range" 
+                         <input
+                            type="range"
                             min={0} max={1} step={0.01}
                             value={masterBrightness}
                             onChange={(e) => onMasterBrightnessChange(parseFloat(e.target.value))}
@@ -289,7 +259,7 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
                          />
                      </div>
                 </div>
-            </div>
+            </CollapsibleSection>
         </div>
     );
 }

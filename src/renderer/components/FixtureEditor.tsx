@@ -1,11 +1,17 @@
 import React from 'react';
-import { Fixture, LedShape, ColorOrder, RGBWMode } from '../types';
-import { Hash, Grid3x3, Cable, Minus } from 'lucide-react';
+import { Fixture, FixtureTemplate, LedShape, ColorOrder, RGBWMode } from '../types';
+import { Hash, Grid3x3, Cable, Minus, Plus, Save, PackagePlus, Trash2, Library } from 'lucide-react';
 import { Field, NumberField, Select, Toggle, Segmented } from './ui';
 
 interface Props {
   fixture: Fixture | null;
   onUpdateFixture: (id: string, updates: Partial<Fixture>) => void;
+  onAdd: () => void;
+  onAutoPatch: () => void;
+  templates: FixtureTemplate[];
+  onSaveTemplate: () => void;
+  onAddFromTemplate: (t: FixtureTemplate) => void;
+  onRemoveTemplate: (id: string) => void;
 }
 
 const Card: React.FC<{ title: string; icon?: React.ReactNode; children: React.ReactNode; className?: string }> = ({
@@ -46,22 +52,75 @@ const MatrixPreview: React.FC<{ cols: number; rows: number; serpentine: boolean 
   );
 };
 
-export const FixtureEditor: React.FC<Props> = ({ fixture, onUpdateFixture }) => {
-  if (!fixture) {
-    return <div className="h-full flex items-center justify-center text-fg-3 text-xs italic">Select a fixture to edit its pixel structure.</div>;
-  }
-
-  const up = (updates: Partial<Fixture>) => onUpdateFixture(fixture.id, updates);
-  const shape = fixture.shape ?? LedShape.LINE;
-  const cpp = fixture.channelsPerPixel ?? 4;
-  const cols = fixture.matrixWidth ?? 8;
-  const rows = fixture.matrixHeight ?? 8;
-  const totalChannels = fixture.ledCount * cpp;
+export const FixtureEditor: React.FC<Props> = ({
+  fixture,
+  onUpdateFixture,
+  onAdd,
+  onAutoPatch,
+  templates,
+  onSaveTemplate,
+  onAddFromTemplate,
+  onRemoveTemplate,
+}) => {
+  const up = (updates: Partial<Fixture>) => fixture && onUpdateFixture(fixture.id, updates);
+  const shape = fixture?.shape ?? LedShape.LINE;
+  const cpp = fixture?.channelsPerPixel ?? 4;
+  const cols = fixture?.matrixWidth ?? 8;
+  const rows = fixture?.matrixHeight ?? 8;
+  const totalChannels = (fixture?.ledCount ?? 0) * cpp;
 
   return (
     <div className="h-full overflow-auto p-3 bg-surface-0">
       <div className="flex flex-wrap gap-3 items-start">
+        {/* Create — fixture creation lives next to the editor */}
+        <Card title="Create" icon={<Plus size={12} />} className="min-w-[160px]">
+          <button
+            onClick={onAdd}
+            className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-[var(--r-sm)] bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3 text-xs"
+          >
+            <Plus size={13} /> Add fixture
+          </button>
+          <button
+            onClick={onAutoPatch}
+            className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-[var(--r-sm)] bg-surface-2 border border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1 text-xs"
+            title="Assign universes/addresses to all fixtures"
+          >
+            <Hash size={13} /> Auto-patch
+          </button>
+        </Card>
+
+        {/* Library — fixture templates */}
+        <Card title="Library" icon={<Library size={12} />} className="min-w-[200px]">
+          <button
+            onClick={onSaveTemplate}
+            disabled={!fixture}
+            className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-[var(--r-sm)] bg-surface-2 border border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1 text-xs disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Save the selected fixture as a template"
+          >
+            <Save size={13} /> Save selected
+          </button>
+          <div className="space-y-0.5 max-h-40 overflow-y-auto -mx-1 px-1">
+            {templates.map(t => (
+              <div key={t.id} className="flex items-center group px-2 py-1 rounded hover:bg-surface-3 text-fg-2 text-xs">
+                <button className="flex-1 flex items-center text-left truncate" onClick={() => onAddFromTemplate(t)} title="Add a fixture from this template">
+                  <PackagePlus size={12} className="mr-2 text-fg-3" />
+                  {t.name} <span className="text-fg-3 ml-1">({t.ledCount})</span>
+                </button>
+                <button className="opacity-0 group-hover:opacity-100 hover:text-danger text-fg-3" onClick={() => onRemoveTemplate(t.id)} title="Delete template"><Trash2 size={10} /></button>
+              </div>
+            ))}
+            {templates.length === 0 && <div className="text-fg-3 italic px-2 py-1 text-xs">No templates</div>}
+          </div>
+        </Card>
+
+        {!fixture && (
+          <div className="flex items-center text-fg-3 text-xs italic px-2 py-6 min-w-[200px]">
+            Select a fixture to edit its pixel structure.
+          </div>
+        )}
+
         {/* Patch / identity */}
+        {fixture && <>
         <Card title="Patch" icon={<Hash size={12} />}>
           <NumberField label="LEDs" value={fixture.ledCount} min={1} step={1} onChange={(v) => up({ ledCount: Math.max(1, Math.round(v)) })} />
           <NumberField label="Universe" value={fixture.universe} min={0} step={1} onChange={(v) => up({ universe: Math.max(0, Math.round(v)) })} />
@@ -133,6 +192,7 @@ export const FixtureEditor: React.FC<Props> = ({ fixture, onUpdateFixture }) => 
           )}
           <div className="num text-[10px] text-fg-3 pt-1">{totalChannels} ch · {fixture.ledCount} px × {cpp}</div>
         </Card>
+        </>}
       </div>
     </div>
   );
