@@ -34,7 +34,13 @@ const FixtureStrip: React.FC<{ fixture: Fixture; offset: number }> = ({ fixture,
       let ptr = 0;
       let peak = 0;
       for (let i = startIdx; i < endIdx; i += 4) {
-        const r = allPixels[i], g = allPixels[i + 1], b = allPixels[i + 2];
+        // Canonical pixels are RGBW: the white channel (i+3) holds the neutral
+        // component pulled out of RGB by the RGBW-subtract shader. Fold it back in
+        // so whites read as white in the preview (W is 0 for RGB/NONE fixtures).
+        const w = allPixels[i + 3];
+        const r = Math.min(255, allPixels[i] + w);
+        const g = Math.min(255, allPixels[i + 1] + w);
+        const b = Math.min(255, allPixels[i + 2] + w);
         data[ptr] = r; data[ptr + 1] = g; data[ptr + 2] = b; data[ptr + 3] = 255;
         ptr += 4;
         const m = Math.max(r, g, b);
