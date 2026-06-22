@@ -16,6 +16,10 @@ pub struct SpoutFrame {
     pub width: u32,
     pub height: u32,
     pub data: Buffer,
+    // The sender's true resolution (data is downscaled to width×height), so the
+    // renderer can size the stage to the real aspect ratio.
+    pub src_width: u32,
+    pub src_height: u32,
 }
 
 #[cfg(windows)]
@@ -74,7 +78,7 @@ mod imp {
         }
         let bgra = st.rx.sender_format() == 87; // DXGI_FORMAT_B8G8R8A8_UNORM
         let out = downscale(&st.buf, st.w, st.h, bgra);
-        Some(SpoutFrame { width: OUT, height: OUT, data: out.into() })
+        Some(SpoutFrame { width: OUT, height: OUT, data: out.into(), src_width: st.w, src_height: st.h })
     }
 
     // Nearest-neighbour downscale of a (w x h, 4bpp) image to OUT x OUT RGBA.

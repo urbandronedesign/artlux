@@ -27,6 +27,12 @@ export async function listSpoutSenders(): Promise<string[]> {
   return (await window.artlux?.listSpoutSenders?.()) ?? [];
 }
 
+// The active sender's true aspect ratio (w/h), or null until a frame arrives.
+export function getSpoutAspect(): number | null {
+  if (!latest || !latest.srcWidth || !latest.srcHeight) return null;
+  return latest.srcWidth / latest.srcHeight;
+}
+
 // Returns a canvas with the latest Spout frame, or null if none yet.
 export function getSpoutCanvas(): HTMLCanvasElement | null {
   if (!latest) return null;

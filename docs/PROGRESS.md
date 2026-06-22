@@ -314,6 +314,13 @@ Plan: Persistence (F1) → Art-Net Poll (F2) → Art-Net Sync (F2b) → Headless
   `app:get-info` IPC; external links via `app:open-external` (shell.openExternal).
 - **Play/Pause** — replaced the dual-button toggle with a single source-aware toggle in `TopBar`
   (disabled unless source is VIDEO/CAMERA; icon reflects state). Verified `tsc`+build+launch+package.
+- **Content aspect ratio** — the stage now follows the **source aspect** instead of a fixed square.
+  Mapper sampling is normalized (verified), so the 512² canvas + mapper are unchanged: sources are
+  drawn **stretched-to-fill** the square and the canvas is shown `object-fill`, while the stage
+  container takes the source's w/h (`Stage.tsx` `contentAspect` from video/image natural dims or
+  Spout). Spout addon now reports `srcWidth/srcHeight` (`SpoutFrame`) so its true aspect survives the
+  512² downscale; `spoutReceiver.getSpoutAspect()`. DMX-in/NONE default 16:9. Output values
+  unchanged (normalized). `tsc`+build+build:native+launch clean.
 
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.

@@ -6,7 +6,7 @@ import { WebGPUMapper } from '../gpu/WebGPUMapper';
 import { IPixelMapper } from '../services/PixelMapper';
 import { dmxSignal } from '../services/dmxSignal';
 import { getInputCanvas } from '../services/dmxInput';
-import { getSpoutCanvas } from '../services/spoutReceiver';
+import { getSpoutCanvas, getSpoutAspect } from '../services/spoutReceiver';
 
 interface StageProps {
   sourceType: SourceType;
@@ -87,6 +87,19 @@ export const Stage: React.FC<StageProps> = ({
   const [viewState, setViewState] = useState({ x: 0, y: 0, scale: 0.8 });
   const viewStateRef = useRef(viewState);
   useEffect(() => { viewStateRef.current = viewState; }, [viewState]);
+
+  // The stage proportions follow the active source's aspect (w/h). The 512² canvas
+  // backing buffer is unchanged — the source is drawn stretched-to-fill it and the
+  // canvas is displayed with object-fill, so normalized LED sampling is unaffected.
+  const [contentAspect, setContentAspect] = useState(16 / 9);
+  const contentAspectRef = useRef(contentAspect);
+  const applyAspect = (a: number | null) => {
+    if (!a || !isFinite(a) || a <= 0) return;
+    if (Math.abs(a - contentAspectRef.current) > 0.005) {
+      contentAspectRef.current = a;
+      setContentAspect(a);
+    }
+  };
 
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [showGrid, setShowGrid] = useState(true);
@@ -248,6 +261,12 @@ export const Stage: React.FC<StageProps> = ({
       sourceElement = imgRef.current;
     }
 
+    // Stage proportions follow the source aspect; sources fill the square canvas
+    // (normalized sampling makes this output-equivalent to letterboxing).
+    if (sourceType === SourceType.DMX_IN || sourceType === SourceType.NONE) {
+        applyAspect(16 / 9); // no meaningful media aspect → neutral landscape
+    }
+
     // DMX input as a content source: draw the assembled input texture.
     if (sourceType === SourceType.DMX_IN && canvasRef.current) {
         const ctx = canvasRef.current.getContext('2d');
@@ -261,6 +280,7 @@ export const Stage: React.FC<StageProps> = ({
 
     // Spout input as a content source: draw the received texture (already 512²).
     if (sourceType === SourceType.SPOUT && canvasRef.current) {
+        applyAspect(getSpoutAspect());
         const ctx = canvasRef.current.getContext('2d');
         const inCanvas = getSpoutCanvas();
         if (ctx && inCanvas) {
@@ -275,7 +295,7 @@ export const Stage: React.FC<StageProps> = ({
         if (ctx && sourceElement) {
             const cw = canvasRef.current.width;
             const ch = canvasRef.current.height;
-            
+
             let ready = true;
             if (sourceElement instanceof HTMLVideoElement && sourceElement.readyState < 2) ready = false;
             if (sourceElement instanceof HTMLImageElement && !sourceElement.complete) ready = false;
@@ -291,16 +311,10 @@ export const Stage: React.FC<StageProps> = ({
                  }
 
                  if (sw > 0 && sh > 0) {
-                     const ca = cw / ch;
-                     const sa = sw / sh;
-                     let dw, dh, dx, dy;
-
-                     if (sa > ca) {
-                         dw = cw; dh = cw / sa; dx = 0; dy = (ch - dh) / 2;
-                     } else {
-                         dh = ch; dw = ch * sa; dy = 0; dx = (cw - dw) / 2;
-                     }
-                     ctx.drawImage(sourceElement, dx, dy, dw, dh);
+                     applyAspect(sw / sh);
+                     // Fill the square canvas (stretched); the stage container carries
+                     // the real aspect, so the displayed preview is un-stretched.
+                     ctx.drawImage(sourceElement, 0, 0, cw, ch);
                  }
             }
         }
@@ -662,8 +676,12 @@ export const Stage: React.FC<StageProps> = ({
     return 'move';
   };
 
+  // Stage container size from the content aspect (base 512 on the longer axis).
+  const stageW = contentAspect >= 1 ? 512 : 512 * contentAspect;
+  const stageH = contentAspect >= 1 ? 512 / contentAspect : 512;
+
   return (
-    <div 
+    <div
       ref={viewportRef}
       className="relative w-full h-full bg-surface-0 overflow-hidden select-none cursor-default"
       onWheel={handleWheel}
@@ -695,17 +713,17 @@ export const Stage: React.FC<StageProps> = ({
             height: '100%',
         }}
       >
-          <div 
+          <div
             ref={containerRef}
             className="absolute shadow-2xl bg-black border border-line-1"
-            style={{ 
-                width: '512px', 
-                height: '512px',
+            style={{
+                width: `${stageW}px`,
+                height: `${stageH}px`,
                 left: '50%',
                 top: '50%',
-                marginLeft: '-256px',
-                marginTop: '-256px'
-            }} 
+                marginLeft: `${-stageW / 2}px`,
+                marginTop: `${-stageH / 2}px`,
+            }}
           >
             {activeSnapLines.x.map((x, i) => (
                 <div key={`sx-${i}`} className="absolute top-0 bottom-0 w-px bg-sel-surface z-[60] shadow-[0_0_4px_rgba(39,182,196,0.8)]" style={{ left: `${x * 100}%` }}></div>
@@ -736,10 +754,10 @@ export const Stage: React.FC<StageProps> = ({
                 style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' }}
             />
 
-            <canvas 
-                ref={canvasRef} 
-                width={512} height={512} 
-                className="absolute top-0 left-0 w-full h-full object-contain pointer-events-none opacity-50"
+            <canvas
+                ref={canvasRef}
+                width={512} height={512}
+                className="absolute top-0 left-0 w-full h-full object-fill pointer-events-none opacity-50"
             />
 
             <div className="absolute top-0 left-0 w-full h-full z-10 overflow-hidden">

@@ -57,7 +57,9 @@ export interface SpoutConfig {
 export interface SpoutFrame {
   width: number;
   height: number;
-  data: Uint8Array; // RGBA
+  data: Uint8Array; // RGBA (downscaled to width×height)
+  srcWidth: number;  // sender's true resolution (for stage aspect)
+  srcHeight: number;
 }
 
 // One Art-Net node found via ArtPoll/ArtPollReply discovery.
