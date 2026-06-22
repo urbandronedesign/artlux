@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.4.1
+
+- **Check for updates in About**: the About dialog now has a **Check for updates** button with inline
+  status (checking / up-to-date / download / restart & install), so the updater is discoverable without
+  the Help menu. (Auto-update still also runs on launch + Help → Check for Updates.)
+
 ## v0.4.0
 
 A dedicated 3D Scene window and a video-layer timeline.
