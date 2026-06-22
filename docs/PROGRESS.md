@@ -418,6 +418,30 @@ Shipped across **v0.3.0** and **v0.3.1** (see `CHANGELOG.md`; UI detail in `UI_R
   update in place; macOS links to Releases (no Developer ID). `build.publish=github` emits `latest.yml`;
   CI uploads `*.yml`/`*.blockmap`. Works for upgrades from v0.3.1 onward.
 
+## v0.4.0 — 3D Scene window + video-layer timeline
+
+- **3D Scene as a separate window** (`src/renderer/scene.html`/`scene.tsx` → `scene/SceneApp.tsx`; opened by
+  `main/index.ts` `createSceneWindow`). Main↔Scene bridge via `MessageChannelMain` (port forwarded into the
+  main world by the preload through `window.postMessage` — a MessagePort can't cross `contextBridge`);
+  `scene/bridge.ts` message union. Main streams `state` + per-LED `pixels` (~30 fps) + `timeline` +
+  `transport`; Scene sends `select`/`commit`/`sceneConfig`/`save`.
+- **Scene objects** (`shared/protocol.ts` `SceneModel`, `Scene3D`): GLB meshes (`ModelObject` — stable
+  group + drei `TransformControls`, bbox-recentred pivot, frustumCull off, shared clones = instancing,
+  blob-URL-by-path loader with `useGLTF.clear` on remove) and **screen planes** (`PlaneObject` —
+  `PlaneGeometry` + `THREE.VideoTexture` from the timeline engine). `FixtureLights` (≤12 point lights
+  coloured by live LED average), `ReflectiveFloor` (`MeshReflectorMaterial`), env/exposure/grid, `Save`.
+- **Video-layer timeline** (NLE): `types.ts` `VideoLayer`/`VideoClip`/`Timeline`; engine
+  `services/timeline.ts` (render-free clock, one `<video>` per track, clip resolution + blob loading,
+  `external` mode in the Scene window driven by the bridged transport); UI `components/Timeline.tsx`
+  (dock tab, tracks/clips, drag-drop MP4s, move/trim, scrub). `SourceType.LAYER` + `SurfaceContent.layerId`
+  → `surfaceMedia.getDrawable` returns the layer drawable; Inspector "Layer" content picker; planes bind a
+  `layerId`. Unified transport = top-bar Play. Persisted in `ProjectData.timeline`.
+- File IPC: `READ_FILE` + `PICK_VIDEO` (`ipc.ts`/preload) + `getPathForFile` (preload `webUtils`) for
+  drag-dropped clips.
+- **Top bar slimmed** (removed logo/undo/save/module switcher; `ModuleSwitcher` deleted; `module` state
+  gone) + **Scene** button. **Background throttling disabled** on both windows (+ command-line switches)
+  so the engine/timeline/DMX never stall when the other window has focus.
+
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
 - Deferred effects: stateful **fire2012**, **multi-segment** subdivision per fixture.

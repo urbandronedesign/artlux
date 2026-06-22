@@ -1,5 +1,35 @@
 # Changelog
 
+## v0.4.0
+
+A dedicated 3D Scene window and a video-layer timeline.
+
+### 3D Scene window
+- The **3D** view is now its own window (open from the top-bar **Scene** button) — put it on a second
+  monitor while you map in the main window. It mirrors the live fixtures + LED colors over a fast
+  renderer-to-renderer bridge.
+- **Load GLB/glTF venue models** (multiple), each selectable in an **outliner** and transformable
+  (**move / rotate / scale** gizmo, pivot at the mesh centre). Identical meshes are instanced; **Auto-fit**
+  scales a model to a real-world size; per-object scale/position/rotation.
+- **Real-time venue lighting**: each fixture casts a light coloured by its live LED output; plus
+  environment ambient, exposure, a configurable grid, and an optional **reflective floor**.
+- **Save** from the Scene window persists the scene into the project.
+
+### Video-layer timeline
+- A new **Timeline** dock tab: an NLE with **tracks** and **clips** — **drag-and-drop MP4s** onto a track,
+  move/trim clips, scrub the playhead. The top-bar **Play** is the unified transport.
+- Assign a **track (layer) to a surface** (Inspector → Content → **Layer**) so the surface (and the
+  fixtures sampling it) show that track's video.
+- Add **screen planes** in the 3D Scene and assign a **layer** to simulate a projection — the plane plays
+  the track's video in sync with the main window.
+- The timeline (tracks + clips), surface layer bindings, and plane assignments are saved with the project.
+
+### UI / fixes
+- **Slimmer top bar**: removed the logo/wordmark, undo/redo, save/open, and the Media/Map/Fixtures module
+  buttons (those still live in the File/Edit menu + shortcuts). Added the **Scene** button.
+- **No background throttling**: the engine, timeline, and DMX output keep running full-speed when the
+  other window has focus (fixes video flicker / stutter while working in the Scene window).
+
 ## v0.3.1
 
 - **Auto-update** (Windows / Linux): the app checks GitHub Releases on launch and from
