@@ -385,6 +385,39 @@ per-surface sampling + fixture linking, fixture library, controllers + auto-patc
   512² downscale; `spoutReceiver.getSpoutAspect()`. DMX-in/NONE default 16:9. Output values
   unchanged (normalized). `tsc`+build+build:native+launch clean.
 
+## v0.3.x — workspace rework, square canvas, output/preview fixes, auto-update
+
+Shipped across **v0.3.0** and **v0.3.1** (see `CHANGELOG.md`; UI detail in `UI_REFACTOR.md`,
+"Workspace layout v2").
+
+- **Workspace UI v2** — three-region shell in `App.tsx`: left `ScenePanel` (outliners + sliders),
+  center stage + dock, **right `InspectorPanel`** (re-added). `CollapsibleSection` primitive (header
+  toggles; `grow` mode → Surfaces/Fixtures fill the panel). Dock Fixture Editor tab now also holds
+  fixture **Create** + **Library** and opens by default. **Multi-select** fixtures (`selectedFixtureId`
+  primary + `selectedFixtureIds` set): click / ctrl·cmd / shift-range / Master-Layer / Ctrl·Cmd+A, in
+  outliner and on stage; group ops act on the set. **Smooth sliders** (`ui/Slider`): local value during
+  drag, commit on release; master brightness drives a render-free `--preview-brightness` channel
+  (`services/livePreview.ts`) the Stage rAF reads (avoids re-rendering all of `App` per drag tick;
+  nothing is memoized).
+- **Square UV canvas** (`Stage.tsx` `contentAspect = 1`) on a mid-grey backdrop with a **configurable
+  layout grid** (toggle + divisions; surfaces & fixtures snap to it). **Surfaces auto-fit their
+  content's aspect** on load (`surfaceMedia.getContentAspect`) and corner-resize scales uniformly (no
+  distortion). Fixtures/surfaces layers use `pointer-events-none` containers + `pointer-events-auto`
+  items (fixed surfaces being unclickable under the fixtures layer). *Supersedes the earlier
+  "Content aspect ratio" entry (stage no longer follows a single source aspect).*
+- **Preview-only fixes**: composite preview canvas at full opacity (was `opacity-50`); `DMXMonitor`
+  folds the RGBW white channel back into RGB so whites display. Output was always correct.
+- **Camera surfaces fixed**: main process now grants the `media` permission
+  (`session.setPermissionRequestHandler`/`setPermissionCheckHandler`, `src/main/index.ts`) —
+  `getUserMedia` was silently denied. Renderer logs the precise `DOMException` name.
+- **Art-Net dropped-packets fix**: sequence is now **per port-address** (per universe) in both the
+  native Rust engine (`native/output-engine/src/lib.rs`) and the TS fallback (`artnet.ts`) — a single
+  global counter made each universe's seq jump, which monitors read as missing packets.
+- **Auto-update (v0.3.1)**: user-gated `electron-updater` (`src/main/updater.ts`, GitHub provider) —
+  check on launch + Help menu, in-app `UpdateNotice` prompt, Download → Restart & Install. Windows/Linux
+  update in place; macOS links to Releases (no Developer ID). `build.publish=github` emits `latest.yml`;
+  CI uploads `*.yml`/`*.blockmap`. Works for upgrades from v0.3.1 onward.
+
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
 - Deferred effects: stateful **fire2012**, **multi-segment** subdivision per fixture.
