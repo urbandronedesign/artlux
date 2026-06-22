@@ -42,7 +42,23 @@ export const IPC = {
   APP_INFO: 'app:get-info',
   /** Renderer → main: open a URL in the default browser. */
   OPEN_EXTERNAL: 'app:open-external',
+  /** Renderer → main: check GitHub for a newer release. */
+  UPDATE_CHECK: 'update:check',
+  /** Renderer → main: user accepted — download the available update. */
+  UPDATE_DOWNLOAD: 'update:download',
+  /** Renderer → main: user accepted — quit and install the downloaded update. */
+  UPDATE_INSTALL: 'update:install',
+  /** Main → renderer: auto-update lifecycle events. */
+  UPDATE_EVENT: 'update:event',
 } as const;
+
+export interface UpdateEvent {
+  status: 'checking' | 'available' | 'not-available' | 'progress' | 'downloaded' | 'error' | 'manual';
+  version?: string;
+  percent?: number;   // download-progress %
+  message?: string;   // error detail
+  url?: string;       // 'manual': where to download (unsupported platforms)
+}
 
 export interface AppInfo {
   name: string;
@@ -175,6 +191,11 @@ export interface ArtluxApi {
   onMenuAction(cb: (action: string) => void): () => void;
   getAppInfo(): Promise<AppInfo>;
   openExternal(url: string): void;
+  // Auto-update (user-gated: nothing downloads or installs without an explicit call)
+  checkForUpdates(): void;
+  downloadUpdate(): void;
+  installUpdate(): void;
+  onUpdate(cb: (e: UpdateEvent) => void): () => void;
 }
 
 declare global {

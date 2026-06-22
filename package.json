@@ -1,7 +1,7 @@
 {
   "name": "artlux",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "GPU-accelerated addressable-LED pixel mapping for Art-Net / sACN",
   "author": "urbandronedesign <urbandrone@gmail.com>",
   "main": "out/main/index.js",
@@ -18,6 +18,7 @@
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
     "@react-three/postprocessing": "^3.0.4",
+    "electron-updater": "^6.8.9",
     "lucide-react": "^0.561.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
@@ -45,6 +46,11 @@
     "appId": "com.urbandronedesign.artlux",
     "productName": "ArtLux",
     "afterPack": "./scripts/mac-adhoc-sign.cjs",
+    "publish": {
+      "provider": "github",
+      "owner": "urbandronedesign",
+      "repo": "artlux"
+    },
     "files": [
       "out/**/*"
     ],

@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import {
     IPC, type OutputConfig, type OutputStats, type InputConfig, type InputFrame, type ArtluxApi,
-    type ProjectData, type RigData, type Prefs, type SpoutConfig, type SpoutFrame,
+    type ProjectData, type RigData, type Prefs, type SpoutConfig, type SpoutFrame, type UpdateEvent,
 } from '../../shared/protocol';
 
 const api: ArtluxApi = {
@@ -48,6 +48,15 @@ const api: ArtluxApi = {
     },
     getAppInfo: () => ipcRenderer.invoke(IPC.APP_INFO),
     openExternal: (url: string) => ipcRenderer.send(IPC.OPEN_EXTERNAL, url),
+    // Auto-update
+    checkForUpdates: () => ipcRenderer.send(IPC.UPDATE_CHECK),
+    downloadUpdate: () => ipcRenderer.send(IPC.UPDATE_DOWNLOAD),
+    installUpdate: () => ipcRenderer.send(IPC.UPDATE_INSTALL),
+    onUpdate: (cb: (e: UpdateEvent) => void) => {
+        const listener = (_e: unknown, evt: UpdateEvent) => cb(evt);
+        ipcRenderer.on(IPC.UPDATE_EVENT, listener);
+        return () => { ipcRenderer.removeListener(IPC.UPDATE_EVENT, listener); };
+    },
 };
 
 contextBridge.exposeInMainWorld('artlux', api);

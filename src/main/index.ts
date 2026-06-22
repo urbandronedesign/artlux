@@ -2,6 +2,7 @@ import { app, BrowserWindow, session, systemPreferences } from 'electron';
 import { join } from 'node:path';
 import { registerIpc } from './ipc';
 import { buildAppMenu } from './menu';
+import { setupUpdater } from './updater';
 
 const APP_ICON = join(__dirname, '../../build/icon.png');
 
@@ -77,7 +78,7 @@ function grantMediaPermissions(): void {
 app.whenReady().then(() => {
     grantMediaPermissions();
     registerIpc(() => mainWindow);
-    if (!HEADLESS) buildAppMenu(() => mainWindow);
+    if (!HEADLESS) { buildAppMenu(() => mainWindow); setupUpdater(() => mainWindow); }
     createWindow();
 
     app.on('activate', () => {

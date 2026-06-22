@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.3.1
+
+- **Auto-update** (Windows / Linux): the app checks GitHub Releases on launch and from
+  **Help → Check for Updates…**, then shows an in-app prompt. Nothing downloads or installs without
+  your consent — you click **Download**, then **Restart & Install**. macOS shows a prompt linking to the
+  Releases page instead (Squirrel.Mac needs a Developer ID signature, which these builds don't have).
+  Note: auto-update works between releases that both ship the update metadata, so it takes effect for
+  upgrades **from v0.3.1 onward** (install v0.3.1 manually once).
+
 ## v0.3.0
 
 Workspace rework, content-aware surfaces, and an Art-Net output fix.

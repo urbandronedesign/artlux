@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Fixture, Surface, SourceType, AppSettings, Module, DockTab, FixtureGroup, Scene, FixtureTemplate, Controller } from './types';
-import type { AppInfo } from '../../shared/protocol';
+import type { AppInfo, UpdateEvent } from '../../shared/protocol';
+import { UpdateNotice } from './components/UpdateNotice';
 import { autoPatch } from './services/addressing';
 import { TopBar } from './components/TopBar';
 import { About } from './components/About';
@@ -78,6 +79,8 @@ const App: React.FC = () => {
   const [currentProjectPath, setCurrentProjectPath] = useState<string | null>(null);
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [update, setUpdate] = useState<UpdateEvent | null>(null);
+  const [updateUserInitiated, setUpdateUserInitiated] = useState(false);
   const [routingOpen, setRoutingOpen] = useState(false);
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
 
@@ -452,6 +455,7 @@ const App: React.FC = () => {
           case 'preferences': setPrefsOpen(true); break;
           case 'routing': setRoutingOpen(true); break;
           case 'about': setAboutOpen(true); break;
+          case 'check-updates': setUpdateUserInitiated(true); window.artlux?.checkForUpdates?.(); break;
           case 'undo': undo(); break;
           case 'redo': redo(); break;
       }
@@ -460,6 +464,16 @@ const App: React.FC = () => {
   dispatchMenuRef.current = dispatchMenu;
   useEffect(() => {
       const unsub = window.artlux?.onMenuAction?.((action) => dispatchMenuRef.current(action));
+      return () => unsub?.();
+  }, []);
+
+  // Auto-update events from main. A background check runs ~4s after launch (main);
+  // we only surface a prompt when there's something actionable (or the user asked).
+  useEffect(() => {
+      const unsub = window.artlux?.onUpdate?.((e) => {
+          setUpdate(e);
+          if (e.status === 'not-available') setTimeout(() => setUpdate(null), 2500);
+      });
       return () => unsub?.();
   }, []);
 
@@ -664,6 +678,17 @@ const App: React.FC = () => {
 
       <Preferences open={prefsOpen} onClose={() => setPrefsOpen(false)} settings={settings} onChange={updateSettings} />
       <About open={aboutOpen} onClose={() => setAboutOpen(false)} info={appInfo} />
+
+      {update && (
+        <UpdateNotice
+            event={update}
+            userInitiated={updateUserInitiated}
+            onDownload={() => window.artlux?.downloadUpdate?.()}
+            onInstall={() => window.artlux?.installUpdate?.()}
+            onOpenExternal={(url) => window.artlux?.openExternal?.(url)}
+            onDismiss={() => { setUpdate(null); setUpdateUserInitiated(false); }}
+        />
+      )}
       <RoutingModal
           open={routingOpen}
           onClose={() => setRoutingOpen(false)}

@@ -76,6 +76,8 @@ function template(): MenuItemConstructorOptions[] {
     {
       label: 'Help',
       submenu: [
+        { label: 'Check for Updates…', click: () => send('check-updates') },
+        { type: 'separator' },
         { label: 'Documentation', click: () => shell.openExternal(DOCS) },
         { label: 'GitHub Repository', click: () => shell.openExternal(REPO) },
         { type: 'separator' },
