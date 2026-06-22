@@ -51,6 +51,7 @@
       "owner": "urbandronedesign",
       "repo": "artlux"
     },
+    "artifactName": "${productName}-${version}-${arch}.${ext}",
     "files": [
       "out/**/*"
     ],
@@ -67,8 +68,7 @@
     "win": {
       "icon": "build/icon.ico",
       "target": [
-        "nsis",
-        "portable"
+        "nsis"
       ]
     },
     "mac": {
