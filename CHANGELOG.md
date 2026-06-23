@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.8.0
+
+Full-HD output in **Broadcast mode**. The low-res caps that keep the editor light now lift to
+**1080p** when the app runs in `--broadcast` (show) mode, so projector outputs and NDI streams
+carry full-HD quality; the editor keeps the lighter caps for responsive preview.
+
+- **NDI send** — published projector outputs go out at up to **1080p** in Broadcast mode (≤720p in
+  the editor).
+- **NDI input** — received NDI sources are kept at up to **1080p** in Broadcast mode (≤720p in the
+  editor), so they stay sharp on the projector and over NDI send.
+- **Spout input** — received Spout sources are kept at up to **1080p** (aspect-preserving) in
+  Broadcast mode (512² in the editor).
+
+> The per-LED sampling resolution is unchanged — Art-Net output is identical; this only affects the
+> projector display and NDI image quality. Lifting the NDI/Spout input caps requires the rebuilt
+> native addons.
+
 ## v0.7.0
 
 NDI® (network video) — the cross-platform counterpart to Spout.
