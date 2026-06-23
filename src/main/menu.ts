@@ -49,7 +49,9 @@ function template(): MenuItemConstructorOptions[] {
         { type: 'separator' },
         { label: 'Launch in Broadcast Mode', click: () => send('broadcast') },
         { type: 'separator' },
-        { role: 'quit' },
+        // Accelerator shown for discoverability; the real handler is the global shortcut
+        // registered in main (so it also works from a focused fullscreen projector window).
+        { role: 'quit', accelerator: 'CmdOrCtrl+Shift+Q', registerAccelerator: false },
       ],
     },
     {

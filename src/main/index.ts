@@ -146,8 +146,7 @@ function setupBroadcastControls(): void {
     } catch (e) {
         console.error('[broadcast] tray failed:', e);
     }
-    globalShortcut.register('CommandOrControl+Shift+Q', () => app.quit());
-    console.log('[broadcast] controls ready — tray + Ctrl/Cmd+Shift+Q to quit');
+    console.log('[broadcast] tray ready — Quit from the tray or Ctrl/Cmd+Shift+Q');
 }
 
 app.whenReady().then(() => {
@@ -165,6 +164,9 @@ app.whenReady().then(() => {
         app.exit(0);
     });
     if (!HEADLESS) registerProjectorWindows(() => mainWindow);
+    // One consistent, always-available quit for both editor and broadcast modes — works even
+    // when a frameless fullscreen projector window is focused (no reachable menu there).
+    if (!HEADLESS) globalShortcut.register('CommandOrControl+Shift+Q', () => app.quit());
     if (BROADCAST) setupBroadcastControls();
     createWindow();
 
