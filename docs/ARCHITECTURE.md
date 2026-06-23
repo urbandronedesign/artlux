@@ -66,15 +66,35 @@ sparse + ArtSync) and falls back to TS `artnet.ts`/`sacn.ts`. `discovery.ts` doe
 ## IPC (`shared/protocol.ts`)
 Fire-and-forget `.on`/`.send`: `dmx:configure`, `dmx:frame`, `dmx:status`, `dmx:stats`,
 `input:configure`/`input:frame`, `spout:configure`/`spout:frame`, `menu:action`, `app:open-external`.
-Request/response `invoke`/`handle`: `project:save`/`open`/`load-path`, `rig:export`/`import`,
-`prefs:get`/`set`, `artnet:discover`, `spout:list`, `app:get-info`.
+Request/response `invoke`/`handle`: `project:save`/`open`/`load-path`,
+`project:new-folder`/`open-folder`/`collect-assets`, `rig:export`/`import`, `prefs:get`/`set`,
+`artnet:discover`, `spout:list`, `app:get-info`.
 
 ## Persistence (`src/main/persistence.ts`)
 All file I/O is in main (renderer is sandboxed). Projects are `.artlux` JSON
-(`{ version, surfaces, fixtures, controllers, settings, globalBrightness, groups, scenes }`); rigs are
-`.artrig` (fixtures' patch/wiring only). Preferences live in `userData/artlux-prefs.json`
-(`appSettings`, `globalBrightness`, `recentFiles`, `lastProjectPath`, `fixtureTemplates`) and
-auto-restore on launch.
+(`{ version, surfaces, fixtures, controllers, settings, globalBrightness, groups, scenes, scene3D,
+timeline }`); rigs are `.artrig` (fixtures' patch/wiring only). Preferences live in
+`userData/artlux-prefs.json` (`appSettings`, `globalBrightness`, `recentFiles`, `lastProjectPath`,
+`fixtureTemplates`) and auto-restore on launch.
+
+## Portable projects (`src/main/projectFolder.ts`)
+A project can be a **folder** — `project.artlux` + `assets/{video,models,images}/` — so it's
+self-contained and shareable. The design rule: **all asset-path translation lives in main; the renderer
+always sees absolute paths.** `projectFolder.ts` holds the single asset-path visitor (`mapAssetPaths`),
+which is the only code that knows where asset paths live — the three fields `timeline.clips[].path`,
+`scene3D.models[].path` (meshes), and `surfaces[].content.url` (VIDEO/IMAGE; `blob:`/`http:` skipped).
+- **Save** — `relativizeAssets(data, dirname(file))`: paths under the project folder are stored
+  folder-relative (POSIX); external paths stay absolute.
+- **Load** — `resolveAssets(data, dirname(file))`: relative paths resolve to absolute against the
+  project folder. Applied in `persistence.ts` for `open`/`load-path`, so recents and last-project
+  restore resolve too.
+- **Collect Assets** — `collectAssets(file, data)`: copies external assets into `assets/<category>/`
+  (de-dupe by name + size), returns remapped data; the renderer applies it and saves (→ relativized).
+
+Surface video/image are stored by **file path** (`webUtils.getPathForFile`), not an ephemeral blob URL,
+so they persist and collect. The renderer reads a path → blob URL once via the shared
+`src/renderer/services/mediaCache.ts` (`resolveMediaUrl`/`ensureBlobUrl`), used by both
+`services/timeline.ts` and `services/surfaceMedia.ts`.
 
 ## Headless (`--headless --project=<path>`)
 `src/main/index.ts` parses CLI args; a hidden GPU window (`backgroundThrottling:false`) loads a second
@@ -88,6 +108,8 @@ compute + output loop — no UI/3D/monitor. Used for low-overhead runs and autom
 | Frame loop + packing + canvas | `src/renderer/components/Stage.tsx` |
 | GPU mappers | `src/renderer/gpu/WebGPUMapper.ts`, `src/renderer/services/GPUMapper.ts` |
 | Surface content / effects | `src/renderer/services/surfaceMedia.ts`, `src/renderer/gpu/surfaceFx.ts` |
+| Persistence / portable projects | `src/main/persistence.ts`, `src/main/projectFolder.ts` |
+| Media path → blob cache | `src/renderer/services/mediaCache.ts` |
 | Auto-patch | `src/renderer/services/addressing.ts` |
 | Routing UI | `src/renderer/components/RoutingModal.tsx` |
 | Main / window / CLI | `src/main/index.ts`, `src/main/menu.ts` |

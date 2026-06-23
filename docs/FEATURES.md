@@ -74,6 +74,35 @@ sParse / sACN priority per fixture, so one show can address many controllers.
 - **Export / Import Rig** — `.artrig` holds only patch/wiring/routing/geometry (no effects, scenes,
   or media), so you can carry a rig between shows. Import appends the rig's fixtures.
 
+### Portable projects (project folders + Collect Assets)
+For a show you can move between machines or hand off, make the project a **folder** instead of a lone
+file. A project folder holds `project.artlux` plus an `assets/` tree:
+
+```
+MyShow/
+  project.artlux
+  assets/
+    video/      # timeline clips, surface videos
+    models/     # GLB/glTF venue models
+    images/     # surface images
+```
+
+- **New Project Folder…** (Ctrl/Cmd+Shift+N) — choose an existing folder or create a new one; ArtLux
+  scaffolds the `assets/` tree and saves `project.artlux` into it.
+- **Open Project Folder…** (Ctrl/Cmd+Shift+O) — pick a project folder to open its `project.artlux`.
+- **Collect Assets…** (File menu) — copies every referenced video, 3D model, and image into the
+  project's `assets/` tree and rewrites the project to point at the local copies (de-duped by name +
+  size). A summary reports how many were copied, skipped (already collected), or missing on disk. Run
+  it before sharing, then copy or zip the whole folder — it's self-contained.
+
+Asset paths inside a project folder are stored **relative to the folder**, so moving or copying the
+folder keeps every asset linked. Surface videos/images are stored by file path (not a temporary
+in-memory reference), so they persist across reloads and are collected like everything else. Single
+`.artlux` files still work; run **Collect Assets** on one to migrate it into a folder.
+
+> **glTF note:** `.glb` is self-contained and collects cleanly. A `.gltf` that references external
+> `.bin`/texture files won't have those companions collected — prefer **GLB** for portability.
+
 ## 3D simulator
 Switch to the **3D** module to place fixtures in space. Each fixture has a 3D position/rotation and a
 layout (line / matrix / arc). Use the Move/Rotate gizmo; the LEDs render live with bloom.

@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+### Portable projects (project folders + Collect Assets)
+- A project can now be a **folder** (`project.artlux` + `assets/{video,models,images}/`) instead of a
+  lone file, so it's self-contained and shareable.
+- New File menu items: **New Project Folder…** (Ctrl/Cmd+Shift+N), **Open Project Folder…**
+  (Ctrl/Cmd+Shift+O), and **Collect Assets…**.
+- **Collect Assets** copies every referenced video, 3D model, and image into the project's `assets/`
+  tree (de-duped by name + size) and rewrites references to the local copies; a summary reports copied
+  / skipped / missing counts. Asset paths inside a project folder are stored **relative to the folder**,
+  so moving or copying the whole folder keeps every asset linked.
+- **Surface videos/images now persist**: they're stored by file path instead of a temporary in-memory
+  reference, so they survive reloads and are collected with everything else. (Previously surface
+  video/image content was lost on reload.)
+- Single `.artlux` files still open; run **Collect Assets** on one to migrate it into a folder. Project
+  format bumped to `1.1`.
+- Note: `.glb` collects cleanly; a `.gltf` referencing external `.bin`/textures won't have those
+  companions collected — prefer GLB for portability.
+
 ## v0.4.1
 
 - **Check for updates in About**: the About dialog now has a **Check for updates** button with inline

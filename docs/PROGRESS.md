@@ -442,6 +442,24 @@ Shipped across **v0.3.0** and **v0.3.1** (see `CHANGELOG.md`; UI detail in `UI_R
   gone) + **Scene** button. **Background throttling disabled** on both windows (+ command-line switches)
   so the engine/timeline/DMX never stall when the other window has focus.
 
+## Portable projects (project folders + Collect Assets)
+- **Project = folder**: `project.artlux` + `assets/{video,models,images}/`. New `src/main/projectFolder.ts`
+  owns the **single asset-path visitor** `mapAssetPaths` (the only code that knows where asset paths live:
+  `timeline.clips[].path`, `scene3D.models[].path` meshes, `surfaces[].content.url` VIDEO/IMAGE, skipping
+  `blob:`/`http:`). `relativizeAssets` (save) / `resolveAssets` (load) keyed off `dirname(projectFile)`.
+- **Design rule**: all path translation lives in main → the renderer always sees **absolute paths**.
+  `persistence.ts` resolves on `open`/`load-path` (so recents + last-project restore work) and relativizes
+  on `save`. New IPC: `project:new-folder` / `open-folder` / `collect-assets` (`shared/protocol.ts`,
+  `ipc.ts`, preload). Menu items: New/Open **Project Folder…**, **Collect Assets…** (`menu.ts`).
+- **collectAssets**: copies externals into `assets/<category>/` (de-dupe by name + size), returns remapped
+  data; renderer (`App.tsx` `handleCollectAssets`) applies it + saves; `window.alert` summary.
+- **Surface media fix**: `InspectorPanel` stores the real file path (`getPathForFile`), not an ephemeral
+  blob URL, so surface video/image persist + collect. Shared `src/renderer/services/mediaCache.ts`
+  (`resolveMediaUrl`/`ensureBlobUrl`/`getBlobUrl`) reads a path→blob once; used by `timeline.ts` +
+  `surfaceMedia.ts`. Project format `version: '1.1'`.
+- Gotcha handled: New-folder save builds payload from fresh locals (not `buildProjectData()`) because the
+  reset `setState` hasn't applied to the closure yet.
+
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
 - Deferred effects: stateful **fire2012**, **multi-segment** subdivision per fixture.
