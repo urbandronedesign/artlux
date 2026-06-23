@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.6.1
+
+- **Consistent quit**: **Ctrl/Cmd+Shift+Q** now quits from both the editor and broadcast mode —
+  including when a frameless fullscreen projector window is focused (where the app menu can't be
+  reached). The editor's File ▸ Quit shows the shortcut. Quitting always closes every projector
+  window cleanly.
+- Fixed **Launch in Broadcast Mode** when running unpacked/from source (the relaunch dropped the app
+  path and opened Electron's default window). Packaged builds were unaffected.
+
 ## v0.6.0
 
 Projection mapping — send each surface to a real projector — plus a broadcast (show) mode.
