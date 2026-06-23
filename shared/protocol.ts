@@ -186,17 +186,50 @@ export const defaultCornerPin = (): CornerPin => ({
   tl: [0, 0], tr: [1, 0], br: [1, 1], bl: [0, 1],
 });
 
+// A tessellated render mesh: a (cols+1)×(rows+1) lattice of normalized display-space points
+// (row-major). Produced on the fly from a BezierWarp; not persisted. ProjectorGL draws it as
+// a triangle mesh sampling the content on a regular UV grid.
+export interface WarpGrid {
+  cols: number;
+  rows: number;
+  points: [number, number][];
+}
+
+// Bézier warp: a bicubic patch defined by a 4×4 control net of normalized display-space
+// points (row-major, row 0 = top). The four patch corners (indices 0,3,12,15) are the
+// projection corners; the 12 edge/interior points bend the surface smoothly for curved
+// screens. When set it supersedes the corner-pin. Default net = the corner-pin quad (flat).
+export interface BezierWarp {
+  points: [number, number][]; // length 16
+}
+
+// Per-output soft-edge blend (for overlapping projectors). Each value is the feather width
+// as a fraction of the output (0 = hard edge); gamma shapes the blend ramp.
+export interface SoftEdge {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+  gamma: number;
+}
+
+export const defaultSoftEdge = (): SoftEdge => ({ left: 0, right: 0, top: 0, bottom: 0, gamma: 2.2 });
+
 // One Surface routed to a physical projector as its own fullscreen output.
 export interface ProjectorOutput {
   surfaceId: string;
   enabled: boolean;
   displayId: number | null;   // Electron display.id (session-stable)
   displayLabel?: string;      // fallback re-match across replug/reboot
-  cornerPin: CornerPin;       // warp of the surface content onto the projection
+  cornerPin: CornerPin;       // 4-corner homography warp onto the projection
+  warp?: BezierWarp | null;   // optional bicubic Bézier warp (supersedes cornerPin when set)
+  softEdge?: SoftEdge;        // edge blending for projector overlap
+  gamma?: number;             // per-output output gamma (1 = off)
 }
 
 export const defaultProjectorOutput = (surfaceId: string): ProjectorOutput => ({
   surfaceId, enabled: false, displayId: null, cornerPin: defaultCornerPin(),
+  warp: null, softEdge: defaultSoftEdge(), gamma: 1,
 });
 
 // ---- Persistence (project / rig / preferences) -------------------------------
@@ -256,6 +289,7 @@ export interface ProjectData {
   scene3D?: Scene3D;
   timeline?: unknown; // Timeline (renderer type) — video-layer NLE
   projectorOutputs?: ProjectorOutput[]; // per-surface fullscreen projector mappings
+  projectorFpsCap?: number; // performance mode: cap projector output fps (0 = uncapped/vsync)
 }
 
 // Result of a "Collect Assets" run.

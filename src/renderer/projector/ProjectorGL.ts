@@ -1,13 +1,22 @@
-import type { CornerPin } from '../../../shared/protocol';
+import type { CornerPin, WarpGrid, SoftEdge } from '../../../shared/protocol';
 import { cornerQs, toClip } from './homography';
 
-// Draws one surface's content as a corner-pinned quad on a black background. The quad's
-// four vertices sit at the corner-pin destination points; perspective-correct sampling
-// comes from the per-vertex q (see homography.ts).
+// Renders one surface's content as either a perspective-correct corner-pinned quad or a
+// grid-mesh warp, with per-output soft-edge blending + gamma, into a multisampled WebGL2
+// framebuffer (MSAA) that is resolved to the screen. Falls back to a plain WebGL1 context
+// (context-level antialias) when WebGL2 is unavailable.
+
+export interface DrawOpts {
+  cornerPin: CornerPin;
+  warp?: WarpGrid | null;
+  softEdge?: SoftEdge;
+  gamma?: number;   // output gamma (1 = off)
+  aa?: number;      // MSAA samples (0/1 = off)
+}
 
 const VERT = `
 attribute vec2 aPos;     // clip-space position
-attribute vec3 aUVQ;     // (u*q, v*q, q)
+attribute vec3 aUVQ;     // (u*q, v*q, q) — q=1 for mesh, perspective q for corner-pin
 varying vec3 vUVQ;
 void main() {
   vUVQ = aUVQ;
@@ -18,44 +27,61 @@ const FRAG = `
 precision mediump float;
 varying vec3 vUVQ;
 uniform sampler2D uTex;
+uniform vec4 uSoft;        // left, right, top, bottom feather widths (0 = hard)
+uniform float uBlendGamma; // soft-edge ramp shaping
+uniform float uGamma;      // output gamma (1 = off)
+float feather(float d, float w) { return w <= 0.0 ? 1.0 : clamp(d / w, 0.0, 1.0); }
 void main() {
   vec2 uv = vUVQ.xy / vUVQ.z;
-  gl_FragColor = texture2D(uTex, uv);
+  vec4 c = texture2D(uTex, uv);
+  float a = feather(uv.x, uSoft.x) * feather(1.0 - uv.x, uSoft.y)
+          * feather(uv.y, uSoft.z) * feather(1.0 - uv.y, uSoft.w);
+  c.rgb *= pow(a, uBlendGamma);
+  c.rgb = pow(max(c.rgb, 0.0), vec3(1.0 / uGamma));
+  gl_FragColor = vec4(c.rgb, 1.0);
 }`;
 
 function compile(gl: WebGLRenderingContext, type: number, src: string): WebGLShader {
   const sh = gl.createShader(type)!;
   gl.shaderSource(sh, src);
   gl.compileShader(sh);
-  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
-    throw new Error(`[ProjectorGL] shader: ${gl.getShaderInfoLog(sh)}`);
-  }
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(`[ProjectorGL] shader: ${gl.getShaderInfoLog(sh)}`);
   return sh;
 }
 
 export class ProjectorGL {
   private gl: WebGLRenderingContext;
+  private gl2: WebGL2RenderingContext | null;
   private prog: WebGLProgram;
   private tex: WebGLTexture;
   private buf: WebGLBuffer;
   private aPos: number;
   private aUVQ: number;
+  private uSoft: WebGLUniformLocation | null;
+  private uBlendGamma: WebGLUniformLocation | null;
+  private uGamma: WebGLUniformLocation | null;
+  // MSAA (WebGL2 only)
+  private msFBO: WebGLFramebuffer | null = null;
+  private msColor: WebGLRenderbuffer | null = null;
+  private msW = 0; private msH = 0; private msSamples = 0;
 
   constructor(private canvas: HTMLCanvasElement) {
-    const gl = canvas.getContext('webgl', { premultipliedAlpha: false, antialias: true });
+    const gl2 = canvas.getContext('webgl2', { premultipliedAlpha: false, antialias: false }) as WebGL2RenderingContext | null;
+    const gl = (gl2 ?? canvas.getContext('webgl', { premultipliedAlpha: false, antialias: true })) as WebGLRenderingContext | null;
     if (!gl) throw new Error('[ProjectorGL] WebGL unavailable');
-    this.gl = gl;
+    this.gl = gl; this.gl2 = gl2;
 
     const prog = gl.createProgram()!;
     gl.attachShader(prog, compile(gl, gl.VERTEX_SHADER, VERT));
     gl.attachShader(prog, compile(gl, gl.FRAGMENT_SHADER, FRAG));
     gl.linkProgram(prog);
-    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
-      throw new Error(`[ProjectorGL] link: ${gl.getProgramInfoLog(prog)}`);
-    }
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(`[ProjectorGL] link: ${gl.getProgramInfoLog(prog)}`);
     this.prog = prog;
     this.aPos = gl.getAttribLocation(prog, 'aPos');
     this.aUVQ = gl.getAttribLocation(prog, 'aUVQ');
+    this.uSoft = gl.getUniformLocation(prog, 'uSoft');
+    this.uBlendGamma = gl.getUniformLocation(prog, 'uBlendGamma');
+    this.uGamma = gl.getUniformLocation(prog, 'uGamma');
 
     this.buf = gl.createBuffer()!;
     this.tex = gl.createTexture()!;
@@ -64,47 +90,84 @@ export class ProjectorGL {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    // DOM image/video sources upload with row 0 = top already; our UVs put v=0 at the
-    // top of the quad, so do NOT also flip (that would render upside down).
+    // DOM image/video rows are already top-first + our UVs put v=0 at top → do NOT flip.
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 0);
     gl.clearColor(0, 0, 0, 1);
   }
 
-  // Size the drawing buffer to native device pixels (devicePixelRatio == the display's
-  // scaleFactor) so a 4K projector renders crisp rather than upscaled from logical px.
   setSize(cssW: number, cssH: number, dpr: number): void {
     const w = Math.max(1, Math.round(cssW * dpr));
     const h = Math.max(1, Math.round(cssH * dpr));
-    if (this.canvas.width !== w || this.canvas.height !== h) {
-      this.canvas.width = w;
-      this.canvas.height = h;
-    }
-    this.gl.viewport(0, 0, w, h);
+    if (this.canvas.width !== w || this.canvas.height !== h) { this.canvas.width = w; this.canvas.height = h; }
   }
 
-  draw(src: TexImageSource | null, pin: CornerPin): void {
+  private ensureMSAA(w: number, h: number, samples: number): boolean {
+    const gl2 = this.gl2;
+    if (!gl2 || samples <= 1) return false;
+    const max = gl2.getParameter(gl2.MAX_SAMPLES) as number;
+    const s = Math.min(samples, max);
+    if (this.msW === w && this.msH === h && this.msSamples === s && this.msFBO) return true;
+    if (!this.msFBO) this.msFBO = gl2.createFramebuffer();
+    if (!this.msColor) this.msColor = gl2.createRenderbuffer();
+    gl2.bindRenderbuffer(gl2.RENDERBUFFER, this.msColor);
+    gl2.renderbufferStorageMultisample(gl2.RENDERBUFFER, s, gl2.RGBA8, w, h);
+    gl2.bindFramebuffer(gl2.FRAMEBUFFER, this.msFBO);
+    gl2.framebufferRenderbuffer(gl2.FRAMEBUFFER, gl2.COLOR_ATTACHMENT0, gl2.RENDERBUFFER, this.msColor);
+    gl2.bindFramebuffer(gl2.FRAMEBUFFER, null);
+    this.msW = w; this.msH = h; this.msSamples = s;
+    return true;
+  }
+
+  // Interleaved [clipX, clipY, u*q, v*q, q] mesh for the warp grid (q=1) or corner-pin quad.
+  private buildGeometry(o: DrawOpts): Float32Array {
+    const push = (out: number[], c: [number, number], u: number, v: number, q: number) => {
+      out.push(c[0], c[1], u * q, v * q, q);
+    };
+    const out: number[] = [];
+    if (o.warp && o.warp.points.length === (o.warp.cols + 1) * (o.warp.rows + 1)) {
+      const { cols, rows, points } = o.warp;
+      const at = (i: number, j: number) => points[j * (cols + 1) + i];
+      for (let j = 0; j < rows; j++) {
+        for (let i = 0; i < cols; i++) {
+          const p00 = toClip(at(i, j)), p10 = toClip(at(i + 1, j));
+          const p11 = toClip(at(i + 1, j + 1)), p01 = toClip(at(i, j + 1));
+          const u0 = i / cols, u1 = (i + 1) / cols, v0 = j / rows, v1 = (j + 1) / rows;
+          push(out, p00, u0, v0, 1); push(out, p10, u1, v0, 1); push(out, p11, u1, v1, 1);
+          push(out, p00, u0, v0, 1); push(out, p11, u1, v1, 1); push(out, p01, u0, v1, 1);
+        }
+      }
+    } else {
+      const p = o.cornerPin;
+      const [qTl, qTr, qBr, qBl] = cornerQs(p);
+      const ctl = toClip(p.tl), ctr = toClip(p.tr), cbr = toClip(p.br), cbl = toClip(p.bl);
+      push(out, ctl, 0, 0, qTl); push(out, ctr, 1, 0, qTr); push(out, cbr, 1, 1, qBr);
+      push(out, ctl, 0, 0, qTl); push(out, cbr, 1, 1, qBr); push(out, cbl, 0, 1, qBl);
+    }
+    return new Float32Array(out);
+  }
+
+  draw(src: TexImageSource | null, o: DrawOpts): void {
     const gl = this.gl;
+    const w = this.canvas.width, h = this.canvas.height;
+    const useMS = this.ensureMSAA(w, h, o.aa ?? 0);
+    const target = useMS && this.gl2 ? this.msFBO : null;
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, target);
+    gl.viewport(0, 0, w, h);
     gl.clear(gl.COLOR_BUFFER_BIT);
-    if (!src) return;
+    if (!src) { this.resolve(useMS, w, h); return; }
 
     try {
       gl.bindTexture(gl.TEXTURE_2D, this.tex);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
-    } catch {
-      return; // source not yet decodable this frame
-    }
+    } catch { this.resolve(useMS, w, h); return; } // source not decodable this frame
 
-    const [qTl, qTr, qBr, qBl] = cornerQs(pin);
-    const ctl = toClip(pin.tl), ctr = toClip(pin.tr), cbr = toClip(pin.br), cbl = toClip(pin.bl);
-    // Two triangles (tl, tr, br) + (tl, br, bl). UVs: tl(0,0) tr(1,0) br(1,1) bl(0,1).
-    // Each vertex: [clipX, clipY, u*q, v*q, q].
-    const v = (c: [number, number], u: number, w: number, q: number) => [c[0], c[1], u * q, w * q, q];
-    const data = new Float32Array([
-      ...v(ctl, 0, 0, qTl), ...v(ctr, 1, 0, qTr), ...v(cbr, 1, 1, qBr),
-      ...v(ctl, 0, 0, qTl), ...v(cbr, 1, 1, qBr), ...v(cbl, 0, 1, qBl),
-    ]);
-
+    const data = this.buildGeometry(o);
+    const soft = o.softEdge;
     gl.useProgram(this.prog);
+    gl.uniform4f(this.uSoft, soft?.left ?? 0, soft?.right ?? 0, soft?.top ?? 0, soft?.bottom ?? 0);
+    gl.uniform1f(this.uBlendGamma, Math.max(0.1, soft?.gamma ?? 2.2));
+    gl.uniform1f(this.uGamma, Math.max(0.1, o.gamma ?? 1));
     gl.bindBuffer(gl.ARRAY_BUFFER, this.buf);
     gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
     const stride = 5 * 4;
@@ -112,7 +175,19 @@ export class ProjectorGL {
     gl.vertexAttribPointer(this.aPos, 2, gl.FLOAT, false, stride, 0);
     gl.enableVertexAttribArray(this.aUVQ);
     gl.vertexAttribPointer(this.aUVQ, 3, gl.FLOAT, false, stride, 2 * 4);
-    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    gl.drawArrays(gl.TRIANGLES, 0, data.length / 5);
+
+    this.resolve(useMS, w, h);
+  }
+
+  // Resolve the multisampled FBO to the screen (no-op when MSAA is off — we drew direct).
+  private resolve(useMS: boolean, w: number, h: number): void {
+    const gl2 = this.gl2;
+    if (!useMS || !gl2) return;
+    gl2.bindFramebuffer(gl2.READ_FRAMEBUFFER, this.msFBO);
+    gl2.bindFramebuffer(gl2.DRAW_FRAMEBUFFER, null);
+    gl2.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl2.COLOR_BUFFER_BIT, gl2.NEAREST);
+    gl2.bindFramebuffer(gl2.FRAMEBUFFER, null);
   }
 
   dispose(): void {
@@ -120,5 +195,7 @@ export class ProjectorGL {
     gl.deleteBuffer(this.buf);
     gl.deleteTexture(this.tex);
     gl.deleteProgram(this.prog);
+    if (this.msFBO) gl.deleteFramebuffer(this.msFBO);
+    if (this.msColor) gl.deleteRenderbuffer(this.msColor);
   }
 }

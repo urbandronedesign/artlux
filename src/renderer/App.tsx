@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, FixtureTemplate, Controller, Timeline, defaultTimeline } from './types';
-import { defaultScene3D, defaultProjectorOutput, defaultCornerPin } from '../../shared/protocol';
-import type { AppInfo, UpdateEvent, Scene3D, ProjectorOutput, DisplayInfo } from '../../shared/protocol';
+import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge } from '../../shared/protocol';
+import type { AppInfo, UpdateEvent, Scene3D, ProjectorOutput, DisplayInfo, SoftEdge } from '../../shared/protocol';
 import type { SceneToMain } from './scene/bridge';
 import type { ProjectorToMain } from './projector/bridge';
+import { makeBezierWarp } from './projector/warp';
 import { OutputsPanel } from './components/OutputsPanel';
 import { UpdateNotice } from './components/UpdateNotice';
 import { autoPatch } from './services/addressing';
@@ -21,6 +22,7 @@ import { Preferences } from './components/Preferences';
 import { StatusBar } from './components/StatusBar';
 import { sendArtNetFrame, configureOutput, addStatusListener } from './services/mockSocketService';
 import { dmxSignal } from './services/dmxSignal';
+import { getDrawable } from './services/surfaceMedia';
 import { timeline as timelineEngine } from './services/timeline';
 import { Activity, SlidersHorizontal, Film } from 'lucide-react';
 import { useHistory } from './hooks/useHistory';
@@ -95,8 +97,11 @@ const App: React.FC = () => {
   const [projectorOutputs, setProjectorOutputs] = useState<ProjectorOutput[]>([]);
   const [displays, setDisplays] = useState<DisplayInfo[]>([]);
   const [editingOutputId, setEditingOutputId] = useState<string | null>(null); // surface whose corners are being aligned
+  const [projectorFpsCap, setProjectorFpsCap] = useState(0); // performance mode: 0 = uncapped
   const projectorPortsRef = useRef<Map<string, MessagePort>>(new Map()); // surfaceId -> port
   const openProjectorsRef = useRef<Map<string, number>>(new Map());      // surfaceId -> displayId (open windows)
+  const surfacesRef = useRef<Surface[]>(surfaces);                        // live mirror for the frame pump
+  surfacesRef.current = surfaces;
 
   const [showLeftPanel, setShowLeftPanel] = useState(true);
   const [showRightPanel, setShowRightPanel] = useState(true);
@@ -233,10 +238,28 @@ const App: React.FC = () => {
   };
   const handleSetOutputEnabled = (surfaceId: string, enabled: boolean) => upsertOutput(surfaceId, { enabled });
   const handleSetOutputDisplay = (surfaceId: string, displayId: number | null) =>
-    upsertOutput(surfaceId, { displayId, enabled: displayId != null });
+    upsertOutput(surfaceId, {
+      displayId,
+      displayLabel: displayId != null ? displays.find(d => d.id === displayId)?.label : undefined,
+      enabled: displayId != null,
+    });
   const handleToggleEditOutput = (surfaceId: string) =>
     setEditingOutputId(prev => prev === surfaceId ? null : surfaceId);
-  const handleResetCorners = (surfaceId: string) => upsertOutput(surfaceId, { cornerPin: defaultCornerPin() });
+  const handleResetCorners = (surfaceId: string) => {
+    const o = projectorOutputs.find(x => x.surfaceId === surfaceId);
+    if (o?.warp) upsertOutput(surfaceId, { warp: makeBezierWarp(o.cornerPin) });
+    else upsertOutput(surfaceId, { cornerPin: defaultCornerPin() });
+  };
+  const handleToggleWarp = (surfaceId: string, on: boolean) => {
+    const o = projectorOutputs.find(x => x.surfaceId === surfaceId);
+    const pin = o?.cornerPin ?? defaultCornerPin();
+    upsertOutput(surfaceId, { warp: on ? makeBezierWarp(pin) : null });
+  };
+  const handleSetSoftEdge = (surfaceId: string, patch: Partial<SoftEdge>) => {
+    const o = projectorOutputs.find(x => x.surfaceId === surfaceId);
+    upsertOutput(surfaceId, { softEdge: { ...(o?.softEdge ?? defaultSoftEdge()), ...patch } });
+  };
+  const handleSetOutputGamma = (surfaceId: string, gamma: number) => upsertOutput(surfaceId, { gamma });
   const refreshDisplays = () => { window.artlux?.listDisplays?.().then(d => setDisplays(d ?? [])); };
   const handleUpdateSurface = (id: string, patch: Partial<Surface>) => {
     setSurfaces(surfaces.map(s => s.id === id ? { ...s, ...patch } : s));
@@ -388,6 +411,7 @@ const App: React.FC = () => {
       scene3D,
       timeline,
       projectorOutputs,
+      projectorFpsCap,
   });
 
   // Apply a loaded project (or rig-free project) to app state. Strips live colorData.
@@ -408,6 +432,7 @@ const App: React.FC = () => {
       setScenes(Array.isArray(data?.scenes) ? data.scenes : []);
       setTimeline(data?.timeline && Array.isArray(data.timeline.layers) ? { ...defaultTimeline(), ...data.timeline } : defaultTimeline());
       setProjectorOutputs(Array.isArray(data?.projectorOutputs) ? data.projectorOutputs as ProjectorOutput[] : []);
+      setProjectorFpsCap(typeof data?.projectorFpsCap === 'number' ? data.projectorFpsCap : 0);
       setScene3D(() => {
           const s = data?.scene3D ? { ...defaultScene3D(), ...data.scene3D } : defaultScene3D();
           if (!Array.isArray(s.models)) s.models = [];
@@ -648,20 +673,46 @@ const App: React.FC = () => {
       const unsub = window.artlux?.onDisplaysChanged?.((d) => setDisplays(d ?? []));
       return () => unsub?.();
   }, []);
-  // When a display is unplugged, clear outputs that referenced it (window already closed in main).
+  // Reconcile outputs against the live display list: keep valid ones, re-match a vanished
+  // displayId to a same-label display (id changes across replug/reboot), else clear it.
   useEffect(() => {
       if (!displays.length) return; // ignore the pre-enumeration empty state
       setProjectorOutputs(prev => {
           let changed = false;
           const next = prev.map(o => {
-              if (o.displayId != null && !displays.some(d => d.id === o.displayId)) {
-                  changed = true; return { ...o, displayId: null, enabled: false };
-              }
-              return o;
+              if (o.displayId == null) return o;
+              if (displays.some(d => d.id === o.displayId)) return o; // still present
+              const byLabel = o.displayLabel ? displays.find(d => d.label === o.displayLabel) : undefined;
+              changed = true;
+              return byLabel ? { ...o, displayId: byLabel.id } : { ...o, displayId: null, enabled: false };
           });
           return changed ? next : prev;
       });
   }, [displays]);
+
+  // Frame pump for singular live sources (camera / Spout / DMX-in): they exist only in this
+  // (main) renderer, so transfer their drawable to each open projector as an ImageBitmap
+  // (~30 fps, zero-copy transfer). File media / effects / layers self-render in the projector.
+  useEffect(() => {
+      const SINGULAR = new Set<SourceType | 'EFFECT'>([SourceType.CAMERA, SourceType.SPOUT, SourceType.DMX_IN]);
+      let raf = 0; let last = 0;
+      const tick = (now: number) => {
+          raf = requestAnimationFrame(tick);
+          if (now - last < 33) return;
+          last = now;
+          for (const [surfaceId, port] of projectorPortsRef.current) {
+              const surface = surfacesRef.current.find(s => s.id === surfaceId);
+              if (!surface || !SINGULAR.has(surface.content.type)) continue;
+              const drawable = getDrawable(surface);
+              if (!drawable) continue;
+              createImageBitmap(drawable as CanvasImageSource)
+                  .then(bitmap => { try { port.postMessage({ t: 'frame', bitmap }, [bitmap]); } catch { bitmap.close(); } })
+                  .catch(() => {});
+          }
+      };
+      raf = requestAnimationFrame(tick);
+      return () => cancelAnimationFrame(raf);
+  }, []);
 
   // Push the current config (surface + corner-pin + transport) to one projector window.
   const pushProjectorStateRef = useRef<(surfaceId: string) => void>(() => {});
@@ -670,7 +721,16 @@ const App: React.FC = () => {
       const surface = surfaces.find(s => s.id === surfaceId);
       if (!port || !surface) return;
       const out = projectorOutputs.find(o => o.surfaceId === surfaceId);
-      port.postMessage({ t: 'config', surface, cornerPin: out?.cornerPin ?? defaultCornerPin(), playing: isVideoPlaying });
+      port.postMessage({
+          t: 'config', surface, playing: isVideoPlaying,
+          render: {
+              cornerPin: out?.cornerPin ?? defaultCornerPin(),
+              warp: out?.warp ?? null,
+              softEdge: out?.softEdge ?? defaultSoftEdge(),
+              gamma: out?.gamma ?? 1,
+              fpsCap: projectorFpsCap,
+          },
+      });
       port.postMessage({ t: 'timeline', timeline });
       port.postMessage({ t: 'edit', on: editingOutputId === surfaceId });
   };
@@ -679,6 +739,7 @@ const App: React.FC = () => {
   onProjectorMsgRef.current = (surfaceId, m) => {
       if (m.t === 'ready') pushProjectorStateRef.current(surfaceId);
       else if (m.t === 'cornerPin') upsertOutput(surfaceId, { cornerPin: m.cornerPin });
+      else if (m.t === 'warp') upsertOutput(surfaceId, { warp: m.warp });
       else if (m.t === 'editOff') setEditingOutputId(prev => prev === surfaceId ? null : prev);
   };
   useEffect(() => {
@@ -698,7 +759,7 @@ const App: React.FC = () => {
   // Re-push config (incl. the edit toggle) whenever anything a projector renders changes.
   useEffect(() => {
       for (const surfaceId of projectorPortsRef.current.keys()) pushProjectorStateRef.current(surfaceId);
-  }, [surfaces, projectorOutputs, timeline, isVideoPlaying, editingOutputId]);
+  }, [surfaces, projectorOutputs, timeline, isVideoPlaying, editingOutputId, projectorFpsCap]);
   // Stop aligning if the edited output is disabled / removed.
   useEffect(() => {
       if (editingOutputId && !projectorOutputs.some(o => o.surfaceId === editingOutputId && o.enabled && o.displayId != null)) {
@@ -921,10 +982,15 @@ const App: React.FC = () => {
           outputs={projectorOutputs}
           displays={displays}
           editingOutputId={editingOutputId}
+          fpsCap={projectorFpsCap}
           onSetEnabled={handleSetOutputEnabled}
           onSetDisplay={handleSetOutputDisplay}
           onToggleEdit={handleToggleEditOutput}
           onResetCorners={handleResetCorners}
+          onToggleWarp={handleToggleWarp}
+          onSetSoftEdge={handleSetSoftEdge}
+          onSetGamma={handleSetOutputGamma}
+          onSetFpsCap={setProjectorFpsCap}
           onRefreshDisplays={refreshDisplays}
       />
       <RoutingModal

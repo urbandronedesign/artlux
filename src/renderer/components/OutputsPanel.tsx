@@ -1,7 +1,7 @@
-import React, { useEffect } from 'react';
-import { X, MonitorUp, RefreshCw, Frame, Undo2 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { X, MonitorUp, RefreshCw, Frame, Undo2, Settings2, Spline, Gauge } from 'lucide-react';
 import { Surface } from '../types';
-import { ProjectorOutput, DisplayInfo } from '../../../shared/protocol';
+import { ProjectorOutput, DisplayInfo, SoftEdge, defaultSoftEdge } from '../../../shared/protocol';
 
 interface Props {
   open: boolean;
@@ -10,22 +10,32 @@ interface Props {
   outputs: ProjectorOutput[];
   displays: DisplayInfo[];
   editingOutputId: string | null;
+  fpsCap: number;
   onSetEnabled: (surfaceId: string, enabled: boolean) => void;
   onSetDisplay: (surfaceId: string, displayId: number | null) => void;
   onToggleEdit: (surfaceId: string) => void;
   onResetCorners: (surfaceId: string) => void;
+  onToggleWarp: (surfaceId: string, on: boolean) => void;
+  onSetSoftEdge: (surfaceId: string, patch: Partial<SoftEdge>) => void;
+  onSetGamma: (surfaceId: string, gamma: number) => void;
+  onSetFpsCap: (cap: number) => void;
   onRefreshDisplays: () => void;
 }
 
 const cell = 'bg-surface-0 border border-line-1 rounded-[var(--r-sm)] px-1.5 py-1 text-fg-1 text-[11px] focus:border-accent focus:outline-none disabled:opacity-40';
+const numCell = 'w-12 bg-surface-0 border border-line-1 rounded px-1 py-0.5 text-right text-fg-1 num text-[10px] focus:border-accent focus:outline-none';
+const clamp01h = (v: number) => Math.max(0, Math.min(0.5, v));
 
 // Screen / output manager: route each Surface to a physical display as a fullscreen
 // projector output (corner-pin warp lives in the projector window). Display picker +
 // enable toggle; the App reconciler opens/moves/closes the actual output windows.
 export const OutputsPanel: React.FC<Props> = ({
-  open, onClose, surfaces, outputs, displays, editingOutputId,
-  onSetEnabled, onSetDisplay, onToggleEdit, onResetCorners, onRefreshDisplays,
+  open, onClose, surfaces, outputs, displays, editingOutputId, fpsCap,
+  onSetEnabled, onSetDisplay, onToggleEdit, onResetCorners,
+  onToggleWarp, onSetSoftEdge, onSetGamma, onSetFpsCap, onRefreshDisplays,
 }) => {
+  const [expanded, setExpanded] = useState<string | null>(null);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -36,7 +46,7 @@ export const OutputsPanel: React.FC<Props> = ({
   if (!open) return null;
 
   const outFor = (id: string): ProjectorOutput | undefined => outputs.find((o) => o.surfaceId === id);
-  const COLS = 'grid-cols-[1.3fr_60px_1.4fr_56px_124px]';
+  const COLS = 'grid-cols-[1.3fr_56px_1.3fr_48px_112px_28px]';
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 animate-overlay-in" onClick={onClose}>
@@ -47,7 +57,20 @@ export const OutputsPanel: React.FC<Props> = ({
       >
         <div className="h-10 px-3 flex items-center justify-between border-b border-line-1 bg-surface-2 shrink-0">
           <span className="text-xs font-semibold text-fg-1 uppercase tracking-wider flex items-center gap-1.5"><MonitorUp size={14} /> Outputs</span>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-1.5 text-[11px] text-fg-2" title="Performance mode: cap projector output frame rate">
+              <Gauge size={13} /> FPS cap
+              <select
+                value={fpsCap}
+                onChange={(e) => onSetFpsCap(Number(e.target.value))}
+                className="bg-surface-0 border border-line-1 rounded-[var(--r-sm)] px-1.5 py-1 text-fg-1 text-[11px] focus:border-accent focus:outline-none"
+              >
+                <option value={0}>Off</option>
+                <option value={60}>60</option>
+                <option value={30}>30</option>
+                <option value={24}>24</option>
+              </select>
+            </label>
             <button onClick={onRefreshDisplays} title="Re-scan displays" className="flex items-center gap-1 text-[11px] text-fg-2 hover:text-fg-1"><RefreshCw size={13} /> Re-scan</button>
             <button onClick={onClose} aria-label="Close outputs" title="Close" className="text-fg-2 hover:text-fg-1"><X size={16} /></button>
           </div>
@@ -63,7 +86,7 @@ export const OutputsPanel: React.FC<Props> = ({
 
           <div className="border border-line-1 rounded-[var(--r-md)] divide-y divide-line-1">
             <div className={`grid ${COLS} gap-2 px-2 py-1 text-[9px] uppercase tracking-wider text-fg-3`}>
-              <span>Surface</span><span>Output</span><span>Display</span><span>Status</span><span>Align</span>
+              <span>Surface</span><span>Output</span><span>Display</span><span>Status</span><span>Align</span><span></span>
             </div>
             {surfaces.length === 0 && <div className="px-2 py-2 text-[11px] text-fg-3 italic">No surfaces.</div>}
             {surfaces.map((s) => {
@@ -71,8 +94,11 @@ export const OutputsPanel: React.FC<Props> = ({
               const enabled = !!o?.enabled;
               const displayId = o?.displayId ?? null;
               const live = enabled && displayId != null && displays.some((d) => d.id === displayId);
+              const soft = o?.softEdge ?? defaultSoftEdge();
+              const isOpen = expanded === s.id && live;
               return (
-                <div key={s.id} className={`grid ${COLS} gap-2 px-2 py-1.5 items-center`}>
+                <React.Fragment key={s.id}>
+                <div className={`grid ${COLS} gap-2 px-2 py-1.5 items-center`}>
                   <span className="text-[11px] text-fg-1 truncate" title={s.name}>{s.name}</span>
                   <label className="flex items-center gap-1.5 text-[11px] text-fg-2 cursor-pointer">
                     <input
@@ -98,7 +124,7 @@ export const OutputsPanel: React.FC<Props> = ({
                     <button
                       onClick={() => onToggleEdit(s.id)}
                       disabled={!live}
-                      title="Align corners on the projector"
+                      title="Align corners/mesh on the projector"
                       className={`flex items-center gap-1 px-1.5 py-1 rounded-[var(--r-sm)] text-[10px] disabled:opacity-30 ${
                         editingOutputId === s.id ? 'bg-accent text-black' : 'bg-surface-2 text-fg-2 hover:text-fg-1'
                       }`}
@@ -108,13 +134,61 @@ export const OutputsPanel: React.FC<Props> = ({
                     <button
                       onClick={() => onResetCorners(s.id)}
                       disabled={!live}
-                      title="Reset corner-pin to fullscreen"
+                      title="Reset warp to fullscreen"
                       className="p-1 rounded-[var(--r-sm)] text-fg-3 hover:text-fg-1 disabled:opacity-30"
                     >
                       <Undo2 size={12} />
                     </button>
                   </div>
+                  <button
+                    onClick={() => setExpanded(isOpen ? null : s.id)}
+                    disabled={!live}
+                    title="Warp / soft-edge / gamma"
+                    className={`p-1 rounded-[var(--r-sm)] justify-self-center disabled:opacity-30 ${isOpen ? 'text-accent' : 'text-fg-3 hover:text-fg-1'}`}
+                  >
+                    <Settings2 size={13} />
+                  </button>
                 </div>
+
+                {isOpen && (
+                  <div className="px-3 py-2.5 bg-surface-0/40 space-y-2.5 text-[11px]">
+                    {/* Bézier warp */}
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <label className="flex items-center gap-1.5 cursor-pointer text-fg-2">
+                        <Spline size={12} className="text-fg-3" />
+                        <input type="checkbox" checked={!!o?.warp} onChange={(e) => onToggleWarp(s.id, e.target.checked)} className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0" />
+                        Bézier warp
+                      </label>
+                      {o?.warp && <span className="text-fg-3 italic">Align → drag the 16 control points (corners + curve handles)</span>}
+                    </div>
+
+                    {/* Soft edge */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-fg-3 w-[68px]">Soft edge %</span>
+                      {(['left', 'right', 'top', 'bottom'] as const).map((side) => (
+                        <label key={side} className="flex items-center gap-1 text-fg-2">
+                          <span className="uppercase text-[9px] text-fg-3">{side[0]}</span>
+                          <input type="number" min={0} max={50} value={Math.round(soft[side] * 100)}
+                            onChange={(e) => onSetSoftEdge(s.id, { [side]: clamp01h((+e.target.value) / 100) })} className={numCell} />
+                        </label>
+                      ))}
+                      <label className="flex items-center gap-1 text-fg-2">Blend γ
+                        <input type="number" step={0.1} min={0.1} value={+soft.gamma.toFixed(2)}
+                          onChange={(e) => onSetSoftEdge(s.id, { gamma: Math.max(0.1, +e.target.value) })} className={numCell} />
+                      </label>
+                    </div>
+
+                    {/* Output gamma */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-fg-3 w-[68px]">Output γ</span>
+                      <input type="range" min={0.5} max={3} step={0.05} value={o?.gamma ?? 1}
+                        onChange={(e) => onSetGamma(s.id, +e.target.value)} className="w-40 accent-accent" />
+                      <span className="num text-fg-2 w-8">{(o?.gamma ?? 1).toFixed(2)}</span>
+                      <button onClick={() => onSetGamma(s.id, 1)} className="text-fg-3 hover:text-fg-1">reset</button>
+                    </div>
+                  </div>
+                )}
+                </React.Fragment>
               );
             })}
           </div>
