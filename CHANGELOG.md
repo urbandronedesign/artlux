@@ -19,6 +19,11 @@
 - Note: `.glb` collects cleanly; a `.gltf` referencing external `.bin`/textures won't have those
   companions collected — prefer GLB for portability.
 
+### Fixed
+- **CI release publishing**: the duplicate `builder-debug.yml` emitted per OS runner collided on a single
+  asset name and failed the GitHub Release step (red CI since v0.4.1). It's now excluded from the release
+  upload, so tagged releases publish cleanly.
+
 ## v0.4.1
 
 - **Check for updates in About**: the About dialog now has a **Check for updates** button with inline

@@ -77,6 +77,12 @@ If a release re-run is needed, clear the broken one first:
   make `softprops` 404 on the asset-rename step → publish fails. Fixed by `build.artifactName:
   "${productName}-${version}-${arch}.${ext}"` and dropping the Windows `portable` target (NSIS is the
   auto-update target). Don't reintroduce spaces.
+- **No duplicate asset names across OS runners.** electron-builder emits a `builder-debug.yml` on every
+  runner; uploading all three to one release collides on that name and `softprops` fails refreshing the
+  duplicate (`update-a-release-asset` → Not Found), turning CI red — this bit v0.4.1. Fixed in v0.5.0 by
+  excluding it from the upload glob (`!release/builder-debug.yml` in `build.yml`). The auto-update
+  manifests (`latest.yml`/`latest-mac.yml`/`latest-linux.yml`) are uniquely named per platform, so they're
+  fine. Keep release asset names unique per platform.
 - **Auto-update** (`electron-updater`) only works once **two** releases both carry `latest.yml`. v0.3.1's
   release failed to publish, so **v0.4.0 is the first with working metadata** — updates apply for installs
   from v0.4.0 onward (Windows/Linux; macOS links to the Releases page, no Developer ID). See
