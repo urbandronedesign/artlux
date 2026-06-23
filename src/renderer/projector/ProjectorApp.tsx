@@ -15,6 +15,7 @@ const CORNER_LABELS = ['TL', 'TR', 'BR', 'BL'];
 const AA_SAMPLES = 4;
 const RENDER_TESS = 24; // patch → render mesh subdivisions per axis
 const NDI_MAX_W = 1280, NDI_MAX_H = 720; // cap NDI capture for light readback + IPC
+const NDI_BCAST_W = 1920, NDI_BCAST_H = 1080; // broadcast mode: send NDI at up to 1080p
 
 // One fullscreen projector output for a Surface. Renders content through a corner-pin or a
 // bicubic Bézier warp (tessellated to a mesh) with soft-edge + gamma, MSAA-resolved. Edit
@@ -34,6 +35,7 @@ export const ProjectorApp: React.FC = () => {
   const gammaRef = useRef(1);
   const fpsCapRef = useRef(0);
   const ndiSendRef = useRef(false);
+  const ndiFullResRef = useRef(false);
   const lastNdiRef = useRef(0);
   const draggingRef = useRef<number | null>(null);
   const commitTimer = useRef<number | null>(null);
@@ -64,6 +66,7 @@ export const ProjectorApp: React.FC = () => {
     gammaRef.current = r.gamma ?? 1;
     fpsCapRef.current = r.fpsCap ?? 0;
     ndiSendRef.current = !!r.ndiSend;
+    ndiFullResRef.current = !!r.ndiFullRes;
   };
 
   useEffect(() => { engine.setExternal(true); }, []);
@@ -145,8 +148,10 @@ export const ProjectorApp: React.FC = () => {
         lastNdiRef.current = now;
         const id = surfaceRef.current?.id;
         if (id) {
-          const cap = gl.captureRGBA(NDI_MAX_W, NDI_MAX_H);
-          if (cap) window.artlux?.sendNdiFrame?.(id, cap.width, cap.height, cap.data.buffer as ArrayBuffer);
+          const mw = ndiFullResRef.current ? NDI_BCAST_W : NDI_MAX_W;
+          const mh = ndiFullResRef.current ? NDI_BCAST_H : NDI_MAX_H;
+          const shot = gl.captureRGBA(mw, mh);
+          if (shot) window.artlux?.sendNdiFrame?.(id, shot.width, shot.height, shot.data.buffer as ArrayBuffer);
         }
       }
     };

@@ -192,7 +192,7 @@ export const OutputsPanel: React.FC<Props> = ({
                     <label className="flex items-center gap-1.5 cursor-pointer text-fg-2">
                       <Radio size={12} className="text-fg-3" />
                       <input type="checkbox" checked={!!o?.ndiSend} onChange={(e) => onToggleNdiSend(s.id, e.target.checked)} className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0" />
-                      Send as NDI <span className="text-fg-3 italic">(publishes “ArtLux — {s.name}” ≤720p)</span>
+                      Send as NDI <span className="text-fg-3 italic">(publishes “ArtLux — {s.name}” ≤720p, ≤1080p in Broadcast)</span>
                     </label>
                   </div>
                 )}

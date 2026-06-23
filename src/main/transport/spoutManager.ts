@@ -5,11 +5,13 @@ import type { SpoutFrame } from '../../../shared/protocol';
 
 // Loads the native Spout receiver (native/spout-receiver/spout-receiver.node) in
 // the main process — the sandboxed renderer can't require a .node, so frames
-// cross via IPC. The addon downscales to 512² RGBA before handoff. Mirrors the
+// cross via IPC. The addon downscales (aspect-preserving) to a runtime cap before
+// handoff — 512² in the editor, lifted to 1080p in broadcast via setCap(). Mirrors the
 // outputManager native-load pattern; degrades gracefully if the addon is absent
 // (Spout becomes unavailable rather than crashing).
 
 interface SpoutNative {
+  setCap(w: number, h: number): void;
   listSenders(): string[];
   connect(name: string): void;
   disconnect(): void;
@@ -38,6 +40,11 @@ const native = loadNative();
 console.log(native ? '[spout] native receiver loaded' : '[spout] native receiver unavailable');
 
 let timer: NodeJS.Timeout | null = null;
+
+// Set the aspect-preserving downscale cap (broadcast mode lifts it to 1080p).
+export function setCap(w: number, h: number): void {
+  if (native) { try { native.setCap(w, h); } catch (e) { console.warn('[spout] setCap failed', e); } }
+}
 
 export function listSenders(): string[] {
   try { return native ? native.listSenders() : []; } catch { return []; }

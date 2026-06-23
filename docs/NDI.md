@@ -32,7 +32,8 @@ the rest of the app is unaffected.
 1. Open **Outputs**, enable a surface on a display (so its projector window is live).
 2. Open the row's **gear** → tick **Send as NDI**.
 3. The warped output is published as **“ArtLux — <surface name>”** at ≤720p, ~30 fps. Confirm in
-   **NDI Studio Monitor** / your receiver.
+   **NDI Studio Monitor** / your receiver. In **Broadcast mode** (`--broadcast`) the cap lifts to
+   ≤1080p for full-HD show output (the editor keeps ≤720p for lighter preview).
 
 ---
 
@@ -77,8 +78,9 @@ machines still compile the crate.)
 
 - **Native addon** `native/ndi/` (napi-rs, mirrors `spout-receiver`): `runtimeAvailable`,
   `cpuSupported`, `listSources`, `recvConnect/recvDisconnect/recvFrame`,
-  `sendCreate/sendFrame/sendDestroy`. Real impl via **grafton-ndi** behind the `ndi` cargo feature;
-  stubs otherwise. `recvFrame` downscales to ≤1280×720 RGBA.
+  `sendCreate/sendFrame/sendDestroy`, `setRecvCap`. Real impl via **grafton-ndi** behind the `ndi`
+  cargo feature; stubs otherwise. `recvFrame` downscales to a runtime cap (≤1280×720 default,
+  raised to ≤1920×1080 via `setRecvCap` in Broadcast mode).
 - **Main** `src/main/transport/ndiManager.ts`: loads `ndi.node` (graceful if absent),
   60 Hz receive poll, multi-instance send. **`ensureNdiOnPath()`** prepends the NDI runtime dir
   (`NDI_RUNTIME_DIR_V6` + known fallbacks) so the linked `Processing.NDI.Lib.x64.dll` is found before
@@ -86,7 +88,7 @@ machines still compile the crate.)
 - **Receive (renderer)**: `services/ndiReceiver.ts` → `getNdiCanvas()`; wired into `surfaceMedia` as a
   single-live source (`SourceType.NDI`, `SurfaceContent.ndiName`); Inspector content button.
 - **Send (renderer)**: per-output `ProjectorOutput.ndiSend`; the projector window's
-  `ProjectorGL.captureRGBA()` reads back the warped result (≤720p, Y-flipped) → `sendNdiFrame` IPC →
+  `ProjectorGL.captureRGBA()` reads back the warped result (≤720p, or ≤1080p in Broadcast; Y-flipped) → `sendNdiFrame` IPC →
   `ndiManager`. App reconciles senders (named `ArtLux — <surface>`); `before-quit` tears them down.
 
 ### Packaging

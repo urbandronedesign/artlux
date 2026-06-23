@@ -746,6 +746,7 @@ const App: React.FC = () => {
               gamma: out?.gamma ?? 1,
               fpsCap: projectorFpsCap,
               ndiSend: out?.ndiSend ?? false,
+              ndiFullRes: BROADCAST,
           },
       });
       port.postMessage({ t: 'timeline', timeline });

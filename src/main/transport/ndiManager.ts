@@ -10,6 +10,7 @@ import type { NdiFrame } from '../../../shared/protocol';
 
 interface NdiNative {
   runtimeAvailable(): boolean;
+  setRecvCap(w: number, h: number): void;
   listSources(): string[];
   recvConnect(name: string): void;
   recvDisconnect(): void;
@@ -67,6 +68,11 @@ export function available(): boolean {
 
 // ---- Receive (single live source, like Spout) ----
 let recvTimer: NodeJS.Timeout | null = null;
+
+// Set the aspect-preserving receive cap (broadcast mode lifts it to 1080p).
+export function setRecvCap(w: number, h: number): void {
+  if (native) { try { native.setRecvCap(w, h); } catch (e) { console.warn('[ndi] setRecvCap failed', e); } }
+}
 
 export function listSources(): string[] {
   try { return native ? native.listSources() : []; } catch { return []; }

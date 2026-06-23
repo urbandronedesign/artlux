@@ -1,15 +1,15 @@
 // Native Spout receiver for ArtLux (napi-rs). Loaded in the MAIN process (the
 // sandboxed renderer can't require a .node). Wraps spout2-rs's DirectX-11
 // receiver (manages its own D3D11 device, CPU pixel readback), downscales each
-// frame to 512x512 RGBA, and hands it to JS to forward over IPC. Spout is
+// frame (aspect-preserving) to a capped RGBA size, and hands it to JS to forward
+// over IPC. The cap is runtime-settable (broadcast mode lifts it to 1080p);
+// defaults to 512² for the editor (the mapper samples a 512² source). Spout is
 // Windows-only; non-Windows builds compile to no-op stubs so CI stays green.
 
 #[macro_use]
 extern crate napi_derive;
 
 use napi::bindgen_prelude::Buffer;
-
-const OUT: u32 = 512; // the mapper samples a 512x512 source, so downscale here.
 
 #[napi(object)]
 pub struct SpoutFrame {
@@ -24,9 +24,18 @@ pub struct SpoutFrame {
 
 #[cfg(windows)]
 mod imp {
-    use super::{SpoutFrame, OUT};
+    use super::SpoutFrame;
     use spout2::dx::Receiver;
     use std::sync::Mutex;
+
+    // Aspect-preserving output cap. Runtime-settable; defaults to 512² for the editor.
+    static CAP: Mutex<(u32, u32)> = Mutex::new((512, 512));
+
+    pub fn set_cap(w: u32, h: u32) {
+        if w > 0 && h > 0 {
+            *CAP.lock().unwrap() = (w, h);
+        }
+    }
 
     struct State {
         rx: Receiver,
@@ -77,22 +86,36 @@ mod imp {
             return None;
         }
         let bgra = st.rx.sender_format() == 87; // DXGI_FORMAT_B8G8R8A8_UNORM
-        let out = downscale(&st.buf, st.w, st.h, bgra);
-        Some(SpoutFrame { width: OUT, height: OUT, data: out.into(), src_width: st.w, src_height: st.h })
+        let (max_w, max_h) = *CAP.lock().unwrap();
+        let (ow, oh) = fit(st.w, st.h, max_w, max_h);
+        let out = downscale(&st.buf, st.w, st.h, ow, oh, bgra);
+        Some(SpoutFrame { width: ow, height: oh, data: out.into(), src_width: st.w, src_height: st.h })
     }
 
-    // Nearest-neighbour downscale of a (w x h, 4bpp) image to OUT x OUT RGBA.
-    fn downscale(src: &[u8], w: u32, h: u32, bgra: bool) -> Vec<u8> {
-        let mut out = vec![0u8; (OUT * OUT * 4) as usize];
+    // Largest w×h that fits within (max_w, max_h) preserving aspect (never upscales).
+    fn fit(sw: u32, sh: u32, max_w: u32, max_h: u32) -> (u32, u32) {
+        if sw == 0 || sh == 0 {
+            return (max_w.max(1), max_h.max(1));
+        }
+        if sw <= max_w && sh <= max_h {
+            return (sw, sh);
+        }
+        let r = (max_w as f64 / sw as f64).min(max_h as f64 / sh as f64);
+        (((sw as f64 * r) as u32).max(1), ((sh as f64 * r) as u32).max(1))
+    }
+
+    // Nearest-neighbour downscale of a (w x h, 4bpp) image to ow x oh RGBA.
+    fn downscale(src: &[u8], w: u32, h: u32, ow: u32, oh: u32, bgra: bool) -> Vec<u8> {
+        let mut out = vec![0u8; (ow * oh * 4) as usize];
         if w == 0 || h == 0 {
             return out;
         }
-        for y in 0..OUT {
-            let sy = (y as u64 * h as u64 / OUT as u64) as u32;
-            for x in 0..OUT {
-                let sx = (x as u64 * w as u64 / OUT as u64) as u32;
+        for y in 0..oh {
+            let sy = (y as u64 * h as u64 / oh as u64) as u32;
+            for x in 0..ow {
+                let sx = (x as u64 * w as u64 / ow as u64) as u32;
                 let si = ((sy * w + sx) * 4) as usize;
-                let di = ((y * OUT + x) * 4) as usize;
+                let di = ((y * ow + x) * 4) as usize;
                 if si + 3 < src.len() {
                     if bgra {
                         out[di] = src[si + 2];
@@ -111,6 +134,11 @@ mod imp {
     }
 }
 
+#[cfg(windows)]
+#[napi]
+pub fn set_cap(w: u32, h: u32) {
+    imp::set_cap(w, h)
+}
 #[cfg(windows)]
 #[napi]
 pub fn list_senders() -> Vec<String> {
@@ -133,6 +161,9 @@ pub fn receive_frame() -> Option<SpoutFrame> {
 }
 
 // ---- Non-Windows stubs (Spout is Windows-only) ----
+#[cfg(not(windows))]
+#[napi]
+pub fn set_cap(_w: u32, _h: u32) {}
 #[cfg(not(windows))]
 #[napi]
 pub fn list_senders() -> Vec<String> {

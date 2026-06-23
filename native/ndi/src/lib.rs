@@ -37,8 +37,8 @@ mod imp {
     use std::time::Duration;
 
     // Cap received frames so the napi Buffer + IPC stay light (NDI is often 1080p+).
-    const MAX_W: u32 = 1280;
-    const MAX_H: u32 = 720;
+    // Runtime-settable so broadcast mode can lift it to 1080p; defaults to 720p for the editor.
+    static CAP: Mutex<(u32, u32)> = Mutex::new((1280, 720));
 
     // napi calls + the poll run on the single JS thread, so the NDI handles never cross
     // threads (same justification as spout-receiver's `unsafe impl Send`).
@@ -55,6 +55,12 @@ mod imp {
     }
     unsafe impl Send for Send1 {}
     static SENDERS: Mutex<Option<HashMap<String, Send1>>> = Mutex::new(None);
+
+    pub fn set_recv_cap(w: u32, h: u32) {
+        if w > 0 && h > 0 {
+            *CAP.lock().unwrap() = (w, h);
+        }
+    }
 
     pub fn runtime_available() -> bool {
         NDI::new().is_ok()
@@ -113,7 +119,8 @@ mod imp {
         if sw == 0 || sh == 0 {
             return None;
         }
-        let (ow, oh) = fit(sw, sh, MAX_W, MAX_H);
+        let (max_w, max_h) = *CAP.lock().unwrap();
+        let (ow, oh) = fit(sw, sh, max_w, max_h);
         let out = downscale_rgba(video.data(), sw, sh, ow, oh);
         Some(NdiFrame {
             width: ow,
@@ -200,6 +207,7 @@ mod imp {
     use super::NdiFrame;
     use napi::bindgen_prelude::Buffer;
 
+    pub fn set_recv_cap(_w: u32, _h: u32) {}
     pub fn runtime_available() -> bool {
         false
     }
@@ -226,6 +234,10 @@ mod imp {
 }
 
 // ---------------- napi exports ----------------
+#[napi]
+pub fn set_recv_cap(w: u32, h: u32) {
+    imp::set_recv_cap(w, h)
+}
 #[napi]
 pub fn runtime_available() -> bool {
     imp::runtime_available()

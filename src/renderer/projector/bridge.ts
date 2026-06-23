@@ -8,6 +8,7 @@ export interface ProjectorRender {
   gamma?: number;
   fpsCap?: number;   // 0 = uncapped
   ndiSend?: boolean; // also publish this output as an NDI source
+  ndiFullRes?: boolean; // Broadcast: capture the NDI send at up to 1080p instead of 720p
 }
 
 // Messages over the MessagePort linking the main window and one projector output window

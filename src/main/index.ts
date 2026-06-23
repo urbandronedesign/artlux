@@ -5,6 +5,7 @@ import { buildAppMenu } from './menu';
 import { setupUpdater } from './updater';
 import { registerProjectorWindows, closeAllProjectors } from './projector';
 import * as ndi from './transport/ndiManager';
+import * as spout from './transport/spoutManager';
 import { IPC } from '../../shared/protocol';
 
 const APP_ICON = join(__dirname, '../../build/icon.png');
@@ -152,6 +153,9 @@ function setupBroadcastControls(): void {
 
 app.whenReady().then(() => {
     grantMediaPermissions();
+    // Broadcast (show) mode lifts the Spout/NDI receive downscale caps to 1080p for full-HD
+    // projector output + NDI; the editor keeps the lighter defaults (512² / 720p) for preview.
+    if (BROADCAST) { ndi.setRecvCap(1920, 1080); spout.setCap(1920, 1080); }
     registerIpc(() => mainWindow);
     if (!HEADLESS && !BROADCAST) { buildAppMenu(() => mainWindow); setupUpdater(() => mainWindow); }
     ipcMain.on(IPC.SCENE_OPEN, () => { if (!HEADLESS && !BROADCAST) createSceneWindow(); });
