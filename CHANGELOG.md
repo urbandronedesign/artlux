@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.7.0
+
+NDI® (network video) — the cross-platform counterpart to Spout.
+
+- **NDI source** — receive an NDI stream as a Surface's content: pick **NDI** in the Inspector's
+  Content section, choose a source, and it drives the surface (and the fixtures sampling it).
+- **NDI send** — publish each **projector output** (the final corner-pin / Bézier-warped result) as
+  its own NDI source (**“ArtLux — <surface>”**), so media servers / recorders / other software can
+  receive the mapped output over the network. Toggle **Send as NDI** per output in the Outputs gear.
+- Requires the free **NDI Runtime / NDI Tools** (<https://ndi.video>); ArtLux degrades gracefully and
+  shows an install hint when it isn't present. NDI® is a registered trademark of Vizrt NDI AB.
+
+> Note: NDI is **Windows-first**. Building the native NDI addon requires the NDI 6 SDK (`npm run
+> build:ndi`); without it the app builds with NDI inactive.
+
 ## v0.6.1
 
 - **Consistent quit**: **Ctrl/Cmd+Shift+Q** now quits from both the editor and broadcast mode —
