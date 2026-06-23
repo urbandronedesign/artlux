@@ -156,7 +156,10 @@ app.whenReady().then(() => {
     if (!HEADLESS && !BROADCAST) { buildAppMenu(() => mainWindow); setupUpdater(() => mainWindow); }
     ipcMain.on(IPC.SCENE_OPEN, () => { if (!HEADLESS && !BROADCAST) createSceneWindow(); });
     ipcMain.on(IPC.APP_RELAUNCH_BROADCAST, (_e, projectPath: string) => {
-        const args = ['--broadcast'];
+        // app.relaunch replaces argv. When unpacked (dev), argv is [electron, appPath, …flags],
+        // so we must re-pass the app path or Electron relaunches with no app (the welcome screen).
+        const args = app.isPackaged ? [] : [app.getAppPath()];
+        args.push('--broadcast');
         if (projectPath) args.push(`--project=${projectPath}`);
         app.relaunch({ args });
         app.exit(0);
