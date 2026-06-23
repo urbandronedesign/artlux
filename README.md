@@ -44,9 +44,15 @@ See **[docs/FEATURES.md](docs/FEATURES.md)** for a usage guide.
 
 ```bash
 npm install
-npm run build:native   # builds the Rust output engine + Spout receiver -> .node addons
+npm run build:native   # Rust output engine + Spout receiver + NDI (stub) -> .node addons
 npm run dev            # launch the Electron app
 ```
+
+**NDI (optional, Windows):** the real NDI addon needs the free [NDI 6 SDK](https://ndi.video/for-developers/ndi-sdk/)
+plus LLVM (libclang). With both installed, `npm run build:ndi` builds it (set `LIBCLANG_PATH` to your
+LLVM `bin`). End users need the **NDI Runtime / NDI Tools** installed; without it NDI degrades
+gracefully. For CI release builds, set an `NDI_SDK_URL` repo secret (a URL to the NDI SDK installer)
+— the Windows job then builds real NDI; otherwise it ships the stub.
 
 ### Build / package
 

@@ -35,13 +35,39 @@ jobs:
             ~/.cargo/git
             native/output-engine/target
             native/spout-receiver/target
-          key: ${{ matrix.os }}-cargo-${{ hashFiles('native/output-engine/Cargo.lock', 'native/spout-receiver/Cargo.lock') }}
+            native/ndi/target
+          key: ${{ matrix.os }}-cargo-${{ hashFiles('native/output-engine/Cargo.lock', 'native/spout-receiver/Cargo.lock', 'native/ndi/Cargo.lock') }}
 
       - name: Install dependencies
         run: npm ci
 
+      # Build the REAL NDI addon on Windows when an NDI SDK installer URL is provided
+      # (secret NDI_SDK_URL). LLVM/libclang is preinstalled on the runner. Without the
+      # secret this is a no-op and the NDI crate builds as a stub via build:native below.
+      - name: Configure NDI build (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        env:
+          NDI_SDK_URL: ${{ secrets.NDI_SDK_URL }}
+        run: |
+          if ($env:NDI_SDK_URL) {
+            Write-Host "Installing NDI SDK for a real NDI build..."
+            $exe = "$env:RUNNER_TEMP\ndi_sdk.exe"
+            Invoke-WebRequest -Uri $env:NDI_SDK_URL -OutFile $exe
+            Start-Process -FilePath $exe -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait
+            "NDI_SDK_DIR=C:\Program Files\NDI\NDI 6 SDK" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+            if (Test-Path 'C:\Program Files\LLVM\bin\libclang.dll') {
+              "LIBCLANG_PATH=C:\Program Files\LLVM\bin" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+            }
+            "NATIVE_BUILD=build:ndi" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+            Write-Host "Configured real NDI build (build:ndi)."
+          } else {
+            Write-Host "NDI_SDK_URL not set - NDI builds as a stub."
+          }
+
       - name: Build native engine
-        run: npm run build:native
+        shell: bash
+        run: npm run ${NATIVE_BUILD:-build:native}
 
       - name: Build app (main/preload/renderer)
         run: npm run build
