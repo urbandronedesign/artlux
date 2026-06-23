@@ -16,6 +16,7 @@ Newest decisions at the bottom of each section. Commit hashes are on `main`.
 | F | Native sACN/E1.31 + **Rust output engine (napi-rs)** | ✅ done | `290d353`, `<pending>` |
 | G | 3D LED fixture editor + simulator (r3f) | ✅ done | `2c59917` |
 | Outputs | Projector outputs (warp/blend/gamma/MSAA/perf) + broadcast mode + consistent quit | ✅ done (v0.6.0–v0.6.1) | `b1a76bf`, `1edbca9`, `070c6a0`, `eb4d96b` |
+| NDI | NDI receive onto surfaces + send per output (native grafton-ndi addon, prebuilt) | ✅ done (v0.7.0) | `e1cf527`, `e946bb5` |
 
 ## What works today
 - Runs as a native **Electron** desktop app: `npm run dev` (electron-vite). Three-process build: main / preload / renderer.

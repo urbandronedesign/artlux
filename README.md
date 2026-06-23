@@ -53,7 +53,7 @@ once against the [NDI 6 SDK](https://ndi.video/for-developers/ndi-sdk/) — so C
 need the SDK**. End users only install the free **NDI Runtime / NDI Tools** (the app shows an install
 hint and degrades gracefully without it). To rebuild the addon after changing `native/ndi/src`, install
 the NDI 6 SDK + LLVM and run `npm run build:ndi` (set `LIBCLANG_PATH` to your LLVM `bin`), then commit
-the updated `ndi.node`.
+the updated `ndi.node`. Full setup + usage + architecture: [docs/NDI.md](docs/NDI.md).
 
 ### Build / package
 

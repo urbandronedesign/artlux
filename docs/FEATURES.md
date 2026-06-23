@@ -46,6 +46,8 @@ Select a surface, then in the inspector **Content** section:
 - **DMX In** — capture incoming Art-Net/sACN as the surface's content (single live input).
 - **Spout** (Windows) — receive a live GPU stream from Resolume/MadMapper/TouchDesigner; pick a
   sender (or "Active sender") + refresh. Received natively, downscaled, composited (single live).
+- **NDI** (network video) — receive an NDI stream from another machine/app; pick a source + refresh.
+  Requires the free NDI Runtime/Tools. See [NDI.md](NDI.md). (Single live input.)
 - **Effect** — a generative shader fills the surface (rendering arrives in S2; params save now).
 
 ## Effects & palettes
@@ -110,8 +112,9 @@ layout (line / matrix / arc). Use the Move/Rotate gizmo; the LEDs render live wi
 ## Projector outputs (projection mapping)
 Send any **Surface** to a real projector as its own **fullscreen output** — with **corner-pin** or
 **Bézier warp**, **soft-edge blend**, **per-screen gamma**, **MSAA**, and a **performance FPS cap**.
-Open **Outputs** (top bar), enable a surface, and pick a display. Full guide + architecture in
-[OUTPUTS.md](OUTPUTS.md).
+Open **Outputs** (top bar), enable a surface, and pick a display. Each output can also be published as
+an **NDI source** (gear → **Send as NDI**). Full guide + architecture in [OUTPUTS.md](OUTPUTS.md);
+NDI in [NDI.md](NDI.md).
 
 ## Headless mode
 Run the compute + output engine with no UI (lower CPU/GPU, good for installs/servers):
