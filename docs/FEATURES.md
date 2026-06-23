@@ -138,4 +138,6 @@ See [OUTPUTS.md](OUTPUTS.md).
 
 ## Keyboard
 - **Ctrl/Cmd+Z** undo · **Ctrl/Cmd+Shift+Z** or **Ctrl/Cmd+Y** redo.
+- **Ctrl/Cmd+Shift+Q** quit — works in both the editor and broadcast mode, even from a focused
+  fullscreen projector window (closes every projector cleanly).
 - **Esc** closes the Preferences dialog.

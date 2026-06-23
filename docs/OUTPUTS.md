@@ -70,6 +70,12 @@ ArtLux.exe --broadcast --project="C:\path\to\show.artlux"
 > Difference from `--headless`: headless is engine-only (Art-Net, invisible, **no projectors**);
 > broadcast adds the fullscreen projector outputs + tray control.
 
+### Quitting (both modes)
+**Ctrl/Cmd+Shift+Q** quits cleanly from anywhere — editor **and** broadcast — including when a
+frameless fullscreen projector window is focused (where the app menu can't be reached). The editor's
+**File ▸ Quit** shows the same shortcut; broadcast also has the tray ▸ Quit. Any quit path runs the
+same teardown: unregister the shortcut, destroy the tray, and close every projector window.
+
 ---
 
 ## For developers / architecture
