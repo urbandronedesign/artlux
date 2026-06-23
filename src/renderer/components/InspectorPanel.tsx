@@ -68,23 +68,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
     const surfBtnCls = (active: boolean) =>
         `flex flex-col items-center justify-center p-2 rounded border transition-all ${active ? 'bg-sel-surface/10 border-sel-surface text-sel-surface' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3'}`;
 
-    // Load a WLED-style ledmap.json ({"map":[...]} or a bare array) -> physical->geometry order.
-    const handleLedmapUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file || !selectedFixture) return;
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-            try {
-                const parsed = JSON.parse(ev.target?.result as string);
-                const map: number[] = Array.isArray(parsed) ? parsed : parsed.map;
-                if (Array.isArray(map)) onUpdateFixture(selectedFixture.id, { ledMap: map });
-                else alert('Unrecognized ledmap format (expected an array or {"map":[...]})');
-            } catch {
-                alert('Failed to parse ledmap JSON');
-            }
-        };
-        reader.readAsText(file);
-    };
+    // Ledmap import moved to the Fixture editor (FixtureEditor.tsx → "Ledmap" card).
 
     return (
         <div className="flex flex-col h-full bg-surface-1 overflow-y-auto">
@@ -395,10 +379,6 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                         </div>
                     )}
 
-                    <label className="flex items-center justify-center gap-2 text-[10px] text-fg-2 bg-surface-3 hover:bg-surface-3 border border-line-2 rounded py-1.5 cursor-pointer mt-1">
-                        <input type="file" accept=".json,application/json" className="hidden" onChange={handleLedmapUpload} />
-                        {selectedFixture.ledMap ? `Ledmap: ${selectedFixture.ledMap.length} pts` : 'Load ledmap.json'}
-                    </label>
                 </PanelSection>
 
                 <PanelSection title="Routing" icon={<Network size={12}/>}>

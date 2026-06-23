@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { Fixture, FixtureTemplate, LedShape, ColorOrder, RGBWMode } from '../types';
-import { Hash, Grid3x3, Cable, Minus, Plus, Save, PackagePlus, Trash2, Library } from 'lucide-react';
-import { Field, NumberField, Select, Toggle, Segmented } from './ui';
+import { Hash, Grid3x3, Cable, Minus, Plus, Save, PackagePlus, Trash2, Library, Route, Upload, Download, Eraser, AlertTriangle } from 'lucide-react';
+import { Field, NumberField, Select, Toggle, Segmented, Button } from './ui';
 
 interface Props {
   fixture: Fixture | null;
@@ -68,6 +68,56 @@ export const FixtureEditor: React.FC<Props> = ({
   const cols = fixture?.matrixWidth ?? 8;
   const rows = fixture?.matrixHeight ?? 8;
   const totalChannels = (fixture?.ledCount ?? 0) * cpp;
+
+  // Ledmap — WLED-style physical→geometry remap. See docs/LEDMAP.md.
+  const ledmapInput = useRef<HTMLInputElement>(null);
+
+  const handleLedmapUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-loading the same file
+    if (!file || !fixture) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const parsed = JSON.parse(ev.target?.result as string);
+        const map: number[] = Array.isArray(parsed) ? parsed : parsed.map;
+        if (Array.isArray(map) && map.every((n) => typeof n === 'number')) up({ ledMap: map });
+        else alert('Unrecognized ledmap format (expected an array or {"map":[...]})');
+      } catch {
+        alert('Failed to parse ledmap JSON');
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const exportLedmap = () => {
+    if (!fixture) return;
+    // Export the current map, or an identity template sized to the fixture as a starting point.
+    const map = fixture.ledMap ?? Array.from({ length: fixture.ledCount }, (_, i) => i);
+    const blob = new Blob([JSON.stringify({ map }, null, 0)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${(fixture.name || 'fixture').replace(/[^\w.-]+/g, '_')}-ledmap.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Bake serpentine wiring into a ledmap, then disable the serpentine toggle so the
+  // engine doesn't apply the flip twice (transform order is reverse → ledmap → serpentine).
+  const generateSerpentine = () => {
+    if (!fixture) return;
+    const map: number[] = [];
+    for (let y = 0; y < rows; y++)
+      for (let x = 0; x < cols; x++) {
+        const col = y % 2 === 0 ? x : cols - 1 - x;
+        map.push(y * cols + col);
+      }
+    up({ ledMap: map, serpentine: false });
+  };
+
+  const ledMapLen = fixture?.ledMap?.length ?? 0;
+  const ledMapMismatch = !!fixture?.ledMap && ledMapLen !== fixture.ledCount;
 
   return (
     <div className="h-full overflow-auto p-3 bg-surface-0">
@@ -191,6 +241,44 @@ export const FixtureEditor: React.FC<Props> = ({
             </div>
           )}
           <div className="num text-[10px] text-fg-3 pt-1">{totalChannels} ch · {fixture.ledCount} px × {cpp}</div>
+        </Card>
+
+        {/* Ledmap = WLED-style physical→geometry pixel remap */}
+        <Card title="Ledmap" icon={<Route size={12} />} className="min-w-[200px]">
+          <input ref={ledmapInput} type="file" accept=".json,application/json" className="hidden" onChange={handleLedmapUpload} />
+          <div className="text-[10px] text-fg-3 leading-snug">
+            Remaps physical pixel order → geometry. Only needed for irregular wiring that Reverse / Serpentine can't express.
+          </div>
+          <div className="num text-[10px] pt-0.5">
+            {fixture.ledMap
+              ? <span className={ledMapMismatch ? 'text-warn' : 'text-fg-2'}>Loaded: {ledMapLen} pts</span>
+              : <span className="text-fg-3">No ledmap (identity order)</span>}
+          </div>
+          {ledMapMismatch && (
+            <div className="flex items-start gap-1 text-[9px] text-warn">
+              <AlertTriangle size={11} className="shrink-0 mt-px" />
+              <span>Length ({ledMapLen}) ≠ LED count ({fixture.ledCount}); unmapped pixels fall back to identity.</span>
+            </div>
+          )}
+          <div className="flex flex-wrap gap-1.5 pt-0.5">
+            <Button size="sm" onClick={() => ledmapInput.current?.click()} title="Load a ledmap.json (array or {map:[...]})">
+              <Upload size={12} /> Load
+            </Button>
+            <Button size="sm" variant="ghost" onClick={exportLedmap} title={fixture.ledMap ? 'Export the current ledmap' : 'Export an identity template to edit'}>
+              <Download size={12} /> Export
+            </Button>
+            {fixture.ledMap && (
+              <Button size="sm" variant="danger" onClick={() => up({ ledMap: undefined })} title="Remove the ledmap (back to identity order)">
+                <Eraser size={12} /> Clear
+              </Button>
+            )}
+          </div>
+          {shape === LedShape.MATRIX && (
+            <Button size="sm" variant="ghost" className="w-full" onClick={generateSerpentine}
+              title="Build a serpentine map from cols/rows and disable the Serpentine toggle (avoids double-flip)">
+              <Grid3x3 size={12} /> Generate serpentine ({cols}×{rows})
+            </Button>
+          )}
         </Card>
         </>}
       </div>
