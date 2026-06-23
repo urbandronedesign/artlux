@@ -15,11 +15,13 @@ Newest decisions at the bottom of each section. Commit hashes are on `main`.
 | E | Per-fixture routing + output targeting (TS) | ✅ done | `4e5fe09` |
 | F | Native sACN/E1.31 + **Rust output engine (napi-rs)** | ✅ done | `290d353`, `<pending>` |
 | G | 3D LED fixture editor + simulator (r3f) | ✅ done | `2c59917` |
+| Outputs | Projector outputs (warp/blend/gamma/MSAA/perf) + broadcast mode | ✅ done (v0.6.0) | `b1a76bf`, `1edbca9`, `070c6a0` |
 
 ## What works today
 - Runs as a native **Electron** desktop app: `npm run dev` (electron-vite). Three-process build: main / preload / renderer.
 - **Native Art-Net** over UDP from the main process (`src/main/transport/artnet.ts`), wired via IPC (`shared/protocol.ts`, `src/preload/index.ts`, `src/main/ipc.ts`). The old WebSocket bridge is gone.
 - **WebGPU compute** pixel mapper (`src/renderer/gpu/WebGPUMapper.ts`) with WebGL fallback (`src/renderer/services/GPUMapper.ts`) behind a shared `IPixelMapper` interface. Stage tries WebGPU first.
+- **Projector outputs** (v0.6.0): per-surface fullscreen on a chosen display with corner-pin / Bézier warp, soft-edge blend, per-screen gamma, MSAA, and a performance fps cap — plus a `--broadcast` show mode (outputs + Art-Net, no editor UI). Architecture in [OUTPUTS.md](OUTPUTS.md) (`src/main/projector.ts`, `src/renderer/projector/`, the projector glue in `App.tsx`).
 
 ## Repo layout (post Phase A)
 ```

@@ -107,6 +107,12 @@ in-memory reference), so they persist across reloads and are collected like ever
 Switch to the **3D** module to place fixtures in space. Each fixture has a 3D position/rotation and a
 layout (line / matrix / arc). Use the Move/Rotate gizmo; the LEDs render live with bloom.
 
+## Projector outputs (projection mapping)
+Send any **Surface** to a real projector as its own **fullscreen output** — with **corner-pin** or
+**Bézier warp**, **soft-edge blend**, **per-screen gamma**, **MSAA**, and a **performance FPS cap**.
+Open **Outputs** (top bar), enable a surface, and pick a display. Full guide + architecture in
+[OUTPUTS.md](OUTPUTS.md).
+
 ## Headless mode
 Run the compute + output engine with no UI (lower CPU/GPU, good for installs/servers):
 
@@ -118,6 +124,17 @@ It loads the project, runs the WebGPU mapper in an invisible window, and emits A
 ArtSync) at the configured FPS. Omit `--project` to use the last-opened project. Note: media sources
 aren't stored in the project file, so headless drives **Effect** and **DMX-in** fixtures (Spout also
 works); media-source fixtures render black.
+
+## Broadcast (show) mode
+Run the projector **outputs + Art-Net** with **no editor interface** — for an installed show:
+
+```bash
+ArtLux.exe --broadcast --project="C:\path\to\show.artlux"
+```
+
+It opens every enabled output fullscreen and streams Art-Net, controlled from a **system-tray icon**
+and a global **Ctrl/Cmd+Shift+Q** hotkey (or **File ▸ Launch in Broadcast Mode** from the editor).
+See [OUTPUTS.md](OUTPUTS.md).
 
 ## Keyboard
 - **Ctrl/Cmd+Z** undo · **Ctrl/Cmd+Shift+Z** or **Ctrl/Cmd+Y** redo.
