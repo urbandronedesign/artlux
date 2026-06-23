@@ -62,6 +62,12 @@ export const IPC = {
   READ_FILE: 'app:read-file',
   /** Renderer → main (invoke): pick a video file → absolute path. */
   PICK_VIDEO: 'app:pick-video',
+  /** Renderer → main (invoke): pick/create a project folder → { root, projectFile }. */
+  PROJECT_NEW_FOLDER: 'project:new-folder',
+  /** Renderer → main (invoke): pick a project folder → { path, data } (paths resolved absolute). */
+  PROJECT_OPEN_FOLDER: 'project:open-folder',
+  /** Renderer → main (invoke): copy external assets into the project's assets/ → CollectResult. */
+  PROJECT_COLLECT_ASSETS: 'project:collect-assets',
 } as const;
 
 export interface UpdateEvent {
@@ -185,16 +191,34 @@ export const defaultScene3D = (): Scene3D => ({
 });
 
 // Full project file (kept loose here so shared/ stays decoupled from renderer types).
+// Asset paths inside surfaces/scene3D/timeline are stored relative to the project
+// folder when collected (see main/projectFolder.ts), and resolved to absolute on load.
 export interface ProjectData {
   version: string;
   timestamp?: string;
   fixtures: unknown[];
+  surfaces?: unknown[];     // Surface[] (renderer type) — carries VIDEO/IMAGE asset urls
+  controllers?: unknown[];
   settings: unknown;
   globalBrightness: number;
   groups: unknown[];
   scenes: unknown[];
   scene3D?: Scene3D;
   timeline?: unknown; // Timeline (renderer type) — video-layer NLE
+}
+
+// Result of a "Collect Assets" run.
+export interface CollectResult {
+  data: ProjectData;     // remapped project (asset paths now point into assets/, still absolute)
+  copied: number;        // files copied into assets/
+  skipped: number;       // references already collected / not collectable
+  missing: string[];     // source paths that no longer exist on disk
+}
+
+// Result of creating a new project folder.
+export interface NewProjectFolder {
+  root: string;          // the project folder
+  projectFile: string;   // <root>/project.artlux
 }
 
 // A reusable rig: fixtures with patch/wiring/routing only (no scenes/media/effects).
@@ -231,6 +255,10 @@ export interface ArtluxApi {
   saveProject(data: ProjectData, path?: string): Promise<string | null>;
   openProject(): Promise<OpenProjectResult | null>;
   loadProjectPath(path: string): Promise<ProjectData | null>;
+  // Portable projects (folder + asset collection)
+  newProjectFolder(): Promise<NewProjectFolder | null>;
+  openProjectFolder(): Promise<OpenProjectResult | null>;
+  collectAssets(projectFile: string, data: ProjectData): Promise<CollectResult | null>;
   exportRig(rig: RigData): Promise<string | null>;
   importRig(): Promise<RigData | null>;
   getPrefs(): Promise<Prefs>;

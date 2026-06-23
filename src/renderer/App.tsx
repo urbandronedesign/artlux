@@ -351,7 +351,7 @@ const App: React.FC = () => {
   ]);
 
   const buildProjectData = () => ({
-      version: '1.0',
+      version: '1.1', // 1.1: asset paths stored relative to the project folder when collected
       timestamp: new Date().toISOString(),
       surfaces,
       fixtures,
@@ -441,23 +441,68 @@ const App: React.FC = () => {
       }
   };
 
-  const handleNewProject = () => {
-      recordHistory();
+  // The fresh surfaces/fixtures of a clean single-fixture project (no setState — see callers).
+  const makeNewProjectState = () => {
       const surf = defaultSurfaces();
-      setSurfaces(surf);
-      setFixtures([{
+      const fix = [{
           id: generateId(), name: 'Fixture 1',
           x: 0.15, y: 0.15, width: 0.7, height: 0.1,
           universe: 0, startAddress: 1, ledCount: 60, reverse: false, rotation: 0, colorData: [],
           surfaceId: surf[0].id,
-      }]);
+      }];
+      return { surfaces: surf, fixtures: fix };
+  };
+  // Reset app state to a clean project. Keeps settings/scene3D/timeline (matches prior New behavior).
+  const resetToNewProject = (st: ReturnType<typeof makeNewProjectState>) => {
+      recordHistory();
+      setSurfaces(st.surfaces);
+      setFixtures(st.fixtures);
       setControllers([]);
       setGroups([]);
       setScenes([]);
       setSelectedFixtureId(null);
       setSelectedFixtureIds([]);
       setSelectedSurfaceId(null);
+  };
+
+  const handleNewProject = () => {
+      resetToNewProject(makeNewProjectState());
       setCurrentProjectPath(null);
+  };
+
+  // Create a project *folder* (project.artlux + assets/{video,models,images}/), then save into it.
+  const handleNewProjectFolder = async () => {
+      const res = await window.artlux?.newProjectFolder?.();
+      if (!res) return;
+      const st = makeNewProjectState();
+      resetToNewProject(st);
+      // Save from the fresh values directly — setState above hasn't applied to this closure yet.
+      const data = { ...buildProjectData(), surfaces: st.surfaces, fixtures: st.fixtures, controllers: [], groups: [], scenes: [] };
+      const path = await window.artlux?.saveProject?.(data, res.projectFile);
+      if (path) { setCurrentProjectPath(path); refreshRecents(); }
+  };
+
+  const handleOpenProjectFolder = async () => {
+      const res = await window.artlux?.openProjectFolder?.();
+      if (res) { applyProjectData(res.data); setCurrentProjectPath(res.path); refreshRecents(); }
+  };
+
+  // Copy every referenced external asset into the project folder's assets/ tree, rewrite the
+  // references to point there, then save (which stores them as folder-relative paths).
+  const handleCollectAssets = async () => {
+      if (!currentProjectPath) {
+          window.alert('Save the project to a folder first (File → New Project Folder…), then collect assets.');
+          return;
+      }
+      const res = await window.artlux?.collectAssets?.(currentProjectPath, buildProjectData());
+      if (!res) return;
+      applyProjectData(res.data);
+      await window.artlux?.saveProject?.(res.data, currentProjectPath);
+      refreshRecents();
+      const lines = [`Collected ${res.copied} asset${res.copied === 1 ? '' : 's'} into the project folder.`];
+      if (res.skipped) lines.push(`${res.skipped} already collected or not collectable.`);
+      if (res.missing.length) lines.push(`Missing (not found on disk):\n${res.missing.join('\n')}`);
+      window.alert(lines.join('\n'));
   };
 
   // App info for the About modal.
@@ -469,9 +514,12 @@ const App: React.FC = () => {
       if (action.startsWith('open-recent:')) { handleOpenRecent(action.slice('open-recent:'.length)); return; }
       switch (action) {
           case 'new': handleNewProject(); break;
+          case 'new-project-folder': handleNewProjectFolder(); break;
           case 'open': handleOpenProject(); break;
+          case 'open-project-folder': handleOpenProjectFolder(); break;
           case 'save': handleSaveProject(); break;
           case 'save-as': handleSaveAs(); break;
+          case 'collect-assets': handleCollectAssets(); break;
           case 'export-rig': handleExportRig(); break;
           case 'import-rig': handleImportRig(); break;
           case 'preferences': setPrefsOpen(true); break;

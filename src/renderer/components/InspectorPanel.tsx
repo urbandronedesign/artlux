@@ -62,7 +62,11 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
     };
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: SourceType) => {
         const file = e.target.files?.[0];
-        if (file) setContent({ type, url: URL.createObjectURL(file) });
+        if (!file) return;
+        // Store the real file path (resolved to a blob url at render time) so the surface
+        // media persists across reloads and can be collected into the project folder.
+        const path = window.artlux?.getPathForFile?.(file);
+        setContent({ type, url: path || URL.createObjectURL(file) });
     };
 
     const surfBtnCls = (active: boolean) =>

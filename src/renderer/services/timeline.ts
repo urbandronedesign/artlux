@@ -1,4 +1,5 @@
 import { Timeline, VideoClip, defaultTimeline } from '../types';
+import { getBlobUrl, ensureBlobUrl } from './mediaCache';
 
 // Per-window video-layer timeline engine. The single source of playback time so React
 // never re-renders per frame (mirrors dmxSignal/livePreview). One <video> per layer
@@ -8,8 +9,6 @@ import { Timeline, VideoClip, defaultTimeline } from '../types';
 
 type LayerVid = { el: HTMLVideoElement; clipId: string | null; srcPath: string | null };
 
-const blobCache = new Map<string, string>(); // file path -> blob url
-const loading = new Set<string>();
 const layerVideos = new Map<string, LayerVid>();
 const subs = new Set<(playhead: number) => void>();
 
@@ -20,14 +19,7 @@ let playhead = 0;
 let lastT = 0;
 let raf = 0;
 
-async function ensureBlob(path: string): Promise<void> {
-  if (!path || blobCache.has(path) || loading.has(path)) return;
-  loading.add(path);
-  try {
-    const bytes = await window.artlux?.readFile?.(path);
-    if (bytes) blobCache.set(path, URL.createObjectURL(new Blob([bytes], { type: 'video/mp4' })));
-  } catch { /* ignore */ } finally { loading.delete(path); }
-}
+const ensureBlob = (path: string): void => { void ensureBlobUrl(path, 'video/mp4'); };
 
 function getLayerVideo(layerId: string): LayerVid {
   let lv = layerVideos.get(layerId);
@@ -55,7 +47,7 @@ function syncLayer(layerId: string, t: number): void {
   if (!clip) { if (!lv.el.paused) lv.el.pause(); lv.clipId = null; return; }
 
   if (lv.srcPath !== clip.path) {
-    const url = blobCache.get(clip.path);
+    const url = getBlobUrl(clip.path);
     if (url) { lv.el.src = url; lv.srcPath = clip.path; }
     else { ensureBlob(clip.path); return; } // not loaded yet
   }

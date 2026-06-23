@@ -3,6 +3,7 @@ import { getInputCanvas, startInput, stopInput } from './dmxInput';
 import { getSpoutCanvas, startSpout, stopSpout } from './spoutReceiver';
 import { SurfaceEffect } from '../gpu/surfaceFx';
 import { timeline } from './timeline';
+import { resolveMediaUrl, mimeForPath } from './mediaCache';
 
 // Owns the media lifecycle for every Surface: one <video>/<img> per VIDEO/IMAGE
 // surface, plus a single live camera / Spout / DMX-in (one live at a time, v1).
@@ -22,17 +23,21 @@ let spoutActive = false;
 let spoutName = '';
 let playing = true;
 
+// `url` is a live blob:/http url or an absolute file path (resolved to a blob url via IPC).
+// The element is created synchronously; its src is set once the (possibly async) url resolves.
 function makeVideo(url: string): HTMLVideoElement {
   const v = document.createElement('video');
-  v.src = url; v.loop = true; v.muted = true; v.playsInline = true; v.crossOrigin = 'anonymous';
-  v.load();
-  if (playing) v.play().catch(() => {});
+  v.loop = true; v.muted = true; v.playsInline = true; v.crossOrigin = 'anonymous';
+  void resolveMediaUrl(url, 'video/mp4').then((src) => {
+    v.src = src; v.load();
+    if (playing) v.play().catch(() => {});
+  });
   return v;
 }
 function makeImage(url: string): HTMLImageElement {
   const i = document.createElement('img');
   i.crossOrigin = 'anonymous';
-  i.src = url;
+  void resolveMediaUrl(url, mimeForPath(url)).then((src) => { i.src = src; });
   return i;
 }
 

@@ -1,7 +1,8 @@
 import { app, dialog, type BrowserWindow } from 'electron';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import type { ProjectData, RigData, Prefs, OpenProjectResult } from '../../shared/protocol';
+import { relativizeAssets, resolveAssets } from './projectFolder';
 
 // All file I/O lives in main (the renderer is sandboxed with no fs access).
 // Projects/rigs use native Open/Save dialogs; preferences (settings + recent
@@ -71,7 +72,8 @@ export async function saveProject(win: BrowserWindow | null, data: ProjectData, 
     if (res.canceled || !res.filePath) return null;
     target = res.filePath;
   }
-  if (!writeJson(target, data)) return null;
+  // Store asset paths under the project folder as folder-relative (portable); keep externals absolute.
+  if (!writeJson(target, relativizeAssets(data, dirname(target)))) return null;
   pushRecent(target);
   return target;
 }
@@ -88,13 +90,14 @@ export async function openProject(win: BrowserWindow | null): Promise<OpenProjec
   const data = readJson<ProjectData>(path);
   if (!data) return null;
   pushRecent(path);
-  return { path, data };
+  return { path, data: resolveAssets(data, dirname(path)) };
 }
 
 export function loadProjectPath(path: string): ProjectData | null {
   const data = readJson<ProjectData>(path);
-  if (data) pushRecent(path);
-  return data;
+  if (!data) return null;
+  pushRecent(path);
+  return resolveAssets(data, dirname(path));
 }
 
 export async function exportRig(win: BrowserWindow | null, rig: RigData): Promise<string | null> {

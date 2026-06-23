@@ -6,6 +6,7 @@ import * as input from './transport/input';
 import * as discovery from './transport/discovery';
 import * as spout from './transport/spoutManager';
 import * as persistence from './persistence';
+import * as projectFolder from './projectFolder';
 import { rebuildAppMenu } from './menu';
 
 // Wire renderer IPC to the native Art-Net transport and report status back.
@@ -52,6 +53,17 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
         rebuildAppMenu();
         return r;
     });
+    // Portable projects: create/open a project folder + collect assets into it.
+    ipcMain.handle(IPC.PROJECT_NEW_FOLDER, () => projectFolder.newProjectFolder(getWindow()));
+    ipcMain.handle(IPC.PROJECT_OPEN_FOLDER, async () => {
+        const projectFile = await projectFolder.pickProjectFolder(getWindow());
+        if (!projectFile) return null;
+        const data = persistence.loadProjectPath(projectFile); // resolves relative paths + records recent
+        rebuildAppMenu();
+        return data ? { path: projectFile, data } : null;
+    });
+    ipcMain.handle(IPC.PROJECT_COLLECT_ASSETS, (_e, projectFile: string, data: ProjectData) =>
+        projectFolder.collectAssets(projectFile, data));
     ipcMain.handle(IPC.RIG_EXPORT, (_e, rig: RigData) => persistence.exportRig(getWindow(), rig));
     ipcMain.handle(IPC.RIG_IMPORT, () => persistence.importRig(getWindow()));
     ipcMain.handle(IPC.PREFS_GET, () => persistence.getPrefs());
