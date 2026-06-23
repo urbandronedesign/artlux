@@ -10,26 +10,28 @@ type Src = { canvas: HTMLCanvasElement | null; index: number };
 
 const active = new Map<string, Src>();
 let playing = true;
-let clock = 0;     // seconds of playback elapsed (advances only while playing)
-let lastNow = 0;
+let clock = 0;          // seconds of playback elapsed (advances only while playing)
+let clockOriginMs = 0;  // performance.now() (ms) at clock==0 — monotonic, drift-free
 let raf = 0;
 
 function tick(now: number): void {
   raf = requestAnimationFrame(tick);
-  const dt = lastNow ? (now - lastNow) / 1000 : 0;
-  lastNow = now;
-  if (playing) clock += dt;
+  // Derive the clock from a fixed origin (not += dt) so it never accumulates rAF jitter/drift —
+  // the source-frame cadence then stays uniform against the display refresh.
+  if (playing) clock = (now - clockOriginMs) / 1000;
   for (const [path, s] of active) {
     const info = hapDecode.getInfo(path);
     if (!info || info.frameCount <= 0) continue;
-    const idx = Math.floor(clock * info.fps) % info.frameCount;
-    const got = hapDecode.getFrame(path, idx); // prefetch buffer hides decode/IPC latency
+    // round (not floor) centres the sampling phase: the average display error drops from a whole
+    // source frame to half a frame, which is what removes the visible beat/judder.
+    const idx = ((Math.round(clock * info.fps) % info.frameCount) + info.frameCount) % info.frameCount;
+    const got = hapDecode.getFrame(path, idx); // decode-ahead ring hides decode/IPC latency
     if (got && got.index !== s.index) { s.canvas = hapGL.uploadFrame(path, got.frame); s.index = got.index; } // GPU decompress
   }
 }
 
 function ensureRaf(): void {
-  if (!raf) { lastNow = 0; raf = requestAnimationFrame(tick); }
+  if (!raf) { clockOriginMs = performance.now() - clock * 1000; raf = requestAnimationFrame(tick); }
 }
 
 // Probe + register a path. Resolves true if HAP (decoded here), false if not (caller falls
@@ -51,7 +53,9 @@ export function close(path: string): void {
 }
 
 export function setPlaying(p: boolean): void {
+  if (p === playing) return;
   playing = p;
+  if (p) clockOriginMs = performance.now() - clock * 1000; // re-anchor the monotonic clock on resume
 }
 
 export function isHap(path: string): boolean | undefined {

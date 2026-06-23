@@ -41,18 +41,22 @@ export function isHap(path: string): boolean | undefined {
   return infos.get(path) !== null;
 }
 
-// --- Prefetch pipeline ----------------------------------------------------------------
-// A few decoded frames kept ahead of the playhead per file. Decodes run concurrently (the
-// native side serializes them) so the IPC round-trips pipeline instead of blocking paint.
+// --- Decode-ahead ring -----------------------------------------------------------------
+// Keep the next ~LEAD_MS of frames decoded ahead of the playhead so the exact frame is almost
+// always ready when the compositor asks for it — a stale/repeated frame is the visible glitch.
+// Decodes run on the native side's libuv pool; we bound in-flight per source so several layers
+// don't thrash it, while still holding a deeper buffer of *completed* frames than the old fixed
+// count did. Each frame is small (raw BC blocks): ~1MB (1080p DXT1) … ~4MB (4K DXT5).
 type Frame = HapFrame;
-type Pipe = { cache: Map<number, Frame>; inflight: Set<number>; order: number[] };
+type Pipe = { cache: Map<number, Frame>; inflight: Set<number> };
 const pipes = new Map<string, Pipe>();
-const CACHE_FRAMES = 4;   // decoded frames retained per file (small — each 1080p frame is 8MB)
-const PREFETCH_AHEAD = 2; // frames ahead — keep low; deep prefetch floods IPC with 8MB frames
+const LEAD_MS = 300;      // how far ahead of the playhead to keep decoded
+const TRAIL_FRAMES = 2;   // a couple kept behind (loop wrap / tiny back-steps)
+const MAX_INFLIGHT = 3;   // concurrent decodes per source (caps IPC + threadpool pressure)
 
 function getPipe(path: string): Pipe {
   let p = pipes.get(path);
-  if (!p) { p = { cache: new Map(), inflight: new Set(), order: [] }; pipes.set(path, p); }
+  if (!p) { p = { cache: new Map(), inflight: new Set() }; pipes.set(path, p); }
   return p;
 }
 
@@ -65,24 +69,42 @@ function request(path: string, idx: number): void {
   (window.artlux?.decodeHapFrame?.(path, idx) ?? Promise.resolve(null))
     .then((f) => {
       p.inflight.delete(idx);
-      if (!f) return;
-      p.cache.set(idx, f);
-      p.order.push(idx);
-      while (p.order.length > CACHE_FRAMES) {
-        const old = p.order.shift()!;
-        if (!p.order.includes(old)) p.cache.delete(old);
-      }
+      if (f) p.cache.set(idx, f);
     })
     .catch(() => { p.inflight.delete(idx); });
 }
 
-// Best decoded frame to show for playhead `idx`, with its actual index, plus prefetch of the
-// next frames. Decodes complete a little behind the playhead, so we return the exact frame if
+// Keep the ring filled around `idx`: evict frames outside the retain window (measured
+// circularly so the loop-start frames stay pre-warmed), then issue the nearest-future-missing
+// decodes first, bounded by the in-flight budget so we never flood the pool.
+function fill(path: string, idx: number): void {
+  const info = infos.get(path);
+  if (!info || info.frameCount <= 0) return;
+  const fc = info.frameCount;
+  const ahead = Math.min(fc - 1, Math.max(2, Math.ceil((LEAD_MS / 1000) * info.fps)));
+  const p = getPipe(path);
+
+  // Retain [idx-TRAIL … idx+ahead] (circular); evict the rest.
+  for (const k of [...p.cache.keys()]) {
+    const fwd = ((k - idx) % fc + fc) % fc;          // frames ahead of the playhead (wraps)
+    if (fwd > ahead && fwd < fc - TRAIL_FRAMES) p.cache.delete(k);
+  }
+
+  // Request missing frames ahead, nearest first, until the in-flight budget is spent.
+  let slots = MAX_INFLIGHT - p.inflight.size;
+  for (let d = 0; d <= ahead && slots > 0; d++) {
+    const k = (idx + d) % fc;
+    if (p.cache.has(k) || p.inflight.has(k)) continue;
+    request(path, k);
+    slots--;
+  }
+}
+
+// Best decoded frame to show for playhead `idx`, plus ring upkeep. Returns the exact frame if
 // ready, else the nearest decoded frame at/just-before it (or just-after) — this keeps the
 // canvas updating continuously instead of only when the exact frame happens to be cached.
 export function getFrame(path: string, idx: number): { index: number; frame: Frame } | null {
-  request(path, idx);
-  for (let k = 1; k <= PREFETCH_AHEAD; k++) request(path, idx + k);
+  fill(path, idx);
   const cache = getPipe(path).cache;
   const exact = cache.get(idx);
   if (exact) return { index: idx, frame: exact };

@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.10.0
+
+**Smoother HAP playback** — the HAP player is reworked for glitch-free, display-synced playback,
+tuned for high-refresh output on high-end GPUs.
+
+- **Vsync-locked cadence** — playback time is now derived from a single drift-free monotonic clock
+  (instead of accumulating per-frame deltas) and the source frame is chosen by nearest-sample. On a
+  display whose refresh is a multiple of the clip's rate (e.g. 30 fps on 120 Hz) each frame is held
+  for an even beat, which removes the judder that came from uneven frame repeats.
+- **No periodic hitch** — fullscreen projector outputs phase-lock their clock to the transport with a
+  gentle continuous correction instead of a hard periodic resync, so the recurring stutter is gone.
+- **Decode-ahead ring** — the decoder now keeps a short rolling buffer of upcoming frames decoded
+  ahead of the playhead (and pre-warms the loop point), so the exact frame is ready in time instead
+  of showing a stale/repeated one when decode briefly falls behind under load.
+- **In-place GPU upload** — decoded blocks update the existing GPU texture in place rather than
+  reallocating it every frame, removing per-frame allocation churn the driver could hitch on.
+
+> Playback only — Art-Net output and per-LED sampling are unchanged. No native rebuild required.
+
 ## v0.9.0
 
 **HAP video** — GPU-decompressed HAP playback. HAP-coded `.mov` clips now play natively: decoded

@@ -33,8 +33,13 @@ let external = false; // true in mirror windows (Scene/projector) — playhead s
 // hidden broadcast main window throttles its rAF and starves the streamed-frame pump.
 let hapLocal = false;
 let playhead = 0;
-let lastT = 0;
+// Monotonic clock anchor: performance.now() (ms) corresponding to playhead==0. The playhead is
+// derived as (now - originMs), so it never accumulates rAF-jitter drift and the source-frame
+// cadence stays uniform against the display refresh. Mirror windows phase-lock this anchor to the
+// bridged transport (see seek) with a gentle slew instead of a hard resync snap.
+let originMs = 0;
 let raf = 0;
+const SLEW = 0.1; // fraction of residual drift a mirror window corrects per transport update
 
 const ensureBlob = (path: string): void => { void ensureBlobUrl(path, 'video/mp4'); };
 
@@ -121,12 +126,14 @@ function syncHapLayer(layerId: string, lv: LayerVid, clip: VideoClip, t: number)
 function frame(now: number): void {
   raf = requestAnimationFrame(frame); // reschedule first so a throw below can never kill the loop
   try {
-    const dt = lastT ? (now - lastT) / 1000 : 0;
-    lastT = now;
-    // The main window owns the clock; a hapLocal mirror (the fullscreen projector) advances its
-    // own playhead at full speed too, since the bridged transport from the hidden main window is
-    // throttled — seek() only resyncs it on large drift.
-    if (playing && (!external || hapLocal) && data.duration > 0) playhead = (playhead + dt) % data.duration;
+    // The main window owns the clock; a hapLocal mirror (the fullscreen projector) runs the same
+    // monotonic clock so it plays at full speed while the hidden main window's bridged transport is
+    // throttled. Deriving the playhead from a fixed origin (not += dt) keeps cadence uniform against
+    // the display refresh and never drifts; seek() phase-locks mirror windows to the authority.
+    if ((!external || hapLocal) && data.duration > 0) {
+      if (playing) playhead = (((now - originMs) / 1000) % data.duration + data.duration) % data.duration;
+      else originMs = now - playhead * 1000; // keep the anchor live while paused so resume is seamless
+    }
     // Main window decodes everything; mirror windows decode only HAP locally (when hapLocal),
     // otherwise they consume streamed frames and skip decoding entirely.
     if (!external || hapLocal) for (const l of data.layers) {
@@ -151,15 +158,26 @@ export const timeline = {
       if (!t.layers.find(l => l.id === id)) { const lv = layerVideos.get(id)!; lv.el.pause(); lv.el.removeAttribute('src'); layerVideos.delete(id); hapGL.release(id); }
     }
   },
-  setPlaying(p: boolean): void { playing = p; },
+  setPlaying(p: boolean): void {
+    if (p === playing) return;
+    playing = p;
+    if (p) originMs = performance.now() - playhead * 1000; // re-anchor the monotonic clock on resume
+  },
   setExternal(e: boolean): void { external = e; },
   setHapLocal(v: boolean): void { hapLocal = v; },
   seek(sec: number): void {
     const clamped = Math.max(0, Math.min(sec, data.duration || 0));
-    // A hapLocal projector runs its own full-speed clock; ignore small corrections from the
-    // throttled, low-frequency bridged transport so playback doesn't snap on every update.
-    if (external && hapLocal && Math.abs(clamped - playhead) < 0.5) return;
+    if (external && hapLocal) {
+      // The projector free-runs its own monotonic clock; the bridged transport is the authority.
+      // Phase-lock to it with a gentle slew (continuous, invisible) instead of a hard resync snap —
+      // that snap was the periodic hitch. Big jumps (manual seek, loop wrap) still snap instantly.
+      const err = clamped - playhead;
+      if (Math.abs(err) > 0.5) { playhead = clamped; originMs = performance.now() - clamped * 1000; }
+      else originMs -= err * 1000 * SLEW;
+      return;
+    }
     playhead = clamped;
+    originMs = performance.now() - clamped * 1000;
   },
   getPlayhead(): number { return playhead; },
   getDuration(): number { return data.duration; },
@@ -187,7 +205,7 @@ export const timeline = {
     return lv.mode === 'video' && lv.el.readyState >= 2 ? lv.el : null;
   },
   subscribe(cb: (playhead: number) => void): () => void { subs.add(cb); return () => { subs.delete(cb); }; },
-  start(): void { if (!raf) { lastT = 0; raf = requestAnimationFrame(frame); } },
+  start(): void { if (!raf) { originMs = performance.now() - playhead * 1000; raf = requestAnimationFrame(frame); } },
 };
 
 timeline.start();

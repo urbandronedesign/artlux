@@ -41,6 +41,7 @@ class GLRenderer {
   private prog: WebGLProgram;
   private tex: WebGLTexture;
   private uMode: WebGLUniformLocation | null;
+  private texW = 0; private texH = 0; private texFmt = -1; // current texture storage (for in-place reuse)
   ok = false;
 
   constructor() {
@@ -98,7 +99,16 @@ class GLRenderer {
     }
     gl.viewport(0, 0, f.width, f.height);
     gl.bindTexture(gl.TEXTURE_2D, this.tex);
-    gl.compressedTexImage2D(gl.TEXTURE_2D, 0, this.glFormat(f.format), f.width, f.height, 0, f.data);
+    const fmt = this.glFormat(f.format);
+    // Update the texture in place once its storage is allocated — compressedTexSubImage2D reuses
+    // the existing GPU allocation, whereas compressedTexImage2D reallocates it every frame (per-
+    // frame allocation churn the driver can hitch on). Reallocate only when size/format changes.
+    if (this.texW === f.width && this.texH === f.height && this.texFmt === fmt) {
+      gl.compressedTexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, f.width, f.height, fmt, f.data);
+    } else {
+      gl.compressedTexImage2D(gl.TEXTURE_2D, 0, fmt, f.width, f.height, 0, f.data);
+      this.texW = f.width; this.texH = f.height; this.texFmt = fmt;
+    }
     gl.useProgram(this.prog);
     gl.uniform1i(this.uMode, f.format === 'ycocg' ? 1 : 0);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -110,6 +120,12 @@ class GLRenderer {
 }
 
 const renderers = new Map<string, GLRenderer | null>(); // null = construction failed (no s3tc)
+// Each consumer key (layer id / surface path) gets its own WebGL2 context — one context backs
+// exactly one canvas, and simultaneous HAP sources each need their own live canvas. Browsers
+// force-lose the oldest context past a hard cap (~16), which would show as black/torn HAP frames,
+// so warn once as we approach it rather than fail silently.
+const CONTEXT_WARN = 12;
+let warnedContexts = false;
 
 // Upload a frame's blocks for `key` and return the canvas showing it (null if WebGL/s3tc
 // is unavailable, so the caller can fall back).
@@ -118,6 +134,10 @@ export function uploadFrame(key: string, f: HapFrame): HTMLCanvasElement | null 
   if (r === undefined) {
     try { r = new GLRenderer(); } catch (e) { console.warn('[hapGL] unavailable:', (e as Error).message); r = null; }
     renderers.set(key, r);
+    if (!warnedContexts && [...renderers.values()].filter(Boolean).length >= CONTEXT_WARN) {
+      warnedContexts = true;
+      console.warn(`[hapGL] ${CONTEXT_WARN}+ simultaneous HAP WebGL contexts — nearing the browser limit; further HAP layers may glitch as contexts are force-lost.`);
+    }
   }
   if (!r) return null;
   try { r.upload(f); } catch (e) { console.warn('[hapGL] upload failed:', e); return null; }
