@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.5.0
 
 ### Portable projects (project folders + Collect Assets)
 - A project can now be a **folder** (`project.artlux` + `assets/{video,models,images}/`) instead of a
