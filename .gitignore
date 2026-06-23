@@ -17,6 +17,10 @@ release
 # Rust / native addon build artifacts
 native/**/target
 *.node
+# …except the prebuilt NDI addon: built once against the NDI 6 SDK and committed so CI/end
+# users don't need the (gated) SDK — they only install the free NDI Runtime. Rebuild with
+# `npm run build:ndi` (needs the SDK + LLVM) and re-commit when native/ndi/src changes.
+!native/ndi/ndi.node
 
 # Editor directories and files
 .vscode/*

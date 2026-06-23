@@ -9,8 +9,8 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "build:native": "cargo build --release --manifest-path native/output-engine/Cargo.toml && cargo build --release --manifest-path native/spout-receiver/Cargo.toml && cargo build --release --manifest-path native/ndi/Cargo.toml && node scripts/copy-native.cjs",
-    "build:ndi": "cargo build --release --features ndi --manifest-path native/ndi/Cargo.toml && node scripts/copy-native.cjs",
+    "build:native": "cargo build --release --manifest-path native/output-engine/Cargo.toml && cargo build --release --manifest-path native/spout-receiver/Cargo.toml && node scripts/copy-native.cjs",
+    "build:ndi": "cargo build --release --features ndi --manifest-path native/ndi/Cargo.toml && node scripts/copy-ndi.cjs",
     "package": "electron-vite build && electron-builder",
     "package:dir": "electron-vite build && electron-builder --dir",
     "gen:icon": "node scripts/gen-icon.cjs"
@@ -64,16 +64,18 @@
       {
         "from": "native/spout-receiver/spout-receiver.node",
         "to": "spout-receiver.node"
-      },
-      {
-        "from": "native/ndi/ndi.node",
-        "to": "ndi.node"
       }
     ],
     "win": {
       "icon": "build/icon.ico",
       "target": [
         "nsis"
+      ],
+      "extraResources": [
+        {
+          "from": "native/ndi/ndi.node",
+          "to": "ndi.node"
+        }
       ]
     },
     "nsis": {

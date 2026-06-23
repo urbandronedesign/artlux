@@ -48,11 +48,12 @@ npm run build:native   # Rust output engine + Spout receiver + NDI (stub) -> .no
 npm run dev            # launch the Electron app
 ```
 
-**NDI (optional, Windows):** the real NDI addon needs the free [NDI 6 SDK](https://ndi.video/for-developers/ndi-sdk/)
-plus LLVM (libclang). With both installed, `npm run build:ndi` builds it (set `LIBCLANG_PATH` to your
-LLVM `bin`). End users need the **NDI Runtime / NDI Tools** installed; without it NDI degrades
-gracefully. For CI release builds, set an `NDI_SDK_URL` repo secret (a URL to the NDI SDK installer)
-— the Windows job then builds real NDI; otherwise it ships the stub.
+**NDI (Windows):** the real NDI addon (`native/ndi/ndi.node`) is **committed as a prebuilt**, built
+once against the [NDI 6 SDK](https://ndi.video/for-developers/ndi-sdk/) — so CI and end users **don't
+need the SDK**. End users only install the free **NDI Runtime / NDI Tools** (the app shows an install
+hint and degrades gracefully without it). To rebuild the addon after changing `native/ndi/src`, install
+the NDI 6 SDK + LLVM and run `npm run build:ndi` (set `LIBCLANG_PATH` to your LLVM `bin`), then commit
+the updated `ndi.node`.
 
 ### Build / package
 

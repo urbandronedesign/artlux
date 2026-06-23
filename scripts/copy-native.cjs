@@ -4,10 +4,12 @@ const path = require('node:path');
 
 // Each native crate: its dir under native/, the cargo lib basename, and the
 // output .node name. Spout is Windows-only but still produces a stub .node.
+// NDI is NOT here: native/ndi/ndi.node is a committed prebuilt (built once against the gated
+// NDI SDK) so CI + end users don't need the SDK. Update it only via `npm run build:ndi`
+// (scripts/copy-ndi.cjs), which requires the SDK + LLVM.
 const CRATES = [
   { dir: 'output-engine', lib: 'artlux_output_engine', out: 'output-engine.node', required: true },
   { dir: 'spout-receiver', lib: 'artlux_spout_receiver', out: 'spout-receiver.node', required: false },
-  { dir: 'ndi', lib: 'artlux_ndi', out: 'ndi.node', required: false },
 ];
 
 let copied = 0;
