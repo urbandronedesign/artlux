@@ -1,5 +1,34 @@
 # Changelog
 
+## v0.6.0
+
+Projection mapping — send each surface to a real projector — plus a broadcast (show) mode.
+
+### Projector outputs
+- **Send any surface to a physical display** as its own **fullscreen output** (projector). Open the
+  **Outputs** panel (top bar), enable a surface, and pick a connected display — the output opens
+  frameless-fullscreen on it while the editor keeps focus. Outputs are saved with the project and
+  re-bind to a display by label across replug/reboot.
+- **Corner-pin** alignment: click **Align** to drag the four corners onto the real projection surface
+  directly on the projector (arrow-keys nudge, Shift ×10, **R** reset, **Esc** done), with a
+  perspective-correct calibration grid.
+- **Bézier warp**: enable per output for curved/irregular surfaces — a bicubic patch with 16 draggable
+  control points (corners + curve handles) and a live curved calibration grid.
+- **Soft-edge blend** (per-edge feather + blend gamma) for overlapping projectors, and a **per-screen
+  gamma** control.
+- **Anti-aliasing** (MSAA) on the warped output, and a **Performance mode** that caps projector output
+  frame-rate (Off / 60 / 30 / 24).
+- Outputs render content at native resolution; live camera / Spout / DMX-in sources are streamed to
+  their output as well.
+
+### Broadcast (show) mode
+- Launch with **`--broadcast [--project=path]`** to run with **no editor interface** — only the
+  fullscreen projector outputs and the Art-Net sender, from a saved project (falls back to the
+  last-opened one). Controlled from a **system-tray icon** (Quit) and a global **Ctrl/Cmd+Shift+Q**
+  hotkey.
+- Or use **File → Launch in Broadcast Mode** in the editor to save the current project and relaunch
+  straight into the show.
+
 ## v0.5.0
 
 ### Portable projects (project folders + Collect Assets)
