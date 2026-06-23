@@ -1,5 +1,5 @@
-import { app, BrowserWindow, session, systemPreferences, ipcMain, MessageChannelMain } from 'electron';
-import { join } from 'node:path';
+import { app, BrowserWindow, session, systemPreferences, ipcMain, MessageChannelMain, Tray, Menu, globalShortcut } from 'electron';
+import { join, basename } from 'node:path';
 import { registerIpc } from './ipc';
 import { buildAppMenu } from './menu';
 import { setupUpdater } from './updater';
@@ -10,11 +10,15 @@ const APP_ICON = join(__dirname, '../../build/icon.png');
 
 let mainWindow: BrowserWindow | null = null;
 let sceneWindow: BrowserWindow | null = null;
+let broadcastTray: Tray | null = null;
 
 // --headless [--project=<path>]: run only the Stage compute + output loop in an
 // invisible, GPU-backed window (no UI/3D/monitor) to minimize compute.
+// --broadcast [--project=<path>]: show mode — hidden editor, fullscreen projector outputs
+// + Art-Net only, controlled from a tray icon / global hotkey.
 const argv = process.argv.slice(1);
 const HEADLESS = argv.includes('--headless');
+const BROADCAST = argv.includes('--broadcast');
 const projectArg = argv.find((a) => a.startsWith('--project='));
 const PROJECT_PATH = projectArg ? projectArg.slice('--project='.length) : '';
 
@@ -34,7 +38,7 @@ function createWindow(): void {
         backgroundColor: '#000000',
         show: false,
         icon: APP_ICON,
-        autoHideMenuBar: HEADLESS, // GUI shows the native menu bar; headless hides it
+        autoHideMenuBar: HEADLESS || BROADCAST, // GUI shows the native menu bar; headless/broadcast hide it
         webPreferences: {
             preload: join(__dirname, '../preload/index.js'),
             contextIsolation: true,
@@ -45,8 +49,8 @@ function createWindow(): void {
         },
     });
 
-    // GUI mode shows when ready; headless stays invisible.
-    if (!HEADLESS) mainWindow.on('ready-to-show', () => mainWindow?.show());
+    // GUI mode shows when ready; headless + broadcast keep the editor window invisible.
+    if (!HEADLESS && !BROADCAST) mainWindow.on('ready-to-show', () => mainWindow?.show());
     mainWindow.on('closed', () => { closeAllProjectors(); mainWindow = null; });
 
     // electron-vite provides the dev server URL; fall back to the built file.
@@ -60,6 +64,16 @@ function createWindow(): void {
             mainWindow.loadFile(join(__dirname, '../renderer/headless.html'), { query });
         }
         console.log(`[main] headless mode — project: ${PROJECT_PATH || '(last opened)'}`);
+    } else if (BROADCAST) {
+        // Full App in a hidden window; it renders only the Stage and opens the saved outputs.
+        const query = { broadcast: '1', project: PROJECT_PATH };
+        if (devUrl) {
+            const qs = new URLSearchParams(query).toString();
+            mainWindow.loadURL(`${devUrl}/?${qs}`);
+        } else {
+            mainWindow.loadFile(join(__dirname, '../renderer/index.html'), { query });
+        }
+        console.log(`[main] broadcast mode — project: ${PROJECT_PATH || '(last opened)'}`);
     } else if (devUrl) {
         mainWindow.loadURL(devUrl);
     } else {
@@ -118,17 +132,48 @@ function grantMediaPermissions(): void {
     }
 }
 
+// Broadcast mode has no editor window — give the operator a tray icon + global hotkey to quit.
+function setupBroadcastControls(): void {
+    const label = PROJECT_PATH ? basename(PROJECT_PATH) : '(last project)';
+    try {
+        broadcastTray = new Tray(APP_ICON);
+        broadcastTray.setToolTip(`ArtLux Broadcast — ${label}`);
+        broadcastTray.setContextMenu(Menu.buildFromTemplate([
+            { label: `ArtLux Broadcast — ${label}`, enabled: false },
+            { type: 'separator' },
+            { label: 'Quit Broadcast', click: () => app.quit() },
+        ]));
+    } catch (e) {
+        console.error('[broadcast] tray failed:', e);
+    }
+    globalShortcut.register('CommandOrControl+Shift+Q', () => app.quit());
+    console.log('[broadcast] controls ready — tray + Ctrl/Cmd+Shift+Q to quit');
+}
+
 app.whenReady().then(() => {
     grantMediaPermissions();
     registerIpc(() => mainWindow);
-    if (!HEADLESS) { buildAppMenu(() => mainWindow); setupUpdater(() => mainWindow); }
-    ipcMain.on(IPC.SCENE_OPEN, () => { if (!HEADLESS) createSceneWindow(); });
+    if (!HEADLESS && !BROADCAST) { buildAppMenu(() => mainWindow); setupUpdater(() => mainWindow); }
+    ipcMain.on(IPC.SCENE_OPEN, () => { if (!HEADLESS && !BROADCAST) createSceneWindow(); });
+    ipcMain.on(IPC.APP_RELAUNCH_BROADCAST, (_e, projectPath: string) => {
+        const args = ['--broadcast'];
+        if (projectPath) args.push(`--project=${projectPath}`);
+        app.relaunch({ args });
+        app.exit(0);
+    });
     if (!HEADLESS) registerProjectorWindows(() => mainWindow);
+    if (BROADCAST) setupBroadcastControls();
     createWindow();
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) createWindow();
     });
+});
+
+app.on('before-quit', () => {
+    globalShortcut.unregisterAll();
+    broadcastTray?.destroy();
+    broadcastTray = null;
 });
 
 app.on('window-all-closed', () => {

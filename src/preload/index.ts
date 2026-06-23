@@ -52,6 +52,7 @@ const api: ArtluxApi = {
     },
     getAppInfo: () => ipcRenderer.invoke(IPC.APP_INFO),
     openExternal: (url: string) => ipcRenderer.send(IPC.OPEN_EXTERNAL, url),
+    relaunchBroadcast: (projectPath: string) => ipcRenderer.send(IPC.APP_RELAUNCH_BROADCAST, projectPath),
     // Auto-update
     checkForUpdates: () => ipcRenderer.send(IPC.UPDATE_CHECK),
     downloadUpdate: () => ipcRenderer.send(IPC.UPDATE_DOWNLOAD),

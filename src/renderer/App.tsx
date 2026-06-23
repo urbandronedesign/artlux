@@ -29,6 +29,12 @@ import { useHistory } from './hooks/useHistory';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
+// Broadcast (show) mode: launched hidden via `--broadcast` (see main/index.ts). Renders only
+// the Stage engine + the projector outputs from the loaded project — no editor chrome.
+const QS = new URLSearchParams(window.location.search);
+const BROADCAST = QS.get('broadcast') === '1';
+const QUERY_PROJECT = QS.get('project') || '';
+
 const DEFAULT_SETTINGS: AppSettings = {
   artNetIp: '127.0.0.1',
   artNetPort: 6454,
@@ -558,6 +564,13 @@ const App: React.FC = () => {
       window.alert(lines.join('\n'));
   };
 
+  // Save the current project, then relaunch into broadcast (show) mode with it.
+  const handleLaunchBroadcast = async () => {
+      const path = await handleSaveProject();
+      if (path) window.artlux?.relaunchBroadcast?.(path);
+      else window.alert('Save the project to a file first, then launch broadcast mode.');
+  };
+
   // App info for the About modal.
   useEffect(() => { window.artlux?.getAppInfo?.().then((i) => setAppInfo(i ?? null)); }, []);
 
@@ -573,6 +586,7 @@ const App: React.FC = () => {
           case 'save': handleSaveProject(); break;
           case 'save-as': handleSaveAs(); break;
           case 'collect-assets': handleCollectAssets(); break;
+          case 'broadcast': handleLaunchBroadcast(); break;
           case 'export-rig': handleExportRig(); break;
           case 'import-rig': handleImportRig(); break;
           case 'preferences': setPrefsOpen(true); break;
@@ -792,8 +806,24 @@ const App: React.FC = () => {
       }
   }, [surfaces, projectorOutputs, displays]);
 
+  // Broadcast mode: load the project (--project= or last-opened) and let the projector
+  // reconciler open the saved enabled outputs; Art-Net starts via the normal output effects.
+  useEffect(() => {
+      if (!BROADCAST) return;
+      (async () => {
+          const prefs = await window.artlux?.getPrefs?.();
+          const path = QUERY_PROJECT || prefs?.lastProjectPath;
+          if (!path) { console.warn('[broadcast] no project to load'); return; }
+          const data = await window.artlux?.loadProjectPath?.(path);
+          if (data) { applyProjectData(data); setCurrentProjectPath(path); }
+          console.log(`[broadcast] loaded project: ${path}`);
+      })();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Restore persisted prefs (settings + master brightness + recents + last project) on launch.
   useEffect(() => {
+      if (BROADCAST) return; // broadcast owns project loading (above)
       (async () => {
           const prefs = await window.artlux?.getPrefs?.();
           if (!prefs) return;
@@ -827,6 +857,35 @@ const App: React.FC = () => {
     { id: DockTab.FIXTURE_EDITOR, label: 'Fixture Editor', icon: <SlidersHorizontal size={13} /> },
     { id: DockTab.TIMELINE, label: 'Timeline', icon: <Film size={13} /> },
   ];
+
+  // Broadcast (show) mode: no editor chrome — render only the offscreen Stage engine. All the
+  // output/projector effects above still run, so Art-Net flows and the saved outputs open.
+  if (BROADCAST) {
+    return (
+      <div style={{ position: 'fixed', width: 1, height: 1, overflow: 'hidden', opacity: 0, pointerEvents: 'none' }}>
+        <Stage
+          surfaces={surfaces}
+          onUpdateSurfaces={setSurfaces}
+          selectedSurfaceId={null}
+          onSelectSurface={() => { /* no-op */ }}
+          controllers={controllers}
+          fixtures={fixtures}
+          onUpdateFixtures={setFixtures}
+          selectedFixtureId={null}
+          selectedFixtureIds={[]}
+          onSelectFixture={() => { /* no-op */ }}
+          isEngineRunning={true}
+          isVideoPlaying={isVideoPlaying}
+          globalBrightness={globalBrightness}
+          gamma={settings.gamma}
+          targetIp={settings.artNetIp}
+          broadcast={settings.broadcast}
+          protocol={settings.protocol}
+          onRecordHistory={() => { /* no-op */ }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-screen w-screen bg-stage text-fg-1 font-sans overflow-hidden">

@@ -47,6 +47,8 @@ function template(): MenuItemConstructorOptions[] {
         { label: 'Routing…', click: () => send('routing') },
         { label: 'Preferences…', accelerator: 'CmdOrCtrl+,', click: () => send('preferences') },
         { type: 'separator' },
+        { label: 'Launch in Broadcast Mode', click: () => send('broadcast') },
+        { type: 'separator' },
         { role: 'quit' },
       ],
     },

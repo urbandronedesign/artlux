@@ -42,6 +42,8 @@ export const IPC = {
   APP_INFO: 'app:get-info',
   /** Renderer → main: open a URL in the default browser. */
   OPEN_EXTERNAL: 'app:open-external',
+  /** Renderer → main: relaunch the app in broadcast mode with the given project path. */
+  APP_RELAUNCH_BROADCAST: 'app:relaunch-broadcast',
   /** Renderer → main: check GitHub for a newer release. */
   UPDATE_CHECK: 'update:check',
   /** Renderer → main: user accepted — download the available update. */
@@ -357,6 +359,8 @@ export interface ArtluxApi {
   onMenuAction(cb: (action: string) => void): () => void;
   getAppInfo(): Promise<AppInfo>;
   openExternal(url: string): void;
+  /** Save-then-relaunch into broadcast mode (no editor UI; outputs + Art-Net only). */
+  relaunchBroadcast(projectPath: string): void;
   // Auto-update (user-gated: nothing downloads or installs without an explicit call)
   checkForUpdates(): void;
   downloadUpdate(): void;
