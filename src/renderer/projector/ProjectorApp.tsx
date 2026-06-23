@@ -8,8 +8,11 @@ import { squareToQuad, applyH } from './homography';
 import { makeBezierWarp, tessellateBezier, evalBezier, BEZIER_CORNERS } from './warp';
 import type { MainToProjector, ProjectorToMain, ProjectorRender } from './bridge';
 
-const SELF_RENDER = new Set<SourceType | 'EFFECT'>([SourceType.VIDEO, SourceType.IMAGE, SourceType.LAYER, 'EFFECT']);
-const SINGULAR = new Set<SourceType | 'EFFECT'>([SourceType.CAMERA, SourceType.SPOUT, SourceType.DMX_IN, SourceType.NDI]);
+// IMAGE (one cheap decode) + EFFECT (procedural) render locally. Everything HW-decoded —
+// camera/Spout/DMX-in/NDI AND file video / timeline layers — is decoded once in the main
+// window and streamed here as ImageBitmaps, so the same media isn't decoded per window.
+const SELF_RENDER = new Set<SourceType | 'EFFECT'>([SourceType.IMAGE, 'EFFECT']);
+const STREAMED = new Set<SourceType | 'EFFECT'>([SourceType.CAMERA, SourceType.SPOUT, SourceType.DMX_IN, SourceType.NDI, SourceType.VIDEO, SourceType.LAYER]);
 const CORNER_KEYS: (keyof CornerPin)[] = ['tl', 'tr', 'br', 'bl'];
 const CORNER_LABELS = ['TL', 'TR', 'BR', 'BL'];
 const AA_SAMPLES = 4;
@@ -69,7 +72,9 @@ export const ProjectorApp: React.FC = () => {
     ndiFullResRef.current = !!r.ndiFullRes;
   };
 
-  useEffect(() => { engine.setExternal(true); }, []);
+  // External mirror, but decode HAP layers locally: this window is visible/full-speed, so it
+  // plays HAP smoothly even when the hidden broadcast main window throttles its frame pump.
+  useEffect(() => { engine.setExternal(true); engine.setHapLocal(true); }, []);
 
   useEffect(() => {
     const onResize = () => setSize({ w: window.innerWidth, h: window.innerHeight });
@@ -94,7 +99,7 @@ export const ProjectorApp: React.FC = () => {
           applyRender(m.render);
           const self = SELF_RENDER.has(m.surface.content.type);
           syncSurfaces(self ? [m.surface] : [], m.playing);
-          if (!SINGULAR.has(m.surface.content.type)) { frameRef.current?.close(); frameRef.current = null; }
+          if (!STREAMED.has(m.surface.content.type)) { frameRef.current?.close(); frameRef.current = null; }
         } else if (m.t === 'frame') {
           frameRef.current?.close();
           frameRef.current = m.bitmap;
@@ -135,8 +140,10 @@ export const ProjectorApp: React.FC = () => {
       const s = surfaceRef.current;
       let src: CanvasImageSource | ImageBitmap | null = null;
       if (s) {
+        // For HAP LAYER content getDrawable returns this window's locally-decoded canvas; for
+        // other streamed sources it's null, so we fall back to the frame pushed from main.
         if (SELF_RENDER.has(s.content.type)) src = getDrawable(s);
-        else if (SINGULAR.has(s.content.type)) src = frameRef.current;
+        else if (STREAMED.has(s.content.type)) src = getDrawable(s) ?? frameRef.current;
       }
       const mesh = warpRef.current ? tessellateBezier(warpRef.current, RENDER_TESS) : null;
       gl.draw(src as TexImageSource | null, {

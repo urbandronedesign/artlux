@@ -619,12 +619,15 @@ const App: React.FC = () => {
   // --- 3D Scene window bridge (MessagePort to the separate scene renderer) ---
   // Handle messages coming back from the scene window. Kept in a ref so the port's
   // onmessage (set once) always calls the latest closure.
+  // Layer ids whose frames the Scene window wants streamed (its screen-planes' layers).
+  const sceneLayersRef = useRef<string[]>([]);
   const onSceneMsgRef = useRef<(m: SceneToMain) => void>(() => {});
   onSceneMsgRef.current = (m: SceneToMain) => {
       if (m.t === 'ready') pushSceneState();
       else if (m.t === 'select') handleSelectFixture(m.id);
       else if (m.t === 'commit') handleCommitFixture3D(m.id, { position3D: m.position3D, rotation3D: m.rotation3D, scale3D: m.scale3D });
       else if (m.t === 'sceneConfig') setScene3D(s => ({ ...s, ...m.patch }));
+      else if (m.t === 'sceneLayers') sceneLayersRef.current = m.layerIds;
       else if (m.t === 'save') handleSaveProject().then((path) => scenePortRef.current?.postMessage({ t: 'saved', ok: !!path }));
   };
   const pushSceneState = () => {
@@ -665,7 +668,11 @@ const App: React.FC = () => {
   }, []);
 
   // --- Timeline: feed the playback engine + bridge transport/data to the Scene window ---
-  useEffect(() => { timelineEngine.setData(timeline); scenePortRef.current?.postMessage({ t: 'timeline', timeline }); }, [timeline]);
+  useEffect(() => {
+      timelineEngine.setData(timeline);
+      scenePortRef.current?.postMessage({ t: 'timeline', timeline });
+      for (const port of projectorPortsRef.current.values()) port.postMessage({ t: 'timeline', timeline });
+  }, [timeline]);
   useEffect(() => { timelineEngine.setPlaying(isVideoPlaying); }, [isVideoPlaying]);
   // Stream transport (playing + playhead) to the Scene + projector windows ~30 fps so
   // their video/layer content stays in sync with the main clock.
@@ -706,24 +713,60 @@ const App: React.FC = () => {
       });
   }, [displays]);
 
-  // Frame pump for singular live sources (camera / Spout / DMX-in): they exist only in this
-  // (main) renderer, so transfer their drawable to each open projector as an ImageBitmap
-  // (~30 fps, zero-copy transfer). File media / effects / layers self-render in the projector.
+  // Frame pump for every projector: this (main) renderer is the sole decoder, so transfer
+  // each surface's drawable to its projector window as an ImageBitmap (~30 fps, zero-copy).
+  // Live singular sources (camera/Spout/DMX-in/NDI) AND HW-decoded file video / timeline
+  // layers all stream — only IMAGE / EFFECT self-render in the projector. Decoding the same
+  // media in every window otherwise exhausts the GPU's concurrent hardware-decode sessions.
   useEffect(() => {
-      const SINGULAR = new Set<SourceType | 'EFFECT'>([SourceType.CAMERA, SourceType.SPOUT, SourceType.DMX_IN, SourceType.NDI]);
+      const STREAMED = new Set<SourceType | 'EFFECT'>([SourceType.CAMERA, SourceType.SPOUT, SourceType.DMX_IN, SourceType.NDI, SourceType.VIDEO, SourceType.LAYER]);
+      const inFlight = new Set<string>(); // surfaceIds with a createImageBitmap still pending
       let raf = 0; let last = 0;
       const tick = (now: number) => {
           raf = requestAnimationFrame(tick);
           if (now - last < 33) return;
           last = now;
           for (const [surfaceId, port] of projectorPortsRef.current) {
+              if (inFlight.has(surfaceId)) continue; // back-pressure: don't pile up decodes
               const surface = surfacesRef.current.find(s => s.id === surfaceId);
-              if (!surface || !SINGULAR.has(surface.content.type)) continue;
+              if (!surface || !STREAMED.has(surface.content.type)) continue;
               const drawable = getDrawable(surface);
               if (!drawable) continue;
+              inFlight.add(surfaceId);
               createImageBitmap(drawable as CanvasImageSource)
                   .then(bitmap => { try { port.postMessage({ t: 'frame', bitmap }, [bitmap]); } catch { bitmap.close(); } })
-                  .catch(() => {});
+                  .catch(() => {})
+                  .finally(() => inFlight.delete(surfaceId));
+          }
+      };
+      raf = requestAnimationFrame(tick);
+      return () => cancelAnimationFrame(raf);
+  }, []);
+
+  // Frame pump for the 3D Scene window's screen-planes: the Scene reports which timeline
+  // layers its planes show (sceneLayersRef); decode them once here and stream each as a
+  // downscaled ImageBitmap (the planes are small on-screen, so native res is wasteful).
+  // flipY because the Scene draws the bitmap through a plain THREE.Texture (which, unlike
+  // VideoTexture, can't flip an ImageBitmap) onto a plane.
+  useEffect(() => {
+      const SCENE_W = 640, SCENE_H = 360;
+      const inFlight = new Set<string>(); // layerIds with a createImageBitmap still pending
+      let raf = 0; let last = 0;
+      const tick = (now: number) => {
+          raf = requestAnimationFrame(tick);
+          if (now - last < 33) return;
+          last = now;
+          const port = scenePortRef.current;
+          if (!port) return;
+          for (const layerId of sceneLayersRef.current) {
+              if (inFlight.has(layerId)) continue; // back-pressure: don't pile up decodes
+              const drawable = timelineEngine.getLayerDrawable(layerId);
+              if (!drawable) continue;
+              inFlight.add(layerId);
+              createImageBitmap(drawable as CanvasImageSource, { resizeWidth: SCENE_W, resizeHeight: SCENE_H, resizeQuality: 'low', imageOrientation: 'flipY' })
+                  .then(bitmap => { try { port.postMessage({ t: 'frame', layerId, bitmap }, [bitmap]); } catch { bitmap.close(); } })
+                  .catch(() => {})
+                  .finally(() => inFlight.delete(layerId));
           }
       };
       raf = requestAnimationFrame(tick);

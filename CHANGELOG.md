@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.9.0
+
+**HAP video** — GPU-decompressed HAP playback. HAP-coded `.mov` clips now play natively: decoded
+once in the main process (CPU/SIMD — no hardware video-decode session) and decompressed on the GPU,
+so they run smoothly on timeline layers and video surfaces without the browser's H.264 decode limits.
+
+- **HAP decoder** — new native addon (`native/hap`) parses the MOV container and the Snappy/chunked
+  HAP sections; supports Hap (DXT1), Hap Alpha (DXT5), Hap Q (scaled YCoCg) and Hap 7 (BC7).
+- **GPU decompression** — the renderer uploads the compressed DXT/BC blocks as an `s3tc` compressed
+  texture (~8× less data over IPC than RGBA) and the GPU does the decompression.
+- **Frame-accurate** — HAP is all-intra, so scrubbing decodes the exact frame; a small prefetch ring
+  keeps playback smooth.
+- **Drop-in** — assign a HAP `.mov` to a Video surface or drop it on a timeline layer; non-HAP `.mov`
+  falls back to the browser `<video>`.
+- **Broadcast** — fullscreen projector outputs decode HAP locally at full speed, so playback stays
+  smooth even though the editor window is hidden.
+
+Supporting changes: video sources are now decoded once in the main window and streamed to the
+Scene/projector windows (avoids exhausting the GPU's concurrent hardware-decode sessions); a
+broadcast-mode startup crash (eager auto-updater init) and a View-menu / DevTools crash are fixed.
+
 ## v0.8.0
 
 Full-HD output in **Broadcast mode**. The low-res caps that keep the editor light now lift to

@@ -11,10 +11,15 @@ import { IPC, type UpdateEvent } from '../../shared/protocol';
 // Developer ID signature for Squirrel.Mac (we only ad-hoc sign), so there we emit a
 // `manual` event and point the user at the Releases page instead.
 
-const { autoUpdater } = electronUpdater;
 const RELEASES_URL = 'https://github.com/urbandronedesign/artlux/releases/latest';
 
 export function setupUpdater(getWindow: () => BrowserWindow | null): void {
+  // Resolve autoUpdater HERE, not at module scope: electron-updater's `autoUpdater` is a lazy
+  // getter that instantiates the platform updater (calling app.getVersion()) the instant it's
+  // touched. Doing that at import time crashes a freshly re-exec'd process — which is exactly
+  // how broadcast/headless launch (app.relaunch). Those modes never call setupUpdater, so
+  // keeping the access in here means they never trigger electron-updater at all.
+  const { autoUpdater } = electronUpdater;
   const send = (e: UpdateEvent) => getWindow()?.webContents.send(IPC.UPDATE_EVENT, e);
   const fail = (err: unknown) => send({ status: 'error', message: String((err as Error)?.message ?? err) });
 

@@ -23,8 +23,8 @@ interface Props {
 export const PlaneObject: React.FC<Props> = ({ model, selected, mode, onSelect, onCommit, onRecordHistory }) => {
   const group = useMemo(() => new THREE.Group(), []);
   const matRef = useRef<THREE.MeshBasicMaterial>(null);
-  const texRef = useRef<THREE.VideoTexture | null>(null);
-  const curVid = useRef<HTMLVideoElement | null>(null);
+  const texRef = useRef<THREE.Texture | null>(null);
+  const curVid = useRef<HTMLVideoElement | null>(null); // identity of the bound <video> (back-compat path)
   const controls = useRef<any>(null);
 
   useEffect(() => {
@@ -49,24 +49,50 @@ export const PlaneObject: React.FC<Props> = ({ model, selected, mode, onSelect, 
 
   useEffect(() => () => { texRef.current?.dispose(); }, []);
 
-  // Bind the layer's live video to the plane each frame.
+  // Bind the layer's live frame to the plane each frame. The drawable is a streamed
+  // ImageBitmap in the Scene window (decoded once in main) or a <video> on the legacy path.
   useFrame(() => {
-    const vid = engine.getLayerDrawable(model.layerId);
-    if (vid !== curVid.current) {
-      curVid.current = vid;
-      texRef.current?.dispose();
-      const mat = matRef.current;
-      if (vid) {
-        const t = new THREE.VideoTexture(vid);
+    const mat = matRef.current;
+    if (!mat) return;
+    const d = engine.getLayerDrawable(model.layerId);
+
+    if (!d) {
+      if (texRef.current || curVid.current) {
+        texRef.current?.dispose(); texRef.current = null; curVid.current = null;
+        mat.map = null; mat.color.set('#161616'); mat.needsUpdate = true;
+      }
+      return;
+    }
+
+    if (d instanceof HTMLVideoElement) {
+      if (d !== curVid.current) {
+        curVid.current = d;
+        texRef.current?.dispose();
+        const t = new THREE.VideoTexture(d);
         t.colorSpace = THREE.SRGBColorSpace;
         texRef.current = t;
-        if (mat) { mat.map = t; mat.color.set('#ffffff'); mat.needsUpdate = true; }
-      } else {
-        texRef.current = null;
-        if (mat) { mat.map = null; mat.color.set('#161616'); mat.needsUpdate = true; }
+        mat.map = t; mat.color.set('#ffffff'); mat.needsUpdate = true;
       }
+      texRef.current!.needsUpdate = true;
+    } else {
+      // Streamed ImageBitmap: reuse one plain texture, swap its image each frame (a new
+      // transferred bitmap arrives per frame, so always mark it dirty). Match VideoTexture's
+      // filtering — no mipmaps, linear — so the per-frame upload is cheap and NPOT-safe.
+      curVid.current = null;
+      let t = texRef.current;
+      if (!t || t instanceof THREE.VideoTexture) {
+        t?.dispose();
+        t = new THREE.Texture();
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.minFilter = THREE.LinearFilter;
+        t.magFilter = THREE.LinearFilter;
+        t.generateMipmaps = false;
+        texRef.current = t;
+        mat.map = t; mat.color.set('#ffffff'); mat.needsUpdate = true;
+      }
+      t.image = d;
+      t.needsUpdate = true;
     }
-    if (texRef.current) texRef.current.needsUpdate = true;
   });
 
   if (!model.visible) return null;

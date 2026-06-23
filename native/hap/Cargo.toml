@@ -1,0 +1,23 @@
+[package]
+name = "artlux-hap"
+version = "0.0.0"
+edition = "2021"
+description = "Native HAP video decoder for ArtLux (napi-rs): MOV demux + Snappy + DXT decode"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+napi = { version = "2", default-features = false, features = ["napi4"] }
+napi-derive = "2"
+# Snappy second-stage decompression of HAP texture sections.
+snap = "1"
+# GPU block (BC1/BC3/BC4/BC7) → RGBA decode on the CPU. HAP1=BC1, HAP5/HAPY=BC3, HAPA=BC4.
+texture2ddecoder = "0.1"
+
+[build-dependencies]
+napi-build = "2"
+
+[profile.release]
+lto = true
+opt-level = 3

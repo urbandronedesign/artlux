@@ -10,6 +10,7 @@ const path = require('node:path');
 const CRATES = [
   { dir: 'output-engine', lib: 'artlux_output_engine', out: 'output-engine.node', required: true },
   { dir: 'spout-receiver', lib: 'artlux_spout_receiver', out: 'spout-receiver.node', required: false },
+  { dir: 'hap', lib: 'artlux_hap', out: 'hap.node', required: false },
 ];
 
 let copied = 0;

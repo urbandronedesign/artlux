@@ -69,8 +69,11 @@ function template(): MenuItemConstructorOptions[] {
     {
       label: 'View',
       submenu: [
-        { role: 'reload' },
-        { role: 'toggleDevTools' },
+        // Direct calls on the tracked window — the built-in 'reload'/'toggleDevTools' roles
+        // route through Electron's getFocusedWebContents(), which throws in this build
+        // ("getAllWebContents is not a function") and crashes the main process.
+        { label: 'Reload', accelerator: 'CmdOrCtrl+R', click: () => getWindowRef?.()?.webContents.reload() },
+        { label: 'Toggle Developer Tools', accelerator: process.platform === 'darwin' ? 'Alt+Cmd+I' : 'Ctrl+Shift+I', click: () => getWindowRef?.()?.webContents.toggleDevTools() },
         { type: 'separator' },
         { role: 'resetZoom' },
         { role: 'zoomIn' },

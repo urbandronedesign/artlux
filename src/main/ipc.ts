@@ -6,6 +6,7 @@ import * as input from './transport/input';
 import * as discovery from './transport/discovery';
 import * as spout from './transport/spoutManager';
 import * as ndi from './transport/ndiManager';
+import * as hap from './transport/hapManager';
 import * as persistence from './persistence';
 import * as projectFolder from './projectFolder';
 import { rebuildAppMenu } from './menu';
@@ -129,6 +130,11 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     ipcMain.on(IPC.NDI_SEND_FRAME, (_e, outputId: string, width: number, height: number, data: ArrayBuffer) => {
         ndi.sendFrame(outputId, width, height, Buffer.from(data));
     });
+
+    // ---- HAP video (native decode; renderer pulls frames by index) ----
+    ipcMain.handle(IPC.HAP_OPEN, (_e, path: string) => hap.open(path));
+    ipcMain.handle(IPC.HAP_DECODE, (_e, path: string, index: number) => hap.decode(path, index));
+    ipcMain.on(IPC.HAP_CLOSE, (_e, path: string) => hap.close(path));
 
     // Poll native engine throughput stats ~1 Hz and push to the renderer.
     setInterval(() => {

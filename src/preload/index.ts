@@ -56,6 +56,10 @@ const api: ArtluxApi = {
     configureNdiSend: (cfg: NdiSendConfig) => ipcRenderer.send(IPC.NDI_SEND_CONFIGURE, cfg),
     sendNdiFrame: (outputId: string, width: number, height: number, data: ArrayBuffer) =>
         ipcRenderer.send(IPC.NDI_SEND_FRAME, outputId, width, height, data),
+    // HAP video (frame-accurate pull)
+    openHap: (path: string) => ipcRenderer.invoke(IPC.HAP_OPEN, path),
+    decodeHapFrame: (path: string, index: number) => ipcRenderer.invoke(IPC.HAP_DECODE, path, index),
+    closeHap: (path: string) => ipcRenderer.send(IPC.HAP_CLOSE, path),
     // App chrome
     onMenuAction: (cb: (action: string) => void) => {
         const listener = (_e: unknown, action: string) => cb(action);

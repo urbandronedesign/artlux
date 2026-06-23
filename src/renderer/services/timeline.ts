@@ -1,20 +1,37 @@
 import { Timeline, VideoClip, defaultTimeline } from '../types';
 import { getBlobUrl, ensureBlobUrl } from './mediaCache';
+import * as hapDecode from './hapDecode';
+import * as hapGL from './hapGL';
 
 // Per-window video-layer timeline engine. The single source of playback time so React
 // never re-renders per frame (mirrors dmxSignal/livePreview). One <video> per layer
 // (track); as the playhead crosses clip boundaries the layer video's source is swapped.
 // The main window advances the playhead itself; the Scene window runs in `external` mode
 // and is driven by the bridged transport.
+//
+// HAP clips can't be decoded by the browser <video>, so for those we pull the exact frame
+// for the playhead from the native decoder (hapDecode) and paint it onto a per-layer canvas.
 
-type LayerVid = { el: HTMLVideoElement; clipId: string | null; srcPath: string | null };
+// A layer's playback state: a browser <video> for normal clips, plus a lazily-created canvas
+// fed by the native HAP decoder for HAP clips. `mode` says which is live this frame.
+type HapState = { path: string; canvas: HTMLCanvasElement | null; index: number };
+type LayerVid = { el: HTMLVideoElement; clipId: string | null; srcPath: string | null; mode: 'video' | 'hap' | null; hap: HapState | null };
 
 const layerVideos = new Map<string, LayerVid>();
+// External mirror windows (Scene / projector) don't decode: the main window decodes once
+// and streams each layer's frame here as a transferable ImageBitmap (keeps concurrent
+// hardware-decode sessions to one — see App.tsx scene/projector frame pumps).
+const layerBitmaps = new Map<string, ImageBitmap>();
 const subs = new Set<(playhead: number) => void>();
 
 let data: Timeline = defaultTimeline();
 let playing = false;
-let external = false; // true in the Scene window (playhead set from the bridge)
+let external = false; // true in mirror windows (Scene/projector) — playhead set from the bridge
+// In a mirror window, decode HAP layers locally instead of consuming streamed frames. HAP has
+// no hardware-decode-session limit (it's CPU/SIMD + GPU block upload), so each visible window
+// can decode it — and a VISIBLE window (the fullscreen projector) runs full-speed, whereas the
+// hidden broadcast main window throttles its rAF and starves the streamed-frame pump.
+let hapLocal = false;
 let playhead = 0;
 let lastT = 0;
 let raf = 0;
@@ -26,7 +43,7 @@ function getLayerVideo(layerId: string): LayerVid {
   if (!lv) {
     const el = document.createElement('video');
     el.muted = true; el.playsInline = true; el.loop = false; el.crossOrigin = 'anonymous';
-    lv = { el, clipId: null, srcPath: null };
+    lv = { el, clipId: null, srcPath: null, mode: null, hap: null };
     layerVideos.set(layerId, lv);
   }
   return lv;
@@ -44,14 +61,32 @@ function activeClip(layerId: string, t: number): VideoClip | null {
 function syncLayer(layerId: string, t: number): void {
   const lv = getLayerVideo(layerId);
   const clip = activeClip(layerId, t);
-  if (!clip) { if (!lv.el.paused) lv.el.pause(); lv.clipId = null; return; }
+  if (!clip) {
+    if (!lv.el.paused) lv.el.pause();
+    lv.clipId = null; lv.mode = null;
+    return;
+  }
 
+  // HAP clips can't go through the <video>; pull the playhead's frame from the native decoder.
+  if (hapDecode.isHapCandidate(clip.path)) {
+    const known = hapDecode.isHap(clip.path);
+    if (known === undefined) { void hapDecode.ensureOpen(clip.path); return; } // still probing
+    if (known) { syncHapLayer(layerId, lv, clip, t); return; } // decode locally (any window)
+    // known === false → a non-HAP .mov (e.g. H.264); fall through to the <video> path.
+  }
+  // Non-HAP clips are only decoded in the main window; mirror windows consume streamed frames.
+  if (external) { lv.mode = null; return; }
+  syncVideoLayer(lv, clip, t);
+}
+
+function syncVideoLayer(lv: LayerVid, clip: VideoClip, t: number): void {
   if (lv.srcPath !== clip.path) {
     const url = getBlobUrl(clip.path);
     if (url) { lv.el.src = url; lv.srcPath = clip.path; }
     else { ensureBlob(clip.path); return; } // not loaded yet
   }
   lv.clipId = clip.id;
+  lv.mode = 'video';
   const target = t - clip.start + clip.inPoint;
   if (lv.el.readyState >= 1) {
     const drift = Math.abs(lv.el.currentTime - target);
@@ -62,34 +97,94 @@ function syncLayer(layerId: string, t: number): void {
   else if (!lv.el.paused) lv.el.pause();
 }
 
+function syncHapLayer(layerId: string, lv: LayerVid, clip: VideoClip, t: number): void {
+  const info = hapDecode.getInfo(clip.path);
+  if (!info) return;
+  if (!lv.el.paused) lv.el.pause(); // not using the <video> for this clip
+  if (!lv.hap || lv.hap.path !== clip.path) {
+    lv.hap = { path: clip.path, canvas: null, index: -1 };
+  }
+  lv.clipId = clip.id;
+  lv.mode = 'hap';
+  // Frame index for this playhead position within the clip's source (clamped). Show the best
+  // available decoded frame; upload it to the GPU (blocks → compressed texture) when it advances.
+  const target = t - clip.start + clip.inPoint;
+  const idx = Math.max(0, Math.min(Math.round(target * info.fps), info.frameCount - 1));
+  const h = lv.hap;
+  const got = hapDecode.getFrame(clip.path, idx);
+  if (got && got.index !== h.index) {
+    h.canvas = hapGL.uploadFrame(layerId, got.frame);
+    h.index = got.index;
+  }
+}
+
 function frame(now: number): void {
-  const dt = lastT ? (now - lastT) / 1000 : 0;
-  lastT = now;
-  if (playing && !external && data.duration > 0) playhead = (playhead + dt) % data.duration;
-  for (const l of data.layers) syncLayer(l.id, playhead);
-  subs.forEach(cb => cb(playhead));
-  raf = requestAnimationFrame(frame);
+  raf = requestAnimationFrame(frame); // reschedule first so a throw below can never kill the loop
+  try {
+    const dt = lastT ? (now - lastT) / 1000 : 0;
+    lastT = now;
+    // The main window owns the clock; a hapLocal mirror (the fullscreen projector) advances its
+    // own playhead at full speed too, since the bridged transport from the hidden main window is
+    // throttled — seek() only resyncs it on large drift.
+    if (playing && (!external || hapLocal) && data.duration > 0) playhead = (playhead + dt) % data.duration;
+    // Main window decodes everything; mirror windows decode only HAP locally (when hapLocal),
+    // otherwise they consume streamed frames and skip decoding entirely.
+    if (!external || hapLocal) for (const l of data.layers) {
+      try { syncLayer(l.id, playhead); } catch (e) { console.error('[timeline] syncLayer error', e); }
+    }
+    subs.forEach(cb => cb(playhead));
+  } catch (e) {
+    console.error('[timeline] frame error', e);
+  }
 }
 
 export const timeline = {
   setData(t: Timeline): void {
     data = t;
-    for (const c of t.clips) ensureBlob(c.path);
+    if (external) return; // mirror windows don't decode — no blobs / video elements to manage
+    // Pre-warm: open HAP clips natively; preload blob URLs for normal clips.
+    for (const c of t.clips) {
+      if (hapDecode.isHapCandidate(c.path)) void hapDecode.ensureOpen(c.path);
+      else ensureBlob(c.path);
+    }
     for (const id of [...layerVideos.keys()]) {
-      if (!t.layers.find(l => l.id === id)) { const lv = layerVideos.get(id)!; lv.el.pause(); lv.el.removeAttribute('src'); layerVideos.delete(id); }
+      if (!t.layers.find(l => l.id === id)) { const lv = layerVideos.get(id)!; lv.el.pause(); lv.el.removeAttribute('src'); layerVideos.delete(id); hapGL.release(id); }
     }
   },
   setPlaying(p: boolean): void { playing = p; },
   setExternal(e: boolean): void { external = e; },
-  seek(sec: number): void { playhead = Math.max(0, Math.min(sec, data.duration || 0)); },
+  setHapLocal(v: boolean): void { hapLocal = v; },
+  seek(sec: number): void {
+    const clamped = Math.max(0, Math.min(sec, data.duration || 0));
+    // A hapLocal projector runs its own full-speed clock; ignore small corrections from the
+    // throttled, low-frequency bridged transport so playback doesn't snap on every update.
+    if (external && hapLocal && Math.abs(clamped - playhead) < 0.5) return;
+    playhead = clamped;
+  },
   getPlayhead(): number { return playhead; },
   getDuration(): number { return data.duration; },
   isPlaying(): boolean { return playing; },
-  // The live drawable for a layer (or null when no clip is under the playhead / not ready).
-  getLayerDrawable(layerId?: string): HTMLVideoElement | null {
+  // Store the latest streamed frame for a layer (mirror windows only). Closes the prior
+  // bitmap it replaces so transferred frames don't leak.
+  setLayerBitmap(layerId: string, bmp: ImageBitmap): void {
+    const prev = layerBitmaps.get(layerId);
+    if (prev && prev !== bmp) prev.close();
+    layerBitmaps.set(layerId, bmp);
+  },
+  // The live drawable for a layer: a streamed ImageBitmap in mirror windows, else the HAP
+  // canvas (HAP clips) or the decoding <video>. Null when nothing is under the playhead / ready.
+  getLayerDrawable(layerId?: string): HTMLVideoElement | HTMLCanvasElement | ImageBitmap | null {
     if (!layerId) return null;
+    if (external) {
+      // Locally-decoded HAP wins (the projector decodes its own); else the streamed frame.
+      const lv = layerVideos.get(layerId);
+      if (hapLocal && lv && lv.mode === 'hap' && lv.hap && lv.hap.index >= 0) return lv.hap.canvas;
+      return layerBitmaps.get(layerId) ?? null;
+    }
     const lv = layerVideos.get(layerId);
-    return lv && lv.clipId && lv.el.readyState >= 2 ? lv.el : null;
+    if (!lv || !lv.clipId) return null;
+    if (lv.mode === 'hap') return lv.hap && lv.hap.index >= 0 ? lv.hap.canvas : null;
+    return lv.mode === 'video' && lv.el.readyState >= 2 ? lv.el : null;
   },
   subscribe(cb: (playhead: number) => void): () => void { subs.add(cb); return () => { subs.delete(cb); }; },
   start(): void { if (!raf) { lastT = 0; raf = requestAnimationFrame(frame); } },

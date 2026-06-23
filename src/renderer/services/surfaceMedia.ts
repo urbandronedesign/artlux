@@ -5,14 +5,25 @@ import { getNdiCanvas, startNdi, stopNdi } from './ndiReceiver';
 import { SurfaceEffect } from '../gpu/surfaceFx';
 import { timeline } from './timeline';
 import { resolveMediaUrl, mimeForPath } from './mediaCache';
+import * as hap from './hapPlayer';
 
 // Owns the media lifecycle for every Surface: one <video>/<img> per VIDEO/IMAGE
 // surface, plus a single live camera / Spout / DMX-in (one live at a time, v1).
 // Stage calls syncSurfaces() when the surfaces change and getDrawable() each
 // frame to composite. Decouples media plumbing from React refs.
+//
+// VIDEO surfaces whose file is a HAP-coded .mov are decoded natively (no hardware
+// video-decode session) and rendered from a canvas instead of an <video> — see hapPlayer.
+// We probe each .mov asynchronously and fall back to a normal <video> if it isn't HAP.
 
 type Drawable = CanvasImageSource;
-type Entry = { type: 'VIDEO'; el: HTMLVideoElement; url: string } | { type: 'IMAGE'; el: HTMLImageElement; url: string };
+type Entry =
+  | { type: 'VIDEO'; el: HTMLVideoElement; url: string }
+  | { type: 'IMAGE'; el: HTMLImageElement; url: string }
+  | { type: 'HAP'; path: string };
+
+// HAP is carried in QuickTime/MOV; probe those (the parser is ISO-BMFF, not RIFF/.avi).
+const isHapCandidate = (url: string): boolean => /\.mov$/i.test(url);
 
 const media = new Map<string, Entry>(); // keyed by surface id
 const effects = new Map<string, SurfaceEffect>(); // EFFECT surfaces, keyed by id
@@ -83,9 +94,24 @@ export function syncSurfaces(surfaces: Surface[], isPlaying: boolean): void {
     if (c.type === SourceType.VIDEO && c.url) {
       seen.add(s.id);
       const e = media.get(s.id);
-      if (!e || e.type !== 'VIDEO' || e.url !== c.url) {
-        if (e && e.type === 'VIDEO') e.el.pause();
-        media.set(s.id, { type: 'VIDEO', el: makeVideo(c.url), url: c.url });
+      const curUrl = e ? (e.type === 'HAP' ? e.path : e.type === 'VIDEO' ? e.url : null) : null;
+      if (curUrl !== c.url) {
+        if (e?.type === 'VIDEO') e.el.pause();
+        if (e?.type === 'HAP') hap.close(e.path);
+        if (isHapCandidate(c.url)) {
+          // Optimistically treat as HAP; the probe downgrades to a normal <video> if it isn't.
+          const url = c.url;
+          media.set(s.id, { type: 'HAP', path: url });
+          void hap.open(url).then((ok) => {
+            if (ok) return;
+            const cur = media.get(s.id);
+            if (cur && cur.type === 'HAP' && cur.path === url) {
+              media.set(s.id, { type: 'VIDEO', el: makeVideo(url), url });
+            }
+          });
+        } else {
+          media.set(s.id, { type: 'VIDEO', el: makeVideo(c.url), url: c.url });
+        }
       }
     } else if (c.type === SourceType.IMAGE && c.url) {
       seen.add(s.id);
@@ -110,6 +136,7 @@ export function syncSurfaces(surfaces: Surface[], isPlaying: boolean): void {
   for (const [id, e] of media) {
     if (!seen.has(id)) {
       if (e.type === 'VIDEO') e.el.pause();
+      if (e.type === 'HAP') hap.close(e.path);
       media.delete(id);
     }
   }
@@ -121,11 +148,12 @@ export function syncSurfaces(surfaces: Surface[], isPlaying: boolean): void {
     if (wantCamera) void startCamera(wantCamera);
   }
 
-  // Apply play/pause to all video elements + the camera.
+  // Apply play/pause to all video elements + the camera + HAP sources (global toggle).
   for (const e of media.values()) {
     if (e.type === 'VIDEO') { if (playing) e.el.play().catch(() => {}); else e.el.pause(); }
   }
   if (cameraEl) { if (playing) cameraEl.play().catch(() => {}); else cameraEl.pause(); }
+  hap.setPlaying(playing);
 
   // DMX-in (single live).
   if (wantDmx !== dmxActive) {
@@ -162,6 +190,7 @@ export function getContentAspect(s: Surface): number | null {
     }
     case SourceType.VIDEO: {
       const e = media.get(s.id);
+      if (e?.type === 'HAP') return hap.getHapAspect(e.path);
       return e && e.type === 'VIDEO' && e.el.videoWidth > 0 ? e.el.videoWidth / e.el.videoHeight : null;
     }
     case SourceType.CAMERA:
@@ -176,7 +205,9 @@ export function getDrawable(s: Surface): Drawable | null {
   switch (s.content.type) {
     case SourceType.VIDEO: {
       const e = media.get(s.id);
-      return e && e.type === 'VIDEO' && e.el.readyState >= 2 ? e.el : null;
+      if (!e) return null;
+      if (e.type === 'HAP') return hap.getHapCanvas(e.path);
+      return e.type === 'VIDEO' && e.el.readyState >= 2 ? e.el : null;
     }
     case SourceType.IMAGE: {
       const e = media.get(s.id);

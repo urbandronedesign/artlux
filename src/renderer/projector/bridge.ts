@@ -20,7 +20,7 @@ export type MainToProjector =
   | { t: 'timeline'; timeline: Timeline }                     // for LAYER content
   | { t: 'transport'; playing: boolean; playhead: number }    // ~30 fps clock
   | { t: 'edit'; on: boolean }                                // toggle corner-pin / mesh editing
-  | { t: 'frame'; bitmap: ImageBitmap };                      // singular-source frame (camera/Spout/DMX-in)
+  | { t: 'frame'; bitmap: ImageBitmap };                      // streamed source frame (camera/Spout/DMX-in/NDI + video/layer, decoded once in main)
 
 export type ProjectorToMain =
   | { t: 'ready' }                           // window mounted; (re)send config

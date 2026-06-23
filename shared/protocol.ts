@@ -48,6 +48,12 @@ export const IPC = {
   NDI_SEND_CONFIGURE: 'ndi:send-configure',
   /** Renderer → main: one captured frame for a per-output NDI sender (RGBA). */
   NDI_SEND_FRAME: 'ndi:send-frame',
+  /** Renderer → main (invoke): open a HAP-coded .mov; returns stream info or null if not HAP. */
+  HAP_OPEN: 'hap:open',
+  /** Renderer → main (invoke): decode one frame by index → RGBA (frame-accurate pull). */
+  HAP_DECODE: 'hap:decode',
+  /** Renderer → main: release a HAP source (by file path). */
+  HAP_CLOSE: 'hap:close',
   /** Main → renderer: a native-menu command (save/open/undo/about/…). */
   MENU_ACTION: 'menu:action',
   /** Renderer → main (invoke): app name + version (for About). */
@@ -135,6 +141,28 @@ export interface NdiFrame {
   data: Uint8Array;
   srcWidth: number;
   srcHeight: number;
+}
+
+// HAP video — a HAP-coded .mov decoded natively in the main process (no hardware video-decode
+// session). The renderer pulls the exact frame for the current playhead by index (all-intra,
+// so any frame decodes independently — ideal for scrubbing) and paints the RGBA onto a canvas
+// that renders through the same drawable path as Spout/NDI. Keyed by file path.
+export interface HapInfo {
+  width: number;
+  height: number;
+  frameCount: number;
+  fps: number;
+  codec: string;     // fourcc: Hap1 (DXT1) / Hap5 (DXT5) / HapY (scaled YCoCg) / HapA / HapM
+  hasAlpha: boolean;
+}
+
+// A decoded HAP frame as raw GPU blocks (uploaded as a compressed texture in the renderer —
+// the GPU decompresses, so this is ~8× smaller than RGBA over IPC).
+export interface HapFrame {
+  width: number;
+  height: number;
+  format: string;    // "dxt1" | "dxt5" | "ycocg" | "rgtc1" | "bptc"
+  data: Uint8Array;  // raw BC/DXT block bytes
 }
 
 // NDI send — create/destroy a named NDI source for one projector output.
@@ -397,6 +425,10 @@ export interface ArtluxApi {
   onNdiFrame(cb: (frame: NdiFrame) => void): () => void;
   configureNdiSend(cfg: NdiSendConfig): void;
   sendNdiFrame(outputId: string, width: number, height: number, data: ArrayBuffer): void;
+  // HAP video (native decode, frame-accurate pull → RGBA)
+  openHap(path: string): Promise<HapInfo | null>;
+  decodeHapFrame(path: string, index: number): Promise<HapFrame | null>;
+  closeHap(path: string): void;
   // App chrome
   onMenuAction(cb: (action: string) => void): () => void;
   getAppInfo(): Promise<AppInfo>;

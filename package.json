@@ -1,15 +1,16 @@
 {
   "name": "artlux",
   "private": true,
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "GPU-accelerated addressable-LED pixel mapping for Art-Net / sACN",
   "author": "urbandronedesign <urbandrone@gmail.com>",
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
+    "dev:broadcast": "electron-vite build && electron . --broadcast",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "build:native": "cargo build --release --manifest-path native/output-engine/Cargo.toml && cargo build --release --manifest-path native/spout-receiver/Cargo.toml && node scripts/copy-native.cjs",
+    "build:native": "cargo build --release --manifest-path native/output-engine/Cargo.toml && cargo build --release --manifest-path native/spout-receiver/Cargo.toml && cargo build --release --manifest-path native/hap/Cargo.toml && node scripts/copy-native.cjs",
     "build:ndi": "cargo build --release --features ndi --manifest-path native/ndi/Cargo.toml && node scripts/copy-ndi.cjs",
     "package": "electron-vite build && electron-builder",
     "package:dir": "electron-vite build && electron-builder --dir",
@@ -64,6 +65,10 @@
       {
         "from": "native/spout-receiver/spout-receiver.node",
         "to": "spout-receiver.node"
+      },
+      {
+        "from": "native/hap/hap.node",
+        "to": "hap.node"
       }
     ],
     "win": {

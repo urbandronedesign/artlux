@@ -31,6 +31,15 @@ export const SceneApp: React.FC = () => {
 
   // This window's timeline engine is driven by the bridge (the main window owns the clock).
   useEffect(() => { engine.setExternal(true); }, []);
+
+  // Tell main which layers our planes display so it streams just those frames (decoded once
+  // in main, mirrored here as ImageBitmaps — keeps this window from holding its own decoders).
+  useEffect(() => {
+    const layerIds = Array.from(new Set(
+      (scene3D.models ?? []).filter(m => m.kind === 'plane' && m.visible && m.layerId).map(m => m.layerId!)
+    ));
+    portRef.current?.postMessage({ t: 'sceneLayers', layerIds } satisfies SceneToMain);
+  }, [scene3D.models]);
   // Blob URL per unique file PATH (not per model id) so the same GLB placed multiple
   // times loads once and is instanced — each ModelObject clones the shared loaded scene
   // (clones share geometry + materials, so extra copies are nearly free).
@@ -60,6 +69,8 @@ export const SceneApp: React.FC = () => {
           setTimelineState(m.timeline); engine.setData(m.timeline);
         } else if (m.t === 'transport') {
           engine.setPlaying(m.playing); engine.seek(m.playhead);
+        } else if (m.t === 'frame') {
+          engine.setLayerBitmap(m.layerId, m.bitmap);
         }
       };
       port.start();

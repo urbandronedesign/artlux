@@ -30,6 +30,12 @@ const PROJECT_PATH = projectArg ? projectArg.slice('--project='.length) : '';
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+// On Windows, Chromium's native window-occlusion calculation marks a covered window
+// "hidden" and pauses its video frame production (the media clock keeps ticking, so the
+// frame goes stale) even with the throttling switches above. The main window decodes the
+// video that the Scene + projector windows mirror, so when the Scene window covers it the
+// mirrors freeze. Disabling the feature keeps the covered window producing frames.
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 
 function createWindow(): void {
     mainWindow = new BrowserWindow({
@@ -51,8 +57,19 @@ function createWindow(): void {
         },
     });
 
-    // GUI mode shows when ready; headless + broadcast keep the editor window invisible.
+    // GUI mode shows when ready.
     if (!HEADLESS && !BROADCAST) mainWindow.on('ready-to-show', () => mainWindow?.show());
+    // Broadcast: the editor window stays invisible to the operator but must keep running at
+    // full speed — it decodes the video and pushes frames to the fullscreen projector outputs.
+    // A never-shown window throttles its rAF/WebGL (starving the projector → laggy output), so
+    // we SHOW it but at opacity 0 + click-through + off the taskbar: the compositor keeps it
+    // full-speed while nothing is visible. (Headless does pure compute and stays fully hidden.)
+    if (BROADCAST) mainWindow.on('ready-to-show', () => {
+        mainWindow?.setOpacity(0);
+        mainWindow?.setIgnoreMouseEvents(true);
+        mainWindow?.setSkipTaskbar(true);
+        mainWindow?.showInactive();
+    });
     mainWindow.on('closed', () => { closeAllProjectors(); mainWindow = null; });
 
     // electron-vite provides the dev server URL; fall back to the built file.
