@@ -36,6 +36,18 @@ export const IPC = {
   SPOUT_CONFIGURE: 'spout:configure',
   /** Main → renderer: a received Spout frame (downscaled 512² RGBA). */
   SPOUT_FRAME: 'spout:frame',
+  /** Renderer → main (invoke): is the NDI runtime available? */
+  NDI_AVAILABLE: 'ndi:available',
+  /** Renderer → main (invoke): discover NDI sources on the network. */
+  NDI_LIST: 'ndi:list',
+  /** Renderer → main: connect/disconnect the NDI receiver. */
+  NDI_CONFIGURE: 'ndi:configure',
+  /** Main → renderer: a received NDI frame (downscaled RGBA). */
+  NDI_FRAME: 'ndi:frame',
+  /** Renderer → main: create/destroy a per-output NDI sender. */
+  NDI_SEND_CONFIGURE: 'ndi:send-configure',
+  /** Renderer → main: one captured frame for a per-output NDI sender (RGBA). */
+  NDI_SEND_FRAME: 'ndi:send-frame',
   /** Main → renderer: a native-menu command (save/open/undo/about/…). */
   MENU_ACTION: 'menu:action',
   /** Renderer → main (invoke): app name + version (for About). */
@@ -108,6 +120,28 @@ export interface SpoutFrame {
   data: Uint8Array; // RGBA (downscaled to width×height)
   srcWidth: number;  // sender's true resolution (for stage aspect)
   srcHeight: number;
+}
+
+// NDI receive (network video) — same shape as Spout. `data` is RGBA downscaled to
+// width×height; src* is the source's true resolution (for stage aspect).
+export interface NdiConfig {
+  enabled: boolean;
+  name?: string; // empty/undefined = first discovered source
+}
+
+export interface NdiFrame {
+  width: number;
+  height: number;
+  data: Uint8Array;
+  srcWidth: number;
+  srcHeight: number;
+}
+
+// NDI send — create/destroy a named NDI source for one projector output.
+export interface NdiSendConfig {
+  outputId: string;   // the surfaceId of the output
+  enabled: boolean;
+  name?: string;      // NDI source name (defaults to the surface name)
 }
 
 // One Art-Net node found via ArtPoll/ArtPollReply discovery.
@@ -227,6 +261,7 @@ export interface ProjectorOutput {
   warp?: BezierWarp | null;   // optional bicubic Bézier warp (supersedes cornerPin when set)
   softEdge?: SoftEdge;        // edge blending for projector overlap
   gamma?: number;             // per-output output gamma (1 = off)
+  ndiSend?: boolean;          // also publish this output as an NDI source
 }
 
 export const defaultProjectorOutput = (surfaceId: string): ProjectorOutput => ({
@@ -355,6 +390,13 @@ export interface ArtluxApi {
   listSpoutSenders(): Promise<string[]>;
   configureSpout(cfg: SpoutConfig): void;
   onSpoutFrame(cb: (frame: SpoutFrame) => void): () => void;
+  // NDI (network video) — receive onto a surface + send a projector output
+  ndiAvailable(): Promise<boolean>;
+  listNdiSources(): Promise<string[]>;
+  configureNdi(cfg: NdiConfig): void;
+  onNdiFrame(cb: (frame: NdiFrame) => void): () => void;
+  configureNdiSend(cfg: NdiSendConfig): void;
+  sendNdiFrame(outputId: string, width: number, height: number, data: ArrayBuffer): void;
   // App chrome
   onMenuAction(cb: (action: string) => void): () => void;
   getAppInfo(): Promise<AppInfo>;

@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { Fixture, Surface, SurfaceContent, SourceType, AppSettings, PixelSource, LedShape, ColorOrder, RGBWMode, Layout3DType, VideoLayer } from '../types';
-import { Monitor, Image as ImageIcon, Video, Map, Sparkles, Grid3x3, Network, Box, Cast, RefreshCw, Layers, Slash, Film } from 'lucide-react';
+import { Monitor, Image as ImageIcon, Video, Map, Sparkles, Grid3x3, Network, Box, Cast, Radio, RefreshCw, Layers, Slash, Film } from 'lucide-react';
 import { CollapsibleSection } from './CollapsibleSection';
 import { Slider } from './ui';
 import { EFFECT_NAMES } from '../gpu/effects';
 import { PALETTE_NAMES } from '../gpu/palettes';
 import { effectivePosObj, effectiveRotObj, effectiveLayout } from '../services/led3dDefaults';
 import { listSpoutSenders } from '../services/spoutReceiver';
+import { listNdiSources, ndiAvailable } from '../services/ndiReceiver';
 
 interface InspectorPanelProps {
     surfaces: Surface[];
@@ -49,6 +50,9 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
     const [segSel, setSegSel] = useState(0);
     const [spoutSenders, setSpoutSenders] = useState<string[]>([]);
     const refreshSpout = async () => setSpoutSenders(await listSpoutSenders());
+    const [ndiSources, setNdiSources] = useState<string[]>([]);
+    const [ndiOk, setNdiOk] = useState(true);
+    const refreshNdi = async () => { setNdiOk(await ndiAvailable()); setNdiSources(await listNdiSources()); };
 
     // Update the selected surface's content (merge).
     const setContent = (patch: Partial<SurfaceContent>) => {
@@ -59,6 +63,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
         if (!selectedSurface) return;
         onUpdateSurface(selectedSurface.id, { content: { type } });
         if (type === SourceType.SPOUT) refreshSpout();
+        if (type === SourceType.NDI) refreshNdi();
     };
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: SourceType) => {
         const file = e.target.files?.[0];
@@ -104,6 +109,9 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                         <button onClick={() => setContentType(SourceType.SPOUT)} className={surfBtnCls(c.type === SourceType.SPOUT)}>
                             <Cast size={16} className="mb-1"/><span className="text-[9px]">Spout</span>
                         </button>
+                        <button onClick={() => setContentType(SourceType.NDI)} className={surfBtnCls(c.type === SourceType.NDI)} title="NDI network video">
+                            <Radio size={16} className="mb-1"/><span className="text-[9px]">NDI</span>
+                        </button>
                         <button onClick={() => setContentType('EFFECT')} className={surfBtnCls(c.type === 'EFFECT')}>
                             <Sparkles size={16} className="mb-1"/><span className="text-[9px]">Effect</span>
                         </button>
@@ -134,6 +142,28 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                                 {spoutSenders.map((s) => <option key={s} value={s}>{s}</option>)}
                             </select>
                             <button onClick={refreshSpout} title="Refresh Spout senders" className="p-1.5 rounded border border-line-1 text-fg-2 hover:bg-surface-3"><RefreshCw size={12} /></button>
+                        </div>
+                    )}
+
+                    {c.type === SourceType.NDI && (
+                        <div className="pt-1 space-y-1">
+                            <div className="flex items-center gap-1">
+                                <select
+                                    value={c.ndiName ?? ''}
+                                    onChange={(e) => setContent({ ndiName: e.target.value })}
+                                    className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-[10px] focus:border-accent focus:outline-none"
+                                >
+                                    <option value="">First source</option>
+                                    {ndiSources.map((s) => <option key={s} value={s}>{s}</option>)}
+                                </select>
+                                <button onClick={refreshNdi} title="Refresh NDI sources" className="p-1.5 rounded border border-line-1 text-fg-2 hover:bg-surface-3"><RefreshCw size={12} /></button>
+                            </div>
+                            {!ndiOk && (
+                                <div className="text-[9px] text-warn">
+                                    NDI runtime not found.{' '}
+                                    <button onClick={() => window.artlux?.openExternal?.('https://ndi.video/tools/')} className="underline hover:text-fg-1">Install NDI Tools ↗</button>
+                                </div>
+                            )}
                         </div>
                     )}
 

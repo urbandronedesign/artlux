@@ -22,7 +22,8 @@ fallback) and a **Rust** output engine (napi-rs) that owns UDP transmission on a
 
 - **GPU pixel mapping** — a WebGPU compute shader samples the source per-LED in real time.
 - **WLED-style effects** — gradient palettes, stateful fire2012, and multi-segment fixtures.
-- **Content sources** — video, image, live camera, **DMX in** (Art-Net/sACN), and **Spout** (Windows).
+- **Content sources** — video, image, live camera, **DMX in** (Art-Net/sACN), **Spout** (Windows), and **NDI** (network video).
+- **Projector outputs + NDI out** — map each surface fullscreen to a projector (corner-pin / Bézier warp, soft-edge, gamma) and optionally publish each output as an **NDI source**.
 - **2D + 3D** — drag/resize/rotate/snap on a 2D stage; arrange the same fixtures in a 3D simulator.
 - **Per-pixel correctness** — color order, RGBW white extraction, gamma, matrix + serpentine, ledmap.
 - **Per-fixture routing** — each fixture can target its own controller IP / protocol / priority.
@@ -96,3 +97,8 @@ xattr -dr com.apple.quarantine "/Applications/ArtLux.app"
 ```
 
 This is a one-time step per install. (Builds are Apple Silicon / arm64.)
+
+### Acknowledgements
+
+NDI® is a registered trademark of Vizrt NDI AB. NDI support uses the free NDI® SDK / Runtime
+(<https://ndi.video>). Install the NDI Runtime / NDI Tools to enable NDI send + receive.

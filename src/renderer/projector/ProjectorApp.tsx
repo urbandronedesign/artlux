@@ -9,11 +9,12 @@ import { makeBezierWarp, tessellateBezier, evalBezier, BEZIER_CORNERS } from './
 import type { MainToProjector, ProjectorToMain, ProjectorRender } from './bridge';
 
 const SELF_RENDER = new Set<SourceType | 'EFFECT'>([SourceType.VIDEO, SourceType.IMAGE, SourceType.LAYER, 'EFFECT']);
-const SINGULAR = new Set<SourceType | 'EFFECT'>([SourceType.CAMERA, SourceType.SPOUT, SourceType.DMX_IN]);
+const SINGULAR = new Set<SourceType | 'EFFECT'>([SourceType.CAMERA, SourceType.SPOUT, SourceType.DMX_IN, SourceType.NDI]);
 const CORNER_KEYS: (keyof CornerPin)[] = ['tl', 'tr', 'br', 'bl'];
 const CORNER_LABELS = ['TL', 'TR', 'BR', 'BL'];
 const AA_SAMPLES = 4;
 const RENDER_TESS = 24; // patch → render mesh subdivisions per axis
+const NDI_MAX_W = 1280, NDI_MAX_H = 720; // cap NDI capture for light readback + IPC
 
 // One fullscreen projector output for a Surface. Renders content through a corner-pin or a
 // bicubic Bézier warp (tessellated to a mesh) with soft-edge + gamma, MSAA-resolved. Edit
@@ -32,6 +33,8 @@ export const ProjectorApp: React.FC = () => {
   const softRef = useRef<SoftEdge>(defaultSoftEdge());
   const gammaRef = useRef(1);
   const fpsCapRef = useRef(0);
+  const ndiSendRef = useRef(false);
+  const lastNdiRef = useRef(0);
   const draggingRef = useRef<number | null>(null);
   const commitTimer = useRef<number | null>(null);
 
@@ -60,6 +63,7 @@ export const ProjectorApp: React.FC = () => {
     softRef.current = r.softEdge ?? defaultSoftEdge();
     gammaRef.current = r.gamma ?? 1;
     fpsCapRef.current = r.fpsCap ?? 0;
+    ndiSendRef.current = !!r.ndiSend;
   };
 
   useEffect(() => { engine.setExternal(true); }, []);
@@ -136,6 +140,15 @@ export const ProjectorApp: React.FC = () => {
         cornerPin: pinRef.current, warp: mesh,
         softEdge: softRef.current, gamma: gammaRef.current, aa: AA_SAMPLES,
       });
+      // Publish this output as NDI (~30 fps, capped resolution) when enabled.
+      if (ndiSendRef.current && now - lastNdiRef.current >= 33) {
+        lastNdiRef.current = now;
+        const id = surfaceRef.current?.id;
+        if (id) {
+          const cap = gl.captureRGBA(NDI_MAX_W, NDI_MAX_H);
+          if (cap) window.artlux?.sendNdiFrame?.(id, cap.width, cap.height, cap.data.buffer as ArrayBuffer);
+        }
+      }
     };
     raf = requestAnimationFrame(frame);
     return () => { cancelAnimationFrame(raf); gl.dispose(); glRef.current = null; frameRef.current?.close(); frameRef.current = null; };

@@ -4,6 +4,7 @@ import { registerIpc } from './ipc';
 import { buildAppMenu } from './menu';
 import { setupUpdater } from './updater';
 import { registerProjectorWindows, closeAllProjectors } from './projector';
+import * as ndi from './transport/ndiManager';
 import { IPC } from '../../shared/protocol';
 
 const APP_ICON = join(__dirname, '../../build/icon.png');
@@ -179,6 +180,8 @@ app.on('before-quit', () => {
     globalShortcut.unregisterAll();
     broadcastTray?.destroy();
     broadcastTray = null;
+    ndi.stopAllSenders();
+    ndi.stopRecv();
 });
 
 app.on('window-all-closed', () => {

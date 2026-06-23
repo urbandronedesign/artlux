@@ -64,6 +64,10 @@ export class ProjectorGL {
   private msFBO: WebGLFramebuffer | null = null;
   private msColor: WebGLRenderbuffer | null = null;
   private msW = 0; private msH = 0; private msSamples = 0;
+  // Capped readback target for NDI capture (WebGL2 only)
+  private capFBO: WebGLFramebuffer | null = null;
+  private capTex: WebGLTexture | null = null;
+  private capW = 0; private capH = 0;
 
   constructor(private canvas: HTMLCanvasElement) {
     const gl2 = canvas.getContext('webgl2', { premultipliedAlpha: false, antialias: false }) as WebGL2RenderingContext | null;
@@ -190,6 +194,45 @@ export class ProjectorGL {
     gl2.bindFramebuffer(gl2.FRAMEBUFFER, null);
   }
 
+  // Read back the rendered output as top-down RGBA, downscaled to fit (maxW, maxH), for NDI
+  // send. Blits the resolved on-screen framebuffer into a capped FBO (LINEAR downscale + Y-flip
+  // so the buffer is top-down — readPixels is bottom-up, NDI expects top-down), then reads it.
+  // WebGL2 only; returns null otherwise. Call right after draw() (same frame).
+  captureRGBA(maxW: number, maxH: number): { width: number; height: number; data: Uint8Array } | null {
+    const gl2 = this.gl2;
+    const cw = this.canvas.width, ch = this.canvas.height;
+    if (!gl2 || cw === 0 || ch === 0) return null;
+    let w = cw, h = ch;
+    if (cw > maxW || ch > maxH) {
+      const r = Math.min(maxW / cw, maxH / ch);
+      w = Math.max(1, Math.round(cw * r));
+      h = Math.max(1, Math.round(ch * r));
+    }
+    if (!this.capFBO) this.capFBO = gl2.createFramebuffer();
+    if (this.capW !== w || this.capH !== h) {
+      if (!this.capTex) this.capTex = gl2.createTexture();
+      gl2.bindTexture(gl2.TEXTURE_2D, this.capTex);
+      gl2.texImage2D(gl2.TEXTURE_2D, 0, gl2.RGBA8, w, h, 0, gl2.RGBA, gl2.UNSIGNED_BYTE, null);
+      gl2.texParameteri(gl2.TEXTURE_2D, gl2.TEXTURE_MIN_FILTER, gl2.LINEAR);
+      gl2.texParameteri(gl2.TEXTURE_2D, gl2.TEXTURE_MAG_FILTER, gl2.LINEAR);
+      gl2.bindFramebuffer(gl2.FRAMEBUFFER, this.capFBO);
+      gl2.framebufferTexture2D(gl2.FRAMEBUFFER, gl2.COLOR_ATTACHMENT0, gl2.TEXTURE_2D, this.capTex, 0);
+      gl2.bindFramebuffer(gl2.FRAMEBUFFER, null);
+      this.capW = w; this.capH = h;
+    }
+    // READ = default framebuffer (already holds the resolved, single-sample result).
+    gl2.bindFramebuffer(gl2.READ_FRAMEBUFFER, null);
+    gl2.bindFramebuffer(gl2.DRAW_FRAMEBUFFER, this.capFBO);
+    gl2.blitFramebuffer(0, 0, cw, ch, 0, h, w, 0, gl2.COLOR_BUFFER_BIT, gl2.LINEAR); // dstY flipped
+    gl2.bindFramebuffer(gl2.READ_FRAMEBUFFER, this.capFBO);
+    const data = new Uint8Array(w * h * 4);
+    gl2.readPixels(0, 0, w, h, gl2.RGBA, gl2.UNSIGNED_BYTE, data);
+    gl2.bindFramebuffer(gl2.READ_FRAMEBUFFER, null);
+    gl2.bindFramebuffer(gl2.DRAW_FRAMEBUFFER, null);
+    gl2.bindFramebuffer(gl2.FRAMEBUFFER, null);
+    return { width: w, height: h, data };
+  }
+
   dispose(): void {
     const gl = this.gl;
     gl.deleteBuffer(this.buf);
@@ -197,5 +240,7 @@ export class ProjectorGL {
     gl.deleteProgram(this.prog);
     if (this.msFBO) gl.deleteFramebuffer(this.msFBO);
     if (this.msColor) gl.deleteRenderbuffer(this.msColor);
+    if (this.capFBO) gl.deleteFramebuffer(this.capFBO);
+    if (this.capTex) gl.deleteTexture(this.capTex);
   }
 }

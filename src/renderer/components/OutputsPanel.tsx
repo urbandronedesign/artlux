@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, MonitorUp, RefreshCw, Frame, Undo2, Settings2, Spline, Gauge } from 'lucide-react';
+import { X, MonitorUp, RefreshCw, Frame, Undo2, Settings2, Spline, Gauge, Radio } from 'lucide-react';
 import { Surface } from '../types';
 import { ProjectorOutput, DisplayInfo, SoftEdge, defaultSoftEdge } from '../../../shared/protocol';
 
@@ -18,6 +18,7 @@ interface Props {
   onToggleWarp: (surfaceId: string, on: boolean) => void;
   onSetSoftEdge: (surfaceId: string, patch: Partial<SoftEdge>) => void;
   onSetGamma: (surfaceId: string, gamma: number) => void;
+  onToggleNdiSend: (surfaceId: string, on: boolean) => void;
   onSetFpsCap: (cap: number) => void;
   onRefreshDisplays: () => void;
 }
@@ -32,7 +33,7 @@ const clamp01h = (v: number) => Math.max(0, Math.min(0.5, v));
 export const OutputsPanel: React.FC<Props> = ({
   open, onClose, surfaces, outputs, displays, editingOutputId, fpsCap,
   onSetEnabled, onSetDisplay, onToggleEdit, onResetCorners,
-  onToggleWarp, onSetSoftEdge, onSetGamma, onSetFpsCap, onRefreshDisplays,
+  onToggleWarp, onSetSoftEdge, onSetGamma, onToggleNdiSend, onSetFpsCap, onRefreshDisplays,
 }) => {
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -186,6 +187,13 @@ export const OutputsPanel: React.FC<Props> = ({
                       <span className="num text-fg-2 w-8">{(o?.gamma ?? 1).toFixed(2)}</span>
                       <button onClick={() => onSetGamma(s.id, 1)} className="text-fg-3 hover:text-fg-1">reset</button>
                     </div>
+
+                    {/* NDI send */}
+                    <label className="flex items-center gap-1.5 cursor-pointer text-fg-2">
+                      <Radio size={12} className="text-fg-3" />
+                      <input type="checkbox" checked={!!o?.ndiSend} onChange={(e) => onToggleNdiSend(s.id, e.target.checked)} className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0" />
+                      Send as NDI <span className="text-fg-3 italic">(publishes “ArtLux — {s.name}” ≤720p)</span>
+                    </label>
                   </div>
                 )}
                 </React.Fragment>

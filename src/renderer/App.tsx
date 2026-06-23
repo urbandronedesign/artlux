@@ -106,6 +106,7 @@ const App: React.FC = () => {
   const [projectorFpsCap, setProjectorFpsCap] = useState(0); // performance mode: 0 = uncapped
   const projectorPortsRef = useRef<Map<string, MessagePort>>(new Map()); // surfaceId -> port
   const openProjectorsRef = useRef<Map<string, number>>(new Map());      // surfaceId -> displayId (open windows)
+  const ndiSendersRef = useRef<Set<string>>(new Set());                  // surfaceIds with a live NDI sender
   const surfacesRef = useRef<Surface[]>(surfaces);                        // live mirror for the frame pump
   surfacesRef.current = surfaces;
 
@@ -266,6 +267,7 @@ const App: React.FC = () => {
     upsertOutput(surfaceId, { softEdge: { ...(o?.softEdge ?? defaultSoftEdge()), ...patch } });
   };
   const handleSetOutputGamma = (surfaceId: string, gamma: number) => upsertOutput(surfaceId, { gamma });
+  const handleToggleNdiSend = (surfaceId: string, on: boolean) => upsertOutput(surfaceId, { ndiSend: on });
   const refreshDisplays = () => { window.artlux?.listDisplays?.().then(d => setDisplays(d ?? [])); };
   const handleUpdateSurface = (id: string, patch: Partial<Surface>) => {
     setSurfaces(surfaces.map(s => s.id === id ? { ...s, ...patch } : s));
@@ -708,7 +710,7 @@ const App: React.FC = () => {
   // (main) renderer, so transfer their drawable to each open projector as an ImageBitmap
   // (~30 fps, zero-copy transfer). File media / effects / layers self-render in the projector.
   useEffect(() => {
-      const SINGULAR = new Set<SourceType | 'EFFECT'>([SourceType.CAMERA, SourceType.SPOUT, SourceType.DMX_IN]);
+      const SINGULAR = new Set<SourceType | 'EFFECT'>([SourceType.CAMERA, SourceType.SPOUT, SourceType.DMX_IN, SourceType.NDI]);
       let raf = 0; let last = 0;
       const tick = (now: number) => {
           raf = requestAnimationFrame(tick);
@@ -743,6 +745,7 @@ const App: React.FC = () => {
               softEdge: out?.softEdge ?? defaultSoftEdge(),
               gamma: out?.gamma ?? 1,
               fpsCap: projectorFpsCap,
+              ndiSend: out?.ndiSend ?? false,
           },
       });
       port.postMessage({ t: 'timeline', timeline });
@@ -802,6 +805,29 @@ const App: React.FC = () => {
               window.artlux?.closeProjector?.(surfaceId);
               openProjectorsRef.current.delete(surfaceId);
               projectorPortsRef.current.delete(surfaceId);
+          }
+      }
+  }, [surfaces, projectorOutputs, displays]);
+
+  // Reconcile per-output NDI senders: create one for each live output with ndiSend on (named
+  // after the surface), destroy it otherwise. The projector window captures + streams frames.
+  useEffect(() => {
+      const desired = new Map<string, string>(); // surfaceId -> NDI source name
+      for (const o of projectorOutputs) {
+          const surface = surfaces.find(s => s.id === o.surfaceId);
+          const live = o.enabled && o.displayId != null && surface && displays.some(d => d.id === o.displayId);
+          if (live && o.ndiSend) desired.set(o.surfaceId, `ArtLux — ${surface!.name}`);
+      }
+      for (const [surfaceId, name] of desired) {
+          if (!ndiSendersRef.current.has(surfaceId)) {
+              window.artlux?.configureNdiSend?.({ outputId: surfaceId, enabled: true, name });
+              ndiSendersRef.current.add(surfaceId);
+          }
+      }
+      for (const surfaceId of [...ndiSendersRef.current]) {
+          if (!desired.has(surfaceId)) {
+              window.artlux?.configureNdiSend?.({ outputId: surfaceId, enabled: false });
+              ndiSendersRef.current.delete(surfaceId);
           }
       }
   }, [surfaces, projectorOutputs, displays]);
@@ -1049,6 +1075,7 @@ const App: React.FC = () => {
           onToggleWarp={handleToggleWarp}
           onSetSoftEdge={handleSetSoftEdge}
           onSetGamma={handleSetOutputGamma}
+          onToggleNdiSend={handleToggleNdiSend}
           onSetFpsCap={setProjectorFpsCap}
           onRefreshDisplays={refreshDisplays}
       />

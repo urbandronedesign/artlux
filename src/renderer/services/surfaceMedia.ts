@@ -1,6 +1,7 @@
 import { Surface, SourceType } from '../types';
 import { getInputCanvas, startInput, stopInput } from './dmxInput';
 import { getSpoutCanvas, startSpout, stopSpout } from './spoutReceiver';
+import { getNdiCanvas, startNdi, stopNdi } from './ndiReceiver';
 import { SurfaceEffect } from '../gpu/surfaceFx';
 import { timeline } from './timeline';
 import { resolveMediaUrl, mimeForPath } from './mediaCache';
@@ -21,6 +22,8 @@ let cameraOwner: string | null = null;
 let dmxActive = false;
 let spoutActive = false;
 let spoutName = '';
+let ndiActive = false;
+let ndiName = '';
 let playing = true;
 
 // `url` is a live blob:/http url or an absolute file path (resolved to a blob url via IPC).
@@ -72,6 +75,8 @@ export function syncSurfaces(surfaces: Surface[], isPlaying: boolean): void {
   let wantDmx = false;
   let wantSpout = false;
   let wantSpoutName = '';
+  let wantNdi = false;
+  let wantNdiName = '';
 
   for (const s of surfaces) {
     const c = s.content;
@@ -94,6 +99,8 @@ export function syncSurfaces(surfaces: Surface[], isPlaying: boolean): void {
       wantDmx = true;
     } else if (c.type === SourceType.SPOUT) {
       wantSpout = true; wantSpoutName = c.spoutName ?? '';
+    } else if (c.type === SourceType.NDI) {
+      wantNdi = true; wantNdiName = c.ndiName ?? '';
     } else if (c.type === 'EFFECT') {
       seenEffects.add(s.id);
     }
@@ -137,6 +144,12 @@ export function syncSurfaces(surfaces: Surface[], isPlaying: boolean): void {
     spoutActive = wantSpout; spoutName = wantSpoutName;
     if (wantSpout) startSpout(wantSpoutName); else stopSpout();
   }
+
+  // NDI (single live).
+  if (wantNdi !== ndiActive || wantNdiName !== ndiName) {
+    ndiActive = wantNdi; ndiName = wantNdiName;
+    if (wantNdi) startNdi(wantNdiName); else stopNdi();
+  }
 }
 
 // Natural aspect ratio (w/h) of a surface's current content once it's loaded, or null
@@ -173,6 +186,8 @@ export function getDrawable(s: Surface): Drawable | null {
       return cameraOwner === s.id && cameraEl && cameraEl.readyState >= 2 ? cameraEl : null;
     case SourceType.SPOUT:
       return getSpoutCanvas();
+    case SourceType.NDI:
+      return getNdiCanvas();
     case SourceType.DMX_IN:
       return getInputCanvas();
     case SourceType.LAYER:

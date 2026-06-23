@@ -145,6 +145,7 @@ export enum SourceType {
   CAMERA = 'CAMERA',
   DMX_IN = 'DMX_IN',
   SPOUT = 'SPOUT',
+  NDI = 'NDI',           // network video (NDI receive)
   LAYER = 'LAYER',       // a timeline track (by layerId)
   NONE = 'NONE'
 }
@@ -156,6 +157,7 @@ export interface SurfaceContent {
   type: SourceType | 'EFFECT';
   url?: string;        // VIDEO / IMAGE object URL or file path
   spoutName?: string;  // SPOUT sender name (empty = active sender)
+  ndiName?: string;    // NDI source name (empty = first discovered)
   layerId?: string;    // LAYER content: which timeline track to show
   // EFFECT params (S2):
   effectId?: number;

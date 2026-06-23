@@ -1,10 +1,11 @@
 import { app, ipcMain, shell, dialog, BrowserWindow } from 'electron';
 import { readFile } from 'node:fs/promises';
-import { IPC, type OutputConfig, type InputConfig, type ProjectData, type RigData, type Prefs, type SpoutConfig } from '../../shared/protocol';
+import { IPC, type OutputConfig, type InputConfig, type ProjectData, type RigData, type Prefs, type SpoutConfig, type NdiConfig, type NdiSendConfig } from '../../shared/protocol';
 import * as output from './transport/outputManager';
 import * as input from './transport/input';
 import * as discovery from './transport/discovery';
 import * as spout from './transport/spoutManager';
+import * as ndi from './transport/ndiManager';
 import * as persistence from './persistence';
 import * as projectFolder from './projectFolder';
 import { rebuildAppMenu } from './menu';
@@ -110,6 +111,23 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
         } else {
             spout.stop();
         }
+    });
+
+    // ---- NDI (network video): receive onto a surface + send per-output ----
+    ipcMain.handle(IPC.NDI_AVAILABLE, () => ndi.available());
+    ipcMain.handle(IPC.NDI_LIST, () => ndi.listSources());
+    ipcMain.on(IPC.NDI_CONFIGURE, (_e, cfg: NdiConfig) => {
+        if (cfg.enabled) {
+            ndi.startRecv(cfg.name ?? '', (frame) => getWindow()?.webContents.send(IPC.NDI_FRAME, frame));
+        } else {
+            ndi.stopRecv();
+        }
+    });
+    ipcMain.on(IPC.NDI_SEND_CONFIGURE, (_e, cfg: NdiSendConfig) => {
+        ndi.sendConfigure(cfg.outputId, cfg.enabled, cfg.name ?? 'ArtLux');
+    });
+    ipcMain.on(IPC.NDI_SEND_FRAME, (_e, outputId: string, width: number, height: number, data: ArrayBuffer) => {
+        ndi.sendFrame(outputId, width, height, Buffer.from(data));
     });
 
     // Poll native engine throughput stats ~1 Hz and push to the renderer.

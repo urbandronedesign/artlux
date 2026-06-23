@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import {
     IPC, type OutputConfig, type OutputStats, type InputConfig, type InputFrame, type ArtluxApi,
     type ProjectData, type RigData, type Prefs, type SpoutConfig, type SpoutFrame, type UpdateEvent,
-    type DisplayInfo,
+    type DisplayInfo, type NdiConfig, type NdiFrame, type NdiSendConfig,
 } from '../../shared/protocol';
 
 const api: ArtluxApi = {
@@ -44,6 +44,18 @@ const api: ArtluxApi = {
         ipcRenderer.on(IPC.SPOUT_FRAME, listener);
         return () => { ipcRenderer.removeListener(IPC.SPOUT_FRAME, listener); };
     },
+    // NDI
+    ndiAvailable: () => ipcRenderer.invoke(IPC.NDI_AVAILABLE),
+    listNdiSources: () => ipcRenderer.invoke(IPC.NDI_LIST),
+    configureNdi: (cfg: NdiConfig) => ipcRenderer.send(IPC.NDI_CONFIGURE, cfg),
+    onNdiFrame: (cb: (frame: NdiFrame) => void) => {
+        const listener = (_e: unknown, frame: NdiFrame) => cb(frame);
+        ipcRenderer.on(IPC.NDI_FRAME, listener);
+        return () => { ipcRenderer.removeListener(IPC.NDI_FRAME, listener); };
+    },
+    configureNdiSend: (cfg: NdiSendConfig) => ipcRenderer.send(IPC.NDI_SEND_CONFIGURE, cfg),
+    sendNdiFrame: (outputId: string, width: number, height: number, data: ArrayBuffer) =>
+        ipcRenderer.send(IPC.NDI_SEND_FRAME, outputId, width, height, data),
     // App chrome
     onMenuAction: (cb: (action: string) => void) => {
         const listener = (_e: unknown, action: string) => cb(action);

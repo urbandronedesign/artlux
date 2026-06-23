@@ -6,7 +6,8 @@ export interface ProjectorRender {
   warp?: BezierWarp | null;
   softEdge?: SoftEdge;
   gamma?: number;
-  fpsCap?: number; // 0 = uncapped
+  fpsCap?: number;   // 0 = uncapped
+  ndiSend?: boolean; // also publish this output as an NDI source
 }
 
 // Messages over the MessagePort linking the main window and one projector output window
