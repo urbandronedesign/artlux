@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import {
     IPC, type OutputConfig, type OutputStats, type InputConfig, type InputFrame, type ArtluxApi,
     type ProjectData, type RigData, type Prefs, type SpoutConfig, type SpoutFrame, type UpdateEvent,
+    type DisplayInfo,
 } from '../../shared/protocol';
 
 const api: ArtluxApi = {
@@ -67,24 +68,50 @@ const api: ArtluxApi = {
     readFile: (path: string) => ipcRenderer.invoke(IPC.READ_FILE, path),
     pickVideo: () => ipcRenderer.invoke(IPC.PICK_VIDEO),
     getPathForFile: (file: File) => webUtils.getPathForFile(file),
+    // Projector outputs
+    listDisplays: () => ipcRenderer.invoke(IPC.PROJECTOR_LIST_DISPLAYS),
+    openProjector: (surfaceId: string, displayId: number) => ipcRenderer.send(IPC.PROJECTOR_OPEN, surfaceId, displayId),
+    closeProjector: (surfaceId: string) => ipcRenderer.send(IPC.PROJECTOR_CLOSE, surfaceId),
+    setProjectorDisplay: (surfaceId: string, displayId: number) => ipcRenderer.send(IPC.PROJECTOR_SET_DISPLAY, surfaceId, displayId),
+    onDisplaysChanged: (cb: (displays: DisplayInfo[]) => void) => {
+        const listener = (_e: unknown, displays: DisplayInfo[]) => cb(displays);
+        ipcRenderer.on(IPC.PROJECTOR_DISPLAYS_CHANGED, listener);
+        return () => { ipcRenderer.removeListener(IPC.PROJECTOR_DISPLAYS_CHANGED, listener); };
+    },
 };
 
 // Bridge MessagePort: a MessagePort can't survive being passed through a contextBridge
 // callback (contextIsolation strips its methods), so forward it into the main world with
-// window.postMessage — which preserves the transferred port. Buffer it until the renderer
-// signals readiness (it posts 'artlux:scene-port-request' after attaching its listener),
-// because transferring to a not-yet-listening window would drop the port.
-let pendingPort: MessagePort | null = null;
+// window.postMessage — which preserves the transferred port. Buffer ports until the renderer
+// signals readiness (it posts a '*-request'/'-ready' after attaching its listener), because
+// transferring to a not-yet-listening window would drop the port. The scene window has at most
+// one port; projector outputs have one each, tagged by surfaceId, so they queue.
+let pendingScenePort: MessagePort | null = null;
+const pendingProjectorPorts: { surfaceId: string; port: MessagePort }[] = [];
 let rendererReady = false;
-const flushPort = () => {
-    if (!rendererReady || !pendingPort) return;
-    const port = pendingPort;
-    pendingPort = null;
-    window.postMessage('artlux:scene-port', '*', [port]);
+const flushPorts = () => {
+    if (!rendererReady) return;
+    if (pendingScenePort) {
+        const port = pendingScenePort;
+        pendingScenePort = null;
+        window.postMessage('artlux:scene-port', '*', [port]);
+    }
+    while (pendingProjectorPorts.length) {
+        const { surfaceId, port } = pendingProjectorPorts.shift()!;
+        window.postMessage({ kind: 'artlux:projector-port', surfaceId }, '*', [port]);
+    }
 };
-ipcRenderer.on(IPC.SCENE_PORT, (e) => { pendingPort = e.ports[0] ?? null; flushPort(); });
+ipcRenderer.on(IPC.SCENE_PORT, (e) => { pendingScenePort = e.ports[0] ?? null; flushPorts(); });
+ipcRenderer.on(IPC.PROJECTOR_PORT, (e, payload: { surfaceId: string }) => {
+    const port = e.ports[0];
+    if (port) pendingProjectorPorts.push({ surfaceId: payload?.surfaceId, port });
+    flushPorts();
+});
 window.addEventListener('message', (e) => {
-    if (e.data === 'artlux:scene-port-request') { rendererReady = true; flushPort(); }
+    if (e.data === 'artlux:scene-port-request' || e.data === 'artlux:projector-ready') {
+        rendererReady = true;
+        flushPorts();
+    }
 });
 
 contextBridge.exposeInMainWorld('artlux', api);

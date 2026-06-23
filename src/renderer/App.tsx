@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, FixtureTemplate, Controller, Timeline, defaultTimeline } from './types';
-import { defaultScene3D } from '../../shared/protocol';
-import type { AppInfo, UpdateEvent, Scene3D } from '../../shared/protocol';
+import { defaultScene3D, defaultProjectorOutput, defaultCornerPin } from '../../shared/protocol';
+import type { AppInfo, UpdateEvent, Scene3D, ProjectorOutput, DisplayInfo } from '../../shared/protocol';
 import type { SceneToMain } from './scene/bridge';
+import type { ProjectorToMain } from './projector/bridge';
+import { OutputsPanel } from './components/OutputsPanel';
 import { UpdateNotice } from './components/UpdateNotice';
 import { autoPatch } from './services/addressing';
 import { TopBar } from './components/TopBar';
@@ -86,7 +88,15 @@ const App: React.FC = () => {
   const [timeline, setTimeline] = useState<Timeline>(defaultTimeline());
   const scenePortRef = useRef<MessagePort | null>(null);
   const [routingOpen, setRoutingOpen] = useState(false);
+  const [outputsOpen, setOutputsOpen] = useState(false);
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
+
+  // Projector outputs: per-surface fullscreen on a physical display.
+  const [projectorOutputs, setProjectorOutputs] = useState<ProjectorOutput[]>([]);
+  const [displays, setDisplays] = useState<DisplayInfo[]>([]);
+  const [editingOutputId, setEditingOutputId] = useState<string | null>(null); // surface whose corners are being aligned
+  const projectorPortsRef = useRef<Map<string, MessagePort>>(new Map()); // surfaceId -> port
+  const openProjectorsRef = useRef<Map<string, number>>(new Map());      // surfaceId -> displayId (open windows)
 
   const [showLeftPanel, setShowLeftPanel] = useState(true);
   const [showRightPanel, setShowRightPanel] = useState(true);
@@ -211,8 +221,23 @@ const App: React.FC = () => {
   };
   const handleRemoveSurface = (id: string) => {
     setSurfaces(surfaces.filter(s => s.id !== id));
+    setProjectorOutputs(prev => prev.filter(o => o.surfaceId !== id)); // reconciler closes its window
     if (selectedSurfaceId === id) setSelectedSurfaceId(null);
   };
+
+  // --- Projector outputs (per-surface fullscreen on a physical display) ---
+  const upsertOutput = (surfaceId: string, patch: Partial<ProjectorOutput>) => {
+    setProjectorOutputs(prev => prev.some(o => o.surfaceId === surfaceId)
+      ? prev.map(o => o.surfaceId === surfaceId ? { ...o, ...patch } : o)
+      : [...prev, { ...defaultProjectorOutput(surfaceId), ...patch }]);
+  };
+  const handleSetOutputEnabled = (surfaceId: string, enabled: boolean) => upsertOutput(surfaceId, { enabled });
+  const handleSetOutputDisplay = (surfaceId: string, displayId: number | null) =>
+    upsertOutput(surfaceId, { displayId, enabled: displayId != null });
+  const handleToggleEditOutput = (surfaceId: string) =>
+    setEditingOutputId(prev => prev === surfaceId ? null : surfaceId);
+  const handleResetCorners = (surfaceId: string) => upsertOutput(surfaceId, { cornerPin: defaultCornerPin() });
+  const refreshDisplays = () => { window.artlux?.listDisplays?.().then(d => setDisplays(d ?? [])); };
   const handleUpdateSurface = (id: string, patch: Partial<Surface>) => {
     setSurfaces(surfaces.map(s => s.id === id ? { ...s, ...patch } : s));
   };
@@ -362,6 +387,7 @@ const App: React.FC = () => {
       scenes,
       scene3D,
       timeline,
+      projectorOutputs,
   });
 
   // Apply a loaded project (or rig-free project) to app state. Strips live colorData.
@@ -381,6 +407,7 @@ const App: React.FC = () => {
       setGroups(Array.isArray(data?.groups) ? data.groups : []);
       setScenes(Array.isArray(data?.scenes) ? data.scenes : []);
       setTimeline(data?.timeline && Array.isArray(data.timeline.layers) ? { ...defaultTimeline(), ...data.timeline } : defaultTimeline());
+      setProjectorOutputs(Array.isArray(data?.projectorOutputs) ? data.projectorOutputs as ProjectorOutput[] : []);
       setScene3D(() => {
           const s = data?.scene3D ? { ...defaultScene3D(), ...data.scene3D } : defaultScene3D();
           if (!Array.isArray(s.models)) s.models = [];
@@ -460,6 +487,7 @@ const App: React.FC = () => {
       setControllers([]);
       setGroups([]);
       setScenes([]);
+      setProjectorOutputs([]);
       setSelectedFixtureId(null);
       setSelectedFixtureIds([]);
       setSelectedSurfaceId(null);
@@ -477,7 +505,7 @@ const App: React.FC = () => {
       const st = makeNewProjectState();
       resetToNewProject(st);
       // Save from the fresh values directly — setState above hasn't applied to this closure yet.
-      const data = { ...buildProjectData(), surfaces: st.surfaces, fixtures: st.fixtures, controllers: [], groups: [], scenes: [] };
+      const data = { ...buildProjectData(), surfaces: st.surfaces, fixtures: st.fixtures, controllers: [], groups: [], scenes: [], projectorOutputs: [] };
       const path = await window.artlux?.saveProject?.(data, res.projectFile);
       if (path) { setCurrentProjectPath(path); refreshRecents(); }
   };
@@ -598,19 +626,110 @@ const App: React.FC = () => {
   // --- Timeline: feed the playback engine + bridge transport/data to the Scene window ---
   useEffect(() => { timelineEngine.setData(timeline); scenePortRef.current?.postMessage({ t: 'timeline', timeline }); }, [timeline]);
   useEffect(() => { timelineEngine.setPlaying(isVideoPlaying); }, [isVideoPlaying]);
-  // Stream transport (playing + playhead) to the Scene window ~30 fps so its planes sync.
+  // Stream transport (playing + playhead) to the Scene + projector windows ~30 fps so
+  // their video/layer content stays in sync with the main clock.
   useEffect(() => {
       let last = 0;
       const unsub = timelineEngine.subscribe((playhead) => {
-          const port = scenePortRef.current;
-          if (!port) return;
           const now = performance.now();
           if (now - last < 33) return;
           last = now;
-          port.postMessage({ t: 'transport', playing: timelineEngine.isPlaying(), playhead });
+          const msg = { t: 'transport' as const, playing: timelineEngine.isPlaying(), playhead };
+          scenePortRef.current?.postMessage(msg);
+          for (const port of projectorPortsRef.current.values()) port.postMessage(msg);
       });
       return () => unsub();
   }, []);
+
+  // --- Projector output windows (per-surface fullscreen on a display) ---
+  // Enumerate displays + track hot-plug.
+  useEffect(() => {
+      window.artlux?.listDisplays?.().then(d => setDisplays(d ?? []));
+      const unsub = window.artlux?.onDisplaysChanged?.((d) => setDisplays(d ?? []));
+      return () => unsub?.();
+  }, []);
+  // When a display is unplugged, clear outputs that referenced it (window already closed in main).
+  useEffect(() => {
+      if (!displays.length) return; // ignore the pre-enumeration empty state
+      setProjectorOutputs(prev => {
+          let changed = false;
+          const next = prev.map(o => {
+              if (o.displayId != null && !displays.some(d => d.id === o.displayId)) {
+                  changed = true; return { ...o, displayId: null, enabled: false };
+              }
+              return o;
+          });
+          return changed ? next : prev;
+      });
+  }, [displays]);
+
+  // Push the current config (surface + corner-pin + transport) to one projector window.
+  const pushProjectorStateRef = useRef<(surfaceId: string) => void>(() => {});
+  pushProjectorStateRef.current = (surfaceId: string) => {
+      const port = projectorPortsRef.current.get(surfaceId);
+      const surface = surfaces.find(s => s.id === surfaceId);
+      if (!port || !surface) return;
+      const out = projectorOutputs.find(o => o.surfaceId === surfaceId);
+      port.postMessage({ t: 'config', surface, cornerPin: out?.cornerPin ?? defaultCornerPin(), playing: isVideoPlaying });
+      port.postMessage({ t: 'timeline', timeline });
+      port.postMessage({ t: 'edit', on: editingOutputId === surfaceId });
+  };
+  // Receive the bridge MessagePort for each projector window (tagged by surfaceId).
+  const onProjectorMsgRef = useRef<(surfaceId: string, m: ProjectorToMain) => void>(() => {});
+  onProjectorMsgRef.current = (surfaceId, m) => {
+      if (m.t === 'ready') pushProjectorStateRef.current(surfaceId);
+      else if (m.t === 'cornerPin') upsertOutput(surfaceId, { cornerPin: m.cornerPin });
+      else if (m.t === 'editOff') setEditingOutputId(prev => prev === surfaceId ? null : prev);
+  };
+  useEffect(() => {
+      const onMsg = (e: MessageEvent) => {
+          const d = e.data;
+          if (!d || d.kind !== 'artlux:projector-port' || !e.ports[0]) return;
+          const surfaceId: string = d.surfaceId;
+          const port = e.ports[0];
+          projectorPortsRef.current.set(surfaceId, port);
+          port.onmessage = (ev: MessageEvent) => onProjectorMsgRef.current(surfaceId, ev.data as ProjectorToMain);
+          port.start();
+          pushProjectorStateRef.current(surfaceId);
+      };
+      window.addEventListener('message', onMsg);
+      return () => window.removeEventListener('message', onMsg);
+  }, []);
+  // Re-push config (incl. the edit toggle) whenever anything a projector renders changes.
+  useEffect(() => {
+      for (const surfaceId of projectorPortsRef.current.keys()) pushProjectorStateRef.current(surfaceId);
+  }, [surfaces, projectorOutputs, timeline, isVideoPlaying, editingOutputId]);
+  // Stop aligning if the edited output is disabled / removed.
+  useEffect(() => {
+      if (editingOutputId && !projectorOutputs.some(o => o.surfaceId === editingOutputId && o.enabled && o.displayId != null)) {
+          setEditingOutputId(null);
+      }
+  }, [editingOutputId, projectorOutputs]);
+
+  // Reconcile desired outputs (enabled + valid display + surface exists) with open windows.
+  useEffect(() => {
+      const desired = new Map<string, number>();
+      for (const o of projectorOutputs) {
+          if (o.enabled && o.displayId != null
+              && surfaces.some(s => s.id === o.surfaceId)
+              && displays.some(d => d.id === o.displayId)) {
+              desired.set(o.surfaceId, o.displayId);
+          }
+      }
+      for (const [surfaceId, displayId] of desired) {
+          const cur = openProjectorsRef.current.get(surfaceId);
+          if (cur === undefined) window.artlux?.openProjector?.(surfaceId, displayId);
+          else if (cur !== displayId) window.artlux?.setProjectorDisplay?.(surfaceId, displayId);
+          openProjectorsRef.current.set(surfaceId, displayId);
+      }
+      for (const surfaceId of [...openProjectorsRef.current.keys()]) {
+          if (!desired.has(surfaceId)) {
+              window.artlux?.closeProjector?.(surfaceId);
+              openProjectorsRef.current.delete(surfaceId);
+              projectorPortsRef.current.delete(surfaceId);
+          }
+      }
+  }, [surfaces, projectorOutputs, displays]);
 
   // Restore persisted prefs (settings + master brightness + recents + last project) on launch.
   useEffect(() => {
@@ -657,6 +776,7 @@ const App: React.FC = () => {
           onOpenScene={() => window.artlux?.openSceneWindow?.()}
           onOpenPreferences={() => setPrefsOpen(true)}
           onOpenRouting={() => setRoutingOpen(true)}
+          onOpenOutputs={() => { refreshDisplays(); setOutputsOpen(true); }}
           monitorOpen={dockOpen && dockTab === DockTab.MONITOR}
           onToggleMonitor={() => {
             if (dockOpen && dockTab === DockTab.MONITOR) setDockOpen(false);
@@ -794,6 +914,19 @@ const App: React.FC = () => {
             onDismiss={() => { setUpdate(null); setUpdateUserInitiated(false); }}
         />
       )}
+      <OutputsPanel
+          open={outputsOpen}
+          onClose={() => setOutputsOpen(false)}
+          surfaces={surfaces}
+          outputs={projectorOutputs}
+          displays={displays}
+          editingOutputId={editingOutputId}
+          onSetEnabled={handleSetOutputEnabled}
+          onSetDisplay={handleSetOutputDisplay}
+          onToggleEdit={handleToggleEditOutput}
+          onResetCorners={handleResetCorners}
+          onRefreshDisplays={refreshDisplays}
+      />
       <RoutingModal
           open={routingOpen}
           onClose={() => setRoutingOpen(false)}

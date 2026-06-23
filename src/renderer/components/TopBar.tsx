@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Pause, Settings, Activity, Network, Box } from 'lucide-react';
+import { Play, Pause, Settings, Activity, Network, Box, MonitorUp } from 'lucide-react';
 import { IconButton } from './ui';
 import { helpProps } from '../services/helpBus';
 
@@ -10,6 +10,7 @@ interface TopBarProps {
   onOpenScene: () => void;
   onOpenPreferences: () => void;
   onOpenRouting: () => void;
+  onOpenOutputs: () => void;
   monitorOpen: boolean;
   onToggleMonitor: () => void;
 }
@@ -19,7 +20,7 @@ interface TopBarProps {
 // in the native File/Edit menu and keyboard shortcuts.
 export const TopBar: React.FC<TopBarProps> = ({
   isVideoPlaying, onTogglePlay, canPlay,
-  onOpenScene, onOpenPreferences, onOpenRouting, monitorOpen, onToggleMonitor,
+  onOpenScene, onOpenPreferences, onOpenRouting, onOpenOutputs, monitorOpen, onToggleMonitor,
 }) => {
   return (
     <div className="h-10 shrink-0 bg-surface-1 border-b border-line-1 flex items-center justify-between px-3 select-none">
@@ -53,8 +54,9 @@ export const TopBar: React.FC<TopBarProps> = ({
         </button>
       </div>
 
-      {/* Right: routing + monitor + preferences */}
+      {/* Right: outputs + routing + monitor + preferences */}
       <div className="flex items-center gap-1">
+        <IconButton onClick={onOpenOutputs} title="Outputs" {...helpProps('Open Outputs — send each surface fullscreen to a projector/display with corner-pin mapping.')}><MonitorUp size={15} /></IconButton>
         <IconButton onClick={onOpenRouting} title="Routing" {...helpProps('Open the Routing spreadsheet — controllers + per-fixture patch.')}><Network size={15} /></IconButton>
         <IconButton active={monitorOpen} onClick={onToggleMonitor} title="DMX Monitor" {...helpProps('Toggle the DMX Monitor dock — live per-fixture pixel output.')}><Activity size={15} /></IconButton>
         <IconButton onClick={onOpenPreferences} title="Preferences" {...helpProps('Open Preferences — DMX output protocol/target and engine settings.')}><Settings size={15} /></IconButton>

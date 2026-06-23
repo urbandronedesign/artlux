@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { registerIpc } from './ipc';
 import { buildAppMenu } from './menu';
 import { setupUpdater } from './updater';
+import { registerProjectorWindows, closeAllProjectors } from './projector';
 import { IPC } from '../../shared/protocol';
 
 const APP_ICON = join(__dirname, '../../build/icon.png');
@@ -46,7 +47,7 @@ function createWindow(): void {
 
     // GUI mode shows when ready; headless stays invisible.
     if (!HEADLESS) mainWindow.on('ready-to-show', () => mainWindow?.show());
-    mainWindow.on('closed', () => { mainWindow = null; });
+    mainWindow.on('closed', () => { closeAllProjectors(); mainWindow = null; });
 
     // electron-vite provides the dev server URL; fall back to the built file.
     const devUrl = process.env['ELECTRON_RENDERER_URL'];
@@ -122,6 +123,7 @@ app.whenReady().then(() => {
     registerIpc(() => mainWindow);
     if (!HEADLESS) { buildAppMenu(() => mainWindow); setupUpdater(() => mainWindow); }
     ipcMain.on(IPC.SCENE_OPEN, () => { if (!HEADLESS) createSceneWindow(); });
+    if (!HEADLESS) registerProjectorWindows(() => mainWindow);
     createWindow();
 
     app.on('activate', () => {

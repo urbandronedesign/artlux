@@ -68,6 +68,18 @@ export const IPC = {
   PROJECT_OPEN_FOLDER: 'project:open-folder',
   /** Renderer → main (invoke): copy external assets into the project's assets/ → CollectResult. */
   PROJECT_COLLECT_ASSETS: 'project:collect-assets',
+  /** Renderer → main (invoke): enumerate connected displays → DisplayInfo[]. */
+  PROJECTOR_LIST_DISPLAYS: 'projector:list-displays',
+  /** Renderer → main: open (or move) a surface's fullscreen output on a display. */
+  PROJECTOR_OPEN: 'projector:open',
+  /** Renderer → main: close a surface's projector output window. */
+  PROJECTOR_CLOSE: 'projector:close',
+  /** Renderer → main: move an open output to a different display. */
+  PROJECTOR_SET_DISPLAY: 'projector:set-display',
+  /** Main → renderer: hand off a MessagePort bridging main ↔ a projector window. */
+  PROJECTOR_PORT: 'projector:port',
+  /** Main → renderer: the set of connected displays changed (add/remove). */
+  PROJECTOR_DISPLAYS_CHANGED: 'projector:displays-changed',
 } as const;
 
 export interface UpdateEvent {
@@ -149,6 +161,44 @@ export interface ArtNetFramePayload {
   targets: UniverseTarget[];
 }
 
+// ---- Projector outputs (per-Surface fullscreen → physical display) -----------
+
+// A connected display, as reported by Electron's `screen` module (DIP coords).
+export interface DisplayInfo {
+  id: number;
+  label: string;        // human-readable (built-in / resolution / index)
+  bounds: { x: number; y: number; width: number; height: number };
+  scaleFactor: number;  // DPI scale (size the projector buffer by this for native res)
+  primary: boolean;
+  internal: boolean;
+}
+
+// 4-corner homography (corner-pin). Each corner is a normalized [x, y] in the
+// projector's display space (0..1, origin top-left). Identity = full-screen quad.
+export interface CornerPin {
+  tl: [number, number];
+  tr: [number, number];
+  br: [number, number];
+  bl: [number, number];
+}
+
+export const defaultCornerPin = (): CornerPin => ({
+  tl: [0, 0], tr: [1, 0], br: [1, 1], bl: [0, 1],
+});
+
+// One Surface routed to a physical projector as its own fullscreen output.
+export interface ProjectorOutput {
+  surfaceId: string;
+  enabled: boolean;
+  displayId: number | null;   // Electron display.id (session-stable)
+  displayLabel?: string;      // fallback re-match across replug/reboot
+  cornerPin: CornerPin;       // warp of the surface content onto the projection
+}
+
+export const defaultProjectorOutput = (surfaceId: string): ProjectorOutput => ({
+  surfaceId, enabled: false, displayId: null, cornerPin: defaultCornerPin(),
+});
+
 // ---- Persistence (project / rig / preferences) -------------------------------
 
 // An object placed in the 3D scene; transformed independently. Either a GLB mesh
@@ -205,6 +255,7 @@ export interface ProjectData {
   scenes: unknown[];
   scene3D?: Scene3D;
   timeline?: unknown; // Timeline (renderer type) — video-layer NLE
+  projectorOutputs?: ProjectorOutput[]; // per-surface fullscreen projector mappings
 }
 
 // Result of a "Collect Assets" run.
@@ -287,6 +338,13 @@ export interface ArtluxApi {
   pickVideo(): Promise<string | null>;
   /** Resolve a dropped File to its absolute path (Electron webUtils). */
   getPathForFile(file: File): string;
+  // Projector outputs (per-surface fullscreen on a physical display). The bridge
+  // MessagePort arrives via a window 'artlux:projector-port' message (preload), not here.
+  listDisplays(): Promise<DisplayInfo[]>;
+  openProjector(surfaceId: string, displayId: number): void;
+  closeProjector(surfaceId: string): void;
+  setProjectorDisplay(surfaceId: string, displayId: number): void;
+  onDisplaysChanged(cb: (displays: DisplayInfo[]) => void): () => void;
 }
 
 declare global {
