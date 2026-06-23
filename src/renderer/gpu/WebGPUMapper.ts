@@ -310,8 +310,11 @@ export class WebGPUMapper implements IPixelMapper {
           if (f.reverse) tt = 1 - tt;
         }
 
-        // geometry (uv) from the geometry index g (ledmap-aware)
-        const g = f.ledMap ? (f.ledMap[i] ?? i) : i;
+        // geometry (uv) from the geometry index g (reverse- + ledmap-aware).
+        // Reverse flips the whole fixture's pixel order so output index i samples
+        // the geometry of the opposite end (matches led3dLayout's local.reverse()).
+        const gi = f.reverse ? f.ledCount - 1 - i : i;
+        const g = f.ledMap ? (f.ledMap[gi] ?? gi) : gi;
         let relX = 0, relY = 0;
         if (isMatrix) {
           const gg = Math.min(g, cells - 1);
