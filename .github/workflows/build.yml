@@ -63,6 +63,7 @@ jobs:
             release/*.AppImage
             release/*.yml
             release/*.blockmap
+            !release/builder-debug.yml
           if-no-files-found: ignore
 
   # Publish a GitHub Release with the installers when building a v* tag.
