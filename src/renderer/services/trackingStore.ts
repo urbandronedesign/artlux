@@ -111,12 +111,18 @@ export function getActiveEntries(): { surface: string; blob: Blob }[] {
   return out;
 }
 
+// Ghost backstop: drop active blobs whose updates went silent (a slot dropped without an id=0).
+// id==0 stays the primary leave signal; this only catches a misbehaving sender. Applied in the
+// main window's snapshot(), where performance.now() shares the clock that stamped updatedAt.
+const STALE_TTL_MS = 1200;
+
 // Serialize active state for bridging to the Scene window.
 export function snapshot(): TrackingSnapshot {
+  const now = performance.now();
   const out: TrackingSnapshot['surfaces'] = [];
   for (const s of surfaces.values()) {
     const blobs: Blob[] = [];
-    for (const b of s.blobs.values()) if (b.id !== 0) blobs.push({ ...b });
+    for (const b of s.blobs.values()) if (b.id !== 0 && now - b.updatedAt <= STALE_TTL_MS) blobs.push({ ...b });
     if (blobs.length || s.scaleX || s.scaleY) out.push({ surface: s.surface, scaleX: s.scaleX, scaleY: s.scaleY, blobs });
   }
   return { surfaces: out };

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Fixture, FixtureGroup, Scene, Surface } from '../types';
-import { Plus, Trash2, Folder, Box, Users, Camera, Play, Copy, Layers, Hash, SlidersHorizontal } from 'lucide-react';
+import { Plus, Trash2, Folder, Box, Users, Camera, Play, Copy, Layers, Hash, SlidersHorizontal, ChevronUp, ChevronDown } from 'lucide-react';
 import { CollapsibleSection } from './CollapsibleSection';
 import { Slider } from './ui';
 import { livePreview } from '../services/livePreview';
@@ -12,6 +12,7 @@ interface ScenePanelProps {
     onAddSurface: () => void;
     onRemoveSurface: (id: string) => void;
     onRenameSurface: (id: string, newName: string) => void;
+    onMoveSurface: (id: string, dir: 'up' | 'down') => void;
     fixtures: Fixture[];
     selectedFixtureId: string | null;
     selectedFixtureIds: string[];
@@ -43,6 +44,7 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
     onAddSurface,
     onRemoveSurface,
     onRenameSurface,
+    onMoveSurface,
     fixtures,
     selectedFixtureId,
     selectedFixtureIds,
@@ -122,7 +124,8 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
                 action={<button onClick={onAddSurface} className="text-fg-2 hover:text-fg-1" title="Add Surface"><Plus size={14}/></button>}
             >
                 <div className="p-1 space-y-0.5">
-                    {surfaces.map(s => {
+                    {/* Front-most on top (stage draws low→high zIndex). Use ▲/▼ to restack. */}
+                    {[...surfaces].sort((a, b) => (b.zIndex - a.zIndex) || (surfaces.indexOf(b) - surfaces.indexOf(a))).map((s, idx, arr) => {
                         const sel = s.id === selectedSurfaceId;
                         return (
                             <div
@@ -147,11 +150,25 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
                                     <span className="flex-1 truncate select-none" title="Double-click to rename">{s.name}</span>
                                 )}
                                 <span className="num text-[9px] text-fg-3 mr-1 uppercase">{s.content.type === 'NONE' ? '—' : s.content.type}</span>
-                                <button
-                                    className="opacity-0 group-hover:opacity-100 p-0.5 hover:text-danger text-fg-3"
-                                    onClick={(e) => { e.stopPropagation(); onRemoveSurface(s.id); }}
-                                    title="Remove Surface"
-                                ><Trash2 size={10} /></button>
+                                <div className="flex items-center text-fg-3">
+                                    <button
+                                        className="p-0.5 hover:text-fg-1 disabled:opacity-20 disabled:hover:text-fg-3"
+                                        disabled={idx === 0}
+                                        onClick={(e) => { e.stopPropagation(); onMoveSurface(s.id, 'up'); }}
+                                        title="Bring forward"
+                                    ><ChevronUp size={12} /></button>
+                                    <button
+                                        className="p-0.5 hover:text-fg-1 disabled:opacity-20 disabled:hover:text-fg-3"
+                                        disabled={idx === arr.length - 1}
+                                        onClick={(e) => { e.stopPropagation(); onMoveSurface(s.id, 'down'); }}
+                                        title="Send backward"
+                                    ><ChevronDown size={12} /></button>
+                                    <button
+                                        className="opacity-0 group-hover:opacity-100 p-0.5 hover:text-danger ml-0.5"
+                                        onClick={(e) => { e.stopPropagation(); onRemoveSurface(s.id); }}
+                                        title="Remove Surface"
+                                    ><Trash2 size={10} /></button>
+                                </div>
                             </div>
                         );
                     })}

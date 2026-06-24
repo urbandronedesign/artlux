@@ -350,6 +350,9 @@ export interface Scene3D {
   gridVisible: boolean;
   reflectiveFloor?: boolean;          // mirror floor reflecting the LEDs/meshes
   trackingViz?: boolean;              // overlay the LiDAR SOL/MUR zones + live blob markers
+  trackingSmoothing?: number;         // 0 = raw, 1 = heavy (One-Euro min-cutoff)
+  trackingPredictMs?: number;         // blob prediction horizon, ms (0 = off)
+  trackingLabels?: boolean;           // show each blob's tracking id
   // Legacy single-model fields (pre-multi-model); migrated into `models` on load.
   modelPath?: string;
   modelScale?: number;
@@ -365,6 +368,9 @@ export const defaultScene3D = (): Scene3D => ({
   gridVisible: true,
   reflectiveFloor: false,
   trackingViz: false,
+  trackingSmoothing: 0.6,
+  trackingPredictMs: 50,
+  trackingLabels: true,
 });
 
 // Full project file (kept loose here so shared/ stays decoupled from renderer types).

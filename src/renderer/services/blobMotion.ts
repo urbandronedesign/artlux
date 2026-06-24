@@ -1,0 +1,141 @@
+// Per-track motion filtering + prediction for the LiDAR blobs (render-free, renderer-side).
+//
+// The tracking server already does detection + association (it hands us stable `id`s per surface),
+// so this is NOT a tracker — it only smooths each known track and predicts a short horizon to mask
+// network jitter and the bridge cadence while keeping latency low.
+//
+// State of the art (2026): a **One-Euro filter** (Casiez et al., CHI'12) smooths position with an
+// adaptive speed-based cutoff — low jitter when still, low lag when fast (measurably lower lag than a
+// Kalman filter). Its smoothed derivative gives a velocity estimate, which we extrapolate forward
+// with a **bounded constant-velocity** model (acceleration is too noisy over a horizon; CV is the
+// robust predictor, but must be clamped to avoid overshoot on non-deterministic human motion).
+//
+// Tracks are keyed by `${surface}#${id}` — the stable id, NOT the reusable slot — so smoothing never
+// bleeds between people when the server recycles a slot.
+
+import type { Blob } from './trackingStore';
+
+export interface LiveTrack {
+  key: string;
+  surface: string;
+  id: number;
+  u: number;     // smoothed + predicted, normalized [0..1], bottom-left origin
+  v: number;
+  alpha: number; // 1 = fresh; fades to 0 once samples stop, before removal
+}
+
+interface Config {
+  smoothing: number;  // 0 = ~raw, 1 = heavy
+  predictMs: number;  // extrapolation horizon cap (0 = off)
+  ttl: number;        // ms after the last sample before a track is fully gone
+}
+
+let cfg: Config = { smoothing: 0.6, predictMs: 50, ttl: 700 };
+
+export function configure(next: Partial<Config>): void {
+  cfg = { ...cfg, ...next };
+}
+
+// ---- One-Euro filter ---------------------------------------------------------
+
+const DCUTOFF = 1.0;   // derivative low-pass cutoff (Hz)
+const BETA = 0.4;      // speed coefficient — higher cuts lag when moving fast
+
+const alpha = (cutoff: number, dt: number): number => {
+  const tau = 1 / (2 * Math.PI * cutoff);
+  return 1 / (1 + tau / dt);
+};
+
+// Map the 0..1 smoothing knob to a min-cutoff (Hz): light (~15 Hz) → heavy (~0.8 Hz), log-spaced.
+const minCutoff = (s: number): number => {
+  const k = Math.min(1, Math.max(0, s));
+  return Math.exp(Math.log(15) + (Math.log(0.8) - Math.log(15)) * k);
+};
+
+interface Axis {
+  xPrev: number;   // previous raw input (for the derivative)
+  xHat: number;    // smoothed value
+  dxHat: number;   // smoothed derivative (units/sec) — our velocity estimate
+  init: boolean;
+}
+
+const newAxis = (): Axis => ({ xPrev: 0, xHat: 0, dxHat: 0, init: false });
+
+// Advance one axis with a new raw sample `x` over elapsed `dt` seconds.
+function stepAxis(a: Axis, x: number, dt: number): void {
+  if (!a.init || dt <= 0) { a.xPrev = x; a.xHat = x; a.dxHat = 0; a.init = true; return; }
+  const dx = (x - a.xPrev) / dt;
+  a.dxHat = a.dxHat + alpha(DCUTOFF, dt) * (dx - a.dxHat);
+  const cutoff = minCutoff(cfg.smoothing) + BETA * Math.abs(a.dxHat);
+  a.xHat = a.xHat + alpha(cutoff, dt) * (x - a.xHat);
+  a.xPrev = x;
+}
+
+// ---- Tracks ------------------------------------------------------------------
+
+interface Track {
+  key: string;
+  surface: string;
+  id: number;
+  u: Axis;
+  v: Axis;
+  dispU: number;       // displayed position — chases the smoothed target every render frame
+  dispV: number;
+  dispInit: boolean;
+  tSample: number;     // performance.now() of the last fed sample (consumer clock)
+  lastUpdatedAt: number; // store Blob.updatedAt of the last fed sample (to gate duplicates)
+}
+
+const STALE_HOLD = 200;       // ms after the last sample before a track starts fading
+const FOLLOW_TAU_MIN = 0.04;  // render-follow time constant (s) at smoothing=0 (snappy)
+const FOLLOW_TAU_MAX = 0.18;  // …at smoothing=1 (very smooth)
+
+let lastTick = -1;
+const tracks = new Map<string, Track>();
+
+// Feed the current active blobs. A track's One-Euro filter only advances when a genuinely new
+// sample arrived (Blob.updatedAt changed) — the store notifies ~per-frame but data arrives slower,
+// so we must not inject duplicate samples (which would corrupt the velocity estimate).
+export function ingest(entries: { surface: string; blob: Blob }[], now: number): void {
+  for (const { surface, blob } of entries) {
+    if (blob.id === 0) continue;
+    const key = `${surface}#${blob.id}`;
+    let t = tracks.get(key);
+    if (!t) { t = { key, surface, id: blob.id, u: newAxis(), v: newAxis(), dispU: 0, dispV: 0, dispInit: false, tSample: now, lastUpdatedAt: -1 }; tracks.set(key, t); }
+    if (blob.updatedAt === t.lastUpdatedAt) continue; // no new data for this track this frame
+    const dt = t.lastUpdatedAt < 0 ? 0 : (now - t.tSample) / 1000;
+    stepAxis(t.u, blob.u, dt);
+    stepAxis(t.v, blob.v, dt);
+    t.tSample = now;
+    t.lastUpdatedAt = blob.updatedAt;
+  }
+}
+
+// Per render frame: advance each track's displayed position toward its smoothed target with a
+// critically-damped follow (continuous, no sample-timing sawtooth), apply a *constant* predictive
+// lead (so prediction never jitters with frame timing), advance fade, prune dead tracks.
+export function tick(now: number): LiveTrack[] {
+  const dtFrame = lastTick < 0 ? 1 / 60 : Math.min(0.1, Math.max(0.001, (now - lastTick) / 1000));
+  lastTick = now;
+  const lead = cfg.predictMs / 1000; // constant lead (s) — predict ahead without frame jitter
+  const tau = FOLLOW_TAU_MIN + (FOLLOW_TAU_MAX - FOLLOW_TAU_MIN) * Math.min(1, Math.max(0, cfg.smoothing));
+  const k = 1 - Math.exp(-dtFrame / tau); // damped-follow gain for this frame
+  const out: LiveTrack[] = [];
+  for (const t of tracks.values()) {
+    const ageMs = now - t.tSample;
+    if (ageMs > cfg.ttl) { tracks.delete(t.key); continue; }
+    const targetU = t.u.xHat + t.u.dxHat * lead;
+    const targetV = t.v.xHat + t.v.dxHat * lead;
+    if (!t.dispInit) { t.dispU = targetU; t.dispV = targetV; t.dispInit = true; }
+    else { t.dispU += (targetU - t.dispU) * k; t.dispV += (targetV - t.dispV) * k; }
+    const fade = ageMs <= STALE_HOLD ? 1 : 1 - (ageMs - STALE_HOLD) / Math.max(1, cfg.ttl - STALE_HOLD);
+    out.push({ key: t.key, surface: t.surface, id: t.id, u: t.dispU, v: t.dispV, alpha: Math.min(1, Math.max(0, fade)) });
+  }
+  return out;
+}
+
+// Drop all tracks (e.g. viz disabled) so stale identities don't linger.
+export function reset(): void {
+  tracks.clear();
+  lastTick = -1;
+}

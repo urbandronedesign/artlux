@@ -26,6 +26,7 @@ import { getDrawable } from './services/surfaceMedia';
 import { timeline as timelineEngine } from './services/timeline';
 import * as oscController from './services/oscController';
 import * as trackingStore from './services/trackingStore';
+import * as trackingDrawable from './services/trackingDrawable';
 import { Activity, SlidersHorizontal, Film } from 'lucide-react';
 import { useHistory } from './hooks/useHistory';
 
@@ -238,6 +239,17 @@ const App: React.FC = () => {
       content: { type: SourceType.NONE },
     }]);
     handleSelectSurface(id);
+  };
+  // Move a surface in the stage z-order (renumbers zIndex by back→front position so ordering stays
+  // clean). 'up' = toward the front (drawn later / on top), 'down' = toward the back.
+  const handleMoveSurface = (id: string, dir: 'up' | 'down') => {
+    const ordered = [...surfaces].sort((a, b) => (a.zIndex - b.zIndex) || (surfaces.indexOf(a) - surfaces.indexOf(b)));
+    const i = ordered.findIndex(s => s.id === id);
+    const j = dir === 'up' ? i + 1 : i - 1;
+    if (i < 0 || j < 0 || j >= ordered.length) return;
+    [ordered[i], ordered[j]] = [ordered[j], ordered[i]];
+    const z = new Map(ordered.map((s, idx) => [s.id, idx]));
+    setSurfaces(surfaces.map(s => ({ ...s, zIndex: z.get(s.id)! })));
   };
   const handleRemoveSurface = (id: string) => {
     setSurfaces(surfaces.filter(s => s.id !== id));
@@ -704,20 +716,31 @@ const App: React.FC = () => {
           controlPrefix: settings.oscControlPrefix,
       });
   }, [settings.oscEnabled, settings.oscListenPort, settings.oscListenAddress, settings.oscControlPrefix]);
-  // Stream LiDAR blob snapshots to the 3D Scene window (~30 fps). OSC is received only here in the
-  // main window, so the Scene window's tracking viz is fed over the bridge like transport/frames.
+  // Stream LiDAR blob snapshots to the 3D Scene window (up to ~60 fps — the payload is tiny, ≤10
+  // blobs, and full-rate data tightens the scene's smoothing/prediction). OSC is received only here
+  // in the main window, so the Scene window's tracking viz is fed over the bridge like transport.
   useEffect(() => {
       let last = 0;
       const unsub = trackingStore.subscribe(() => {
-          const port = scenePortRef.current;
-          if (!port) return;
           const now = performance.now();
-          if (now - last < 33) return;
+          if (now - last < 16) return;
           last = now;
-          port.postMessage({ t: 'tracking', snap: trackingStore.snapshot() });
+          const scenePort = scenePortRef.current;
+          // Only build the snapshot if someone consumes it (the Scene window, or a projector
+          // showing TRACKING content).
+          const trackingProjectors = [...projectorPortsRef.current].filter(([id]) =>
+              surfacesRef.current.find(s => s.id === id)?.content.type === SourceType.TRACKING);
+          if (!scenePort && trackingProjectors.length === 0) return;
+          const snap = trackingStore.snapshot();
+          scenePort?.postMessage({ t: 'tracking', snap });
+          for (const [, port] of trackingProjectors) port.postMessage({ t: 'tracking', snap });
       });
       return () => unsub();
   }, []);
+  // Keep the main-window tracking renderer's smoothing/prediction in sync (stage preview).
+  useEffect(() => {
+      trackingDrawable.configure(scene3D.trackingSmoothing ?? 0.6, scene3D.trackingPredictMs ?? 50);
+  }, [scene3D.trackingSmoothing, scene3D.trackingPredictMs]);
   // Stream transport (playing + playhead) to the Scene + projector windows ~30 fps so
   // their video/layer content stays in sync with the main clock.
   useEffect(() => {
@@ -771,9 +794,26 @@ const App: React.FC = () => {
           if (now - last < 33) return;
           last = now;
           for (const [surfaceId, port] of projectorPortsRef.current) {
-              if (inFlight.has(surfaceId)) continue; // back-pressure: don't pile up decodes
               const surface = surfacesRef.current.find(s => s.id === surfaceId);
-              if (!surface || !STREAMED.has(surface.content.type)) continue;
+              if (!surface) continue;
+              // TRACKING self-renders its blobs in the projector, but its optional background
+              // timeline layer (a video) must be decoded here and streamed as a layer frame.
+              if (surface.content.type === SourceType.TRACKING) {
+                  const layerId = surface.content.bgLayerId;
+                  if (!layerId) continue;
+                  const key = `${surfaceId}:bg`;
+                  if (inFlight.has(key)) continue;
+                  const bg = timelineEngine.getLayerDrawable(layerId);
+                  if (!bg) continue;
+                  inFlight.add(key);
+                  createImageBitmap(bg as CanvasImageSource)
+                      .then(bitmap => { try { port.postMessage({ t: 'layerFrame', layerId, bitmap }, [bitmap]); } catch { bitmap.close(); } })
+                      .catch(() => {})
+                      .finally(() => inFlight.delete(key));
+                  continue;
+              }
+              if (inFlight.has(surfaceId)) continue; // back-pressure: don't pile up decodes
+              if (!STREAMED.has(surface.content.type)) continue;
               const drawable = getDrawable(surface);
               if (!drawable) continue;
               inFlight.add(surfaceId);
@@ -834,6 +874,8 @@ const App: React.FC = () => {
               fpsCap: projectorFpsCap,
               ndiSend: out?.ndiSend ?? false,
               ndiFullRes: BROADCAST,
+              trackingSmoothing: scene3D.trackingSmoothing ?? 0.6,
+              trackingPredictMs: scene3D.trackingPredictMs ?? 50,
           },
       });
       port.postMessage({ t: 'timeline', timeline });
@@ -864,7 +906,7 @@ const App: React.FC = () => {
   // Re-push config (incl. the edit toggle) whenever anything a projector renders changes.
   useEffect(() => {
       for (const surfaceId of projectorPortsRef.current.keys()) pushProjectorStateRef.current(surfaceId);
-  }, [surfaces, projectorOutputs, timeline, isVideoPlaying, editingOutputId, projectorFpsCap]);
+  }, [surfaces, projectorOutputs, timeline, isVideoPlaying, editingOutputId, projectorFpsCap, scene3D]);
   // Stop aligning if the edited output is disabled / removed.
   useEffect(() => {
       if (editingOutputId && !projectorOutputs.some(o => o.surfaceId === editingOutputId && o.enabled && o.displayId != null)) {
@@ -1029,6 +1071,7 @@ const App: React.FC = () => {
                     onAddSurface={handleAddSurface}
                     onRemoveSurface={handleRemoveSurface}
                     onRenameSurface={handleRenameSurface}
+                    onMoveSurface={handleMoveSurface}
                     fixtures={fixtures}
                     selectedFixtureId={selectedFixtureId}
                     selectedFixtureIds={selectedFixtureIds}

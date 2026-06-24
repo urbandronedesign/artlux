@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Fixture, Surface, SurfaceContent, SourceType, AppSettings, PixelSource, LedShape, ColorOrder, RGBWMode, Layout3DType, VideoLayer } from '../types';
-import { Monitor, Image as ImageIcon, Video, Map, Sparkles, Grid3x3, Network, Box, Cast, Radio, RefreshCw, Layers, Slash, Film } from 'lucide-react';
+import { Monitor, Image as ImageIcon, Video, Map, Sparkles, Grid3x3, Network, Box, Cast, Radio, RefreshCw, Layers, Slash, Film, Crosshair } from 'lucide-react';
 import { CollapsibleSection } from './CollapsibleSection';
 import { Slider } from './ui';
 import { EFFECT_NAMES } from '../gpu/effects';
@@ -118,6 +118,9 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                         <button onClick={() => setContentType(SourceType.LAYER)} className={surfBtnCls(c.type === SourceType.LAYER)} title="A timeline video layer">
                             <Film size={16} className="mb-1"/><span className="text-[9px]">Layer</span>
                         </button>
+                        <button onClick={() => setContentType(SourceType.TRACKING)} className={surfBtnCls(c.type === SourceType.TRACKING)} title="LiDAR blob tracking (projection-mappable)">
+                            <Crosshair size={16} className="mb-1"/><span className="text-[9px]">Tracking</span>
+                        </button>
                     </div>
 
                     {c.type === SourceType.LAYER && (
@@ -187,6 +190,43 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                                 format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => setContent({ speed: v })} />
                             <Slider label="Intensity" value={c.intensity ?? 0.5} min={0} max={1} step={0.01}
                                 format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => setContent({ intensity: v })} />
+                        </div>
+                    )}
+
+                    {c.type === SourceType.TRACKING && (
+                        <div className="space-y-2 pt-1">
+                            <div className="flex items-center gap-1">
+                                <label className="text-fg-2 w-12 text-[10px]">Source</label>
+                                <select value={c.trackingSource ?? 'SOL'} onChange={(e) => setContent({ trackingSource: e.target.value })}
+                                    className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-[10px] focus:border-accent focus:outline-none">
+                                    <option value="SOL">SOL — floor</option>
+                                    <option value="MUR">MUR — wall</option>
+                                    <option value="SOL_MUR">SOL_MUR — combined</option>
+                                </select>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <label className="text-fg-2 w-12 text-[10px]" title="A timeline video layer drawn under the blobs (projects as one surface)">Background</label>
+                                <select value={c.bgLayerId ?? ''} onChange={(e) => setContent({ bgLayerId: e.target.value || undefined })}
+                                    className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-[10px] focus:border-accent focus:outline-none">
+                                    <option value="">— none —</option>
+                                    {layers.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                                </select>
+                            </div>
+                            <Slider label="Blob size" value={c.blobSize ?? 0.04} min={0.01} max={0.15} step={0.005}
+                                format={(v) => `${Math.round(v * 100)}%`} onInput={(v) => setContent({ blobSize: v })} onChange={(v) => setContent({ blobSize: v })} />
+                            <div className="flex items-center gap-1">
+                                <label className="text-fg-2 w-12 text-[10px]">Rotate</label>
+                                <select value={c.rotate ?? 0} onChange={(e) => setContent({ rotate: parseInt(e.target.value) })}
+                                    className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-[10px] focus:border-accent focus:outline-none">
+                                    {[0, 90, 180, 270].map((d) => <option key={d} value={d}>{d}°</option>)}
+                                </select>
+                            </div>
+                            <div className="grid grid-cols-2 gap-1.5 text-[10px] text-fg-2">
+                                <label className="flex items-center gap-1.5"><input type="checkbox" checked={c.flipH ?? false} onChange={(e) => setContent({ flipH: e.target.checked })} />Flip H</label>
+                                <label className="flex items-center gap-1.5"><input type="checkbox" checked={c.flipV ?? false} onChange={(e) => setContent({ flipV: e.target.checked })} />Flip V</label>
+                                <label className="flex items-center gap-1.5"><input type="checkbox" checked={c.showIds ?? false} onChange={(e) => setContent({ showIds: e.target.checked })} />Show IDs</label>
+                                <label className="flex items-center gap-1.5"><input type="checkbox" checked={c.calibration ?? false} onChange={(e) => setContent({ calibration: e.target.checked })} />Calibrate</label>
+                            </div>
                         </div>
                     )}
                 </PanelSection>

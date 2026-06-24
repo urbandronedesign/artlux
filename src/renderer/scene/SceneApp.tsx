@@ -264,6 +264,13 @@ export const SceneApp: React.FC = () => {
           <Toggle label="Reflective floor" checked={scene3D.reflectiveFloor ?? false} onChange={(v) => applyConfig({ reflectiveFloor: v })} />
           <Toggle label="Grid" checked={scene3D.gridVisible} onChange={(v) => applyConfig({ gridVisible: v })} />
           <Toggle label="Tracking zones (LiDAR)" checked={scene3D.trackingViz ?? false} onChange={(v) => applyConfig({ trackingViz: v })} />
+          {scene3D.trackingViz && (
+            <div className="pl-2 border-l border-line-1 space-y-2">
+              <NumRow label="Smoothing" value={scene3D.trackingSmoothing ?? 0.5} step={0.05} onChange={(v) => applyConfig({ trackingSmoothing: Math.max(0, Math.min(1, v)) })} />
+              <NumRow label="Predict (ms)" value={scene3D.trackingPredictMs ?? 80} step={10} onChange={(v) => applyConfig({ trackingPredictMs: Math.max(0, Math.min(300, v)) })} />
+              <Toggle label="Show IDs" checked={scene3D.trackingLabels !== false} onChange={(v) => applyConfig({ trackingLabels: v })} />
+            </div>
+          )}
         </div>
       </div>
     </div>

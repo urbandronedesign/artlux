@@ -79,7 +79,7 @@ const Simulator3D: React.FC<Props> = ({
         <Lighting env={scene3D.environment} />
         {scene3D.reflectiveFloor && <ReflectiveFloor />}
         {scene3D.gridVisible !== false && <GroundGrid />}
-        {scene3D.trackingViz && <TrackingViz />}
+        {scene3D.trackingViz && <TrackingViz scene3D={scene3D} />}
         {models.map((m) => m.kind === 'plane' ? (
           <PlaneObject
             key={m.id}

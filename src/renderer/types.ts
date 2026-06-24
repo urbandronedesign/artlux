@@ -147,6 +147,7 @@ export enum SourceType {
   SPOUT = 'SPOUT',
   NDI = 'NDI',           // network video (NDI receive)
   LAYER = 'LAYER',       // a timeline track (by layerId)
+  TRACKING = 'TRACKING', // LiDAR blob positions (by trackingSource)
   NONE = 'NONE'
 }
 
@@ -164,6 +165,15 @@ export interface SurfaceContent {
   paletteId?: number;
   speed?: number;
   intensity?: number;
+  // TRACKING params (LiDAR blob viz, projection-mappable):
+  trackingSource?: string;   // which tracking surface: 'SOL' | 'MUR' | 'SOL_MUR'
+  bgLayerId?: string;        // optional timeline layer drawn UNDER the blobs (video + blobs on one surface)
+  blobSize?: number;         // marker radius as a fraction of the zone height (0..1)
+  showIds?: boolean;         // draw each blob's tracking id
+  flipH?: boolean;           // mirror u (left↔right) to match the projector orientation
+  flipV?: boolean;           // mirror v (near↔far / up↔down)
+  rotate?: number;           // 0 | 90 | 180 | 270 — rotate the tracking frame
+  calibration?: boolean;     // overlay zone border + grid + corner labels for alignment
 }
 
 // --- Video-layer timeline (NLE) ---

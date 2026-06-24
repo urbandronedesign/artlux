@@ -3,6 +3,8 @@ import { Surface, SourceType } from '../types';
 import { defaultCornerPin, defaultSoftEdge, type CornerPin, type BezierWarp, type SoftEdge } from '../../../shared/protocol';
 import { syncSurfaces, getDrawable } from '../services/surfaceMedia';
 import { timeline as engine } from '../services/timeline';
+import * as trackingStore from '../services/trackingStore';
+import * as trackingDrawable from '../services/trackingDrawable';
 import { ProjectorGL } from './ProjectorGL';
 import { squareToQuad, applyH } from './homography';
 import { makeBezierWarp, tessellateBezier, evalBezier, BEZIER_CORNERS } from './warp';
@@ -11,7 +13,7 @@ import type { MainToProjector, ProjectorToMain, ProjectorRender } from './bridge
 // IMAGE (one cheap decode) + EFFECT (procedural) render locally. Everything HW-decoded —
 // camera/Spout/DMX-in/NDI AND file video / timeline layers — is decoded once in the main
 // window and streamed here as ImageBitmaps, so the same media isn't decoded per window.
-const SELF_RENDER = new Set<SourceType | 'EFFECT'>([SourceType.IMAGE, 'EFFECT']);
+const SELF_RENDER = new Set<SourceType | 'EFFECT'>([SourceType.IMAGE, 'EFFECT', SourceType.TRACKING]);
 const STREAMED = new Set<SourceType | 'EFFECT'>([SourceType.CAMERA, SourceType.SPOUT, SourceType.DMX_IN, SourceType.NDI, SourceType.VIDEO, SourceType.LAYER]);
 const CORNER_KEYS: (keyof CornerPin)[] = ['tl', 'tr', 'br', 'bl'];
 const CORNER_LABELS = ['TL', 'TR', 'BR', 'BL'];
@@ -68,6 +70,7 @@ export const ProjectorApp: React.FC = () => {
     softRef.current = r.softEdge ?? defaultSoftEdge();
     gammaRef.current = r.gamma ?? 1;
     fpsCapRef.current = r.fpsCap ?? 0;
+    trackingDrawable.configure(r.trackingSmoothing ?? 0.6, r.trackingPredictMs ?? 50);
     ndiSendRef.current = !!r.ndiSend;
     ndiFullResRef.current = !!r.ndiFullRes;
   };
@@ -103,6 +106,8 @@ export const ProjectorApp: React.FC = () => {
         } else if (m.t === 'frame') {
           frameRef.current?.close();
           frameRef.current = m.bitmap;
+        } else if (m.t === 'layerFrame') {
+          engine.setLayerBitmap(m.layerId, m.bitmap); // TRACKING background video
         } else if (m.t === 'timeline') {
           engine.setData(m.timeline);
         } else if (m.t === 'transport') {
@@ -110,6 +115,8 @@ export const ProjectorApp: React.FC = () => {
           engine.setPlaying(m.playing); engine.seek(m.playhead);
           const s = surfaceRef.current;
           if (s) syncSurfaces(SELF_RENDER.has(s.content.type) ? [s] : [], m.playing);
+        } else if (m.t === 'tracking') {
+          trackingStore.applySnapshot(m.snap);
         } else if (m.t === 'edit') {
           setEditing(m.on);
           if (m.on) window.focus();
