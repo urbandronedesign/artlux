@@ -199,17 +199,69 @@ export interface Marker {
   color: string;         // hex
   note?: string;
 }
+
+// --- State machine (control layer) ---
+// An always-available, optional finite-state graph that can drive the transport (play/pause/
+// seek/loop) as the playhead moves. It lives OUTSIDE layers[]/clips[] so the video engine is
+// untouched. While `enabled`, the engine runtime (services/stateMachine.ts) evaluates the
+// current state's outgoing transitions each frame and emits transport intents back to App.
+export type SmActionKind = 'play' | 'pause' | 'stop' | 'seek' | 'setLoop' | 'jumpMarker';
+export interface SmAction {
+  kind: SmActionKind;
+  seekTo?: number;       // seconds — for 'seek'
+  loopOn?: boolean;      // for 'setLoop'
+  markerId?: string;     // for 'jumpMarker'
+}
+export type SmTriggerKind =
+  | 'manual'             // fired by a UI button / external trigger only
+  | 'afterDelay'         // `seconds` after the state was entered
+  | 'atTime'             // when the playhead crosses absolute `time`
+  | 'onMarker'           // when the playhead crosses marker `markerId`
+  | 'onClipEnd';         // when the active clip on `layerId` ends (a gap appears)
+export interface SmTrigger {
+  kind: SmTriggerKind;
+  seconds?: number;      // afterDelay
+  time?: number;         // atTime
+  markerId?: string;     // onMarker
+  layerId?: string;      // onClipEnd
+}
+export interface SmState {
+  id: string;
+  name: string;
+  x: number;             // node position in the graph editor
+  y: number;
+  entry: SmAction[];     // actions run when this state is entered
+}
+export interface SmTransition {
+  id: string;
+  from: string;          // SmState.id
+  to: string;            // SmState.id
+  trigger: SmTrigger;
+}
+export interface StateMachine {
+  enabled: boolean;
+  states: SmState[];
+  transitions: SmTransition[];
+  initialStateId: string | null;
+}
+export const defaultStateMachine = (): StateMachine => ({
+  enabled: false, states: [], transitions: [], initialStateId: null,
+});
+
 export interface Timeline {
   layers: VideoLayer[];
   clips: VideoClip[];
-  duration: number;      // total timeline length (loops at this point)
+  duration: number;      // length hint (zoom-to-fit / Length field) — NOT a playback wrap point
   fps?: number;          // frame rate for HH:MM:SS:FF timecode (default 30)
   markers?: Marker[];    // ruler markers
   inPoint?: number | null;  // timeline range start (export/loop region) — NOT clip trim
   outPoint?: number | null; // timeline range end
+  loop?: boolean;        // when true, playback wraps over [inPoint, outPoint); else unbounded
+  stateMachine?: StateMachine; // optional control-layer FSM
 }
 export const defaultTimeline = (): Timeline => ({
   layers: [], clips: [], duration: 60, fps: 30, markers: [], inPoint: null, outPoint: null,
+  loop: false, stateMachine: defaultStateMachine(),
 });
 
 // Fill defaults for fields added after a project was saved, so old projects load cleanly.
@@ -218,6 +270,7 @@ export const defaultTimeline = (): Timeline => ({
 export const normalizeTimeline = (t: Partial<Timeline> | null | undefined): Timeline => {
   const base = defaultTimeline();
   if (!t || !Array.isArray(t.layers)) return base;
+  const sm = t.stateMachine;
   return {
     ...base,
     ...t,
@@ -227,6 +280,10 @@ export const normalizeTimeline = (t: Partial<Timeline> | null | undefined): Time
     inPoint: t.inPoint ?? null,
     outPoint: t.outPoint ?? null,
     fps: t.fps ?? base.fps,
+    loop: t.loop ?? false,
+    stateMachine: sm
+      ? { enabled: !!sm.enabled, states: sm.states ?? [], transitions: sm.transitions ?? [], initialStateId: sm.initialStateId ?? null }
+      : defaultStateMachine(),
   };
 };
 

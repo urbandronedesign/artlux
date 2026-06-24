@@ -2,6 +2,8 @@ import { Timeline, VideoClip, defaultTimeline } from '../types';
 import { getBlobUrl, ensureBlobUrl } from './mediaCache';
 import * as hapDecode from './hapDecode';
 import * as hapGL from './hapGL';
+import * as fsm from './stateMachine';
+import type { TransportIntent, SmContext } from './stateMachine';
 
 // Per-window video-layer timeline engine. The single source of playback time so React
 // never re-renders per frame (mirrors dmxSignal/livePreview). One <video> per layer
@@ -23,6 +25,10 @@ const layerVideos = new Map<string, LayerVid>();
 // hardware-decode sessions to one — see App.tsx scene/projector frame pumps).
 const layerBitmaps = new Map<string, ImageBitmap>();
 const subs = new Set<(playhead: number) => void>();
+// Transport intents emitted by the FSM control layer (main window only). App subscribes and
+// turns them into React transport state, so App stays the single writer of `playing`.
+const intentSubs = new Set<(i: TransportIntent) => void>();
+const emitIntent = (i: TransportIntent): void => { intentSubs.forEach(cb => cb(i)); };
 
 let data: Timeline = defaultTimeline();
 let playing = false;
@@ -39,7 +45,13 @@ let playhead = 0;
 // bridged transport (see seek) with a gentle slew instead of a hard resync snap.
 let originMs = 0;
 let raf = 0;
+let prevPlayhead = 0; // previous frame's playhead — for FSM crossing detection
 const SLEW = 0.1; // fraction of residual drift a mirror window corrects per transport update
+
+// Is a clip live under the playhead on this layer? (for the FSM 'onClipEnd' trigger)
+const clipActive = (layerId: string, t: number): boolean => activeClip(layerId, t) != null;
+// Per-frame context handed to the FSM runtime.
+const smContext = (): SmContext => ({ markers: data.markers ?? [], clipActive, emit: emitIntent });
 
 const ensureBlob = (path: string): void => { void ensureBlobUrl(path, 'video/mp4'); };
 
@@ -130,15 +142,30 @@ function frame(now: number): void {
     // monotonic clock so it plays at full speed while the hidden main window's bridged transport is
     // throttled. Deriving the playhead from a fixed origin (not += dt) keeps cadence uniform against
     // the display refresh and never drifts; seek() phase-locks mirror windows to the authority.
-    if ((!external || hapLocal) && data.duration > 0) {
-      if (playing) playhead = (((now - originMs) / 1000) % data.duration + data.duration) % data.duration;
-      else originMs = now - playhead * 1000; // keep the anchor live while paused so resume is seamless
+    if (!external || hapLocal) {
+      if (playing) {
+        // Infinite timeline: advance unbounded (never modulo by duration). Wrap ONLY when looping
+        // is on with a valid [inPoint, outPoint) region — re-anchoring originMs keeps cadence uniform.
+        let t = (now - originMs) / 1000;
+        const a = data.inPoint, b = data.outPoint;
+        const loopOn = !!data.loop && a != null && b != null && b > a;
+        if (loopOn && t >= (b as number)) { t = (a as number) + ((t - (a as number)) % ((b as number) - (a as number))); originMs = now - t * 1000; }
+        else if (loopOn && t < (a as number)) { t = a as number; originMs = now - t * 1000; }
+        playhead = Math.max(0, t);
+      } else {
+        originMs = now - playhead * 1000; // keep the anchor live while paused so resume is seamless
+      }
+    }
+    // FSM control layer (main window only — mirrors receive the resulting transport via the bridge).
+    if (!external) {
+      try { fsm.tick(data.stateMachine, playhead, prevPlayhead, smContext()); } catch (e) { console.error('[timeline] fsm error', e); }
     }
     // Main window decodes everything; mirror windows decode only HAP locally (when hapLocal),
     // otherwise they consume streamed frames and skip decoding entirely.
     if (!external || hapLocal) for (const l of data.layers) {
       try { syncLayer(l.id, playhead); } catch (e) { console.error('[timeline] syncLayer error', e); }
     }
+    prevPlayhead = playhead;
     subs.forEach(cb => cb(playhead));
   } catch (e) {
     console.error('[timeline] frame error', e);
@@ -166,7 +193,7 @@ export const timeline = {
   setExternal(e: boolean): void { external = e; },
   setHapLocal(v: boolean): void { hapLocal = v; },
   seek(sec: number): void {
-    const clamped = Math.max(0, Math.min(sec, data.duration || 0));
+    const clamped = Math.max(0, sec); // unbounded — the timeline has no fixed end
     if (external && hapLocal) {
       // The projector free-runs its own monotonic clock; the bridged transport is the authority.
       // Phase-lock to it with a gentle slew (continuous, invisible) instead of a hard resync snap —
@@ -178,10 +205,16 @@ export const timeline = {
     }
     playhead = clamped;
     originMs = performance.now() - clamped * 1000;
+    prevPlayhead = clamped; // don't fire FSM crossings across a deliberate jump
   },
   getPlayhead(): number { return playhead; },
   getDuration(): number { return data.duration; },
   isPlaying(): boolean { return playing; },
+  // FSM control layer (main window). App subscribes to intents and turns them into transport state.
+  subscribeIntent(cb: (i: TransportIntent) => void): () => void { intentSubs.add(cb); return () => { intentSubs.delete(cb); }; },
+  subscribeSmState(cb: (id: string | null) => void): () => void { return fsm.subscribeState(cb); },
+  // Fire a manual FSM transition out of the current state (wired to the state-lane buttons).
+  triggerSmTransition(id: string): void { if (!external) fsm.triggerManual(data.stateMachine, id, playhead, smContext()); },
   // Store the latest streamed frame for a layer (mirror windows only). Closes the prior
   // bitmap it replaces so transferred frames don't leak.
   setLayerBitmap(layerId: string, bmp: ImageBitmap): void {

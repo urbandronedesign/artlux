@@ -1,13 +1,15 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Timeline as TL, VideoClip, VideoLayer } from '../../types';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Timeline as TL, VideoClip, VideoLayer, StateMachine, defaultStateMachine } from '../../types';
 import { timeline as engine } from '../../services/timeline';
-import { GUTTER, RULER_H, LANE_H, MIN_LANE_H, MAX_LANE_H, laneHeight, clamp, fmtTimecode } from './geometry';
+import { GUTTER, RULER_H, LANE_H, MIN_LANE_H, MAX_LANE_H, PAGE_SECS, laneHeight, clamp, fmtTimecode } from './geometry';
 import { splitClipAt, bladeAt, rippleDelete, liftDelete } from './operations';
 import { collectSnapPoints, snap } from './snapping';
 import { TimelineToolbar } from './TimelineToolbar';
 import { TimelineRuler } from './TimelineRuler';
 import { TrackHeader } from './TrackHeader';
 import { Lane } from './Lane';
+import { StateLane } from './StateLane';
+import { StateGraphEditor } from './StateGraphEditor';
 import { DragMode } from './ClipBlock';
 import { useTimelineKeys } from './hooks/useTimelineKeys';
 
@@ -16,29 +18,42 @@ interface Props {
   onChange: (t: TL) => void;
   playing: boolean;
   onTogglePlay: () => void;
+  maximized?: boolean;
+  onToggleMax?: () => void;
 }
 
 // DaVinci-style NLE timeline. Tracks (layers) hold clips placed by time; the unified transport
 // (top-bar play) drives the engine — the playback clock. Edits commit to project state via
 // onChange; the live playhead/time are read from the engine render-free. Layout is a single
 // vertical scroller with a sticky track-header gutter and a sticky timecode ruler.
-export const Timeline: React.FC<Props> = ({ timeline, onChange, playing, onTogglePlay }) => {
+export const Timeline: React.FC<Props> = ({ timeline, onChange, playing, onTogglePlay, maximized = false, onToggleMax }) => {
   const [pxPerSec, setPxPerSec] = useState(40);
   const [selected, setSelected] = useState<string | null>(null);
   const [tool, setTool] = useState<'select' | 'blade'>('select');
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [draft, setDraft] = useState<VideoClip | null>(null);
   const [resizeDraft, setResizeDraft] = useState<{ id: string; height: number } | null>(null);
+  const [pages, setPages] = useState(0); // infinite-timeline growth: content spans (pages+1) PAGE_SECS at least
+  const [smEditorOpen, setSmEditorOpen] = useState(false);
 
   const layers = timeline.layers;
   const dur = timeline.duration;
   const fps = timeline.fps ?? 30;
-  const width = dur * pxPerSec;
+  const sm = timeline.stateMachine ?? defaultStateMachine();
+  // Infinite timeline: content width grows with the furthest content end AND the explored viewport
+  // (pages bumped imperatively as the playhead/scroll approaches the right edge — never per frame).
+  const contentEnd = useMemo(
+    () => Math.max(dur, timeline.outPoint ?? 0, ...timeline.clips.map(c => c.start + c.duration)),
+    [timeline.clips, dur, timeline.outPoint],
+  );
+  const viewEnd = Math.max(contentEnd, (pages + 1) * PAGE_SECS);
+  const width = viewEnd * pxPerSec;
 
   // Live refs so stable (window-listener / engine-subscription / memoized-child) handlers see
   // current values without re-subscribing or breaking React.memo on clips/headers.
   const pxRef = useRef(pxPerSec); pxRef.current = pxPerSec;
-  const durRef = useRef(dur); durRef.current = dur;
+  const viewEndRef = useRef(viewEnd); viewEndRef.current = viewEnd;
+  const contentEndRef = useRef(contentEnd); contentEndRef.current = contentEnd;
   const fpsRef = useRef(fps); fpsRef.current = fps;
   const snapRefEnabled = useRef(snapEnabled); snapRefEnabled.current = snapEnabled;
   const draftRef = useRef<VideoClip | null>(null); draftRef.current = draft;
@@ -53,11 +68,14 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, playing, onToggl
   const timeRef = useRef<HTMLSpanElement>(null);
   const dragRef = useRef<{ mode: DragMode; clip: VideoClip; x0: number; points: ReturnType<typeof collectSnapPoints> } | null>(null);
 
-  // Render-free playhead + timecode (engine ticks every frame, even when paused).
+  // Render-free playhead + timecode (engine ticks every frame, even when paused). Also grows the
+  // infinite content width by whole pages when the playhead nears the current right edge — quantized
+  // so this never setStates per frame (only on page crossings).
   useEffect(() => engine.subscribe((ph) => {
     const px = pxRef.current;
     if (playheadRef.current) playheadRef.current.style.left = `${GUTTER + ph * px}px`;
-    if (timeRef.current) timeRef.current.textContent = `${fmtTimecode(ph, fpsRef.current)} / ${fmtTimecode(durRef.current, fpsRef.current)}`;
+    if (timeRef.current) timeRef.current.textContent = `${fmtTimecode(ph, fpsRef.current)} / ${fmtTimecode(contentEndRef.current, fpsRef.current)}`;
+    if (ph + PAGE_SECS > viewEndRef.current) setPages(p => Math.max(p, Math.ceil((ph + PAGE_SECS) / PAGE_SECS)));
   }), []);
 
   // --- coordinate helpers (stable) ---
@@ -65,15 +83,45 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, playing, onToggl
     const el = scrollRef.current; if (!el) return 0;
     const r = el.getBoundingClientRect();
     const x = clientX - r.left + el.scrollLeft - GUTTER;
-    return clamp(x / pxRef.current, 0, durRef.current);
+    return clamp(x / pxRef.current, 0, viewEndRef.current); // unbounded up to the explored view edge
   }, []);
   const seekTo = useCallback((clientX: number) => engine.seek(clientXToTime(clientX)), [clientXToTime]);
   const startSeekDrag = useCallback((e: React.PointerEvent) => {
+    if (e.button !== 0) return; // left button only; middle is reserved for panning
     seekTo(e.clientX);
     const move = (ev: PointerEvent) => seekTo(ev.clientX);
     const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
   }, [seekTo]);
+
+  // --- mouse navigation: wheel = cursor-anchored zoom (Shift = horizontal scroll); middle-drag = pan ---
+  useEffect(() => {
+    const el = scrollRef.current; if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (e.shiftKey) { el.scrollLeft += e.deltaY; e.preventDefault(); return; }
+      e.preventDefault();
+      const r = el.getBoundingClientRect();
+      const screenX = e.clientX - r.left - GUTTER;            // px from the t=0 column, in viewport
+      const tUnder = (screenX + el.scrollLeft) / pxRef.current; // time under the cursor
+      const next = clamp(pxRef.current * (e.deltaY < 0 ? 1.1 : 1 / 1.1), 5, 300);
+      setPxPerSec(next);
+      // Keep the time-under-cursor fixed on screen. Defer until the new (larger) width lays out so
+      // scrollLeft isn't clamped to the old scrollWidth.
+      requestAnimationFrame(() => { el.scrollLeft = tUnder * next - screenX; });
+    };
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.button !== 1) return; // middle button → pan both axes
+      e.preventDefault();
+      const x0 = e.clientX, y0 = e.clientY, sl0 = el.scrollLeft, st0 = el.scrollTop;
+      const prevCursor = el.style.cursor; el.style.cursor = 'grabbing';
+      const move = (ev: PointerEvent) => { el.scrollLeft = sl0 - (ev.clientX - x0); el.scrollTop = st0 - (ev.clientY - y0); };
+      const up = () => { el.style.cursor = prevCursor; window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+      window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    el.addEventListener('pointerdown', onPointerDown);
+    return () => { el.removeEventListener('wheel', onWheel); el.removeEventListener('pointerdown', onPointerDown); };
+  }, []);
 
   const showGuide = useCallback((t: number | null) => {
     const g = snapGuideRef.current; if (!g) return;
@@ -174,7 +222,10 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, playing, onToggl
   // --- non-stable mutations (toolbar / lane / ruler / keyboard) read fresh closure state ---
   const addLayer = () => onChange({ ...timeline, layers: [...layers, { id: crypto.randomUUID(), name: `Track ${layers.length + 1}`, enabled: true }] });
   const onZoom = (f: number) => setPxPerSec(p => clamp(p * f, 5, 300));
-  const onZoomFit = () => { const el = scrollRef.current; const avail = (el ? el.clientWidth : 800) - GUTTER - 24; setPxPerSec(clamp(avail / Math.max(1, dur), 5, 300)); };
+  const onZoomFit = () => { const el = scrollRef.current; const avail = (el ? el.clientWidth : 800) - GUTTER - 24; setPxPerSec(clamp(avail / Math.max(1, contentEnd), 5, 300)); };
+  const toggleLoop = () => onChange({ ...timeline, loop: !timeline.loop });
+  const toggleSm = () => onChange({ ...timeline, stateMachine: { ...sm, enabled: !sm.enabled } });
+  const setStateMachine = (next: StateMachine) => onChange({ ...timeline, stateMachine: next });
   const addMarker = () => onChange({ ...timeline, markers: [...(timeline.markers ?? []), { id: crypto.randomUUID(), time: engine.getPlayhead(), color: '#f5a623' }] });
   const setIn = () => { const t = engine.getPlayhead(); const out = timeline.outPoint != null && timeline.outPoint <= t ? null : timeline.outPoint ?? null; onChange({ ...timeline, inPoint: t, outPoint: out }); };
   const setOut = () => { const t = engine.getPlayhead(); const inp = timeline.inPoint != null && timeline.inPoint >= t ? null : timeline.inPoint ?? null; onChange({ ...timeline, inPoint: inp, outPoint: t }); };
@@ -213,7 +264,9 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, playing, onToggl
     deleteSelected,
     zoom: onZoom,
     seekHome: () => engine.seek(0),
-    seekEnd: () => engine.seek(dur),
+    seekEnd: () => engine.seek(contentEnd),
+    toggleMax: () => onToggleMax?.(),
+    toggleLoop,
   }, () => !!panelRef.current && (hoverRef.current || panelRef.current.contains(document.activeElement)));
 
   const laneHeightOf = (l: VideoLayer) => (resizeDraft && resizeDraft.id === l.id ? resizeDraft.height : laneHeight(l));
@@ -228,6 +281,9 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, playing, onToggl
         tool={tool} onSetTool={setTool}
         snapEnabled={snapEnabled} onToggleSnap={() => setSnapEnabled(v => !v)}
         onAddMarker={addMarker} onZoom={onZoom} onZoomFit={onZoomFit} onAddTrack={addLayer}
+        loop={!!timeline.loop} onToggleLoop={toggleLoop}
+        smEnabled={sm.enabled} onToggleSm={toggleSm} onEditLogic={() => setSmEditorOpen(true)}
+        maximized={maximized} onToggleMax={() => onToggleMax?.()}
       />
 
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto relative">
@@ -236,7 +292,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, playing, onToggl
           <div className="flex sticky top-0 z-30">
             <div className="sticky left-0 z-40 shrink-0 bg-surface-1 border-b border-r border-line-1 flex items-center px-2 text-[10px] text-fg-3" style={{ width: GUTTER, height: RULER_H }}>Tracks</div>
             <TimelineRuler
-              duration={dur} pxPerSec={pxPerSec} width={Math.max(width, 100)} height={RULER_H} fps={fps}
+              pxPerSec={pxPerSec} width={Math.max(width, 100)} height={RULER_H} fps={fps}
               markers={timeline.markers ?? []} inPoint={timeline.inPoint ?? null} outPoint={timeline.outPoint ?? null}
               onSeekDown={startSeekDrag}
               onMarkerSeek={(t) => engine.seek(t)}
@@ -244,6 +300,10 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, playing, onToggl
               onMarkerNote={(id, note) => onChange({ ...timeline, markers: (timeline.markers ?? []).map(m => m.id === id ? { ...m, note } : m) })}
             />
           </div>
+
+          {/* always-present state-machine control lane */}
+          <StateLane sm={sm} pxPerSec={pxPerSec} width={Math.max(width, 100)}
+            onTrigger={(id) => engine.triggerSmTransition(id)} onEdit={() => setSmEditorOpen(true)} onToggle={toggleSm} />
 
           {layers.length === 0 && (
             <div className="flex">
@@ -276,6 +336,11 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, playing, onToggl
           </div>
         </div>
       </div>
+
+      {smEditorOpen && (
+        <StateGraphEditor sm={sm} markers={timeline.markers ?? []} layers={layers}
+          onChange={setStateMachine} onClose={() => setSmEditorOpen(false)} />
+      )}
     </div>
   );
 };

@@ -7,6 +7,8 @@ export const MIN_LANE_H = 28;
 export const MAX_LANE_H = 180;
 export const GUTTER = 188;         // track-header column width
 export const RULER_H = 28;
+export const SM_LANE_H = 30;       // control-layer (state-machine) lane height
+export const PAGE_SECS = 120;      // infinite-timeline growth quantum (content width grows by pages)
 
 export const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 

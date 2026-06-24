@@ -3,7 +3,6 @@ import { Marker } from '../../types';
 import { chooseTickStep, fmtTimecode } from './geometry';
 
 interface Props {
-  duration: number;
   pxPerSec: number;
   width: number;
   height: number;
@@ -22,11 +21,12 @@ const shortTc = (t: number, fps: number) => {
   return s.startsWith('00:') ? s.slice(3) : s;
 };
 
-export const TimelineRuler: React.FC<Props> = ({ duration, pxPerSec, width, height, fps, markers, inPoint, outPoint, onSeekDown, onMarkerSeek, onMarkerDelete, onMarkerNote }) => {
+export const TimelineRuler: React.FC<Props> = ({ pxPerSec, width, height, fps, markers, inPoint, outPoint, onSeekDown, onMarkerSeek, onMarkerDelete, onMarkerNote }) => {
   const [editing, setEditing] = useState<{ id: string; note: string } | null>(null);
   const step = chooseTickStep(pxPerSec);
   const ticks: number[] = [];
-  for (let t = 0; t <= duration + 1e-6; t += step) ticks.push(t);
+  const maxT = width / pxPerSec; // infinite timeline: ticks span the rendered (growing) width
+  for (let t = 0; t <= maxT + 1e-6; t += step) ticks.push(t);
 
   return (
     <div className="relative bg-surface-1/60 cursor-text border-b border-line-1" style={{ height, width }} onPointerDown={onSeekDown}>

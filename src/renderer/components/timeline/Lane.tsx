@@ -26,7 +26,7 @@ export const Lane: React.FC<Props> = ({ layer, clips, selectedId, tool, pxPerSec
       style={{ height: laneH, width }}
       onDragOver={(e) => { if (!locked) e.preventDefault(); }}
       onDrop={(e) => { if (!locked) onDropFile(e, layer.id); }}
-      onPointerDown={(e) => { if (e.target === e.currentTarget) onSeek(e.clientX); }}
+      onPointerDown={(e) => { if (e.button === 0 && e.target === e.currentTarget) onSeek(e.clientX); }}
     >
       {clips.map(c => (
         <ClipBlock

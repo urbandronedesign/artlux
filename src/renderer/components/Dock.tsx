@@ -14,12 +14,25 @@ interface Props {
   activeTab: string;
   onTab: (id: string) => void;
   height?: number;
+  onResize?: (h: number) => void;
   children: React.ReactNode;
 }
 
-// Bottom dock with tab header + collapse, hosting monitors/editors.
-export const Dock: React.FC<Props> = ({ open, onToggle, tabs, activeTab, onTab, height = 280, children }) => (
-  <div className="shrink-0 border-t border-line-1 bg-surface-1 flex flex-col transition-[height] duration-200 ease-out" style={{ height: open ? height : 34 }}>
+// Bottom dock with tab header + collapse, hosting monitors/editors. Drag the top edge to resize.
+export const Dock: React.FC<Props> = ({ open, onToggle, tabs, activeTab, onTab, height = 280, onResize, children }) => {
+  const onResizeDown = (e: React.PointerEvent) => {
+    if (!open || !onResize) return;
+    e.preventDefault();
+    const y0 = e.clientY, h0 = height;
+    const move = (ev: PointerEvent) => onResize(Math.max(120, Math.min(window.innerHeight - 120, h0 - (ev.clientY - y0))));
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+  };
+  return (
+  <div className="shrink-0 border-t border-line-1 bg-surface-1 flex flex-col transition-[height] duration-200 ease-out relative" style={{ height: open ? height : 34 }}>
+    {open && onResize && (
+      <div onPointerDown={onResizeDown} title="Drag to resize" className="absolute -top-1 left-0 right-0 h-2 cursor-row-resize z-10 hover:bg-accent/30" />
+    )}
     <div className="h-[34px] shrink-0 flex items-center justify-between px-2 border-b border-line-1 bg-surface-2">
       <div className="flex items-center gap-1" role="tablist" aria-label="Dock panels">
         {tabs.map((t) => {
@@ -52,4 +65,5 @@ export const Dock: React.FC<Props> = ({ open, onToggle, tabs, activeTab, onTab, 
     </div>
     {open && <div className="flex-1 min-h-0 overflow-auto">{children}</div>}
   </div>
-);
+  );
+};

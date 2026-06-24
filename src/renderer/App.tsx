@@ -85,7 +85,9 @@ const App: React.FC = () => {
   const [templates, setTemplates] = useState<FixtureTemplate[]>([]);
   const [controllers, setControllers] = useState<Controller[]>([]);
   const [dockOpen, setDockOpen] = useState(true);
+  const [dockHeight, setDockHeight] = useState(280);
   const [dockTab, setDockTab] = useState<DockTab>(DockTab.FIXTURE_EDITOR);
+  const [timelineMax, setTimelineMax] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [currentProjectPath, setCurrentProjectPath] = useState<string | null>(null);
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
@@ -674,6 +676,15 @@ const App: React.FC = () => {
       for (const port of projectorPortsRef.current.values()) port.postMessage({ t: 'timeline', timeline });
   }, [timeline]);
   useEffect(() => { timelineEngine.setPlaying(isVideoPlaying); }, [isVideoPlaying]);
+  // The FSM control layer drives transport by emitting intents; App turns them into React state so
+  // App stays the single writer of `playing` (the setPlaying effect above then drives the engine).
+  useEffect(() => timelineEngine.subscribeIntent((i) => {
+      if (i.kind === 'play') setIsVideoPlaying(true);
+      else if (i.kind === 'pause') setIsVideoPlaying(false);
+      else if (i.kind === 'stop') { setIsVideoPlaying(false); timelineEngine.seek(0); }
+      else if (i.kind === 'seek') timelineEngine.seek(i.sec);
+      else if (i.kind === 'loop') setTimeline(t => ({ ...t, loop: i.loopOn }));
+  }), []);
   // Stream transport (playing + playhead) to the Scene + projector windows ~30 fps so
   // their video/layer content stays in sync with the main clock.
   useEffect(() => {
@@ -1043,11 +1054,19 @@ const App: React.FC = () => {
                 tabs={dockTabs}
                 activeTab={dockTab}
                 onTab={(id) => setDockTab(id as DockTab)}
+                height={dockHeight}
+                onResize={setDockHeight}
             >
                 {dockTab === DockTab.MONITOR ? (
                     <DMXMonitor fixtures={fixtures} />
                 ) : dockTab === DockTab.TIMELINE ? (
-                    <TimelinePanel timeline={timeline} onChange={setTimeline} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} />
+                    // Render the timeline in exactly one place (dock XOR fullscreen overlay) so its
+                    // keyboard hook + engine subscription aren't doubled.
+                    timelineMax ? (
+                        <div className="h-full flex items-center justify-center text-fg-3 text-[11px] italic">Timeline maximized — press F or the restore button to dock it</div>
+                    ) : (
+                        <TimelinePanel timeline={timeline} onChange={setTimeline} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} onToggleMax={() => setTimelineMax(true)} />
+                    )
                 ) : (
                     <FixtureEditor
                         fixture={selectedFixture}
@@ -1136,6 +1155,12 @@ const App: React.FC = () => {
           onRemoveController={handleRemoveController}
           onAutoPatch={handleAutoPatch}
       />
+
+      {timelineMax && (
+        <div className="fixed inset-0 z-50 bg-surface-0 flex flex-col">
+          <TimelinePanel timeline={timeline} onChange={setTimeline} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} maximized onToggleMax={() => setTimelineMax(false)} />
+        </div>
+      )}
     </div>
   );
 };

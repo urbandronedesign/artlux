@@ -17,6 +17,8 @@ export interface TimelineKeyHandlers {
   zoom: (factor: number) => void;
   seekHome: () => void;
   seekEnd: () => void;
+  toggleMax: () => void;
+  toggleLoop: () => void;
 }
 
 export function useTimelineKeys(handlers: TimelineKeyHandlers, isActive: () => boolean): void {
@@ -32,7 +34,9 @@ export function useTimelineKeys(handlers: TimelineKeyHandlers, isActive: () => b
       const k = e.key;
       switch (k) {
         case ' ': e.preventDefault(); h.togglePlay(); break;
-        case 'l': case 'L': h.play(); break;
+        case 'l': h.play(); break;
+        case 'L': h.toggleLoop(); break; // Shift+L
+        case 'f': case 'F': h.toggleMax(); break;
         case 'k': case 'K': h.pause(); break;
         case 'j': case 'J': h.pause(); break; // engine has no reverse; pause for now (TODO: reverse)
         case 'b': case 'B': h.setBladeTool(); break;
