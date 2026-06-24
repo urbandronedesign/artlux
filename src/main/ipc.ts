@@ -1,11 +1,12 @@
 import { app, ipcMain, shell, dialog, BrowserWindow } from 'electron';
 import { readFile } from 'node:fs/promises';
-import { IPC, type OutputConfig, type InputConfig, type ProjectData, type RigData, type Prefs, type SpoutConfig, type NdiConfig, type NdiSendConfig } from '../../shared/protocol';
+import { IPC, type OutputConfig, type InputConfig, type ProjectData, type RigData, type Prefs, type SpoutConfig, type NdiConfig, type NdiSendConfig, type OscConfig } from '../../shared/protocol';
 import * as output from './transport/outputManager';
 import * as input from './transport/input';
 import * as discovery from './transport/discovery';
 import * as spout from './transport/spoutManager';
 import * as ndi from './transport/ndiManager';
+import * as osc from './transport/oscManager';
 import * as hap from './transport/hapManager';
 import * as persistence from './persistence';
 import * as projectFolder from './projectFolder';
@@ -129,6 +130,18 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     });
     ipcMain.on(IPC.NDI_SEND_FRAME, (_e, outputId: string, width: number, height: number, data: ArrayBuffer) => {
         ndi.sendFrame(outputId, width, height, Buffer.from(data));
+    });
+
+    // ---- OSC (external control + LiDAR blob tracking): receive onto the renderer ----
+    ipcMain.on(IPC.OSC_CONFIGURE, (_e, cfg: OscConfig) => {
+        if (cfg.enabled) {
+            osc.start(cfg.listenPort, (msgs) => getWindow()?.webContents.send(IPC.OSC_MESSAGE, msgs));
+        } else {
+            osc.stop();
+        }
+    });
+    ipcMain.on(IPC.OSC_SEND, (_e, host: string, port: number, address: string, args: (number | string)[]) => {
+        osc.send(host, port, address, args);
     });
 
     // ---- HAP video (native decode; renderer pulls frames by index) ----

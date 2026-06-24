@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, Cpu, Radar, Check } from 'lucide-react';
+import { X, Cpu, Radar, Check, Radio } from 'lucide-react';
 import { AppSettings } from '../types';
 import type { ArtNetDevice } from '../../../shared/protocol';
 import { Section, Field, NumberField, Toggle, Select, Slider, Button } from './ui';
@@ -105,6 +105,20 @@ export const Preferences: React.FC<Props> = ({ open, onClose, settings, onChange
           <Toggle label="Keep-alive" checked={settings.keepAlive} onChange={(v) => onChange({ keepAlive: v })} title="Re-send last frame at FPS so receivers never starve" />
           <Toggle label="Synchronous output (ArtSync)" checked={settings.artNetSync} onChange={(v) => onChange({ artNetSync: v })} title="Send ArtSync (0x5200) after each frame so nodes latch + output simultaneously (tear-free multi-universe)" />
           <Slider label="Gamma" value={settings.gamma} min={1} max={3} step={0.05} format={(v) => v.toFixed(2)} onChange={(v) => onChange({ gamma: v })} />
+        </Section>
+
+        <Section title="OSC / Tracking" icon={<Radio size={12} />}>
+          <Toggle label="OSC receive" checked={settings.oscEnabled} onChange={(v) => onChange({ oscEnabled: v })} title="Bind a UDP listener for external control + LiDAR blob tracking" />
+          <NumberField label="Listen port" value={settings.oscListenPort} step={1} min={1} max={65535} onChange={(v) => onChange({ oscListenPort: Math.max(1, Math.min(65535, Math.round(v))) })} />
+          <Field label="Control prefix">
+            <input
+              type="text"
+              value={settings.oscControlPrefix}
+              onChange={(e) => onChange({ oscControlPrefix: e.target.value })}
+              title="Namespace for external control (e.g. /artlux/transport/play). LiDAR blob addresses (/SOL, /MUR, /SOL_MUR) are handled separately."
+              className="num flex-1 bg-surface-0 border border-line-1 rounded-[var(--r-sm)] px-1.5 py-1 text-right text-fg-1 focus:border-accent focus:outline-none"
+            />
+          </Field>
         </Section>
 
         <div className="p-3 flex justify-end">

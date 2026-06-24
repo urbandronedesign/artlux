@@ -212,6 +212,9 @@ export const timeline = {
   isPlaying(): boolean { return playing; },
   // FSM control layer (main window). App subscribes to intents and turns them into transport state.
   subscribeIntent(cb: (i: TransportIntent) => void): () => void { intentSubs.add(cb); return () => { intentSubs.delete(cb); }; },
+  // Inject a transport intent from outside the FSM (e.g. external OSC control). Flows through the
+  // same subscribeIntent consumers, so App remains the single writer of `playing`.
+  dispatchTransportIntent(i: TransportIntent): void { if (!external) emitIntent(i); },
   subscribeSmState(cb: (id: string | null) => void): () => void { return fsm.subscribeState(cb); },
   // Fire a manual FSM transition out of the current state (wired to the state-lane buttons).
   triggerSmTransition(id: string): void { if (!external) fsm.triggerManual(data.stateMachine, id, playhead, smContext()); },

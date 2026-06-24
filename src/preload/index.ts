@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import {
     IPC, type OutputConfig, type OutputStats, type InputConfig, type InputFrame, type ArtluxApi,
     type ProjectData, type RigData, type Prefs, type SpoutConfig, type SpoutFrame, type UpdateEvent,
-    type DisplayInfo, type NdiConfig, type NdiFrame, type NdiSendConfig,
+    type DisplayInfo, type NdiConfig, type NdiFrame, type NdiSendConfig, type OscConfig, type OscMessage,
 } from '../../shared/protocol';
 
 const api: ArtluxApi = {
@@ -56,6 +56,15 @@ const api: ArtluxApi = {
     configureNdiSend: (cfg: NdiSendConfig) => ipcRenderer.send(IPC.NDI_SEND_CONFIGURE, cfg),
     sendNdiFrame: (outputId: string, width: number, height: number, data: ArrayBuffer) =>
         ipcRenderer.send(IPC.NDI_SEND_FRAME, outputId, width, height, data),
+    // OSC (external control + LiDAR tracking)
+    configureOsc: (cfg: OscConfig) => ipcRenderer.send(IPC.OSC_CONFIGURE, cfg),
+    onOscMessage: (cb: (msgs: OscMessage[]) => void) => {
+        const listener = (_e: unknown, msgs: OscMessage[]) => cb(msgs);
+        ipcRenderer.on(IPC.OSC_MESSAGE, listener);
+        return () => { ipcRenderer.removeListener(IPC.OSC_MESSAGE, listener); };
+    },
+    sendOsc: (host: string, port: number, address: string, args: (number | string)[]) =>
+        ipcRenderer.send(IPC.OSC_SEND, host, port, address, args),
     // HAP video (frame-accurate pull)
     openHap: (path: string) => ipcRenderer.invoke(IPC.HAP_OPEN, path),
     decodeHapFrame: (path: string, index: number) => ipcRenderer.invoke(IPC.HAP_DECODE, path, index),

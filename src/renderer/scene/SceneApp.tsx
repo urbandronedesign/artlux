@@ -4,6 +4,7 @@ import { Scene3D, SceneModel, defaultScene3D } from '../../../shared/protocol';
 import { useGLTF } from '@react-three/drei';
 import { dmxSignal } from '../services/dmxSignal';
 import { timeline as engine } from '../services/timeline';
+import * as trackingStore from '../services/trackingStore';
 import Simulator3D from '../components/Simulator3D/Simulator3D';
 import type { ModelTransform } from '../components/Simulator3D/ModelObject';
 import { Plus, Trash2, Eye, EyeOff, Box, Lightbulb, Save, Check, MonitorPlay } from 'lucide-react';
@@ -71,6 +72,8 @@ export const SceneApp: React.FC = () => {
           engine.setPlaying(m.playing); engine.seek(m.playhead);
         } else if (m.t === 'frame') {
           engine.setLayerBitmap(m.layerId, m.bitmap);
+        } else if (m.t === 'tracking') {
+          trackingStore.applySnapshot(m.snap);
         }
       };
       port.start();
@@ -260,6 +263,7 @@ export const SceneApp: React.FC = () => {
           <Toggle label="Ambient (env)" checked={scene3D.environment} onChange={(v) => applyConfig({ environment: v })} />
           <Toggle label="Reflective floor" checked={scene3D.reflectiveFloor ?? false} onChange={(v) => applyConfig({ reflectiveFloor: v })} />
           <Toggle label="Grid" checked={scene3D.gridVisible} onChange={(v) => applyConfig({ gridVisible: v })} />
+          <Toggle label="Tracking zones (LiDAR)" checked={scene3D.trackingViz ?? false} onChange={(v) => applyConfig({ trackingViz: v })} />
         </div>
       </div>
     </div>

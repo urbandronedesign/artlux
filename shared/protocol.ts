@@ -48,6 +48,12 @@ export const IPC = {
   NDI_SEND_CONFIGURE: 'ndi:send-configure',
   /** Renderer → main: one captured frame for a per-output NDI sender (RGBA). */
   NDI_SEND_FRAME: 'ndi:send-frame',
+  /** Renderer → main: enable/disable the OSC UDP listener (external control + LiDAR tracking). */
+  OSC_CONFIGURE: 'osc:configure',
+  /** Main → renderer: a batch of received OSC messages (one UDP packet → 1+ messages). */
+  OSC_MESSAGE: 'osc:message',
+  /** Renderer → main: send one OSC message to a target host:port (send scaffold). */
+  OSC_SEND: 'osc:send',
   /** Renderer → main (invoke): open a HAP-coded .mov; returns stream info or null if not HAP. */
   HAP_OPEN: 'hap:open',
   /** Renderer → main (invoke): decode one frame by index → RGBA (frame-accurate pull). */
@@ -170,6 +176,23 @@ export interface NdiSendConfig {
   outputId: string;   // the surfaceId of the output
   enabled: boolean;
   name?: string;      // NDI source name (defaults to the surface name)
+}
+
+// ---- OSC (external control + LiDAR blob tracking) ----------------------------
+// ArtLux listens as an OSC receiver (the 61fps tracking server emits OSC to port 10000).
+// Two message classes share the socket: control messages under `controlPrefix` (routed to
+// the timeline/state-machine) and LiDAR blob/spec messages (routed to the tracking store).
+export interface OscConfig {
+  enabled: boolean;
+  listenPort: number;     // UDP port to bind (installation default: 10000)
+  controlPrefix: string;  // namespace for external control, e.g. '/artlux'
+}
+
+// One decoded OSC message. `args` are raw values (ints/floats decode to number, strings to
+// string); the tracking protocol sends one value per address, so args is usually length 1.
+export interface OscMessage {
+  address: string;
+  args: (number | string)[];
 }
 
 // One Art-Net node found via ArtPoll/ArtPollReply discovery.
@@ -322,6 +345,7 @@ export interface Scene3D {
   exposure: number;                   // tone-mapping exposure
   gridVisible: boolean;
   reflectiveFloor?: boolean;          // mirror floor reflecting the LEDs/meshes
+  trackingViz?: boolean;              // overlay the LiDAR SOL/MUR zones + live blob markers
   // Legacy single-model fields (pre-multi-model); migrated into `models` on load.
   modelPath?: string;
   modelScale?: number;
@@ -336,6 +360,7 @@ export const defaultScene3D = (): Scene3D => ({
   exposure: 1,
   gridVisible: true,
   reflectiveFloor: false,
+  trackingViz: false,
 });
 
 // Full project file (kept loose here so shared/ stays decoupled from renderer types).
@@ -425,6 +450,10 @@ export interface ArtluxApi {
   onNdiFrame(cb: (frame: NdiFrame) => void): () => void;
   configureNdiSend(cfg: NdiSendConfig): void;
   sendNdiFrame(outputId: string, width: number, height: number, data: ArrayBuffer): void;
+  // OSC (external control + LiDAR tracking) — receive-first; send is a scaffold.
+  configureOsc(cfg: OscConfig): void;
+  onOscMessage(cb: (msgs: OscMessage[]) => void): () => void;
+  sendOsc(host: string, port: number, address: string, args: (number | string)[]): void;
   // HAP video (native decode, frame-accurate pull → RGBA)
   openHap(path: string): Promise<HapInfo | null>;
   decodeHapFrame(path: string, index: number): Promise<HapFrame | null>;

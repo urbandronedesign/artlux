@@ -14,6 +14,7 @@ import { ModelBoundary } from './ModelBoundary';
 import { GroundGrid } from './GroundGrid';
 import { ReflectiveFloor } from './ReflectiveFloor';
 import { Lighting } from './Lighting';
+import TrackingViz from './TrackingViz';
 
 interface Props {
   fixtures: Fixture[];
@@ -78,6 +79,7 @@ const Simulator3D: React.FC<Props> = ({
         <Lighting env={scene3D.environment} />
         {scene3D.reflectiveFloor && <ReflectiveFloor />}
         {scene3D.gridVisible !== false && <GroundGrid />}
+        {scene3D.trackingViz && <TrackingViz />}
         {models.map((m) => m.kind === 'plane' ? (
           <PlaneObject
             key={m.id}

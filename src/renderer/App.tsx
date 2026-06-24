@@ -24,6 +24,8 @@ import { sendArtNetFrame, configureOutput, addStatusListener } from './services/
 import { dmxSignal } from './services/dmxSignal';
 import { getDrawable } from './services/surfaceMedia';
 import { timeline as timelineEngine } from './services/timeline';
+import * as oscController from './services/oscController';
+import * as trackingStore from './services/trackingStore';
 import { Activity, SlidersHorizontal, Film } from 'lucide-react';
 import { useHistory } from './hooks/useHistory';
 
@@ -44,7 +46,10 @@ const DEFAULT_SETTINGS: AppSettings = {
   protocol: 'artnet',
   fps: 44,
   keepAlive: true,
-  artNetSync: false
+  artNetSync: false,
+  oscEnabled: false,
+  oscListenPort: 10000,
+  oscControlPrefix: '/artlux'
 };
 
 const App: React.FC = () => {
@@ -685,6 +690,32 @@ const App: React.FC = () => {
       else if (i.kind === 'seek') timelineEngine.seek(i.sec);
       else if (i.kind === 'loop') setTimeline(t => ({ ...t, loop: i.loopOn }));
   }), []);
+  // OSC: subscribe the controller to forwarded messages once; (re)bind the UDP listener and refresh
+  // the control namespace whenever the OSC settings change. Control intents flow back through the
+  // subscribeIntent path above; LiDAR blob data lands in the tracking store.
+  useEffect(() => oscController.start(), []);
+  useEffect(() => {
+      oscController.setControlPrefix(settings.oscControlPrefix);
+      window.artlux?.configureOsc?.({
+          enabled: settings.oscEnabled,
+          listenPort: settings.oscListenPort,
+          controlPrefix: settings.oscControlPrefix,
+      });
+  }, [settings.oscEnabled, settings.oscListenPort, settings.oscControlPrefix]);
+  // Stream LiDAR blob snapshots to the 3D Scene window (~30 fps). OSC is received only here in the
+  // main window, so the Scene window's tracking viz is fed over the bridge like transport/frames.
+  useEffect(() => {
+      let last = 0;
+      const unsub = trackingStore.subscribe(() => {
+          const port = scenePortRef.current;
+          if (!port) return;
+          const now = performance.now();
+          if (now - last < 33) return;
+          last = now;
+          port.postMessage({ t: 'tracking', snap: trackingStore.snapshot() });
+      });
+      return () => unsub();
+  }, []);
   // Stream transport (playing + playhead) to the Scene + projector windows ~30 fps so
   // their video/layer content stays in sync with the main clock.
   useEffect(() => {

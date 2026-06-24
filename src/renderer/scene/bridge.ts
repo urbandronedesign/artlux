@@ -1,5 +1,6 @@
 import type { Fixture, Surface, Vec3, Euler3, Timeline } from '../types';
 import type { Scene3D } from '../../../shared/protocol';
+import type { TrackingSnapshot } from '../services/trackingStore';
 
 // Messages exchanged over the MessagePort that links the main window and the 3D Scene
 // window (see main/index.ts bridgeSceneToMain). Both are renderer-side modules.
@@ -10,7 +11,8 @@ export type MainToScene =
   | { t: 'saved'; ok: boolean }       // ack of a save request
   | { t: 'timeline'; timeline: Timeline }                 // timeline data (on change)
   | { t: 'transport'; playing: boolean; playhead: number } // ~30 fps clock
-  | { t: 'frame'; layerId: string; bitmap: ImageBitmap };  // streamed layer frame (decoded once in main)
+  | { t: 'frame'; layerId: string; bitmap: ImageBitmap }   // streamed layer frame (decoded once in main)
+  | { t: 'tracking'; snap: TrackingSnapshot };             // live LiDAR blobs (OSC arrives in main only)
 
 export type SceneToMain =
   | { t: 'ready' }                                   // scene window mounted; (re)send state

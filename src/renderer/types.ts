@@ -310,6 +310,10 @@ export interface AppSettings {
   fps: number;            // native engine output pacing rate
   keepAlive: boolean;     // re-send last frame on pacer timeout
   artNetSync: boolean;    // emit ArtSync (OpSync 0x5200) after each frame
+  // OSC receive (external control + LiDAR blob tracking)
+  oscEnabled: boolean;    // bind the OSC UDP listener
+  oscListenPort: number;  // UDP port (installation default: 10000)
+  oscControlPrefix: string; // namespace for external control messages, e.g. '/artlux'
 }
 
 export enum ViewMode {
