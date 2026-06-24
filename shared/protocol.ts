@@ -54,6 +54,8 @@ export const IPC = {
   OSC_MESSAGE: 'osc:message',
   /** Renderer → main: send one OSC message to a target host:port (send scaffold). */
   OSC_SEND: 'osc:send',
+  /** Renderer → main (invoke): list this machine's local IPv4 addresses (for NIC binding). */
+  OSC_LOCAL_ADDRS: 'osc:local-addrs',
   /** Renderer → main (invoke): open a HAP-coded .mov; returns stream info or null if not HAP. */
   HAP_OPEN: 'hap:open',
   /** Renderer → main (invoke): decode one frame by index → RGBA (frame-accurate pull). */
@@ -186,6 +188,8 @@ export interface OscConfig {
   enabled: boolean;
   listenPort: number;     // UDP port to bind (installation default: 10000)
   controlPrefix: string;  // namespace for external control, e.g. '/artlux'
+  listenAddress?: string; // bind to a specific LOCAL NIC IP (this machine's 192.168.61.x address);
+                          // '' / undefined = all interfaces (0.0.0.0)
 }
 
 // One decoded OSC message. `args` are raw values (ints/floats decode to number, strings to
@@ -454,6 +458,7 @@ export interface ArtluxApi {
   configureOsc(cfg: OscConfig): void;
   onOscMessage(cb: (msgs: OscMessage[]) => void): () => void;
   sendOsc(host: string, port: number, address: string, args: (number | string)[]): void;
+  listLocalAddrs(): Promise<string[]>;
   // HAP video (native decode, frame-accurate pull → RGBA)
   openHap(path: string): Promise<HapInfo | null>;
   decodeHapFrame(path: string, index: number): Promise<HapFrame | null>;

@@ -65,6 +65,7 @@ const api: ArtluxApi = {
     },
     sendOsc: (host: string, port: number, address: string, args: (number | string)[]) =>
         ipcRenderer.send(IPC.OSC_SEND, host, port, address, args),
+    listLocalAddrs: () => ipcRenderer.invoke(IPC.OSC_LOCAL_ADDRS),
     // HAP video (frame-accurate pull)
     openHap: (path: string) => ipcRenderer.invoke(IPC.HAP_OPEN, path),
     decodeHapFrame: (path: string, index: number) => ipcRenderer.invoke(IPC.HAP_DECODE, path, index),

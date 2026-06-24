@@ -16,6 +16,11 @@ export const Preferences: React.FC<Props> = ({ open, onClose, settings, onChange
   const [scanning, setScanning] = useState(false);
   const [scanned, setScanned] = useState(false);
   const [devices, setDevices] = useState<ArtNetDevice[]>([]);
+  const [localAddrs, setLocalAddrs] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (open) window.artlux?.listLocalAddrs?.().then((a) => setLocalAddrs(a ?? [])).catch(() => setLocalAddrs([]));
+  }, [open]);
 
   const scan = async () => {
     setScanning(true);
@@ -110,6 +115,30 @@ export const Preferences: React.FC<Props> = ({ open, onClose, settings, onChange
         <Section title="OSC / Tracking" icon={<Radio size={12} />}>
           <Toggle label="OSC receive" checked={settings.oscEnabled} onChange={(v) => onChange({ oscEnabled: v })} title="Bind a UDP listener for external control + LiDAR blob tracking" />
           <NumberField label="Listen port" value={settings.oscListenPort} step={1} min={1} max={65535} onChange={(v) => onChange({ oscListenPort: Math.max(1, Math.min(65535, Math.round(v))) })} />
+          <Field label="Bind address">
+            <input
+              type="text"
+              value={settings.oscListenAddress}
+              placeholder="All interfaces"
+              onChange={(e) => onChange({ oscListenAddress: e.target.value.trim() })}
+              title="Bind the OSC receiver to one local network card (this machine's IP, e.g. its 192.168.61.x address). Leave blank to listen on all interfaces."
+              className="num flex-1 bg-surface-0 border border-line-1 rounded-[var(--r-sm)] px-1.5 py-1 text-right text-fg-1 focus:border-accent focus:outline-none"
+            />
+          </Field>
+          {/* Quick-pick the local NIC to bind (this machine's addresses). */}
+          <div className="flex flex-wrap gap-1">
+            <button
+              onClick={() => onChange({ oscListenAddress: '' })}
+              className={`px-1.5 py-0.5 rounded-[var(--r-sm)] border num text-[10px] transition-colors ${settings.oscListenAddress === '' ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:text-fg-1'}`}
+            >All</button>
+            {localAddrs.map((ip) => (
+              <button
+                key={ip}
+                onClick={() => onChange({ oscListenAddress: ip })}
+                className={`px-1.5 py-0.5 rounded-[var(--r-sm)] border num text-[10px] transition-colors ${settings.oscListenAddress === ip ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:text-fg-1'}`}
+              >{ip}</button>
+            ))}
+          </div>
           <Field label="Control prefix">
             <input
               type="text"

@@ -313,6 +313,7 @@ export interface AppSettings {
   // OSC receive (external control + LiDAR blob tracking)
   oscEnabled: boolean;    // bind the OSC UDP listener
   oscListenPort: number;  // UDP port (installation default: 10000)
+  oscListenAddress: string; // bind to a specific local NIC IP (this machine's address); '' = all interfaces
   oscControlPrefix: string; // namespace for external control messages, e.g. '/artlux'
 }
 

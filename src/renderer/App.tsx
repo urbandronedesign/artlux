@@ -49,6 +49,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   artNetSync: false,
   oscEnabled: false,
   oscListenPort: 10000,
+  oscListenAddress: '',
   oscControlPrefix: '/artlux'
 };
 
@@ -699,9 +700,10 @@ const App: React.FC = () => {
       window.artlux?.configureOsc?.({
           enabled: settings.oscEnabled,
           listenPort: settings.oscListenPort,
+          listenAddress: settings.oscListenAddress,
           controlPrefix: settings.oscControlPrefix,
       });
-  }, [settings.oscEnabled, settings.oscListenPort, settings.oscControlPrefix]);
+  }, [settings.oscEnabled, settings.oscListenPort, settings.oscListenAddress, settings.oscControlPrefix]);
   // Stream LiDAR blob snapshots to the 3D Scene window (~30 fps). OSC is received only here in the
   // main window, so the Scene window's tracking viz is fed over the bridge like transport/frames.
   useEffect(() => {

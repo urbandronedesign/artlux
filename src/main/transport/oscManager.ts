@@ -1,4 +1,5 @@
 import dgram from 'node:dgram';
+import os from 'node:os';
 import type { OscMessage } from '../../../shared/protocol';
 
 // OSC receiver/sender for the main process (the sandboxed renderer can't open a UDP socket).
@@ -99,8 +100,9 @@ let socket: dgram.Socket | null = null;
 let sendSocket: dgram.Socket | null = null;
 
 // Bind the listener on `port` and forward each packet's decoded messages to `onMessages`.
-// Re-binds if already listening on a different port. No-throw on failure.
-export function start(port: number, onMessages: (msgs: OscMessage[]) => void): void {
+// `address` binds to one local NIC (this machine's IP); empty/undefined = all interfaces.
+// Re-binds on every (re)configure. No-throw on failure — a bad bind surfaces as an 'error' event.
+export function start(port: number, onMessages: (msgs: OscMessage[]) => void, address?: string): void {
   stop();
   const s = dgram.createSocket({ type: 'udp4', reuseAddr: true });
   s.on('message', (data) => {
@@ -109,16 +111,31 @@ export function start(port: number, onMessages: (msgs: OscMessage[]) => void): v
     if (msgs.length) onMessages(msgs);
   });
   s.on('error', (err) => {
+    // EADDRNOTAVAIL here means the chosen bind address isn't on any local NIC.
     console.error('[osc] socket error', err);
     try { s.close(); } catch { /* */ }
     if (socket === s) socket = null;
   });
+  const where = address ? `${address}:${port}` : `udp/${port}`;
   try {
-    s.bind(port, () => console.log(`[osc] listening on udp/${port}`));
+    const onBound = () => console.log(`[osc] listening on ${where}`);
+    if (address) s.bind(port, address, onBound); else s.bind(port, onBound);
     socket = s;
   } catch (e) {
     console.error('[osc] bind failed', e);
   }
+}
+
+// This machine's non-internal IPv4 addresses — for the bind-to-NIC picker in Preferences.
+export function localAddresses(): string[] {
+  const out: string[] = [];
+  const ifaces = os.networkInterfaces();
+  for (const name of Object.keys(ifaces)) {
+    for (const ni of ifaces[name] ?? []) {
+      if (ni.family === 'IPv4' && !ni.internal) out.push(ni.address);
+    }
+  }
+  return out;
 }
 
 export function stop(): void {

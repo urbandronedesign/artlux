@@ -135,7 +135,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     // ---- OSC (external control + LiDAR blob tracking): receive onto the renderer ----
     ipcMain.on(IPC.OSC_CONFIGURE, (_e, cfg: OscConfig) => {
         if (cfg.enabled) {
-            osc.start(cfg.listenPort, (msgs) => getWindow()?.webContents.send(IPC.OSC_MESSAGE, msgs));
+            osc.start(cfg.listenPort, (msgs) => getWindow()?.webContents.send(IPC.OSC_MESSAGE, msgs), cfg.listenAddress || undefined);
         } else {
             osc.stop();
         }
@@ -143,6 +143,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     ipcMain.on(IPC.OSC_SEND, (_e, host: string, port: number, address: string, args: (number | string)[]) => {
         osc.send(host, port, address, args);
     });
+    ipcMain.handle(IPC.OSC_LOCAL_ADDRS, () => osc.localAddresses());
 
     // ---- HAP video (native decode; renderer pulls frames by index) ----
     ipcMain.handle(IPC.HAP_OPEN, (_e, path: string) => hap.open(path));
