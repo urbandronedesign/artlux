@@ -50,6 +50,25 @@ stays the single writer of play/pause.
 3. With the tracking system sending, the **SOL** (floor) and **MUR** (wall) zones appear at real
    scale with a glowing marker per active blob.
 
+### 4. Project the blobs onto the real floor/wall (1:1)
+Blobs are a **Surface content type**, so they flow through the normal projector-output pipeline.
+
+1. Add a surface → Inspector → **Content** → **Tracking**. Pick **Source** (`SOL` floor / `MUR`
+   wall / `SOL_MUR` combined). Options: **Blob size**, **Show IDs**, **Flip H/V**, **Rotate**,
+   **Calibrate** (overlay), and **Background** (a timeline layer drawn under the blobs).
+2. Two projectors: one surface **TRACKING → SOL** routed to the floor projector, one **TRACKING →
+   MUR** to the wall projector (**Outputs** panel → enable on a display).
+3. Tick **Calibrate** → each output projects its zone border + grid + corner labels + amber **U/V**
+   axis arrows.
+4. **Align** (Outputs → Align) → drag the corner-pin / Bézier so the projected border matches the
+   physical edges.
+5. Confirm orientation: a person stands at a known corner; if the blob is mirrored, toggle **Flip
+   H/V** / **Rotate** until it lands on them. Turn **Calibrate** off (or keep faint).
+
+**Video under the blobs**: set **Background** to a timeline layer — one surface then carries the
+video + blobs and projects on a single projector. The video is decoded once in the main window and
+streamed to the projector under the locally-rendered blobs.
+
 ---
 
 ## Venue setup (61fps installation)
@@ -122,6 +141,22 @@ origin. `u → x` across the width (centered); `v` runs up each zone (`SOL` towa
 - **Settings** — `AppSettings.osc*` (renderer) ↔ `OscConfig` (shared); `Scene3D.trackingViz` gates
   the viz; persisted with the rest of preferences.
 
+### Projection (TRACKING surface content)
+- **`SourceType.TRACKING`** content (`trackingSource`, `blobSize`, `showIds`, `flipH/flipV`,
+  `rotate`, `calibration`, `bgLayerId`). Smoothing (`services/blobMotion.ts` — One-Euro + bounded
+  prediction) and the blob-instance + overlay compute live in **`services/trackingRenderer.ts`**.
+- **GPU compositor** — blobs are drawn on the GPU (no CPU radial-gradient rasterization):
+  **`gpu/blobPass.ts`** (WebGL2: radial-falloff blob discs + textured quads, premultiplied alpha,
+  per-context program cache). The **editor stage** renders into a per-surface WebGL2 canvas
+  (`trackingDrawable.ts`, with a 2D fallback). The **projector** renders background + blobs +
+  overlay **straight into `ProjectorGL`'s source FBO** (`drawTracking` → `warpFromTexture`) — no
+  intermediate canvas, no per-frame full-canvas upload — then warps it with the existing
+  corner-pin/Bézier.
+- **Projector bridge** — `ProjectorApp` runs `blobMotion`/`trackingRenderer` locally, fed by the
+  bridged `{ t: 'tracking' }` snapshot; the background timeline layer streams as `{ t: 'layerFrame' }`.
+  GL note: every draw disables the vertex attrib arrays it enabled (the blob pass + warp share one
+  context; a stale array → out-of-bounds read → GPU-process crash).
+
 ---
 
 ## Troubleshooting
@@ -132,7 +167,10 @@ origin. `u → x` across the width (centered); `v` runs up each zone (`SOL` towa
   machine's IP (`192.168.61.32`) or **All**, not the server's `.21`.
 - **OSC enabled but nothing in logs** → check the **Listen port** is `10000` and a firewall isn't
   blocking inbound UDP on the chosen NIC.
-- **Blobs mirrored left↔right vs. the real floor** ("left when facing the wall" convention) → the
-  `u → x` mapping sign is flipped relative to the install; a calibration flip can be added.
+- **Projected blobs mirrored / rotated vs. the real floor** → toggle **Flip H / Flip V / Rotate** on
+  the Tracking content until a person at a known spot lines up (the **Calibrate** overlay's U/V
+  arrows show the data orientation).
+- **Projected zone doesn't match the physical edges** → use **Outputs → Align** (corner-pin /
+  Bézier) with **Calibrate** on, dragging the projected border onto the real floor/wall edges.
 - **Control does nothing** → verify the sender uses the **Control prefix** (`/artlux/...`) and that
   the timeline/state-machine is in a state that accepts the transition.

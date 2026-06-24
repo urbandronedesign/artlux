@@ -124,9 +124,30 @@ Select a surface, then choose a type in the Inspector's **Content** grid:
 | **NDI** | An NDI source name | Network video. Requires the free **NDI Runtime/Tools** installed; if missing the panel shows an install link. **Refresh** rescans; blank = first source. |
 | **Layer** | A timeline track | The surface shows whatever clip is under the timeline playhead on that track. |
 | **Effect** | An effect + palette | A built-in generative effect (e.g. solid, rainbow, wave, fire) with **Speed** and **Intensity** sliders. No media file needed. |
+| **Tracking** | A tracking **Source** (`SOL`/`MUR`/`SOL_MUR`) | Live **LiDAR blob** positions as content — for interactive floors/walls. Options below. Needs OSC enabled (Preferences → OSC / Tracking). |
 
 The top-bar **Play/Pause** is the global transport for video, camera and the timeline (it's only
 enabled when there's something playable). Live sources (camera, Spout, NDI, DMX-in) are real-time.
+
+### Tracking content (LiDAR blobs you can project)
+Shows a glowing marker per tracked person. Because it's a normal surface, you can route it to a
+**projector** and map it onto the real floor/wall at 1:1. Inspector options:
+
+- **Source** — `SOL` (floor), `MUR` (wall), or `SOL_MUR` (both as one zone).
+- **Blob size** — marker size (updates live as you drag).
+- **Show IDs** — print each person's tracking id.
+- **Flip H / Flip V / Rotate** — orient the data to match the room (use during calibration).
+- **Calibrate** — overlay a zone border + grid + corner labels + **U/V** arrows to align by.
+- **Background** — a timeline layer drawn *under* the blobs (one surface = video + blobs, so it
+  projects on a single projector). The layer must have a clip playing to appear.
+
+**Calibrate a projection (1:1):** point a projector at the tracking surface (§12), tick **Calibrate**,
+use **Outputs → Align** to drag the projected border onto the real edges, then have someone stand at
+a known spot and toggle **Flip/Rotate** until their marker lands on them. Turn **Calibrate** off for
+the show. (Floor + wall = two surfaces → two projectors, calibrated independently.)
+
+> Stacking order: in the **Surfaces** list, the top item is front-most. Use the **▲ / ▼** buttons on
+> each surface to bring it forward / send it back (e.g. put a Tracking surface over a video).
 
 ---
 
