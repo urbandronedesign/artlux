@@ -28,7 +28,8 @@ This guide is for operators and designers using the app. For internals see the o
 13. [3D Scene](#13-3d-scene)
 14. [Projects, assets & broadcast mode](#14-projects-assets--broadcast-mode)
 15. [Keyboard & mouse reference](#15-keyboard--mouse-reference)
-16. [Troubleshooting](#16-troubleshooting)
+16. [Monitoring (Prometheus & Grafana)](#16-monitoring-prometheus--grafana)
+17. [Troubleshooting](#17-troubleshooting)
 
 ---
 
@@ -401,7 +402,31 @@ Text-field typing suppresses these shortcuts.
 
 ---
 
-## 16. Troubleshooting
+## 16. Monitoring (Prometheus & Grafana)
+
+ArtLux can report live health metrics — output FPS, packets/sec, active universes, CPU and memory —
+that you can graph on a dashboard, on this machine or another one on the network. It's built to be
+**cheap on the machine running the show**: ArtLux only publishes a tiny text page; the graphing tools
+(Prometheus + Grafana) do all the heavy lifting and run wherever you like.
+
+- **How it works.** ArtLux exposes a metrics page at `http://127.0.0.1:9464/metrics`. A collector
+  (**Prometheus**) reads it every few seconds and stores the numbers; **Grafana** draws the dashboard.
+  Nothing is pushed and no extra process runs inside ArtLux — the page is only generated when read, so
+  the cost on your output machine is negligible.
+- **Turn it off / move it.** It listens on loopback only by default (invisible on the network). Set the
+  environment variable `ARTLUX_METRICS=0` to disable it entirely, or `ARTLUX_METRICS_HOST=0.0.0.0` to
+  allow another machine (or Docker) to read it. Port is `ARTLUX_METRICS_PORT` (default `9464`).
+- **See the dashboard.** Open Grafana (default `http://localhost:3001`, login `admin` / `admin`) and
+  pick the **ArtLux** dashboard. The `artlux_output_up` panel reads **LIVE** while output is running.
+- **Watching from another machine.** Run Grafana/Prometheus on your laptop, start ArtLux with
+  `ARTLUX_METRICS_HOST=0.0.0.0`, and point the collector at this machine's LAN address on port `9464`.
+
+Full setup (Docker one-liner, native-binary path, and the ready-made dashboard) is in
+[docs/MONITORING.md](MONITORING.md).
+
+---
+
+## 17. Troubleshooting
 
 - **My LEDs are dark.** Check the chain: the surface has content (not *None*), a fixture is placed over
   it and linked (*Mapping → Surface*), the fixture is patched (Auto-patch), and DMX output is enabled
@@ -418,3 +443,6 @@ Text-field typing suppresses these shortcuts.
   clean rectangle to start over.
 - **No output on the network.** Confirm the target IP/broadcast and that another tool (e.g. an Art-Net
   monitor) isn't binding the same UDP port; verify with the **DMX Monitor** tab.
+- **The Grafana dashboard is empty.** In Prometheus (`http://localhost:9090` → Status ▸ Targets) the
+  `artlux` target should be **up**. If it's down: ArtLux isn't running, or — when graphing from Docker /
+  another machine — it was started without `ARTLUX_METRICS_HOST=0.0.0.0`. See [Monitoring](#16-monitoring-prometheus--grafana).

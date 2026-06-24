@@ -1,0 +1,14 @@
+# Prometheus scrape config for local ArtLux testing.
+# Scrapes the in-app /metrics endpoint. When Prometheus runs in Docker, "localhost"
+# means the container itself, so we target host.docker.internal (the host machine).
+# Launch ArtLux with ARTLUX_METRICS_HOST=0.0.0.0 so the container can reach it.
+# If you instead run Prometheus as a native binary on this machine, change the
+# target to localhost:9464.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: artlux
+    static_configs:
+      - targets: ['host.docker.internal:9464']

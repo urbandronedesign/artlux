@@ -1,0 +1,125 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "tags": ["artlux"],
+  "title": "ArtLux",
+  "time": { "from": "now-15m", "to": "now" },
+  "refresh": "5s",
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Output up",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "LIVE", "color": "green" } } }
+          ],
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
+        }
+      },
+      "targets": [{ "expr": "artlux_output_up", "refId": "A" }]
+    },
+    {
+      "id": 2,
+      "title": "Universes",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "artlux_output_universes", "refId": "A" }]
+    },
+    {
+      "id": 3,
+      "title": "FPS (now)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "none", "decimals": 1 } },
+      "targets": [{ "expr": "artlux_output_fps", "refId": "A" }]
+    },
+    {
+      "id": 4,
+      "title": "Packets/s (now)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "pps" } },
+      "targets": [{ "expr": "artlux_output_pps", "refId": "A" }]
+    },
+    {
+      "id": 5,
+      "title": "Event-loop lag p99",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s", "decimals": 4 } },
+      "targets": [{ "expr": "artlux_nodejs_eventloop_lag_p99_seconds", "refId": "A" }]
+    },
+    {
+      "id": 6,
+      "title": "RSS memory",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "bytes" } },
+      "targets": [{ "expr": "artlux_process_resident_memory_bytes", "refId": "A" }]
+    },
+    {
+      "id": 10,
+      "title": "Output FPS",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "none", "custom": { "fillOpacity": 10 } } },
+      "targets": [{ "expr": "artlux_output_fps", "legendFormat": "fps", "refId": "A" }]
+    },
+    {
+      "id": 11,
+      "title": "Output packets/s",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "pps", "custom": { "fillOpacity": 10 } } },
+      "targets": [{ "expr": "artlux_output_pps", "legendFormat": "pps", "refId": "A" }]
+    },
+    {
+      "id": 12,
+      "title": "Process CPU",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "custom": { "fillOpacity": 10 } } },
+      "targets": [{ "expr": "rate(artlux_process_cpu_seconds_total[1m])", "legendFormat": "cpu", "refId": "A" }]
+    },
+    {
+      "id": 13,
+      "title": "Memory (RSS / heap used)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "bytes", "custom": { "fillOpacity": 10 } } },
+      "targets": [
+        { "expr": "artlux_process_resident_memory_bytes", "legendFormat": "rss", "refId": "A" },
+        { "expr": "artlux_nodejs_heap_size_used_bytes", "legendFormat": "heap used", "refId": "B" }
+      ]
+    },
+    {
+      "id": 14,
+      "title": "Event-loop lag (mean / p99)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "fillOpacity": 10 } } },
+      "targets": [
+        { "expr": "artlux_nodejs_eventloop_lag_mean_seconds", "legendFormat": "mean", "refId": "A" },
+        { "expr": "artlux_nodejs_eventloop_lag_p99_seconds", "legendFormat": "p99", "refId": "B" }
+      ]
+    }
+  ]
+}

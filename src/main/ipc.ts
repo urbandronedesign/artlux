@@ -10,6 +10,7 @@ import * as osc from './transport/oscManager';
 import * as hap from './transport/hapManager';
 import * as persistence from './persistence';
 import * as projectFolder from './projectFolder';
+import * as metrics from './metrics';
 import { rebuildAppMenu } from './menu';
 
 // Wire renderer IPC to the native Art-Net transport and report status back.
@@ -151,8 +152,10 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     ipcMain.on(IPC.HAP_CLOSE, (_e, path: string) => hap.close(path));
 
     // Poll native engine throughput stats ~1 Hz and push to the renderer.
+    // The same numbers feed the Prometheus gauges (see ./metrics) — no extra polling.
     setInterval(() => {
         const stats = output.getStats();
         if (stats) getWindow()?.webContents.send(IPC.STATS, stats);
+        metrics.updateEngineStats(stats);
     }, 1000);
 }

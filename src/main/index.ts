@@ -6,6 +6,7 @@ import { setupUpdater } from './updater';
 import { registerProjectorWindows, closeAllProjectors } from './projector';
 import * as ndi from './transport/ndiManager';
 import * as spout from './transport/spoutManager';
+import * as metrics from './metrics';
 import { IPC } from '../../shared/protocol';
 
 const APP_ICON = join(__dirname, '../../build/icon.png');
@@ -174,6 +175,7 @@ app.whenReady().then(() => {
     // projector output + NDI; the editor keeps the lighter defaults (512² / 720p) for preview.
     if (BROADCAST) { ndi.setRecvCap(1920, 1080); spout.setCap(1920, 1080); }
     registerIpc(() => mainWindow);
+    metrics.start(); // Prometheus /metrics endpoint (loopback by default; ARTLUX_METRICS=0 to disable)
     if (!HEADLESS && !BROADCAST) { buildAppMenu(() => mainWindow); setupUpdater(() => mainWindow); }
     ipcMain.on(IPC.SCENE_OPEN, () => { if (!HEADLESS && !BROADCAST) createSceneWindow(); });
     ipcMain.on(IPC.APP_RELAUNCH_BROADCAST, (_e, projectPath: string) => {
@@ -198,6 +200,7 @@ app.whenReady().then(() => {
 });
 
 app.on('before-quit', () => {
+    metrics.stop();
     globalShortcut.unregisterAll();
     broadcastTray?.destroy();
     broadcastTray = null;

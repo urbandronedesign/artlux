@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- **Monitoring (Prometheus + Grafana)** — ArtLux now exposes a Prometheus metrics endpoint from the
+  main process at `http://127.0.0.1:9464/metrics` (output FPS/packets/universes/up, plus CPU, memory and
+  event-loop lag). Pull-based and near-zero cost on the show machine: nothing is pushed and the page is
+  only generated when scraped. Loopback-only by default; `ARTLUX_METRICS=0` disables it,
+  `ARTLUX_METRICS_HOST`/`ARTLUX_METRICS_PORT` move it. Ships a ready local stack in `monitoring/`
+  (Docker Compose with an auto-provisioned Grafana dashboard) and a guide in `docs/MONITORING.md`.
+
 ## v0.12.0
 
 **Pro timeline — infinite, navigable, programmable.** The video-layer timeline becomes a full-screen
