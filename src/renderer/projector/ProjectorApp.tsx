@@ -4,7 +4,7 @@ import { defaultCornerPin, defaultSoftEdge, type CornerPin, type BezierWarp, typ
 import { syncSurfaces, getDrawable } from '../services/surfaceMedia';
 import { timeline as engine } from '../services/timeline';
 import * as trackingStore from '../services/trackingStore';
-import * as trackingDrawable from '../services/trackingDrawable';
+import * as trackingRenderer from '../services/trackingRenderer';
 import { ProjectorGL } from './ProjectorGL';
 import { squareToQuad, applyH } from './homography';
 import { makeBezierWarp, tessellateBezier, evalBezier, BEZIER_CORNERS } from './warp';
@@ -70,7 +70,7 @@ export const ProjectorApp: React.FC = () => {
     softRef.current = r.softEdge ?? defaultSoftEdge();
     gammaRef.current = r.gamma ?? 1;
     fpsCapRef.current = r.fpsCap ?? 0;
-    trackingDrawable.configure(r.trackingSmoothing ?? 0.6, r.trackingPredictMs ?? 50);
+    trackingRenderer.configure(r.trackingSmoothing ?? 0.6, r.trackingPredictMs ?? 50);
     ndiSendRef.current = !!r.ndiSend;
     ndiFullResRef.current = !!r.ndiFullRes;
   };
@@ -145,18 +145,28 @@ export const ProjectorApp: React.FC = () => {
       lastDraw = now;
       gl.setSize(window.innerWidth, window.innerHeight, window.devicePixelRatio || 1);
       const s = surfaceRef.current;
-      let src: CanvasImageSource | ImageBitmap | null = null;
-      if (s) {
+      const mesh = warpRef.current ? tessellateBezier(warpRef.current, RENDER_TESS) : null;
+      const opts = { cornerPin: pinRef.current, warp: mesh, softEdge: softRef.current, gamma: gammaRef.current, aa: AA_SAMPLES };
+      if (s && s.content.type === SourceType.TRACKING && s.content.trackingSource) {
+        // GPU path: composite bg + blobs + overlay into the source FBO, then warp — no CPU canvas.
+        const { w: srcW, h: srcH } = trackingRenderer.sourceSize(s.content.trackingSource);
+        const bg = s.content.bgLayerId ? engine.getLayerDrawable(s.content.bgLayerId) : null;
+        gl.drawTracking({
+          srcW, srcH,
+          bgSource: bg as TexImageSource | null,
+          blobs: trackingRenderer.instances(s, now),
+          overlaySource: trackingRenderer.overlayCanvas(s, srcW, srcH),
+        }, opts);
+      } else {
         // For HAP LAYER content getDrawable returns this window's locally-decoded canvas; for
         // other streamed sources it's null, so we fall back to the frame pushed from main.
-        if (SELF_RENDER.has(s.content.type)) src = getDrawable(s);
-        else if (STREAMED.has(s.content.type)) src = getDrawable(s) ?? frameRef.current;
+        let src: CanvasImageSource | ImageBitmap | null = null;
+        if (s) {
+          if (SELF_RENDER.has(s.content.type)) src = getDrawable(s);
+          else if (STREAMED.has(s.content.type)) src = getDrawable(s) ?? frameRef.current;
+        }
+        gl.draw(src as TexImageSource | null, opts);
       }
-      const mesh = warpRef.current ? tessellateBezier(warpRef.current, RENDER_TESS) : null;
-      gl.draw(src as TexImageSource | null, {
-        cornerPin: pinRef.current, warp: mesh,
-        softEdge: softRef.current, gamma: gammaRef.current, aa: AA_SAMPLES,
-      });
       // Publish this output as NDI (~30 fps, capped resolution) when enabled.
       if (ndiSendRef.current && now - lastNdiRef.current >= 33) {
         lastNdiRef.current = now;

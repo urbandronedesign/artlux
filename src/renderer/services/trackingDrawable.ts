@@ -1,145 +1,82 @@
-// Renders LiDAR blobs (smoothed) into a canvas that a Surface can use as its content — so the
-// blobs flow through the normal stage + projector-output pipeline and can be projection-mapped onto
-// the real floor/wall. Context-agnostic: runs wherever `trackingStore` has data (main window from
-// OSC; projector window from the bridged snapshot). Drives the shared `blobMotion` filter once per
-// frame and caches one canvas per surface.
+// Stage-side drawable for TRACKING surface content: renders the smoothed blobs (+ optional
+// background video + calibration/label overlay) on the GPU into a per-surface WebGL2 canvas and
+// returns it as the surface's drawable (composited by the stage, sampled by the mappers). This
+// replaces the old per-blob CPU radial-gradient rasterization. The projector renders the same
+// content straight into ProjectorGL's source FBO (see ProjectorGL.drawTracking); both share the
+// blob math (services/trackingRenderer) and the WebGL primitives (gpu/blobPass).
 //
-// The canvas aspect matches the zone's physical aspect (scaleY/scaleX from specs), so once the
-// projector quad is corner-pinned to the physical surface a blob circle stays round on the wall/floor.
+// A minimal 2D fallback is used only when WebGL2 is unavailable.
 
-import type { Surface, SurfaceContent } from '../types';
-import * as tracking from './trackingStore';
-import * as blobMotion from './blobMotion';
+import type { Surface } from '../types';
 import { timeline } from './timeline';
-
-const BASE_W = 1920;             // canvas width; height derived from the zone aspect
-const DEFAULT_ASPECT = 1024 / 1920; // venue content-map aspect until specs arrive
-
-let lastTickAt = -1;
-let liveCache: blobMotion.LiveTrack[] = [];
-const canvases = new Map<string, { el: HTMLCanvasElement; ctx: CanvasRenderingContext2D; w: number; h: number }>();
+import * as trackingRenderer from './trackingRenderer';
+import * as blobPass from '../gpu/blobPass';
 
 export function configure(smoothing: number, predictMs: number): void {
-  blobMotion.configure({ smoothing, predictMs });
+  trackingRenderer.configure(smoothing, predictMs);
 }
 
-// Ingest + tick once per animation frame, regardless of how many tracking surfaces ask to draw.
-function tickOnce(now: number): void {
-  if (now - lastTickAt < 8) return;
-  lastTickAt = now;
-  blobMotion.ingest(tracking.getActiveEntries(), now);
-  liveCache = blobMotion.tick(now);
+interface GLSurf { el: HTMLCanvasElement; gl: WebGL2RenderingContext; bgTex: WebGLTexture; overlayTex: WebGLTexture; w: number; h: number }
+interface CPUSurf { el: HTMLCanvasElement; ctx: CanvasRenderingContext2D; w: number; h: number }
+
+const glSurfaces = new Map<string, GLSurf | null>(); // null = GL init failed → CPU fallback
+const cpuSurfaces = new Map<string, CPUSurf>();
+
+function getGL(id: string): GLSurf | null {
+  if (glSurfaces.has(id)) return glSurfaces.get(id)!;
+  const el = document.createElement('canvas');
+  const gl = el.getContext('webgl2', { premultipliedAlpha: true, antialias: true, alpha: true }) as WebGL2RenderingContext | null;
+  if (!gl) { glSurfaces.set(id, null); return null; }
+  const s: GLSurf = { el, gl, bgTex: gl.createTexture()!, overlayTex: gl.createTexture()!, w: 0, h: 0 };
+  glSurfaces.set(id, s);
+  return s;
 }
 
-// Apply the user's orientation calibration (rotate, then optional H/V mirror) in tracking space
-// (normalized, bottom-left origin). Returns transformed (u,v).
-function transformUV(u: number, v: number, c: SurfaceContent): [number, number] {
-  let a = u, b = v;
-  switch (c.rotate) {
-    case 90: { const na = b, nb = 1 - a; a = na; b = nb; break; }
-    case 180: { a = 1 - a; b = 1 - b; break; }
-    case 270: { const na = 1 - b, nb = a; a = na; b = nb; break; }
-    default: break;
-  }
-  if (c.flipH) a = 1 - a;
-  if (c.flipV) b = 1 - b;
-  return [a, b];
-}
-
-function colorFor(id: number): string {
-  return `hsl(${(id * 47) % 360}, 95%, 58%)`; // distinct hue per person
-}
-
-function aspectFor(source: string): number {
-  const t = tracking.getSurfaceTrack(source);
-  return t && t.scaleX > 0 && t.scaleY > 0 ? t.scaleY / t.scaleX : DEFAULT_ASPECT;
-}
-
-// Return the surface's tracking canvas for this frame (black + smoothed blobs + optional overlay),
-// or null when no tracking source is selected.
 export function get(surface: Surface): HTMLCanvasElement | null {
-  const c = surface.content;
-  const source = c.trackingSource;
+  const source = surface.content.trackingSource;
   if (!source) return null;
-
   const now = performance.now();
-  tickOnce(now);
+  const { w, h } = trackingRenderer.sourceSize(source);
+  const g = getGL(surface.id);
+  return g ? renderGL(g, surface, w, h, now) : renderCPU(surface, w, h, now);
+}
 
-  const W = BASE_W, H = Math.max(2, Math.round(BASE_W * aspectFor(source)));
-  let cv = canvases.get(surface.id);
-  if (!cv) { const el = document.createElement('canvas'); cv = { el, ctx: el.getContext('2d')!, w: 0, h: 0 }; canvases.set(surface.id, cv); }
-  if (cv.w !== W || cv.h !== H) { cv.el.width = W; cv.el.height = H; cv.w = W; cv.h = H; }
-  const ctx = cv.ctx;
-
-  // Transparent background so lower-z surfaces (e.g. a video) show through under the blobs on the
-  // stage; on a projector the empty areas resolve to black (= no light) anyway.
-  ctx.clearRect(0, 0, W, H);
-
-  // Optional background: a timeline video layer drawn UNDER the blobs, so one surface carries
-  // video + blobs (and projects as one). In the projector window this is the streamed bitmap.
+function renderGL(g: GLSurf, surface: Surface, w: number, h: number, now: number): HTMLCanvasElement {
+  const gl = g.gl;
+  if (g.w !== w || g.h !== h) { g.el.width = w; g.el.height = h; g.w = w; g.h = h; }
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.viewport(0, 0, w, h);
+  gl.disable(gl.BLEND);
+  gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+  const c = surface.content;
   if (c.bgLayerId) {
     const bg = timeline.getLayerDrawable(c.bgLayerId);
-    if (bg) { try { ctx.drawImage(bg as CanvasImageSource, 0, 0, W, H); } catch { /* not ready */ } }
+    if (bg && blobPass.uploadTexture(gl, g.bgTex, bg as TexImageSource)) blobPass.drawTex(gl, g.bgTex, 1, false, false);
   }
-
-  const toPx = (a: number, b: number): [number, number] => [a * W, (1 - b) * H]; // bottom-left → top-left
-
-  if (c.calibration) drawCalibration(ctx, W, H, c, source);
-
-  const r = Math.max(2, (c.blobSize ?? 0.04) * H);
-  ctx.textAlign = 'center';
-  ctx.font = `${Math.round(H * 0.04)}px system-ui`;
-  for (const t of liveCache) {
-    if (t.surface !== source) continue;
-    const [a, b] = transformUV(t.u, t.v, c);
-    const [x, y] = toPx(a, b);
-    const col = colorFor(t.id);
-    ctx.globalAlpha = t.alpha;
-    // soft halo + solid core
-    const g = ctx.createRadialGradient(x, y, 0, x, y, r * 2.2);
-    g.addColorStop(0, col); g.addColorStop(0.5, col); g.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r * 2.2, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x, y, r * 0.45, 0, Math.PI * 2); ctx.fill();
-    if (c.showIds) { ctx.fillStyle = '#fff'; ctx.fillText(`#${t.id}`, x, y - r - 6); }
-    ctx.globalAlpha = 1;
-  }
-  return cv.el;
+  blobPass.drawBlobs(gl, w, h, trackingRenderer.instances(surface, now), false);
+  const ov = trackingRenderer.overlayCanvas(surface, w, h);
+  if (ov && blobPass.uploadTexture(gl, g.overlayTex, ov)) blobPass.drawTex(gl, g.overlayTex, 1, true, false);
+  return g.el;
 }
 
-// Calibration overlay: zone border + grid + center cross + a labelled origin marker with U/V axis
-// arrows (transformed), so the operator can corner-pin the projector and verify blob orientation.
-function drawCalibration(ctx: CanvasRenderingContext2D, W: number, H: number, c: SurfaceContent, source: string): void {
-  const toPx = (a: number, b: number): [number, number] => [a * W, (1 - b) * H];
-  ctx.save();
-  ctx.lineWidth = Math.max(1, H * 0.003);
-  ctx.strokeStyle = 'rgba(52,211,153,0.7)';
-  ctx.strokeRect(ctx.lineWidth, ctx.lineWidth, W - ctx.lineWidth * 2, H - ctx.lineWidth * 2);
-  // grid
-  ctx.strokeStyle = 'rgba(52,211,153,0.22)';
-  ctx.lineWidth = Math.max(1, H * 0.0015);
-  for (let i = 1; i < 8; i++) { const x = (i / 8) * W; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
-  for (let j = 1; j < 4; j++) { const y = (j / 4) * H; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
-  // center cross
-  ctx.strokeStyle = 'rgba(52,211,153,0.5)';
-  const cx = W / 2, cy = H / 2, cs = H * 0.04;
-  ctx.beginPath(); ctx.moveTo(cx - cs, cy); ctx.lineTo(cx + cs, cy); ctx.moveTo(cx, cy - cs); ctx.lineTo(cx, cy + cs); ctx.stroke();
-  // corner labels (surface corners as the projector shows them)
-  ctx.fillStyle = 'rgba(52,211,153,0.9)';
-  ctx.font = `${Math.round(H * 0.05)}px system-ui`;
-  const pad = H * 0.02;
-  ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.fillText('TL', pad, pad);
-  ctx.textAlign = 'right'; ctx.fillText('TR', W - pad, pad);
-  ctx.textBaseline = 'bottom'; ctx.fillText('BR', W - pad, H - pad);
-  ctx.textAlign = 'left'; ctx.fillText('BL', pad, H - pad);
-  // transformed origin + U/V axis arrows — shows where tracking (0,0) and +u/+v project
-  const [ox, oy] = toPx(...transformUV(0, 0, c));
-  const [ux, uy] = toPx(...transformUV(0.18, 0, c));
-  const [vx, vy] = toPx(...transformUV(0, 0.18, c));
-  ctx.strokeStyle = '#f59e0b'; ctx.fillStyle = '#f59e0b'; ctx.lineWidth = Math.max(2, H * 0.004);
-  ctx.beginPath(); ctx.arc(ox, oy, H * 0.012, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ux, uy); ctx.moveTo(ox, oy); ctx.lineTo(vx, vy); ctx.stroke();
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('U', ux, uy); ctx.fillText('V', vx, vy);
-  ctx.fillText(source, cx, cy - H * 0.08);
-  ctx.restore();
+// Minimal 2D fallback (no WebGL2): solid disc per blob + bg + overlay. Cheap, rarely used.
+function renderCPU(surface: Surface, w: number, h: number, now: number): HTMLCanvasElement {
+  let cv = cpuSurfaces.get(surface.id);
+  if (!cv) { const el = document.createElement('canvas'); cv = { el, ctx: el.getContext('2d')!, w: 0, h: 0 }; cpuSurfaces.set(surface.id, cv); }
+  if (cv.w !== w || cv.h !== h) { cv.el.width = w; cv.el.height = h; cv.w = w; cv.h = h; }
+  const ctx = cv.ctx;
+  ctx.clearRect(0, 0, w, h);
+  const c = surface.content;
+  if (c.bgLayerId) { const bg = timeline.getLayerDrawable(c.bgLayerId); if (bg) { try { ctx.drawImage(bg as CanvasImageSource, 0, 0, w, h); } catch { /* */ } } }
+  const r = Math.max(2, (c.blobSize ?? 0.04) * h);
+  for (const b of trackingRenderer.instances(surface, now)) {
+    ctx.globalAlpha = b.a;
+    ctx.fillStyle = `rgb(${b.rgb.map((x) => Math.round(x * 255)).join(',')})`;
+    ctx.beginPath(); ctx.arc(b.x * w, b.y * h, r, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(b.x * w, b.y * h, r * 0.45, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  const ov = trackingRenderer.overlayCanvas(surface, w, h);
+  if (ov) ctx.drawImage(ov, 0, 0);
+  return cv.el;
 }

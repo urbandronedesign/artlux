@@ -1,5 +1,16 @@
 import type { CornerPin, WarpGrid, SoftEdge } from '../../../shared/protocol';
 import { cornerQs, toClip } from './homography';
+import * as blobPass from '../gpu/blobPass';
+import type { BlobInst } from '../gpu/blobPass';
+
+// LiDAR blob content rendered straight into the source FBO on the GPU (no CPU canvas, no per-frame
+// full-canvas upload): bg video + soft blob discs + optional overlay → warped onto the display.
+export interface TrackingOpts {
+  srcW: number; srcH: number;
+  bgSource?: TexImageSource | null;   // background video frame (decoded in main, streamed here)
+  blobs: BlobInst[];
+  overlaySource?: TexImageSource | null; // calibration / #id overlay (only when enabled)
+}
 
 // Renders one surface's content as either a perspective-correct corner-pinned quad or a
 // grid-mesh warp, with per-output soft-edge blending + gamma, into a multisampled WebGL2
@@ -68,6 +79,12 @@ export class ProjectorGL {
   private capFBO: WebGLFramebuffer | null = null;
   private capTex: WebGLTexture | null = null;
   private capW = 0; private capH = 0;
+  // Source FBO for GPU-composited TRACKING content (bg + blobs + overlay → warp)
+  private srcFBO: WebGLFramebuffer | null = null;
+  private srcTex: WebGLTexture | null = null;
+  private bgTex: WebGLTexture | null = null;
+  private overlayTex: WebGLTexture | null = null;
+  private srcW = 0; private srcH = 0;
 
   constructor(private canvas: HTMLCanvasElement) {
     const gl2 = canvas.getContext('webgl2', { premultipliedAlpha: false, antialias: false }) as WebGL2RenderingContext | null;
@@ -150,7 +167,56 @@ export class ProjectorGL {
     return new Float32Array(out);
   }
 
+  // Upload a CPU/DOM source (image/video/canvas) and warp it onto the display.
   draw(src: TexImageSource | null, o: DrawOpts): void {
+    const gl = this.gl;
+    if (!src) { this.warpFromTexture(null, o); return; }
+    try {
+      gl.bindTexture(gl.TEXTURE_2D, this.tex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
+    } catch { this.warpFromTexture(null, o); return; } // source not decodable this frame
+    this.warpFromTexture(this.tex, o);
+  }
+
+  private ensureSrcFBO(w: number, h: number): void {
+    const gl = this.gl;
+    if (this.srcW === w && this.srcH === h && this.srcFBO) return;
+    if (!this.srcFBO) this.srcFBO = gl.createFramebuffer();
+    if (!this.srcTex) this.srcTex = gl.createTexture();
+    if (!this.bgTex) this.bgTex = gl.createTexture();
+    if (!this.overlayTex) this.overlayTex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.srcTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.srcFBO);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.srcTex, 0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    this.srcW = w; this.srcH = h;
+  }
+
+  // Composite TRACKING content (bg + blobs + overlay) on the GPU into the source FBO, then warp it.
+  drawTracking(t: TrackingOpts, o: DrawOpts): void {
+    const gl = this.gl;
+    this.ensureSrcFBO(t.srcW, t.srcH);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.srcFBO);
+    gl.viewport(0, 0, t.srcW, t.srcH);
+    gl.disable(gl.BLEND);
+    gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT); gl.clearColor(0, 0, 0, 1);
+    if (t.bgSource && this.bgTex && blobPass.uploadTexture(gl, this.bgTex, t.bgSource)) {
+      blobPass.drawTex(gl, this.bgTex, 1, false, true);
+    }
+    blobPass.drawBlobs(gl, t.srcW, t.srcH, t.blobs, true);
+    if (t.overlaySource && this.overlayTex && blobPass.uploadTexture(gl, this.overlayTex, t.overlaySource)) {
+      blobPass.drawTex(gl, this.overlayTex, 1, true, true);
+    }
+    this.warpFromTexture(this.srcTex, o);
+  }
+
+  // Warp an already-bound-able texture onto the display (corner-pin / Bézier mesh + soft-edge + gamma).
+  private warpFromTexture(tex: WebGLTexture | null, o: DrawOpts): void {
     const gl = this.gl;
     const w = this.canvas.width, h = this.canvas.height;
     const useMS = this.ensureMSAA(w, h, o.aa ?? 0);
@@ -158,14 +224,11 @@ export class ProjectorGL {
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, target);
     gl.viewport(0, 0, w, h);
+    gl.disable(gl.BLEND);
     gl.clear(gl.COLOR_BUFFER_BIT);
-    if (!src) { this.resolve(useMS, w, h); return; }
+    if (!tex) { this.resolve(useMS, w, h); return; }
 
-    try {
-      gl.bindTexture(gl.TEXTURE_2D, this.tex);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
-    } catch { this.resolve(useMS, w, h); return; } // source not decodable this frame
-
+    gl.bindTexture(gl.TEXTURE_2D, tex);
     const data = this.buildGeometry(o);
     const soft = o.softEdge;
     gl.useProgram(this.prog);
@@ -180,6 +243,10 @@ export class ProjectorGL {
     gl.enableVertexAttribArray(this.aUVQ);
     gl.vertexAttribPointer(this.aUVQ, 3, gl.FLOAT, false, stride, 2 * 4);
     gl.drawArrays(gl.TRIANGLES, 0, data.length / 5);
+    // Leave no enabled attrib arrays behind (the blob pass shares this context — a stale array
+    // pointing at a smaller buffer would read out of bounds and crash the GPU process).
+    gl.disableVertexAttribArray(this.aPos);
+    gl.disableVertexAttribArray(this.aUVQ);
 
     this.resolve(useMS, w, h);
   }
@@ -242,5 +309,9 @@ export class ProjectorGL {
     if (this.msColor) gl.deleteRenderbuffer(this.msColor);
     if (this.capFBO) gl.deleteFramebuffer(this.capFBO);
     if (this.capTex) gl.deleteTexture(this.capTex);
+    if (this.srcFBO) gl.deleteFramebuffer(this.srcFBO);
+    if (this.srcTex) gl.deleteTexture(this.srcTex);
+    if (this.bgTex) gl.deleteTexture(this.bgTex);
+    if (this.overlayTex) gl.deleteTexture(this.overlayTex);
   }
 }
