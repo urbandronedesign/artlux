@@ -68,6 +68,16 @@ Open **Preferences → DMX Output**:
 **Per-fixture routing** (Fixtures inspector → Routing): override protocol / target IP / broadcast /
 sParse / sACN priority per fixture, so one show can address many controllers.
 
+## OSC in: external control & LiDAR tracking
+Open **Preferences → OSC / Tracking**: enable the UDP receiver (default port **10000**), pick the
+**bind NIC** (this machine's IP), and set the **control prefix** (default `/artlux`). Two streams
+share the socket:
+- **Control** — `/artlux/transport/{play,pause,stop,seek,loop}` and `/artlux/state/trigger` drive the
+  timeline transport + state-machine.
+- **LiDAR tracking** — `/<surface>/blobs/blob<n>/{id,tx,ty,u,v}` (surfaces `SOL`/`MUR`/`SOL_MUR`)
+  feed a render-free tracking store and the **3D Scene blob visualization** (toggle **Tracking zones
+  (LiDAR)** in the Scene window). Full protocol + venue wiring + architecture in [OSC.md](OSC.md).
+
 ## Projects, rigs & preferences
 - **Save / Save As / Open** (File menu or top bar) — native dialogs writing `.artlux` project files
   (fixtures, settings, brightness, groups, scenes).
