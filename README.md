@@ -79,6 +79,7 @@ react-three-fiber · Rust (napi-rs) · Art-Net + sACN/E1.31
 
 ## Documentation
 
+- [docs/USER_GUIDE.md](docs/USER_GUIDE.md) — **end-user guide**: workflows (surfaces, fixtures, LED mapping, outputs, 3D, timeline) + full keyboard/mouse reference.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — **how the app works today** (canonical).
 - [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) — setup, build, test, release, gotchas.
 - [docs/FEATURES.md](docs/FEATURES.md) — feature/usage guide.
