@@ -168,9 +168,17 @@ export interface SurfaceContent {
 
 // --- Video-layer timeline (NLE) ---
 // A layer is a track = an addressable output channel; surfaces/3D planes bind to its id.
+// The header flags (muted/solo/locked/enabled) are EDIT-UX only — the playback engine
+// (services/timeline.ts) ignores them so playback/compositing is unchanged.
 export interface VideoLayer {
   id: string;
   name: string;
+  height?: number;       // lane height in px (default LANE_H)
+  color?: string;        // hex label color for the track header (default none)
+  muted?: boolean;       // UX-only dim flag (engine ignores)
+  solo?: boolean;        // UX-only highlight flag (engine ignores)
+  locked?: boolean;      // prevents clip edits on this track in the UI
+  enabled?: boolean;     // visibility toggle (UX-only); default true
 }
 // A clip placed on a track. All times are seconds.
 export interface VideoClip {
@@ -182,13 +190,45 @@ export interface VideoClip {
   duration: number;      // clip length on the timeline
   inPoint: number;       // offset into the source where playback starts (trim)
   sourceDuration?: number; // full length of the source video (for trim limits)
+  color?: string;        // per-clip tint override (optional)
+}
+// A point of interest on the timeline ruler.
+export interface Marker {
+  id: string;
+  time: number;          // seconds
+  color: string;         // hex
+  note?: string;
 }
 export interface Timeline {
   layers: VideoLayer[];
   clips: VideoClip[];
   duration: number;      // total timeline length (loops at this point)
+  fps?: number;          // frame rate for HH:MM:SS:FF timecode (default 30)
+  markers?: Marker[];    // ruler markers
+  inPoint?: number | null;  // timeline range start (export/loop region) — NOT clip trim
+  outPoint?: number | null; // timeline range end
 }
-export const defaultTimeline = (): Timeline => ({ layers: [], clips: [], duration: 60 });
+export const defaultTimeline = (): Timeline => ({
+  layers: [], clips: [], duration: 60, fps: 30, markers: [], inPoint: null, outPoint: null,
+});
+
+// Fill defaults for fields added after a project was saved, so old projects load cleanly.
+// Top-level fields would migrate via the spread in App's loader, but per-array fields
+// (layer/clip) need explicit defaulting — done here in one place.
+export const normalizeTimeline = (t: Partial<Timeline> | null | undefined): Timeline => {
+  const base = defaultTimeline();
+  if (!t || !Array.isArray(t.layers)) return base;
+  return {
+    ...base,
+    ...t,
+    layers: (t.layers ?? []).map(l => ({ enabled: true, ...l })),
+    clips: t.clips ?? [],
+    markers: t.markers ?? [],
+    inPoint: t.inPoint ?? null,
+    outPoint: t.outPoint ?? null,
+    fps: t.fps ?? base.fps,
+  };
+};
 
 export interface Surface {
   id: string;

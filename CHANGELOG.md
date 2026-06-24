@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.11.0
+
+**DaVinci-style timeline** — the video-layer timeline is reworked into a proper NLE editing surface.
+Editing UX only; playback and per-LED compositing are unchanged.
+
+- **Filmstrip thumbnails** — clips now show video-frame thumbnails along their length. Frames are
+  decoded asynchronously into an LRU cache (a dedicated offscreen path for normal video, and a
+  one-shot HAP decode on its own GPU context) so the strip never disturbs live playback.
+- **Pro track headers** — per-track mute / solo / lock / show-hide, a color label, drag-to-reorder,
+  and drag-to-resize track height. Lock blocks edits and drops on that lane. (Mute/solo/hide are
+  visual aids — the output engine still shows the topmost clip per track.)
+- **Blade, snapping & ripple** — a Blade tool splits clips at the cursor or playhead; magnetic
+  snapping aligns drags to clip edges, the playhead, markers and the in/out range with a live guide;
+  ripple-delete closes the gap left behind.
+- **Frame-accurate timecode, markers & in/out** — an `HH:MM:SS:FF` ruler and readout at a settable
+  project frame rate, colored timeline markers (add / seek / delete / note), and an in/out range band.
+- **Keyboard shortcuts** — Space play/pause, L/K/J, B blade, V select, S/N snapping, M marker,
+  I/O in/out, C blade-at-playhead, Delete ripple-delete, +/- zoom, Home/End — scoped to the timeline
+  panel and suppressed while typing.
+
+> No native rebuild required. Old projects load unchanged (new fields default in).
+
 ## v0.10.0
 
 **Smoother HAP playback** — the HAP player is reworked for glitch-free, display-synced playback,

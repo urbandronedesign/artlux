@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, FixtureTemplate, Controller, Timeline, defaultTimeline } from './types';
+import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline } from './types';
 import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge } from '../../shared/protocol';
 import type { AppInfo, UpdateEvent, Scene3D, ProjectorOutput, DisplayInfo, SoftEdge } from '../../shared/protocol';
 import type { SceneToMain } from './scene/bridge';
@@ -17,7 +17,7 @@ import { Stage } from './components/Stage';
 import { DMXMonitor } from './components/DMXMonitor';
 import { FixtureEditor } from './components/FixtureEditor';
 import { Dock } from './components/Dock';
-import { Timeline as TimelinePanel } from './components/Timeline';
+import { Timeline as TimelinePanel } from './components/timeline/Timeline';
 import { Preferences } from './components/Preferences';
 import { StatusBar } from './components/StatusBar';
 import { sendArtNetFrame, configureOutput, addStatusListener } from './services/mockSocketService';
@@ -438,7 +438,7 @@ const App: React.FC = () => {
       setControllers(Array.isArray(data?.controllers) ? data.controllers : []);
       setGroups(Array.isArray(data?.groups) ? data.groups : []);
       setScenes(Array.isArray(data?.scenes) ? data.scenes : []);
-      setTimeline(data?.timeline && Array.isArray(data.timeline.layers) ? { ...defaultTimeline(), ...data.timeline } : defaultTimeline());
+      setTimeline(normalizeTimeline(data?.timeline));
       setProjectorOutputs(Array.isArray(data?.projectorOutputs) ? data.projectorOutputs as ProjectorOutput[] : []);
       setProjectorFpsCap(typeof data?.projectorFpsCap === 'number' ? data.projectorFpsCap : 0);
       setScene3D(() => {

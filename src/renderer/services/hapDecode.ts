@@ -123,3 +123,14 @@ export function release(path: string): void {
   pipes.delete(path);
   window.artlux?.closeHap?.(path);
 }
+
+// One-shot decode that bypasses the playback prefetch ring entirely. Used by the thumbnail
+// cache so scrubbing for thumbnails never re-centers a layer's live decode-ahead window (which
+// would starve playback). Returns null if the native decoder is unavailable.
+export async function decodeFrameRaw(path: string, idx: number): Promise<HapFrame | null> {
+  try {
+    return (await window.artlux?.decodeHapFrame?.(path, idx)) ?? null;
+  } catch {
+    return null;
+  }
+}
