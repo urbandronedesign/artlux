@@ -18,7 +18,8 @@ Newest decisions at the bottom of each section. Commit hashes are on `main`.
 | Outputs | Projector outputs (warp/blend/gamma/MSAA/perf) + broadcast mode + consistent quit | ✅ done (v0.6.0–v0.6.1) | `b1a76bf`, `1edbca9`, `070c6a0`, `eb4d96b` |
 | NDI | NDI receive onto surfaces + send per output (native grafton-ndi addon, prebuilt) | ✅ done (v0.7.0) | `e1cf527`, `e946bb5` |
 | HAP | GPU-decompressed HAP video + vsync-locked playback | ✅ done (v0.9.0–v0.10.0) | `794723d`, `dfe31c3` |
-| Timeline | DaVinci-style NLE: filmstrips, pro track headers, blade/snap/ripple, timecode/markers/shortcuts (editing-UX only) | ✅ done (v0.11.0) | `<pending>` |
+| Timeline | DaVinci-style NLE: filmstrips, pro track headers, blade/snap/ripple, timecode/markers/shortcuts (editing-UX only) | ✅ done (v0.11.0) | `9cfbce1` |
+| Timeline+ | Infinite/unbounded clock + optional loop region, wheel-zoom/middle-pan, maximize, and a state-machine control layer (emits transport intents; App stays sole transport writer) | ✅ done (v0.12.0) | `330549c` |
 
 ## What works today
 - Runs as a native **Electron** desktop app: `npm run dev` (electron-vite). Three-process build: main / preload / renderer.

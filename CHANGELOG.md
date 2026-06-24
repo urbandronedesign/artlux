@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.12.0
+
+**Pro timeline — infinite, navigable, programmable.** The video-layer timeline becomes a full-screen
+editing surface with a control layer. Clip editing stays UX-only; per-LED compositing is unchanged.
+
+- **Infinite timeline** — the playhead now advances unbounded: place clips end-to-end to build long
+  sequences and play right past the old fixed length. Where no clip sits under the playhead the output
+  is black. Looping is now opt-in: toggle **Loop** (Shift+L) to wrap over the in/out region.
+- **Mouse zoom & pan** — the mouse wheel zooms toward the cursor, **Shift+wheel** scrolls horizontally,
+  and **middle-button drag** pans the timeline in any direction. The view grows as you explore.
+- **Maximize** — drag the timeline dock's top edge to resize it, or press **F** (or the maximize
+  button) to expand the timeline to fill the whole window; press again to restore.
+- **State-machine control layer** — an always-present, optional logic layer that can drive the
+  transport (play / pause / stop / seek / loop / jump-to-marker). Build a graph of states and
+  transitions in the **Edit logic** editor; transitions fire manually (buttons on the state lane) or
+  automatically after a delay, at a time, on a marker, or when a clip ends. Disabled by default; turn
+  it off any time to return to manual control.
+
+> No native rebuild required. Old projects load unchanged (new fields default in). Note: projects that
+> previously looped at their set length now play unbounded unless you enable Loop.
+
 ## v0.11.0
 
 **DaVinci-style timeline** — the video-layer timeline is reworked into a proper NLE editing surface.
