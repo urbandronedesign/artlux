@@ -137,12 +137,16 @@ export function snapshot(): TrackingSnapshot {
   return { surfaces: out };
 }
 
-// Replace the store from a bridged snapshot (Scene window). Notifies subscribers.
+// Replace the store from a bridged snapshot (Scene window) or a replayed take. Stamp updatedAt=now
+// so these just-applied blobs count as fresh: the main window re-bridges via snapshot(), whose
+// STALE_TTL ghost filter would otherwise drop a recorded take's original (old) timestamps and the
+// projector/Scene would show nothing. Clone so cached take frames aren't mutated.
 export function applySnapshot(snap: TrackingSnapshot): void {
+  const now = performance.now();
   surfaces.clear();
   for (const su of snap.surfaces) {
     const t: SurfaceTrack = { surface: su.surface, scaleX: su.scaleX, scaleY: su.scaleY, blobs: new Map() };
-    for (const b of su.blobs) t.blobs.set(b.slot, b);
+    for (const b of su.blobs) t.blobs.set(b.slot, { ...b, updatedAt: now });
     surfaces.set(su.surface, t);
   }
   markDirty();
