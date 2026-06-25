@@ -97,6 +97,9 @@ No tracker on the bench? You can drive it with synthetic blobs:
 node scripts/lidar-emitter.cjs [host] [port] [nBlobs]   # e.g. 127.0.0.1 10000 3
 ```
 
+Going on site to sync with the real tracker (incl. the "1 person = 2 blobs" check)? Follow the
+field checklist in [TRACKING_SYNC.md](TRACKING_SYNC.md).
+
 ## Venue setup (61fps installation)
 
 | Device | IP | Role |
