@@ -15,13 +15,18 @@
 
 import type { Blob } from './trackingStore';
 
+export interface TrailPoint { u: number; v: number; t: number } // tracking space, perf-now timestamp
+
 export interface LiveTrack {
   key: string;
   surface: string;
   id: number;
   u: number;     // smoothed + predicted, normalized [0..1], bottom-left origin
   v: number;
+  vu: number;    // smoothed velocity (units/sec) — for the direction triangle
+  vv: number;
   alpha: number; // 1 = fresh; fades to 0 once samples stop, before removal
+  trail: TrailPoint[]; // recent display positions, oldest→newest (for the comet trail)
 }
 
 interface Config {
@@ -82,13 +87,20 @@ interface Track {
   dispU: number;       // displayed position — chases the smoothed target every render frame
   dispV: number;
   dispInit: boolean;
+  svu: number;         // heading velocity, extra-smoothed at render rate so the triangle rotates smoothly
+  svv: number;
   tSample: number;     // performance.now() of the last fed sample (consumer clock)
   lastUpdatedAt: number; // store Blob.updatedAt of the last fed sample (to gate duplicates)
+  trail: TrailPoint[];
+  lastTrailAt: number;
 }
 
 const STALE_HOLD = 200;       // ms after the last sample before a track starts fading
 const FOLLOW_TAU_MIN = 0.04;  // render-follow time constant (s) at smoothing=0 (snappy)
 const FOLLOW_TAU_MAX = 0.18;  // …at smoothing=1 (very smooth)
+const TRAIL_DT = 33;          // ms between recorded trail points
+const TRAIL_MAX_MS = 2000;    // history window cap (the renderer fades a shorter span)
+const HEAD_TAU = 0.16;        // heading-velocity smoothing time constant (s) — smooth triangle rotation
 
 let lastTick = -1;
 const tracks = new Map<string, Track>();
@@ -101,7 +113,7 @@ export function ingest(entries: { surface: string; blob: Blob }[], now: number):
     if (blob.id === 0) continue;
     const key = `${surface}#${blob.id}`;
     let t = tracks.get(key);
-    if (!t) { t = { key, surface, id: blob.id, u: newAxis(), v: newAxis(), dispU: 0, dispV: 0, dispInit: false, tSample: now, lastUpdatedAt: -1 }; tracks.set(key, t); }
+    if (!t) { t = { key, surface, id: blob.id, u: newAxis(), v: newAxis(), dispU: 0, dispV: 0, dispInit: false, svu: 0, svv: 0, tSample: now, lastUpdatedAt: -1, trail: [], lastTrailAt: 0 }; tracks.set(key, t); }
     if (blob.updatedAt === t.lastUpdatedAt) continue; // no new data for this track this frame
     const dt = t.lastUpdatedAt < 0 ? 0 : (now - t.tSample) / 1000;
     stepAxis(t.u, blob.u, dt);
@@ -128,8 +140,20 @@ export function tick(now: number): LiveTrack[] {
     const targetV = t.v.xHat + t.v.dxHat * lead;
     if (!t.dispInit) { t.dispU = targetU; t.dispV = targetV; t.dispInit = true; }
     else { t.dispU += (targetU - t.dispU) * k; t.dispV += (targetV - t.dispV) * k; }
+    // Render-rate low-pass of the velocity vector → smooth triangle rotation (no ±π wraparound issue
+    // since we smooth the vector, not the angle).
+    const hk = 1 - Math.exp(-dtFrame / HEAD_TAU);
+    t.svu += (t.u.dxHat - t.svu) * hk;
+    t.svv += (t.v.dxHat - t.svv) * hk;
+    // Record a time-spaced trail point (skip while fading out so the tail doesn't clump in place).
+    if (ageMs <= STALE_HOLD && now - t.lastTrailAt >= TRAIL_DT) {
+      t.trail.push({ u: t.dispU, v: t.dispV, t: now });
+      t.lastTrailAt = now;
+      const cutoff = now - TRAIL_MAX_MS;
+      while (t.trail.length && t.trail[0].t < cutoff) t.trail.shift();
+    }
     const fade = ageMs <= STALE_HOLD ? 1 : 1 - (ageMs - STALE_HOLD) / Math.max(1, cfg.ttl - STALE_HOLD);
-    out.push({ key: t.key, surface: t.surface, id: t.id, u: t.dispU, v: t.dispV, alpha: Math.min(1, Math.max(0, fade)) });
+    out.push({ key: t.key, surface: t.surface, id: t.id, u: t.dispU, v: t.dispV, vu: t.svu, vv: t.svv, alpha: Math.min(1, Math.max(0, fade)), trail: t.trail });
   }
   return out;
 }

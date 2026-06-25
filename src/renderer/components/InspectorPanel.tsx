@@ -214,6 +214,8 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                             </div>
                             <Slider label="Blob size" value={c.blobSize ?? 0.04} min={0.01} max={0.15} step={0.005}
                                 format={(v) => `${Math.round(v * 100)}%`} onInput={(v) => setContent({ blobSize: v })} onChange={(v) => setContent({ blobSize: v })} />
+                            <Slider label="Trail (s)" value={c.trailSeconds ?? 1.2} min={0} max={3} step={0.1}
+                                format={(v) => `${v.toFixed(1)}s`} onInput={(v) => setContent({ trailSeconds: v })} onChange={(v) => setContent({ trailSeconds: v })} />
                             <div className="flex items-center gap-1">
                                 <label className="text-fg-2 w-12 text-[10px]">Rotate</label>
                                 <select value={c.rotate ?? 0} onChange={(e) => setContent({ rotate: parseInt(e.target.value) })}
@@ -226,6 +228,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                                 <label className="flex items-center gap-1.5"><input type="checkbox" checked={c.flipV ?? false} onChange={(e) => setContent({ flipV: e.target.checked })} />Flip V</label>
                                 <label className="flex items-center gap-1.5"><input type="checkbox" checked={c.showIds ?? false} onChange={(e) => setContent({ showIds: e.target.checked })} />Show IDs</label>
                                 <label className="flex items-center gap-1.5"><input type="checkbox" checked={c.calibration ?? false} onChange={(e) => setContent({ calibration: e.target.checked })} />Calibrate</label>
+                                <label className="flex items-center gap-1.5"><input type="checkbox" checked={c.trail !== false} onChange={(e) => setContent({ trail: e.target.checked })} />Trail</label>
                             </div>
                         </div>
                     )}

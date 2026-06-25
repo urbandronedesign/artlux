@@ -8,6 +8,7 @@ import type { BlobInst } from '../gpu/blobPass';
 export interface TrackingOpts {
   srcW: number; srcH: number;
   bgSource?: TexImageSource | null;   // background video frame (decoded in main, streamed here)
+  trails?: Float32Array | null;       // comet-trail ribbon vertices (drawn under the blobs)
   blobs: BlobInst[];
   overlaySource?: TexImageSource | null; // calibration / #id overlay (only when enabled)
 }
@@ -208,6 +209,7 @@ export class ProjectorGL {
     if (t.bgSource && this.bgTex && blobPass.uploadTexture(gl, this.bgTex, t.bgSource)) {
       blobPass.drawTex(gl, this.bgTex, 1, false, true);
     }
+    if (t.trails && t.trails.length) blobPass.drawSolid(gl, t.trails, true);
     blobPass.drawBlobs(gl, t.srcW, t.srcH, t.blobs, true);
     if (t.overlaySource && this.overlayTex && blobPass.uploadTexture(gl, this.overlayTex, t.overlaySource)) {
       blobPass.drawTex(gl, this.overlayTex, 1, true, true);

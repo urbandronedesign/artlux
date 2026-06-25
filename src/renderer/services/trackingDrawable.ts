@@ -53,6 +53,10 @@ function renderGL(g: GLSurf, surface: Surface, w: number, h: number, now: number
     const bg = timeline.getLayerDrawable(c.bgLayerId);
     if (bg && blobPass.uploadTexture(gl, g.bgTex, bg as TexImageSource)) blobPass.drawTex(gl, g.bgTex, 1, false, false);
   }
+  if (c.trail !== false) {
+    const trail = trackingRenderer.trails(surface, now, c.trailSeconds ?? 1.2);
+    if (trail.length) blobPass.drawSolid(gl, trail, false);
+  }
   blobPass.drawBlobs(gl, w, h, trackingRenderer.instances(surface, now), false);
   const ov = trackingRenderer.overlayCanvas(surface, w, h);
   if (ov && blobPass.uploadTexture(gl, g.overlayTex, ov)) blobPass.drawTex(gl, g.overlayTex, 1, true, false);

@@ -151,9 +151,11 @@ export const ProjectorApp: React.FC = () => {
         // GPU path: composite bg + blobs + overlay into the source FBO, then warp — no CPU canvas.
         const { w: srcW, h: srcH } = trackingRenderer.sourceSize(s.content.trackingSource);
         const bg = s.content.bgLayerId ? engine.getLayerDrawable(s.content.bgLayerId) : null;
+        const trails = s.content.trail !== false ? trackingRenderer.trails(s, now, s.content.trailSeconds ?? 1.2) : null;
         gl.drawTracking({
           srcW, srcH,
           bgSource: bg as TexImageSource | null,
+          trails,
           blobs: trackingRenderer.instances(s, now),
           overlaySource: trackingRenderer.overlayCanvas(s, srcW, srcH),
         }, opts);

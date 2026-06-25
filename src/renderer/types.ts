@@ -174,6 +174,8 @@ export interface SurfaceContent {
   flipV?: boolean;           // mirror v (near↔far / up↔down)
   rotate?: number;           // 0 | 90 | 180 | 270 — rotate the tracking frame
   calibration?: boolean;     // overlay zone border + grid + corner labels for alignment
+  trail?: boolean;           // comet trail behind each blob (default on)
+  trailSeconds?: number;     // trail length, seconds
 }
 
 // --- Video-layer timeline (NLE) ---

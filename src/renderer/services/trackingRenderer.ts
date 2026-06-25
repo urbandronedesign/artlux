@@ -59,8 +59,11 @@ function colorFor(id: number): [number, number, number] {
   return [f(0), f(8), f(4)];
 }
 
+const SPEED_REF = 0.3; // normalized units/sec at which the direction triangle is fully shown
+const VEL_EPS = 0.05;  // seconds — probe distance for the transformed heading
+
 // Smoothed + predicted blobs for a surface as GPU instances (x,y top-left normalized; r = fraction
-// of height). Drives the motion filter once per frame.
+// of height; heading in screen space; dir = direction strength). Drives the motion filter once/frame.
 export function instances(surface: Surface, now: number): BlobInst[] {
   const source = surface.content.trackingSource;
   if (!source) return [];
@@ -71,9 +74,52 @@ export function instances(surface: Surface, now: number): BlobInst[] {
   for (const t of liveCache) {
     if (t.surface !== source) continue;
     const [a, b] = transformUV(t.u, t.v, c);
-    out.push({ x: a, y: 1 - b, r, rgb: colorFor(t.id), a: t.alpha });
+    const [a2, b2] = transformUV(t.u + VEL_EPS * t.vu, t.v + VEL_EPS * t.vv, c); // velocity, transformed
+    const heading = Math.atan2((1 - b2) - (1 - b), a2 - a); // screen space (x right, y down)
+    const dir = Math.min(1, Math.hypot(t.vu, t.vv) / SPEED_REF);
+    out.push({ x: a, y: 1 - b, r, rgb: colorFor(t.id), a: t.alpha, heading, dir });
   }
   return out;
+}
+
+// Comet-trail ribbons for a surface as premultiplied solid triangles ([x,y,r,g,b,a] per vertex,
+// x/y normalized). Width tapers full→0 and alpha fades head→tail (bounded by trailSeconds).
+export function trails(surface: Surface, now: number, trailSeconds: number): Float32Array {
+  const source = surface.content.trackingSource;
+  if (!source) return new Float32Array(0);
+  tickOnce(now);
+  const c = surface.content;
+  const { w: W, h: H } = sourceSize(source);
+  const headHalf = (c.blobSize ?? 0.04) * H * 0.6; // head half-width (px), a bit under the circle
+  const winMs = Math.max(50, trailSeconds * 1000);
+  const verts: number[] = [];
+  for (const t of liveCache) {
+    if (t.surface !== source) continue;
+    const pts = t.trail;
+    if (pts.length < 2) continue;
+    const [rr, gg, bb] = colorFor(t.id);
+    const n = pts.length;
+    const sx: number[] = [], sy: number[] = [], age: number[] = [];
+    for (let i = 0; i < n; i++) {
+      const [pa, pb] = transformUV(pts[i].u, pts[i].v, c);
+      sx.push(pa * W); sy.push((1 - pb) * H);
+      age.push(Math.max(0, 1 - (now - pts[i].t) / winMs));
+    }
+    for (let i = 0; i < n - 1; i++) {
+      const f0 = i / (n - 1), f1 = (i + 1) / (n - 1);     // 0 tail → 1 head
+      const w0 = headHalf * f0, w1 = headHalf * f1;
+      const a0 = age[i] * f0 * t.alpha, a1 = age[i + 1] * f1 * t.alpha;
+      let dx = sx[i + 1] - sx[i], dy = sy[i + 1] - sy[i];
+      const len = Math.hypot(dx, dy) || 1; dx /= len; dy /= len;
+      const nx = -dy, ny = dx; // perpendicular
+      const push = (px: number, py: number, al: number) => verts.push(px / W, py / H, rr * al, gg * al, bb * al, al);
+      const x0l = sx[i] + nx * w0, y0l = sy[i] + ny * w0, x0r = sx[i] - nx * w0, y0r = sy[i] - ny * w0;
+      const x1l = sx[i + 1] + nx * w1, y1l = sy[i + 1] + ny * w1, x1r = sx[i + 1] - nx * w1, y1r = sy[i + 1] - ny * w1;
+      push(x0l, y0l, a0); push(x0r, y0r, a0); push(x1r, y1r, a1);
+      push(x0l, y0l, a0); push(x1r, y1r, a1); push(x1l, y1l, a1);
+    }
+  }
+  return new Float32Array(verts);
 }
 
 // Optional 2D overlay (calibration grid/labels/axes + #id labels) drawn on top of the GPU blobs.

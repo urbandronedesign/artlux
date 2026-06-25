@@ -1,12 +1,12 @@
-// Shared WebGL blob compositor — draws soft blob discs (radial-falloff shader) and textured quads
-// (background video + calibration overlay) into the currently-bound framebuffer. Used by both the
-// editor stage (its own GL canvas) and the projector (rendered straight into ProjectorGL's source
-// FBO, so blobs never touch a CPU 2D canvas). Programs are cached per GL context.
+// Shared WebGL blob compositor — draws the blob markers (a solid disc + a white direction triangle),
+// the comet-trail ribbons, and textured quads (background video + calibration overlay) into the
+// currently-bound framebuffer. Used by both the editor stage (its own GL canvas) and the projector
+// (rendered straight into ProjectorGL's source FBO). Programs are cached per GL context.
 //
-// GLSL ES 1.00 (works on WebGL1 + WebGL2). Coordinates: blob x,y are normalized [0,1] with a
-// top-left origin; r is a fraction of the framebuffer height (so blobs stay round when the FBO
-// aspect matches the zone). Output is PREMULTIPLIED alpha (blend ONE, 1-SRC_ALPHA) so the editor's
-// premultiplied GL canvas composites correctly over a video, and the projector FBO reads clean.
+// GLSL ES 1.00 (works on WebGL1 + WebGL2). Blob x,y are normalized [0,1] top-left; r is a fraction
+// of the framebuffer height. Output is PREMULTIPLIED alpha (blend ONE, 1-SRC_ALPHA). `flipY` inverts
+// clip-Y for the projector's source FBO (sampled by the warp with v=0 at top); `uYSign` flips the
+// triangle's local Y to match, so the heading is correct on both the stage and the projector.
 
 export interface BlobInst {
   x: number;            // [0,1] left→right
@@ -14,35 +14,50 @@ export interface BlobInst {
   r: number;            // radius as a fraction of height
   rgb: [number, number, number]; // 0..1
   a: number;            // alpha 0..1
+  heading: number;      // radians, screen space (x right, y down) — triangle points this way
+  dir: number;          // 0..1 direction strength (triangle fades out when still)
 }
+
+// Trail ribbon vertices: flat [x, y, r, g, b, a] with x,y normalized [0,1] and rgba premultiplied.
+export type TrailVerts = Float32Array;
 
 type GL = WebGLRenderingContext | WebGL2RenderingContext;
 
 interface Progs {
-  blobProg: WebGLProgram; bPos: number; bLocal: number; bColor: number; bAlpha: number;
+  blobProg: WebGLProgram; bPos: number; bLocal: number; bColor: number; bAlpha: number; bHeading: number; bDir: number; bYSign: WebGLUniformLocation | null;
   texProg: WebGLProgram; tPos: number; tUV: number; tTex: WebGLUniformLocation | null; tAlpha: WebGLUniformLocation | null; tFlip: WebGLUniformLocation | null;
-  blobBuf: WebGLBuffer; quadBuf: WebGLBuffer;
+  solidProg: WebGLProgram; sPos: number; sCol: number; sFlip: WebGLUniformLocation | null;
+  blobBuf: WebGLBuffer; quadBuf: WebGLBuffer; solidBuf: WebGLBuffer;
 }
 
 const cache = new WeakMap<GL, Progs>();
 
-const HALO = 2.2;   // quad half-size = r*HALO (the soft halo extent)
-
 const BLOB_VERT = `
 attribute vec2 aPos; attribute vec2 aLocal; attribute vec3 aColor; attribute float aAlpha;
-varying vec2 vLocal; varying vec3 vColor; varying float vAlpha;
-void main() { vLocal = aLocal; vColor = aColor; vAlpha = aAlpha; gl_Position = vec4(aPos, 0.0, 1.0); }`;
+attribute float aHeading; attribute float aDir;
+varying vec2 vLocal; varying vec3 vColor; varying float vAlpha; varying float vHeading; varying float vDir;
+void main() { vLocal = aLocal; vColor = aColor; vAlpha = aAlpha; vHeading = aHeading; vDir = aDir; gl_Position = vec4(aPos, 0.0, 1.0); }`;
 
 const BLOB_FRAG = `
 precision mediump float;
-varying vec2 vLocal; varying vec3 vColor; varying float vAlpha;
+varying vec2 vLocal; varying vec3 vColor; varying float vAlpha; varying float vHeading; varying float vDir;
+uniform float uYSign;
+float edge(vec2 p, vec2 a, vec2 b) { vec2 e = b - a; vec2 n = normalize(vec2(-e.y, e.x)); return dot(p - a, n); }
 void main() {
-  float d = length(vLocal);            // 0 center → 1 at quad edge (= r*HALO)
-  float halo = smoothstep(1.0, 0.5, d); // colored soft disc
-  float core = smoothstep(0.22, 0.16, d); // bright white centre
-  vec3 rgb = mix(vColor, vec3(1.0), core);
-  float a = max(halo, core) * vAlpha;
-  gl_FragColor = vec4(rgb * a, a); // premultiplied
+  float d = length(vLocal);
+  float disc = 1.0 - smoothstep(0.9, 1.0, d);          // solid circle, soft edge
+  // screen-space local (x right, y down), rotated so +x points along the heading
+  vec2 sl = vec2(vLocal.x, vLocal.y * uYSign);
+  float c = cos(vHeading), s = sin(vHeading);
+  vec2 p = vec2(c * sl.x + s * sl.y, -s * sl.x + c * sl.y);
+  // arrowhead pointing +x, inside the disc; winding-agnostic inside test with AA
+  vec2 ta = vec2(0.62, 0.0), tb = vec2(-0.32, 0.42), tc = vec2(-0.32, -0.42);
+  float e1 = edge(p, ta, tb), e2 = edge(p, tb, tc), e3 = edge(p, tc, ta);
+  float AAW = 0.05;
+  float tri = max(smoothstep(-AAW, AAW, min(e1, min(e2, e3))), smoothstep(AAW, -AAW, max(e1, max(e2, e3))));
+  vec3 rgb = mix(vColor, vec3(1.0), tri * vDir);        // white triangle, only when moving
+  float a = disc * vAlpha;
+  gl_FragColor = vec4(rgb * a, a);                      // premultiplied
 }`;
 
 const TEX_VERT = `
@@ -54,13 +69,25 @@ precision mediump float;
 varying vec2 vUV; uniform sampler2D uTex; uniform float uAlpha;
 void main() { vec4 c = texture2D(uTex, vUV); float a = c.a * uAlpha; gl_FragColor = vec4(c.rgb * a, a); }`;
 
+// Solid premultiplied-color triangles (the trail ribbons). Positions are normalized [0,1] top-left.
+const SOLID_VERT = `
+attribute vec2 aPos; attribute vec4 aCol; varying vec4 vCol; uniform float uFlipY;
+void main() {
+  float cx = aPos.x * 2.0 - 1.0;
+  float cy = (uFlipY > 0.0) ? (aPos.y * 2.0 - 1.0) : (1.0 - aPos.y * 2.0);
+  vCol = aCol; gl_Position = vec4(cx, cy, 0.0, 1.0);
+}`;
+const SOLID_FRAG = `
+precision mediump float; varying vec4 vCol;
+void main() { gl_FragColor = vCol; }`;
+
 function compile(gl: GL, type: number, src: string): WebGLShader {
   const sh = gl.createShader(type)!;
   gl.shaderSource(sh, src); gl.compileShader(sh);
   if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(`[blobPass] shader: ${gl.getShaderInfoLog(sh)}`);
   return sh;
 }
-function link(gl: GL, vert: string, frag: string): WebGLProgram {
+function linkProg(gl: GL, vert: string, frag: string): WebGLProgram {
   const p = gl.createProgram()!;
   gl.attachShader(p, compile(gl, gl.VERTEX_SHADER, vert));
   gl.attachShader(p, compile(gl, gl.FRAGMENT_SHADER, frag));
@@ -72,8 +99,9 @@ function link(gl: GL, vert: string, frag: string): WebGLProgram {
 function progs(gl: GL): Progs {
   let p = cache.get(gl);
   if (p) return p;
-  const blobProg = link(gl, BLOB_VERT, BLOB_FRAG);
-  const texProg = link(gl, TEX_VERT, TEX_FRAG);
+  const blobProg = linkProg(gl, BLOB_VERT, BLOB_FRAG);
+  const texProg = linkProg(gl, TEX_VERT, TEX_FRAG);
+  const solidProg = linkProg(gl, SOLID_VERT, SOLID_FRAG);
   // Full-screen quad with top-left UV origin (v=0 at clip-top), matching ProjectorGL (no Y flip).
   const quad = new Float32Array([
     -1, 1, 0, 0, 1, 1, 1, 0, 1, -1, 1, 1,
@@ -88,14 +116,22 @@ function progs(gl: GL): Progs {
     bLocal: gl.getAttribLocation(blobProg, 'aLocal'),
     bColor: gl.getAttribLocation(blobProg, 'aColor'),
     bAlpha: gl.getAttribLocation(blobProg, 'aAlpha'),
+    bHeading: gl.getAttribLocation(blobProg, 'aHeading'),
+    bDir: gl.getAttribLocation(blobProg, 'aDir'),
+    bYSign: gl.getUniformLocation(blobProg, 'uYSign'),
     texProg,
     tPos: gl.getAttribLocation(texProg, 'aPos'),
     tUV: gl.getAttribLocation(texProg, 'aUV'),
     tTex: gl.getUniformLocation(texProg, 'uTex'),
     tAlpha: gl.getUniformLocation(texProg, 'uAlpha'),
     tFlip: gl.getUniformLocation(texProg, 'uFlipY'),
+    solidProg,
+    sPos: gl.getAttribLocation(solidProg, 'aPos'),
+    sCol: gl.getAttribLocation(solidProg, 'aCol'),
+    sFlip: gl.getUniformLocation(solidProg, 'uFlipY'),
     blobBuf: gl.createBuffer()!,
     quadBuf,
+    solidBuf: gl.createBuffer()!,
   };
   cache.set(gl, p);
   return p;
@@ -131,29 +167,45 @@ export function drawTex(gl: GL, tex: WebGLTexture, alpha: number, blend: boolean
   gl.disableVertexAttribArray(p.tPos); gl.disableVertexAttribArray(p.tUV);
 }
 
-// Draw the blobs as soft discs into the bound framebuffer (size fbW×fbH px). Builds one quad per
-// blob (≤64 → a few KB) — no instancing extension needed. `flipY` inverts clip-Y for FBO targets
-// sampled by the warp (v=0 at top).
+// Draw the comet-trail ribbons (premultiplied solid triangles) into the bound framebuffer.
+export function drawSolid(gl: GL, verts: TrailVerts, flipY: boolean): void {
+  if (!verts.length) return;
+  const p = progs(gl);
+  gl.useProgram(p.solidProg);
+  gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+  gl.uniform1f(p.sFlip, flipY ? 1 : -1);
+  gl.bindBuffer(gl.ARRAY_BUFFER, p.solidBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, verts, gl.DYNAMIC_DRAW);
+  const stride = 6 * 4;
+  gl.enableVertexAttribArray(p.sPos); gl.vertexAttribPointer(p.sPos, 2, gl.FLOAT, false, stride, 0);
+  gl.enableVertexAttribArray(p.sCol); gl.vertexAttribPointer(p.sCol, 4, gl.FLOAT, false, stride, 2 * 4);
+  gl.drawArrays(gl.TRIANGLES, 0, verts.length / 6);
+  gl.disableVertexAttribArray(p.sPos); gl.disableVertexAttribArray(p.sCol);
+}
+
+// Draw the blob markers (disc + direction triangle) into the bound framebuffer (size fbW×fbH px).
+// Builds one quad per blob (≤64 → a few KB). `flipY` inverts clip-Y for FBO targets sampled by the warp.
 export function drawBlobs(gl: GL, fbW: number, fbH: number, blobs: BlobInst[], flipY: boolean): void {
   if (!blobs.length) return;
   const p = progs(gl);
-  const FLOATS = 8; // aPos.xy, aLocal.xy, aColor.rgb, aAlpha
+  const FLOATS = 10; // aPos.xy, aLocal.xy, aColor.rgb, aAlpha, aHeading, aDir
   const data = new Float32Array(blobs.length * 6 * FLOATS);
   let o = 0;
   const corners: [number, number][] = [[-1, -1], [1, -1], [1, 1], [-1, -1], [1, 1], [-1, 1]];
   for (const b of blobs) {
-    const halfPx = b.r * HALO * fbH;
-    const dxC = (halfPx / fbW) * 2, dyC = (halfPx / fbH) * 2; // clip-space half-extents (round in px)
-    const cxC = b.x * 2 - 1, cyC = flipY ? (b.y * 2 - 1) : (1 - b.y * 2); // center in clip (top-left origin)
+    const halfPx = b.r * fbH;                       // quad half-size = the circle radius
+    const dxC = (halfPx / fbW) * 2, dyC = (halfPx / fbH) * 2;
+    const cxC = b.x * 2 - 1, cyC = flipY ? (b.y * 2 - 1) : (1 - b.y * 2);
     for (const [lx, ly] of corners) {
       data[o++] = cxC + lx * dxC; data[o++] = cyC + ly * dyC; // aPos
       data[o++] = lx; data[o++] = ly;                          // aLocal
       data[o++] = b.rgb[0]; data[o++] = b.rgb[1]; data[o++] = b.rgb[2];
-      data[o++] = b.a;
+      data[o++] = b.a; data[o++] = b.heading; data[o++] = b.dir;
     }
   }
   gl.useProgram(p.blobProg);
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+  gl.uniform1f(p.bYSign, flipY ? 1 : -1);
   gl.bindBuffer(gl.ARRAY_BUFFER, p.blobBuf);
   gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
   const stride = FLOATS * 4;
@@ -161,7 +213,10 @@ export function drawBlobs(gl: GL, fbW: number, fbH: number, blobs: BlobInst[], f
   gl.enableVertexAttribArray(p.bLocal); gl.vertexAttribPointer(p.bLocal, 2, gl.FLOAT, false, stride, 2 * 4);
   gl.enableVertexAttribArray(p.bColor); gl.vertexAttribPointer(p.bColor, 3, gl.FLOAT, false, stride, 4 * 4);
   gl.enableVertexAttribArray(p.bAlpha); gl.vertexAttribPointer(p.bAlpha, 1, gl.FLOAT, false, stride, 7 * 4);
+  gl.enableVertexAttribArray(p.bHeading); gl.vertexAttribPointer(p.bHeading, 1, gl.FLOAT, false, stride, 8 * 4);
+  gl.enableVertexAttribArray(p.bDir); gl.vertexAttribPointer(p.bDir, 1, gl.FLOAT, false, stride, 9 * 4);
   gl.drawArrays(gl.TRIANGLES, 0, blobs.length * 6);
   gl.disableVertexAttribArray(p.bPos); gl.disableVertexAttribArray(p.bLocal);
   gl.disableVertexAttribArray(p.bColor); gl.disableVertexAttribArray(p.bAlpha);
+  gl.disableVertexAttribArray(p.bHeading); gl.disableVertexAttribArray(p.bDir);
 }
