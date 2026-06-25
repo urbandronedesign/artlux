@@ -71,6 +71,32 @@ streamed to the projector under the locally-rendered blobs.
 
 ---
 
+### 5. OSC Monitor (sniffer) — test the LiDAR feed
+
+**View ▸ OSC Monitor…** (`Ctrl+Shift+M`) opens a live sniffer of the raw incoming OSC stream — the
+fastest way to answer *“is the tracker actually sending blobs to this machine?”* without the 3D
+Scene or a projector.
+
+- **Status strip** — a coloured dot (green = receiving, amber = listening but **0 msg/s**, grey =
+  OSC receive disabled), the bind target (`*:10000`), live **msg/s**, the number of distinct
+  addresses, and the total **active blobs**.
+- **Blob cards** — one per surface seen (`SOL` / `MUR` / `SOL_MUR`): `active / total` blob slots and
+  the zone size in metres. A card turns **green** while it has active blobs — the at-a-glance check.
+- **Address table** — every OSC address with its update **rate (Hz)**, total count, and last
+  value(s). Type in the **filter** box to narrow by address substring (e.g. `MUR`).
+- **Pause** freezes the view, **Clear** resets the counters, and **Raw log** streams the literal
+  `address  args` lines for deep inspection.
+
+It taps the OSC stream directly, so it shows the **raw wire** — including live blobs even while a
+recorded take is replaying over them, and addresses the normal router ignores. It’s read-only and
+adds no load when closed.
+
+No tracker on the bench? You can drive it with synthetic blobs:
+
+```
+node scripts/lidar-emitter.cjs [host] [port] [nBlobs]   # e.g. 127.0.0.1 10000 3
+```
+
 ## Venue setup (61fps installation)
 
 | Device | IP | Role |
@@ -172,8 +198,11 @@ present (for authoring and rehearsal). See [TRACKING_TAKES.md](TRACKING_TAKES.md
   Being on the `.61` subnet isn't enough; confirm the server is up before expecting data.
 - **`[osc] socket error … EADDRNOTAVAIL`** → the **Bind address** isn't a local NIC. Use this
   machine's IP (`192.168.61.32`) or **All**, not the server's `.21`.
-- **OSC enabled but nothing in logs** → check the **Listen port** is `10000` and a firewall isn't
-  blocking inbound UDP on the chosen NIC.
+- **OSC enabled but nothing in logs** → open **View ▸ OSC Monitor** (`Ctrl+Shift+M`): an **amber**
+  dot with **0 msg/s** confirms the listener is up but no packets are arriving (server/network),
+  whereas a green dot with no blob cards means OSC is arriving but carries no `/…/blobs/…`
+  addresses. Also check the **Listen port** is `10000` and a firewall isn't blocking inbound UDP on
+  the chosen NIC.
 - **Projected blobs mirrored / rotated vs. the real floor** → toggle **Flip H / Flip V / Rotate** on
   the Tracking content until a person at a known spot lines up (the **Calibrate** overlay's U/V
   arrows show the data orientation).

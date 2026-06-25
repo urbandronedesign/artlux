@@ -74,6 +74,8 @@ function template(): MenuItemConstructorOptions[] {
         { label: 'Reload', accelerator: 'CmdOrCtrl+R', click: () => getWindowRef?.()?.webContents.reload() },
         { label: 'Toggle Developer Tools', accelerator: process.platform === 'darwin' ? 'Alt+Cmd+I' : 'Ctrl+Shift+I', click: () => getWindowRef?.()?.webContents.toggleDevTools() },
         { type: 'separator' },
+        { label: 'OSC Monitor…', accelerator: 'CmdOrCtrl+Shift+M', registerAccelerator: false, click: () => send('osc-monitor') },
+        { type: 'separator' },
         { role: 'resetZoom' },
         { role: 'zoomIn' },
         { role: 'zoomOut' },

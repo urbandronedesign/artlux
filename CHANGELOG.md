@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **OSC Monitor (sniffer)** — **View ▸ OSC Monitor** (`Ctrl+Shift+M`) opens a live view of the raw
+  incoming OSC stream for testing the LiDAR feed: a receiving/listening status dot with live msg/s,
+  per-surface blob cards (`active/total` + zone size, green when active), and an address table with
+  per-address rate (Hz), count and last value, plus filter, pause, clear and a raw-message log. It
+  taps the stream directly, so it shows the raw wire — including live blobs during take replay — and
+  adds no load when closed. Ships `scripts/lidar-emitter.cjs` to drive it with synthetic blobs when
+  no tracker is present. See [docs/OSC.md](docs/OSC.md).
+
 ## v0.14.1
 
 - **Fix (tracking takes):** replayed takes now show on **fullscreen projector** and **3D Scene**

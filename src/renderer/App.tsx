@@ -21,6 +21,7 @@ import { FixtureEditor } from './components/FixtureEditor';
 import { Dock } from './components/Dock';
 import { Timeline as TimelinePanel } from './components/timeline/Timeline';
 import { Preferences } from './components/Preferences';
+import { OscMonitor } from './components/OscMonitor';
 import { StatusBar } from './components/StatusBar';
 import { sendArtNetFrame, configureOutput, addStatusListener } from './services/mockSocketService';
 import { dmxSignal } from './services/dmxSignal';
@@ -102,6 +103,7 @@ const App: React.FC = () => {
   const [currentProjectPath, setCurrentProjectPath] = useState<string | null>(null);
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [oscMonitorOpen, setOscMonitorOpen] = useState(false);
   const [update, setUpdate] = useState<UpdateEvent | null>(null);
   const [updateUserInitiated, setUpdateUserInitiated] = useState(false);
   const [scene3D, setScene3D] = useState<Scene3D>(defaultScene3D());
@@ -678,6 +680,7 @@ const App: React.FC = () => {
           case 'preferences': setPrefsOpen(true); break;
           case 'routing': setRoutingOpen(true); break;
           case 'about': setAboutOpen(true); break;
+          case 'osc-monitor': setOscMonitorOpen(true); break;
           case 'check-updates': setUpdateUserInitiated(true); window.artlux?.checkForUpdates?.(); break;
           case 'undo': undo(); break;
           case 'redo': redo(); break;
@@ -1274,6 +1277,7 @@ const App: React.FC = () => {
 
       <Preferences open={prefsOpen} onClose={() => setPrefsOpen(false)} settings={settings} onChange={updateSettings} />
       <About open={aboutOpen} onClose={() => setAboutOpen(false)} info={appInfo} />
+      <OscMonitor open={oscMonitorOpen} onClose={() => setOscMonitorOpen(false)} settings={settings} />
 
       {update && (
         <UpdateNotice
