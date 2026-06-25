@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { PanelLeft, PanelRight, Activity, Wifi } from 'lucide-react';
-import { helpBus } from '../services/helpBus';
+import { helpBus, type HelpText, type HelpLang } from '../services/helpBus';
 
 interface Props {
   help: string;
+  lang: HelpLang;
   renderFps: number;
   connected: boolean;
   outputStats: { pps: number; fps: number; universes: number } | null;
@@ -14,8 +15,8 @@ interface Props {
   targetIp: string;
 }
 
-export const StatusBar: React.FC<Props> = ({ help, renderFps, connected, outputStats, leftOpen, onToggleLeft, rightOpen, onToggleRight, targetIp }) => {
-  const [hint, setHint] = useState<string | null>(null);
+export const StatusBar: React.FC<Props> = ({ help, lang, renderFps, connected, outputStats, leftOpen, onToggleLeft, rightOpen, onToggleRight, targetIp }) => {
+  const [hint, setHint] = useState<HelpText | null>(null);
   useEffect(() => helpBus.subscribe(setHint), []);
 
   return (
@@ -37,7 +38,7 @@ export const StatusBar: React.FC<Props> = ({ help, renderFps, connected, outputS
       >
         <PanelRight size={13} />
       </button>
-      <span className={`truncate ${hint ? 'text-fg-2' : 'text-fg-3'}`}>{hint ?? help}</span>
+      <span className={`truncate ${hint ? 'text-fg-2' : 'text-fg-3'}`}>{hint ? hint[lang] : help}</span>
     </div>
 
     <div className="flex items-center gap-4 shrink-0">

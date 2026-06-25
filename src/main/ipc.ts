@@ -1,7 +1,7 @@
 import { app, ipcMain, shell, dialog, BrowserWindow } from 'electron';
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { IPC, type OutputConfig, type InputConfig, type ProjectData, type RigData, type Prefs, type SpoutConfig, type NdiConfig, type NdiSendConfig, type OscConfig, type AssetType } from '../../shared/protocol';
+import { IPC, type OutputConfig, type InputConfig, type ProjectData, type RigData, type Prefs, type SpoutConfig, type NdiConfig, type NdiSendConfig, type OscConfig, type AssetType, type WindowCommand } from '../../shared/protocol';
 import * as output from './transport/outputManager';
 import * as input from './transport/input';
 import * as discovery from './transport/discovery';
@@ -115,6 +115,30 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     ipcMain.on(IPC.OPEN_EXTERNAL, (_e, url: string) => {
         if (/^https?:\/\//i.test(url)) shell.openExternal(url);
     });
+
+    // ---- Custom title bar: window controls + menu roles (frameless window) ----
+    ipcMain.on(IPC.WINDOW_COMMAND, (_e, cmd: WindowCommand) => {
+        const win = getWindow();
+        if (!win) return;
+        const wc = win.webContents;
+        switch (cmd) {
+            case 'minimize': win.minimize(); break;
+            case 'maximize-toggle': win.isMaximized() ? win.unmaximize() : win.maximize(); break;
+            case 'close': win.close(); break;
+            case 'quit': app.quit(); break;
+            case 'reload': wc.reload(); break;
+            case 'devtools': wc.toggleDevTools(); break;
+            case 'fullscreen': win.setFullScreen(!win.isFullScreen()); break;
+            case 'zoom-in': wc.setZoomLevel(wc.getZoomLevel() + 0.5); break;
+            case 'zoom-out': wc.setZoomLevel(wc.getZoomLevel() - 0.5); break;
+            case 'zoom-reset': wc.setZoomLevel(0); break;
+            case 'cut': wc.cut(); break;
+            case 'copy': wc.copy(); break;
+            case 'paste': wc.paste(); break;
+            case 'select-all': wc.selectAll(); break;
+        }
+    });
+    ipcMain.handle(IPC.WINDOW_IS_MAXIMIZED, () => !!getWindow()?.isMaximized());
 
     // ---- Spout receiver ----
     ipcMain.handle(IPC.SPOUT_LIST, () => spout.listSenders());

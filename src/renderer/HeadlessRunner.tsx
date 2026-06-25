@@ -18,6 +18,11 @@ const DEFAULTS: AppSettings = {
   fps: 44,
   keepAlive: true,
   artNetSync: false,
+  oscEnabled: false,
+  oscListenPort: 10000,
+  oscListenAddress: '',
+  oscControlPrefix: '/artlux',
+  helpLang: 'en',
 };
 
 export const HeadlessRunner: React.FC<{ projectPath: string | null }> = ({ projectPath }) => {

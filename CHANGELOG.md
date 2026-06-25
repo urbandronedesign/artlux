@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **Custom single-line title bar** — the editor window is now frameless with its own VS Code-style
+  top strip: the ArtLux logo, the `File/Edit/View/Window/Help` menus (app-styled dropdowns; all
+  keyboard shortcuts unchanged), the toolbar action icons (3D Scene · Outputs · Routing · DMX
+  Monitor · Preferences · Help), and the window min/maximize/close controls — all on one row. The
+  separate toolbar row and the center play/pause button were removed (playback lives in the timeline
+  panel + Space); the toolbar buttons are now icon-only with 3D Scene grouped on the right.
+- **Dockable bilingual Help panel (EN/FR)** — a resizable right-side help panel (open with **F1**,
+  the **?** toolbar button, or **Help ▸ Help Panel**). It shows contextual help for whatever control
+  you hover/focus and a browsable set of topic guides (Getting Started, Surfaces, Outputs, OSC/LiDAR
+  Tracking, Timeline, Shortcuts). An **EN/FR** toggle switches all help text and is remembered across
+  sessions. Hover hints are now bilingual; the rest of the UI stays English.
+
 ## v0.14.3
 
 - **Dark menu bar** — the native Windows menu bar (File/Edit/View/Window/Help) now renders dark

@@ -47,6 +47,10 @@ function createWindow(): void {
         backgroundColor: '#000000',
         show: false,
         icon: APP_ICON,
+        // Frameless: the editor draws its own title bar (logo + menus + window controls) in the
+        // renderer (components/MenuBar.tsx). The native application menu is still registered (see
+        // buildAppMenu) so all keyboard accelerators keep working even with no native menu bar shown.
+        frame: false,
         autoHideMenuBar: HEADLESS || BROADCAST, // GUI shows the native menu bar; headless/broadcast hide it
         webPreferences: {
             preload: join(__dirname, '../preload/index.js'),
@@ -72,6 +76,10 @@ function createWindow(): void {
         mainWindow?.showInactive();
     });
     mainWindow.on('closed', () => { closeAllProjectors(); mainWindow = null; });
+    // Custom title bar: tell the renderer when maximized state flips so it swaps the maximize/restore icon.
+    const emitMaximized = () => mainWindow?.webContents.send(IPC.WINDOW_MAXIMIZE_CHANGED, !!mainWindow?.isMaximized());
+    mainWindow.on('maximize', emitMaximized);
+    mainWindow.on('unmaximize', emitMaximized);
 
     // electron-vite provides the dev server URL; fall back to the built file.
     const devUrl = process.env['ELECTRON_RENDERER_URL'];

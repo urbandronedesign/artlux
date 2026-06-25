@@ -70,6 +70,12 @@ export const IPC = {
   OPEN_EXTERNAL: 'app:open-external',
   /** Renderer → main: relaunch the app in broadcast mode with the given project path. */
   APP_RELAUNCH_BROADCAST: 'app:relaunch-broadcast',
+  /** Renderer → main: a window/role command from the custom title bar (minimize, close, reload, …). */
+  WINDOW_COMMAND: 'window:command',
+  /** Renderer → main (invoke): is the main window currently maximized? */
+  WINDOW_IS_MAXIMIZED: 'window:is-maximized',
+  /** Main → renderer: the main window's maximized state changed (toggle the restore/maximize icon). */
+  WINDOW_MAXIMIZE_CHANGED: 'window:maximize-changed',
   /** Renderer → main: check GitHub for a newer release. */
   UPDATE_CHECK: 'update:check',
   /** Renderer → main: user accepted — download the available update. */
@@ -456,6 +462,13 @@ export interface OpenProjectResult {
   data: ProjectData;
 }
 
+/** Window/menu-role commands the custom title bar can fire at the main window. */
+export type WindowCommand =
+  | 'minimize' | 'maximize-toggle' | 'close' | 'quit'
+  | 'reload' | 'devtools' | 'fullscreen'
+  | 'zoom-in' | 'zoom-out' | 'zoom-reset'
+  | 'cut' | 'copy' | 'paste' | 'select-all';
+
 /** API surface exposed on `window.artlux` by the preload via contextBridge. */
 export interface ArtluxApi {
   configureOutput(cfg: OutputConfig): void;
@@ -504,6 +517,10 @@ export interface ArtluxApi {
   openExternal(url: string): void;
   /** Save-then-relaunch into broadcast mode (no editor UI; outputs + Art-Net only). */
   relaunchBroadcast(projectPath: string): void;
+  // Custom title bar (frameless window): window controls + menu roles.
+  windowCommand(cmd: WindowCommand): void;
+  isWindowMaximized(): Promise<boolean>;
+  onWindowMaximizeChanged(cb: (maximized: boolean) => void): () => void;
   // Auto-update (user-gated: nothing downloads or installs without an explicit call)
   checkForUpdates(): void;
   downloadUpdate(): void;

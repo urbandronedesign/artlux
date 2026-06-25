@@ -3,6 +3,7 @@ import {
     IPC, type OutputConfig, type OutputStats, type InputConfig, type InputFrame, type ArtluxApi,
     type ProjectData, type RigData, type Prefs, type SpoutConfig, type SpoutFrame, type UpdateEvent,
     type DisplayInfo, type NdiConfig, type NdiFrame, type NdiSendConfig, type OscConfig, type OscMessage,
+    type WindowCommand,
 } from '../../shared/protocol';
 
 const api: ArtluxApi = {
@@ -79,6 +80,14 @@ const api: ArtluxApi = {
     getAppInfo: () => ipcRenderer.invoke(IPC.APP_INFO),
     openExternal: (url: string) => ipcRenderer.send(IPC.OPEN_EXTERNAL, url),
     relaunchBroadcast: (projectPath: string) => ipcRenderer.send(IPC.APP_RELAUNCH_BROADCAST, projectPath),
+    // Custom title bar (frameless window)
+    windowCommand: (cmd: WindowCommand) => ipcRenderer.send(IPC.WINDOW_COMMAND, cmd),
+    isWindowMaximized: () => ipcRenderer.invoke(IPC.WINDOW_IS_MAXIMIZED),
+    onWindowMaximizeChanged: (cb: (maximized: boolean) => void) => {
+        const listener = (_e: unknown, maximized: boolean) => cb(maximized);
+        ipcRenderer.on(IPC.WINDOW_MAXIMIZE_CHANGED, listener);
+        return () => { ipcRenderer.removeListener(IPC.WINDOW_MAXIMIZE_CHANGED, listener); };
+    },
     // Auto-update
     checkForUpdates: () => ipcRenderer.send(IPC.UPDATE_CHECK),
     downloadUpdate: () => ipcRenderer.send(IPC.UPDATE_DOWNLOAD),

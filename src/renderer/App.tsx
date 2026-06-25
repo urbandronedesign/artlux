@@ -22,6 +22,8 @@ import { Dock } from './components/Dock';
 import { Timeline as TimelinePanel } from './components/timeline/Timeline';
 import { Preferences } from './components/Preferences';
 import { OscMonitor } from './components/OscMonitor';
+import { MenuBar } from './components/MenuBar';
+import { HelpPanel } from './components/HelpPanel';
 import { StatusBar } from './components/StatusBar';
 import { sendArtNetFrame, configureOutput, addStatusListener } from './services/mockSocketService';
 import { dmxSignal } from './services/dmxSignal';
@@ -55,7 +57,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   oscEnabled: false,
   oscListenPort: 10000,
   oscListenAddress: '',
-  oscControlPrefix: '/artlux'
+  oscControlPrefix: '/artlux',
+  helpLang: 'en'
 };
 
 const App: React.FC = () => {
@@ -104,6 +107,8 @@ const App: React.FC = () => {
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [oscMonitorOpen, setOscMonitorOpen] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+  const [helpWidth, setHelpWidth] = useState(320);
   const [update, setUpdate] = useState<UpdateEvent | null>(null);
   const [updateUserInitiated, setUpdateUserInitiated] = useState(false);
   const [scene3D, setScene3D] = useState<Scene3D>(defaultScene3D());
@@ -681,6 +686,7 @@ const App: React.FC = () => {
           case 'routing': setRoutingOpen(true); break;
           case 'about': setAboutOpen(true); break;
           case 'osc-monitor': setOscMonitorOpen(true); break;
+          case 'help-panel': setShowHelp((v) => !v); break;
           case 'check-updates': setUpdateUserInitiated(true); window.artlux?.checkForUpdates?.(); break;
           case 'undo': undo(); break;
           case 'redo': redo(); break;
@@ -1115,19 +1121,23 @@ const App: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen w-screen bg-stage text-fg-1 font-sans overflow-hidden">
-      <TopBar
-          isVideoPlaying={isVideoPlaying}
-          onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)}
-          canPlay={surfaces.some(s => s.content.type === SourceType.VIDEO || s.content.type === SourceType.CAMERA) || timeline.clips.length > 0}
-          onOpenScene={() => window.artlux?.openSceneWindow?.()}
-          onOpenPreferences={() => setPrefsOpen(true)}
-          onOpenRouting={() => setRoutingOpen(true)}
-          onOpenOutputs={() => { refreshDisplays(); setOutputsOpen(true); }}
-          monitorOpen={dockOpen && dockTab === DockTab.MONITOR}
-          onToggleMonitor={() => {
-            if (dockOpen && dockTab === DockTab.MONITOR) setDockOpen(false);
-            else { setDockTab(DockTab.MONITOR); setDockOpen(true); }
-          }}
+      <MenuBar
+          onMenuAction={(a) => dispatchMenuRef.current(a)}
+          actions={
+            <TopBar
+                onOpenScene={() => window.artlux?.openSceneWindow?.()}
+                onOpenPreferences={() => setPrefsOpen(true)}
+                onOpenRouting={() => setRoutingOpen(true)}
+                onOpenOutputs={() => { refreshDisplays(); setOutputsOpen(true); }}
+                monitorOpen={dockOpen && dockTab === DockTab.MONITOR}
+                onToggleMonitor={() => {
+                  if (dockOpen && dockTab === DockTab.MONITOR) setDockOpen(false);
+                  else { setDockTab(DockTab.MONITOR); setDockOpen(true); }
+                }}
+                helpOpen={showHelp}
+                onToggleHelp={() => setShowHelp((v) => !v)}
+            />
+          }
       />
 
       <div className="flex flex-1 min-h-0">
@@ -1261,10 +1271,29 @@ const App: React.FC = () => {
                 />
             </div>
         </div>
+
+        {/* Far right: dockable bilingual Help panel */}
+        <div
+          className={`h-full border-l border-line-1 bg-surface-1 ${showHelp ? '' : 'w-0 overflow-hidden border-none'}`}
+          style={{ width: showHelp ? helpWidth : 0 }}
+        >
+          {showHelp && (
+            <div className="h-full" style={{ width: helpWidth }}>
+              <HelpPanel
+                lang={settings.helpLang}
+                onLang={(l) => updateSettings({ helpLang: l })}
+                onClose={() => setShowHelp(false)}
+                width={helpWidth}
+                onResize={setHelpWidth}
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       <StatusBar
           help="Map content onto surfaces, then patch fixtures. Open the 3D Scene for venue layout."
+          lang={settings.helpLang}
           renderFps={fps}
           connected={isBridgeConnected}
           outputStats={outputStats}

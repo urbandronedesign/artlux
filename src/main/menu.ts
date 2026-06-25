@@ -87,6 +87,8 @@ function template(): MenuItemConstructorOptions[] {
     {
       label: 'Help',
       submenu: [
+        { label: 'Help Panel', accelerator: 'F1', click: () => send('help-panel') },
+        { type: 'separator' },
         { label: 'Check for Updates…', click: () => send('check-updates') },
         { type: 'separator' },
         { label: 'Documentation', click: () => shell.openExternal(DOCS) },

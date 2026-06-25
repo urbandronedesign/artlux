@@ -348,6 +348,8 @@ export interface AppSettings {
   oscListenPort: number;  // UDP port (installation default: 10000)
   oscListenAddress: string; // bind to a specific local NIC IP (this machine's address); '' = all interfaces
   oscControlPrefix: string; // namespace for external control messages, e.g. '/artlux'
+  // Help panel
+  helpLang: 'en' | 'fr'; // language for the bilingual Help panel + contextual hints
 }
 
 export enum ViewMode {
