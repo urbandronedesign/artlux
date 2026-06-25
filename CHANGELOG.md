@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.14.1
+
+- **Fix (tracking takes):** replayed takes now show on **fullscreen projector** and **3D Scene**
+  outputs, not just the main canvas. The blob bridge's stale-frame filter was dropping a recorded
+  take's original timestamps; applied snapshots are now stamped fresh so they survive the bridge.
+
 ## v0.14.0
 
 **Record & replay LiDAR takes, and a managed media library.**
