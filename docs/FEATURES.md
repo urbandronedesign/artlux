@@ -4,8 +4,9 @@ How to use ArtLux end-to-end. For the engine internals see
 [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md); for the build log see [PROGRESS.md](PROGRESS.md).
 
 ## Workspace layout (MadMapper logic)
-- **Top bar**: brand · undo/redo · **File menu** (save/open/recents/rig) · **module switcher**
-  (Media · Map · Fixtures · 3D) · transport (play/pause) · DMX-monitor toggle · Preferences.
+- **Title bar** (single frameless strip): ArtLux logo · **File/Edit/View/Window/Help** menus ·
+  action icons (3D Scene · Outputs · Routing · DMX Monitor · Preferences · **Help**) · window
+  minimize/maximize/close. Transport (play/pause) lives in the Timeline dock + **Space**.
 - **Left panel**: browser (**Surfaces** tree + Fixtures tree + groups + scenes) on top, **inspector**
   below — the inspector shows surface properties or fixture properties depending on the selection.
 - **Center**: the persistent 2D **Stage** (Media/Map/Fixtures) or the **3D simulator** (3D module).
@@ -13,6 +14,9 @@ How to use ArtLux end-to-end. For the engine internals see
 - **Bottom dock**: **DMX Monitor** (live per-fixture pixel output) and **Fixture Editor**
   (pixel structure).
 - **Status bar**: contextual help (hover any control) · render FPS · LIVE/target · native engine stats.
+- **Help panel** (right, dockable, resizable — **F1** / **?** / Help menu): contextual help for the
+  hovered control + browsable topic guides, with a remembered **EN/FR** language toggle. Bilingual
+  help content; the rest of the UI is English.
 
 ## The core workflow (Surfaces model)
 See [SURFACES.md](SURFACES.md) for the full design.

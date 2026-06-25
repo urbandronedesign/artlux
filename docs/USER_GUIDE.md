@@ -54,8 +54,11 @@ fixture linked → nothing goes out; fixture linked but content is *None* → it
 
 ## 2. The interface
 
-- **Top bar** — *Scene* (open the 3D window), the **Play/Pause** transport (for video/camera),
-  *Outputs*, *Routing*, *DMX Monitor*, and *Preferences*.
+- **Title bar (top)** — a single dark strip with the ArtLux logo, the **File / Edit / View / Window /
+  Help** menus (app-styled dropdowns), the action icons (**3D Scene**, **Outputs**, **Routing**,
+  **DMX Monitor**, **Preferences**, **Help**), and the window minimize / maximize / close controls.
+  Drag the empty middle to move the window; double-click it to maximize. (Video/timeline play-pause
+  lives in the Timeline dock and **Space**, not here.)
 - **Left panel** — two tabs: **Scene** (the **Surfaces** and **Fixtures** lists — add with **+**,
   double-click to rename, hover to delete) and **Media** (the project's [media library](#14-projects-media-library--broadcast-mode):
   import, preview and drag media onto the Stage or Timeline).
@@ -66,6 +69,12 @@ fixture linked → nothing goes out; fixture linked but content is *None* → it
 - **Bottom dock** — tabs for **Fixture Editor**, **Timeline**, and **DMX Monitor**. Drag its top edge
   to resize; click the chevron to collapse.
 
+- **Help panel (right)** — open it with **F1**, the **?** icon in the title bar, or **Help ▸ Help
+  Panel**. It shows contextual help for whatever control you hover or focus, plus a browsable set of
+  topic guides (Getting Started, Surfaces, Outputs, OSC/LiDAR Tracking, Timeline, Shortcuts). A small
+  **EN / FR** toggle switches the help language and is remembered between sessions. Drag its left edge
+  to resize.
+
 You can hide the left/right panels from the toggles at the ends of the **status bar** (bottom).
 
 ---
@@ -75,8 +84,8 @@ You can hide the left/right panels from the toggles at the ends of the **status 
 1. **Add a surface.** In the left panel under *Surfaces*, click **+**. A cyan rectangle appears on
    the stage.
 2. **Give it content.** Select the surface; in the Inspector's *Content* section pick **Video** (or
-   **Camera**, **Image**, an **Effect**, etc.) and choose a file/source. Press **Play** in the top
-   bar if it's video.
+   **Camera**, **Image**, an **Effect**, etc.) and choose a file/source. If it's video, open the
+   **Timeline** dock and press **Space** to play.
 3. **Add a fixture.** Open the **Fixture Editor** dock tab and click **Add fixture** (or build it in
    the *Geometry* card — e.g. a Matrix). It appears on the stage.
 4. **Place & link it.** Drag the fixture over the surface and resize it to cover the area you want.
@@ -409,6 +418,8 @@ Text-field typing suppresses these shortcuts.
 | Ctrl/Cmd+S | Save |
 | Ctrl/Cmd+Shift+S | Save As |
 | Ctrl/Cmd+, | Preferences |
+| Ctrl/Cmd+Shift+M | OSC Monitor (LiDAR feed sniffer) |
+| F1 | Toggle the Help panel |
 | Ctrl/Cmd+Shift+Q | Quit (also quits broadcast mode) |
 | Ctrl/Cmd+R | Reload |
 | Esc | Close the open dialog |

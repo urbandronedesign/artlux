@@ -13,8 +13,10 @@ WebGPU · react-three-fiber · Rust (napi-rs).
 
 ## Processes
 - **Main** (`src/main/`): app lifecycle + window, native transport (Art-Net/sACN, ArtPoll discovery,
-  Spout receiver), persistence (dialogs + userData), the native menu. Owns all OS access (UDP, fs,
-  `.node` addons) — the renderer is sandboxed.
+  Spout receiver), persistence (dialogs + userData), and the native menu (kept only for keyboard
+  accelerators — the editor window is **frameless** and draws its own title bar/menus in the renderer,
+  `components/MenuBar.tsx`, backed by `window:command` IPC for min/maximize/close + menu roles). Owns
+  all OS access (UDP, fs, `.node` addons) — the renderer is sandboxed.
 - **Preload** (`src/preload/index.ts`): `contextBridge` exposes a typed `window.artlux` API over IPC.
 - **Renderer** (`src/renderer/`): the React UI + the frame-generation loop (Stage + GPU mapper).
 - **Shared** (`shared/`): the IPC contract (`protocol.ts`) and the binary frame codec (`frameCodec.ts`),
