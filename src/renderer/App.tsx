@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline } from './types';
+import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, type AssetEntry, type AssetType } from './types';
 import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge } from '../../shared/protocol';
 import type { AppInfo, UpdateEvent, Scene3D, ProjectorOutput, DisplayInfo, SoftEdge } from '../../shared/protocol';
 import type { SceneToMain } from './scene/bridge';
@@ -13,6 +13,8 @@ import { About } from './components/About';
 import { RoutingModal } from './components/RoutingModal';
 import { InspectorPanel } from './components/InspectorPanel';
 import { ScenePanel } from './components/ScenePanel';
+import { MediaPanel } from './components/MediaPanel';
+import { AssetManager } from './components/AssetManager';
 import { Stage } from './components/Stage';
 import { DMXMonitor } from './components/DMXMonitor';
 import { FixtureEditor } from './components/FixtureEditor';
@@ -26,6 +28,7 @@ import { getDrawable } from './services/surfaceMedia';
 import { timeline as timelineEngine } from './services/timeline';
 import * as oscController from './services/oscController';
 import * as trackingStore from './services/trackingStore';
+import * as trackingPlayback from './services/trackingPlayback';
 import * as trackingDrawable from './services/trackingDrawable';
 import { Activity, SlidersHorizontal, Film } from 'lucide-react';
 import { useHistory } from './hooks/useHistory';
@@ -103,6 +106,9 @@ const App: React.FC = () => {
   const [updateUserInitiated, setUpdateUserInitiated] = useState(false);
   const [scene3D, setScene3D] = useState<Scene3D>(defaultScene3D());
   const [timeline, setTimeline] = useState<Timeline>(defaultTimeline());
+  const [assets, setAssets] = useState<AssetEntry[]>([]); // managed media library (video/image/model)
+  const [leftTab, setLeftTab] = useState<'scene' | 'media'>('scene');
+  const [assetManagerOpen, setAssetManagerOpen] = useState(false);
   const scenePortRef = useRef<MessagePort | null>(null);
   const [routingOpen, setRoutingOpen] = useState(false);
   const [outputsOpen, setOutputsOpen] = useState(false);
@@ -438,6 +444,7 @@ const App: React.FC = () => {
       scenes,
       scene3D,
       timeline,
+      assets,
       projectorOutputs,
       projectorFpsCap,
   });
@@ -458,7 +465,11 @@ const App: React.FC = () => {
       setControllers(Array.isArray(data?.controllers) ? data.controllers : []);
       setGroups(Array.isArray(data?.groups) ? data.groups : []);
       setScenes(Array.isArray(data?.scenes) ? data.scenes : []);
-      setTimeline(normalizeTimeline(data?.timeline));
+      const tl = normalizeTimeline(data?.timeline);
+      setTimeline(tl);
+      // Asset library: use saved assets; migrate a legacy take-only project (trackingTakes but no
+      // assets) so recorded takes still appear in the library. Takes stay owned by the timeline.
+      setAssets(Array.isArray(data?.assets) ? data.assets as AssetEntry[] : []);
       setProjectorOutputs(Array.isArray(data?.projectorOutputs) ? data.projectorOutputs as ProjectorOutput[] : []);
       setProjectorFpsCap(typeof data?.projectorFpsCap === 'number' ? data.projectorFpsCap : 0);
       setScene3D(() => {
@@ -541,24 +552,21 @@ const App: React.FC = () => {
       setGroups([]);
       setScenes([]);
       setProjectorOutputs([]);
+      setAssets([]);
       setSelectedFixtureId(null);
       setSelectedFixtureIds([]);
       setSelectedSurfaceId(null);
   };
 
-  const handleNewProject = () => {
-      resetToNewProject(makeNewProjectState());
-      setCurrentProjectPath(null);
-  };
-
-  // Create a project *folder* (project.artlux + assets/{video,models,images}/), then save into it.
-  const handleNewProjectFolder = async () => {
+  // New Project always creates a *folder* (project.artlux + assets/ tree) and prompts where to put
+  // it, then saves immediately — so there's always a destination for imported/collected media.
+  const handleNewProject = async () => {
       const res = await window.artlux?.newProjectFolder?.();
-      if (!res) return;
+      if (!res) return; // user cancelled the folder dialog → keep the current project
       const st = makeNewProjectState();
       resetToNewProject(st);
       // Save from the fresh values directly — setState above hasn't applied to this closure yet.
-      const data = { ...buildProjectData(), surfaces: st.surfaces, fixtures: st.fixtures, controllers: [], groups: [], scenes: [], projectorOutputs: [] };
+      const data = { ...buildProjectData(), surfaces: st.surfaces, fixtures: st.fixtures, controllers: [], groups: [], scenes: [], projectorOutputs: [], assets: [] };
       const path = await window.artlux?.saveProject?.(data, res.projectFile);
       if (path) { setCurrentProjectPath(path); refreshRecents(); }
   };
@@ -572,7 +580,7 @@ const App: React.FC = () => {
   // references to point there, then save (which stores them as folder-relative paths).
   const handleCollectAssets = async () => {
       if (!currentProjectPath) {
-          window.alert('Save the project to a folder first (File → New Project Folder…), then collect assets.');
+          window.alert('Create a project folder first (File → New Project), then collect assets.');
           return;
       }
       const res = await window.artlux?.collectAssets?.(currentProjectPath, buildProjectData());
@@ -584,6 +592,62 @@ const App: React.FC = () => {
       if (res.skipped) lines.push(`${res.skipped} already collected or not collectable.`);
       if (res.missing.length) lines.push(`Missing (not found on disk):\n${res.missing.join('\n')}`);
       window.alert(lines.join('\n'));
+  };
+
+  // ---- Asset library ----
+  // Import media of a type: copy into the project's assets/<cat>/ and add library entries.
+  const handleImportAssets = async (type: AssetType) => {
+      if (!currentProjectPath) { window.alert('Create a project folder first (File → New Project) to import media.'); return; }
+      const entries = await window.artlux?.importAssets?.(currentProjectPath, type);
+      if (entries && entries.length) setAssets(prev => [...prev, ...entries]);
+  };
+  // Remove a library entry. Recorded takes live on the timeline, so removing a take also drops it
+  // from trackingTakes (and any clips referencing it). References to imported assets are left as-is.
+  const handleRemoveAsset = (asset: AssetEntry) => {
+      const usedTake = asset.type === 'take';
+      const refs = surfaces.filter(s => (s.content as { url?: string })?.url === asset.path).length
+          + timeline.clips.filter(c => c.path === asset.path).length
+          + (scene3D.models ?? []).filter(m => m.path === asset.path).length;
+      if (refs > 0 && !window.confirm(`"${asset.name}" is used in ${refs} place(s). Remove it from the library anyway?`)) return;
+      if (usedTake) {
+          setTimeline(t => ({ ...t, trackingTakes: (t.trackingTakes ?? []).filter(r => r.id !== asset.id), clips: t.clips.filter(c => c.takeId !== asset.id) }));
+      } else {
+          setAssets(prev => prev.filter(a => a.id !== asset.id));
+      }
+  };
+  // Relink: pick a replacement file (copied into assets/) and rewrite this asset + every reference
+  // at the old path to point at the new one.
+  const handleRelinkAsset = async (asset: AssetEntry) => {
+      if (!currentProjectPath) return;
+      const picked = await window.artlux?.importAssets?.(currentProjectPath, asset.type);
+      const next = picked && picked[0];
+      if (!next) return;
+      const oldPath = asset.path, newPath = next.path;
+      if (asset.type === 'take') {
+          setTimeline(t => ({
+              ...t,
+              trackingTakes: (t.trackingTakes ?? []).map(r => r.id === asset.id ? { ...r, path: newPath } : r),
+              clips: t.clips.map(c => c.path === oldPath ? { ...c, path: newPath } : c),
+          }));
+      } else {
+          setAssets(prev => prev.map(a => a.id === asset.id ? { ...a, path: newPath, size: next.size } : a));
+          setSurfaces(prev => prev.map(s => ((s.content as { url?: string })?.url === oldPath ? { ...s, content: { ...s.content, url: newPath } } : s)));
+          setTimeline(t => ({ ...t, clips: t.clips.map(c => c.path === oldPath ? { ...c, path: newPath } : c) }));
+          setScene3D(s => ({ ...s, models: (s.models ?? []).map(m => m.path === oldPath ? { ...m, path: newPath } : m) }));
+      }
+  };
+  // Set the selected surface's content to a video/image asset.
+  const handleUseAssetOnSurface = (asset: AssetEntry) => {
+      if (!selectedSurfaceId) return;
+      const type = asset.type === 'video' ? SourceType.VIDEO : asset.type === 'image' ? SourceType.IMAGE : null;
+      if (!type) return;
+      handleUpdateSurface(selectedSurfaceId, { content: { type, url: asset.path } });
+  };
+  // Drag an asset from the library onto a Stage surface (hit-tested in Stage).
+  const handleDropAssetOnSurface = (surfaceId: string, asset: AssetEntry) => {
+      const type = asset.type === 'video' ? SourceType.VIDEO : asset.type === 'image' ? SourceType.IMAGE : null;
+      if (!type) return;
+      handleUpdateSurface(surfaceId, { content: { type, url: asset.path } });
   };
 
   // Save the current project, then relaunch into broadcast (show) mode with it.
@@ -602,7 +666,7 @@ const App: React.FC = () => {
       if (action.startsWith('open-recent:')) { handleOpenRecent(action.slice('open-recent:'.length)); return; }
       switch (action) {
           case 'new': handleNewProject(); break;
-          case 'new-project-folder': handleNewProjectFolder(); break;
+          case 'new-project-folder': handleNewProject(); break; // legacy menu id → folder flow
           case 'open': handleOpenProject(); break;
           case 'open-project-folder': handleOpenProjectFolder(); break;
           case 'save': handleSaveProject(); break;
@@ -690,9 +754,12 @@ const App: React.FC = () => {
   // --- Timeline: feed the playback engine + bridge transport/data to the Scene window ---
   useEffect(() => {
       timelineEngine.setData(timeline);
+      trackingPlayback.setData(timeline); // replay recorded blob takes when the playhead crosses them
       scenePortRef.current?.postMessage({ t: 'timeline', timeline });
       for (const port of projectorPortsRef.current.values()) port.postMessage({ t: 'timeline', timeline });
   }, [timeline]);
+  // Start the tracking-take replay loop once (main window only; mirrors get snapshots via the bridge).
+  useEffect(() => { trackingPlayback.start(); }, []);
   useEffect(() => { timelineEngine.setPlaying(isVideoPlaying); }, [isVideoPlaying]);
   // The FSM control layer drives transport by emitting intents; App turns them into React state so
   // App stays the single writer of `playing` (the setPlaying effect above then drives the engine).
@@ -1061,9 +1128,25 @@ const App: React.FC = () => {
       />
 
       <div className="flex flex-1 min-h-0">
-        {/* Left: browser (top) + inspector (bottom) */}
+        {/* Left: Scene ⇄ Media tabs */}
         <div className={`h-full border-r border-line-1 bg-surface-1 transition-all duration-200 ${showLeftPanel ? 'w-72' : 'w-0 overflow-hidden border-none'}`}>
-            <div className="w-72 h-full overflow-hidden">
+            <div className="w-72 h-full flex flex-col overflow-hidden">
+              <div className="flex shrink-0 border-b border-line-1 bg-surface-2">
+                {(['scene', 'media'] as const).map(t => (
+                  <button key={t} onClick={() => setLeftTab(t)}
+                    className={`flex-1 h-7 text-[11px] font-medium capitalize ${leftTab === t ? 'text-fg-1 border-b-2 border-accent' : 'text-fg-3 hover:text-fg-1'}`}>{t}</button>
+                ))}
+              </div>
+              <div className="flex-1 min-h-0">
+                {leftTab === 'media' ? (
+                  <MediaPanel
+                    assets={assets} timeline={timeline} surfaces={surfaces} scene3D={scene3D}
+                    selectedSurfaceId={selectedSurfaceId} hasProjectFolder={!!currentProjectPath}
+                    onImport={handleImportAssets} onRemoveAsset={handleRemoveAsset}
+                    onRelinkAsset={handleRelinkAsset} onUseOnSurface={handleUseAssetOnSurface}
+                    onOpenManager={() => setAssetManagerOpen(true)}
+                  />
+                ) : (
                 <ScenePanel
                     surfaces={surfaces}
                     selectedSurfaceId={selectedSurfaceId}
@@ -1095,6 +1178,8 @@ const App: React.FC = () => {
                     onRemoveScene={handleRemoveScene}
                     onAutoPatch={handleAutoPatch}
                 />
+                )}
+              </div>
             </div>
         </div>
 
@@ -1105,6 +1190,7 @@ const App: React.FC = () => {
                 <Stage
                     surfaces={surfaces}
                     onUpdateSurfaces={setSurfaces}
+                    onDropAsset={handleDropAssetOnSurface}
                     selectedSurfaceId={selectedSurfaceId}
                     onSelectSurface={handleSelectSurface}
                     controllers={controllers}
@@ -1141,7 +1227,7 @@ const App: React.FC = () => {
                     timelineMax ? (
                         <div className="h-full flex items-center justify-center text-fg-3 text-[11px] italic">Timeline maximized — press F or the restore button to dock it</div>
                     ) : (
-                        <TimelinePanel timeline={timeline} onChange={setTimeline} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} onToggleMax={() => setTimelineMax(true)} />
+                        <TimelinePanel timeline={timeline} onChange={setTimeline} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} onToggleMax={() => setTimelineMax(true)} projectPath={currentProjectPath} />
                     )
                 ) : (
                     <FixtureEditor
@@ -1234,9 +1320,18 @@ const App: React.FC = () => {
 
       {timelineMax && (
         <div className="fixed inset-0 z-50 bg-surface-0 flex flex-col">
-          <TimelinePanel timeline={timeline} onChange={setTimeline} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} maximized onToggleMax={() => setTimelineMax(false)} />
+          <TimelinePanel timeline={timeline} onChange={setTimeline} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} maximized onToggleMax={() => setTimelineMax(false)} projectPath={currentProjectPath} />
         </div>
       )}
+
+      <AssetManager
+        open={assetManagerOpen} onClose={() => setAssetManagerOpen(false)}
+        assets={assets} timeline={timeline} surfaces={surfaces} scene3D={scene3D}
+        selectedSurfaceId={selectedSurfaceId} hasProjectFolder={!!currentProjectPath}
+        onImport={handleImportAssets} onRemoveAsset={handleRemoveAsset} onRelinkAsset={handleRelinkAsset}
+        onUseOnSurface={handleUseAssetOnSurface} onSelectSurface={handleSelectSurface}
+        onConsolidate={handleCollectAssets}
+      />
     </div>
   );
 };

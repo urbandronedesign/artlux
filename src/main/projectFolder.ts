@@ -1,7 +1,8 @@
 import { dialog, type BrowserWindow } from 'electron';
 import { copyFileSync, existsSync, mkdirSync, statSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { basename, dirname, extname, isAbsolute, join, relative, sep } from 'node:path';
-import type { ProjectData, CollectResult, NewProjectFolder } from '../../shared/protocol';
+import type { ProjectData, CollectResult, NewProjectFolder, AssetEntry, AssetType } from '../../shared/protocol';
 
 // Portable-project support: a project is a *folder* containing `project.artlux` plus
 // an `assets/{video,models,images}/` tree. Asset paths are stored relative to the
@@ -15,6 +16,12 @@ const ASSET_CATEGORIES: Record<string, string[]> = {
   video: ['mp4', 'webm', 'mov', 'mkv'],
   models: ['glb', 'gltf'],
   images: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'],
+  tracking: ['lblob'], // recorded LiDAR-blob takes
+};
+
+// Library asset type → assets/ sub-folder (category).
+const TYPE_CATEGORY: Record<AssetType, string> = {
+  video: 'video', image: 'images', model: 'models', take: 'tracking',
 };
 
 function categoryFor(path: string): string | null {
@@ -53,10 +60,19 @@ function mapAssetPaths(data: ProjectData, map: (path: string) => string): Projec
     };
   }
 
-  // Timeline: video clip paths.
+  // Timeline: video clip paths + the recorded tracking-take library (.lblob sidecars). Both placed
+  // clips and unplaced bin takes carry collectable paths, so map them together.
   const tl = out.timeline as any;
-  if (tl && Array.isArray(tl.clips)) {
-    out.timeline = { ...tl, clips: tl.clips.map((c: any) => (isFilePath(c?.path) ? { ...c, path: map(c.path) } : c)) };
+  if (tl && (Array.isArray(tl.clips) || Array.isArray(tl.trackingTakes))) {
+    const next = { ...tl };
+    if (Array.isArray(tl.clips)) next.clips = tl.clips.map((c: any) => (isFilePath(c?.path) ? { ...c, path: map(c.path) } : c));
+    if (Array.isArray(tl.trackingTakes)) next.trackingTakes = tl.trackingTakes.map((r: any) => (isFilePath(r?.path) ? { ...r, path: map(r.path) } : r));
+    out.timeline = next;
+  }
+
+  // Managed asset library: every entry's path (incl. unused entries).
+  if (Array.isArray(out.assets)) {
+    out.assets = out.assets.map((a: any) => (isFilePath(a?.path) ? { ...a, path: map(a.path) } : a));
   }
 
   return out;
@@ -129,6 +145,49 @@ function uniqueDest(destDir: string, srcPath: string): { dest: string; reused: b
     candidate = join(destDir, `${stem}-${n}${ext}`);
   }
   return { dest: candidate, reused: false };
+}
+
+// Copy one file into <root>/assets/<cat>/ and build an AssetEntry. Files already inside assets/
+// are referenced in place (no copy). Returns null on failure.
+function copyIntoAssets(root: string, src: string, type: AssetType, name?: string): AssetEntry | null {
+  const cat = TYPE_CATEGORY[type];
+  const destDir = join(root, 'assets', cat);
+  mkdirSync(destDir, { recursive: true });
+  try {
+    let dest: string;
+    if (isInside(destDir, src)) { dest = src; }
+    else { const u = uniqueDest(destDir, src); dest = u.dest; if (!u.reused) copyFileSync(src, dest); }
+    const size = statSync(dest).size;
+    return { id: randomUUID(), name: name ?? basename(dest, extname(dest)), type, path: dest, size, addedAt: new Date().toISOString() };
+  } catch (e) {
+    console.error('[projectFolder] import copy failed', src, e);
+    return null;
+  }
+}
+
+// Pick media files of a category and copy them into the project's assets/ tree → AssetEntry[].
+export async function importAssets(win: BrowserWindow | null, projectFile: string, type: AssetType): Promise<AssetEntry[]> {
+  const cat = TYPE_CATEGORY[type];
+  if (!cat) return [];
+  const opts = {
+    title: `Import ${type}`,
+    properties: ['openFile' as const, 'multiSelections' as const],
+    filters: [{ name: type, extensions: ASSET_CATEGORIES[cat] }],
+  };
+  const res = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
+  if (res.canceled || !res.filePaths.length) return [];
+  const root = dirname(projectFile);
+  scaffold(root);
+  const out: AssetEntry[] = [];
+  for (const src of res.filePaths) { const e = copyIntoAssets(root, src, type); if (e) out.push(e); }
+  return out;
+}
+
+// Copy a known file (e.g. a freshly-recorded take from userData) into the project's assets/ tree.
+export function importAssetFile(projectFile: string, srcPath: string, type: AssetType, name?: string): AssetEntry | null {
+  const root = dirname(projectFile);
+  scaffold(root);
+  return copyIntoAssets(root, srcPath, type, name);
 }
 
 // Copy every external asset into <root>/assets/<category>/ and remap references to point there.

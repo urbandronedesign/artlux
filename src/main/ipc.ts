@@ -1,6 +1,7 @@
 import { app, ipcMain, shell, dialog, BrowserWindow } from 'electron';
 import { readFile } from 'node:fs/promises';
-import { IPC, type OutputConfig, type InputConfig, type ProjectData, type RigData, type Prefs, type SpoutConfig, type NdiConfig, type NdiSendConfig, type OscConfig } from '../../shared/protocol';
+import { existsSync } from 'node:fs';
+import { IPC, type OutputConfig, type InputConfig, type ProjectData, type RigData, type Prefs, type SpoutConfig, type NdiConfig, type NdiSendConfig, type OscConfig, type AssetType } from '../../shared/protocol';
 import * as output from './transport/outputManager';
 import * as input from './transport/input';
 import * as discovery from './transport/discovery';
@@ -95,6 +96,15 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
         try { return new Uint8Array(await readFile(path)); }
         catch (err) { console.error('[ipc] read file failed', err); return null; }
     });
+    ipcMain.handle(IPC.SAVE_TRACKING_TAKE, (_e, id: string, json: string) => persistence.saveTrackingTake(id, json));
+
+    // ---- Asset library: import (copy-in), reveal, existence checks ----
+    ipcMain.handle(IPC.IMPORT_ASSETS, (_e, projectFile: string, type: AssetType) =>
+        projectFolder.importAssets(getWindow(), projectFile, type));
+    ipcMain.handle(IPC.IMPORT_ASSET_FILE, (_e, projectFile: string, srcPath: string, type: AssetType, name?: string) =>
+        projectFolder.importAssetFile(projectFile, srcPath, type, name));
+    ipcMain.on(IPC.SHOW_ITEM_IN_FOLDER, (_e, path: string) => { if (path) shell.showItemInFolder(path); });
+    ipcMain.handle(IPC.ASSET_EXISTS, (_e, paths: string[]) => (paths ?? []).map((p) => !!p && existsSync(p)));
     ipcMain.handle(IPC.PICK_VIDEO, async () => {
         const parent = BrowserWindow.getFocusedWindow() ?? getWindow();
         const opts = { title: 'Import video', properties: ['openFile' as const], filters: [{ name: 'Video', extensions: ['mp4', 'webm', 'mov', 'mkv'] }] };

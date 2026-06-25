@@ -2,6 +2,7 @@ import React from 'react';
 import { Trash2 } from 'lucide-react';
 import { VideoClip } from '../../types';
 import { Filmstrip } from './Filmstrip';
+import { BlobSparkline } from './BlobSparkline';
 import { fmtClock } from './geometry';
 
 export type DragMode = 'move' | 'l' | 'r';
@@ -37,7 +38,9 @@ const ClipBlockBase: React.FC<Props> = ({ clip, selected, locked, tool, pxPerSec
       style={{ left: clip.start * pxPerSec, width: widthPx, borderLeftColor: clip.color, borderLeftWidth: clip.color ? 3 : undefined }}
       title={`${clip.name} — ${fmtClock(clip.duration)}`}
     >
-      {widthPx > 18 && <Filmstrip path={clip.path} inPoint={clip.inPoint} clipDuration={clip.duration} widthPx={widthPx} heightPx={laneH - 8} />}
+      {widthPx > 18 && (clip.kind === 'tracking'
+        ? <BlobSparkline path={clip.path} inPoint={clip.inPoint} clipDuration={clip.duration} widthPx={widthPx} heightPx={laneH - 8} />
+        : <Filmstrip path={clip.path} inPoint={clip.inPoint} clipDuration={clip.duration} widthPx={widthPx} heightPx={laneH - 8} />)}
       <div className="absolute inset-x-0 top-0 h-4 bg-gradient-to-b from-black/55 to-transparent pointer-events-none" />
       <div className="relative px-1.5 pt-0.5 text-[10px] leading-tight truncate text-fg-1 pointer-events-none drop-shadow">{clip.name}</div>
       {!blade && !locked && <>

@@ -1,5 +1,5 @@
 import { app, dialog, type BrowserWindow } from 'electron';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { ProjectData, RigData, Prefs, OpenProjectResult } from '../../shared/protocol';
 import { relativizeAssets, resolveAssets } from './projectFolder';
@@ -98,6 +98,22 @@ export function loadProjectPath(path: string): ProjectData | null {
   if (!data) return null;
   pushRecent(path);
   return resolveAssets(data, dirname(path));
+}
+
+// Write a recorded LiDAR-blob take to a sidecar `.lblob` file under userData. Stored externally
+// (absolute path) so recording never requires a saved project; "Collect Assets" later copies it
+// into the project's assets/tracking/ and relativizes the reference (see projectFolder.ts).
+export function saveTrackingTake(id: string, json: string): string | null {
+  try {
+    const dir = join(app.getPath('userData'), 'tracking-takes');
+    mkdirSync(dir, { recursive: true });
+    const target = join(dir, `${id}.lblob`);
+    writeFileSync(target, json, 'utf-8');
+    return target;
+  } catch (e) {
+    console.error('[persistence] saveTrackingTake failed', e);
+    return null;
+  }
 }
 
 export async function exportRig(win: BrowserWindow | null, rig: RigData): Promise<string | null> {

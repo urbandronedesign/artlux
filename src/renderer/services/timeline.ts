@@ -163,6 +163,7 @@ function frame(now: number): void {
     // Main window decodes everything; mirror windows decode only HAP locally (when hapLocal),
     // otherwise they consume streamed frames and skip decoding entirely.
     if (!external || hapLocal) for (const l of data.layers) {
+      if (l.kind === 'tracking') continue; // tracking lanes hold blob takes, not video — see trackingPlayback
       try { syncLayer(l.id, playhead); } catch (e) { console.error('[timeline] syncLayer error', e); }
     }
     prevPlayhead = playhead;
@@ -176,8 +177,10 @@ export const timeline = {
   setData(t: Timeline): void {
     data = t;
     if (external) return; // mirror windows don't decode — no blobs / video elements to manage
-    // Pre-warm: open HAP clips natively; preload blob URLs for normal clips.
+    // Pre-warm: open HAP clips natively; preload blob URLs for normal clips. Tracking-take
+    // clips (.lblob) aren't video — they're handled by trackingPlayback, so skip them here.
     for (const c of t.clips) {
+      if (c.kind === 'tracking') continue;
       if (hapDecode.isHapCandidate(c.path)) void hapDecode.ensureOpen(c.path);
       else ensureBlob(c.path);
     }

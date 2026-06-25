@@ -9,6 +9,10 @@ import { TimelineRuler } from './TimelineRuler';
 import { TrackHeader } from './TrackHeader';
 import { Lane } from './Lane';
 import { StateLane } from './StateLane';
+import { TakesBin } from './TakesBin';
+import * as trackingRecorder from '../../services/trackingRecorder';
+import * as trackingTake from '../../services/trackingTake';
+import { ensureBlobUrl, mimeForPath } from '../../services/mediaCache';
 import { StateGraphEditor } from './StateGraphEditor';
 import { DragMode } from './ClipBlock';
 import { useTimelineKeys } from './hooks/useTimelineKeys';
@@ -20,13 +24,14 @@ interface Props {
   onTogglePlay: () => void;
   maximized?: boolean;
   onToggleMax?: () => void;
+  projectPath?: string | null; // when set, recorded takes are copied into the project's assets/tracking
 }
 
 // DaVinci-style NLE timeline. Tracks (layers) hold clips placed by time; the unified transport
 // (top-bar play) drives the engine — the playback clock. Edits commit to project state via
 // onChange; the live playhead/time are read from the engine render-free. Layout is a single
 // vertical scroller with a sticky track-header gutter and a sticky timecode ruler.
-export const Timeline: React.FC<Props> = ({ timeline, onChange, playing, onTogglePlay, maximized = false, onToggleMax }) => {
+export const Timeline: React.FC<Props> = ({ timeline, onChange, playing, onTogglePlay, maximized = false, onToggleMax, projectPath }) => {
   const [pxPerSec, setPxPerSec] = useState(40);
   const [selected, setSelected] = useState<string | null>(null);
   const [tool, setTool] = useState<'select' | 'blade'>('select');
@@ -221,6 +226,27 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, playing, onToggl
 
   // --- non-stable mutations (toolbar / lane / ruler / keyboard) read fresh closure state ---
   const addLayer = () => onChange({ ...timeline, layers: [...layers, { id: crypto.randomUUID(), name: `Track ${layers.length + 1}`, enabled: true }] });
+  // --- tracking takes: record the live blob feed, place takes on a special lane ---
+  const hasTrackingLane = layers.some(l => l.kind === 'tracking');
+  const addTrackingLane = () => { if (!hasTrackingLane) onChange({ ...timeline, layers: [...layers, { id: crypto.randomUUID(), name: 'Tracking', kind: 'tracking', color: '#7ed321', enabled: true }] }); };
+  const startRecord = () => { if (!trackingRecorder.start()) console.warn('[timeline] cannot record now (a take is playing)'); };
+  const stopRecord = async () => {
+    const tk = trackingRecorder.stop();
+    if (!tk) return;
+    tk.name = `Take ${(timelineRef.current.trackingTakes?.length ?? 0) + 1}`;
+    let path = await window.artlux?.saveTrackingTake?.(tk.id, trackingTake.serialize(tk));
+    if (!path) return;
+    // Copy-in policy: relocate the take into the project's assets/tracking when we have a folder.
+    if (projectPath) {
+      const entry = await window.artlux?.importAssetFile?.(projectPath, path, 'take', tk.name);
+      if (entry?.path) path = entry.path;
+    }
+    trackingTake.putCache(path, tk); // so replay/sparkline don't re-read disk
+    const ref = { id: tk.id, name: tk.name, path, duration: tk.duration, fps: tk.fps };
+    const tl = timelineRef.current;
+    onChangeRef.current({ ...tl, trackingTakes: [...(tl.trackingTakes ?? []), ref], layers: tl.layers.some(l => l.kind === 'tracking') ? tl.layers : [...tl.layers, { id: crypto.randomUUID(), name: 'Tracking', kind: 'tracking' as const, color: '#7ed321', enabled: true }] });
+  };
+  const removeTake = (id: string) => onChange({ ...timeline, trackingTakes: (timeline.trackingTakes ?? []).filter(t => t.id !== id) });
   const onZoom = (f: number) => setPxPerSec(p => clamp(p * f, 5, 300));
   const onZoomFit = () => { const el = scrollRef.current; const avail = (el ? el.clientWidth : 800) - GUTTER - 24; setPxPerSec(clamp(avail / Math.max(1, contentEnd), 5, 300)); };
   const toggleLoop = () => onChange({ ...timeline, loop: !timeline.loop });
@@ -232,9 +258,40 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, playing, onToggl
   const deleteSelected = (ripple: boolean) => { if (!selected) return; onChange({ ...timeline, clips: ripple ? rippleDelete(timeline.clips, selected) : liftDelete(timeline.clips, selected) }); setSelected(null); };
   const bladeAtPlayhead = () => onChange({ ...timeline, clips: bladeAt(timeline.clips, engine.getPlayhead()) });
 
-  // --- drop a video onto a lane → create a clip ---
+  // --- drop a video (or a recorded take) onto a lane → create a clip ---
   const onDropFile = (e: React.DragEvent, layerId: string) => {
     e.preventDefault();
+    const tl = timelineRef.current;
+    const layer = tl.layers.find(l => l.id === layerId);
+    const takeId = e.dataTransfer.getData('application/artlux-take');
+    // Tracking lane: only accepts take chips from the bin (no video files).
+    if (layer?.kind === 'tracking') {
+      if (!takeId) return;
+      const ref = (tl.trackingTakes ?? []).find(t => t.id === takeId);
+      if (!ref) return;
+      const start = clientXToTime(e.clientX);
+      onChangeRef.current({ ...tl, clips: [...tl.clips, { id: crypto.randomUUID(), layerId, name: ref.name, path: ref.path, kind: 'tracking', takeId: ref.id, start, duration: ref.duration, inPoint: 0, sourceDuration: ref.duration }] });
+      return;
+    }
+    if (takeId) return; // a take can't go on a video lane
+    // A library asset dragged from the Media panel (video only on a video lane).
+    const assetRaw = e.dataTransfer.getData('application/artlux-asset');
+    if (assetRaw) {
+      let asset: { type: string; path: string }; try { asset = JSON.parse(assetRaw); } catch { return; }
+      if (asset.type !== 'video') return;
+      const start = clientXToTime(e.clientX);
+      const name = asset.path.split(/[\\/]/).pop()?.replace(/\.[^.]+$/, '') ?? 'clip';
+      const addClip = (d: number) => onChangeRef.current({ ...timelineRef.current, clips: [...timelineRef.current.clips, { id: crypto.randomUUID(), layerId, name, path: asset.path, start, duration: d, inPoint: 0, sourceDuration: d }] });
+      void (async () => {
+        const url = await ensureBlobUrl(asset.path, mimeForPath(asset.path));
+        if (!url) { addClip(5); return; }
+        const probe = document.createElement('video'); probe.preload = 'metadata';
+        probe.onloadedmetadata = () => addClip(probe.duration && isFinite(probe.duration) ? probe.duration : 5);
+        probe.onerror = () => addClip(5);
+        probe.src = url;
+      })();
+      return;
+    }
     const file = Array.from(e.dataTransfer.files).find(f => f.type.startsWith('video') || /\.(mp4|webm|mov|mkv)$/i.test(f.name));
     if (!file) return;
     const path = window.artlux?.getPathForFile?.(file);
@@ -284,6 +341,12 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, playing, onToggl
         loop={!!timeline.loop} onToggleLoop={toggleLoop}
         smEnabled={sm.enabled} onToggleSm={toggleSm} onEditLogic={() => setSmEditorOpen(true)}
         maximized={maximized} onToggleMax={() => onToggleMax?.()}
+      />
+
+      <TakesBin
+        takes={timeline.trackingTakes ?? []} hasTrackingLane={hasTrackingLane}
+        onStartRecord={startRecord} onStopRecord={stopRecord}
+        onAddTrackingLane={addTrackingLane} onRemoveTake={removeTake}
       />
 
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto relative">

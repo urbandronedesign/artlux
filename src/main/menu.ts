@@ -31,8 +31,7 @@ function template(): MenuItemConstructorOptions[] {
     {
       label: 'File',
       submenu: [
-        { label: 'New Project', accelerator: 'CmdOrCtrl+N', click: () => send('new') },
-        { label: 'New Project Folder…', accelerator: 'CmdOrCtrl+Shift+N', click: () => send('new-project-folder') },
+        { label: 'New Project…', accelerator: 'CmdOrCtrl+N', click: () => send('new') },
         { label: 'Open…', accelerator: 'CmdOrCtrl+O', click: () => send('open') },
         { label: 'Open Project Folder…', accelerator: 'CmdOrCtrl+Shift+O', click: () => send('open-project-folder') },
         { label: 'Open Recent', submenu: recentItems },

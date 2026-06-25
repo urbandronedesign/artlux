@@ -88,6 +88,16 @@ export const IPC = {
   SCENE_READ_MODEL: 'scene:read-model',
   /** Renderer → main (invoke): read any file's bytes by path (e.g. timeline MP4s). */
   READ_FILE: 'app:read-file',
+  /** Renderer → main (invoke): write a recorded LiDAR-blob take to a sidecar file → absolute path. */
+  SAVE_TRACKING_TAKE: 'tracking:save-take',
+  /** Renderer → main (invoke): pick + copy media into the project's assets/<cat>/ → AssetEntry[]. */
+  IMPORT_ASSETS: 'asset:import',
+  /** Renderer → main (invoke): copy one already-known file into assets/<cat>/ → AssetEntry (e.g. a recorded take). */
+  IMPORT_ASSET_FILE: 'asset:import-file',
+  /** Renderer → main: reveal a file in the OS file manager. */
+  SHOW_ITEM_IN_FOLDER: 'asset:show-in-folder',
+  /** Renderer → main (invoke): which of these paths exist on disk → boolean[]. */
+  ASSET_EXISTS: 'asset:exists',
   /** Renderer → main (invoke): pick a video file → absolute path. */
   PICK_VIDEO: 'app:pick-video',
   /** Renderer → main (invoke): pick/create a project folder → { root, projectFile }. */
@@ -373,6 +383,24 @@ export const defaultScene3D = (): Scene3D => ({
   trackingLabels: true,
 });
 
+// ---- Asset library -----------------------------------------------------------
+// A managed media library entry. Files are copied into the project's assets/<cat>/ on import
+// (path is relative on disk, resolved absolute on load like every other asset path). Recorded
+// LiDAR takes are entries of type 'take' (path = the .lblob sidecar). Unused entries persist.
+export type AssetType = 'video' | 'image' | 'model' | 'take';
+export interface AssetEntry {
+  id: string;
+  name: string;
+  type: AssetType;
+  path: string;            // assets/<cat>/<file> (absolute in memory, relative on disk)
+  size?: number;           // bytes
+  durationSec?: number;    // video / take
+  fps?: number;            // take
+  width?: number;          // video / image
+  height?: number;
+  addedAt?: string;        // ISO timestamp
+}
+
 // Full project file (kept loose here so shared/ stays decoupled from renderer types).
 // Asset paths inside surfaces/scene3D/timeline are stored relative to the project
 // folder when collected (see main/projectFolder.ts), and resolved to absolute on load.
@@ -388,6 +416,7 @@ export interface ProjectData {
   scenes: unknown[];
   scene3D?: Scene3D;
   timeline?: unknown; // Timeline (renderer type) — video-layer NLE
+  assets?: AssetEntry[]; // managed media library (video/image/model/take)
   projectorOutputs?: ProjectorOutput[]; // per-surface fullscreen projector mappings
   projectorFpsCap?: number; // performance mode: cap projector output fps (0 = uncapped/vsync)
 }
@@ -488,6 +517,17 @@ export interface ArtluxApi {
   // Generic file access (timeline video clips)
   readFile(path: string): Promise<Uint8Array | null>;
   pickVideo(): Promise<string | null>;
+  /** Write a recorded LiDAR-blob take (JSON) to a sidecar `.lblob` file → absolute path. */
+  saveTrackingTake(id: string, json: string): Promise<string | null>;
+  // Asset library
+  /** Pick media files of a category and copy them into the project's assets/ → AssetEntry[]. */
+  importAssets(projectFile: string, type: AssetType): Promise<AssetEntry[]>;
+  /** Copy a known file into the project's assets/ as an asset of `type` → AssetEntry (or null). */
+  importAssetFile(projectFile: string, srcPath: string, type: AssetType, name?: string): Promise<AssetEntry | null>;
+  /** Reveal a file in the OS file manager. */
+  showItemInFolder(path: string): void;
+  /** Which of these paths exist on disk. */
+  assetExists(paths: string[]): Promise<boolean[]>;
   /** Resolve a dropped File to its absolute path (Electron webUtils). */
   getPathForFile(file: File): string;
   // Projector outputs (per-surface fullscreen on a physical display). The bridge

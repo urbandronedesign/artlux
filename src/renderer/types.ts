@@ -182,9 +182,13 @@ export interface SurfaceContent {
 // A layer is a track = an addressable output channel; surfaces/3D planes bind to its id.
 // The header flags (muted/solo/locked/enabled) are EDIT-UX only — the playback engine
 // (services/timeline.ts) ignores them so playback/compositing is unchanged.
+// A layer is either a normal video track or the special 'tracking' lane that holds recorded
+// LiDAR blob takes (replayed into the tracking store during playback). Absent kind ⇒ 'video'.
+export type LayerKind = 'video' | 'tracking';
 export interface VideoLayer {
   id: string;
   name: string;
+  kind?: LayerKind;      // 'tracking' = LiDAR-blob take lane; undefined/'video' = normal track
   height?: number;       // lane height in px (default LANE_H)
   color?: string;        // hex label color for the track header (default none)
   muted?: boolean;       // UX-only dim flag (engine ignores)
@@ -197,12 +201,27 @@ export interface VideoClip {
   id: string;
   layerId: string;
   name: string;
-  path: string;          // MP4 file path (loaded per-window via IPC → Blob URL)
+  path: string;          // MP4 file path (video) or .lblob take file (tracking) — loaded via IPC
+  kind?: 'video' | 'tracking'; // matches the host layer's kind; undefined ⇒ 'video'
+  takeId?: string;       // tracking clips: id of the source take in timeline.trackingTakes
   start: number;         // timeline position where the clip begins
   duration: number;      // clip length on the timeline
   inPoint: number;       // offset into the source where playback starts (trim)
-  sourceDuration?: number; // full length of the source video (for trim limits)
+  sourceDuration?: number; // full length of the source video/take (for trim limits)
   color?: string;        // per-clip tint override (optional)
+}
+// Managed media library types live in shared/ (crosses the IPC boundary on import); re-exported
+// here so renderer code imports them from './types' alongside everything else.
+export type { AssetType, AssetEntry } from '../../shared/protocol';
+
+// A recorded LiDAR-blob take in the project's take library. The frames live in a sidecar
+// `.lblob` file (path); this lightweight ref is what persists in the project + the bin UI.
+export interface TrackingTakeRef {
+  id: string;
+  name: string;
+  path: string;          // sidecar .lblob file (resolved absolute on load like clip paths)
+  duration: number;      // seconds
+  fps?: number;          // nominal capture rate
 }
 // A point of interest on the timeline ruler.
 export interface Marker {
@@ -270,10 +289,11 @@ export interface Timeline {
   outPoint?: number | null; // timeline range end
   loop?: boolean;        // when true, playback wraps over [inPoint, outPoint); else unbounded
   stateMachine?: StateMachine; // optional control-layer FSM
+  trackingTakes?: TrackingTakeRef[]; // recorded LiDAR-blob take library (drag onto a tracking lane)
 }
 export const defaultTimeline = (): Timeline => ({
   layers: [], clips: [], duration: 60, fps: 30, markers: [], inPoint: null, outPoint: null,
-  loop: false, stateMachine: defaultStateMachine(),
+  loop: false, stateMachine: defaultStateMachine(), trackingTakes: [],
 });
 
 // Fill defaults for fields added after a project was saved, so old projects load cleanly.
@@ -288,6 +308,7 @@ export const normalizeTimeline = (t: Partial<Timeline> | null | undefined): Time
     ...t,
     layers: (t.layers ?? []).map(l => ({ enabled: true, ...l })),
     clips: t.clips ?? [],
+    trackingTakes: t.trackingTakes ?? [],
     markers: t.markers ?? [],
     inPoint: t.inPoint ?? null,
     outPoint: t.outPoint ?? null,

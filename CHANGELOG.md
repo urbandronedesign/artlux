@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+## v0.14.0
+
+**Record & replay LiDAR takes, and a managed media library.**
+
+- **LiDAR take recording & replay** — capture the live LiDAR blob feed into reusable *takes* and
+  place them on a dedicated **tracking lane** of the timeline, so a show can be simulated and
+  rehearsed with no tracker present. Record from the timeline's Takes bin (independent of the
+  transport), drop a take on the tracking lane, then play or scrub to replay the recorded blobs
+  into the 3D Scene and projector outputs. While a take plays it drives the blobs and the live OSC
+  feed is suppressed (global simulation override); past the clip the live tracker resumes. Takes are
+  stored as compact `.lblob` sidecars.
+- **Asset library + Asset Manager** — a new **Media** tab in the left sidebar manages all project
+  media — video, image, 3D model, and take — in one place: import (files are copied into the
+  project's `assets/` folder), thumbnails/previews, search + type filters, and *used / unused /
+  missing* badges. Drag a tile onto a Stage surface or a timeline lane to place it. A full-screen
+  **Asset Manager** adds per-asset usage (jump to where it's used), relink, reveal-in-folder,
+  remove, and one-click **Consolidate**. **New Project** now always creates a project folder
+  (prompts for a location and saves immediately), so imported and recorded media always has a home.
 - **Monitoring (Prometheus + Grafana)** — ArtLux now exposes a Prometheus metrics endpoint from the
   main process at `http://127.0.0.1:9464/metrics` (output FPS/packets/universes/up, plus CPU, memory and
   event-loop lag). Pull-based and near-zero cost on the show machine: nothing is pushed and the page is

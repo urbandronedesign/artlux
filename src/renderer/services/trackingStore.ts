@@ -36,6 +36,13 @@ export interface TrackingSnapshot {
 const surfaces = new Map<string, SurfaceTrack>();
 const subs = new Set<() => void>();
 
+// Replay/simulation override: while a recorded take is driving the store (trackingPlayback),
+// live OSC blob/spec messages are swallowed so the recording is authoritative. When no take is
+// playing this is false and the live tracker flows through normally.
+let replaySource = false;
+export function setReplaySource(on: boolean): void { replaySource = on; }
+export function isReplaySource(): boolean { return replaySource; }
+
 // Coalesce notifications to one per animation frame — a tracking frame is many leaf messages.
 let dirty = false;
 let rafId = 0;
@@ -69,6 +76,7 @@ const BLOB_RE = /^\/([^/]+)\/blobs\/blob(\d+)\/(id|tx|ty|u|v)$/i;
 export function ingest(address: string, value: number): boolean {
   const spec = SPEC_RE.exec(address);
   if (spec) {
+    if (replaySource) return true; // a recorded take owns the store — ignore the live tracker
     const s = getSurface(spec[1]);
     if (spec[2].toLowerCase() === 'scalex') s.scaleX = value; else s.scaleY = value;
     markDirty();
@@ -76,6 +84,7 @@ export function ingest(address: string, value: number): boolean {
   }
   const m = BLOB_RE.exec(address);
   if (m) {
+    if (replaySource) return true; // a recorded take owns the store — ignore the live tracker
     const s = getSurface(m[1]);
     const b = getBlob(s, parseInt(m[2], 10));
     const field = m[3].toLowerCase() as 'id' | 'tx' | 'ty' | 'u' | 'v';

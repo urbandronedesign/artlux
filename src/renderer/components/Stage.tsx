@@ -11,6 +11,7 @@ import * as surfaceMedia from '../services/surfaceMedia';
 interface StageProps {
   surfaces: Surface[];
   onUpdateSurfaces: (surfaces: Surface[]) => void;
+  onDropAsset?: (surfaceId: string, asset: { id: string; type: string; path: string }) => void;
   selectedSurfaceId: string | null;
   onSelectSurface: (id: string) => void;
   controllers: Controller[];
@@ -42,6 +43,7 @@ const COLOR_ORDER: Record<ColorOrder, [number, number, number]> = {
 export const Stage: React.FC<StageProps> = ({
   surfaces,
   onUpdateSurfaces,
+  onDropAsset,
   selectedSurfaceId,
   onSelectSurface,
   controllers,
@@ -693,6 +695,26 @@ export const Stage: React.FC<StageProps> = ({
       ref={viewportRef}
       className="relative w-full h-full bg-surface-0 overflow-hidden select-none cursor-default"
       onWheel={handleWheel}
+      onDragOver={(e) => { if (onDropAsset && e.dataTransfer.types.includes('application/artlux-asset')) e.preventDefault(); }}
+      onDrop={(e) => {
+        if (!onDropAsset) return;
+        const raw = e.dataTransfer.getData('application/artlux-asset');
+        if (!raw || !containerRef.current) return;
+        e.preventDefault();
+        let asset: { id: string; type: string; path: string };
+        try { asset = JSON.parse(raw); } catch { return; }
+        if (asset.type !== 'video' && asset.type !== 'image') return; // only video/image fill a surface
+        const r = containerRef.current.getBoundingClientRect();
+        const nx = (e.clientX - r.left) / r.width, ny = (e.clientY - r.top) / r.height;
+        // Topmost surface (highest zIndex; later in array wins ties) whose rect contains the drop.
+        let hit: Surface | null = null;
+        for (const s of surfaces) {
+          if (nx >= s.x && nx <= s.x + s.width && ny >= s.y && ny <= s.y + s.height) {
+            if (!hit || (s.zIndex ?? 0) >= (hit.zIndex ?? 0)) hit = s;
+          }
+        }
+        if (hit) { onSelectSurface(hit.id); onDropAsset(hit.id, asset); }
+      }}
       onMouseDown={(e) => {
          if (e.button === 1 || (e.button === 0 && e.shiftKey === false)) {
              startDrag(e, 'pan');

@@ -94,6 +94,12 @@ const api: ArtluxApi = {
     readModel: (path: string) => ipcRenderer.invoke(IPC.SCENE_READ_MODEL, path),
     readFile: (path: string) => ipcRenderer.invoke(IPC.READ_FILE, path),
     pickVideo: () => ipcRenderer.invoke(IPC.PICK_VIDEO),
+    saveTrackingTake: (id: string, json: string) => ipcRenderer.invoke(IPC.SAVE_TRACKING_TAKE, id, json),
+    // Asset library
+    importAssets: (projectFile: string, type) => ipcRenderer.invoke(IPC.IMPORT_ASSETS, projectFile, type),
+    importAssetFile: (projectFile: string, srcPath: string, type, name?: string) => ipcRenderer.invoke(IPC.IMPORT_ASSET_FILE, projectFile, srcPath, type, name),
+    showItemInFolder: (path: string) => ipcRenderer.send(IPC.SHOW_ITEM_IN_FOLDER, path),
+    assetExists: (paths: string[]) => ipcRenderer.invoke(IPC.ASSET_EXISTS, paths),
     getPathForFile: (file: File) => webUtils.getPathForFile(file),
     // Projector outputs
     listDisplays: () => ipcRenderer.invoke(IPC.PROJECTOR_LIST_DISPLAYS),
