@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.14.5
+
 - **Tracking: merge blobs into people** — the venue LiDAR emits ~2 blobs per person on the floor
   (each with its own id). A new **"Merge people (2 blobs → 1)"** toggle (+ **Merge radius** slider) in
   the 3D Scene tracking controls clusters a surface's blobs within the radius into one centroid
