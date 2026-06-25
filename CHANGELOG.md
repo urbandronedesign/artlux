@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.14.2
+
 - **OSC Monitor (sniffer)** — **View ▸ OSC Monitor** (`Ctrl+Shift+M`) opens a live view of the raw
   incoming OSC stream for testing the LiDAR feed: a receiving/listening status dot with live msg/s,
   per-surface blob cards (`active/total` + zone size, green when active), and an address table with
