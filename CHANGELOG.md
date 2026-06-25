@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.14.4
+
 - **Custom single-line title bar** — the editor window is now frameless with its own VS Code-style
   top strip: the ArtLux logo, the `File/Edit/View/Window/Help` menus (app-styled dropdowns; all
   keyboard shortcuts unchanged), the toolbar action icons (3D Scene · Outputs · Routing · DMX
