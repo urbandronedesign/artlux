@@ -16,6 +16,11 @@ The wire format and geometry match our implementation — no parser change neede
   - `u = tx / Scalex + 0.5`   ·   `v = ty / Scaley + 0.5`
   - `tx`/`ty` = metres about the **zone centre**; `u`/`v` = normalised `0–1`, **origin bottom-left**.
 
+Cross-checked against the venue's **official protocol doc** (2026-06-25) — all fields match:
+`id` Int `[1;+∞]` (0 = inactive) · `tx` Float `[-ScaleX/2; ScaleX/2]` · `ty` Float
+`[-ScaleY/2; ScaleY/2]` · `u`,`v` Float `[0;1]`. The doc does **not** state the `u/v` origin; we
+assume bottom-left (flip `1-v` for screen) from live validation — confirm with a corner test on site.
+
 **The only open item is the pairing rule** below — everything else is in sync.
 
 ## Before you start
@@ -53,24 +58,31 @@ Fill this in on-site:
 > raw feed so we can replay and inspect it back at the desk if the live read is too fast.
 
 ### Decision
-- **Both blobs share the same `id`** → group blobs by `id` (exact, trivial). Best case.
-- **Different ids** → spatial clustering: merge active blobs within a distance threshold ≈ the
-  measured 1-person separation (e.g. ~0.6 m), guarding against merging two real people who stand
-  close (note the "2 people close" separation as the lower bound).
+We expect the two blobs to have **different ids**, so **spatial clustering** is implemented (and is
+robust either way): merge active blobs within a distance threshold ≈ the measured 1-person
+separation, guarding against merging two real people who stand close (note the "2 people close"
+separation as the lower bound for the radius).
 
-## Step 2 — Implementation (back at the desk, after the test)
-Add an optional "merge blobs → people" stage; **off by default** so nothing changes until enabled:
+## Step 2 — Enable & tune the merge (already implemented, off by default)
+The **"Merge people (2 blobs → 1)"** feature ships off by default — `services/blobClustering.ts`
+clusters a surface's blobs within `trackingMergeRadius` metres into one centroid "person", applied
+at the snapshot bridge so the **3D viz and projector outputs** show merged people (the raw OSC feed
+and recorded takes are untouched).
 
-- New `src/renderer/services/blobClustering.ts`: active blobs of a surface → **people** (group-by-`id`
-  *or* centroid of blobs within `trackingMergeRadius`).
-- Settings: `trackingMergePeople` (toggle) + `trackingMergeRadius` (m) in the Scene/Tracking panel.
-- Feed merged people to the 3D viz markers, projected blobs, `#id` labels, and any blob-count / zone
-  logic; keep raw blobs available behind the toggle for debugging.
-- Smooth the merged position in `src/renderer/services/blobMotion.ts`, keyed by person id.
+On-site:
+1. Open the **3D Scene** window → tracking controls.
+2. Turn on **Merge people (2 blobs → 1)**.
+3. Adjust **Merge radius (m)** (default 0.6) until one person shows a single marker.
 
 ## Step 3 — Validate
-- 1 person → **1** marker; 2 apart → **2**; 2 close → tune `trackingMergeRadius`.
+- 1 person → **1** marker; 2 people apart → **2**; 2 people close → raise/lower **Merge radius**
+  until both hold (the "2 people close" separation from Step 1 is your upper bound for the radius).
 - Re-record a take as a regression fixture.
+- Person ids are **temporally stable**: each frame's people are matched to the previous frame's by
+  proximity (≤0.8 m, 400 ms dropout tolerance), so a person's `#id` survives the underlying blobs
+  dropping/reacquiring. Ids reset when you toggle merging off.
+- Known limits (fine for now, revisit if needed): clustering applies to all surfaces with one radius;
+  merge feeds the viz/projector outputs, while the 2D editor stage preview still shows raw blobs.
 
 ## What to bring back from the test
 1. The filled table above (slots, ids, separations).

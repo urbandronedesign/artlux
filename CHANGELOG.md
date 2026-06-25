@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Tracking: merge blobs into people** — the venue LiDAR emits ~2 blobs per person on the floor
+  (each with its own id). A new **"Merge people (2 blobs → 1)"** toggle (+ **Merge radius** slider) in
+  the 3D Scene tracking controls clusters a surface's blobs within the radius into one centroid
+  "person", feeding the 3D viz and projector outputs (raw OSC feed + recorded takes untouched).
+  People get **temporally stable ids** (matched frame-to-frame by proximity, surviving the underlying
+  blobs dropping/reacquiring). Off by default. See [docs/TRACKING_SYNC.md](docs/TRACKING_SYNC.md).
+
 ## v0.14.4
 
 - **Custom single-line title bar** — the editor window is now frameless with its own VS Code-style

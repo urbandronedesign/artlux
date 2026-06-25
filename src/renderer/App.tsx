@@ -31,6 +31,7 @@ import { getDrawable } from './services/surfaceMedia';
 import { timeline as timelineEngine } from './services/timeline';
 import * as oscController from './services/oscController';
 import * as trackingStore from './services/trackingStore';
+import { clusterAndTrack, resetPeopleTracking } from './services/blobClustering';
 import * as trackingPlayback from './services/trackingPlayback';
 import * as trackingDrawable from './services/trackingDrawable';
 import { Activity, SlidersHorizontal, Film } from 'lucide-react';
@@ -112,6 +113,7 @@ const App: React.FC = () => {
   const [update, setUpdate] = useState<UpdateEvent | null>(null);
   const [updateUserInitiated, setUpdateUserInitiated] = useState(false);
   const [scene3D, setScene3D] = useState<Scene3D>(defaultScene3D());
+  const scene3DRef = useRef(scene3D); scene3DRef.current = scene3D; // live mirror for the []-deps tracking bridge
   const [timeline, setTimeline] = useState<Timeline>(defaultTimeline());
   const [assets, setAssets] = useState<AssetEntry[]>([]); // managed media library (video/image/model)
   const [leftTab, setLeftTab] = useState<'scene' | 'media'>('scene');
@@ -807,7 +809,11 @@ const App: React.FC = () => {
           const trackingProjectors = [...projectorPortsRef.current].filter(([id]) =>
               surfacesRef.current.find(s => s.id === id)?.content.type === SourceType.TRACKING);
           if (!scenePort && trackingProjectors.length === 0) return;
-          const snap = trackingStore.snapshot();
+          const raw = trackingStore.snapshot();
+          // Merge the venue's ~2-blobs-per-person into single "people" for the viz + projector
+          // outputs (off by default). The raw store + recorded takes stay untouched.
+          const cfg = scene3DRef.current;
+          const snap = cfg.trackingMergePeople ? clusterAndTrack(raw, cfg.trackingMergeRadius ?? 0.6, now) : raw;
           scenePort?.postMessage({ t: 'tracking', snap });
           for (const [, port] of trackingProjectors) port.postMessage({ t: 'tracking', snap });
       });
@@ -817,6 +823,8 @@ const App: React.FC = () => {
   useEffect(() => {
       trackingDrawable.configure(scene3D.trackingSmoothing ?? 0.6, scene3D.trackingPredictMs ?? 50);
   }, [scene3D.trackingSmoothing, scene3D.trackingPredictMs]);
+  // Drop temporal person tracks when merging is off so a re-enable starts with fresh person ids.
+  useEffect(() => { if (!scene3D.trackingMergePeople) resetPeopleTracking(); }, [scene3D.trackingMergePeople]);
   // Stream transport (playing + playhead) to the Scene + projector windows ~30 fps so
   // their video/layer content stays in sync with the main clock.
   useEffect(() => {

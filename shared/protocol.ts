@@ -369,6 +369,8 @@ export interface Scene3D {
   trackingSmoothing?: number;         // 0 = raw, 1 = heavy (One-Euro min-cutoff)
   trackingPredictMs?: number;         // blob prediction horizon, ms (0 = off)
   trackingLabels?: boolean;           // show each blob's tracking id
+  trackingMergePeople?: boolean;      // merge nearby blobs into one "person" (venue emits 2 blobs/person)
+  trackingMergeRadius?: number;       // merge radius in metres (blobs within this distance = same person)
   // Legacy single-model fields (pre-multi-model); migrated into `models` on load.
   modelPath?: string;
   modelScale?: number;
@@ -387,6 +389,8 @@ export const defaultScene3D = (): Scene3D => ({
   trackingSmoothing: 0.6,
   trackingPredictMs: 50,
   trackingLabels: true,
+  trackingMergePeople: false,
+  trackingMergeRadius: 0.6,
 });
 
 // ---- Asset library -----------------------------------------------------------
