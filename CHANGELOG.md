@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.14.3
+
+- **Dark menu bar** — the native Windows menu bar (File/Edit/View/Window/Help) now renders dark
+  instead of following the system light theme. Forced via `nativeTheme.themeSource = 'dark'` at
+  startup.
+
 ## v0.14.2
 
 - **OSC Monitor (sniffer)** — **View ▸ OSC Monitor** (`Ctrl+Shift+M`) opens a live view of the raw
