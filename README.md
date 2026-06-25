@@ -23,6 +23,8 @@ fallback) and a **Rust** output engine (napi-rs) that owns UDP transmission on a
 - **GPU pixel mapping** — a WebGPU compute shader samples the source per-LED in real time.
 - **WLED-style effects** — gradient palettes, stateful fire2012, and multi-segment fixtures.
 - **Content sources** — video, image, live camera, **DMX in** (Art-Net/sACN), **Spout** (Windows), and **NDI** (network video).
+- **Media library** — a managed asset library (video, image, 3D model, LiDAR take): import (copy-in), previews, usage/missing tracking, relink, and drag-to-place onto the Stage or Timeline.
+- **LiDAR tracking + takes** — receive the OSC blob tracking feed, visualize/project it, and **record takes** to replay an interactive show with no tracker present.
 - **Projector outputs + NDI out** — map each surface fullscreen to a projector (corner-pin / Bézier warp, soft-edge, gamma) and optionally publish each output as an **NDI source**.
 - **2D + 3D** — drag/resize/rotate/snap on a 2D stage; arrange the same fixtures in a 3D simulator.
 - **Per-pixel correctness** — color order, RGBW white extraction, gamma, matrix + serpentine, ledmap.
@@ -83,6 +85,8 @@ react-three-fiber · Rust (napi-rs) · Art-Net + sACN/E1.31
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — **how the app works today** (canonical).
 - [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) — setup, build, test, release, gotchas.
 - [docs/FEATURES.md](docs/FEATURES.md) — feature/usage guide.
+- [docs/ASSETS.md](docs/ASSETS.md) — media library & asset management (import, usage, relink, consolidate).
+- [docs/TRACKING_TAKES.md](docs/TRACKING_TAKES.md) — record & replay LiDAR blob takes from the timeline.
 - [docs/SURFACES.md](docs/SURFACES.md) — surfaces engine design & roadmap.
 - [docs/UI_REFACTOR.md](docs/UI_REFACTOR.md) — design system + UI architecture.
 - [docs/PROGRESS.md](docs/PROGRESS.md) — build log / decisions.

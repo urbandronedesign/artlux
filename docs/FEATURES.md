@@ -78,6 +78,14 @@ share the socket:
   feed a render-free tracking store and the **3D Scene blob visualization** (toggle **Tracking zones
   (LiDAR)** in the Scene window). Full protocol + venue wiring + architecture in [OSC.md](OSC.md).
 
+### Tracking takes — record & replay without the tracker
+Record the live LiDAR blob feed into reusable **takes** and replay them from a dedicated **tracking
+lane** on the timeline, so you can author and rehearse an interactive show with no tracker connected.
+Record from the timeline's **Takes** strip (independent of the transport), drag a take onto the
+tracking lane, then Play/scrub to replay the blobs into the 3D Scene and any *Tracking* projector
+outputs. While a take plays the live feed is suppressed; past the clip it resumes. Takes are `.lblob`
+sidecars in `assets/tracking/`. Details in [TRACKING_TAKES.md](TRACKING_TAKES.md).
+
 ## Projects, rigs & preferences
 - **Save / Save As / Open** (File menu or top bar) — native dialogs writing `.artlux` project files
   (fixtures, settings, brightness, groups, scenes).
@@ -97,15 +105,22 @@ MyShow/
     video/      # timeline clips, surface videos
     models/     # GLB/glTF venue models
     images/     # surface images
+    tracking/   # recorded LiDAR takes (.lblob)
 ```
 
-- **New Project Folder…** (Ctrl/Cmd+Shift+N) — choose an existing folder or create a new one; ArtLux
-  scaffolds the `assets/` tree and saves `project.artlux` into it.
+- **New Project** (Ctrl/Cmd+N) — now always prompts for a **location**, scaffolds the `assets/` tree,
+  and saves `project.artlux` into it (so imported/recorded media always has a home).
 - **Open Project Folder…** (Ctrl/Cmd+Shift+O) — pick a project folder to open its `project.artlux`.
-- **Collect Assets…** (File menu) — copies every referenced video, 3D model, and image into the
-  project's `assets/` tree and rewrites the project to point at the local copies (de-duped by name +
-  size). A summary reports how many were copied, skipped (already collected), or missing on disk. Run
-  it before sharing, then copy or zip the whole folder — it's self-contained.
+- **Consolidate** (Asset Manager) / **Collect Assets…** (File menu) — copies every referenced video,
+  3D model, image and take into the project's `assets/` tree and rewrites paths to the local copies
+  (de-duped by name + size). A summary reports how many were copied, skipped, or missing on disk.
+
+### Media library
+A managed library of all project media — **video, image, 3D model, take** — in the left panel's
+**Media** tab. Import (files are copied into the project folder), preview thumbnails, search/filter,
+*used/unused/missing* badges, and **drag a tile onto the Stage or Timeline** to place it. A full-screen
+**Asset Manager** adds per-asset usage, relink, reveal-in-folder, remove and consolidate. Full
+reference in [ASSETS.md](ASSETS.md).
 
 Asset paths inside a project folder are stored **relative to the folder**, so moving or copying the
 folder keeps every asset linked. Surface videos/images are stored by file path (not a temporary

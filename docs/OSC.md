@@ -159,6 +159,13 @@ origin. `u → x` across the width (centered); `v` runs up each zone (`SOL` towa
 
 ---
 
+## Recording & replaying the blob feed
+
+The live blob stream can be **recorded into takes** and replayed from the timeline with no tracker
+present (for authoring and rehearsal). See [TRACKING_TAKES.md](TRACKING_TAKES.md).
+
+---
+
 ## Troubleshooting
 
 - **No blobs / `ping 192.168.61.21` is 100% loss** → the tracking **server is down or unreachable**.

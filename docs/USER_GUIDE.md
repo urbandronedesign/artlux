@@ -7,7 +7,7 @@ your hardware over **Art-Net** or **sACN/E1.31**. It can also drive video **proj
 corner-pin/warp and run a video **timeline**.
 
 This guide is for operators and designers using the app. For internals see the other files in
-`docs/` (ARCHITECTURE, SURFACES, OUTPUTS, LEDMAP, NDI, TIMELINE).
+`docs/` (ARCHITECTURE, SURFACES, OUTPUTS, LEDMAP, NDI, TIMELINE, ASSETS, TRACKING_TAKES).
 
 ---
 
@@ -26,7 +26,7 @@ This guide is for operators and designers using the app. For internals see the o
 11. [The timeline & state machine](#11-the-timeline--state-machine)
 12. [Projector outputs](#12-projector-outputs)
 13. [3D Scene](#13-3d-scene)
-14. [Projects, assets & broadcast mode](#14-projects-assets--broadcast-mode)
+14. [Projects, media library & broadcast mode](#14-projects-media-library--broadcast-mode)
 15. [Keyboard & mouse reference](#15-keyboard--mouse-reference)
 16. [Monitoring (Prometheus & Grafana)](#16-monitoring-prometheus--grafana)
 17. [Troubleshooting](#17-troubleshooting)
@@ -56,8 +56,9 @@ fixture linked → nothing goes out; fixture linked but content is *None* → it
 
 - **Top bar** — *Scene* (open the 3D window), the **Play/Pause** transport (for video/camera),
   *Outputs*, *Routing*, *DMX Monitor*, and *Preferences*.
-- **Left panel** — the **Surfaces** and **Fixtures** lists (add with **+**, double-click to rename,
-  hover to delete).
+- **Left panel** — two tabs: **Scene** (the **Surfaces** and **Fixtures** lists — add with **+**,
+  double-click to rename, hover to delete) and **Media** (the project's [media library](#14-projects-media-library--broadcast-mode):
+  import, preview and drag media onto the Stage or Timeline).
 - **Stage (center)** — the 2D canvas where you place and arrange surfaces and fixtures. Top-right of
   the stage has a **grid toggle**, a **snap (magnet)** toggle, and a **reset view** button.
 - **Right panel (Inspector)** — properties for whatever is selected: a surface's content & transform,
@@ -128,6 +129,10 @@ Select a surface, then choose a type in the Inspector's **Content** grid:
 
 The top-bar **Play/Pause** is the global transport for video, camera and the timeline (it's only
 enabled when there's something playable). Live sources (camera, Spout, NDI, DMX-in) are real-time.
+
+> **Tip:** for **Video** and **Image** you don't have to browse each time — import once into the
+> **Media** library (left panel → *Media*) and **drag a tile onto the surface** (or select the surface
+> and click **Use**). See [§14](#14-projects-media-library--broadcast-mode).
 
 ### Tracking content (LiDAR blobs you can project)
 Shows a glowing marker per tracked person. Because it's a normal surface, you can route it to a
@@ -285,6 +290,19 @@ Looping is off by default; toggle **Loop** (**Shift+L**) to repeat the **in/out*
 **Navigation:** **mouse wheel** zooms toward the cursor, **Shift+wheel** scrolls horizontally, and
 **middle-button drag** pans in any direction.
 
+**Tracking takes (record & replay LiDAR without the tracker):** the **Takes** strip under the toolbar
+records the live LiDAR blob feed into reusable *takes*, so you can rehearse and run an interactive
+show with no tracker connected.
+- **Record** — press **● Record** to capture the live feed (independent of Play/Pause), **■** to stop.
+  A take chip appears and a green **Tracking** lane is created.
+- **Place** — drag a take onto the tracking lane (or drag it from the **Media** library). It shows a
+  blob-density sparkline; move/trim it like any clip.
+- **Replay** — with the tracker disconnected, **Play** or scrub: the recorded blobs drive the 3D Scene
+  and any *Tracking* projector outputs. While a take plays it takes over from any live feed; past the
+  clip the blobs clear and the live tracker resumes.
+
+See [TRACKING_TAKES.md](TRACKING_TAKES.md) for details.
+
 **State machine (control layer):** an always-present logic layer (the lane above the tracks; the
 **Edit logic** button opens its editor). It's **disabled by default**. When enabled it can drive the
 transport automatically: build a graph of **states** (each can *play / pause / stop / seek / set loop
@@ -334,17 +352,37 @@ The LEDs light up with live output colors, so the 3D view matches what your rig 
 
 ---
 
-## 14. Projects, assets & broadcast mode
+## 14. Projects, media library & broadcast mode
 
 **Save/open** (File menu): *New Project* (**Ctrl/Cmd+N**), *Open…* (**Ctrl/Cmd+O**), *Save*
-(**Ctrl/Cmd+S**), *Save As…* (**Ctrl/Cmd+Shift+S**). Projects use the `.artlux` extension and store
-everything — surfaces, fixtures, controllers, settings, brightness, groups, scenes, the 3D scene, the
-timeline, and projector outputs. **Open Recent** lists your last projects.
+(**Ctrl/Cmd+S**), *Save As…* (**Ctrl/Cmd+Shift+S**). Projects store everything — surfaces, fixtures,
+controllers, settings, brightness, groups, scenes, the 3D scene, the timeline, the media library, and
+projector outputs. **Open Recent** lists your last projects.
 
-**Portable project folders:** *New Project Folder…* (**Ctrl/Cmd+Shift+N**) scaffolds a folder with an
-`assets/` tree; *Open Project Folder…* (**Ctrl/Cmd+Shift+O**) opens it. **Collect Assets…** copies all
-referenced media/models into the folder and rewrites paths to be relative — so you can zip or move the
-whole folder and it stays self-contained.
+**Projects are folders.** *New Project* now prompts you for a **location** and creates a project
+**folder** — `project.artlux` plus an `assets/{video,images,models,tracking}/` tree — and saves it
+immediately, so imported and recorded media always has a home. *Open Project Folder…*
+(**Ctrl/Cmd+Shift+O**) opens one. Asset paths inside the folder are stored relative, so you can zip or
+move the whole folder and it stays self-contained.
+
+### Media library
+The left panel's **Media** tab is the project's media hub — video, images, 3D models and recorded
+tracking takes in one place.
+
+- **Import** — the **Video / Image / Model** buttons copy the chosen files **into** the project's
+  `assets/` folder (so the project stays portable). Recorded **takes** appear here automatically
+  (recorded from the Timeline — [§11](#11-the-timeline--state-machine)).
+- **Browse** — filter by type, search by name. Each tile shows a thumbnail (a video frame, the image,
+  a take's blob-density, or a model glyph) and a badge: **used N×**, **unused**, or **⚠ missing**.
+- **Place** — **drag a tile** onto a Stage surface (sets its video/image content) or onto a Timeline
+  lane (creates a clip). Or select a video/image tile and click **Use** to assign it to the selected
+  surface.
+- **Manage** — open the full **Asset Manager** (the ⤢ button) to see an asset's **usage** (click a
+  surface usage to jump to it), **Relink** a moved/missing file (every reference updates),
+  **Reveal in folder**, **Remove**, and **Consolidate** (copy any still-external media into the folder
+  and relativize paths — the successor to *Collect Assets*).
+
+See [ASSETS.md](ASSETS.md) for details.
 
 **Broadcast (show) mode:** File → **Launch in Broadcast Mode** opens every enabled output fullscreen
 and streams Art-Net/sACN with no editor UI. Quit it from the system-tray icon or with
@@ -365,8 +403,7 @@ Text-field typing suppresses these shortcuts.
 | Ctrl/Cmd+Z | Undo |
 | Ctrl/Cmd+Shift+Z, Ctrl/Cmd+Y | Redo |
 | Ctrl/Cmd+A | Select all fixtures |
-| Ctrl/Cmd+N | New project |
-| Ctrl/Cmd+Shift+N | New project folder |
+| Ctrl/Cmd+N | New project (prompts for a folder) |
 | Ctrl/Cmd+O | Open project |
 | Ctrl/Cmd+Shift+O | Open project folder |
 | Ctrl/Cmd+S | Save |

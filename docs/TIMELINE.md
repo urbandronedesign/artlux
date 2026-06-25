@@ -27,8 +27,10 @@ src/renderer/components/timeline/
   TimelineRuler.tsx    HH:MM:SS:FF ticks, markers, in/out band, click-to-seek
   TrackHeader.tsx      name, M/S/L, show-hide, color, reorder grip, height-resize (React.memo)
   Lane.tsx             one track's clip lane: drop target, hosts ClipBlocks
-  ClipBlock.tsx        one clip: move/trim/blade hit zones, hosts the Filmstrip (React.memo)
+  ClipBlock.tsx        one clip: move/trim/blade hit zones, hosts the Filmstrip / BlobSparkline (React.memo)
   Filmstrip.tsx        imperative <canvas> of thumbnails; decoupled from React render
+  TakesBin.tsx         LiDAR take recorder control + draggable take chips (v0.14.0)
+  BlobSparkline.tsx    per-clip blob-density signature for tracking-take clips (v0.14.0)
   StateLane.tsx        always-present control lane: live state, manual-trigger buttons, time markers
   StateGraphEditor.tsx modal node-graph editor: states (draggable), transitions, entry actions/triggers
   geometry.ts          layout constants (+ SM_LANE_H, PAGE_SECS) + px<->sec + timecode helpers
@@ -159,6 +161,16 @@ Scoped to when the timeline panel is hovered/focused, suppressed while typing in
 | C | blade at playhead | Home / End | seek start / content end |
 | F | maximize / restore | Shift+L | toggle loop region |
 | Shift+wheel | horizontal scroll | middle-drag | pan both axes |
+
+## Tracking takes (v0.14.0)
+
+A special **tracking lane** (`VideoLayer.kind:'tracking'`) holds recorded LiDAR-blob **takes** instead
+of video. The engine's `frame()` loop skips `kind:'tracking'` layers and `setData` skips `.lblob`
+clips — replay is handled by a separate `trackingPlayback` service (the engine stays decoupled from
+the tracking store). Takes are recorded from the **Takes** strip, placed as `kind:'tracking'` clips
+(rendered with a `BlobSparkline` instead of a Filmstrip), and replayed into the tracking store as the
+playhead crosses them. Full design in [TRACKING_TAKES.md](TRACKING_TAKES.md); takes are managed in the
+[asset library](ASSETS.md).
 
 ## Verify
 
