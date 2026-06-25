@@ -1,4 +1,4 @@
-import { app, BrowserWindow, session, systemPreferences, ipcMain, MessageChannelMain, Tray, Menu, globalShortcut } from 'electron';
+import { app, BrowserWindow, session, systemPreferences, ipcMain, MessageChannelMain, Tray, Menu, globalShortcut, nativeTheme } from 'electron';
 import { join, basename } from 'node:path';
 import { registerIpc } from './ipc';
 import { buildAppMenu } from './menu';
@@ -170,6 +170,9 @@ function setupBroadcastControls(): void {
 }
 
 app.whenReady().then(() => {
+    // Force dark UI so the native Windows menu bar (File/Edit/View/…) and other OS-drawn
+    // chrome render dark instead of following the system light theme.
+    nativeTheme.themeSource = 'dark';
     grantMediaPermissions();
     // Broadcast (show) mode lifts the Spout/NDI receive downscale caps to 1080p for full-HD
     // projector output + NDI; the editor keeps the lighter defaults (512² / 720p) for preview.
