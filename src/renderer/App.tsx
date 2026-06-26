@@ -813,7 +813,7 @@ const App: React.FC = () => {
           // Merge the venue's ~2-blobs-per-person into single "people" for the viz + projector
           // outputs (off by default). The raw store + recorded takes stay untouched.
           const cfg = scene3DRef.current;
-          const snap = cfg.trackingMergePeople ? clusterAndTrack(raw, cfg.trackingMergeRadius ?? 0.6, now) : raw;
+          const snap = cfg.trackingMergePeople ? clusterAndTrack(raw, cfg.trackingMergeRadius ?? 0.8, now) : raw;
           scenePort?.postMessage({ t: 'tracking', snap });
           for (const [, port] of trackingProjectors) port.postMessage({ t: 'tracking', snap });
       });

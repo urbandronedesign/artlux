@@ -274,7 +274,7 @@ export const SceneApp: React.FC = () => {
           <Toggle label="Merge people (2 blobs → 1)" checked={scene3D.trackingMergePeople ?? false} onChange={(v) => applyConfig({ trackingMergePeople: v })} />
           {scene3D.trackingMergePeople && (
             <div className="pl-2 border-l border-line-1 space-y-2">
-              <NumRow label="Merge radius (m)" value={scene3D.trackingMergeRadius ?? 0.6} step={0.05} onChange={(v) => applyConfig({ trackingMergeRadius: Math.max(0.05, Math.min(3, v)) })} />
+              <NumRow label="Merge radius (m)" value={scene3D.trackingMergeRadius ?? 0.8} step={0.05} onChange={(v) => applyConfig({ trackingMergeRadius: Math.max(0.05, Math.min(3, v)) })} />
             </div>
           )}
         </div>

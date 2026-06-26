@@ -390,7 +390,7 @@ export const defaultScene3D = (): Scene3D => ({
   trackingPredictMs: 50,
   trackingLabels: true,
   trackingMergePeople: false,
-  trackingMergeRadius: 0.6,
+  trackingMergeRadius: 0.8,
 });
 
 // ---- Asset library -----------------------------------------------------------

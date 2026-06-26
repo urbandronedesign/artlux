@@ -57,32 +57,42 @@ Fill this in on-site:
 > Tip: also **record a LiDAR take** (Timeline ▸ Takes bin ▸ record) during the test — it captures the
 > raw feed so we can replay and inspect it back at the desk if the live read is too fast.
 
-### Decision
-We expect the two blobs to have **different ids**, so **spatial clustering** is implemented (and is
-robust either way): merge active blobs within a distance threshold ≈ the measured 1-person
-separation, guarding against merging two real people who stand close (note the "2 people close"
-separation as the lower bound for the radius).
+### What an on-site recording showed (Take 2, 34 s, 3–4 people)
+Analysed `services/blobClustering.ts` against a real `.lblob`. Findings:
+- **Coordinates/ids all match the spec** (`u,v∈[0,1]`, `|tx|,|ty|≤Scale/2`, ids large & unique).
+- **A person's blobs have different ids** (0 of 120 two-blob frames shared an id) → grouping must be
+  spatial, confirmed.
+- **The venue feed flickers hard**: ~454 distinct SOL ids in 34 s, **median id life 0.13 s, 67 % under
+  0.25 s**. The tracker emits transient detections, not stable tracks — its ids are unusable for
+  identity, and a person's far-apart blobs blinking makes the cluster *centroid jump ~1 m* even
+  when the person stands still. A naive nearest-match re-IDs constantly (gave 152 person-ids).
 
-## Step 2 — Enable & tune the merge (already implemented, off by default)
-The **"Merge people (2 blobs → 1)"** feature ships off by default — `services/blobClustering.ts`
-clusters a surface's blobs within `trackingMergeRadius` metres into one centroid "person", applied
-at the snapshot bridge so the **3D viz and projector outputs** show merged people (the raw OSC feed
-and recorded takes are untouched).
+### How robust tracking is achieved
+`clusterAndTrack` is a small **predictive multi-object tracker** (off by default): cluster blobs →
+observation centroids, then **predict** each track by its velocity, **associate** within `GATE_M`
+(1.5 m) of the prediction, **confirm** only after a few hits (rejects 1–3 frame flicker), and
+**coast** a confirmed person through missed frames (≤700 ms). Output positions come from the track,
+so ids and motion stay stable. Validated on the recording (was → now):
 
-On-site:
-1. Open the **3D Scene** window → tracking controls.
-2. Turn on **Merge people (2 blobs → 1)**.
-3. Adjust **Merge radius (m)** (default 0.6) until one person shows a single marker.
+| Metric (SOL) | old matcher | tracker @ 0.8 m |
+|---|---|---|
+| people/frame (truth 3–4) | 2.97 | **3.8** |
+| distinct person-ids over 34 s | **152** | **23** |
+| median person-id lifetime | <0.5 s | **3.6 s** (max ~20 s) |
+
+## Step 2 — Enable & tune on-site (already implemented)
+1. Open the **3D Scene** window → tracking controls → turn on **Merge people (2 blobs → 1)**.
+2. Adjust **Merge radius (m)** (**default 0.8**): lower if distinct people merge; raise (→1.0) for
+   steadier counts if one person still shows two markers.
+3. Tune **Predict (ms)** / **Smoothing** for motion (≈66–100 ms predict at 30 Hz).
 
 ## Step 3 — Validate
-- 1 person → **1** marker; 2 people apart → **2**; 2 people close → raise/lower **Merge radius**
-  until both hold (the "2 people close" separation from Step 1 is your upper bound for the radius).
-- Re-record a take as a regression fixture.
-- Person ids are **temporally stable**: each frame's people are matched to the previous frame's by
-  proximity (≤0.8 m, 400 ms dropout tolerance), so a person's `#id` survives the underlying blobs
-  dropping/reacquiring. Ids reset when you toggle merging off.
-- Known limits (fine for now, revisit if needed): clustering applies to all surfaces with one radius;
-  merge feeds the viz/projector outputs, while the 2D editor stage preview still shows raw blobs.
+- Steady marker count = your real headcount; each person keeps one `#id` as they move.
+- 2 people apart → 2; 2 people close → if they merge, lower the radius (their closest approach is the
+  upper bound). Re-record a take as a regression fixture.
+- Known limits (revisit if needed): one radius for all surfaces; merge feeds the viz/projector
+  outputs while the 2D editor stage preview still shows raw blobs; tracker constants (gate/confirm/
+  coast) are fixed (tunable in code if needed).
 
 ## What to bring back from the test
 1. The filled table above (slots, ids, separations).

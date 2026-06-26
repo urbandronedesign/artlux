@@ -48,48 +48,96 @@ export function clusterSnapshot(snap: TrackingSnapshot, radiusM: number): Tracki
   return { surfaces: snap.surfaces.map((s) => ({ ...s, blobs: clusterBlobs(s.blobs, radiusM) })) };
 }
 
-// ---- Temporal person tracking -----------------------------------------------
-// Give each merged person a STABLE id by matching this frame's centroids to the previous frame's
-// people by proximity. Without this, the person id (smallest constituent blob id) jumps whenever one
-// of the underlying blobs drops/reacquires — even though the person never left. With it, the centroid
-// stays continuous so the id carries over, keeping `#id` labels and per-person smoothing stable.
+// ---- Predictive person tracker ----------------------------------------------
+// The venue feed is noisy: per-blob ids flicker (~0.13 s median lifetime) and a person's far-apart
+// blobs blink in and out, so the clustered centroid jumps ~1 m frame-to-frame even when the person is
+// standing still. A naive "nearest previous within R" matcher loses the track on every jump and
+// re-assigns ids constantly. This small multi-object tracker holds identity through that:
+//   • predict — each track advances by its smoothed velocity, so we match where it *should* be
+//   • associate — greedy nearest within GATE_M of the predicted position (wide enough for centroid jitter)
+//   • confirm — a track is only emitted as a person after CONFIRM_HITS frames (rejects 1–3 frame flicker)
+//   • coast — a confirmed track survives missed frames up to MAX_COAST_MS (rides through dropouts)
+// Output positions come from the track (smoothed/predicted) → stable ids + steadier motion.
 //
 // Stateful: call ONCE per frame, from the App tracking bridge only (single window, single caller).
-// tx/ty are metres, so the match radius is real-world.
+// tx/ty are metres, so all distances/velocities are real-world.
 
-interface TrackedPerson { id: number; tx: number; ty: number; lastSeen: number; }
-const tracks = new Map<string, TrackedPerson[]>(); // per surface
+interface Track {
+  id: number; tx: number; ty: number; vx: number; vy: number; px: number; py: number;
+  lastSeen: number; hits: number; misses: number; confirmed: boolean;
+}
+interface SurfState { tracks: Track[]; lastNow: number; }
+const state = new Map<string, SurfState>();
 let nextPersonId = 1;
-const MATCH_RADIUS_M = 0.8; // max plausible per-frame move + brief-gap tolerance
-const TRACK_TTL_MS = 400;   // keep a vanished person this long so a 1–2 frame dropout re-matches
+
+// Tunables (validated against an on-site 3–4 person recording).
+const GATE_M = 1.5;            // association radius around a track's predicted position
+const CONFIRM_HITS = 4;        // frames before a track counts as a real person (flicker rejection)
+const MAX_COAST_MS = 700;      // keep a confirmed person alive this long through missed frames
+const MAX_TENTATIVE_MS = 250;  // drop an unconfirmed track if it goes quiet this long
+const POS_GAIN = 0.6;          // how much an observation corrects the predicted position
+const VEL_GAIN = 0.25;         // velocity smoothing
+const MAX_SPEED = 4;           // m/s — clamp so a centroid jump can't fling a track across the floor
 
 // Clear all tracks (e.g. when merging is turned off) so a later re-enable starts fresh.
-export function resetPeopleTracking(): void { tracks.clear(); nextPersonId = 1; }
+export function resetPeopleTracking(): void { state.clear(); nextPersonId = 1; }
 
-// Cluster each surface into people and assign stable person ids (overwriting blob `id`). Person ids
-// are always >= 1 (so they read as active in trackingStore, which treats id 0 as inactive).
+function trackSurface(s: TrackingSnapshot['surfaces'][number], radiusM: number, now: number): Blob[] {
+  const st = state.get(s.surface) ?? { tracks: [], lastNow: now };
+  let dt = (now - st.lastNow) / 1000;
+  if (!(dt > 0)) dt = 0.02;
+  dt = Math.min(dt, 0.2); // clamp after a long gap so prediction can't fling a track across the room
+  st.lastNow = now;
+
+  const obs = clusterBlobs(s.blobs, radiusM); // per-frame observation centroids
+  for (const t of st.tracks) { t.px = t.tx + t.vx * dt; t.py = t.ty + t.vy * dt; }
+
+  // Greedy association: closest (track, observation) pairs first, within the gate.
+  const pairs: { d: number; ti: number; oi: number }[] = [];
+  for (let ti = 0; ti < st.tracks.length; ti++) {
+    for (let oi = 0; oi < obs.length; oi++) {
+      const dx = st.tracks[ti].px - obs[oi].tx, dy = st.tracks[ti].py - obs[oi].ty;
+      const d = Math.hypot(dx, dy);
+      if (d <= GATE_M) pairs.push({ d, ti, oi });
+    }
+  }
+  pairs.sort((a, b) => a.d - b.d);
+  const tUsed = new Set<number>(), oUsed = new Set<number>();
+  for (const p of pairs) {
+    if (tUsed.has(p.ti) || oUsed.has(p.oi)) continue;
+    tUsed.add(p.ti); oUsed.add(p.oi);
+    const t = st.tracks[p.ti], o = obs[p.oi];
+    t.vx += VEL_GAIN * ((o.tx - t.tx) / dt - t.vx);
+    t.vy += VEL_GAIN * ((o.ty - t.ty) / dt - t.vy);
+    const spd = Math.hypot(t.vx, t.vy);
+    if (spd > MAX_SPEED) { t.vx *= MAX_SPEED / spd; t.vy *= MAX_SPEED / spd; }
+    t.tx = t.px + POS_GAIN * (o.tx - t.px);
+    t.ty = t.py + POS_GAIN * (o.ty - t.py);
+    t.hits++; t.misses = 0; t.lastSeen = now;
+    if (t.hits >= CONFIRM_HITS) t.confirmed = true;
+  }
+  // Unmatched tracks coast on their predicted position.
+  for (let ti = 0; ti < st.tracks.length; ti++) {
+    if (tUsed.has(ti)) continue;
+    const t = st.tracks[ti]; t.tx = t.px; t.ty = t.py; t.misses++;
+  }
+  // Unmatched observations seed new (tentative) tracks.
+  for (let oi = 0; oi < obs.length; oi++) {
+    if (oUsed.has(oi)) continue;
+    const o = obs[oi];
+    st.tracks.push({ id: nextPersonId++, tx: o.tx, ty: o.ty, vx: 0, vy: 0, px: o.tx, py: o.ty, lastSeen: now, hits: 1, misses: 0, confirmed: false });
+  }
+  st.tracks = st.tracks.filter((t) => now - t.lastSeen <= (t.confirmed ? MAX_COAST_MS : MAX_TENTATIVE_MS));
+  state.set(s.surface, st);
+
+  // Emit confirmed tracks as people (stable id; u/v recomputed from the tracked metres).
+  const sx = s.scaleX || 5.864, sy = s.scaleY || 3.125;
+  return st.tracks.filter((t) => t.confirmed).map((t) => ({
+    slot: t.id, id: t.id, tx: t.tx, ty: t.ty, u: t.tx / sx + 0.5, v: t.ty / sy + 0.5, updatedAt: now,
+  }));
+}
+
+// Cluster + track into stable people. Returns a snapshot whose blobs ARE the tracked people.
 export function clusterAndTrack(snap: TrackingSnapshot, radiusM: number, now: number): TrackingSnapshot {
-  const r2 = MATCH_RADIUS_M * MATCH_RADIUS_M;
-  return {
-    surfaces: snap.surfaces.map((s) => {
-      const merged = clusterBlobs(s.blobs, radiusM);
-      const prev = (tracks.get(s.surface) ?? []).filter((p) => now - p.lastSeen <= TRACK_TTL_MS);
-      const used = new Set<number>();
-      const next: TrackedPerson[] = [];
-      const blobs = merged.map((b) => {
-        // Nearest unused previous person within the match radius carries its id forward.
-        let best = -1, bestD = r2;
-        for (let i = 0; i < prev.length; i++) {
-          if (used.has(i)) continue;
-          const dx = prev[i].tx - b.tx, dy = prev[i].ty - b.ty, d = dx * dx + dy * dy;
-          if (d <= bestD) { bestD = d; best = i; }
-        }
-        const id = best >= 0 ? (used.add(best), prev[best].id) : nextPersonId++;
-        next.push({ id, tx: b.tx, ty: b.ty, lastSeen: now });
-        return { ...b, id };
-      });
-      tracks.set(s.surface, next);
-      return { ...s, blobs };
-    }),
-  };
+  return { surfaces: snap.surfaces.map((s) => ({ ...s, blobs: trackSurface(s, radiusM, now) })) };
 }

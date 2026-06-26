@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Tracking: robust person tracking** — the venue LiDAR feed flickers heavily (per-blob ids change
+  ~8×/second), so the simple merge re-assigned person ids constantly. The merge now runs a small
+  **predictive multi-object tracker** (velocity prediction + association gate + hit-confirmation to
+  reject flicker + coasting through dropouts), giving each person a **stable id and steadier motion**.
+  Validated against an on-site 3–4-person recording: distinct person-ids over 34 s dropped from ~152
+  to ~23, with the count holding at 3–4 (median id now lives ~3.6 s, up to ~20 s). Default merge
+  radius raised to 0.8 m. Off by default.
+
 ## v0.14.5
 
 - **Tracking: merge blobs into people** — the venue LiDAR emits ~2 blobs per person on the floor
