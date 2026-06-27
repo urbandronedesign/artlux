@@ -99,7 +99,7 @@ function setIn(obj: Record<string, unknown>, keys: string[], value: unknown): Re
 export interface ParamDef { path: string; label: string }
 
 export function globalParams(): ParamDef[] {
-  return [{ path: 'globalBrightness', label: 'Master Brightness' }];
+  return [{ path: 'globalBrightness', label: 'LED Brightness' }];
 }
 
 export function surfaceParams(s: Surface): ParamDef[] {

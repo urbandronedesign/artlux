@@ -24,6 +24,9 @@ interface ScenePanelProps {
     onRename: (id: string, newName: string) => void;
     masterBrightness: number;
     onMasterBrightnessChange: (val: number) => void;
+    projectorBrightness: number;
+    onProjectorBrightnessChange: (val: number) => void;
+    onProjectorBrightnessInput: (val: number) => void;
     groups: FixtureGroup[];
     onCreateGroup: () => void;
     onAddSelectedToGroup: (groupId: string) => void;
@@ -52,6 +55,9 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
     onRename,
     masterBrightness,
     onMasterBrightnessChange,
+    projectorBrightness,
+    onProjectorBrightnessChange,
+    onProjectorBrightnessInput,
     groups,
     onCreateGroup,
     onAddSelectedToGroup,
@@ -266,12 +272,20 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
             <CollapsibleSection title="Global Params" icon={<SlidersHorizontal size={12} />}>
                 <div className="p-3 space-y-4">
                      <Slider
-                        label="Master Brightness"
+                        label="LED Brightness"
                         value={masterBrightness}
                         min={0} max={1} step={0.01}
                         format={(v) => `${Math.round(v * 100)}%`}
                         onInput={(v) => livePreview.setBrightness(v)}
                         onChange={onMasterBrightnessChange}
+                     />
+                     <Slider
+                        label="Projector Brightness"
+                        value={projectorBrightness}
+                        min={0} max={1} step={0.01}
+                        format={(v) => `${Math.round(v * 100)}%`}
+                        onInput={onProjectorBrightnessInput}
+                        onChange={onProjectorBrightnessChange}
                      />
                 </div>
             </CollapsibleSection>

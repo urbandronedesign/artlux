@@ -22,8 +22,9 @@ export interface DrawOpts {
   cornerPin: CornerPin;
   warp?: WarpGrid | null;
   softEdge?: SoftEdge;
-  gamma?: number;   // output gamma (1 = off)
-  aa?: number;      // MSAA samples (0/1 = off)
+  gamma?: number;      // output gamma (1 = off)
+  brightness?: number; // projector-content master brightness (1 = full)
+  aa?: number;         // MSAA samples (0/1 = off)
 }
 
 const VERT = `
@@ -42,6 +43,7 @@ uniform sampler2D uTex;
 uniform vec4 uSoft;        // left, right, top, bottom feather widths (0 = hard)
 uniform float uBlendGamma; // soft-edge ramp shaping
 uniform float uGamma;      // output gamma (1 = off)
+uniform float uBrightness; // projector-content master brightness (1 = full)
 float feather(float d, float w) { return w <= 0.0 ? 1.0 : clamp(d / w, 0.0, 1.0); }
 void main() {
   vec2 uv = vUVQ.xy / vUVQ.z;
@@ -49,6 +51,7 @@ void main() {
   float a = feather(uv.x, uSoft.x) * feather(1.0 - uv.x, uSoft.y)
           * feather(uv.y, uSoft.z) * feather(1.0 - uv.y, uSoft.w);
   c.rgb *= pow(a, uBlendGamma);
+  c.rgb *= uBrightness;
   c.rgb = pow(max(c.rgb, 0.0), vec3(1.0 / uGamma));
   gl_FragColor = vec4(c.rgb, 1.0);
 }`;
@@ -72,6 +75,7 @@ export class ProjectorGL {
   private uSoft: WebGLUniformLocation | null;
   private uBlendGamma: WebGLUniformLocation | null;
   private uGamma: WebGLUniformLocation | null;
+  private uBrightness: WebGLUniformLocation | null;
   // MSAA (WebGL2 only)
   private msFBO: WebGLFramebuffer | null = null;
   private msColor: WebGLRenderbuffer | null = null;
@@ -104,6 +108,7 @@ export class ProjectorGL {
     this.uSoft = gl.getUniformLocation(prog, 'uSoft');
     this.uBlendGamma = gl.getUniformLocation(prog, 'uBlendGamma');
     this.uGamma = gl.getUniformLocation(prog, 'uGamma');
+    this.uBrightness = gl.getUniformLocation(prog, 'uBrightness');
 
     this.buf = gl.createBuffer()!;
     this.tex = gl.createTexture()!;
@@ -237,6 +242,7 @@ export class ProjectorGL {
     gl.uniform4f(this.uSoft, soft?.left ?? 0, soft?.right ?? 0, soft?.top ?? 0, soft?.bottom ?? 0);
     gl.uniform1f(this.uBlendGamma, Math.max(0.1, soft?.gamma ?? 2.2));
     gl.uniform1f(this.uGamma, Math.max(0.1, o.gamma ?? 1));
+    gl.uniform1f(this.uBrightness, Math.max(0, o.brightness ?? 1));
     gl.bindBuffer(gl.ARRAY_BUFFER, this.buf);
     gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
     const stride = 5 * 4;

@@ -430,6 +430,7 @@ export interface ProjectData {
   assets?: AssetEntry[]; // managed media library (video/image/model/take)
   projectorOutputs?: ProjectorOutput[]; // per-surface fullscreen projector mappings
   projectorFpsCap?: number; // performance mode: cap projector output fps (0 = uncapped/vsync)
+  projectorBrightness?: number; // master brightness of projected content (1 = full)
 }
 
 // Result of a "Collect Assets" run.

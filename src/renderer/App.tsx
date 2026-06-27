@@ -133,6 +133,7 @@ const App: React.FC = () => {
   const [displays, setDisplays] = useState<DisplayInfo[]>([]);
   const [editingOutputId, setEditingOutputId] = useState<string | null>(null); // surface whose corners are being aligned
   const [projectorFpsCap, setProjectorFpsCap] = useState(0); // performance mode: 0 = uncapped
+  const [projectorBrightness, setProjectorBrightness] = useState(1); // master brightness of projected content (separate from LED brightness)
   const projectorPortsRef = useRef<Map<string, MessagePort>>(new Map()); // surfaceId -> port
   const openProjectorsRef = useRef<Map<string, number>>(new Map());      // surfaceId -> displayId (open windows)
   const ndiSendersRef = useRef<Set<string>>(new Set());                  // surfaceIds with a live NDI sender
@@ -547,6 +548,7 @@ const App: React.FC = () => {
       assets,
       projectorOutputs,
       projectorFpsCap,
+      projectorBrightness,
   });
 
   // Apply a loaded project (or rig-free project) to app state. Strips live colorData.
@@ -582,6 +584,7 @@ const App: React.FC = () => {
       setAssets(Array.isArray(data?.assets) ? data.assets as AssetEntry[] : []);
       setProjectorOutputs(Array.isArray(data?.projectorOutputs) ? data.projectorOutputs as ProjectorOutput[] : []);
       setProjectorFpsCap(typeof data?.projectorFpsCap === 'number' ? data.projectorFpsCap : 0);
+      setProjectorBrightness(typeof data?.projectorBrightness === 'number' ? data.projectorBrightness : 1);
       setScene3D(() => {
           const s = data?.scene3D ? { ...defaultScene3D(), ...data.scene3D } : defaultScene3D();
           if (!Array.isArray(s.models)) s.models = [];
@@ -1063,6 +1066,7 @@ const App: React.FC = () => {
               warp: out?.warp ?? null,
               softEdge: out?.softEdge ?? defaultSoftEdge(),
               gamma: out?.gamma ?? 1,
+              brightness: projectorBrightness,
               fpsCap: projectorFpsCap,
               ndiSend: out?.ndiSend ?? false,
               ndiFullRes: BROADCAST,
@@ -1098,7 +1102,12 @@ const App: React.FC = () => {
   // Re-push config (incl. the edit toggle) whenever anything a projector renders changes.
   useEffect(() => {
       for (const surfaceId of projectorPortsRef.current.keys()) pushProjectorStateRef.current(surfaceId);
-  }, [surfaces, projectorOutputs, timeline, isVideoPlaying, editingOutputId, projectorFpsCap, scene3D]);
+  }, [surfaces, projectorOutputs, timeline, isVideoPlaying, editingOutputId, projectorFpsCap, projectorBrightness, scene3D]);
+  // Live projector-brightness push (no full config re-send) — drives slider drag render-free.
+  const pushProjectorBrightnessRef = useRef<(v: number) => void>(() => {});
+  pushProjectorBrightnessRef.current = (v: number) => {
+      for (const port of projectorPortsRef.current.values()) port.postMessage({ t: 'brightness', value: v });
+  };
   // Stop aligning if the edited output is disabled / removed.
   useEffect(() => {
       if (editingOutputId && !projectorOutputs.some(o => o.surfaceId === editingOutputId && o.enabled && o.displayId != null)) {
@@ -1296,6 +1305,9 @@ const App: React.FC = () => {
                     onRename={handleRenameFixture}
                     masterBrightness={globalBrightness}
                     onMasterBrightnessChange={setGlobalBrightness}
+                    projectorBrightness={projectorBrightness}
+                    onProjectorBrightnessChange={setProjectorBrightness}
+                    onProjectorBrightnessInput={(v) => pushProjectorBrightnessRef.current(v)}
                     groups={groups}
                     onCreateGroup={handleCreateGroup}
                     onAddSelectedToGroup={handleAddSelectedToGroup}

@@ -278,7 +278,7 @@ const EntryValue: React.FC<{ value: CueEntry['value']; onChange: (v: CueEntry['v
 
 // Short label from a dot-path leaf (e.g. surfaces.s1.content.opacity -> opacity).
 function labelForPath(path: string): string {
-    if (path === 'globalBrightness') return 'Master Brightness';
+    if (path === 'globalBrightness') return 'LED Brightness';
     const parts = path.split('.');
     const leaf = parts.slice(2).join('.').replace(/^content\./, '');
     const owner = parts[0] === 'surfaces' ? 'surf' : 'fix';

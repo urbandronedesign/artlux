@@ -7,6 +7,7 @@ export interface ProjectorRender {
   warp?: BezierWarp | null;
   softEdge?: SoftEdge;
   gamma?: number;
+  brightness?: number; // projector-content master brightness (1 = full)
   fpsCap?: number;   // 0 = uncapped
   ndiSend?: boolean; // also publish this output as an NDI source
   ndiFullRes?: boolean; // Broadcast: capture the NDI send at up to 1080p instead of 720p
@@ -22,6 +23,7 @@ export type MainToProjector =
   | { t: 'config'; surface: Surface; playing: boolean; render: ProjectorRender } // geometry + look
   | { t: 'timeline'; timeline: Timeline }                     // for LAYER content
   | { t: 'transport'; playing: boolean; playhead: number }    // ~30 fps clock
+  | { t: 'brightness'; value: number }                        // projector-content master brightness (live drag)
   | { t: 'edit'; on: boolean }                                // toggle corner-pin / mesh editing
   | { t: 'frame'; bitmap: ImageBitmap }                       // streamed source frame (camera/Spout/DMX-in/NDI + video/layer, decoded once in main)
   | { t: 'layerFrame'; layerId: string; bitmap: ImageBitmap } // a timeline layer frame (TRACKING content background; decoded once in main)
