@@ -1,8 +1,12 @@
 # Scenes & Cues — architecture & usage
 
-A **Scene** is a named snapshot of the *look* that you can recall on demand to reproduce exactly
-what was on screen (and on the DMX/LED output) when you stored it. This is the MadMapper "Scenes"
-concept, scoped to a Scene-list MVP. Recall is **instant** in this version (no crossfade yet).
+A **Scene** is a named snapshot of the whole *look* you can recall to reproduce exactly what was on
+screen (and on the DMX/LED output) when you stored it. A **Cue** stores an arbitrary *subset* of
+parameters and composes with other cues — firing it patches only those. Both can recall with a
+**crossfade**. This implements the MadMapper "Scenes and Cues" model (cue-bank grid + fades).
+
+> **Granular cues** (the grid, capture, triggers) are documented in the
+> [Granular cues](#granular-cues-cue-bank-grid) section below; the Scene sections come first.
 
 ## What a Scene captures
 
@@ -84,7 +88,47 @@ FSM action ─┤→ cueBus.requestRecall(ref) → App.subscribeRecall → resol
 OSC ───────┘
 ```
 
+## Granular cues (cue-bank grid)
+
+A **Cue** stores a subset of parameters as dot-path **entries** (`globalBrightness`,
+`surfaces.<id>.content.opacity`, `fixtures.<id>.rotation`, …; see
+[paramPath.ts](../src/renderer/services/paramPath.ts)). Firing patches only those: fadeable numerics
+animate, discrete params (media, effectId, palette, booleans) snap — so cues **compose** (a colour
+cue + a geometry cue don't clobber each other).
+
+### Cue banks
+Cues live in a **grid** ([CueBankPanel.tsx](../src/renderer/components/CueBankPanel.tsx), in the
+Scenes & Cues dock tab): **row 0 = Scenes**, **rows 1+ = Cues**, multiple **banks**. A **column**
+header fires its row-0 scene if present, else every cue in the column (bottom-to-top). Persisted as
+`cueBanks` in the project; opening a pre-cues project auto-migrates its scenes into Bank 1, row 0.
+
+### Authoring (Live / Edit)
+- **Live** mode: click a cell to fire it.
+- **Edit** mode: click a cell to select it; in the cue inspector set name / **Fade** / transition
+  (`smooth`/`linear`/`damper`/`none`) / restart-media, then **capture** params — pick a target
+  (Global / a surface / a fixture) and click a parameter to snapshot its current value into the cue.
+  Each entry can override the cue's fade/transition.
+
+### Triggering cues
+- **Manual:** Live-mode click, or a column header.
+- **FSM:** a `fireCue` state-entry action (cue picker in the state-graph editor).
+- **OSC** (under `/artlux`):
+  ```
+  /artlux/cue/fire <ref>            # ref = cue id OR name
+  /artlux/cue/<ref>/go
+  /artlux/cues/bank_<b>/col_<c>     # fire a column (bank id/name, 1-based column)
+  ```
+
+## Flow
+
+```
+manual GO / column ─┐
+FSM action ─────────┤→ cueBus (requestRecall | requestFireCue | requestFireColumn)
+OSC ────────────────┘     → App resolves id/name → commit target + start render-free fade
+```
+
 ## Not in this version (future work)
 
-Crossfade/transition engine (use `fadeSec`); granular per-parameter cues + cue-bank grid; auto-play
-and schedulers; MIDI/DMX trigger mapping; cross-project scene portability (asset-path relativization).
+Red-overlay edit mode (click any control in the Inspector/Stage to cue it — currently authored via
+the capture picker); projector-output fades (corner-pin/warp); auto-play and cue/calendar schedulers;
+MIDI/DMX trigger mapping; cross-project scene portability (asset-path relativization).

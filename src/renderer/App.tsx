@@ -13,7 +13,7 @@ import { About } from './components/About';
 import { RoutingModal } from './components/RoutingModal';
 import { InspectorPanel } from './components/InspectorPanel';
 import { ScenePanel } from './components/ScenePanel';
-import { ScenesCuesPanel } from './components/ScenesCuesPanel';
+import { CueBankPanel } from './components/CueBankPanel';
 import { MediaPanel } from './components/MediaPanel';
 import { AssetManager } from './components/AssetManager';
 import { Stage } from './components/Stage';
@@ -1353,18 +1353,25 @@ const App: React.FC = () => {
                     timelineMax ? (
                         <div className="h-full flex items-center justify-center text-fg-3 text-[11px] italic">Timeline maximized — press F or the restore button to dock it</div>
                     ) : (
-                        <TimelinePanel timeline={timeline} onChange={setTimeline} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} onToggleMax={() => setTimelineMax(true)} projectPath={currentProjectPath} scenes={scenes} />
+                        <TimelinePanel timeline={timeline} onChange={setTimeline} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} onToggleMax={() => setTimelineMax(true)} projectPath={currentProjectPath} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} />
                     )
                 ) : dockTab === DockTab.SCENES ? (
-                    <ScenesCuesPanel
+                    <CueBankPanel
+                        banks={cueBanks}
+                        onChangeBanks={setCueBanks}
                         scenes={scenes}
+                        surfaces={surfaces}
+                        fixtures={fixtures}
+                        getCurrentState={() => ({ surfaces, fixtures, globalBrightness })}
                         oscPrefix={settings.oscControlPrefix}
                         onCaptureScene={handleCaptureScene}
                         onRecallScene={handleRecallScene}
                         onUpdateScene={handleUpdateScene}
                         onRenameScene={handleRenameScene}
-                        onUpdateSceneFade={handleUpdateSceneFade}
                         onRemoveScene={handleRemoveScene}
+                        onUpdateSceneFade={handleUpdateSceneFade}
+                        onFireCue={(cue) => applyCues([cue])}
+                        onFireColumn={fireColumn}
                     />
                 ) : (
                     <FixtureEditor
@@ -1477,7 +1484,7 @@ const App: React.FC = () => {
 
       {timelineMax && (
         <div className="fixed inset-0 z-50 bg-surface-0 flex flex-col">
-          <TimelinePanel timeline={timeline} onChange={setTimeline} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} maximized onToggleMax={() => setTimelineMax(false)} projectPath={currentProjectPath} scenes={scenes} />
+          <TimelinePanel timeline={timeline} onChange={setTimeline} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} maximized onToggleMax={() => setTimelineMax(false)} projectPath={currentProjectPath} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} />
         </div>
       )}
 

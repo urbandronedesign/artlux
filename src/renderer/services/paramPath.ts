@@ -95,6 +95,45 @@ function setIn(obj: Record<string, unknown>, keys: string[], value: unknown): Re
   return copy;
 }
 
+// --- Cuable parameter catalog (for authoring cues by capturing current values) ---
+export interface ParamDef { path: string; label: string }
+
+export function globalParams(): ParamDef[] {
+  return [{ path: 'globalBrightness', label: 'Master Brightness' }];
+}
+
+export function surfaceParams(s: Surface): ParamDef[] {
+  const id = s.id;
+  const defs: ParamDef[] = [
+    { path: `surfaces.${id}.x`, label: 'X' },
+    { path: `surfaces.${id}.y`, label: 'Y' },
+    { path: `surfaces.${id}.width`, label: 'Width' },
+    { path: `surfaces.${id}.height`, label: 'Height' },
+    { path: `surfaces.${id}.rotation`, label: 'Rotation' },
+    { path: `surfaces.${id}.content.opacity`, label: 'Opacity' },
+  ];
+  if (s.content.type === 'EFFECT') {
+    defs.push(
+      { path: `surfaces.${id}.content.speed`, label: 'FX Speed' },
+      { path: `surfaces.${id}.content.intensity`, label: 'FX Intensity' },
+      { path: `surfaces.${id}.content.effectId`, label: 'Effect' },
+      { path: `surfaces.${id}.content.paletteId`, label: 'Palette' },
+    );
+  }
+  return defs;
+}
+
+export function fixtureParams(f: Fixture): ParamDef[] {
+  const id = f.id;
+  return [
+    { path: `fixtures.${id}.x`, label: 'X' },
+    { path: `fixtures.${id}.y`, label: 'Y' },
+    { path: `fixtures.${id}.width`, label: 'Width' },
+    { path: `fixtures.${id}.height`, label: 'Height' },
+    { path: `fixtures.${id}.rotation`, label: 'Rotation' },
+  ];
+}
+
 export interface FadeTarget { path: string; from: number; to: number }
 
 // Diff two state views into the fadeable numeric targets that differ (matched by object id).

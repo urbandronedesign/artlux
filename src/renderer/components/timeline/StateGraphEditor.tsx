@@ -3,19 +3,21 @@ import { StateMachine, SmState, SmTransition, SmAction, SmActionKind, SmTriggerK
 import { X, Plus, Star, Trash2, ArrowRight } from 'lucide-react';
 
 export interface SceneRef { id: string; name: string }
+export interface CueRef { id: string; name: string }
 
 interface Props {
   sm: StateMachine;
   markers: Marker[];
   layers: VideoLayer[];
   scenes: SceneRef[];
+  cues: CueRef[];
   onChange: (sm: StateMachine) => void;
   onClose: () => void;
 }
 
 const NODE_W = 132;
 const NODE_H = 50;
-const ACTION_KINDS: SmActionKind[] = ['play', 'pause', 'stop', 'seek', 'setLoop', 'jumpMarker', 'recallScene'];
+const ACTION_KINDS: SmActionKind[] = ['play', 'pause', 'stop', 'seek', 'setLoop', 'jumpMarker', 'recallScene', 'fireCue'];
 const TRIGGER_KINDS: SmTriggerKind[] = ['manual', 'afterDelay', 'atTime', 'onMarker', 'onClipEnd'];
 
 const uid = () => crypto.randomUUID();
@@ -24,7 +26,7 @@ const uid = () => crypto.randomUUID();
 // transitions are edges authored by selecting a source then clicking a target. The inspector edits
 // the selected state's entry actions or the selected transition's trigger. Every edit commits via
 // onChange (node drags commit on release).
-export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes, onChange, onClose }) => {
+export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes, cues, onChange, onClose }) => {
   const [sel, setSel] = useState<{ kind: 'state' | 'transition'; id: string } | null>(null);
   const [linkFrom, setLinkFrom] = useState<string | null>(null); // source state while drawing a transition
   const [drag, setDrag] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -148,7 +150,7 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
                   </div>
                   <div className="space-y-2">
                     {selState.entry.map((a, i) => (
-                      <ActionRow key={i} action={a} markers={markers} scenes={scenes}
+                      <ActionRow key={i} action={a} markers={markers} scenes={scenes} cues={cues}
                         onChange={(na) => patchState(selState.id, { entry: selState.entry.map((x, j) => j === i ? na : x) })}
                         onRemove={() => patchState(selState.id, { entry: selState.entry.filter((_, j) => j !== i) })} />
                     ))}
@@ -218,7 +220,7 @@ const SelectField: React.FC<{ label: string; value: string; options: { v: string
   </label>
 );
 
-const ActionRow: React.FC<{ action: SmAction; markers: Marker[]; scenes: SceneRef[]; onChange: (a: SmAction) => void; onRemove: () => void }> = ({ action, markers, scenes, onChange, onRemove }) => (
+const ActionRow: React.FC<{ action: SmAction; markers: Marker[]; scenes: SceneRef[]; cues: CueRef[]; onChange: (a: SmAction) => void; onRemove: () => void }> = ({ action, markers, scenes, cues, onChange, onRemove }) => (
   <div className="border border-line-1 rounded p-1.5 bg-surface-0 space-y-1.5">
     <div className="flex items-center gap-1">
       <select value={action.kind} onChange={(e) => onChange({ kind: e.target.value as SmActionKind })}
@@ -240,6 +242,10 @@ const ActionRow: React.FC<{ action: SmAction; markers: Marker[]; scenes: SceneRe
     {action.kind === 'recallScene' && (
       <SelectField label="Scene" value={action.sceneId ?? ''} options={scenes.map(s => ({ v: s.id, l: s.name }))}
         onChange={(v) => onChange({ ...action, sceneId: v })} />
+    )}
+    {action.kind === 'fireCue' && (
+      <SelectField label="Cue" value={action.cueId ?? ''} options={cues.map(c => ({ v: c.id, l: c.name }))}
+        onChange={(v) => onChange({ ...action, cueId: v })} />
     )}
   </div>
 );
