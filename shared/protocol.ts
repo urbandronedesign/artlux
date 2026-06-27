@@ -424,6 +424,7 @@ export interface ProjectData {
   globalBrightness: number;
   groups: unknown[];
   scenes: unknown[];
+  cueBanks?: unknown[]; // CueBank[] (renderer type) — granular cue grid; row 0 references scenes
   scene3D?: Scene3D;
   timeline?: unknown; // Timeline (renderer type) — video-layer NLE
   assets?: AssetEntry[]; // managed media library (video/image/model/take)

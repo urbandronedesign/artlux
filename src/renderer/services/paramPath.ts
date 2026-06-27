@@ -31,6 +31,16 @@ export function isGeometryPath(path: string): boolean {
   return GEOMETRY_LEAVES.has(leaf) || GEOMETRY_LEAVES.has(path);
 }
 
+// Whether a path addresses a fadeable numeric parameter (else a cue entry snaps on fire).
+export function isFadeablePath(path: string): boolean {
+  if (path === 'globalBrightness') return true;
+  const head = path.split('.')[0];
+  const leaf = path.split('.').slice(2).join('.');
+  if (head === 'surfaces') return SURFACE_FADEABLE.includes(leaf);
+  if (head === 'fixtures') return FIXTURE_FADEABLE.includes(leaf) || /^segments\.\d+\.(speed|intensity)$/.test(leaf);
+  return false;
+}
+
 // Read a value at a dot-path from the state view (numeric leaves only matter for fades).
 export function getByPath(view: StateView, path: string): number | string | boolean | null | undefined {
   const parts = path.split('.');

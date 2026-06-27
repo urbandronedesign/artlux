@@ -52,7 +52,7 @@ const SLEW = 0.1; // fraction of residual drift a mirror window corrects per tra
 // Is a clip live under the playhead on this layer? (for the FSM 'onClipEnd' trigger)
 const clipActive = (layerId: string, t: number): boolean => activeClip(layerId, t) != null;
 // Per-frame context handed to the FSM runtime.
-const smContext = (): SmContext => ({ markers: data.markers ?? [], clipActive, emit: emitIntent, recallScene: (id) => cueBus.requestRecall(id) });
+const smContext = (): SmContext => ({ markers: data.markers ?? [], clipActive, emit: emitIntent, recallScene: (id) => cueBus.requestRecall(id), fireCue: (id) => cueBus.requestFireCue(id) });
 
 const ensureBlob = (path: string): void => { void ensureBlobUrl(path, 'video/mp4'); };
 

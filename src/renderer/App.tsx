@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, type AssetEntry, type AssetType } from './types';
+import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, type AssetEntry, type AssetType } from './types';
 import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge } from '../../shared/protocol';
 import type { AppInfo, UpdateEvent, Scene3D, ProjectorOutput, DisplayInfo, SoftEdge } from '../../shared/protocol';
 import type { SceneToMain } from './scene/bridge';
@@ -33,7 +33,7 @@ import { timeline as timelineEngine } from './services/timeline';
 import * as oscController from './services/oscController';
 import * as cueBus from './services/cueBus';
 import * as transitions from './services/transitions';
-import { collectFadeableTargets } from './services/paramPath';
+import { collectFadeableTargets, getByPath, setByPath, isFadeablePath, type StateView } from './services/paramPath';
 import * as trackingStore from './services/trackingStore';
 import { clusterAndTrack, resetPeopleTracking } from './services/blobClustering';
 import * as trackingPlayback from './services/trackingPlayback';
@@ -101,6 +101,7 @@ const App: React.FC = () => {
   const [globalBrightness, setGlobalBrightness] = useState(1.0);
   const [groups, setGroups] = useState<FixtureGroup[]>([]);
   const [scenes, setScenes] = useState<Scene[]>([]);
+  const [cueBanks, setCueBanks] = useState<CueBank[]>([]);
   const [templates, setTemplates] = useState<FixtureTemplate[]>([]);
   const [controllers, setControllers] = useState<Controller[]>([]);
   const [dockOpen, setDockOpen] = useState(true);
@@ -452,6 +453,50 @@ const App: React.FC = () => {
     if (scene) handleRecallScene(scene);
   };
 
+  // --- Granular cues (apply a subset of params; compose; fade per entry) ---
+  // Commit the new state (discrete params + final numerics snap immediately) then animate the
+  // fadeable numerics from their old values to the new ones via the render-free transition engine.
+  // Accepts several cues so a column-fire fades them as one batch.
+  const applyCues = (cues: Cue[]) => {
+    if (!cues.length) return;
+    recordHistory();
+    const fromView: StateView = { surfaces, fixtures, globalBrightness };
+    let next: StateView = { surfaces, fixtures, globalBrightness };
+    const legs: transitions.FadeLeg[] = [];
+    for (const cue of cues) for (const e of cue.entries) {
+      if (isFadeablePath(e.path) && typeof e.value === 'number') {
+        const from = getByPath(fromView, e.path);
+        if (typeof from === 'number') legs.push({ path: e.path, from, to: e.value, transition: e.transition ?? cue.transition, fadeSec: e.fadeSec ?? cue.fadeSec });
+      }
+      next = setByPath(next, e.path, e.value);
+    }
+    setSurfaces(next.surfaces);
+    setFixtures(next.fixtures);
+    setGlobalBrightness(next.globalBrightness);
+    if (legs.length) transitions.start(legs, { fadeSec: cues[0].fadeSec, transition: cues[0].transition });
+    else transitions.cancel();
+  };
+  const fireCueByRef = (ref: string) => {
+    for (const b of cueBanks) {
+      const cue = b.cues.find(c => c.id === ref) ?? b.cues.find(c => c.name === ref);
+      if (cue) { applyCues([cue]); return; }
+    }
+  };
+  // Fire a column: its row-0 scene if present, else every cue in the column (bottom-to-top).
+  const fireColumn = (bankRef: string, col: number) => {
+    const bank = cueBanks.find(b => b.id === bankRef) ?? cueBanks.find(b => b.name === bankRef);
+    if (!bank) return;
+    const cell = bank.sceneCells.find(sc => sc.col === col);
+    const scene = cell ? scenes.find(s => s.id === cell.sceneId) : undefined;
+    if (scene) { handleRecallScene(scene); return; }
+    applyCues(bank.cues.filter(c => c.col === col).sort((a, b) => b.row - a.row));
+  };
+  // Held in refs so the once-subscribed cueBus listeners always see the latest closures.
+  const fireCueRef = useRef<(ref: string) => void>(() => {});
+  fireCueRef.current = fireCueByRef;
+  const fireColumnRef = useRef<(bankRef: string, col: number) => void>(() => {});
+  fireColumnRef.current = fireColumn;
+
   // --- Fixture library (templates persisted in userData) ---
   const persistTemplates = (next: FixtureTemplate[]) => {
     setTemplates(next);
@@ -496,6 +541,7 @@ const App: React.FC = () => {
       globalBrightness,
       groups,
       scenes,
+      cueBanks,
       scene3D,
       timeline,
       assets,
@@ -518,7 +564,17 @@ const App: React.FC = () => {
       if (typeof data?.globalBrightness === 'number') setGlobalBrightness(data.globalBrightness);
       setControllers(Array.isArray(data?.controllers) ? data.controllers : []);
       setGroups(Array.isArray(data?.groups) ? data.groups : []);
-      setScenes(Array.isArray(data?.scenes) ? data.scenes : []);
+      const loadedScenes: Scene[] = Array.isArray(data?.scenes) ? data.scenes : [];
+      setScenes(loadedScenes);
+      // Cue banks: use saved banks, else synthesize Bank 1 and place existing scenes in row 0 so
+      // older (pre-cues) projects open with their scenes already on the grid.
+      if (Array.isArray(data?.cueBanks) && data.cueBanks.length) {
+        setCueBanks(data.cueBanks as CueBank[]);
+      } else {
+        const bank = defaultCueBank(generateId());
+        bank.sceneCells = loadedScenes.map((s, i) => ({ col: i, sceneId: s.id }));
+        setCueBanks([bank]);
+      }
       const tl = normalizeTimeline(data?.timeline);
       setTimeline(tl);
       // Asset library: use saved assets; migrate a legacy take-only project (trackingTakes but no
@@ -826,8 +882,13 @@ const App: React.FC = () => {
       else if (i.kind === 'seek') timelineEngine.seek(i.sec);
       else if (i.kind === 'loop') setTimeline(t => ({ ...t, loop: i.loopOn }));
   }), []);
-  // Scene recall requested by a trigger source (FSM action, OSC) — resolve by id/name and apply.
-  useEffect(() => cueBus.subscribeRecall((ref) => recallByRefRef.current(ref)), []);
+  // Scene/cue triggers requested by a source (FSM action, OSC) — resolve by id/name and apply.
+  useEffect(() => {
+    const u1 = cueBus.subscribeRecall((ref) => recallByRefRef.current(ref));
+    const u2 = cueBus.subscribeFireCue((ref) => fireCueRef.current(ref));
+    const u3 = cueBus.subscribeFireColumn((bankRef, col) => fireColumnRef.current(bankRef, col));
+    return () => { u1(); u2(); u3(); };
+  }, []);
   // OSC: subscribe the controller to forwarded messages once; (re)bind the UDP listener and refresh
   // the control namespace whenever the OSC settings change. Control intents flow back through the
   // subscribeIntent path above; LiDAR blob data lands in the tracking store.

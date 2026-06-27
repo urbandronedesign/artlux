@@ -239,13 +239,14 @@ export interface Marker {
 // seek/loop) as the playhead moves. It lives OUTSIDE layers[]/clips[] so the video engine is
 // untouched. While `enabled`, the engine runtime (services/stateMachine.ts) evaluates the
 // current state's outgoing transitions each frame and emits transport intents back to App.
-export type SmActionKind = 'play' | 'pause' | 'stop' | 'seek' | 'setLoop' | 'jumpMarker' | 'recallScene';
+export type SmActionKind = 'play' | 'pause' | 'stop' | 'seek' | 'setLoop' | 'jumpMarker' | 'recallScene' | 'fireCue';
 export interface SmAction {
   kind: SmActionKind;
   seekTo?: number;       // seconds — for 'seek'
   loopOn?: boolean;      // for 'setLoop'
   markerId?: string;     // for 'jumpMarker'
   sceneId?: string;      // for 'recallScene' — Scene.id to recall on state entry
+  cueId?: string;        // for 'fireCue' — Cue.id to fire on state entry
 }
 export type SmTriggerKind =
   | 'manual'             // fired by a UI button / external trigger only
@@ -401,6 +402,41 @@ export interface Scene {
   scene3D?: Scene3D;
   projectorOutputs?: ProjectorOutput[];
 }
+
+// --- Granular cues (MadMapper-style cue banks) ---
+// A Scene is a whole-look snapshot; a Cue stores an arbitrary SUBSET of parameters (object ->
+// param -> value by dot-path, see services/paramPath) so firing it patches only those and composes
+// with other cues. Cues live in a grid: row 0 holds Scenes (sceneCells), rows 1+ hold Cues.
+// Firing a column fires its row-0 scene if present, else every cue in the column (bottom-to-top).
+export type CueTransition = 'linear' | 'smooth' | 'damper' | 'none';
+export interface CueEntry {
+  path: string;                       // e.g. 'globalBrightness' | 'surfaces.<id>.content.opacity'
+  value: number | string | boolean | null;
+  transition?: CueTransition;         // per-entry override (else the cue's)
+  fadeSec?: number;                   // per-entry override (else the cue's)
+}
+export interface Cue {
+  id: string;
+  name: string;
+  row: number;                        // grid row (>= 1; row 0 is reserved for scenes)
+  col: number;                        // grid column (0-based)
+  entries: CueEntry[];
+  fadeSec: number;                    // default transition time for entries
+  transition: CueTransition;          // default transition type for entries
+  color?: string;                     // optional cell tint
+  restartMedia?: boolean;             // re-seek media surfaces to 0 when fired
+}
+export interface CueBank {
+  id: string;
+  name: string;
+  rows: number;                       // grid size (auto-grows in the UI)
+  cols: number;
+  cues: Cue[];                        // rows 1+
+  sceneCells: { col: number; sceneId: string }[]; // row 0 → existing Scene ids
+}
+export const defaultCueBank = (id: string, name = 'Bank 1'): CueBank => ({
+  id, name, rows: 8, cols: 16, cues: [], sceneCells: [],
+});
 
 // S4 — a saved, reusable fixture definition (LED structure only; no placement,
 // patch, or surface link). Persisted to userData so the library spans projects.

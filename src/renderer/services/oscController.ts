@@ -31,6 +31,13 @@ function handleControl(rest: string, args: (number | string)[]): void {
       if (rest === '/scene/recall' && args[0] != null) { cueBus.requestRecall(String(args[0])); break; }
       const sc = /^\/scene\/(.+)\/go$/.exec(rest);
       if (sc) { cueBus.requestRecall(decodeURIComponent(sc[1])); break; }
+      // Fire a granular cue: /cue/fire <ref>  OR  /cue/<ref>/go  (ref = cue id or name)
+      if (rest === '/cue/fire' && args[0] != null) { cueBus.requestFireCue(String(args[0])); break; }
+      const cf = /^\/cue\/(.+)\/go$/.exec(rest);
+      if (cf) { cueBus.requestFireCue(decodeURIComponent(cf[1])); break; }
+      // Fire a column: /cues/bank_<b>/col_<c>  (MadMapper-style; bank id/name, 1-based column)
+      const col = /^\/cues\/bank_(.+)\/col_(\d+)$/.exec(rest);
+      if (col) { cueBus.requestFireColumn(decodeURIComponent(col[1]), Math.max(0, parseInt(col[2], 10) - 1)); break; }
       // Fire a named state-machine transition: /state/trigger <id>  OR  /state/<id>
       if (rest === '/state/trigger' && args[0] != null) { timeline.triggerSmTransition(String(args[0])); break; }
       const m = /^\/state\/(.+)$/.exec(rest);
