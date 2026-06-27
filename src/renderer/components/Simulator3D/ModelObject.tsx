@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { useGLTF, TransformControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { SceneModel } from '../../../../shared/protocol';
+import { useLayerTexture } from './useLayerTexture';
 
 const DEG = Math.PI / 180;
 
@@ -21,13 +22,16 @@ interface Props {
   onRecordHistory: () => void;
   /** Reports the model's intrinsic longest dimension (in GLB units) once loaded — for Auto-fit. */
   onNaturalSize?: (id: string, maxDim: number) => void;
+  /** Projector pose-pick mode: clicks report the world hit point instead of selecting. */
+  calibPickMode?: boolean;
+  onCalibPick?: (world: [number, number, number]) => void;
 }
 
 // A single GLB mesh with its own move/rotate/scale gizmo when selected. The container
 // group is STABLE (useMemo) — TransformControls attaches to it via `object`, so selecting
 // never remounts/resets the transform. Each instance clones the shared loaded scene so the
 // same file can be placed many times (clones share geometry + materials = cheap).
-export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSelect, onCommit, onRecordHistory, onNaturalSize }) => {
+export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSelect, onCommit, onRecordHistory, onNaturalSize, calibPickMode, onCalibPick }) => {
   const { scene } = useGLTF(url);
   const group = useMemo(() => new THREE.Group(), []);
   const controls = useRef<any>(null);
@@ -41,6 +45,38 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
     c.position.sub(center);
     return c;
   }, [scene]);
+
+  // Optional timeline-layer texturing: when model.layerId is set, override every mesh's material
+  // with one shared MeshBasicMaterial fed by the layer's live frame (UV-mapped via the GLB's own
+  // UVs); restore the original GLB materials when cleared. Shares the binding path with planes.
+  const layerMatRef = useRef<THREE.MeshBasicMaterial | null>(null);
+  if (!layerMatRef.current) layerMatRef.current = new THREE.MeshBasicMaterial({ color: '#161616', toneMapped: false });
+  const origMats = useRef<Map<string, THREE.Material | THREE.Material[]>>(new Map());
+
+  useLayerTexture(model.layerId, (tex) => {
+    const mat = layerMatRef.current!;
+    mat.map = tex;
+    mat.color.set(tex ? '#ffffff' : '#161616');
+    mat.needsUpdate = true;
+  });
+
+  useEffect(() => {
+    const layered = !!model.layerId;
+    const layerMat = layerMatRef.current!;
+    cloned.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!(mesh as { isMesh?: boolean }).isMesh) return;
+      if (layered) {
+        if (!origMats.current.has(mesh.uuid)) origMats.current.set(mesh.uuid, mesh.material);
+        mesh.material = layerMat;
+      } else {
+        const orig = origMats.current.get(mesh.uuid);
+        if (orig) { mesh.material = orig; origMats.current.delete(mesh.uuid); }
+      }
+    });
+  }, [cloned, model.layerId]);
+
+  useEffect(() => () => { layerMatRef.current?.dispose(); }, []);
 
   // Mount the cloned mesh into the stable group.
   useEffect(() => {
@@ -86,8 +122,15 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
 
   return (
     <>
-      <primitive object={group} onClick={(e: any) => { e.stopPropagation(); onSelect(model.id); }} />
-      {selected && <TransformControls ref={controls} object={group} mode={mode} size={0.8} />}
+      <primitive
+        object={group}
+        onClick={(e: any) => {
+          e.stopPropagation();
+          if (calibPickMode && onCalibPick) onCalibPick([e.point.x, e.point.y, e.point.z]);
+          else onSelect(model.id);
+        }}
+      />
+      {selected && !calibPickMode && <TransformControls ref={controls} object={group} mode={mode} size={0.8} />}
     </>
   );
 };

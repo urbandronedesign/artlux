@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, MonitorUp, RefreshCw, Frame, Undo2, Settings2, Spline, Gauge, Radio } from 'lucide-react';
+import { X, MonitorUp, RefreshCw, Frame, Undo2, Settings2, Spline, Gauge, Radio, Aperture } from 'lucide-react';
 import { Surface } from '../types';
 import { ProjectorOutput, DisplayInfo, SoftEdge, defaultSoftEdge } from '../../../shared/protocol';
 
@@ -21,6 +21,8 @@ interface Props {
   onToggleNdiSend: (surfaceId: string, on: boolean) => void;
   onSetFpsCap: (cap: number) => void;
   onRefreshDisplays: () => void;
+  onCalibrate: (surfaceId: string) => void;
+  onSetUseCalibration: (surfaceId: string, on: boolean) => void;
 }
 
 const cell = 'bg-surface-0 border border-line-1 rounded-[var(--r-sm)] px-1.5 py-1 text-fg-1 text-[11px] focus:border-accent focus:outline-none disabled:opacity-40';
@@ -33,7 +35,7 @@ const clamp01h = (v: number) => Math.max(0, Math.min(0.5, v));
 export const OutputsPanel: React.FC<Props> = ({
   open, onClose, surfaces, outputs, displays, editingOutputId, fpsCap,
   onSetEnabled, onSetDisplay, onToggleEdit, onResetCorners,
-  onToggleWarp, onSetSoftEdge, onSetGamma, onToggleNdiSend, onSetFpsCap, onRefreshDisplays,
+  onToggleWarp, onSetSoftEdge, onSetGamma, onToggleNdiSend, onSetFpsCap, onRefreshDisplays, onCalibrate, onSetUseCalibration,
 }) => {
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -47,7 +49,7 @@ export const OutputsPanel: React.FC<Props> = ({
   if (!open) return null;
 
   const outFor = (id: string): ProjectorOutput | undefined => outputs.find((o) => o.surfaceId === id);
-  const COLS = 'grid-cols-[1.3fr_56px_1.3fr_48px_112px_28px]';
+  const COLS = 'grid-cols-[1.3fr_56px_1.3fr_48px_144px_28px]';
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 animate-overlay-in" onClick={onClose}>
@@ -140,6 +142,14 @@ export const OutputsPanel: React.FC<Props> = ({
                     >
                       <Undo2 size={12} />
                     </button>
+                    <button
+                      onClick={() => onCalibrate(s.id)}
+                      disabled={!live}
+                      title="Calibrate projector (structured light + pose)"
+                      className={`p-1 rounded-[var(--r-sm)] disabled:opacity-30 ${o?.calibration ? 'text-accent' : 'text-fg-3 hover:text-fg-1'}`}
+                    >
+                      <Aperture size={12} />
+                    </button>
                   </div>
                   <button
                     onClick={() => setExpanded(isOpen ? null : s.id)}
@@ -194,6 +204,15 @@ export const OutputsPanel: React.FC<Props> = ({
                       <input type="checkbox" checked={!!o?.ndiSend} onChange={(e) => onToggleNdiSend(s.id, e.target.checked)} className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0" />
                       Send as NDI <span className="text-fg-3 italic">(publishes “ArtLux — {s.name}” ≤720p, ≤1080p in Broadcast)</span>
                     </label>
+
+                    {/* Render from calibrated projector (3D venue scene) */}
+                    {o?.calibration?.poseRms != null && (
+                      <label className="flex items-center gap-1.5 cursor-pointer text-fg-2">
+                        <Aperture size={12} className="text-fg-3" />
+                        <input type="checkbox" checked={!!o?.useCalibration} onChange={(e) => onSetUseCalibration(s.id, e.target.checked)} className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0" />
+                        Render from projector <span className="text-fg-3 italic">(3D venue scene via calibration · pose RMS {o.calibration.poseRms.toFixed(2)} px)</span>
+                      </label>
+                    )}
                   </div>
                 )}
                 </React.Fragment>

@@ -21,6 +21,15 @@ native/**/target
 # users don't need the (gated) SDK — they only install the free NDI Runtime. Rebuild with
 # `npm run build:ndi` (needs the SDK + LLVM) and re-commit when native/ndi/src changes.
 !native/ndi/ndi.node
+# …and the prebuilt projector-calibration addon (our small build artifact, like ndi.node): committed
+# so CI/end users don't need OpenCV to RUN it. Rebuild with `npm run build:calib` (needs OpenCV 4.11
+# + LLVM); re-commit when native/calib/src changes.
+!native/calib/calib.node
+# …but NOT its runtime dep, the 62 MB stock OpenCV world DLL — an unmodified redistributable, kept out
+# of git to avoid history bloat on every OpenCV bump. `build:calib` copies it beside calib.node for
+# dev, and electron-builder bundles it into the installer via extraResources for end users. To obtain
+# it: run build:calib on a host with OpenCV, or copy from C:\opencv\build\x64\vc16\bin\.
+native/calib/*.dll
 
 # Editor directories and files
 .vscode/*

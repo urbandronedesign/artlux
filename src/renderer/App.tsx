@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, type AssetEntry, type AssetType } from './types';
 import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge } from '../../shared/protocol';
+import type { ProjectorCalibration } from '../../shared/protocol';
+import { CalibPanel } from './components/CalibPanel';
+import * as calibController from './calib/calibController';
 import type { AppInfo, UpdateEvent, Scene3D, ProjectorOutput, DisplayInfo, SoftEdge } from '../../shared/protocol';
 import type { SceneToMain } from './scene/bridge';
-import type { ProjectorToMain } from './projector/bridge';
+import type { ProjectorToMain, MainToProjector } from './projector/bridge';
 import { makeBezierWarp } from './projector/warp';
 import { OutputsPanel } from './components/OutputsPanel';
 import { UpdateNotice } from './components/UpdateNotice';
@@ -293,6 +296,50 @@ const App: React.FC = () => {
     });
   const handleToggleEditOutput = (surfaceId: string) =>
     setEditingOutputId(prev => prev === surfaceId ? null : surfaceId);
+  // --- projector calibration (structured-light intrinsics + solvePnP pose) ---
+  const [calibratingOutputId, setCalibratingOutputId] = useState<string | null>(null);
+  const sendToProjector = (surfaceId: string, msg: MainToProjector) =>
+    projectorPortsRef.current.get(surfaceId)?.postMessage(msg);
+  const handleStoreCalibration = (surfaceId: string, patch: Partial<ProjectorCalibration>) => {
+    const prev = projectorOutputs.find(x => x.surfaceId === surfaceId)?.calibration ?? null;
+    const base: ProjectorCalibration = prev ?? {
+      intrinsics: [1, 0, 0, 0, 1, 0, 0, 0, 1], distortion: [0, 0, 0, 0, 0],
+      rotation: [1, 0, 0, 0, 1, 0, 0, 0, 1], translation: [0, 0, 0], imageSize: [0, 0],
+    };
+    upsertOutput(surfaceId, { calibration: { ...base, ...patch, calibratedAt: new Date().toISOString() } });
+  };
+  // Pose capture: the projector reports its crosshair pixel; on confirm we hold it as pending and pair
+  // it with the next venue-model pick from the scene window → solvePnP (intrinsics fixed).
+  const latestCrosshairRef = useRef<[number, number] | null>(null);
+  const pendingPixelRef = useRef<[number, number] | null>(null);
+  const solvePose = async (surfaceId: string, picks: NonNullable<ProjectorCalibration['posePicks']>) => {
+    const cal = projectorOutputs.find(x => x.surfaceId === surfaceId)?.calibration;
+    if (!cal) return;
+    const obj = picks.flatMap(p => p.world);
+    const img = picks.flatMap(p => p.pixel);
+    const res = await window.artlux?.calibSolvePnp?.(obj, img, cal.intrinsics, cal.distortion ?? [0, 0, 0, 0, 0]);
+    if (!res) return;
+    handleStoreCalibration(surfaceId, { rotation: res.rotation, translation: res.translation, poseRms: res.rms });
+  };
+  const handleCalibPick = (world: [number, number, number]) => {
+    const sid = calibratingOutputId;
+    const pixel = pendingPixelRef.current;
+    if (!sid || !pixel) return; // operator must confirm a crosshair on the projector first
+    pendingPixelRef.current = null;
+    const cal = projectorOutputs.find(x => x.surfaceId === sid)?.calibration;
+    if (!cal) return;
+    const picks = [...(cal.posePicks ?? []), { world, pixel }];
+    handleStoreCalibration(sid, { posePicks: picks });
+    if (picks.length >= 4) void solvePose(sid, picks);
+  };
+  const handlePoseModeChange = (surfaceId: string, on: boolean) => {
+    scenePortRef.current?.postMessage({ t: 'calibMode', on, surfaceId: on ? surfaceId : null });
+    if (!on) { pendingPixelRef.current = null; latestCrosshairRef.current = null; }
+  };
+  const handleClearPoses = (surfaceId: string) => {
+    pendingPixelRef.current = null;
+    handleStoreCalibration(surfaceId, { posePicks: [], poseRms: undefined, rotation: [1, 0, 0, 0, 1, 0, 0, 0, 1], translation: [0, 0, 0] });
+  };
   const handleResetCorners = (surfaceId: string) => {
     const o = projectorOutputs.find(x => x.surfaceId === surfaceId);
     if (o?.warp) upsertOutput(surfaceId, { warp: makeBezierWarp(o.cornerPin) });
@@ -827,6 +874,7 @@ const App: React.FC = () => {
       else if (m.t === 'commit') handleCommitFixture3D(m.id, { position3D: m.position3D, rotation3D: m.rotation3D, scale3D: m.scale3D });
       else if (m.t === 'sceneConfig') setScene3D(s => ({ ...s, ...m.patch }));
       else if (m.t === 'sceneLayers') sceneLayersRef.current = m.layerIds;
+      else if (m.t === 'calibPick') handleCalibPick(m.world);
       else if (m.t === 'save') handleSaveProject().then((path) => scenePortRef.current?.postMessage({ t: 'saved', ok: !!path }));
   };
   const pushSceneState = () => {
@@ -851,6 +899,13 @@ const App: React.FC = () => {
   useEffect(() => {
       scenePortRef.current?.postMessage({ t: 'state', fixtures, surfaces, selectedId: selectedFixtureId, scene3D });
   }, [fixtures, surfaces, selectedFixtureId, scene3D]);
+  // Push projector calibrations (for the frustum overlays) to the scene window when they change.
+  useEffect(() => {
+      scenePortRef.current?.postMessage({
+          t: 'projectors',
+          calibs: projectorOutputs.map(o => ({ surfaceId: o.surfaceId, calibration: o.calibration ?? null })),
+      });
+  }, [projectorOutputs]);
   // Forward the live per-LED pixel buffer to the scene window (~30 fps, copy + transfer).
   useEffect(() => {
       let last = 0;
@@ -1076,6 +1131,17 @@ const App: React.FC = () => {
       });
       port.postMessage({ t: 'timeline', timeline });
       port.postMessage({ t: 'edit', on: editingOutputId === surfaceId });
+      // Render-from-projector: while the calibration panel is open it owns the projector's calib mode;
+      // otherwise drive it here — render the 3D venue scene when this output opts in and has a full pose.
+      if (surfaceId !== calibratingOutputId) {
+          const posed = out?.useCalibration && out.calibration?.poseRms != null;
+          if (posed) {
+              port.postMessage({ t: 'scene', scene3D });
+              port.postMessage({ t: 'calib', mode: 'render', calibration: out!.calibration });
+          } else {
+              port.postMessage({ t: 'calib', mode: 'idle' });
+          }
+      }
   };
   // Receive the bridge MessagePort for each projector window (tagged by surfaceId).
   const onProjectorMsgRef = useRef<(surfaceId: string, m: ProjectorToMain) => void>(() => {});
@@ -1084,6 +1150,9 @@ const App: React.FC = () => {
       else if (m.t === 'cornerPin') upsertOutput(surfaceId, { cornerPin: m.cornerPin });
       else if (m.t === 'warp') upsertOutput(surfaceId, { warp: m.warp });
       else if (m.t === 'editOff') setEditingOutputId(prev => prev === surfaceId ? null : prev);
+      else if (m.t === 'patternShown') calibController.onPatternShown({ index: m.index, projW: m.projW, projH: m.projH });
+      else if (m.t === 'calibCrosshair') latestCrosshairRef.current = m.pixel;
+      else if (m.t === 'calibConfirm') pendingPixelRef.current = latestCrosshairRef.current;
   };
   useEffect(() => {
       const onMsg = (e: MessageEvent) => {
@@ -1102,7 +1171,7 @@ const App: React.FC = () => {
   // Re-push config (incl. the edit toggle) whenever anything a projector renders changes.
   useEffect(() => {
       for (const surfaceId of projectorPortsRef.current.keys()) pushProjectorStateRef.current(surfaceId);
-  }, [surfaces, projectorOutputs, timeline, isVideoPlaying, editingOutputId, projectorFpsCap, projectorBrightness, scene3D]);
+  }, [surfaces, projectorOutputs, timeline, isVideoPlaying, editingOutputId, projectorFpsCap, projectorBrightness, scene3D, calibratingOutputId]);
   // Live projector-brightness push (no full config re-send) — drives slider drag render-free.
   const pushProjectorBrightnessRef = useRef<(v: number) => void>(() => {});
   pushProjectorBrightnessRef.current = (v: number) => {
@@ -1479,7 +1548,21 @@ const App: React.FC = () => {
           onToggleNdiSend={handleToggleNdiSend}
           onSetFpsCap={setProjectorFpsCap}
           onRefreshDisplays={refreshDisplays}
+          onCalibrate={(surfaceId) => setCalibratingOutputId(surfaceId)}
+          onSetUseCalibration={(surfaceId, on) => upsertOutput(surfaceId, { useCalibration: on })}
       />
+      {calibratingOutputId && (
+        <CalibPanel
+          surfaceId={calibratingOutputId}
+          surfaceName={surfaces.find(s => s.id === calibratingOutputId)?.name ?? 'Output'}
+          output={projectorOutputs.find(o => o.surfaceId === calibratingOutputId)}
+          sendToProjector={sendToProjector}
+          onStoreCalibration={handleStoreCalibration}
+          onPoseModeChange={handlePoseModeChange}
+          onClearPoses={handleClearPoses}
+          onClose={() => setCalibratingOutputId(null)}
+        />
+      )}
       <RoutingModal
           open={routingOpen}
           onClose={() => setRoutingOpen(false)}

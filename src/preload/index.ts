@@ -71,6 +71,16 @@ const api: ArtluxApi = {
     openHap: (path: string) => ipcRenderer.invoke(IPC.HAP_OPEN, path),
     decodeHapFrame: (path: string, index: number) => ipcRenderer.invoke(IPC.HAP_DECODE, path, index),
     closeHap: (path: string) => ipcRenderer.send(IPC.HAP_CLOSE, path),
+    // Projector calibration (native OpenCV addon)
+    calibAvailable: () => ipcRenderer.invoke(IPC.CALIB_AVAILABLE),
+    calibDetectBoard: (image: ArrayBuffer, w: number, h: number, cols: number, rows: number) =>
+        ipcRenderer.invoke(IPC.CALIB_DETECT_BOARD, image, w, h, cols, rows),
+    calibMapCorners: (captures: ArrayBuffer, captureCount: number, camW: number, camH: number, projW: number, projH: number, corners: number[], white: ArrayBuffer, black: ArrayBuffer) =>
+        ipcRenderer.invoke(IPC.CALIB_MAP_CORNERS, captures, captureCount, camW, camH, projW, projH, corners, white, black),
+    calibCalibrateProjector: (objectPoints: number[], imagePoints: number[], pointCounts: number[], projW: number, projH: number) =>
+        ipcRenderer.invoke(IPC.CALIB_CALIBRATE_PROJECTOR, objectPoints, imagePoints, pointCounts, projW, projH),
+    calibSolvePnp: (objectPts: number[], imagePts: number[], k: number[], dist: number[]) =>
+        ipcRenderer.invoke(IPC.CALIB_SOLVE_PNP, objectPts, imagePts, k, dist),
     // App chrome
     onMenuAction: (cb: (action: string) => void) => {
         const listener = (_e: unknown, action: string) => cb(action);

@@ -9,6 +9,7 @@ import * as spout from './transport/spoutManager';
 import * as ndi from './transport/ndiManager';
 import * as osc from './transport/oscManager';
 import * as hap from './transport/hapManager';
+import * as calib from './calibManager';
 import * as persistence from './persistence';
 import * as projectFolder from './projectFolder';
 import * as metrics from './metrics';
@@ -184,6 +185,17 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     ipcMain.handle(IPC.HAP_OPEN, (_e, path: string) => hap.open(path));
     ipcMain.handle(IPC.HAP_DECODE, (_e, path: string, index: number) => hap.decode(path, index));
     ipcMain.on(IPC.HAP_CLOSE, (_e, path: string) => hap.close(path));
+
+    // ---- Projector calibration (native OpenCV addon; renderer drives the solves) ----
+    ipcMain.handle(IPC.CALIB_AVAILABLE, () => calib.isAvailable());
+    ipcMain.handle(IPC.CALIB_DETECT_BOARD, (_e, image: ArrayBuffer, w: number, h: number, cols: number, rows: number) =>
+        calib.detectBoard(Buffer.from(image), w, h, cols, rows));
+    ipcMain.handle(IPC.CALIB_MAP_CORNERS, (_e, captures: ArrayBuffer, captureCount: number, camW: number, camH: number, projW: number, projH: number, corners: number[], white: ArrayBuffer, black: ArrayBuffer) =>
+        calib.mapCorners(Buffer.from(captures), captureCount, camW, camH, projW, projH, corners, Buffer.from(white), Buffer.from(black)));
+    ipcMain.handle(IPC.CALIB_CALIBRATE_PROJECTOR, (_e, objectPoints: number[], imagePoints: number[], pointCounts: number[], projW: number, projH: number) =>
+        calib.calibrateProjector(objectPoints, imagePoints, pointCounts, projW, projH));
+    ipcMain.handle(IPC.CALIB_SOLVE_PNP, (_e, objectPts: number[], imagePts: number[], k: number[], dist: number[]) =>
+        calib.solvePnp(objectPts, imagePts, k, dist));
 
     // Poll native engine throughput stats ~1 Hz and push to the renderer.
     // The same numbers feed the Prometheus gauges (see ./metrics) — no extra polling.

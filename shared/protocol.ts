@@ -62,6 +62,16 @@ export const IPC = {
   HAP_DECODE: 'hap:decode',
   /** Renderer → main: release a HAP source (by file path). */
   HAP_CLOSE: 'hap:close',
+  /** Renderer → main (invoke): is the native OpenCV calibration addon present? */
+  CALIB_AVAILABLE: 'calib:available',
+  /** Renderer → main (invoke): detect a checkerboard in a camera frame → sub-pixel corners. */
+  CALIB_DETECT_BOARD: 'calib:detect-board',
+  /** Renderer → main (invoke): map detected board corners to projector pixels via a captured Gray-code sequence. */
+  CALIB_MAP_CORNERS: 'calib:map-corners',
+  /** Renderer → main (invoke): calibrateCamera over all board poses → projector intrinsics + distortion. */
+  CALIB_CALIBRATE_PROJECTOR: 'calib:calibrate-projector',
+  /** Renderer → main (invoke): solvePnP (intrinsics fixed) → projector pose in venue frame. */
+  CALIB_SOLVE_PNP: 'calib:solve-pnp',
   /** Main → renderer: a native-menu command (save/open/undo/about/…). */
   MENU_ACTION: 'menu:action',
   /** Renderer → main (invoke): app name + version (for About). */
@@ -187,6 +197,39 @@ export interface HapFrame {
   height: number;
   format: string;    // "dxt1" | "dxt5" | "ycocg" | "rgtc1" | "bptc"
   data: Uint8Array;  // raw BC/DXT block bytes
+}
+
+// ---- Projector calibration (native OpenCV addon: structured light + solvePnP) ----
+// All point/matrix fields are flat plain-number arrays so the IPC payloads stay structured-cloneable
+// and the same shapes serialize into ProjectorCalibration. The native addon (native/calib/calib.node,
+// built off-host against OpenCV+LLVM like the NDI prebuilt) does the heavy CV; when it's absent the
+// calibManager returns null and the UI shows "calibration addon unavailable".
+
+// findChessboardCornersSB + cornerSubPix on one camera frame.
+export interface BoardDetectResult {
+  found: boolean;
+  corners: number[]; // flat camera-space [x0,y0, x1,y1, …] (length cols*rows*2 when found)
+}
+
+// One board pose's detected camera corners mapped to projector pixels via a decoded Gray-code
+// sequence (local homography around each corner). `valid[i]` is 1 when the decode succeeded there.
+export interface CornerProjMap {
+  projCorners: number[]; // flat projector-space [u,v, …], aligned with the input camera corners
+  valid: number[];       // 1/0 per corner
+}
+
+// calibrateCamera result for the projector (intrinsics + distortion).
+export interface ProjectorIntrinsicsResult {
+  k: number[];     // 9, row-major 3×3
+  dist: number[];  // 5: k1,k2,p1,p2,k3
+  rms: number;     // reprojection RMS (px)
+}
+
+// solvePnP result (pose in venue frame), intrinsics held fixed.
+export interface PnpResult {
+  rotation: number[];    // 9, row-major 3×3 (world→cam)
+  translation: number[]; // 3
+  rms: number;           // reprojection RMS (px)
 }
 
 // NDI send — create/destroy a named NDI source for one projector output.
@@ -322,6 +365,25 @@ export interface SoftEdge {
 
 export const defaultSoftEdge = (): SoftEdge => ({ left: 0, right: 0, top: 0, bottom: 0, gamma: 2.2 });
 
+// Recovered physical-projector calibration (the projector is an inverse camera). Intrinsics +
+// distortion come from structured light (Moreno-Taubin: camera watches Gray-code on a checkerboard);
+// pose comes from solvePnP over operator-aimed crosshair ↔ venue-model-pick correspondences. Once
+// solved, the matching virtual projector renders the 3D scene from the real projector's viewpoint
+// (true projection mapping). All vectors are flat row-major arrays so the file stays plain-JSON.
+export interface ProjectorCalibration {
+  intrinsics: number[];   // K, row-major 3×3 [fx,0,cx, 0,fy,cy, 0,0,1] (structured light)
+  distortion: number[];   // [k1,k2,p1,p2,k3] radial+tangential (structured light)
+  rotation: number[];     // R world→cam, row-major 3×3 (solvePnP)
+  translation: number[];  // t world→cam, length 3 (solvePnP)
+  imageSize: [number, number]; // projector raster the pixels were captured in
+  intrinsicsRms?: number;      // structured-light reprojection RMS (px)
+  poseRms?: number;            // solvePnP reprojection RMS (px)
+  // Editable pose correspondences (projector pixel ↔ venue-model world point), kept so a moved
+  // projector can re-solve pose without redoing structured light.
+  posePicks?: Array<{ world: [number, number, number]; pixel: [number, number] }>;
+  calibratedAt?: string;       // ISO timestamp
+}
+
 // One Surface routed to a physical projector as its own fullscreen output.
 export interface ProjectorOutput {
   surfaceId: string;
@@ -333,6 +395,8 @@ export interface ProjectorOutput {
   softEdge?: SoftEdge;        // edge blending for projector overlap
   gamma?: number;             // per-output output gamma (1 = off)
   ndiSend?: boolean;          // also publish this output as an NDI source
+  calibration?: ProjectorCalibration | null; // recovered intrinsics+distortion+pose (render-from-projector)
+  useCalibration?: boolean;   // when calibrated, render the 3D venue scene from the matched projector
 }
 
 export const defaultProjectorOutput = (surfaceId: string): ProjectorOutput => ({
@@ -517,6 +581,12 @@ export interface ArtluxApi {
   openHap(path: string): Promise<HapInfo | null>;
   decodeHapFrame(path: string, index: number): Promise<HapFrame | null>;
   closeHap(path: string): void;
+  // Projector calibration (native OpenCV addon: structured light + solvePnP)
+  calibAvailable(): Promise<boolean>;
+  calibDetectBoard(image: ArrayBuffer, w: number, h: number, cols: number, rows: number): Promise<BoardDetectResult | null>;
+  calibMapCorners(captures: ArrayBuffer, captureCount: number, camW: number, camH: number, projW: number, projH: number, corners: number[], white: ArrayBuffer, black: ArrayBuffer): Promise<CornerProjMap | null>;
+  calibCalibrateProjector(objectPoints: number[], imagePoints: number[], pointCounts: number[], projW: number, projH: number): Promise<ProjectorIntrinsicsResult | null>;
+  calibSolvePnp(objectPts: number[], imagePts: number[], k: number[], dist: number[]): Promise<PnpResult | null>;
   // App chrome
   onMenuAction(cb: (action: string) => void): () => void;
   getAppInfo(): Promise<AppInfo>;

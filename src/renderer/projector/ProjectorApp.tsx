@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Surface, SourceType } from '../types';
-import { defaultCornerPin, defaultSoftEdge, type CornerPin, type BezierWarp, type SoftEdge } from '../../../shared/protocol';
+import { defaultCornerPin, defaultSoftEdge, type CornerPin, type BezierWarp, type SoftEdge, type Scene3D, type ProjectorCalibration } from '../../../shared/protocol';
+import { ProjectorScene } from './ProjectorScene';
 import { syncSurfaces, getDrawable } from '../services/surfaceMedia';
 import { timeline as engine } from '../services/timeline';
 import * as trackingStore from '../services/trackingStore';
@@ -9,6 +10,9 @@ import { ProjectorGL } from './ProjectorGL';
 import { squareToQuad, applyH } from './homography';
 import { makeBezierWarp, tessellateBezier, evalBezier, BEZIER_CORNERS } from './warp';
 import type { MainToProjector, ProjectorToMain, ProjectorRender } from './bridge';
+import { fillPattern, type CalibPatternKind } from '../calib/graycode';
+
+type CalibMode = 'idle' | 'pattern' | 'crosshair' | 'render';
 
 // IMAGE (one cheap decode) + EFFECT (procedural) render locally. Everything HW-decoded —
 // camera/Spout/DMX-in/NDI AND file video / timeline layers — is decoded once in the main
@@ -45,6 +49,21 @@ export const ProjectorApp: React.FC = () => {
   const lastNdiRef = useRef(0);
   const draggingRef = useRef<number | null>(null);
   const commitTimer = useRef<number | null>(null);
+
+  // Calibration: structured-light pattern display (raw 2D overlay) + mode gate.
+  const calibModeRef = useRef<CalibMode>('idle');
+  const patternRef = useRef<{ kind: CalibPatternKind; index: number } | null>(null);
+  const patternCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [calibMode, setCalibMode] = useState<CalibMode>('idle');
+  // Pose capture: an aim crosshair (normalized) the operator points at a known venue feature.
+  const crosshairRef = useRef<[number, number]>([0.5, 0.5]);
+  const [crosshair, setCrosshairState] = useState<[number, number]>([0.5, 0.5]);
+  const setCrosshair = (p: [number, number]) => { crosshairRef.current = p; setCrosshairState(p); };
+  // Render-from-projector: the venue scene + this output's calibration (intrinsics + pose).
+  const [scene3D, setScene3D] = useState<Scene3D | null>(null);
+  const [calibration, setCalibration] = useState<ProjectorCalibration | null>(null);
+  const [modelUrls, setModelUrls] = useState<Record<string, string>>({});
+  const urlCacheRef = useRef<Record<string, string>>({});
 
   const [pin, setPinState] = useState<CornerPin>(defaultCornerPin());
   const [warp, setWarpState] = useState<BezierWarp | null>(null);
@@ -124,6 +143,15 @@ export const ProjectorApp: React.FC = () => {
         } else if (m.t === 'edit') {
           setEditing(m.on);
           if (m.on) window.focus();
+        } else if (m.t === 'calib') {
+          calibModeRef.current = m.mode;
+          setCalibMode(m.mode);
+          if (m.mode !== 'pattern') patternRef.current = null;
+          if (m.calibration !== undefined) setCalibration(m.calibration);
+        } else if (m.t === 'calibPattern') {
+          patternRef.current = { kind: m.kind, index: m.index };
+        } else if (m.t === 'scene') {
+          setScene3D(m.scene3D);
         }
       };
       port.start();
@@ -188,6 +216,94 @@ export const ProjectorApp: React.FC = () => {
     raf = requestAnimationFrame(frame);
     return () => { cancelAnimationFrame(raf); gl.dispose(); glRef.current = null; frameRef.current?.close(); frameRef.current = null; };
   }, []);
+
+  // Structured-light: draw the requested pattern raw (no GL warp/gamma — bits must be pixel-exact)
+  // into an opaque 2D overlay at native resolution, then ack patternShown after it is actually on
+  // screen (double-rAF) so the main window grabs the camera in sync. Reports the projector raster so
+  // main knows the resolution for decode + calibrateProjector.
+  useEffect(() => {
+    let raf = 0;
+    const tick = () => {
+      raf = requestAnimationFrame(tick);
+      const pat = patternRef.current;
+      const cv = patternCanvasRef.current;
+      if (calibModeRef.current !== 'pattern' || !pat || !cv) return;
+      patternRef.current = null; // consume
+      const dpr = window.devicePixelRatio || 1;
+      const w = Math.max(1, Math.round(window.innerWidth * dpr));
+      const h = Math.max(1, Math.round(window.innerHeight * dpr));
+      if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+      const ctx = cv.getContext('2d');
+      if (!ctx) return;
+      const img = ctx.createImageData(w, h);
+      fillPattern(img.data, w, h, pat.kind, pat.index);
+      ctx.putImageData(img, 0, 0);
+      requestAnimationFrame(() => requestAnimationFrame(() => send({ t: 'patternShown', index: pat.index, projW: w, projH: h })));
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Pose capture: drag / arrow-nudge the aim crosshair (Shift ×10 px, Shift+Alt = 0.1 px fine), and
+  // report its projector-raster pixel live; Enter confirms the current aim. Reuses the window's input
+  // like the corner-pin editor but for a single point.
+  const reportCrosshair = () => {
+    const dpr = window.devicePixelRatio || 1;
+    const [cx, cy] = crosshairRef.current;
+    send({ t: 'calibCrosshair', pixel: [cx * window.innerWidth * dpr, cy * window.innerHeight * dpr] });
+  };
+  useEffect(() => {
+    if (calibMode !== 'crosshair') return;
+    const dpr = window.devicePixelRatio || 1;
+    const place = (clientX: number, clientY: number) => {
+      setCrosshair([Math.min(1, Math.max(0, clientX / window.innerWidth)), Math.min(1, Math.max(0, clientY / window.innerHeight))]);
+      reportCrosshair();
+    };
+    const onPointer = (e: PointerEvent) => { if (e.type === 'pointerdown' || e.buttons === 1) place(e.clientX, e.clientY); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') { e.preventDefault(); send({ t: 'calibConfirm' }); return; }
+      const dir: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+      const d = dir[e.key];
+      if (!d) return;
+      e.preventDefault();
+      const step = (e.shiftKey && e.altKey) ? 0.1 : e.shiftKey ? 10 : 1; // projector px
+      const [cx, cy] = crosshairRef.current;
+      setCrosshair([
+        Math.min(1, Math.max(0, cx + (d[0] * step) / (window.innerWidth * dpr))),
+        Math.min(1, Math.max(0, cy + (d[1] * step) / (window.innerHeight * dpr))),
+      ]);
+      reportCrosshair();
+    };
+    window.addEventListener('pointerdown', onPointer);
+    window.addEventListener('pointermove', onPointer);
+    window.addEventListener('keydown', onKey);
+    window.focus();
+    reportCrosshair();
+    return () => { window.removeEventListener('pointerdown', onPointer); window.removeEventListener('pointermove', onPointer); window.removeEventListener('keydown', onKey); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [calibMode]);
+
+  // Render-from-projector: load the venue GLBs (same readModel→Blob path as the Scene window) so the
+  // R3F ProjectorScene can render them from the calibrated camera.
+  useEffect(() => {
+    const models = (scene3D?.models ?? []).filter(m => m.kind !== 'plane' && m.path);
+    let alive = true;
+    (async () => {
+      const paths = Array.from(new Set(models.map(m => m.path)));
+      for (const path of paths) {
+        if (urlCacheRef.current[path]) continue;
+        const bytes = await window.artlux?.readModel?.(path);
+        if (!alive || !bytes) continue;
+        urlCacheRef.current[path] = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'model/gltf-binary' }));
+      }
+      if (!alive) return;
+      const next: Record<string, string> = {};
+      for (const m of models) { const u = urlCacheRef.current[m.path]; if (u) next[m.id] = u; }
+      setModelUrls(next);
+    })();
+    return () => { alive = false; };
+  }, [scene3D]);
 
   // Editable handles: the 16 Bézier control points, or the 4 corner-pin points.
   const handlePoints: [number, number][] = warp ? warp.points : [pin.tl, pin.tr, pin.br, pin.bl];
@@ -277,6 +393,32 @@ export const ProjectorApp: React.FC = () => {
   return (
     <div style={{ width: '100vw', height: '100vh', background: '#000', overflow: 'hidden', cursor: editing ? 'default' : 'none' }}>
       <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '100%' }} />
+
+      {/* Render-from-projector: the venue 3D scene from the matched virtual projector (true mapping). */}
+      {calibMode === 'render' && calibration && scene3D && (
+        <div style={{ position: 'absolute', inset: 0 }}>
+          <ProjectorScene scene3D={scene3D} modelUrls={modelUrls} calibration={calibration} />
+        </div>
+      )}
+
+      {/* Structured-light pattern overlay — opaque, on top, raw pixels (no GL). */}
+      <canvas
+        ref={patternCanvasRef}
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', background: '#000', display: calibMode === 'pattern' ? 'block' : 'none' }}
+      />
+
+      {/* Pose-capture aim crosshair — point it at a known venue feature, Enter to confirm. */}
+      {calibMode === 'crosshair' && (
+        <>
+          <svg width={size.w} height={size.h} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+            <line x1={0} y1={crosshair[1] * size.h} x2={size.w} y2={crosshair[1] * size.h} stroke="rgba(0,255,170,0.5)" strokeWidth={1} />
+            <line x1={crosshair[0] * size.w} y1={0} x2={crosshair[0] * size.w} y2={size.h} stroke="rgba(0,255,170,0.5)" strokeWidth={1} />
+            <circle cx={crosshair[0] * size.w} cy={crosshair[1] * size.h} r={10} fill="none" stroke="#00ffaa" strokeWidth={1.5} />
+            <circle cx={crosshair[0] * size.w} cy={crosshair[1] * size.h} r={1.5} fill="#00ffaa" />
+          </svg>
+          <div style={hintBox}>Aim at a known feature · drag / arrows (Shift ×10, Shift+Alt ×0.1 px) · <b>Enter</b> confirm</div>
+        </>
+      )}
 
       {!connected && <div style={overlayCenter}>Waiting for the main window… {name}</div>}
 

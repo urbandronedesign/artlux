@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Fixture, Surface, Vec3, Euler3, Timeline, defaultTimeline } from '../types';
-import { Scene3D, SceneModel, defaultScene3D } from '../../../shared/protocol';
+import { Scene3D, SceneModel, defaultScene3D, ProjectorCalibration } from '../../../shared/protocol';
 import { useGLTF } from '@react-three/drei';
 import { dmxSignal } from '../services/dmxSignal';
 import { timeline as engine } from '../services/timeline';
@@ -29,6 +29,9 @@ export const SceneApp: React.FC = () => {
   const [connected, setConnected] = useState(false);
   const [saved, setSaved] = useState(false);
   const [timeline, setTimelineState] = useState<Timeline>(defaultTimeline());
+  // Projector calibration: pose-pick mode + frustum overlays (driven from the main window).
+  const [calibPick, setCalibPick] = useState<{ on: boolean; surfaceId: string | null }>({ on: false, surfaceId: null });
+  const [projectorCalibs, setProjectorCalibs] = useState<Array<{ surfaceId: string; calibration: ProjectorCalibration }>>([]);
 
   // This window's timeline engine is driven by the bridge (the main window owns the clock).
   useEffect(() => { engine.setExternal(true); }, []);
@@ -37,7 +40,7 @@ export const SceneApp: React.FC = () => {
   // in main, mirrored here as ImageBitmaps — keeps this window from holding its own decoders).
   useEffect(() => {
     const layerIds = Array.from(new Set(
-      (scene3D.models ?? []).filter(m => m.kind === 'plane' && m.visible && m.layerId).map(m => m.layerId!)
+      (scene3D.models ?? []).filter(m => m.visible && m.layerId).map(m => m.layerId!) // planes + layer-textured meshes
     ));
     portRef.current?.postMessage({ t: 'sceneLayers', layerIds } satisfies SceneToMain);
   }, [scene3D.models]);
@@ -74,6 +77,10 @@ export const SceneApp: React.FC = () => {
           engine.setLayerBitmap(m.layerId, m.bitmap);
         } else if (m.t === 'tracking') {
           trackingStore.applySnapshot(m.snap);
+        } else if (m.t === 'calibMode') {
+          setCalibPick({ on: m.on, surfaceId: m.surfaceId });
+        } else if (m.t === 'projectors') {
+          setProjectorCalibs(m.calibs.filter(c => c.calibration).map(c => ({ surfaceId: c.surfaceId, calibration: c.calibration! })));
         }
       };
       port.start();
@@ -168,6 +175,9 @@ export const SceneApp: React.FC = () => {
         onModelNaturalSize={(id, maxDim) => setNaturalSizes(s => (s[id] === maxDim ? s : { ...s, [id]: maxDim }))}
         onSceneConfig={applyConfig}
         onRecordHistory={() => { /* history lives in the main window */ }}
+        calibPickMode={calibPick.on}
+        onCalibPick={(world) => send({ t: 'calibPick', world })}
+        projectorCalibs={projectorCalibs.filter(c => c.calibration.poseRms != null)}
       />
 
       {/* Outliner */}
@@ -220,16 +230,15 @@ export const SceneApp: React.FC = () => {
         {selModel && (
           <div className="border-t border-line-1 p-2.5 space-y-2">
             <div className="text-[10px] font-bold uppercase tracking-wider text-fg-3 truncate">{selModel.name}</div>
-            {selModel.kind === 'plane' && (
-              <div className="flex items-center gap-1.5 text-[11px]">
-                <span className="text-fg-2 shrink-0">Layer</span>
-                <select value={selModel.layerId ?? ''} onChange={(e) => updateModel(selModel.id, { layerId: e.target.value || undefined })}
-                  className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-[10px] focus:border-accent focus:outline-none">
-                  <option value="">— no layer —</option>
-                  {timeline.layers.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-                </select>
-              </div>
-            )}
+            {/* Timeline-layer texture: planes display it; meshes get it UV-mapped onto their GLB. */}
+            <div className="flex items-center gap-1.5 text-[11px]">
+              <span className="text-fg-2 shrink-0">Layer</span>
+              <select value={selModel.layerId ?? ''} onChange={(e) => updateModel(selModel.id, { layerId: e.target.value || undefined })}
+                className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-[10px] focus:border-accent focus:outline-none">
+                <option value="">{selModel.kind === 'plane' ? '— no layer —' : '— GLB materials —'}</option>
+                {timeline.layers.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+              </select>
+            </div>
             <NumRow label="Scale" value={selModel.scale} step={0.1} onChange={(v) => updateModel(selModel.id, { scale: Math.max(0.0001, v) })} />
             {selModel.kind !== 'plane' && (
               <>

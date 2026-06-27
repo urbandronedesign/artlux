@@ -1,0 +1,26 @@
+[package]
+name = "artlux-calib"
+version = "0.0.0"
+edition = "2021"
+description = "Native projector calibration for ArtLux (napi-rs + OpenCV): checkerboard detect, Gray-code decode, projector calibrateCamera, solvePnP"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+napi = { version = "2", default-features = false, features = ["napi4"] }
+napi-derive = "2"
+# OpenCV bindings. We only use the MAIN modules calib3d + imgproc + core (the Gray-code decode is
+# done by hand in lib.rs, so no `structured_light` contrib module is needed) — the official OpenCV
+# prebuilt from opencv.org is sufficient. Building still needs LLVM/libclang (the `opencv` crate uses
+# bindgen) + an OpenCV install discoverable via OPENCV_* env vars. Limit binding generation to the
+# modules we use with OPENCV_MODULE_WHITELIST=core,imgproc,calib3d for a fast build. The resulting
+# native/calib/calib.node is committed (NDI precedent) so CI + end users don't need OpenCV at build time.
+opencv = "0.99"
+
+[build-dependencies]
+napi-build = "2"
+
+[profile.release]
+lto = true
+opt-level = 3

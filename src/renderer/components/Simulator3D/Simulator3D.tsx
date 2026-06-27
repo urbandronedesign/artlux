@@ -4,7 +4,8 @@ import { OrbitControls, GizmoHelper, GizmoViewport } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import { Move3d, Rotate3d, Maximize } from 'lucide-react';
 import { Fixture, Vec3, Euler3 } from '../../types';
-import { Scene3D, SceneModel, defaultScene3D } from '../../../../shared/protocol';
+import { Scene3D, SceneModel, defaultScene3D, ProjectorCalibration } from '../../../../shared/protocol';
+import { ProjectorFrustum } from './ProjectorFrustum';
 import { InstancedLeds } from './InstancedLeds';
 import { FixtureGizmo } from './FixtureGizmo';
 import { FixtureLights } from './FixtureLights';
@@ -30,6 +31,11 @@ interface Props {
   onModelNaturalSize?: (id: string, maxDim: number) => void;
   onSceneConfig?: (patch: Partial<Scene3D>) => void;
   onRecordHistory: () => void;
+  /** Projector calibration: pose-pick mode + frustum overlays. */
+  calibPickMode?: boolean;
+  onCalibPick?: (world: [number, number, number]) => void;
+  projectorCalibs?: Array<{ surfaceId: string; calibration: ProjectorCalibration }>;
+  activePicks?: Array<{ world: [number, number, number] }>;
 }
 
 type Mode = 'translate' | 'rotate' | 'scale';
@@ -55,6 +61,7 @@ const Simulator3D: React.FC<Props> = ({
   fixtures, selectedFixtureId, scene3D = defaultScene3D(), modelUrls = {},
   selectedModelId = null,
   onSelectFixture, onSelectModel, onCommitFixture3D, onCommitModel, onModelNaturalSize, onRecordHistory,
+  calibPickMode = false, onCalibPick, projectorCalibs = [], activePicks = [],
 }) => {
   const [mode, setMode] = useState<Mode>('translate');
   const selectedFixture = (!selectedModelId && fixtures.find(f => f.id === selectedFixtureId)) || null;
@@ -102,10 +109,15 @@ const Simulator3D: React.FC<Props> = ({
                 onCommit={(id, t) => onCommitModel?.(id, t)}
                 onNaturalSize={onModelNaturalSize}
                 onRecordHistory={onRecordHistory}
+                calibPickMode={calibPickMode}
+                onCalibPick={onCalibPick}
               />
             </Suspense>
           </ModelBoundary>
         ) : null)}
+        {projectorCalibs.map(({ surfaceId, calibration }, i) => (
+          <ProjectorFrustum key={surfaceId} calibration={calibration} picks={i === 0 ? activePicks : undefined} />
+        ))}
         <FixtureLights fixtures={fixtures} scene3D={scene3D} />
         <InstancedLeds fixtures={fixtures} onSelectFixture={onSelectFixture} />
         <FixtureGizmo
