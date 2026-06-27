@@ -30,8 +30,9 @@ It is a **hybrid** of two independent solves:
   **measure a square** with a ruler and enter that value in the wizard's *Square mm* field — the sheet
   has a 100 mm reference ruler so any print scaling is harmless. Regenerate it with
   `node scripts/gen-checkerboard.cjs`.
-- A **camera** (any `getUserMedia` webcam/USB camera) positioned to see both the board and the
-  projection — see [Camera notes](#camera-notes).
+- A **camera** positioned to see both the board and the projection. Two interchangeable backends —
+  any `getUserMedia` webcam (**Browser**), or **OpenCV (DirectShow)** for cameras the browser can't
+  drive (notably the **PS3 Eye**) — see [Camera notes](#camera-notes).
 - A **darkened room** (Gray-code decode needs the projection to dominate).
 - A **venue model** (GLB) loaded in the 3D scene — needed for the pose step only.
 - A **projector output**, either fullscreen on a display or **windowed** for single-monitor testing —
@@ -54,7 +55,12 @@ npm run build:calib      # → scripts/build-calib.ps1 : sets env, disables unus
 ```
 
 Pin `opencv = "0.99"` in `native/calib/Cargo.toml` (older pins resolve a mismatched binding generator).
-If the addon is missing the app still runs; the wizard's first checklist row shows it as unavailable.
+The addon uses `core` + `imgproc` + `calib3d` (the Gray-code decode is hand-rolled, so no contrib
+module) plus **`videoio`** for native DirectShow camera capture; `build-calib.ps1` disables every other
+OpenCV module header before generating bindings (some crash bindgen or emit broken bindings). If you
+re-enable `videoio` (or change which modules are on) after a prior build, run `cargo clean -p opencv`
+once so its bindings regenerate. If the addon is missing the app still runs; the wizard's first
+checklist row shows it as unavailable.
 
 ---
 
@@ -97,15 +103,37 @@ an output between windowed ↔ a real display recreates the window.)
 
 ## Camera notes
 
-- The camera only needs to be a normal `getUserMedia` device. **Windows camera privacy** must allow it
-  (Settings → Privacy & security → Camera → *Camera access* + *Let desktop apps access your camera*);
-  the app itself grants the renderer's media permission.
-- If you have **multiple cameras**, the wizard lists them by name and **auto-selects a real one,
-  skipping IR webcams and virtual cameras** (e.g. an *NDI Webcam* shows black with no source, an *IR*
-  cam shows a dark infrared image). Pick the device explicitly in the wizard if needed — a USB overhead
-  document camera (e.g. IPEVO) works very well for the checkerboard.
-- If a camera fails to start, the wizard shows the exact reason: *blocked* (privacy), *busy* (another
-  app is using it — close Teams/Zoom/OBS), or *not found*.
+The Camera step has a **Capture via** toggle with two backends:
+
+### Browser (getUserMedia) — default, for UVC webcams
+- Works for any normal `getUserMedia` device. **Windows camera privacy** must allow it (Settings →
+  Privacy & security → Camera → *Camera access* + *Let desktop apps access your camera*); the app
+  grants the renderer's media permission.
+- With **multiple cameras** the wizard lists them by name and **auto-selects a real one, skipping IR
+  webcams and virtual cameras** (an *NDI Webcam* shows black, an *IR* cam shows a dark image). Pick the
+  device explicitly if needed — a USB overhead document camera (e.g. IPEVO V4K) works very well.
+- On failure the wizard shows the reason: *blocked* (privacy), *busy* (another app — close
+  Teams/Zoom/OBS), or *not found*. The start path auto-relaxes the requested resolution (720p → 480p →
+  any) so a limited camera that can't start at 720p isn't misreported as busy.
+
+### OpenCV (DirectShow) — for the PS3 Eye and other non-UVC cameras
+Some cameras deliver frames to **OpenCV's `videoio` (DirectShow)** but **not** to Chromium's
+`getUserMedia`, whose DirectShow support is stricter and fails to *start* the device
+(`NotReadableError`). The **PlayStation 3 Eye** is the canonical case: its user-mode DirectShow source
+filter (the [PS3EyeDirectShow](https://github.com/jkevin/PS3EyeDirectShow) driver) is invisible to
+`getUserMedia` but works perfectly through OpenCV — the same way tools like vvvv use it.
+
+For these, switch the Camera step to **OpenCV (DShow)**. The frames are captured natively in the addon
+(`cameraOpen`/`cameraGrabGray`, `VideoCapture` + `CAP_DSHOW`, MJPG 1280×720) and streamed to the
+wizard over IPC — bypassing Chromium entirely. OpenCV's DirectShow backend addresses devices by
+**index** (it can't read device *names*), so the wizard shows a **Device index** field instead of a
+name list: try **0–5**, pressing *Start* each time, until the feed appears (exactly like vvvv's "Device
+Index"). Everything downstream — board detect, Gray-code capture, solve — is identical.
+
+> **PS3 Eye setup (Windows):** the Eye is not a UVC device; install the
+> [PS3EyeDirectShow](https://github.com/jkevin/PS3EyeDirectShow/releases) driver (WinUSB + DirectShow
+> filter). After install the camera's video interface should show **OK** in Device Manager (it binds to
+> the `WinUSB` service). Then use the **OpenCV (DShow)** source here — no Chromium flags needed.
 
 ---
 

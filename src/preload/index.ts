@@ -81,6 +81,10 @@ const api: ArtluxApi = {
         ipcRenderer.invoke(IPC.CALIB_CALIBRATE_PROJECTOR, objectPoints, imagePoints, pointCounts, projW, projH),
     calibSolvePnp: (objectPts: number[], imagePts: number[], k: number[], dist: number[]) =>
         ipcRenderer.invoke(IPC.CALIB_SOLVE_PNP, objectPts, imagePts, k, dist),
+    calibCameraOpen: (index: number, width: number, height: number, fps: number, fourcc: string) =>
+        ipcRenderer.invoke(IPC.CALIB_CAMERA_OPEN, index, width, height, fps, fourcc),
+    calibCameraGrab: () => ipcRenderer.invoke(IPC.CALIB_CAMERA_GRAB),
+    calibCameraClose: () => ipcRenderer.send(IPC.CALIB_CAMERA_CLOSE),
     // App chrome
     onMenuAction: (cb: (action: string) => void) => {
         const listener = (_e: unknown, action: string) => cb(action);

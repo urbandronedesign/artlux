@@ -82,7 +82,7 @@ export async function capturePose(cfg: BoardConfig): Promise<CaptureResult> {
   // White field: detect the (printed) board and keep the bright reference.
   const wAck = await showPattern('white', -1);
   await delay(cfg.settleMs);
-  const white = cam.grabGray();
+  const white = await cam.grab();
   if (!white) return { ok: false, reason: 'no camera frame' };
   const camW = white.w, camH = white.h;
 
@@ -108,7 +108,7 @@ export async function capturePose(cfg: BoardConfig): Promise<CaptureResult> {
   // Black field reference.
   await showPattern('black', -1);
   await delay(cfg.settleMs);
-  const black = cam.grabGray();
+  const black = await cam.grab();
   if (!black) return { ok: false, reason: 'no camera frame' };
 
   // Gray-code planes (projW/projH come from the projector's acks).
@@ -117,7 +117,7 @@ export async function capturePose(cfg: BoardConfig): Promise<CaptureResult> {
   for (let p = 0; p < planeCount; p++) {
     await showPattern('plane', p);
     await delay(cfg.settleMs);
-    const g = cam.grabGray();
+    const g = await cam.grab();
     if (!g || g.w !== camW || g.h !== camH) return { ok: false, reason: 'camera frame size changed mid-capture' };
     captures.set(g.data, p * camW * camH);
   }

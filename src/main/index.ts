@@ -36,7 +36,16 @@ app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
 // frame goes stale) even with the throttling switches above. The main window decodes the
 // video that the Scene + projector windows mirror, so when the Scene window covers it the
 // mirrors freeze. Disabling the feature keeps the covered window producing frames.
-app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+const disabledFeatures = ['CalculateNativeWinOcclusion'];
+// Opt-in: revert Chromium's Windows camera backend from Media Foundation to the legacy
+// DirectShow capture path. Needed for cameras exposed only as a DirectShow *source filter*
+// (e.g. the PS3 Eye via the PS3EyeDirectShow driver) — Media Foundation ignores those, so
+// getUserMedia/the calibration wizard can't see them otherwise. Off by default because it's
+// a global backend switch; enable with ARTLUX_DSHOW_CAPTURE=1 when using such a camera.
+if (process.env.ARTLUX_DSHOW_CAPTURE === '1') {
+    disabledFeatures.push('MediaFoundationVideoCapture');
+}
+app.commandLine.appendSwitch('disable-features', disabledFeatures.join(','));
 
 function createWindow(): void {
     mainWindow = new BrowserWindow({

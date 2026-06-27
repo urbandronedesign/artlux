@@ -2,7 +2,7 @@ import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type {
-  BoardDetectResult, CornerProjMap, ProjectorIntrinsicsResult, PnpResult,
+  BoardDetectResult, CornerProjMap, ProjectorIntrinsicsResult, PnpResult, CameraFrame,
 } from '../../shared/protocol';
 
 // Loads the native OpenCV calibration addon (native/calib/calib.node) in the main process — the
@@ -39,6 +39,12 @@ interface CalibNative {
   ): ProjectorIntrinsicsResult;
   /** solvePnP (intrinsics fixed) → projector pose in venue frame. */
   solvePnp(objectPts: number[], imagePts: number[], k: number[], dist: number[]): PnpResult;
+  /** Open a camera by index via OpenCV's DirectShow backend (for cameras getUserMedia can't drive). */
+  cameraOpen(index: number, width: number, height: number, fps: number, fourcc: string): boolean;
+  /** Grab one grayscale frame (Buffer of w*h bytes) from the open camera, or null if none ready. */
+  cameraGrabGray(): { w: number; h: number; data: Buffer } | null;
+  /** Release the open camera. */
+  cameraClose(): void;
 }
 
 const req = createRequire(__filename);
@@ -109,5 +115,42 @@ export function solvePnp(objectPts: number[], imagePts: number[], k: number[], d
   } catch (e) {
     console.warn('[calib] solvePnp failed:', (e as Error)?.message ?? e);
     return null;
+  }
+}
+
+// ---- native camera capture (OpenCV videoio / DirectShow) -------------------
+// Bypasses Chromium's getUserMedia for cameras it can't start (e.g. the PS3 Eye's DirectShow source
+// filter). Frames flow renderer ⇄ main over IPC; the grayscale buffer feeds detectBoard directly.
+
+export function cameraOpen(index: number, width: number, height: number, fps: number, fourcc: string): boolean {
+  if (!native) return false;
+  try {
+    return native.cameraOpen(index, width, height, fps, fourcc);
+  } catch (e) {
+    console.warn('[calib] cameraOpen failed:', (e as Error)?.message ?? e);
+    return false;
+  }
+}
+
+export function cameraGrab(): CameraFrame | null {
+  if (!native) return null;
+  try {
+    const f = native.cameraGrabGray();
+    if (!f) return null;
+    // Hand the renderer a tightly-sliced ArrayBuffer (the napi Buffer may sit in a larger pool).
+    const ab = f.data.buffer.slice(f.data.byteOffset, f.data.byteOffset + f.data.byteLength);
+    return { w: f.w, h: f.h, data: ab };
+  } catch (e) {
+    console.warn('[calib] cameraGrab failed:', (e as Error)?.message ?? e);
+    return null;
+  }
+}
+
+export function cameraClose(): void {
+  if (!native) return;
+  try {
+    native.cameraClose();
+  } catch (e) {
+    console.warn('[calib] cameraClose failed:', (e as Error)?.message ?? e);
   }
 }

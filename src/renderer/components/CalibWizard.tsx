@@ -64,6 +64,8 @@ export const CalibWizard: React.FC<Props> = (props) => {
   const [addonOk, setAddonOk] = useState<boolean | null>(null);
   const [devices, setDevices] = useState<cam.CameraDevice[]>([]);
   const [deviceId, setDeviceId] = useState('');
+  const [camSource, setCamSource] = useState<cam.CaptureSource>('browser');
+  const [camIndex, setCamIndex] = useState(0); // native (OpenCV/DShow) device index
   const [camOn, setCamOn] = useState(false);
   const [cfg, setCfg] = useState<BoardConfig>(defaultBoardConfig());
   const [poses, setPoses] = useState(0);
@@ -74,6 +76,7 @@ export const CalibWizard: React.FC<Props> = (props) => {
   const [testProj, setTestProj] = useState(false);
   const [camError, setCamError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const baseRef = useRef<HTMLCanvasElement | null>(null); // native preview frame target
 
   const cal = output?.calibration;
   const hasIntrinsics = cal?.intrinsicsRms != null;
@@ -126,33 +129,52 @@ export const CalibWizard: React.FC<Props> = (props) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, testProj]);
 
-  // Live board-detect overlay on the camera (camera/intrinsics steps, paused during a capture).
+  // Live preview + board-detect overlay (camera/intrinsics steps, paused during a capture). Browser
+  // source shows its own <video>; native source has no stream, so we paint each grabbed grayscale
+  // frame into the base canvas here. Board detection runs throttled (~3 Hz) on the latest frame.
   useEffect(() => {
     if ((step !== 'camera' && step !== 'intrinsics') || !camOn || busy) return;
     let alive = true;
-    const tick = async () => {
-      const g = cam.grabGray();
-      if (g && window.artlux?.calibDetectBoard) {
-        const d = await window.artlux.calibDetectBoard(g.data.buffer as ArrayBuffer, g.w, g.h, cfg.cols, cfg.rows);
-        if (alive) setDetect(d && d.found ? { found: true, corners: d.corners, w: g.w, h: g.h } : { found: false });
+    let timer = 0;
+    const native = cam.isNative();
+    let lastDetect = 0;
+    const loop = async () => {
+      if (!alive) return;
+      const g = await cam.grab();
+      if (!alive) { return; }
+      if (g) {
+        if (native) paintGray(baseRef.current, g);
+        const now = performance.now();
+        if (now - lastDetect > 330 && window.artlux?.calibDetectBoard) {
+          lastDetect = now;
+          const d = await window.artlux.calibDetectBoard(g.data.buffer as ArrayBuffer, g.w, g.h, cfg.cols, cfg.rows);
+          if (alive) setDetect(d && d.found ? { found: true, corners: d.corners, w: g.w, h: g.h } : { found: false });
+        }
       }
+      if (alive) timer = window.setTimeout(loop, native ? 60 : 330);
     };
-    const id = window.setInterval(tick, 350);
-    return () => { alive = false; window.clearInterval(id); };
+    timer = window.setTimeout(loop, 0);
+    return () => { alive = false; window.clearTimeout(timer); };
   }, [step, camOn, busy, cfg.cols, cfg.rows]);
 
   const startCam = async () => {
     try {
       setBusy('Starting camera…'); setCamError(null);
-      await cam.start(deviceId || undefined);
-      if (videoRef.current) { videoRef.current.srcObject = cam.getStream(); await videoRef.current.play().catch(() => {}); }
+      if (camSource === 'native') {
+        await cam.start({ source: 'native', index: camIndex, width: 1280, height: 720, fps: 60, fourcc: 'MJPG' });
+      } else {
+        await cam.start({ source: 'browser', deviceId: deviceId || undefined });
+        if (videoRef.current) { videoRef.current.srcObject = cam.getStream(); await videoRef.current.play().catch(() => {}); }
+        setDevices(await cam.enumerate());
+      }
       setCamOn(true);
-      setDevices(await cam.enumerate());
-      const d = cam.dims(); addLog(`camera ${d.w}×${d.h}`);
+      const d = cam.dims(); addLog(`camera ${d.w}×${d.h}${camSource === 'native' ? ` (OpenCV #${camIndex})` : ''}`);
     } catch (e) {
-      const msg = camErrorMsg(e);
+      const msg = camSource === 'native'
+        ? `OpenCV couldn't open camera index ${camIndex}. Try another index (0–5), or the camera is in use.`
+        : camErrorMsg(e);
       setCamError(msg); setCamOn(false);
-      addLog(`✗ camera: ${(e as DOMException)?.name ?? 'error'}`);
+      addLog(`✗ camera: ${(e as Error)?.message ?? (e as DOMException)?.name ?? 'error'}`);
     } finally { setBusy(null); }
   };
 
@@ -178,7 +200,7 @@ export const CalibWizard: React.FC<Props> = (props) => {
   };
 
   // --- step gating ---
-  const cameraPresent = devices.length > 0 || camOn;
+  const cameraPresent = camSource === 'native' || devices.length > 0 || camOn;
   const gate: Record<Step, { ok: boolean; why: string }> = {
     prereq: { ok: addonOk === true && live && cameraPresent, why: 'Resolve the setup checklist first' },
     camera: { ok: camOn, why: 'Start the camera' },
@@ -246,14 +268,35 @@ export const CalibWizard: React.FC<Props> = (props) => {
 
         {(step === 'camera' || step === 'intrinsics') && (
           <>
-            <CameraView videoRef={videoRef} detect={detect} />
+            <CameraView videoRef={videoRef} baseRef={baseRef} native={camSource === 'native'} camOn={camOn} detect={detect} />
+            {/* Capture backend: browser getUserMedia (UVC webcams) or OpenCV DirectShow (cameras
+                getUserMedia can't drive — e.g. the PS3 Eye, addressed by index like vvvv). */}
+            <div className="flex items-center gap-1 text-[10px]">
+              <span className="text-fg-3">Capture via</span>
+              {(['browser', 'native'] as cam.CaptureSource[]).map((s) => (
+                <button key={s} onClick={() => { if (camOn) cam.stop(); setCamOn(false); setCamSource(s); }}
+                  className={`px-1.5 py-0.5 rounded border ${camSource === s ? 'bg-accent/20 border-accent text-fg-1' : 'bg-surface-1 border-line-1 text-fg-3 hover:bg-surface-2'}`}>
+                  {s === 'browser' ? 'Browser' : 'OpenCV (DShow)'}
+                </button>
+              ))}
+            </div>
             <div className="flex items-center gap-1.5">
               <Camera size={13} className="text-fg-3 shrink-0" />
-              <select value={deviceId} onChange={(e) => setDeviceId(e.target.value)}
-                className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-[10px] focus:border-accent focus:outline-none">
-                <option value="">Default camera</option>
-                {devices.map((d) => <option key={d.deviceId} value={d.deviceId}>{d.label}</option>)}
-              </select>
+              {camSource === 'native' ? (
+                <label className="flex-1 flex items-center gap-1.5 text-[10px] text-fg-3">
+                  Device index
+                  <input type="number" min={0} max={9} value={camIndex}
+                    onChange={(e) => setCamIndex(Math.max(0, Math.min(9, parseInt(e.target.value || '0', 10))))}
+                    className="w-14 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 num focus:border-accent focus:outline-none" />
+                  <span className="text-fg-4">try 0–5 until you see the Eye</span>
+                </label>
+              ) : (
+                <select value={deviceId} onChange={(e) => setDeviceId(e.target.value)}
+                  className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-[10px] focus:border-accent focus:outline-none">
+                  <option value="">Default camera</option>
+                  {devices.map((d) => <option key={d.deviceId} value={d.deviceId}>{d.label}</option>)}
+                </select>
+              )}
               <button onClick={startCam} className="px-2 py-1 rounded bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3">{camOn ? 'Restart' : 'Start'}</button>
             </div>
             {camError && <div className="flex items-start gap-1.5 text-danger text-[10px] leading-snug"><AlertTriangle size={12} className="shrink-0 mt-0.5" /> {camError}</div>}
@@ -392,13 +435,36 @@ const CoverageGrid: React.FC<{ coverage: { cx: number; cy: number; areaFrac: num
   );
 };
 
-// Camera preview with the live board-detect overlay (corners drawn over the video).
-const CameraView: React.FC<{ videoRef: React.RefObject<HTMLVideoElement | null>; detect: Detect }> = ({ videoRef, detect }) => {
+// Paint a grayscale frame into a canvas at its native resolution (CSS scales it to fit). Used for the
+// native (OpenCV/DShow) preview, which has no MediaStream to bind to a <video>.
+function paintGray(cv: HTMLCanvasElement | null, g: cam.GrayFrame): void {
+  if (!cv) return;
+  if (cv.width !== g.w || cv.height !== g.h) { cv.width = g.w; cv.height = g.h; }
+  const ctx = cv.getContext('2d');
+  if (!ctx) return;
+  const img = ctx.createImageData(g.w, g.h);
+  const d = img.data;
+  for (let i = 0, px = g.w * g.h; i < px; i++) {
+    const v = g.data[i];
+    d[i * 4] = v; d[i * 4 + 1] = v; d[i * 4 + 2] = v; d[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+// Camera preview with the live board-detect overlay. Browser source shows a <video>; native
+// (OpenCV/DShow) source has no MediaStream, so the wizard's grab loop paints grayscale frames into
+// the base <canvas> (baseRef). The overlay canvas draws the detected corners over either one.
+const CameraView: React.FC<{
+  videoRef: React.RefObject<HTMLVideoElement | null>;
+  baseRef: React.RefObject<HTMLCanvasElement | null>;
+  native: boolean; camOn: boolean; detect: Detect;
+}> = ({ videoRef, baseRef, native, camOn, detect }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   useEffect(() => {
-    const cv = canvasRef.current, v = videoRef.current;
-    if (!cv || !v) return;
-    const w = v.clientWidth, h = v.clientHeight;
+    const cv = canvasRef.current;
+    const ref = native ? baseRef.current : videoRef.current;
+    if (!cv || !ref) return;
+    const w = ref.clientWidth, h = ref.clientHeight;
     if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
     const ctx = cv.getContext('2d');
     if (!ctx) return;
@@ -412,12 +478,13 @@ const CameraView: React.FC<{ videoRef: React.RefObject<HTMLVideoElement | null>;
         ctx.fill();
       }
     }
-  }, [detect, videoRef]);
+  }, [detect, native, videoRef, baseRef]);
   return (
     <div className="relative aspect-video bg-black rounded border border-line-1 overflow-hidden">
-      <video ref={videoRef} muted playsInline className="w-full h-full object-contain" />
+      <video ref={videoRef} muted playsInline className={`w-full h-full object-contain ${native ? 'hidden' : ''}`} />
+      <canvas ref={baseRef} className={`w-full h-full object-contain ${native ? '' : 'hidden'}`} />
       <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none" />
-      {!videoRef.current?.srcObject && <div className="absolute inset-0 grid place-items-center text-fg-3 text-[10px]"><Box size={14} className="mr-1" /> start the camera</div>}
+      {!camOn && <div className="absolute inset-0 grid place-items-center text-fg-3 text-[10px]"><Box size={14} className="mr-1" /> start the camera</div>}
     </div>
   );
 };

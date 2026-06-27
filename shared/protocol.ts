@@ -72,6 +72,12 @@ export const IPC = {
   CALIB_CALIBRATE_PROJECTOR: 'calib:calibrate-projector',
   /** Renderer → main (invoke): solvePnP (intrinsics fixed) → projector pose in venue frame. */
   CALIB_SOLVE_PNP: 'calib:solve-pnp',
+  /** Renderer → main (invoke): open a calibration camera via OpenCV's DirectShow backend (by index). */
+  CALIB_CAMERA_OPEN: 'calib:camera-open',
+  /** Renderer → main (invoke): grab one grayscale frame from the open OpenCV camera. */
+  CALIB_CAMERA_GRAB: 'calib:camera-grab',
+  /** Renderer → main: release the open OpenCV camera. */
+  CALIB_CAMERA_CLOSE: 'calib:camera-close',
   /** Main → renderer: a native-menu command (save/open/undo/about/…). */
   MENU_ACTION: 'menu:action',
   /** Renderer → main (invoke): app name + version (for About). */
@@ -230,6 +236,15 @@ export interface PnpResult {
   rotation: number[];    // 9, row-major 3×3 (world→cam)
   translation: number[]; // 3
   rms: number;           // reprojection RMS (px)
+}
+
+// One grayscale frame grabbed natively via OpenCV's DirectShow camera backend (CAP_DSHOW). Used for
+// cameras Chromium's getUserMedia can't drive (e.g. the PS3 Eye's DirectShow source filter). `data`
+// is a single-channel w*h luminance buffer, ready for detectBoard / mapCorners.
+export interface CameraFrame {
+  w: number;
+  h: number;
+  data: ArrayBuffer; // grayscale, w*h bytes
 }
 
 // NDI send — create/destroy a named NDI source for one projector output.
@@ -591,6 +606,12 @@ export interface ArtluxApi {
   calibMapCorners(captures: ArrayBuffer, captureCount: number, camW: number, camH: number, projW: number, projH: number, corners: number[], white: ArrayBuffer, black: ArrayBuffer): Promise<CornerProjMap | null>;
   calibCalibrateProjector(objectPoints: number[], imagePoints: number[], pointCounts: number[], projW: number, projH: number): Promise<ProjectorIntrinsicsResult | null>;
   calibSolvePnp(objectPts: number[], imagePts: number[], k: number[], dist: number[]): Promise<PnpResult | null>;
+  /** Open a calibration camera via OpenCV's DirectShow backend (by index) → ok? (for cameras getUserMedia can't drive). */
+  calibCameraOpen(index: number, width: number, height: number, fps: number, fourcc: string): Promise<boolean>;
+  /** Grab one grayscale frame from the open OpenCV camera (null until a frame is ready / no camera open). */
+  calibCameraGrab(): Promise<CameraFrame | null>;
+  /** Release the open OpenCV camera. */
+  calibCameraClose(): void;
   // App chrome
   onMenuAction(cb: (action: string) => void): () => void;
   getAppInfo(): Promise<AppInfo>;

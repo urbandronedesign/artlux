@@ -19,7 +19,9 @@ use opencv::core::{
     Mat, Point2f, Point3f, Size, TermCriteria, TermCriteria_Type, Vector,
 };
 use opencv::prelude::*;
+use opencv::videoio::{self, VideoCapture, VideoWriter};
 use opencv::{calib3d, imgproc};
+use std::cell::RefCell;
 
 #[napi(object)]
 pub struct BoardDetectResult {
@@ -45,6 +47,13 @@ pub struct PnpResult {
     pub rotation: Vec<f64>,    // 9, row-major 3×3
     pub translation: Vec<f64>, // 3
     pub rms: f64,
+}
+
+#[napi(object)]
+pub struct CameraFrame {
+    pub w: u32,
+    pub h: u32,
+    pub data: Buffer, // grayscale, w*h bytes
 }
 
 // ---- helpers ---------------------------------------------------------------
@@ -313,4 +322,87 @@ pub fn solve_pnp(object_pts: Vec<f64>, image_pts: Vec<f64>, k: Vec<f64>, dist: V
         Ok(PnpResult { rotation: r_vec, translation: t_vec, rms })
     })();
     res.map_err(|e| napi::Error::from_reason(format!("solve_pnp: {e}")))
+}
+
+// ---- 5. native camera capture (OpenCV videoio, DirectShow) -----------------
+//
+// Some cameras — notably the PS3 Eye via its user-mode DirectShow source filter — deliver frames to
+// OpenCV's videoio (CAP_DSHOW) but NOT to Chromium's getUserMedia (its DirectShow capture is stricter
+// and fails to start the filter → NotReadableError). For those, the wizard captures here instead of in
+// the renderer. OpenCV's DSHOW backend addresses devices by INDEX only (no device names), so the UI
+// exposes an index picker like vvvv's "Device Index". The capture handle lives in a thread-local: all
+// synchronous napi calls run on the JS main thread, so it persists across open/grab/close without any
+// Send/Sync bound on VideoCapture.
+thread_local! {
+    static CAP: RefCell<Option<VideoCapture>> = const { RefCell::new(None) };
+}
+
+// Open camera `index` via the DirectShow backend, requesting (width, height, fps, fourcc) — e.g.
+// "MJPG" at 1280×720/80 for the PS3 Eye (its working vvvv config). Width/height/fps/fourcc are hints;
+// the driver picks the closest mode. Returns false if the device couldn't be opened.
+#[napi]
+pub fn camera_open(index: u32, width: u32, height: u32, fps: f64, fourcc: String) -> napi::Result<bool> {
+    let res = (|| -> opencv::Result<bool> {
+        let mut cap = VideoCapture::new(index as i32, videoio::CAP_DSHOW)?;
+        if !cap.is_opened()? {
+            return Ok(false);
+        }
+        let cc: Vec<char> = fourcc.chars().collect();
+        if cc.len() == 4 {
+            let f = VideoWriter::fourcc(cc[0], cc[1], cc[2], cc[3])?;
+            cap.set(videoio::CAP_PROP_FOURCC, f as f64)?;
+        }
+        if width > 0 { cap.set(videoio::CAP_PROP_FRAME_WIDTH, width as f64)?; }
+        if height > 0 { cap.set(videoio::CAP_PROP_FRAME_HEIGHT, height as f64)?; }
+        if fps > 0.0 { cap.set(videoio::CAP_PROP_FPS, fps)?; }
+        CAP.with(|c| *c.borrow_mut() = Some(cap));
+        Ok(true)
+    })();
+    res.map_err(|e| napi::Error::from_reason(format!("camera_open: {e}")))
+}
+
+// Grab one frame as a single-channel grayscale buffer at the negotiated resolution. Returns null until
+// a frame is available (or if no camera is open). OpenCV decodes to BGR; we reduce to BT.601-ish luma
+// by hand (same as gray_mat) so the result drops straight into detect_board / map_corners_to_projector.
+#[napi]
+pub fn camera_grab_gray() -> napi::Result<Option<CameraFrame>> {
+    let res = CAP.with(|c| -> opencv::Result<Option<CameraFrame>> {
+        let mut guard = c.borrow_mut();
+        let cap = match guard.as_mut() {
+            Some(c) => c,
+            None => return Ok(None),
+        };
+        let mut frame = Mat::default();
+        if !cap.read(&mut frame)? || frame.empty() {
+            return Ok(None);
+        }
+        let w = frame.cols();
+        let h = frame.rows();
+        let ch = frame.channels();
+        let frame = if frame.is_continuous() { frame } else { frame.try_clone()? };
+        let bytes = frame.data_bytes()?;
+        let px = (w * h) as usize;
+        let mut gray = Vec::with_capacity(px);
+        match ch {
+            1 => gray.extend_from_slice(&bytes[..px.min(bytes.len())]),
+            3 | 4 => {
+                let stride = ch as usize;
+                for i in 0..px {
+                    let b = bytes[i * stride] as u32;
+                    let g = bytes[i * stride + 1] as u32;
+                    let r = bytes[i * stride + 2] as u32;
+                    gray.push(((r * 77 + g * 150 + b * 29) >> 8) as u8); // BGR → luma
+                }
+            }
+            _ => return Ok(None),
+        }
+        Ok(Some(CameraFrame { w: w as u32, h: h as u32, data: gray.into() }))
+    });
+    res.map_err(|e| napi::Error::from_reason(format!("camera_grab_gray: {e}")))
+}
+
+// Release the open camera (drops the VideoCapture → frees the device).
+#[napi]
+pub fn camera_close() {
+    CAP.with(|c| *c.borrow_mut() = None);
 }

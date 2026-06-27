@@ -35,9 +35,10 @@ $env:PATH = "$LibClang;$binDir;$env:PATH"
 
 # opencv-rust binds every module it finds headers for (OPENCV_MODULE_WHITELIST is not honored), and
 # several modules either crash bindgen (gapi) or emit broken bindings for this OpenCV build
-# (stitching, videoio). lib.rs only needs core + imgproc + calib3d (+ features2d, a calib3d dep), so
-# move every other module's headers aside before generating. Reversible (.disabled suffix).
-$disable = @('dnn','gapi','highgui','imgcodecs','ml','objdetect','photo','stitching','video','videoio')
+# (stitching). lib.rs needs core + imgproc + calib3d (+ features2d, a calib3d dep) and now videoio
+# (DirectShow camera capture for the PS3 Eye, which Chromium's getUserMedia can't start), so move
+# every OTHER module's headers aside before generating. Reversible (.disabled suffix).
+$disable = @('dnn','gapi','highgui','imgcodecs','ml','objdetect','photo','stitching','video')
 $disabledAny = $false
 foreach ($mod in $disable) {
   $hpp = Join-Path $inc "opencv2\$mod.hpp"

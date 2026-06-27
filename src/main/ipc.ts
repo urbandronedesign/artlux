@@ -196,6 +196,10 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
         calib.calibrateProjector(objectPoints, imagePoints, pointCounts, projW, projH));
     ipcMain.handle(IPC.CALIB_SOLVE_PNP, (_e, objectPts: number[], imagePts: number[], k: number[], dist: number[]) =>
         calib.solvePnp(objectPts, imagePts, k, dist));
+    ipcMain.handle(IPC.CALIB_CAMERA_OPEN, (_e, index: number, width: number, height: number, fps: number, fourcc: string) =>
+        calib.cameraOpen(index, width, height, fps, fourcc));
+    ipcMain.handle(IPC.CALIB_CAMERA_GRAB, () => calib.cameraGrab());
+    ipcMain.on(IPC.CALIB_CAMERA_CLOSE, () => calib.cameraClose());
 
     // Poll native engine throughput stats ~1 Hz and push to the renderer.
     // The same numbers feed the Prometheus gauges (see ./metrics) — no extra polling.
