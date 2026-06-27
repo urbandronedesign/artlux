@@ -17,12 +17,24 @@ export async function enumerate(): Promise<CameraDevice[]> {
     .map((d, i) => ({ deviceId: d.deviceId, label: d.label || `Camera ${i + 1}` }));
 }
 
-// Start (or restart) the calibration camera. Requests the highest practical resolution for accuracy.
+// Start (or restart) the calibration camera. Requests 720p (plenty for board detection, lighter on
+// the structured-light capture IPC) with an `ideal` hint, falling back to unconstrained video if a
+// webcam rejects the hints — so we only fail on a real permission/device problem. getUserMedia errors
+// propagate (NotAllowedError = OS/Windows privacy block, NotReadableError = camera in use,
+// NotFoundError = none) for the caller to map to a clear message.
 export async function start(deviceId?: string): Promise<void> {
   stop();
-  const video_: MediaTrackConstraints = { width: { ideal: 1920 }, height: { ideal: 1080 } };
-  if (deviceId) video_.deviceId = { exact: deviceId };
-  stream = await navigator.mediaDevices.getUserMedia({ video: video_, audio: false });
+  const base: MediaTrackConstraints = { width: { ideal: 1280 }, height: { ideal: 720 } };
+  if (deviceId) base.deviceId = { exact: deviceId };
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: base, audio: false });
+  } catch (e) {
+    if ((e as DOMException)?.name === 'OverconstrainedError') {
+      stream = await navigator.mediaDevices.getUserMedia({ video: deviceId ? { deviceId: { exact: deviceId } } : true, audio: false });
+    } else {
+      throw e;
+    }
+  }
   const v = document.createElement('video');
   v.srcObject = stream; v.muted = true; v.playsInline = true;
   await v.play();

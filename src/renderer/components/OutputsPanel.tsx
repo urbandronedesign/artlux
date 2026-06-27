@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { X, MonitorUp, RefreshCw, Frame, Undo2, Settings2, Spline, Gauge, Radio, Aperture } from 'lucide-react';
 import { Surface } from '../types';
-import { ProjectorOutput, DisplayInfo, SoftEdge, defaultSoftEdge } from '../../../shared/protocol';
+import { ProjectorOutput, DisplayInfo, SoftEdge, defaultSoftEdge, WINDOWED_DISPLAY } from '../../../shared/protocol';
 
 interface Props {
   open: boolean;
@@ -82,7 +82,8 @@ export const OutputsPanel: React.FC<Props> = ({
         <div className="flex-1 min-h-0 overflow-auto p-3 space-y-3">
           <div className="text-[11px] text-fg-3">
             {displays.length} display{displays.length === 1 ? '' : 's'} detected.
-            Enable a surface and pick a display to send it fullscreen to a projector. Click
+            Enable a surface and pick a display (fullscreen on a projector) — or <span className="text-fg-2">Windowed</span> to
+            output to a movable window on this screen (handy for testing on one monitor). Click
             <span className="text-fg-2"> Align</span> to drag the four corners onto the real
             projection surface (on the projector: arrows nudge, <b>R</b> reset, <b>Esc</b> done).
           </div>
@@ -96,7 +97,7 @@ export const OutputsPanel: React.FC<Props> = ({
               const o = outFor(s.id);
               const enabled = !!o?.enabled;
               const displayId = o?.displayId ?? null;
-              const live = enabled && displayId != null && displays.some((d) => d.id === displayId);
+              const live = enabled && displayId != null && (displayId === WINDOWED_DISPLAY || displays.some((d) => d.id === displayId));
               const soft = o?.softEdge ?? defaultSoftEdge();
               const isOpen = expanded === s.id && live;
               return (
@@ -118,6 +119,7 @@ export const OutputsPanel: React.FC<Props> = ({
                     onChange={(e) => onSetDisplay(s.id, e.target.value ? Number(e.target.value) : null)}
                   >
                     <option value="">— pick display —</option>
+                    <option value={WINDOWED_DISPLAY}>Windowed (this screen)</option>
                     {displays.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
                   </select>
                   <span className={`text-[10px] truncate ${live ? 'text-ok' : 'text-fg-3'}`}>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, type AssetEntry, type AssetType } from './types';
-import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge } from '../../shared/protocol';
+import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge, WINDOWED_DISPLAY } from '../../shared/protocol';
 import type { ProjectorCalibration } from '../../shared/protocol';
 import { CalibWizard } from './components/CalibWizard';
 import * as calibController from './calib/calibController';
@@ -44,7 +44,7 @@ import * as trackingStore from './services/trackingStore';
 import { clusterAndTrack, resetPeopleTracking } from './services/blobClustering';
 import * as trackingPlayback from './services/trackingPlayback';
 import * as trackingDrawable from './services/trackingDrawable';
-import { Activity, SlidersHorizontal, Film, Clapperboard } from 'lucide-react';
+import { Activity, SlidersHorizontal, Film, Clapperboard, Columns2 } from 'lucide-react';
 import { useHistory } from './hooks/useHistory';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -1052,7 +1052,7 @@ const App: React.FC = () => {
       setProjectorOutputs(prev => {
           let changed = false;
           const next = prev.map(o => {
-              if (o.displayId == null) return o;
+              if (o.displayId == null || o.displayId === WINDOWED_DISPLAY) return o; // null / windowed: nothing to re-link
               if (displays.some(d => d.id === o.displayId)) return o; // still present
               const byLabel = o.displayLabel ? displays.find(d => d.label === o.displayLabel) : undefined;
               changed = true;
@@ -1222,7 +1222,7 @@ const App: React.FC = () => {
       for (const o of projectorOutputs) {
           if (o.enabled && o.displayId != null
               && surfaces.some(s => s.id === o.surfaceId)
-              && displays.some(d => d.id === o.displayId)) {
+              && (o.displayId === WINDOWED_DISPLAY || displays.some(d => d.id === o.displayId))) {
               desired.set(o.surfaceId, o.displayId);
           }
       }
@@ -1447,15 +1447,18 @@ const App: React.FC = () => {
                         broadcast={settings.broadcast}
                         protocol={settings.protocol}
                         onRecordHistory={recordHistory}
+                        extraControls={
+                            <button
+                                onClick={() => setSplitView(v => !v)}
+                                title={splitView ? 'Hide 3D scene' : 'Show 3D scene (split view)'}
+                                aria-label="Toggle 3D split view"
+                                aria-pressed={splitView}
+                                className={`p-1.5 rounded-[var(--r-sm)] border transition-colors ${splitView ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2/80 backdrop-blur-sm border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
+                            >
+                                <Columns2 size={14} />
+                            </button>
+                        }
                     />
-                    {/* Split toggle */}
-                    <button
-                        onClick={() => setSplitView(v => !v)}
-                        title={splitView ? 'Hide 3D scene' : 'Show 3D scene (split)'}
-                        className="absolute top-2 right-2 z-10 px-2 py-1 rounded-[var(--r-sm)] text-[10px] bg-surface-2/80 backdrop-blur-sm border border-line-1 text-fg-2 hover:text-fg-1"
-                    >
-                        {splitView ? '3D ◧' : '3D ◨'}
-                    </button>
                 </div>
                 {/* Right: embedded 3D scene (or camera preview during calibration) */}
                 {splitView && (
@@ -1621,7 +1624,7 @@ const App: React.FC = () => {
       />
       {calibratingOutputId && (() => {
         const co = projectorOutputs.find(o => o.surfaceId === calibratingOutputId);
-        const calibLive = !!co?.enabled && co.displayId != null && displays.some(d => d.id === co.displayId);
+        const calibLive = !!co?.enabled && co.displayId != null && (co.displayId === WINDOWED_DISPLAY || displays.some(d => d.id === co.displayId));
         const hasModel = (scene3D.models ?? []).some(m => m.kind !== 'plane' && m.visible);
         return (
           <CalibWizard

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="274mm" height="229mm" viewBox="0 0 274 229">
+  <rect x="0" y="0" width="274" height="229" fill="#fff"/>
+  <rect x="12" y="12" width="25" height="25" fill="#000"/>
+  <rect x="62" y="12" width="25" height="25" fill="#000"/>
+  <rect x="112" y="12" width="25" height="25" fill="#000"/>
+  <rect x="162" y="12" width="25" height="25" fill="#000"/>
+  <rect x="212" y="12" width="25" height="25" fill="#000"/>
+  <rect x="37" y="37" width="25" height="25" fill="#000"/>
+  <rect x="87" y="37" width="25" height="25" fill="#000"/>
+  <rect x="137" y="37" width="25" height="25" fill="#000"/>
+  <rect x="187" y="37" width="25" height="25" fill="#000"/>
+  <rect x="237" y="37" width="25" height="25" fill="#000"/>
+  <rect x="12" y="62" width="25" height="25" fill="#000"/>
+  <rect x="62" y="62" width="25" height="25" fill="#000"/>
+  <rect x="112" y="62" width="25" height="25" fill="#000"/>
+  <rect x="162" y="62" width="25" height="25" fill="#000"/>
+  <rect x="212" y="62" width="25" height="25" fill="#000"/>
+  <rect x="37" y="87" width="25" height="25" fill="#000"/>
+  <rect x="87" y="87" width="25" height="25" fill="#000"/>
+  <rect x="137" y="87" width="25" height="25" fill="#000"/>
+  <rect x="187" y="87" width="25" height="25" fill="#000"/>
+  <rect x="237" y="87" width="25" height="25" fill="#000"/>
+  <rect x="12" y="112" width="25" height="25" fill="#000"/>
+  <rect x="62" y="112" width="25" height="25" fill="#000"/>
+  <rect x="112" y="112" width="25" height="25" fill="#000"/>
+  <rect x="162" y="112" width="25" height="25" fill="#000"/>
+  <rect x="212" y="112" width="25" height="25" fill="#000"/>
+  <rect x="37" y="137" width="25" height="25" fill="#000"/>
+  <rect x="87" y="137" width="25" height="25" fill="#000"/>
+  <rect x="137" y="137" width="25" height="25" fill="#000"/>
+  <rect x="187" y="137" width="25" height="25" fill="#000"/>
+  <rect x="237" y="137" width="25" height="25" fill="#000"/>
+  <rect x="12" y="162" width="25" height="25" fill="#000"/>
+  <rect x="62" y="162" width="25" height="25" fill="#000"/>
+  <rect x="112" y="162" width="25" height="25" fill="#000"/>
+  <rect x="162" y="162" width="25" height="25" fill="#000"/>
+  <rect x="212" y="162" width="25" height="25" fill="#000"/>
+  <text x="12" y="196" font-family="Helvetica, Arial, sans-serif" font-size="4.2" fill="#000">ArtLux calibration checkerboard — 9 × 6 inner corners · 25 mm squares</text>
+  <text x="12" y="201.5" font-family="Helvetica, Arial, sans-serif" font-size="3.2" fill="#444">Print at 100% / Actual size (A3, or A4 with Fit-to-page). Then MEASURE a square and enter that size in the wizard.</text>
+  <line x1="12" y1="205" x2="112" y2="205" stroke="#000" stroke-width="0.3"/>
+  <line x1="12" y1="205" x2="12" y2="209" stroke="#000" stroke-width="0.3"/>
+  <line x1="22" y1="205" x2="22" y2="207.5" stroke="#000" stroke-width="0.3"/>
+  <line x1="32" y1="205" x2="32" y2="207.5" stroke="#000" stroke-width="0.3"/>
+  <line x1="42" y1="205" x2="42" y2="207.5" stroke="#000" stroke-width="0.3"/>
+  <line x1="52" y1="205" x2="52" y2="207.5" stroke="#000" stroke-width="0.3"/>
+  <line x1="62" y1="205" x2="62" y2="209" stroke="#000" stroke-width="0.3"/>
+  <line x1="72" y1="205" x2="72" y2="207.5" stroke="#000" stroke-width="0.3"/>
+  <line x1="82" y1="205" x2="82" y2="207.5" stroke="#000" stroke-width="0.3"/>
+  <line x1="92" y1="205" x2="92" y2="207.5" stroke="#000" stroke-width="0.3"/>
+  <line x1="102" y1="205" x2="102" y2="207.5" stroke="#000" stroke-width="0.3"/>
+  <line x1="112" y1="205" x2="112" y2="209" stroke="#000" stroke-width="0.3"/>
+  <text x="115" y="208" font-family="Helvetica, Arial, sans-serif" font-size="3.2" fill="#000">100 mm reference</text>
+</svg>

@@ -323,6 +323,10 @@ export interface DisplayInfo {
   internal: boolean;
 }
 
+// Sentinel displayId for a WINDOWED output: a normal movable/resizable window on the primary screen
+// instead of fullscreen on a physical display — for working/testing/calibrating on a single monitor.
+export const WINDOWED_DISPLAY = -1;
+
 // 4-corner homography (corner-pin). Each corner is a normalized [x, y] in the
 // projector's display space (0..1, origin top-left). Identity = full-screen quad.
 export interface CornerPin {

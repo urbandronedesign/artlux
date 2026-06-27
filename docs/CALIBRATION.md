@@ -24,12 +24,18 @@ It is a **hybrid** of two independent solves:
 
 ## Requirements
 
-- A **printed checkerboard** (rigid, matte). Note its *inner-corner* count (a 10×7-square board = 9×6)
-  and square size in mm.
+- A **printed checkerboard** — use the ready-made [docs/checkerboard-9x6-25mm.svg](checkerboard-9x6-25mm.svg)
+  (**9 × 6 inner corners, 25 mm squares** — matches the wizard default). Open it in a browser and print
+  at **100% / Actual size** (A3, or A4 with *Fit to page*), onto rigid matte stock. After printing,
+  **measure a square** with a ruler and enter that value in the wizard's *Square mm* field — the sheet
+  has a 100 mm reference ruler so any print scaling is harmless. Regenerate it with
+  `node scripts/gen-checkerboard.cjs`.
 - A **camera** (any `getUserMedia` webcam/USB camera) positioned to see both the board and the
-  projection.
+  projection — see [Camera notes](#camera-notes).
 - A **darkened room** (Gray-code decode needs the projection to dominate).
 - A **venue model** (GLB) loaded in the 3D scene — needed for the pose step only.
+- A **projector output**, either fullscreen on a display or **windowed** for single-monitor testing —
+  see [Output on a single screen](#output-on-a-single-screen-windowed).
 - The native calibration addon (`native/calib/calib.node`) present. It ships as a committed prebuilt;
   see below to (re)build it.
 
@@ -76,6 +82,30 @@ wizard is a left rail; the main window shows the **2D stage (left) + 3D scene (r
 
 The result is cached on the output's `calibration` and persisted with the project. The **Render from
 projector** toggle (Outputs → output settings) turns the calibrated 3D render on/off afterwards.
+
+---
+
+## Output on a single screen (windowed)
+
+To develop or test on **one monitor** (no second display / real projector), set the output's display to
+**"Windowed (this screen)"** in the Outputs panel. Instead of a fullscreen output on a physical
+display, you get a **movable, resizable window** on the main screen showing the projector output.
+Everything works on it — corner-pin align, NDI send, and the **full calibration wizard +
+render-from-projector** — so you can exercise the whole flow on a laptop. The projector "raster" is
+just the window's pixel size. (Internally this is the `WINDOWED_DISPLAY` sentinel display id; switching
+an output between windowed ↔ a real display recreates the window.)
+
+## Camera notes
+
+- The camera only needs to be a normal `getUserMedia` device. **Windows camera privacy** must allow it
+  (Settings → Privacy & security → Camera → *Camera access* + *Let desktop apps access your camera*);
+  the app itself grants the renderer's media permission.
+- If you have **multiple cameras**, the wizard lists them by name and **auto-selects a real one,
+  skipping IR webcams and virtual cameras** (e.g. an *NDI Webcam* shows black with no source, an *IR*
+  cam shows a dark infrared image). Pick the device explicitly in the wizard if needed — a USB overhead
+  document camera (e.g. IPEVO) works very well for the checkerboard.
+- If a camera fails to start, the wizard shows the exact reason: *blocked* (privacy), *busy* (another
+  app is using it — close Teams/Zoom/OBS), or *not found*.
 
 ---
 

@@ -29,6 +29,8 @@ interface StageProps {
   broadcast: boolean;
   protocol: 'artnet' | 'sacn';
   onRecordHistory: () => void;
+  /** Extra buttons rendered at the end of the stage's top-right toolbar (e.g. the 3D split toggle). */
+  extraControls?: React.ReactNode;
 }
 
 // Output channel source-index order per ColorOrder ([R=0,G=1,B=2]).
@@ -60,7 +62,8 @@ export const Stage: React.FC<StageProps> = ({
   targetIp,
   broadcast,
   protocol,
-  onRecordHistory
+  onRecordHistory,
+  extraControls,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -946,6 +949,7 @@ export const Stage: React.FC<StageProps> = ({
             >
                 <Magnet size={14} />
             </button>
+            {extraControls && <><div className="w-px h-5 bg-line-2 mx-1"></div>{extraControls}</>}
         </div>
     </div>
   );

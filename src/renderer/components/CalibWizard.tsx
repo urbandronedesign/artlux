@@ -39,6 +39,17 @@ const bandColor = { ok: 'text-ok', warn: 'text-warn', danger: 'text-danger' } as
 
 const numCls = 'w-14 bg-surface-0 border border-line-1 rounded px-1 py-0.5 text-right text-fg-1 num text-[11px] focus:border-accent focus:outline-none';
 
+// Map a getUserMedia failure to actionable text.
+const camErrorMsg = (e: unknown): string => {
+  switch ((e as DOMException)?.name) {
+    case 'NotAllowedError': return 'Camera blocked. Windows → Settings → Privacy & security → Camera: turn on “Camera access” and “Let desktop apps access your camera”, then restart the app.';
+    case 'NotReadableError': return 'Camera is busy — another app (Teams/Zoom/OBS/Camera) is using it. Close it and retry.';
+    case 'NotFoundError': return 'No camera found. Plug one in and click Restart.';
+    case 'OverconstrainedError': return 'This camera doesn’t support the requested mode — pick a different device.';
+    default: return (e as Error)?.message || String(e);
+  }
+};
+
 type Detect = { found: true; corners: number[]; w: number; h: number } | { found: false };
 
 // Professional guided calibration wizard (replaces the tabbed CalibPanel). A left rail of steps that
@@ -61,6 +72,7 @@ export const CalibWizard: React.FC<Props> = (props) => {
   const [log, setLog] = useState<string[]>([]);
   const [detect, setDetect] = useState<Detect>({ found: false });
   const [testProj, setTestProj] = useState(false);
+  const [camError, setCamError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const cal = output?.calibration;
@@ -76,10 +88,24 @@ export const CalibWizard: React.FC<Props> = (props) => {
     ctl.begin(surfaceId, (m) => sendToProjector(surfaceId, m));
     onSetSplit(true);
     window.artlux?.calibAvailable?.().then((v) => setAddonOk(!!v)).catch(() => setAddonOk(false));
-    cam.enumerate().then(setDevices).catch(() => {});
+    primeDevices();
     return () => { ctl.end(); cam.stop(); onSetCalibPickMode(false); onPoseModeChange(surfaceId, false); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [surfaceId]);
+
+  // Populate real camera labels (a one-shot getUserMedia unlocks them; permission is already granted
+  // so there's no prompt), then auto-pick a usable physical camera — skipping IR + virtual cams
+  // (e.g. an NDI Webcam shows black with no source) which would otherwise be the silent default.
+  const primeDevices = async () => {
+    try { (await navigator.mediaDevices.getUserMedia({ video: true })).getTracks().forEach(t => t.stop()); } catch { /* Start surfaces the real error */ }
+    let ds: cam.CameraDevice[] = [];
+    try { ds = await cam.enumerate(); setDevices(ds); } catch { /* ignore */ }
+    setDeviceId(prev => {
+      if (prev) return prev;
+      const pref = ds.find(d => !/\b(ir|infrared|ndi|virtual|obs)\b/i.test(d.label)) ?? ds[0];
+      return pref?.deviceId ?? '';
+    });
+  };
 
   // Drive projector + scene modes per step.
   useEffect(() => {
@@ -93,8 +119,9 @@ export const CalibWizard: React.FC<Props> = (props) => {
       onSetCalibPickMode(false); onPoseModeChange(surfaceId, false);
       if (testProj && cal) { send({ t: 'scene', scene3D }); send({ t: 'calib', mode: 'render', calibration: cal }); }
       else send({ t: 'calib', mode: 'idle' });
-    } else {
-      send({ t: 'calib', mode: 'idle' }); onSetCalibPickMode(false);
+    } else { // prereq — show a white field so the operator can confirm the output window is alive + targeted
+      send({ t: 'calib', mode: 'pattern' }); showWhite();
+      onSetCalibPickMode(false); onPoseModeChange(surfaceId, false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, testProj]);
@@ -116,14 +143,17 @@ export const CalibWizard: React.FC<Props> = (props) => {
 
   const startCam = async () => {
     try {
-      setBusy('Starting camera…');
+      setBusy('Starting camera…'); setCamError(null);
       await cam.start(deviceId || undefined);
       if (videoRef.current) { videoRef.current.srcObject = cam.getStream(); await videoRef.current.play().catch(() => {}); }
       setCamOn(true);
       setDevices(await cam.enumerate());
       const d = cam.dims(); addLog(`camera ${d.w}×${d.h}`);
-    } catch (e) { addLog(`✗ camera: ${(e as Error).message}`); }
-    finally { setBusy(null); }
+    } catch (e) {
+      const msg = camErrorMsg(e);
+      setCamError(msg); setCamOn(false);
+      addLog(`✗ camera: ${(e as DOMException)?.name ?? 'error'}`);
+    } finally { setBusy(null); }
   };
 
   const capture = async () => {
@@ -226,6 +256,7 @@ export const CalibWizard: React.FC<Props> = (props) => {
               </select>
               <button onClick={startCam} className="px-2 py-1 rounded bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3">{camOn ? 'Restart' : 'Start'}</button>
             </div>
+            {camError && <div className="flex items-start gap-1.5 text-danger text-[10px] leading-snug"><AlertTriangle size={12} className="shrink-0 mt-0.5" /> {camError}</div>}
             <div className={`text-[10px] flex items-center gap-1 ${detect.found ? 'text-ok' : 'text-fg-3'}`}>
               {detect.found ? <><Check size={11} /> checkerboard detected</> : 'point the camera at the board + projection; board not detected yet'}
             </div>

@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, screen, MessageChannelMain } from 'electron';
 import type { Display } from 'electron';
 import { join } from 'node:path';
-import { IPC, type DisplayInfo } from '../../shared/protocol';
+import { IPC, WINDOWED_DISPLAY, type DisplayInfo } from '../../shared/protocol';
 
 // Per-Surface fullscreen projector outputs. Each enabled output gets its own frameless,
 // fullscreen BrowserWindow positioned on a chosen physical display; the surface's content
@@ -53,23 +53,16 @@ function bridge(getMain: () => BrowserWindow | null, projWin: BrowserWindow, sur
   projWin.webContents.postMessage(IPC.PROJECTOR_PORT, { surfaceId }, [port2]);
 }
 
-// Open (or move) a surface's projector window on the given display.
-function openProjector(getMain: () => BrowserWindow | null, surfaceId: string, displayId: number): void {
-  const display = findDisplay(displayId) ?? screen.getPrimaryDisplay();
-
-  const existing = windows.get(surfaceId);
-  if (existing && !existing.win.isDestroyed()) {
-    existing.displayId = display.id;
-    placeOnDisplay(existing.win, display);
-    return;
-  }
-
-  const b = display.bounds;
+// Create the projector BrowserWindow: a normal movable/resizable window (windowed mode, for working
+// on one screen) or a frameless fullscreen output. Wires the bridge + loads the projector renderer.
+function createProjectorWindow(getMain: () => BrowserWindow | null, surfaceId: string, windowed: boolean): BrowserWindow {
+  const primary = screen.getPrimaryDisplay();
+  const geom = windowed
+    ? { x: primary.bounds.x + 80, y: primary.bounds.y + 80, width: 1280, height: 720, frame: true, skipTaskbar: false }
+    : { x: primary.bounds.x, y: primary.bounds.y, width: primary.bounds.width, height: primary.bounds.height, frame: false, skipTaskbar: true };
   const win = new BrowserWindow({
-    x: b.x, y: b.y, width: b.width, height: b.height,
+    ...geom,
     backgroundColor: '#000000',
-    frame: false,
-    skipTaskbar: true,
     show: false,
     title: 'ArtLux — Output',
     webPreferences: {
@@ -81,9 +74,8 @@ function openProjector(getMain: () => BrowserWindow | null, surfaceId: string, d
       backgroundThrottling: false,
     },
   });
-  windows.set(surfaceId, { win, displayId: display.id });
+  if (windowed) win.setMenuBarVisibility(false);
   win.on('closed', () => { if (windows.get(surfaceId)?.win === win) windows.delete(surfaceId); });
-  win.once('ready-to-show', () => placeOnDisplay(win, findDisplay(displayId) ?? display));
   // Bridge once the projector renderer is loaded (the port is buffered by its preload
   // until the renderer signals readiness, so racing the handshake is safe).
   win.webContents.once('did-finish-load', () => bridge(getMain, win, surfaceId));
@@ -92,6 +84,34 @@ function openProjector(getMain: () => BrowserWindow | null, surfaceId: string, d
   const query = { surfaceId };
   if (devUrl) win.loadURL(`${devUrl}/projector.html?${new URLSearchParams(query).toString()}`);
   else win.loadFile(join(__dirname, '../renderer/projector.html'), { query });
+  return win;
+}
+
+// Open (or move) a surface's projector window. displayId === WINDOWED_DISPLAY → a movable window on
+// the primary screen; otherwise a fullscreen output on that physical display.
+function openProjector(getMain: () => BrowserWindow | null, surfaceId: string, displayId: number): void {
+  const windowed = displayId === WINDOWED_DISPLAY;
+
+  const existing = windows.get(surfaceId);
+  if (existing && !existing.win.isDestroyed()) {
+    const wasWindowed = existing.displayId === WINDOWED_DISPLAY;
+    if (wasWindowed === windowed) { // same kind → just reposition (fullscreen) / leave (windowed)
+      existing.displayId = displayId;
+      if (!windowed) placeOnDisplay(existing.win, findDisplay(displayId) ?? screen.getPrimaryDisplay());
+      return;
+    }
+    existing.win.destroy(); // switching between windowed ↔ fullscreen → recreate
+    windows.delete(surfaceId);
+  }
+
+  const win = createProjectorWindow(getMain, surfaceId, windowed);
+  windows.set(surfaceId, { win, displayId });
+  if (windowed) {
+    win.once('ready-to-show', () => win.showInactive());
+  } else {
+    const display = findDisplay(displayId) ?? screen.getPrimaryDisplay();
+    win.once('ready-to-show', () => placeOnDisplay(win, findDisplay(displayId) ?? display));
+  }
 }
 
 function closeProjector(surfaceId: string): void {
