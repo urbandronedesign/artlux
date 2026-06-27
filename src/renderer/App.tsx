@@ -13,6 +13,7 @@ import { About } from './components/About';
 import { RoutingModal } from './components/RoutingModal';
 import { InspectorPanel } from './components/InspectorPanel';
 import { ScenePanel } from './components/ScenePanel';
+import { ScenesCuesPanel } from './components/ScenesCuesPanel';
 import { MediaPanel } from './components/MediaPanel';
 import { AssetManager } from './components/AssetManager';
 import { Stage } from './components/Stage';
@@ -35,7 +36,7 @@ import * as trackingStore from './services/trackingStore';
 import { clusterAndTrack, resetPeopleTracking } from './services/blobClustering';
 import * as trackingPlayback from './services/trackingPlayback';
 import * as trackingDrawable from './services/trackingDrawable';
-import { Activity, SlidersHorizontal, Film } from 'lucide-react';
+import { Activity, SlidersHorizontal, Film, Clapperboard } from 'lucide-react';
 import { useHistory } from './hooks/useHistory';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -1130,6 +1131,7 @@ const App: React.FC = () => {
     { id: DockTab.MONITOR, label: 'DMX Monitor', icon: <Activity size={13} /> },
     { id: DockTab.FIXTURE_EDITOR, label: 'Fixture Editor', icon: <SlidersHorizontal size={13} /> },
     { id: DockTab.TIMELINE, label: 'Timeline', icon: <Film size={13} /> },
+    { id: DockTab.SCENES, label: 'Scenes & Cues', icon: <Clapperboard size={13} /> },
   ];
 
   // Broadcast (show) mode: no editor chrome — render only the offscreen Stage engine. All the
@@ -1222,18 +1224,11 @@ const App: React.FC = () => {
                     masterBrightness={globalBrightness}
                     onMasterBrightnessChange={setGlobalBrightness}
                     groups={groups}
-                    scenes={scenes}
                     onCreateGroup={handleCreateGroup}
                     onAddSelectedToGroup={handleAddSelectedToGroup}
                     onRemoveGroup={handleRemoveGroup}
                     onSelectGroup={handleSelectGroup}
                     onApplyLookToGroup={handleApplyLookToGroup}
-                    onCaptureScene={handleCaptureScene}
-                    onRecallScene={handleRecallScene}
-                    onUpdateScene={handleUpdateScene}
-                    onRenameScene={handleRenameScene}
-                    onUpdateSceneFade={handleUpdateSceneFade}
-                    onRemoveScene={handleRemoveScene}
                     onAutoPatch={handleAutoPatch}
                 />
                 )}
@@ -1287,6 +1282,17 @@ const App: React.FC = () => {
                     ) : (
                         <TimelinePanel timeline={timeline} onChange={setTimeline} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} onToggleMax={() => setTimelineMax(true)} projectPath={currentProjectPath} scenes={scenes} />
                     )
+                ) : dockTab === DockTab.SCENES ? (
+                    <ScenesCuesPanel
+                        scenes={scenes}
+                        oscPrefix={settings.oscControlPrefix}
+                        onCaptureScene={handleCaptureScene}
+                        onRecallScene={handleRecallScene}
+                        onUpdateScene={handleUpdateScene}
+                        onRenameScene={handleRenameScene}
+                        onUpdateSceneFade={handleUpdateSceneFade}
+                        onRemoveScene={handleRemoveScene}
+                    />
                 ) : (
                     <FixtureEditor
                         fixture={selectedFixture}

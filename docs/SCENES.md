@@ -33,13 +33,15 @@ already rides in `buildProjectData`/`applyProjectData` and `ProjectData.scenes`.
 
 ## Creating & managing scenes
 
-In the left panel → **Scenes & Cues** section:
+In the bottom dock → **Scenes & Cues** tab (next to Timeline,
+[components/ScenesCuesPanel.tsx](../src/renderer/components/ScenesCuesPanel.tsx)):
 
-- **+** (header) — capture the current look as a new scene.
+- **Capture scene** (toolbar) — capture the current look as a new scene.
 - **GO** — recall the scene (snaps the look back).
 - **↻ Update** — re-capture the current look into the existing scene (keeps id/name/fade).
 - **double-click name** — rename.
 - **fade field** — store a fade time (inactive in this version).
+- **OSC trigger** column — shows the ready-to-copy OSC address for each scene.
 - **🗑** — delete.
 
 ## Triggering scenes

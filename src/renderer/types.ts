@@ -374,6 +374,7 @@ export enum DockTab {
   MONITOR = 'MONITOR',
   FIXTURE_EDITOR = 'FIXTURE_EDITOR',
   TIMELINE = 'TIMELINE',
+  SCENES = 'SCENES',
 }
 
 // Phase I — named selection set for batch operations.
