@@ -95,8 +95,8 @@ export const ScenesCuesPanel: React.FC<Props> = ({
                                             type="number" min={0} step={0.1}
                                             value={s.fadeSec ?? 0}
                                             onChange={(e) => onUpdateSceneFade(s.id, Math.max(0, Number(e.target.value) || 0))}
-                                            className="w-16 bg-surface-1 border border-line-1 rounded px-1.5 py-0.5 text-fg-3 tabular-nums opacity-70"
-                                            title="Fade time (seconds) — stored for a future crossfade; recall is instant in this version"
+                                            className="w-16 bg-surface-1 border border-line-1 rounded px-1.5 py-0.5 text-fg-3 tabular-nums"
+                                            title="Crossfade time (seconds). 0 = instant. Fadeable params (brightness, geometry, opacity, effect speed/intensity) animate; discrete params snap."
                                         />
                                     </td>
                                     <td className="px-2 py-1.5">

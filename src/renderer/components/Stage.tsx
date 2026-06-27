@@ -7,6 +7,7 @@ import { IPixelMapper } from '../services/PixelMapper';
 import { dmxSignal } from '../services/dmxSignal';
 import { livePreview } from '../services/livePreview';
 import * as surfaceMedia from '../services/surfaceMedia';
+import * as transitions from '../services/transitions';
 
 interface StageProps {
   surfaces: Surface[];
@@ -233,6 +234,19 @@ export const Stage: React.FC<StageProps> = ({
       if (fitUpdate) { surfacesRef.current = fitUpdate; onUpdateSurfaces(fitUpdate); }
     }
 
+    // Render-free fade overrides: an active scene/cue transition lays interpolated values over the
+    // committed state each frame so the fade animates without a React re-render (idle ⇒ pass-through).
+    const fade = transitions.sample(performance.now());
+    let effSurfaces = surfacesRef.current;
+    let effFixtures = fixturesRef.current;
+    let effBrightness = livePreview.brightness;
+    if (fade) {
+        const v = fade.apply({ surfaces: effSurfaces, fixtures: effFixtures, globalBrightness: effBrightness });
+        effSurfaces = v.surfaces; effFixtures = v.fixtures; effBrightness = v.globalBrightness;
+        // Geometry fades change LED↔surface UV mapping → rebuild the GPU LED buffers this frame.
+        if (fade.geometryAnimating) mapper.current.updateMapping?.(effFixtures, effSurfaces);
+    }
+
     // Composite every surface's content into the 512² canvas (z-order). Fixtures
     // sample this composite (S1); strict per-surface sampling arrives in S3.
     if (canvasRef.current) {
@@ -242,10 +256,11 @@ export const Stage: React.FC<StageProps> = ({
             const ch = canvasRef.current.height;
             ctx.imageSmoothingEnabled = true;
             ctx.clearRect(0, 0, cw, ch);
-            const ordered = [...surfacesRef.current].sort((a, b) => a.zIndex - b.zIndex);
+            const ordered = [...effSurfaces].sort((a, b) => a.zIndex - b.zIndex);
             for (const s of ordered) {
                 const d = surfaceMedia.getDrawable(s);
                 if (!d) continue;
+                ctx.globalAlpha = s.content.opacity ?? 1; // per-surface opacity (z-order alpha blend)
                 const x = s.x * cw, y = s.y * ch, w = s.width * cw, h = s.height * ch;
                 if (s.rotation) {
                     ctx.save();
@@ -257,20 +272,21 @@ export const Stage: React.FC<StageProps> = ({
                     ctx.drawImage(d, x, y, w, h);
                 }
             }
+            ctx.globalAlpha = 1;
         }
     }
 
     if (canvasRef.current && isEngineRunning && mapper.current) {
         // Pull brightness from the live channel each frame so slider drags affect output
         // immediately without committing React state (which would re-render the whole app).
-        mapper.current.setBrightness(livePreview.brightness);
+        mapper.current.setBrightness(effBrightness);
         // WebGPU samples each fixture strictly from its linked surface; the WebGL
         // fallback samples the composite preview canvas.
         if (mapper.current.perSurface && mapper.current.renderSurfaces) {
             mapper.current.renderSurfaces((id) => {
-                const s = surfacesRef.current.find((x) => x.id === id);
+                const s = effSurfaces.find((x) => x.id === id);
                 return s ? surfaceMedia.getDrawable(s) : null;
-            });
+            }, (id) => effSurfaces.find((x) => x.id === id)?.content.opacity ?? 1);
         } else {
             mapper.current.updateSource(canvasRef.current);
         }
@@ -286,7 +302,7 @@ export const Stage: React.FC<StageProps> = ({
             const defaultIp = targetIpRef.current;
             const defaultBroadcast = broadcastRef.current;
             const defaultProtocol = protocolRef.current;
-            const currentFixtures = fixturesRef.current;
+            const currentFixtures = effFixtures;
 
             // Per-destination universe maps, keyed by `${protocol}|${ip}|${broadcast}`.
             const destinations: Record<string, {

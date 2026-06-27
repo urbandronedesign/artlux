@@ -12,8 +12,8 @@ export interface IPixelMapper {
   updateSource(source: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement): void;
   /** True when the backend samples per-surface (uses renderSurfaces instead of updateSource). */
   readonly perSurface?: boolean;
-  /** Per-surface render: the backend pulls each linked surface's drawable and dispatches it. */
-  renderSurfaces?(getDrawable: (surfaceId: string) => CanvasImageSource | null): void;
+  /** Per-surface render: the backend pulls each linked surface's drawable (and opacity 0..1) and dispatches it. */
+  renderSurfaces?(getDrawable: (surfaceId: string) => CanvasImageSource | null, getOpacity?: (surfaceId: string) => number): void;
   /** Returns the latest RGBW bytes (4 per LED, in fixture order), or null if not ready. */
   read(): Uint8Array | null;
   dispose(): void;

@@ -162,6 +162,7 @@ export interface SurfaceContent {
   spoutName?: string;  // SPOUT sender name (empty = active sender)
   ndiName?: string;    // NDI source name (empty = first discovered)
   layerId?: string;    // LAYER content: which timeline track to show
+  opacity?: number;    // surface opacity 0..1 (default 1) — composite alpha; fadeable for crossfades
   // EFFECT params (S2):
   effectId?: number;
   paletteId?: number;

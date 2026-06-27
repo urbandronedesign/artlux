@@ -20,8 +20,13 @@ A Scene stores the visible state, **not** the playing transport or rig wiring:
 Every field beyond `fixtures`/`globalBrightness` is optional, so projects saved with the older
 minimal Scene shape still load and recall (fixtures + brightness).
 
-`fadeSec` is stored per scene but **not applied yet** — it's reserved for a future crossfade engine.
-The number field in the panel is intentionally dimmed to signal this.
+`fadeSec` is the per-scene **crossfade** time. On recall, fadeable numeric params (global brightness,
+surface/fixture geometry, surface **opacity**, and effect speed/intensity) animate from their current
+value to the scene's over `fadeSec`; discrete params (media, effectId, palette, booleans) snap.
+`fadeSec = 0` recalls instantly. The fade runs render-free in the Stage frame pump
+([transitions.ts](../src/renderer/services/transitions.ts) + [paramPath.ts](../src/renderer/services/paramPath.ts)),
+so it never re-renders React. Per-surface **opacity** (`content.opacity`, set in the Inspector) enables
+fade-in/out and crossfades.
 
 > **Note:** video URLs inside captured `surfaces` and model paths inside `scene3D` are stored as
 > absolute paths in the scene. Scenes are reliable within a project; they are not yet portable across

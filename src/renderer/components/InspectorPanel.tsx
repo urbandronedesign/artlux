@@ -232,6 +232,13 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                             </div>
                         </div>
                     )}
+
+                    {c.type !== SourceType.NONE && (
+                        <div className="pt-2">
+                            <Slider label="Opacity" value={c.opacity ?? 1} min={0} max={1} step={0.01}
+                                format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => setContent({ opacity: v })} />
+                        </div>
+                    )}
                 </PanelSection>
 
                 <PanelSection title="Transform" icon={<Box size={12}/>}>

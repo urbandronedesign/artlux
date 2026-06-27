@@ -424,7 +424,7 @@ export class WebGPUMapper implements IPixelMapper {
 
   // Strict per-surface render: one compute pass per surface, each binding that
   // surface's drawable and writing only its LEDs (gated by ledMeta.w). One readback.
-  renderSurfaces(getDrawable: (surfaceId: string) => CanvasImageSource | null): void {
+  renderSurfaces(getDrawable: (surfaceId: string) => CanvasImageSource | null, getOpacity?: (surfaceId: string) => number): void {
     if (this.disposed || this.totalLeds === 0 || !this.mainBind || !this.outBuffer) return;
 
     // Clear last frame's output so unlinked LEDs (and removed surfaces) go black.
@@ -437,10 +437,17 @@ export class WebGPUMapper implements IPixelMapper {
     for (let k = 0; k < this.surfaceOrder.length; k++) {
       const d = getDrawable(this.surfaceOrder[k]);
       if (!d) continue;
-      // Stretch the surface's drawable into the 512² source texture.
+      const opacity = getOpacity ? getOpacity(this.surfaceOrder[k]) : 1;
+      if (opacity <= 0) continue; // fully transparent → leave LEDs black (cleared above)
+      // Stretch the surface's drawable into the 512² source texture. Opacity blends the drawable
+      // toward black (the shader samples RGB, ignoring alpha), giving per-surface fade-to-black.
       try {
-        this.scratchCtx.clearRect(0, 0, SOURCE_SIZE, SOURCE_SIZE);
+        this.scratchCtx.globalAlpha = 1;
+        this.scratchCtx.fillStyle = '#000';
+        this.scratchCtx.fillRect(0, 0, SOURCE_SIZE, SOURCE_SIZE);
+        this.scratchCtx.globalAlpha = opacity < 1 ? opacity : 1;
         this.scratchCtx.drawImage(d, 0, 0, SOURCE_SIZE, SOURCE_SIZE);
+        this.scratchCtx.globalAlpha = 1;
         this.queue.copyExternalImageToTexture({ source: this.scratch, flipY: false }, { texture: this.srcTexture }, [SOURCE_SIZE, SOURCE_SIZE]);
       } catch { continue; }
 

@@ -32,6 +32,8 @@ import { getDrawable } from './services/surfaceMedia';
 import { timeline as timelineEngine } from './services/timeline';
 import * as oscController from './services/oscController';
 import * as cueBus from './services/cueBus';
+import * as transitions from './services/transitions';
+import { collectFadeableTargets } from './services/paramPath';
 import * as trackingStore from './services/trackingStore';
 import { clusterAndTrack, resetPeopleTracking } from './services/blobClustering';
 import * as trackingPlayback from './services/trackingPlayback';
@@ -417,10 +419,15 @@ const App: React.FC = () => {
   };
   const handleRenameScene = (id: string, name: string) => setScenes(scenes.map(s => s.id === id ? { ...s, name } : s));
   const handleUpdateSceneFade = (id: string, fadeSec: number) => setScenes(scenes.map(s => s.id === id ? { ...s, fadeSec } : s));
-  // Recall snaps instantly (v1). Every field beyond fixtures/globalBrightness is presence-guarded so
-  // older minimal scenes still load. fadeSec is intentionally ignored until the transition engine lands.
+  // Recall commits the target state immediately (discrete params snap), then — when fadeSec > 0 —
+  // starts a render-free transition that animates the fadeable numerics from their old values to the
+  // new ones (Stage pump overrides them per-frame, no React re-render). Every field beyond
+  // fixtures/globalBrightness is presence-guarded so older minimal scenes still load.
   const handleRecallScene = (scene: Scene) => {
     recordHistory();
+    // Capture the pre-recall view for the fade's "from" before committing the target.
+    const fromView = { surfaces, fixtures, globalBrightness };
+    const toView = { surfaces: scene.surfaces ?? surfaces, fixtures: scene.fixtures, globalBrightness: scene.globalBrightness };
     if (scene.surfaces) setSurfaces(scene.surfaces);
     setFixtures(scene.fixtures.map(f => ({ ...f, colorData: [] })));
     setGlobalBrightness(scene.globalBrightness);
@@ -430,6 +437,11 @@ const App: React.FC = () => {
     setSelectedFixtureId(null);
     setSelectedFixtureIds([]);
     setSelectedSurfaceId(null);
+    if (scene.fadeSec && scene.fadeSec > 0) {
+      transitions.start(collectFadeableTargets(fromView, toView), { fadeSec: scene.fadeSec, transition: 'smooth' });
+    } else {
+      transitions.cancel();
+    }
   };
   const handleRemoveScene = (id: string) => setScenes(scenes.filter(s => s.id !== id));
   // Resolve a cueBus recall request (id then name) against current scenes. Held in a ref so the
