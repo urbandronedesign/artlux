@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Scene, Cue, CueBank, CueEntry, CueTransition, Surface, Fixture } from '../types';
 import { Plus, Trash2, Play, RefreshCw, Camera, Zap, X } from 'lucide-react';
 import { getByPath, globalParams, surfaceParams, fixtureParams, type StateView, type ParamDef } from '../services/paramPath';
@@ -35,6 +35,7 @@ export const CueBankPanel: React.FC<Props> = ({
 }) => {
     const [editSceneId, setEditSceneId] = useState<string | null>(null);
     const [editSceneName, setEditSceneName] = useState('');
+    const pendingSceneColRef = useRef<number | null>(null); // column to place the next captured scene at
     const [bankIdx, setBankIdx] = useState(0);
     const [mode, setMode] = useState<'live' | 'edit'>('live');
     const [selCueId, setSelCueId] = useState<string | null>(null);
@@ -49,7 +50,14 @@ export const CueBankPanel: React.FC<Props> = ({
         let cells = bank.sceneCells.filter(c => ids.has(c.sceneId));
         const placed = new Set(cells.map(c => c.sceneId));
         let nextCol = cells.reduce((m, c) => Math.max(m, c.col + 1), 0);
-        for (const s of scenes) if (!placed.has(s.id)) cells = [...cells, { col: nextCol++, sceneId: s.id }];
+        const occupied = new Set(cells.map(c => c.col));
+        for (const s of scenes) if (!placed.has(s.id)) {
+            // Honor a column requested via a scene-row "+" (once), else append at the next free column.
+            let col = pendingSceneColRef.current;
+            if (col == null || occupied.has(col)) col = nextCol++; else pendingSceneColRef.current = null;
+            occupied.add(col);
+            cells = [...cells, { col, sceneId: s.id }];
+        }
         if (cells.length !== bank.sceneCells.length || cells.some((c, i) => c !== bank.sceneCells[i])) {
             patchBank({ sceneCells: cells });
         }
@@ -166,7 +174,13 @@ export const CueBankPanel: React.FC<Props> = ({
                                         </span>
                                     </div>
                                 </div>
-                            ) : <div key={c} className={`${cellBase} border-dashed border-line-1 opacity-40`} />;
+                            ) : (
+                                <button key={c} onClick={() => { pendingSceneColRef.current = c; onCaptureScene(); }}
+                                    title="Capture current look as a Scene here"
+                                    className={`${cellBase} border-dashed border-line-1 text-fg-3 hover:border-sel-surface hover:text-sel-surface items-center justify-center`}>
+                                    <Camera size={12} />
+                                </button>
+                            );
                         })}
                     </div>
                     {/* Cue rows */}
