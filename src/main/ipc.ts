@@ -200,6 +200,12 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
         calib.cameraOpen(index, width, height, fps, fourcc));
     ipcMain.handle(IPC.CALIB_CAMERA_GRAB, () => calib.cameraGrab());
     ipcMain.on(IPC.CALIB_CAMERA_CLOSE, () => calib.cameraClose());
+    ipcMain.handle(IPC.CALIB_DECODE_DENSE, (_e, captures: ArrayBuffer, captureCount: number, camW: number, camH: number, projW: number, projH: number, white: ArrayBuffer, black: ArrayBuffer, stride: number) =>
+        calib.decodeDense(Buffer.from(captures), captureCount, camW, camH, projW, projH, Buffer.from(white), Buffer.from(black), stride));
+    ipcMain.handle(IPC.CALIB_SOLVE_PNP_RANSAC, (_e, objectPts: number[], imagePts: number[], k: number[], dist: number[], reprojErr: number) =>
+        calib.solvePnpRansac(objectPts, imagePts, k, dist, reprojErr));
+    ipcMain.handle(IPC.CALIB_CALIBRATE_GUIDED, (_e, objectPoints: number[], imagePoints: number[], pointCounts: number[], projW: number, projH: number, initK: number[], fixPrincipalPoint: boolean, fixAspect: boolean) =>
+        calib.calibrateGuided(objectPoints, imagePoints, pointCounts, projW, projH, initK, fixPrincipalPoint, fixAspect));
 
     // Poll native engine throughput stats ~1 Hz and push to the renderer.
     // The same numbers feed the Prometheus gauges (see ./metrics) — no extra polling.

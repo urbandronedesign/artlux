@@ -30,6 +30,29 @@ export function pixelRayWorld(K: Mat3, R: Mat3, u: number, v: number): Vec3 {
   return normalize(mul3v(matT(R), dirCam));
 }
 
+// World-space RAY (origin + direction) for a CAMERA pixel (u,v) — used to raycast the venue mesh and
+// assign a 3D point to each decoded camera pixel in the markerless pipeline. origin = camera optical
+// center; direction = Rᵀ·[x,y,1] for the undistorted normalized pixel. `dist` (camera radial+tangential)
+// is inverted iteratively when non-zero (omit/zeros → pinhole). Same OpenCV camera convention as
+// reproject; the world frame is the venue/model frame (the coords solvePnP's object points used).
+export function cameraPixelRayWorld(K: Mat3, dist: number[], R: Mat3, t: Vec3, u: number, v: number): { origin: Vec3; dir: Vec3 } {
+  const fx = K[0], fy = K[4], cx = K[2], cy = K[5];
+  let x = (u - cx) / fx, y = (v - cy) / fy;
+  const k1 = dist?.[0] || 0, k2 = dist?.[1] || 0, p1 = dist?.[2] || 0, p2 = dist?.[3] || 0, k3 = dist?.[4] || 0;
+  if (k1 || k2 || p1 || p2 || k3) {
+    const xd = x, yd = y; // distorted normalized; recover the undistorted (x,y)
+    for (let i = 0; i < 5; i++) {
+      const r2 = x * x + y * y;
+      const radial = 1 + k1 * r2 + k2 * r2 * r2 + k3 * r2 * r2 * r2;
+      const dx = 2 * p1 * x * y + p2 * (r2 + 2 * x * x);
+      const dy = p1 * (r2 + 2 * y * y) + 2 * p2 * x * y;
+      x = (xd - dx) / radial;
+      y = (yd - dy) / radial;
+    }
+  }
+  return { origin: cameraCenter(R, t), dir: normalize(mul3v(matT(R), [x, y, 1])) };
+}
+
 // Projector frustum: optical center + the four image-corner points pushed `depth` metres along their
 // rays (TL, TR, BR, BL in projector raster order).
 export function frustumCorners(K: Mat3, R: Mat3, t: Vec3, imageSize: [number, number], depth: number): { center: Vec3; corners: Vec3[] } {

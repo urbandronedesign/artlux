@@ -78,6 +78,12 @@ export const IPC = {
   CALIB_CAMERA_GRAB: 'calib:camera-grab',
   /** Renderer → main: release the open OpenCV camera. */
   CALIB_CAMERA_CLOSE: 'calib:camera-close',
+  /** Renderer → main (invoke): dense camera→projector decode (markerless correspondences). */
+  CALIB_DECODE_DENSE: 'calib:decode-dense',
+  /** Renderer → main (invoke): RANSAC solvePnP (robust pose). */
+  CALIB_SOLVE_PNP_RANSAC: 'calib:solve-pnp-ransac',
+  /** Renderer → main (invoke): guided projector resection (intrinsic guess + degeneracy flags). */
+  CALIB_CALIBRATE_GUIDED: 'calib:calibrate-guided',
   /** Main → renderer: a native-menu command (save/open/undo/about/…). */
   MENU_ACTION: 'menu:action',
   /** Renderer → main (invoke): app name + version (for About). */
@@ -236,6 +242,17 @@ export interface PnpResult {
   rotation: number[];    // 9, row-major 3×3 (world→cam)
   translation: number[]; // 3
   rms: number;           // reprojection RMS (px)
+}
+
+// Dense camera-pixel → projector-pixel correspondences (markerless pipeline). camX/camY are camera
+// pixels, projX/projY the decoded projector pixels — all aligned and subsampled by the requested stride.
+// The renderer raycasts each (camX,camY) onto the venue mesh → a 3D point paired with (projX,projY)
+// to resection the projector against the venue model (no board).
+export interface DenseMap {
+  camX: number[];
+  camY: number[];
+  projX: number[];
+  projY: number[];
 }
 
 // One grayscale frame grabbed natively via OpenCV's DirectShow camera backend (CAP_DSHOW). Used for
@@ -612,6 +629,12 @@ export interface ArtluxApi {
   calibCameraGrab(): Promise<CameraFrame | null>;
   /** Release the open OpenCV camera. */
   calibCameraClose(): void;
+  /** Dense camera→projector decode for the markerless pipeline (stride subsamples the camera grid). */
+  calibDecodeDense(captures: ArrayBuffer, captureCount: number, camW: number, camH: number, projW: number, projH: number, white: ArrayBuffer, black: ArrayBuffer, stride: number): Promise<DenseMap | null>;
+  /** RANSAC solvePnP (robust pose); reprojErr is the inlier threshold in projector px. */
+  calibSolvePnpRansac(objectPts: number[], imagePts: number[], k: number[], dist: number[], reprojErr: number): Promise<PnpResult | null>;
+  /** Guided projector resection (intrinsic guess + degeneracy flags). initK [] → throw-ratio default. */
+  calibCalibrateGuided(objectPoints: number[], imagePoints: number[], pointCounts: number[], projW: number, projH: number, initK: number[], fixPrincipalPoint: boolean, fixAspect: boolean): Promise<ProjectorIntrinsicsResult | null>;
   // App chrome
   onMenuAction(cb: (action: string) => void): () => void;
   getAppInfo(): Promise<AppInfo>;

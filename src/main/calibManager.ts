@@ -2,7 +2,7 @@ import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type {
-  BoardDetectResult, CornerProjMap, ProjectorIntrinsicsResult, PnpResult, CameraFrame,
+  BoardDetectResult, CornerProjMap, ProjectorIntrinsicsResult, PnpResult, CameraFrame, DenseMap,
 } from '../../shared/protocol';
 
 // Loads the native OpenCV calibration addon (native/calib/calib.node) in the main process — the
@@ -39,6 +39,12 @@ interface CalibNative {
   ): ProjectorIntrinsicsResult;
   /** solvePnP (intrinsics fixed) → projector pose in venue frame. */
   solvePnp(objectPts: number[], imagePts: number[], k: number[], dist: number[]): PnpResult;
+  /** Dense camera→projector decode (markerless correspondences), subsampled by `stride`. */
+  decodeDenseMap(captures: Buffer, captureCount: number, camW: number, camH: number, projW: number, projH: number, white: Buffer, black: Buffer, stride: number): DenseMap;
+  /** RANSAC solvePnP (robust pose). */
+  solvePnpRansac(objectPts: number[], imagePts: number[], k: number[], dist: number[], reprojErr: number): PnpResult;
+  /** Guided projector resection (intrinsic guess + degeneracy flags). */
+  calibrateProjectorGuided(objectPoints: number[], imagePoints: number[], pointCounts: number[], projW: number, projH: number, initK: number[], fixPrincipalPoint: boolean, fixAspect: boolean): ProjectorIntrinsicsResult;
   /** Open a camera by index via OpenCV's DirectShow backend (for cameras getUserMedia can't drive). */
   cameraOpen(index: number, width: number, height: number, fps: number, fourcc: string): boolean;
   /** Grab one grayscale frame (Buffer of w*h bytes) from the open camera, or null if none ready. */
@@ -114,6 +120,42 @@ export function solvePnp(objectPts: number[], imagePts: number[], k: number[], d
     return native.solvePnp(objectPts, imagePts, k, dist);
   } catch (e) {
     console.warn('[calib] solvePnp failed:', (e as Error)?.message ?? e);
+    return null;
+  }
+}
+
+export function decodeDense(
+  captures: Buffer, captureCount: number, camW: number, camH: number,
+  projW: number, projH: number, white: Buffer, black: Buffer, stride: number,
+): DenseMap | null {
+  if (!native) return null;
+  try {
+    return native.decodeDenseMap(captures, captureCount, camW, camH, projW, projH, white, black, stride);
+  } catch (e) {
+    console.warn('[calib] decodeDenseMap failed:', (e as Error)?.message ?? e);
+    return null;
+  }
+}
+
+export function solvePnpRansac(objectPts: number[], imagePts: number[], k: number[], dist: number[], reprojErr: number): PnpResult | null {
+  if (!native) return null;
+  try {
+    return native.solvePnpRansac(objectPts, imagePts, k, dist, reprojErr);
+  } catch (e) {
+    console.warn('[calib] solvePnpRansac failed:', (e as Error)?.message ?? e);
+    return null;
+  }
+}
+
+export function calibrateGuided(
+  objectPoints: number[], imagePoints: number[], pointCounts: number[],
+  projW: number, projH: number, initK: number[], fixPrincipalPoint: boolean, fixAspect: boolean,
+): ProjectorIntrinsicsResult | null {
+  if (!native) return null;
+  try {
+    return native.calibrateProjectorGuided(objectPoints, imagePoints, pointCounts, projW, projH, initK, fixPrincipalPoint, fixAspect);
+  } catch (e) {
+    console.warn('[calib] calibrateProjectorGuided failed:', (e as Error)?.message ?? e);
     return null;
   }
 }

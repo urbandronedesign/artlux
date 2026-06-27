@@ -125,49 +125,8 @@ pub fn map_corners_to_projector(
 ) -> napi::Result<CornerProjMap> {
     let res = (|| -> opencv::Result<CornerProjMap> {
         let (cw, ch) = (cam_w as usize, cam_h as usize);
-        let px = cw * ch;
-        let n_col_bits = bits_for(proj_w);
-        let n_row_bits = bits_for(proj_h);
-        let expected = 2 * (n_col_bits + n_row_bits);
-        if capture_count as usize != expected {
-            return Err(opencv::Error::new(0, format!("capture_count {capture_count} != expected {expected}")));
-        }
-        let plane = |i: usize| &captures[i * px..(i + 1) * px];
-
-        // Contrast mask: skip pixels the projector doesn't reach.
-        const CONTRAST: i32 = 12;
-        let mut valid_px = vec![false; px];
-        for i in 0..px {
-            if (white[i] as i32 - black[i] as i32) >= CONTRAST {
-                valid_px[i] = true;
-            }
-        }
-
-        // Decode Gray code per camera pixel → projector (col,row).
-        let mut proj_x = vec![-1i32; px];
-        let mut proj_y = vec![-1i32; px];
-        for i in 0..px {
-            if !valid_px[i] { continue; }
-            let mut gray_col = 0u32;
-            for b in 0..n_col_bits {
-                let pat = plane(2 * b)[i] as i32;
-                let inv = plane(2 * b + 1)[i] as i32;
-                gray_col = (gray_col << 1) | ((pat > inv) as u32);
-            }
-            let off = 2 * n_col_bits;
-            let mut gray_row = 0u32;
-            for b in 0..n_row_bits {
-                let pat = plane(off + 2 * b)[i] as i32;
-                let inv = plane(off + 2 * b + 1)[i] as i32;
-                gray_row = (gray_row << 1) | ((pat > inv) as u32);
-            }
-            let col = gray_to_bin(gray_col);
-            let row = gray_to_bin(gray_row);
-            if col < proj_w && row < proj_h {
-                proj_x[i] = col as i32;
-                proj_y[i] = row as i32;
-            }
-        }
+        // Dense per-camera-pixel projector (col,row) decode (shared with decode_dense_map).
+        let (proj_x, proj_y) = decode_dense(&captures, capture_count, cam_w, cam_h, proj_w, proj_h, &white, &black)?;
 
         // For each board corner, fit a local homography (camera → projector) over decoded pixels in a
         // window and evaluate it at the sub-pixel corner.
@@ -218,6 +177,108 @@ pub fn map_corners_to_projector(
         Ok(CornerProjMap { proj_corners, valid })
     })();
     res.map_err(|e| napi::Error::from_reason(format!("map_corners_to_projector: {e}")))
+}
+
+// Decode the dense per-camera-pixel projector (col,row) map from a Gray-code capture sequence. Returns
+// proj_x/proj_y of length cam_w*cam_h, -1 where the pixel is below the projector-contrast mask or
+// decodes out of range. Shared by map_corners_to_projector (board corners) and decode_dense_map
+// (markerless dense correspondences).
+fn decode_dense(
+    captures: &[u8], capture_count: u32, cam_w: u32, cam_h: u32, proj_w: u32, proj_h: u32,
+    white: &[u8], black: &[u8],
+) -> opencv::Result<(Vec<i32>, Vec<i32>)> {
+    let (cw, ch) = (cam_w as usize, cam_h as usize);
+    let px = cw * ch;
+    let n_col_bits = bits_for(proj_w);
+    let n_row_bits = bits_for(proj_h);
+    let expected = 2 * (n_col_bits + n_row_bits);
+    if capture_count as usize != expected {
+        return Err(opencv::Error::new(0, format!("capture_count {capture_count} != expected {expected}")));
+    }
+    let plane = |i: usize| &captures[i * px..(i + 1) * px];
+    const CONTRAST: i32 = 12; // skip pixels the projector doesn't reach
+    let mut proj_x = vec![-1i32; px];
+    let mut proj_y = vec![-1i32; px];
+    for i in 0..px {
+        if (white[i] as i32 - black[i] as i32) < CONTRAST { continue; }
+        let mut gray_col = 0u32;
+        for b in 0..n_col_bits {
+            let pat = plane(2 * b)[i] as i32;
+            let inv = plane(2 * b + 1)[i] as i32;
+            gray_col = (gray_col << 1) | ((pat > inv) as u32);
+        }
+        let off = 2 * n_col_bits;
+        let mut gray_row = 0u32;
+        for b in 0..n_row_bits {
+            let pat = plane(off + 2 * b)[i] as i32;
+            let inv = plane(off + 2 * b + 1)[i] as i32;
+            gray_row = (gray_row << 1) | ((pat > inv) as u32);
+        }
+        let col = gray_to_bin(gray_col);
+        let row = gray_to_bin(gray_row);
+        if col < proj_w && row < proj_h {
+            proj_x[i] = col as i32;
+            proj_y[i] = row as i32;
+        }
+    }
+    Ok((proj_x, proj_y))
+}
+
+#[napi(object)]
+pub struct DenseMap {
+    pub cam_x: Vec<u32>,  // camera pixel x (subsampled)
+    pub cam_y: Vec<u32>,  // camera pixel y
+    pub proj_x: Vec<f64>, // decoded projector pixel x, aligned with cam_x/cam_y
+    pub proj_y: Vec<f64>, // decoded projector pixel y
+}
+
+// Markerless ground truth: dense camera-pixel → projector-pixel correspondences from a Gray-code
+// capture, subsampled by `stride` and smoothness-filtered. The renderer raycasts each (cam_x,cam_y)
+// onto the venue mesh to get a 3D point, pairing it with (proj_x,proj_y) to resection the projector.
+// Smoothness filter: keep a sample only if ≥3 of its 8 stride-neighbors decoded AND the sample agrees
+// with their mean within a generous jump bound — this rejects isolated speckle and silhouette/occlusion
+// discontinuities while preserving smooth gradients (downstream RANSAC handles the rest).
+#[napi]
+pub fn decode_dense_map(
+    captures: Buffer, capture_count: u32, cam_w: u32, cam_h: u32,
+    proj_w: u32, proj_h: u32, white: Buffer, black: Buffer, stride: u32,
+) -> napi::Result<DenseMap> {
+    let res = (|| -> opencv::Result<DenseMap> {
+        let (cw, ch) = (cam_w as usize, cam_h as usize);
+        let (px, py) = decode_dense(&captures, capture_count, cam_w, cam_h, proj_w, proj_h, &white, &black)?;
+        let s = (stride.max(1)) as usize;
+        let jump = (proj_w.max(proj_h) / 16).max(16) as i32; // generous discontinuity bound
+        let at = |x: usize, y: usize| -> (i32, i32) { let i = y * cw + x; (px[i], py[i]) };
+        let (mut cam_x, mut cam_y, mut out_x, mut out_y) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+        let mut yy = s;
+        while yy + s < ch {
+            let mut xx = s;
+            while xx + s < cw {
+                let (cxp, cyp) = at(xx, yy);
+                if cxp >= 0 {
+                    let (mut sumx, mut sumy, mut tot) = (0i64, 0i64, 0i32);
+                    for (dx, dy) in [(-1i32, 0i32), (1, 0), (0, -1), (0, 1), (-1, -1), (1, 1), (-1, 1), (1, -1)] {
+                        let nx = (xx as i32 + dx * s as i32) as usize;
+                        let ny = (yy as i32 + dy * s as i32) as usize;
+                        let (npx, npy) = at(nx, ny);
+                        if npx >= 0 { sumx += npx as i64; sumy += npy as i64; tot += 1; }
+                    }
+                    if tot >= 3 {
+                        let mx = (sumx / tot as i64) as i32;
+                        let my = (sumy / tot as i64) as i32;
+                        if (cxp - mx).abs() <= jump && (cyp - my).abs() <= jump {
+                            cam_x.push(xx as u32); cam_y.push(yy as u32);
+                            out_x.push(cxp as f64); out_y.push(cyp as f64);
+                        }
+                    }
+                }
+                xx += s;
+            }
+            yy += s;
+        }
+        Ok(DenseMap { cam_x, cam_y, proj_x: out_x, proj_y: out_y })
+    })();
+    res.map_err(|e| napi::Error::from_reason(format!("decode_dense_map: {e}")))
 }
 
 fn bits_for(n: u32) -> usize {
@@ -322,6 +383,110 @@ pub fn solve_pnp(object_pts: Vec<f64>, image_pts: Vec<f64>, k: Vec<f64>, dist: V
         Ok(PnpResult { rotation: r_vec, translation: t_vec, rms })
     })();
     res.map_err(|e| napi::Error::from_reason(format!("solve_pnp: {e}")))
+}
+
+// RANSAC pose (intrinsics fixed) — robust to outlier correspondences (model-vs-reality mismatch,
+// silhouette raycast outliers). `reproj_err` is the inlier threshold in projector px. RMS is over
+// inliers only.
+#[napi]
+pub fn solve_pnp_ransac(
+    object_pts: Vec<f64>, image_pts: Vec<f64>, k: Vec<f64>, dist: Vec<f64>, reproj_err: f64,
+) -> napi::Result<PnpResult> {
+    let res = (|| -> opencv::Result<PnpResult> {
+        let n = object_pts.len() / 3;
+        let mut obj: Vector<Point3f> = Vector::new();
+        let mut img: Vector<Point2f> = Vector::new();
+        for i in 0..n {
+            obj.push(Point3f::new(object_pts[i * 3] as f32, object_pts[i * 3 + 1] as f32, object_pts[i * 3 + 2] as f32));
+            img.push(Point2f::new(image_pts[i * 2] as f32, image_pts[i * 2 + 1] as f32));
+        }
+        let km = k_mat(&k)?;
+        let dm = Mat::from_slice::<f64>(&dist)?.try_clone()?;
+        let mut rvec = Mat::default();
+        let mut tvec = Mat::default();
+        let mut inliers = Mat::default();
+        calib3d::solve_pnp_ransac(
+            &obj, &img, &km, &dm, &mut rvec, &mut tvec, false,
+            200, reproj_err as f32, 0.999, &mut inliers, calib3d::SOLVEPNP_ITERATIVE,
+        )?;
+        let mut rmat = Mat::default();
+        calib3d::rodrigues(&rvec, &mut rmat, &mut Mat::default())?;
+        let r_vec: Vec<f64> = (0..9).map(|i| *rmat.at_2d::<f64>(i / 3, i % 3).unwrap_or(&0.0)).collect();
+        let t_vec: Vec<f64> = (0..3).map(|i| *tvec.at::<f64>(i).unwrap_or(&0.0)).collect();
+        // Reprojection RMS over inliers.
+        let mut proj: Vector<Point2f> = Vector::new();
+        calib3d::project_points(&obj, &rvec, &tvec, &km, &dm, &mut proj, &mut Mat::default(), 0.0)?;
+        let (mut sse, mut cnt) = (0.0f64, 0usize);
+        let n_in = inliers.rows().max(0);
+        for r in 0..n_in {
+            let idx = *inliers.at::<i32>(r).unwrap_or(&0) as usize;
+            if idx < proj.len() {
+                let a = proj.get(idx).unwrap();
+                let b = img.get(idx).unwrap();
+                let dx = (a.x - b.x) as f64;
+                let dy = (a.y - b.y) as f64;
+                sse += dx * dx + dy * dy;
+                cnt += 1;
+            }
+        }
+        let rms = if cnt > 0 { (sse / cnt as f64).sqrt() } else { 0.0 };
+        Ok(PnpResult { rotation: r_vec, translation: t_vec, rms })
+    })();
+    res.map_err(|e| napi::Error::from_reason(format!("solve_pnp_ransac: {e}")))
+}
+
+// Projector resection with an intrinsic guess + degeneracy guards. For markerless single-view
+// resection against the venue, freeing all of K+distortion is ill-conditioned (planar regions);
+// seed K (init_k 3×3, or a throw-ratio default fx=fy=proj_w, principal point centred) and optionally
+// fix the principal point / aspect so the geometry only has to refine what it can constrain.
+#[napi]
+pub fn calibrate_projector_guided(
+    object_points: Vec<f64>, image_points: Vec<f64>, point_counts: Vec<u32>,
+    proj_w: u32, proj_h: u32, init_k: Vec<f64>, fix_principal_point: bool, fix_aspect: bool,
+) -> napi::Result<ProjectorIntrinsicsResult> {
+    let res = (|| -> opencv::Result<ProjectorIntrinsicsResult> {
+        let mut obj_all: Vector<Vector<Point3f>> = Vector::new();
+        let mut img_all: Vector<Vector<Point2f>> = Vector::new();
+        let (mut o, mut p) = (0usize, 0usize);
+        for &cnt in point_counts.iter() {
+            let cnt = cnt as usize;
+            let mut obj: Vector<Point3f> = Vector::new();
+            let mut img: Vector<Point2f> = Vector::new();
+            for _ in 0..cnt {
+                obj.push(Point3f::new(object_points[o] as f32, object_points[o + 1] as f32, object_points[o + 2] as f32));
+                o += 3;
+                img.push(Point2f::new(image_points[p] as f32, image_points[p + 1] as f32));
+                p += 2;
+            }
+            obj_all.push(obj);
+            img_all.push(img);
+        }
+        let size = Size::new(proj_w as i32, proj_h as i32);
+        let seed = if init_k.len() == 9 {
+            init_k
+        } else {
+            let f = proj_w as f64;
+            vec![f, 0.0, proj_w as f64 / 2.0, 0.0, f, proj_h as f64 / 2.0, 0.0, 0.0, 1.0]
+        };
+        let mut k = k_mat(&seed)?;
+        let mut dist = Mat::default();
+        let mut rvecs: Vector<Mat> = Vector::new();
+        let mut tvecs: Vector<Mat> = Vector::new();
+        let crit = TermCriteria::new(
+            TermCriteria_Type::COUNT as i32 + TermCriteria_Type::EPS as i32, 100, 1e-6,
+        )?;
+        let mut flags = calib3d::CALIB_USE_INTRINSIC_GUESS | calib3d::CALIB_RATIONAL_MODEL;
+        if fix_principal_point { flags |= calib3d::CALIB_FIX_PRINCIPAL_POINT; }
+        if fix_aspect { flags |= calib3d::CALIB_FIX_ASPECT_RATIO; }
+        let rms = calib3d::calibrate_camera(
+            &obj_all, &img_all, size, &mut k, &mut dist, &mut rvecs, &mut tvecs, flags, crit,
+        )?;
+        let k_vec: Vec<f64> = (0..9).map(|i| *k.at_2d::<f64>(i / 3, i % 3).unwrap_or(&0.0)).collect();
+        let dn = dist.total() as i32;
+        let dist_vec: Vec<f64> = (0..5).map(|i| if i < dn { *dist.at::<f64>(i).unwrap_or(&0.0) } else { 0.0 }).collect();
+        Ok(ProjectorIntrinsicsResult { k: k_vec, dist: dist_vec, rms })
+    })();
+    res.map_err(|e| napi::Error::from_reason(format!("calibrate_projector_guided: {e}")))
 }
 
 // ---- 5. native camera capture (OpenCV videoio, DirectShow) -----------------

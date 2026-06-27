@@ -3,6 +3,7 @@ import { useGLTF, TransformControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { SceneModel } from '../../../../shared/protocol';
 import { useLayerTexture } from './useLayerTexture';
+import { registerVenueMesh, unregisterVenueMesh } from '../../calib/venueRaycast';
 
 const DEG = Math.PI / 180;
 
@@ -83,6 +84,14 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
     group.add(cloned);
     return () => { group.remove(cloned); };
   }, [group, cloned]);
+
+  // Register the world-space group for the markerless calibration's batch raycaster (only while
+  // visible). Lets the controller cast camera rays onto this venue geometry to sample 3D points.
+  useEffect(() => {
+    if (model.visible) registerVenueMesh(model.id, group);
+    else unregisterVenueMesh(model.id);
+    return () => unregisterVenueMesh(model.id);
+  }, [group, model.id, model.visible]);
 
   // Report intrinsic (scale-1) size once for Auto-fit.
   useEffect(() => {
