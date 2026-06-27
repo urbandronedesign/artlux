@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, type AssetEntry, type AssetType } from './types';
 import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge } from '../../shared/protocol';
 import type { ProjectorCalibration } from '../../shared/protocol';
-import { CalibPanel } from './components/CalibPanel';
+import { CalibWizard } from './components/CalibWizard';
 import * as calibController from './calib/calibController';
 import type { AppInfo, UpdateEvent, Scene3D, ProjectorOutput, DisplayInfo, SoftEdge } from '../../shared/protocol';
 import type { SceneToMain } from './scene/bridge';
@@ -20,6 +20,9 @@ import { CueBankPanel } from './components/CueBankPanel';
 import { MediaPanel } from './components/MediaPanel';
 import { AssetManager } from './components/AssetManager';
 import { Stage } from './components/Stage';
+import Simulator3D from './components/Simulator3D/Simulator3D';
+import { useModelUrls } from './components/Simulator3D/useModelUrls';
+import type { ModelTransform } from './components/Simulator3D/ModelObject';
 import { DMXMonitor } from './components/DMXMonitor';
 import { FixtureEditor } from './components/FixtureEditor';
 import { Dock } from './components/Dock';
@@ -109,6 +112,11 @@ const App: React.FC = () => {
   const [controllers, setControllers] = useState<Controller[]>([]);
   const [dockOpen, setDockOpen] = useState(true);
   const [dockHeight, setDockHeight] = useState(280);
+  // Split view: embed the 3D scene beside the 2D stage (persisted). The calibration wizard turns it on.
+  const [splitView, setSplitView] = useState<boolean>(() => localStorage.getItem('artlux.splitView') === '1');
+  const [splitRatio, setSplitRatio] = useState<number>(() => { const v = parseFloat(localStorage.getItem('artlux.splitRatio') || ''); return v > 0.2 && v < 0.85 ? v : 0.5; });
+  const splitHostRef = useRef<HTMLDivElement | null>(null);
+  const [calibPickMode, setCalibPickMode] = useState(false);        // wizard pose step: pick on the embedded 3D
   const [dockTab, setDockTab] = useState<DockTab>(DockTab.FIXTURE_EDITOR);
   const [timelineMax, setTimelineMax] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
@@ -122,6 +130,10 @@ const App: React.FC = () => {
   const [updateUserInitiated, setUpdateUserInitiated] = useState(false);
   const [scene3D, setScene3D] = useState<Scene3D>(defaultScene3D());
   const scene3DRef = useRef(scene3D); scene3DRef.current = scene3D; // live mirror for the []-deps tracking bridge
+  // Embedded 3D scene (split view): model GLB urls + selection/natural-size, shared with the Scene window.
+  const modelUrls = useModelUrls(scene3D.models);
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+  const [modelNaturalSizes, setModelNaturalSizes] = useState<Record<string, number>>({});
   const [timeline, setTimeline] = useState<Timeline>(defaultTimeline());
   const [assets, setAssets] = useState<AssetEntry[]>([]); // managed media library (video/image/model)
   const [leftTab, setLeftTab] = useState<'scene' | 'media'>('scene');
@@ -229,6 +241,26 @@ const App: React.FC = () => {
 
   // --- Surfaces ---
   const handleSelectSurface = (id: string | null) => { setSelectedSurfaceId(id); if (id) { setSelectedFixtureId(null); setSelectedFixtureIds([]); } };
+  // --- embedded 3D model handlers (App is the source of truth; the detached Scene window mirrors) ---
+  const handleSelectModel = (id: string | null) => { setSelectedModelId(id); if (id) { setSelectedFixtureId(null); setSelectedFixtureIds([]); setSelectedSurfaceId(null); } };
+  const handleCommitModel = (id: string, t: ModelTransform) =>
+    setScene3D(s => ({ ...s, models: (s.models ?? []).map(m => m.id === id ? { ...m, ...t } : m) }));
+  const handleModelNaturalSize = (id: string, maxDim: number) =>
+    setModelNaturalSizes(s => (s[id] === maxDim ? s : { ...s, [id]: maxDim }));
+  const handleSceneConfig = (patch: Partial<Scene3D>) => setScene3D(s => ({ ...s, ...patch }));
+  useEffect(() => { localStorage.setItem('artlux.splitView', splitView ? '1' : '0'); }, [splitView]);
+  useEffect(() => { localStorage.setItem('artlux.splitRatio', String(splitRatio)); }, [splitRatio]);
+  const startSplitDrag = (e: React.PointerEvent) => {
+    e.preventDefault();
+    const host = splitHostRef.current; if (!host) return;
+    const move = (ev: PointerEvent) => {
+      const r = host.getBoundingClientRect();
+      setSplitRatio(Math.min(0.85, Math.max(0.2, (ev.clientX - r.left) / r.width)));
+    };
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
   // Single-target selection with optional additive (ctrl/cmd) toggle. Clicking an
   // already-selected member without a modifier keeps the multi-selection (so it stays
   // draggable) and just moves the primary; clicking elsewhere selects only that fixture.
@@ -1392,29 +1424,65 @@ const App: React.FC = () => {
 
         {/* Center: persistent stage host + bottom dock */}
         <div className="flex-1 min-w-0 flex flex-col bg-surface-0">
-            <div className="flex-1 min-h-0 relative">
-                {/* 2D mapping stage — the main window's only view; the 3D Scene lives in its own window. */}
-                <Stage
-                    surfaces={surfaces}
-                    onUpdateSurfaces={setSurfaces}
-                    onDropAsset={handleDropAssetOnSurface}
-                    selectedSurfaceId={selectedSurfaceId}
-                    onSelectSurface={handleSelectSurface}
-                    controllers={controllers}
-                    fixtures={fixtures}
-                    onUpdateFixtures={setFixtures}
-                    selectedFixtureId={selectedFixtureId}
-                    selectedFixtureIds={selectedFixtureIds}
-                    onSelectFixture={handleSelectFixture}
-                    isEngineRunning={true}
-                    isVideoPlaying={isVideoPlaying}
-                    globalBrightness={globalBrightness}
-                    gamma={settings.gamma}
-                    targetIp={settings.artNetIp}
-                    broadcast={settings.broadcast}
-                    protocol={settings.protocol}
-                    onRecordHistory={recordHistory}
-                />
+            <div ref={splitHostRef} className="flex-1 min-h-0 relative flex">
+                {/* Left: 2D mapping stage */}
+                <div className="min-h-0 relative" style={{ width: splitView ? `${splitRatio * 100}%` : '100%' }}>
+                    <Stage
+                        surfaces={surfaces}
+                        onUpdateSurfaces={setSurfaces}
+                        onDropAsset={handleDropAssetOnSurface}
+                        selectedSurfaceId={selectedSurfaceId}
+                        onSelectSurface={handleSelectSurface}
+                        controllers={controllers}
+                        fixtures={fixtures}
+                        onUpdateFixtures={setFixtures}
+                        selectedFixtureId={selectedFixtureId}
+                        selectedFixtureIds={selectedFixtureIds}
+                        onSelectFixture={handleSelectFixture}
+                        isEngineRunning={true}
+                        isVideoPlaying={isVideoPlaying}
+                        globalBrightness={globalBrightness}
+                        gamma={settings.gamma}
+                        targetIp={settings.artNetIp}
+                        broadcast={settings.broadcast}
+                        protocol={settings.protocol}
+                        onRecordHistory={recordHistory}
+                    />
+                    {/* Split toggle */}
+                    <button
+                        onClick={() => setSplitView(v => !v)}
+                        title={splitView ? 'Hide 3D scene' : 'Show 3D scene (split)'}
+                        className="absolute top-2 right-2 z-10 px-2 py-1 rounded-[var(--r-sm)] text-[10px] bg-surface-2/80 backdrop-blur-sm border border-line-1 text-fg-2 hover:text-fg-1"
+                    >
+                        {splitView ? '3D ◧' : '3D ◨'}
+                    </button>
+                </div>
+                {/* Right: embedded 3D scene (or camera preview during calibration) */}
+                {splitView && (
+                    <>
+                        <div onPointerDown={startSplitDrag} className="w-1 shrink-0 bg-line-1 hover:bg-accent cursor-col-resize" />
+                        <div className="flex-1 min-w-0 min-h-0 relative">
+                            <Simulator3D
+                                fixtures={fixtures}
+                                selectedFixtureId={selectedFixtureId}
+                                scene3D={scene3D}
+                                modelUrls={modelUrls}
+                                selectedModelId={selectedModelId}
+                                onSelectFixture={(id: string) => handleSelectFixture(id || null)}
+                                onSelectModel={handleSelectModel}
+                                onCommitFixture3D={(id, u) => handleCommitFixture3D(id, u)}
+                                onCommitModel={handleCommitModel}
+                                onModelNaturalSize={handleModelNaturalSize}
+                                onSceneConfig={handleSceneConfig}
+                                onRecordHistory={recordHistory}
+                                calibPickMode={calibPickMode}
+                                onCalibPick={handleCalibPick}
+                                projectorCalibs={projectorOutputs.filter(o => o.calibration?.poseRms != null).map(o => ({ surfaceId: o.surfaceId, calibration: o.calibration! }))}
+                                activePicks={(projectorOutputs.find(o => o.surfaceId === calibratingOutputId)?.calibration?.posePicks ?? []).map(p => ({ world: p.world }))}
+                            />
+                        </div>
+                    </>
+                )}
             </div>
 
             <Dock
@@ -1551,18 +1619,29 @@ const App: React.FC = () => {
           onCalibrate={(surfaceId) => setCalibratingOutputId(surfaceId)}
           onSetUseCalibration={(surfaceId, on) => upsertOutput(surfaceId, { useCalibration: on })}
       />
-      {calibratingOutputId && (
-        <CalibPanel
-          surfaceId={calibratingOutputId}
-          surfaceName={surfaces.find(s => s.id === calibratingOutputId)?.name ?? 'Output'}
-          output={projectorOutputs.find(o => o.surfaceId === calibratingOutputId)}
-          sendToProjector={sendToProjector}
-          onStoreCalibration={handleStoreCalibration}
-          onPoseModeChange={handlePoseModeChange}
-          onClearPoses={handleClearPoses}
-          onClose={() => setCalibratingOutputId(null)}
-        />
-      )}
+      {calibratingOutputId && (() => {
+        const co = projectorOutputs.find(o => o.surfaceId === calibratingOutputId);
+        const calibLive = !!co?.enabled && co.displayId != null && displays.some(d => d.id === co.displayId);
+        const hasModel = (scene3D.models ?? []).some(m => m.kind !== 'plane' && m.visible);
+        return (
+          <CalibWizard
+            surfaceId={calibratingOutputId}
+            surfaceName={surfaces.find(s => s.id === calibratingOutputId)?.name ?? 'Output'}
+            output={co}
+            scene3D={scene3D}
+            live={calibLive}
+            hasModel={hasModel}
+            sendToProjector={sendToProjector}
+            onStoreCalibration={handleStoreCalibration}
+            onPoseModeChange={handlePoseModeChange}
+            onClearPoses={handleClearPoses}
+            onSetUseCalibration={(sid, on) => upsertOutput(sid, { useCalibration: on })}
+            onSetCalibPickMode={setCalibPickMode}
+            onSetSplit={setSplitView}
+            onClose={() => { setCalibratingOutputId(null); setCalibPickMode(false); }}
+          />
+        );
+      })()}
       <RoutingModal
           open={routingOpen}
           onClose={() => setRoutingOpen(false)}

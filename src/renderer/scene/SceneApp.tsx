@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Fixture, Surface, Vec3, Euler3, Timeline, defaultTimeline } from '../types';
 import { Scene3D, SceneModel, defaultScene3D, ProjectorCalibration } from '../../../shared/protocol';
-import { useGLTF } from '@react-three/drei';
+import { useModelUrls } from '../components/Simulator3D/useModelUrls';
 import { dmxSignal } from '../services/dmxSignal';
 import { timeline as engine } from '../services/timeline';
 import * as trackingStore from '../services/trackingStore';
@@ -23,7 +23,7 @@ export const SceneApp: React.FC = () => {
   const [selectedFixtureId, setSelectedFixtureId] = useState<string | null>(null);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [scene3D, setScene3D] = useState<Scene3D>(defaultScene3D());
-  const [modelUrls, setModelUrls] = useState<Record<string, string>>({});
+  const modelUrls = useModelUrls(scene3D.models);
   const [naturalSizes, setNaturalSizes] = useState<Record<string, number>>({});
   const [fitMeters, setFitMeters] = useState(5);
   const [connected, setConnected] = useState(false);
@@ -44,10 +44,6 @@ export const SceneApp: React.FC = () => {
     ));
     portRef.current?.postMessage({ t: 'sceneLayers', layerIds } satisfies SceneToMain);
   }, [scene3D.models]);
-  // Blob URL per unique file PATH (not per model id) so the same GLB placed multiple
-  // times loads once and is instanced — each ModelObject clones the shared loaded scene
-  // (clones share geometry + materials, so extra copies are nearly free).
-  const urlCache = useRef<Record<string, string>>({});
 
   const send = (m: SceneToMain) => portRef.current?.postMessage(m);
   const applyConfig = (patch: Partial<Scene3D>) => { setScene3D(s => ({ ...s, ...patch })); send({ t: 'sceneConfig', patch }); };
@@ -90,39 +86,6 @@ export const SceneApp: React.FC = () => {
     window.postMessage('artlux:scene-port-request', '*');
     return () => window.removeEventListener('message', onMsg);
   }, []);
-
-  // Load each unique file path once → a shared Blob URL; map every model id to its path's
-  // URL (so duplicate meshes reuse one loaded asset). Re-runs are idempotent and can't drop
-  // an already-loaded model. Paths no longer used by any model are revoked + cache-cleared.
-  useEffect(() => {
-    const models = scene3D.models ?? [];
-    let alive = true;
-    (async () => {
-      const meshes = models.filter(m => m.kind !== 'plane' && m.path);
-      const paths = Array.from(new Set(meshes.map(m => m.path)));
-      for (const path of paths) {
-        if (urlCache.current[path]) continue; // already loaded
-        const bytes = await window.artlux?.readModel?.(path);
-        if (!alive) return;
-        if (!bytes) continue;
-        urlCache.current[path] = URL.createObjectURL(new Blob([bytes], { type: 'model/gltf-binary' }));
-      }
-      if (!alive) return;
-      const next: Record<string, string> = {};
-      for (const m of meshes) { const u = urlCache.current[m.path]; if (u) next[m.id] = u; }
-      setModelUrls(next);
-      // Free paths no longer referenced by any mesh.
-      const used = new Set(meshes.map(m => m.path));
-      for (const path of Object.keys(urlCache.current)) {
-        if (!used.has(path)) {
-          try { useGLTF.clear(urlCache.current[path]); } catch { /* ignore */ }
-          URL.revokeObjectURL(urlCache.current[path]);
-          delete urlCache.current[path];
-        }
-      }
-    })();
-    return () => { alive = false; };
-  }, [scene3D.models]);
 
   // --- selection ---
   const selectFixture = (id: string | null) => { setSelectedModelId(null); setSelectedFixtureId(id); send({ t: 'select', id }); };

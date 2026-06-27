@@ -1,7 +1,7 @@
 // Structured-light intrinsics orchestration (renderer side). Drives one projector output through the
 // Gray-code capture sequence per board pose, decodes via the native OpenCV addon, accumulates
 // board-3D ↔ projector-pixel correspondences, and solves projector intrinsics + distortion. Decoupled
-// from React; App routes the projector's patternShown acks here and the CalibPanel calls the methods.
+// from React; App routes the projector's patternShown acks here and the CalibWizard calls the methods.
 //
 // Per pose: show white → detect checkerboard + grab the white reference; show black → grab reference;
 // show each Gray-code plane → grab; mapCornersToProjector decodes the projector pixel at each board
@@ -21,7 +21,9 @@ export interface BoardConfig {
 export const defaultBoardConfig = (): BoardConfig => ({ cols: 9, rows: 6, squareMeters: 0.025, settleMs: 120 });
 
 export type CaptureResult =
-  | { ok: true; validCorners: number; totalCorners: number; poses: number }
+  // bbox: the detected board's normalized camera-frame centroid (cx,cy ∈ 0..1) + area fraction, for
+  // the wizard's coverage tracker (spread across the frame + near/far via area).
+  | { ok: true; validCorners: number; totalCorners: number; poses: number; bbox: { cx: number; cy: number; areaFrac: number } }
   | { ok: false; reason: string };
 
 type Sender = (m: MainToProjector) => void;
@@ -88,6 +90,21 @@ export async function capturePose(cfg: BoardConfig): Promise<CaptureResult> {
   if (!det) return { ok: false, reason: 'calibration addon unavailable' };
   if (!det.found) return { ok: false, reason: 'checkerboard not detected — adjust the board/lighting' };
 
+  // Board coverage in the camera frame (centroid + area fraction) for the wizard's coverage tracker.
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity, sx = 0, sy = 0;
+  const nPts = det.corners.length / 2;
+  for (let i = 0; i < nPts; i++) {
+    const x = det.corners[i * 2], y = det.corners[i * 2 + 1];
+    minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+    sx += x; sy += y;
+  }
+  const bbox = {
+    cx: (sx / nPts) / camW,
+    cy: (sy / nPts) / camH,
+    areaFrac: ((maxX - minX) * (maxY - minY)) / (camW * camH),
+  };
+
   // Black field reference.
   await showPattern('black', -1);
   await delay(cfg.settleMs);
@@ -128,7 +145,7 @@ export async function capturePose(cfg: BoardConfig): Promise<CaptureResult> {
   objectPoints.push(...obj);
   imagePoints.push(...img);
   pointCounts.push(valid);
-  return { ok: true, validCorners: valid, totalCorners: n, poses: pointCounts.length };
+  return { ok: true, validCorners: valid, totalCorners: n, poses: pointCounts.length, bbox };
 }
 
 export interface IntrinsicsSolve { k: number[]; dist: number[]; rms: number }
