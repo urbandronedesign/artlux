@@ -8,6 +8,57 @@ parameters and composes with other cues — firing it patches only those. Both c
 > **Granular cues** (the grid, capture, triggers) are documented in the
 > [Granular cues](#granular-cues-cue-bank-grid) section below; the Scene sections come first.
 
+## Scenes vs Cues (the relationship)
+
+Scenes and Cues are two points on one spectrum: **how much of the show state a trigger touches.** A
+Scene is a *photograph* of the entire stage; a Cue is a *sticky note* that changes only the things
+written on it.
+
+| | **Scene** | **Cue** |
+|---|---|---|
+| Stores | The **whole look** (all surfaces, fixtures, LED brightness, groups, 3D scene, projector outputs) | An **arbitrary subset** of parameters (you pick which) |
+| On fire | **Replaces** the look — exactly what you saw when you stored it | **Patches** only its parameters; everything else stays |
+| Composition | All-or-nothing (one Scene = the full picture) | **Composable** — fire several and they layer |
+| Grid home | **Row 0** ("SC") | **Rows 1+** |
+| Capture | One click snapshots everything | Build it up: capture individual parameters |
+| Edit | Re-capture to update | Per-entry add / remove / retune |
+
+**What they share** — both are recallable states in the same cue-bank grid, on the same machinery:
+- **Crossfade**: both carry a `Fade` time + transition curve. Fadeable numeric params (LED brightness,
+  geometry, opacity, effect speed/intensity) animate; discrete params (media, effect, palette, on/off)
+  snap. `Fade = 0` is instant.
+- **Triggers**: identical for both — manual **GO**/click, the timeline **state machine**
+  (`recallScene` / `fireCue` actions), and **OSC**.
+- **Persistence**: Scenes live in `scenes[]`; the grid (banks, which scene sits in each row-0 cell,
+  and all cues) lives in `cueBanks[]`. Both save with the project.
+
+**When to use which**
+- **Scene** — sequenced shows, safe known-good states, "make it look exactly like this again."
+- **Cue** — live performance / layering: change just the LEDs, or just the projector media, or just a
+  fixture, while everything else keeps running. Build looks live by stacking cues.
+- **Both** — Scenes as the backbone (one per show section in row 0), Cues as overrides fired on top.
+
+**How they combine in the grid**
+
+```
+        col 1     col 2     col 3
+ SC  [ Intro  ][ Verse  ][ Drop  ]   ← row 0: Scenes (full looks)
+ R1  [ proj A ][        ][ proj B ]  ← cues: only projector content
+ R2  [ leds 1 ][ leds 2 ][        ]  ← cues: only LED colour/effect
+ R3  [ geo X  ][        ][ geo Y  ]  ← cues: only surface/fixture geometry
+```
+
+A **column header (▼)** fires the column as a unit: **if row 0 of that column holds a Scene, the
+Scene fires** (a complete recall); **otherwise every Cue in the column fires** (bottom-to-top),
+combining those stems into one look. This is the key pairing — row-0 Scenes for "go to this whole
+state," column Cues to assemble a state from independent parts without pre-baking every combination.
+
+**Typical workflow**
+1. Set up a look → capture a **Scene** in row 0 (the baseline for that section).
+2. Add **Cues** in the rows below for what you'll tweak live (blackout, warm wall, a geometry move).
+3. Give each a **Fade** time.
+4. Run it: click in **Live** mode, fire whole **columns**, or drive it from the **timeline FSM** / **OSC**.
+
 ## What a Scene captures
 
 A Scene stores the visible state, **not** the playing transport or rig wiring:
