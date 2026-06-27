@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Calibration: black-camera hint** — if a camera opens but delivers all-black frames (almost always
+  another app — Teams, the NDI Webcam tool, OBS — holding the device, or a USB hiccup), the wizard now
+  says so ("Camera opened but the image is black…") with a close-it / replug / Restart prompt, instead
+  of a silent black preview.
+
 ## v0.14.7
 
 - **Projector calibration: PS3 Eye / OpenCV camera support** — the calibration wizard's Camera step

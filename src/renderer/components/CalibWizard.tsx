@@ -75,8 +75,10 @@ export const CalibWizard: React.FC<Props> = (props) => {
   const [detect, setDetect] = useState<Detect>({ found: false });
   const [testProj, setTestProj] = useState(false);
   const [camError, setCamError] = useState<string | null>(null);
+  const [camBlank, setCamBlank] = useState(false); // camera opened but frames are all-black (contended/replug)
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const baseRef = useRef<HTMLCanvasElement | null>(null); // native preview frame target
+  const blankCount = useRef(0);
 
   const cal = output?.calibration;
   const hasIntrinsics = cal?.intrinsicsRms != null;
@@ -144,6 +146,13 @@ export const CalibWizard: React.FC<Props> = (props) => {
       if (!alive) { return; }
       if (g) {
         if (native) paintGray(baseRef.current, g);
+        // Detect an all-black frame: the device opened but delivers no image — almost always another
+        // app (Teams / NDI Webcam / OBS) holding it, or a USB hiccup. Flag it after a few in a row so
+        // the operator gets a real reason instead of a silent black preview. (Strided max ≈ free.)
+        let mx = 0;
+        for (let i = 0; i < g.data.length; i += 97) { if (g.data[i] > mx) { mx = g.data[i]; if (mx > 8) break; } }
+        blankCount.current = mx <= 8 ? blankCount.current + 1 : 0;
+        if (alive) setCamBlank(blankCount.current >= 6); // setState bails out when unchanged → no churn
         const now = performance.now();
         if (now - lastDetect > 330 && window.artlux?.calibDetectBoard) {
           lastDetect = now;
@@ -159,7 +168,7 @@ export const CalibWizard: React.FC<Props> = (props) => {
 
   const startCam = async () => {
     try {
-      setBusy('Starting camera…'); setCamError(null);
+      setBusy('Starting camera…'); setCamError(null); setCamBlank(false); blankCount.current = 0;
       if (camSource === 'native') {
         await cam.start({ source: 'native', index: camIndex, width: 1280, height: 720, fps: 60, fourcc: 'MJPG' });
       } else {
@@ -300,6 +309,12 @@ export const CalibWizard: React.FC<Props> = (props) => {
               <button onClick={startCam} className="px-2 py-1 rounded bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3">{camOn ? 'Restart' : 'Start'}</button>
             </div>
             {camError && <div className="flex items-start gap-1.5 text-danger text-[10px] leading-snug"><AlertTriangle size={12} className="shrink-0 mt-0.5" /> {camError}</div>}
+            {camBlank && !camError && (
+              <div className="flex items-start gap-1.5 text-warn text-[10px] leading-snug">
+                <AlertTriangle size={12} className="shrink-0 mt-0.5" />
+                Camera opened but the image is black — another app (Teams · NDI Webcam · OBS) is likely holding it{camSource === 'native' ? ', or it needs a replug' : ''}. Close it{camSource === 'native' ? ' / unplug + replug the camera' : ''}, then press Restart{camSource === 'native' ? ' (or try another index)' : ''}.
+              </div>
+            )}
             <div className={`text-[10px] flex items-center gap-1 ${detect.found ? 'text-ok' : 'text-fg-3'}`}>
               {detect.found ? <><Check size={11} /> checkerboard detected</> : 'point the camera at the board + projection; board not detected yet'}
             </div>

@@ -130,6 +130,12 @@ wizard over IPC — bypassing Chromium entirely. OpenCV's DirectShow backend add
 name list: try **0–5**, pressing *Start* each time, until the feed appears (exactly like vvvv's "Device
 Index"). Everything downstream — board detect, Gray-code capture, solve — is identical.
 
+> **Black preview?** If a device *opens* (the log prints its resolution) but the preview stays black,
+> it's almost always **contention** — another app (Teams, the **NDI Webcam** tool, OBS) is holding the
+> camera, so OpenCV gets empty frames. The wizard flags this ("Camera opened but the image is black…").
+> Close the other app, **unplug + replug** the camera, and press *Restart*. DirectShow indices aren't
+> stable across replugs/reboots, so the Eye's index can change — re-scan 0–5 if needed.
+
 > **PS3 Eye setup (Windows):** the Eye is not a UVC device; install the
 > [PS3EyeDirectShow](https://github.com/jkevin/PS3EyeDirectShow/releases) driver (WinUSB + DirectShow
 > filter). After install the camera's video interface should show **OK** in Device Manager (it binds to
