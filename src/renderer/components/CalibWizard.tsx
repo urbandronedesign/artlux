@@ -20,6 +20,7 @@ interface Props {
   onSetUseCalibration: (surfaceId: string, on: boolean) => void;
   onSetCalibPickMode: (on: boolean) => void;
   onSetSplit: (on: boolean) => void;
+  onSwitchFlow?: (flow: 'board' | 'auto') => void; // board (this) ↔ markerless auto-align
   onClose: () => void;
 }
 
@@ -58,7 +59,7 @@ type Detect = { found: true; corners: number[]; w: number; h: number } | { found
 export const CalibWizard: React.FC<Props> = (props) => {
   const { surfaceId, surfaceName, output, scene3D, live, hasModel,
     sendToProjector, onStoreCalibration, onPoseModeChange, onClearPoses, onSetUseCalibration,
-    onSetCalibPickMode, onSetSplit, onClose } = props;
+    onSetCalibPickMode, onSetSplit, onSwitchFlow, onClose } = props;
 
   const [step, setStep] = useState<Step>('prereq');
   const [addonOk, setAddonOk] = useState<boolean | null>(null);
@@ -228,7 +229,15 @@ export const CalibWizard: React.FC<Props> = (props) => {
       {/* Header */}
       <div className="h-10 px-3 flex items-center justify-between border-b border-line-1 bg-surface-2 shrink-0">
         <span className="text-xs font-semibold text-fg-1 uppercase tracking-wider flex items-center gap-1.5"><Aperture size={14} /> Calibrate — {surfaceName}</span>
-        <button onClick={onClose} aria-label="Close" title="Close" className="text-fg-2 hover:text-fg-1"><X size={16} /></button>
+        <div className="flex items-center gap-2">
+          {onSwitchFlow && (
+            <div className="flex items-center rounded border border-line-1 overflow-hidden text-[10px]">
+              <span className="px-1.5 py-0.5 bg-accent/20 text-fg-1">Board</span>
+              <button onClick={() => onSwitchFlow('auto')} className="px-1.5 py-0.5 bg-surface-1 text-fg-3 hover:bg-surface-2" title="Switch to markerless camera auto-align">Auto-Align</button>
+            </div>
+          )}
+          <button onClick={onClose} aria-label="Close" title="Close" className="text-fg-2 hover:text-fg-1"><X size={16} /></button>
+        </div>
       </div>
 
       {/* Stepper */}

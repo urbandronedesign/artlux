@@ -3,7 +3,9 @@ import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene
 import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge, WINDOWED_DISPLAY } from '../../shared/protocol';
 import type { ProjectorCalibration } from '../../shared/protocol';
 import { CalibWizard } from './components/CalibWizard';
+import { AutoAlignWizard } from './components/AutoAlignWizard';
 import * as calibController from './calib/calibController';
+import * as slCapture from './calib/slCapture';
 import type { AppInfo, UpdateEvent, Scene3D, ProjectorOutput, DisplayInfo, SoftEdge } from '../../shared/protocol';
 import type { SceneToMain } from './scene/bridge';
 import type { ProjectorToMain, MainToProjector } from './projector/bridge';
@@ -330,6 +332,7 @@ const App: React.FC = () => {
     setEditingOutputId(prev => prev === surfaceId ? null : surfaceId);
   // --- projector calibration (structured-light intrinsics + solvePnP pose) ---
   const [calibratingOutputId, setCalibratingOutputId] = useState<string | null>(null);
+  const [calibFlow, setCalibFlow] = useState<'board' | 'auto'>('board'); // board structured-light vs markerless auto-align
   const sendToProjector = (surfaceId: string, msg: MainToProjector) =>
     projectorPortsRef.current.get(surfaceId)?.postMessage(msg);
   const handleStoreCalibration = (surfaceId: string, patch: Partial<ProjectorCalibration>) => {
@@ -344,6 +347,9 @@ const App: React.FC = () => {
   // it with the next venue-model pick from the scene window → solvePnP (intrinsics fixed).
   const latestCrosshairRef = useRef<[number, number] | null>(null);
   const pendingPixelRef = useRef<[number, number] | null>(null);
+  // When the Auto-Align (markerless) wizard is gathering camera-image↔model picks, it registers a
+  // handler here so a model click is paired with a camera-image pixel instead of the board-pose logic.
+  const markerlessPickRef = useRef<((world: [number, number, number]) => void) | null>(null);
   const solvePose = async (surfaceId: string, picks: NonNullable<ProjectorCalibration['posePicks']>) => {
     const cal = projectorOutputs.find(x => x.surfaceId === surfaceId)?.calibration;
     if (!cal) return;
@@ -354,6 +360,8 @@ const App: React.FC = () => {
     handleStoreCalibration(surfaceId, { rotation: res.rotation, translation: res.translation, poseRms: res.rms });
   };
   const handleCalibPick = (world: [number, number, number]) => {
+    // Markerless camera-pose pick takes precedence when its wizard step is active.
+    if (markerlessPickRef.current) { markerlessPickRef.current(world); return; }
     const sid = calibratingOutputId;
     const pixel = pendingPixelRef.current;
     if (!sid || !pixel) return; // operator must confirm a crosshair on the projector first
@@ -1182,7 +1190,11 @@ const App: React.FC = () => {
       else if (m.t === 'cornerPin') upsertOutput(surfaceId, { cornerPin: m.cornerPin });
       else if (m.t === 'warp') upsertOutput(surfaceId, { warp: m.warp });
       else if (m.t === 'editOff') setEditingOutputId(prev => prev === surfaceId ? null : prev);
-      else if (m.t === 'patternShown') calibController.onPatternShown({ index: m.index, projW: m.projW, projH: m.projH });
+      else if (m.t === 'patternShown') {
+        const ack = { index: m.index, projW: m.projW, projH: m.projH };
+        calibController.onPatternShown(ack); // board flow
+        slCapture.onPatternShown(ack);       // markerless flow (inactive one is a no-op)
+      }
       else if (m.t === 'calibCrosshair') latestCrosshairRef.current = m.pixel;
       else if (m.t === 'calibConfirm') pendingPixelRef.current = latestCrosshairRef.current;
   };
@@ -1626,7 +1638,25 @@ const App: React.FC = () => {
         const co = projectorOutputs.find(o => o.surfaceId === calibratingOutputId);
         const calibLive = !!co?.enabled && co.displayId != null && (co.displayId === WINDOWED_DISPLAY || displays.some(d => d.id === co.displayId));
         const hasModel = (scene3D.models ?? []).some(m => m.kind !== 'plane' && m.visible);
-        return (
+        const closeCalib = () => { setCalibratingOutputId(null); setCalibPickMode(false); markerlessPickRef.current = null; setCalibFlow('board'); };
+        return calibFlow === 'auto' ? (
+          <AutoAlignWizard
+            surfaceId={calibratingOutputId}
+            surfaceName={surfaces.find(s => s.id === calibratingOutputId)?.name ?? 'Output'}
+            output={co}
+            scene3D={scene3D}
+            live={calibLive}
+            hasModel={hasModel}
+            sendToProjector={sendToProjector}
+            onStoreCalibration={handleStoreCalibration}
+            onSetUseCalibration={(sid, on) => upsertOutput(sid, { useCalibration: on })}
+            onSetCalibPickMode={setCalibPickMode}
+            onSetSplit={setSplitView}
+            onRegisterMarkerlessPick={(cb) => { markerlessPickRef.current = cb; }}
+            onSwitchFlow={setCalibFlow}
+            onClose={closeCalib}
+          />
+        ) : (
           <CalibWizard
             surfaceId={calibratingOutputId}
             surfaceName={surfaces.find(s => s.id === calibratingOutputId)?.name ?? 'Output'}
@@ -1641,7 +1671,8 @@ const App: React.FC = () => {
             onSetUseCalibration={(sid, on) => upsertOutput(sid, { useCalibration: on })}
             onSetCalibPickMode={setCalibPickMode}
             onSetSplit={setSplitView}
-            onClose={() => { setCalibratingOutputId(null); setCalibPickMode(false); }}
+            onSwitchFlow={setCalibFlow}
+            onClose={closeCalib}
           />
         );
       })()}
