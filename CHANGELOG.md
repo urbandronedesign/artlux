@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.14.6
+
 - **Tracking: robust person tracking** — the venue LiDAR feed flickers heavily (per-blob ids change
   ~8×/second), so the simple merge re-assigned person ids constantly. The merge now runs a small
   **predictive multi-object tracker** (velocity prediction + association gate + hit-confirmation to
