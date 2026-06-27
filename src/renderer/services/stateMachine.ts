@@ -17,6 +17,7 @@ export interface SmContext {
   markers: Marker[];
   clipActive: (layerId: string, t: number) => boolean; // is a clip under the playhead on this layer?
   emit: (i: TransportIntent) => void;
+  recallScene: (sceneId: string) => void; // recall a Scene by id (routed via cueBus to App)
 }
 
 let currentStateId: string | null = null;
@@ -41,6 +42,7 @@ function runEntry(actions: SmAction[], ctx: SmContext): void {
       case 'seek': ctx.emit({ kind: 'seek', sec: a.seekTo ?? 0 }); break;
       case 'setLoop': ctx.emit({ kind: 'loop', loopOn: !!a.loopOn }); break;
       case 'jumpMarker': { const m = ctx.markers.find(mk => mk.id === a.markerId); if (m) ctx.emit({ kind: 'seek', sec: m.time }); break; }
+      case 'recallScene': if (a.sceneId) ctx.recallScene(a.sceneId); break;
     }
   }
 }

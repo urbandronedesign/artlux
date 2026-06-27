@@ -1,3 +1,5 @@
+import type { Scene3D, ProjectorOutput } from '../../shared/protocol';
+
 export interface Point {
   x: number;
   y: number;
@@ -236,12 +238,13 @@ export interface Marker {
 // seek/loop) as the playhead moves. It lives OUTSIDE layers[]/clips[] so the video engine is
 // untouched. While `enabled`, the engine runtime (services/stateMachine.ts) evaluates the
 // current state's outgoing transitions each frame and emits transport intents back to App.
-export type SmActionKind = 'play' | 'pause' | 'stop' | 'seek' | 'setLoop' | 'jumpMarker';
+export type SmActionKind = 'play' | 'pause' | 'stop' | 'seek' | 'setLoop' | 'jumpMarker' | 'recallScene';
 export interface SmAction {
   kind: SmActionKind;
   seekTo?: number;       // seconds — for 'seek'
   loopOn?: boolean;      // for 'setLoop'
   markerId?: string;     // for 'jumpMarker'
+  sceneId?: string;      // for 'recallScene' — Scene.id to recall on state entry
 }
 export type SmTriggerKind =
   | 'manual'             // fired by a UI button / external trigger only
@@ -380,12 +383,21 @@ export interface FixtureGroup {
   fixtureIds: string[];
 }
 
-// Phase I — a named snapshot of the look (instant recall).
+// A named snapshot of the look (instant recall). Captures the visible state — surfaces,
+// fixtures, brightness, groups, 3D scene and projector outputs — but NOT the timeline/assets
+// (the playing transport + media library) or rig wiring (controllers/settings). Recall snaps
+// instantly in v1; `fadeSec` is stored for a future crossfade engine. Every field beyond
+// fixtures/globalBrightness is optional so older minimal scenes still load.
 export interface Scene {
   id: string;
   name: string;
-  fixtures: Fixture[];
+  fadeSec?: number;            // stored, NOT applied in v1 (snap recall)
+  surfaces?: Surface[];
+  fixtures: Fixture[];         // colorData stripped (it's the live DMX frame)
   globalBrightness: number;
+  groups?: FixtureGroup[];
+  scene3D?: Scene3D;
+  projectorOutputs?: ProjectorOutput[];
 }
 
 // S4 — a saved, reusable fixture definition (LED structure only; no placement,

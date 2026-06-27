@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Fixture, FixtureGroup, Scene, Surface } from '../types';
-import { Plus, Trash2, Folder, Box, Users, Camera, Play, Copy, Layers, Hash, SlidersHorizontal, ChevronUp, ChevronDown } from 'lucide-react';
+import { Plus, Trash2, Folder, Box, Users, Camera, Play, Copy, Layers, Hash, SlidersHorizontal, ChevronUp, ChevronDown, RefreshCw } from 'lucide-react';
 import { CollapsibleSection } from './CollapsibleSection';
 import { Slider } from './ui';
 import { livePreview } from '../services/livePreview';
@@ -33,6 +33,9 @@ interface ScenePanelProps {
     onApplyLookToGroup: (group: FixtureGroup) => void;
     onCaptureScene: () => void;
     onRecallScene: (scene: Scene) => void;
+    onUpdateScene: (id: string) => void;
+    onRenameScene: (id: string, name: string) => void;
+    onUpdateSceneFade: (id: string, fadeSec: number) => void;
     onRemoveScene: (id: string) => void;
     onAutoPatch: () => void;
 }
@@ -65,11 +68,14 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
     onApplyLookToGroup,
     onCaptureScene,
     onRecallScene,
+    onUpdateScene,
+    onRenameScene,
+    onUpdateSceneFade,
     onRemoveScene,
     onAutoPatch,
 }) => {
     const [editingId, setEditingId] = useState<string | null>(null);
-    const [editKind, setEditKind] = useState<'fixture' | 'surface'>('fixture');
+    const [editKind, setEditKind] = useState<'fixture' | 'surface' | 'scene'>('fixture');
     const [editName, setEditName] = useState('');
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -80,7 +86,7 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
         }
     }, [editingId]);
 
-    const startEditing = (id: string, name: string, kind: 'fixture' | 'surface') => {
+    const startEditing = (id: string, name: string, kind: 'fixture' | 'surface' | 'scene') => {
         setEditingId(id);
         setEditKind(kind);
         setEditName(name);
@@ -89,6 +95,7 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
     const commitEditing = () => {
         if (editingId && editName.trim()) {
             if (editKind === 'surface') onRenameSurface(editingId, editName.trim());
+            else if (editKind === 'scene') onRenameScene(editingId, editName.trim());
             else onRename(editingId, editName.trim());
         }
         setEditingId(null);
@@ -270,19 +277,37 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
                 </div>
             </CollapsibleSection>
 
-            {/* Scenes */}
+            {/* Scenes & Cues — named look snapshots, recallable manually / by FSM / by OSC */}
             <CollapsibleSection
-                title="Scenes"
+                title="Scenes & Cues"
                 icon={<Camera size={12} />}
-                action={<button onClick={onCaptureScene} className="text-fg-2 hover:text-fg-1" title="Capture current look"><Camera size={14}/></button>}
+                action={<button onClick={onCaptureScene} className="text-fg-2 hover:text-fg-1" title="Capture current look as a new scene"><Plus size={14}/></button>}
             >
-                <div className="p-1 space-y-0.5 max-h-28 overflow-y-auto">
+                <div className="p-1 space-y-0.5 max-h-40 overflow-y-auto">
                     {scenes.map(s => (
                         <div key={s.id} className="flex items-center group px-2 py-1 rounded hover:bg-surface-3 text-fg-2">
-                            <button className="flex-1 flex items-center text-left truncate" onClick={() => onRecallScene(s)} title="Recall scene">
-                                <Play size={11} className="mr-2 text-fg-3" /> {s.name}
-                            </button>
-                            <button className="opacity-0 group-hover:opacity-100 hover:text-danger text-fg-3" onClick={() => onRemoveScene(s.id)} title="Delete scene"><Trash2 size={10} /></button>
+                            <button className="px-1.5 py-0.5 mr-1.5 rounded bg-accent/15 text-accent hover:bg-accent/25 text-[10px] font-semibold tracking-wide" onClick={() => onRecallScene(s)} title="GO — recall this scene">GO</button>
+                            {editingId === s.id && editKind === 'scene' ? (
+                                <input
+                                    ref={inputRef}
+                                    className="flex-1 min-w-0 bg-surface-1 border border-line-2 rounded px-1 text-fg-1"
+                                    value={editName}
+                                    onChange={e => setEditName(e.target.value)}
+                                    onBlur={commitEditing}
+                                    onKeyDown={handleKeyDown}
+                                />
+                            ) : (
+                                <span className="flex-1 min-w-0 truncate cursor-text" onDoubleClick={() => startEditing(s.id, s.name, 'scene')} title="Double-click to rename">{s.name}</span>
+                            )}
+                            <input
+                                type="number" min={0} step={0.1}
+                                value={s.fadeSec ?? 0}
+                                onChange={e => onUpdateSceneFade(s.id, Math.max(0, Number(e.target.value) || 0))}
+                                className="w-10 ml-1.5 bg-surface-1 border border-line-1 rounded px-1 text-[10px] text-fg-3 tabular-nums opacity-60"
+                                title="Fade time (seconds) — stored for a future crossfade; recall is instant in this version"
+                            />
+                            <button className="opacity-0 group-hover:opacity-100 hover:text-fg-1 text-fg-3 ml-1" onClick={() => onUpdateScene(s.id)} title="Update scene from current look"><RefreshCw size={11} /></button>
+                            <button className="opacity-0 group-hover:opacity-100 hover:text-danger text-fg-3 ml-1" onClick={() => onRemoveScene(s.id)} title="Delete scene"><Trash2 size={10} /></button>
                         </div>
                     ))}
                     {scenes.length === 0 && <div className="text-fg-3 italic px-2 py-1">No scenes</div>}

@@ -30,6 +30,7 @@ import { dmxSignal } from './services/dmxSignal';
 import { getDrawable } from './services/surfaceMedia';
 import { timeline as timelineEngine } from './services/timeline';
 import * as oscController from './services/oscController';
+import * as cueBus from './services/cueBus';
 import * as trackingStore from './services/trackingStore';
 import { clusterAndTrack, resetPeopleTracking } from './services/blobClustering';
 import * as trackingPlayback from './services/trackingPlayback';
@@ -395,17 +396,48 @@ const App: React.FC = () => {
     setFixtures(fixtures.map(f => group.fixtureIds.includes(f.id) ? { ...f, ...look } : f));
   };
 
-  // --- Scenes (snapshots) ---
+  // --- Scenes (look snapshots) ---
+  // Capture the visible state — surfaces, fixtures, brightness, groups, 3D scene, projector
+  // outputs — but not the timeline/assets (playing transport + media library) or rig wiring.
+  const buildSceneSnapshot = (): Omit<Scene, 'id' | 'name' | 'fadeSec'> => ({
+    surfaces,
+    fixtures: fixtures.map(f => ({ ...f, colorData: [] })),
+    globalBrightness,
+    groups,
+    scene3D,
+    projectorOutputs,
+  });
   const handleCaptureScene = () => {
-    const snapshot = fixtures.map(f => ({ ...f, colorData: [] }));
-    setScenes([...scenes, { id: generateId(), name: `Scene ${scenes.length + 1}`, fixtures: snapshot, globalBrightness }]);
+    setScenes([...scenes, { id: generateId(), name: `Scene ${scenes.length + 1}`, fadeSec: 0, ...buildSceneSnapshot() }]);
   };
+  // Re-capture current state into an existing scene (keeps id/name/fadeSec) — MadMapper "Update Scene".
+  const handleUpdateScene = (id: string) => {
+    setScenes(scenes.map(s => s.id === id ? { ...s, ...buildSceneSnapshot() } : s));
+  };
+  const handleRenameScene = (id: string, name: string) => setScenes(scenes.map(s => s.id === id ? { ...s, name } : s));
+  const handleUpdateSceneFade = (id: string, fadeSec: number) => setScenes(scenes.map(s => s.id === id ? { ...s, fadeSec } : s));
+  // Recall snaps instantly (v1). Every field beyond fixtures/globalBrightness is presence-guarded so
+  // older minimal scenes still load. fadeSec is intentionally ignored until the transition engine lands.
   const handleRecallScene = (scene: Scene) => {
     recordHistory();
+    if (scene.surfaces) setSurfaces(scene.surfaces);
     setFixtures(scene.fixtures.map(f => ({ ...f, colorData: [] })));
     setGlobalBrightness(scene.globalBrightness);
+    if (scene.groups) setGroups(scene.groups);
+    if (scene.scene3D) setScene3D(scene.scene3D);
+    if (scene.projectorOutputs) setProjectorOutputs(scene.projectorOutputs);
+    setSelectedFixtureId(null);
+    setSelectedFixtureIds([]);
+    setSelectedSurfaceId(null);
   };
   const handleRemoveScene = (id: string) => setScenes(scenes.filter(s => s.id !== id));
+  // Resolve a cueBus recall request (id then name) against current scenes. Held in a ref so the
+  // once-subscribed cueBus listener always sees the latest scenes/handler closure.
+  const recallByRefRef = useRef<(ref: string) => void>(() => {});
+  recallByRefRef.current = (ref: string) => {
+    const scene = scenes.find(s => s.id === ref) ?? scenes.find(s => s.name === ref);
+    if (scene) handleRecallScene(scene);
+  };
 
   // --- Fixture library (templates persisted in userData) ---
   const persistTemplates = (next: FixtureTemplate[]) => {
@@ -781,6 +813,8 @@ const App: React.FC = () => {
       else if (i.kind === 'seek') timelineEngine.seek(i.sec);
       else if (i.kind === 'loop') setTimeline(t => ({ ...t, loop: i.loopOn }));
   }), []);
+  // Scene recall requested by a trigger source (FSM action, OSC) — resolve by id/name and apply.
+  useEffect(() => cueBus.subscribeRecall((ref) => recallByRefRef.current(ref)), []);
   // OSC: subscribe the controller to forwarded messages once; (re)bind the UDP listener and refresh
   // the control namespace whenever the OSC settings change. Control intents flow back through the
   // subscribeIntent path above; LiDAR blob data lands in the tracking store.
@@ -1196,6 +1230,9 @@ const App: React.FC = () => {
                     onApplyLookToGroup={handleApplyLookToGroup}
                     onCaptureScene={handleCaptureScene}
                     onRecallScene={handleRecallScene}
+                    onUpdateScene={handleUpdateScene}
+                    onRenameScene={handleRenameScene}
+                    onUpdateSceneFade={handleUpdateSceneFade}
                     onRemoveScene={handleRemoveScene}
                     onAutoPatch={handleAutoPatch}
                 />
@@ -1248,7 +1285,7 @@ const App: React.FC = () => {
                     timelineMax ? (
                         <div className="h-full flex items-center justify-center text-fg-3 text-[11px] italic">Timeline maximized — press F or the restore button to dock it</div>
                     ) : (
-                        <TimelinePanel timeline={timeline} onChange={setTimeline} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} onToggleMax={() => setTimelineMax(true)} projectPath={currentProjectPath} />
+                        <TimelinePanel timeline={timeline} onChange={setTimeline} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} onToggleMax={() => setTimelineMax(true)} projectPath={currentProjectPath} scenes={scenes} />
                     )
                 ) : (
                     <FixtureEditor
@@ -1361,7 +1398,7 @@ const App: React.FC = () => {
 
       {timelineMax && (
         <div className="fixed inset-0 z-50 bg-surface-0 flex flex-col">
-          <TimelinePanel timeline={timeline} onChange={setTimeline} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} maximized onToggleMax={() => setTimelineMax(false)} projectPath={currentProjectPath} />
+          <TimelinePanel timeline={timeline} onChange={setTimeline} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} maximized onToggleMax={() => setTimelineMax(false)} projectPath={currentProjectPath} scenes={scenes} />
         </div>
       )}
 

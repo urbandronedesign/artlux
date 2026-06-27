@@ -1,6 +1,7 @@
 import type { OscMessage } from '../../../shared/protocol';
 import { timeline } from './timeline';
 import * as tracking from './trackingStore';
+import * as cueBus from './cueBus';
 
 // Routes incoming OSC (received in main, forwarded via window.artlux.onOscMessage) to its sink:
 //   • LiDAR blob/spec messages  → trackingStore
@@ -26,6 +27,10 @@ function handleControl(rest: string, args: (number | string)[]): void {
     case '/transport/seek': timeline.dispatchTransportIntent({ kind: 'seek', sec: num(args[0]) }); break;
     case '/transport/loop': timeline.dispatchTransportIntent({ kind: 'loop', loopOn: num(args[0]) !== 0 }); break;
     default: {
+      // Recall a scene by id or name: /scene/recall <ref>  OR  /scene/<ref>/go
+      if (rest === '/scene/recall' && args[0] != null) { cueBus.requestRecall(String(args[0])); break; }
+      const sc = /^\/scene\/(.+)\/go$/.exec(rest);
+      if (sc) { cueBus.requestRecall(decodeURIComponent(sc[1])); break; }
       // Fire a named state-machine transition: /state/trigger <id>  OR  /state/<id>
       if (rest === '/state/trigger' && args[0] != null) { timeline.triggerSmTransition(String(args[0])); break; }
       const m = /^\/state\/(.+)$/.exec(rest);

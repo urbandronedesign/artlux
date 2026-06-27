@@ -4,6 +4,7 @@ import * as hapDecode from './hapDecode';
 import * as hapGL from './hapGL';
 import * as fsm from './stateMachine';
 import type { TransportIntent, SmContext } from './stateMachine';
+import * as cueBus from './cueBus';
 
 // Per-window video-layer timeline engine. The single source of playback time so React
 // never re-renders per frame (mirrors dmxSignal/livePreview). One <video> per layer
@@ -51,7 +52,7 @@ const SLEW = 0.1; // fraction of residual drift a mirror window corrects per tra
 // Is a clip live under the playhead on this layer? (for the FSM 'onClipEnd' trigger)
 const clipActive = (layerId: string, t: number): boolean => activeClip(layerId, t) != null;
 // Per-frame context handed to the FSM runtime.
-const smContext = (): SmContext => ({ markers: data.markers ?? [], clipActive, emit: emitIntent });
+const smContext = (): SmContext => ({ markers: data.markers ?? [], clipActive, emit: emitIntent, recallScene: (id) => cueBus.requestRecall(id) });
 
 const ensureBlob = (path: string): void => { void ensureBlobUrl(path, 'video/mp4'); };
 

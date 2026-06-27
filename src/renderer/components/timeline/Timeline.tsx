@@ -25,13 +25,14 @@ interface Props {
   maximized?: boolean;
   onToggleMax?: () => void;
   projectPath?: string | null; // when set, recorded takes are copied into the project's assets/tracking
+  scenes?: { id: string; name: string }[]; // for the FSM 'recallScene' action picker
 }
 
 // DaVinci-style NLE timeline. Tracks (layers) hold clips placed by time; the unified transport
 // (top-bar play) drives the engine — the playback clock. Edits commit to project state via
 // onChange; the live playhead/time are read from the engine render-free. Layout is a single
 // vertical scroller with a sticky track-header gutter and a sticky timecode ruler.
-export const Timeline: React.FC<Props> = ({ timeline, onChange, playing, onTogglePlay, maximized = false, onToggleMax, projectPath }) => {
+export const Timeline: React.FC<Props> = ({ timeline, onChange, playing, onTogglePlay, maximized = false, onToggleMax, projectPath, scenes = [] }) => {
   const [pxPerSec, setPxPerSec] = useState(40);
   const [selected, setSelected] = useState<string | null>(null);
   const [tool, setTool] = useState<'select' | 'blade'>('select');
@@ -401,7 +402,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, playing, onToggl
       </div>
 
       {smEditorOpen && (
-        <StateGraphEditor sm={sm} markers={timeline.markers ?? []} layers={layers}
+        <StateGraphEditor sm={sm} markers={timeline.markers ?? []} layers={layers} scenes={scenes}
           onChange={setStateMachine} onClose={() => setSmEditorOpen(false)} />
       )}
     </div>
