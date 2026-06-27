@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## v0.14.7
+
+- **Projector calibration: PS3 Eye / OpenCV camera support** — the calibration wizard's Camera step
+  now has a **Capture via** toggle: **Browser** (any `getUserMedia` webcam, as before) or **OpenCV
+  (DShow)** for cameras the browser can't drive. The **PlayStation 3 Eye** and similar non-UVC
+  cameras deliver frames to OpenCV's DirectShow backend but throw `NotReadableError` in Chromium's
+  `getUserMedia`; ArtLux now captures those natively in the calibration addon (`VideoCapture` +
+  `CAP_DSHOW`, MJPG 1280×720) and streams the frames into the same board-detect / structured-light
+  pipeline — bypassing the browser entirely. OpenCV addresses DirectShow devices by **index**, so the
+  wizard shows a **Device index** picker (try 0–5) instead of a name list, with the live board-detect
+  overlay on a native preview. See [docs/CALIBRATION.md](docs/CALIBRATION.md) for PS3 Eye driver setup.
+- **Camera start more robust** — the browser camera path now progressively relaxes the requested
+  resolution (720p → 480p → any) so a limited camera that can't start at 720p is no longer misreported
+  as "busy".
+
 ## v0.14.6
 
 - **Tracking: robust person tracking** — the venue LiDAR feed flickers heavily (per-blob ids change
