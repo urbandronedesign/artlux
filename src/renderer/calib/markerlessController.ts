@@ -46,18 +46,23 @@ export interface MarkerlessResult {
   calibration: ProjectorCalibration;
   decoded: number; // dense correspondences decoded
   hits: number;    // of those, how many rays hit the venue mesh
+  cameraK: number[]; // the camera intrinsics actually used (self-cal or nominal)
+  selfCal: { ok: boolean; rms: number; inliers: number } | null; // null when not attempted
+  cameraPoseRms: number; // camera-pose RMS with the chosen intrinsics (projector RMS is in calibration)
   // Dense per-pixel 3D map (VIOSO-style): flat projector-pixel pairs + aligned world-XYZ triples.
   denseMap: { proj: number[]; world: number[] };
 }
 
-// Scan the venue, decode dense correspondences, raycast to 3D, and resection the projector. A scan
-// must already be active (slCapture.beginScan) and the camera open (calibCapture). cameraR/cameraT come
-// from solveCameraPose.
-export async function solveGeometry(cfg: MarkerlessConfig, cameraR: number[], cameraT: [number, number, number]): Promise<MarkerlessResult | { error: string }> {
+// Scan the venue, decode dense correspondences, (optionally) self-calibrate the camera from the scan,
+// solve the camera pose from the picks with those intrinsics, raycast to 3D, and resection the
+// projector. A scan must already be active (slCapture.beginScan) and the camera open (calibCapture).
+// cfg.cameraK is the nominal/fallback profile; when `selfCal` and the gates pass it's replaced by the
+// focal-from-fundamental-matrix estimate.
+export async function solveGeometry(cfg: MarkerlessConfig, picks: CamPick[], selfCal: boolean): Promise<MarkerlessResult | { error: string }> {
   const api = window.artlux;
   if (!api?.calibDecodeDense || !api?.calibCalibrateGuided || !api?.calibSolvePnpRansac) return { error: 'calibration addon unavailable' };
   if (!hasVenueMeshes()) return { error: 'no venue model loaded' };
-  if (cfg.cameraK.length !== 9) return { error: 'camera intrinsics not set' };
+  if (picks.length < 4) return { error: 'need ≥4 camera↔model picks (Anchor step)' };
 
   // 1. Capture Gray-code on the venue.
   const scan = await captureGrayCode(cfg.settleMs);
@@ -73,10 +78,24 @@ export async function solveGeometry(cfg: MarkerlessConfig, cameraR: number[], ca
   const N = dense.camX.length;
   if (N < 50) return { error: `only ${N} decoded points — darken the room / improve focus` };
 
-  // 3. Raycast each camera pixel onto the venue mesh → 3D point.
+  // 3. Camera intrinsics: self-calibrate from the scan (gated), else the nominal profile.
+  let cameraK = cfg.cameraK;
+  let selfCalInfo: { ok: boolean; rms: number; inliers: number } | null = null;
+  if (selfCal && api.calibSelfCalibrate) {
+    const sc = await api.calibSelfCalibrate(dense.camX, dense.camY, dense.projX, dense.projY, camW, camH, projW, projH);
+    if (sc) { selfCalInfo = { ok: sc.ok, rms: sc.rms, inliers: sc.inliers }; if (sc.ok && sc.camK.length === 9) cameraK = sc.camK; }
+  }
+  if (cameraK.length !== 9) return { error: 'camera intrinsics unavailable (set FOV or enable self-cal)' };
+
+  // 4. Camera pose with the chosen intrinsics.
+  const cp = await solveCameraPose(picks, cameraK, cfg.cameraDist);
+  if ('error' in cp) return { error: `camera pose: ${cp.error}` };
+  const cameraR = cp.rotation, cameraT = cp.translation;
+
+  // 5. Raycast each camera pixel onto the venue mesh → 3D point.
   const rays = new Array<{ origin: [number, number, number]; dir: [number, number, number] }>(N);
   for (let i = 0; i < N; i++) {
-    rays[i] = cameraPixelRayWorld(cfg.cameraK, cfg.cameraDist, cameraR, cameraT, dense.camX[i], dense.camY[i]);
+    rays[i] = cameraPixelRayWorld(cameraK, cfg.cameraDist, cameraR, cameraT, dense.camX[i], dense.camY[i]);
   }
   const hits = raycastVenueBatch(rays);
 
@@ -92,7 +111,7 @@ export async function solveGeometry(cfg: MarkerlessConfig, cameraR: number[], ca
   }
   if (used < 30) return { error: `only ${used} rays hit the venue — check camera pose / model alignment` };
 
-  // 5. Resection the projector: guided intrinsics (seed from throw ratio, fix principal point for the
+  // 6. Resection the projector: guided intrinsics (seed from throw ratio, fix principal point for the
   //    single-view solve), then RANSAC pose against the same 3D↔2D set.
   const intr = await api.calibCalibrateGuided(objectPoints, imagePoints, [used], projW, projH, [], true, false);
   if (!intr) return { error: 'projector resection failed' };
@@ -109,5 +128,5 @@ export async function solveGeometry(cfg: MarkerlessConfig, cameraR: number[], ca
     poseRms: pose.rms,
     calibratedAt: new Date().toISOString(),
   };
-  return { calibration, decoded: N, hits: used, denseMap: { proj: imagePoints, world: objectPoints } };
+  return { calibration, decoded: N, hits: used, cameraK, selfCal: selfCalInfo, cameraPoseRms: cp.rms, denseMap: { proj: imagePoints, world: objectPoints } };
 }

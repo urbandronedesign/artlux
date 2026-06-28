@@ -56,6 +56,15 @@ pub struct CameraFrame {
     pub data: Buffer, // grayscale, w*h bytes
 }
 
+#[napi(object)]
+pub struct CameraSelfCal {
+    pub cam_k: Vec<f64>,  // 9, recovered camera intrinsics
+    pub proj_k: Vec<f64>, // 9, recovered projector intrinsics (bonus)
+    pub ok: bool,         // estimate passed sanity gates (else keep the nominal profile)
+    pub rms: f64,         // Sampson epipolar RMS over inliers (px) — quality indicator
+    pub inliers: u32,
+}
+
 // ---- helpers ---------------------------------------------------------------
 
 // Build an owned single-channel 8-bit Mat (h×w) from an RGBA (4ch) or grayscale (1ch) byte buffer.
@@ -487,6 +496,106 @@ pub fn calibrate_projector_guided(
         Ok(ProjectorIntrinsicsResult { k: k_vec, dist: dist_vec, rms })
     })();
     res.map_err(|e| napi::Error::from_reason(format!("calibrate_projector_guided: {e}")))
+}
+
+// ---- 4b. board-free camera intrinsics from the scan (focal-from-F / Bougnoux) ----
+//
+// Treats the camera↔projector dense correspondences as an uncalibrated stereo pair: estimate the
+// fundamental matrix F (RANSAC), then the Bougnoux closed-form focal from F + assumed principal points
+// (image centres, square pixels). Recovers BOTH the camera and projector focal lengths. Notoriously
+// noise/degeneracy-sensitive (planar scenes especially) — gated by inlier count + epipolar RMS +
+// focal plausibility; on failure `ok=false` so the caller keeps the nominal profile. The 3D-relief
+// venue is what makes this tractable. "3D mapping doesn't have to be perfect" (VIOSO).
+
+fn m3v(m: &[f64; 9], v: &[f64; 3]) -> [f64; 3] {
+    [m[0] * v[0] + m[1] * v[1] + m[2] * v[2], m[3] * v[0] + m[4] * v[1] + m[5] * v[2], m[6] * v[0] + m[7] * v[1] + m[8] * v[2]]
+}
+fn dot3(a: &[f64; 3], b: &[f64; 3]) -> f64 { a[0] * b[0] + a[1] * b[1] + a[2] * b[2] }
+fn cross3(a: &[f64; 3], b: &[f64; 3]) -> [f64; 3] { [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]] }
+fn skew3(e: &[f64; 3]) -> [f64; 9] { [0.0, -e[2], e[1], e[2], 0.0, -e[0], -e[1], e[0], 0.0] }
+fn mm3(a: &[f64; 9], b: &[f64; 9]) -> [f64; 9] {
+    let mut o = [0.0; 9];
+    for r in 0..3 { for c in 0..3 { let mut s = 0.0; for k in 0..3 { s += a[r * 3 + k] * b[k * 3 + c]; } o[r * 3 + c] = s; } }
+    o
+}
+fn tr3(m: &[f64; 9]) -> [f64; 9] { [m[0], m[3], m[6], m[1], m[4], m[7], m[2], m[5], m[8]] }
+
+// Bougnoux focal² for the "self" camera: F relates other^T F self = 0; e_other is the epipole in the
+// OTHER image (left null of F). Ĩ = diag(1,1,0).
+fn bougnoux_focal_sq(fmat: &[f64; 9], p_self: &[f64; 3], p_other: &[f64; 3], e_other: &[f64; 3]) -> f64 {
+    let mut i_f = *fmat; i_f[6] = 0.0; i_f[7] = 0.0; i_f[8] = 0.0; // Ĩ F
+    let a = mm3(&skew3(e_other), &i_f); // [e_other]× Ĩ F
+    let a_ps = m3v(&a, p_self);
+    let f_ps = m3v(fmat, p_self);
+    let num1 = dot3(p_other, &a_ps);
+    let num2 = dot3(&f_ps, p_other);
+    let den = dot3(&f_ps, &a_ps);
+    if den.abs() < 1e-12 { return f64::NAN; }
+    -(num1 * num2) / den
+}
+
+#[napi]
+pub fn self_calibrate_stereo(
+    cam_x: Vec<f64>, cam_y: Vec<f64>, proj_x: Vec<f64>, proj_y: Vec<f64>,
+    cam_w: u32, cam_h: u32, proj_w: u32, proj_h: u32,
+) -> napi::Result<CameraSelfCal> {
+    let fail = || CameraSelfCal { cam_k: vec![], proj_k: vec![], ok: false, rms: 0.0, inliers: 0 };
+    let res = (|| -> opencv::Result<CameraSelfCal> {
+        let n = cam_x.len().min(cam_y.len()).min(proj_x.len()).min(proj_y.len());
+        if n < 50 { return Ok(fail()); }
+        let mut p1: Vector<Point2f> = Vector::new();
+        let mut p2: Vector<Point2f> = Vector::new();
+        for i in 0..n {
+            p1.push(Point2f::new(cam_x[i] as f32, cam_y[i] as f32));
+            p2.push(Point2f::new(proj_x[i] as f32, proj_y[i] as f32));
+        }
+        // F such that p2ᵀ F p1 = 0 (camera = image 1, projector = image 2).
+        let mut mask = Mat::default();
+        let f = calib3d::find_fundamental_mat(&p1, &p2, calib3d::FM_RANSAC, 1.5, 0.99, 2000, &mut mask)?;
+        if f.empty() || f.rows() != 3 || f.cols() != 3 { return Ok(fail()); }
+        let fa = |r: i32, c: i32| *f.at_2d::<f64>(r, c).unwrap_or(&0.0);
+        let fmat = [fa(0, 0), fa(0, 1), fa(0, 2), fa(1, 0), fa(1, 1), fa(1, 2), fa(2, 0), fa(2, 1), fa(2, 2)];
+
+        // Sampson epipolar RMS over inliers (quality).
+        let (mut sse, mut inl) = (0.0f64, 0u32);
+        for i in 0..n {
+            if *mask.at::<u8>(i as i32).unwrap_or(&0) == 0 { continue; }
+            let x1 = [cam_x[i], cam_y[i], 1.0];
+            let x2 = [proj_x[i], proj_y[i], 1.0];
+            let fx1 = m3v(&fmat, &x1);
+            let ftx2 = m3v(&tr3(&fmat), &x2);
+            let num = dot3(&x2, &fx1);
+            let den = fx1[0] * fx1[0] + fx1[1] * fx1[1] + ftx2[0] * ftx2[0] + ftx2[1] * ftx2[1];
+            if den > 1e-12 { sse += (num * num) / den; inl += 1; }
+        }
+        if inl < 100 { return Ok(fail()); }
+        let rms = (sse / inl as f64).sqrt();
+
+        // Epipoles: e1 = right null (F e1=0, camera image), e2 = left null (Fᵀ e2=0, projector image).
+        let r0 = [fmat[0], fmat[1], fmat[2]];
+        let r1 = [fmat[3], fmat[4], fmat[5]];
+        let e1 = cross3(&r0, &r1);
+        let c0 = [fmat[0], fmat[3], fmat[6]];
+        let c1 = [fmat[1], fmat[4], fmat[7]];
+        let e2 = cross3(&c0, &c1);
+
+        let pp_cam = [cam_w as f64 / 2.0, cam_h as f64 / 2.0, 1.0];
+        let pp_proj = [proj_w as f64 / 2.0, proj_h as f64 / 2.0, 1.0];
+        let f1sq = bougnoux_focal_sq(&fmat, &pp_cam, &pp_proj, &e2);   // camera
+        let f2sq = bougnoux_focal_sq(&tr3(&fmat), &pp_proj, &pp_cam, &e1); // projector
+
+        let plausible = |fsq: f64, w: f64| fsq.is_finite() && fsq > 0.0 && fsq.sqrt() > 0.3 * w && fsq.sqrt() < 6.0 * w;
+        let ok = rms < 3.0 && plausible(f1sq, cam_w as f64) && plausible(f2sq, proj_w as f64);
+        if !ok { return Ok(CameraSelfCal { cam_k: vec![], proj_k: vec![], ok: false, rms, inliers: inl }); }
+        let f1 = f1sq.sqrt();
+        let f2 = f2sq.sqrt();
+        Ok(CameraSelfCal {
+            cam_k: vec![f1, 0.0, pp_cam[0], 0.0, f1, pp_cam[1], 0.0, 0.0, 1.0],
+            proj_k: vec![f2, 0.0, pp_proj[0], 0.0, f2, pp_proj[1], 0.0, 0.0, 1.0],
+            ok: true, rms, inliers: inl,
+        })
+    })();
+    res.map_err(|e| napi::Error::from_reason(format!("self_calibrate_stereo: {e}")))
 }
 
 // ---- 5. native camera capture (OpenCV videoio, DirectShow) -----------------

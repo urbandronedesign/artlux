@@ -91,6 +91,8 @@ const api: ArtluxApi = {
         ipcRenderer.invoke(IPC.CALIB_SOLVE_PNP_RANSAC, objectPts, imagePts, k, dist, reprojErr),
     calibCalibrateGuided: (objectPoints: number[], imagePoints: number[], pointCounts: number[], projW: number, projH: number, initK: number[], fixPrincipalPoint: boolean, fixAspect: boolean) =>
         ipcRenderer.invoke(IPC.CALIB_CALIBRATE_GUIDED, objectPoints, imagePoints, pointCounts, projW, projH, initK, fixPrincipalPoint, fixAspect),
+    calibSelfCalibrate: (camX: number[], camY: number[], projX: number[], projY: number[], camW: number, camH: number, projW: number, projH: number) =>
+        ipcRenderer.invoke(IPC.CALIB_SELF_CALIBRATE, camX, camY, projX, projY, camW, camH, projW, projH),
     // App chrome
     onMenuAction: (cb: (action: string) => void) => {
         const listener = (_e: unknown, action: string) => cb(action);

@@ -89,6 +89,7 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
   const [picks, setPicks] = useState<CamPick[]>([]);
   const [pose, setPose] = useState<CameraPose | null>(null);
   const [result, setResult] = useState<MarkerlessResult | null>(null);
+  const [selfCalOn, setSelfCalOn] = useState(true); // recover camera lens from the scan vs the FOV guess
   const [busy, setBusy] = useState<string | null>(null);
   const [log, setLog] = useState<string[]>([]);
   const cfg = useRef(defaultMarkerlessConfig());
@@ -183,13 +184,10 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
   };
 
   const runScan = async () => {
-    if (!pose) { addLog('solve the camera pose first'); return; }
+    if (picks.length < 4) { addLog('add ≥4 anchor picks first'); return; }
     setBusy('Scanning venue — hold still…');
     slCapture.beginScan(surfaceId, send);
-    const r = await solveGeometry(
-      { ...cfg.current, cameraK, cameraDist: cfg.current.cameraDist },
-      pose.rotation, pose.translation,
-    );
+    const r = await solveGeometry({ ...cfg.current, cameraK, cameraDist: cfg.current.cameraDist }, picks, selfCalOn);
     slCapture.endScan();
     setBusy(null);
     if ('error' in r) { addLog(`✗ scan: ${r.error}`); return; }
@@ -199,7 +197,9 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
       rotation: r.calibration.rotation, translation: r.calibration.translation,
       imageSize: r.calibration.imageSize, intrinsicsRms: r.calibration.intrinsicsRms, poseRms: r.calibration.poseRms,
     });
-    addLog(`✓ solved — ${r.hits}/${r.decoded} rays hit · lens RMS ${(r.calibration.intrinsicsRms ?? 0).toFixed(2)} · pose RMS ${(r.calibration.poseRms ?? 0).toFixed(2)} px`);
+    const lens = r.selfCal?.ok ? `self-cal fx ${r.cameraK[0].toFixed(0)} (${r.selfCal.rms.toFixed(2)}px, ${r.selfCal.inliers} inl)`
+      : r.selfCal ? `self-cal rejected → nominal fx ${r.cameraK[0].toFixed(0)}` : `nominal fx ${r.cameraK[0].toFixed(0)}`;
+    addLog(`✓ ${r.hits}/${r.decoded} rays · cam ${lens} · proj lens ${(r.calibration.intrinsicsRms ?? 0).toFixed(2)}px · proj pose ${(r.calibration.poseRms ?? 0).toFixed(2)}px`);
     setStep('verify');
   };
 
@@ -316,7 +316,11 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
         {step === 'scan' && (
           <>
             <p className="text-fg-3 leading-relaxed">Project Gray-code onto the venue and decode where each projector pixel lands. <b>Dim the room</b> and keep the camera + projector still. Camera pose is anchored ({picks.length} picks{pose ? `, RMS ${pose.rms.toFixed(2)}px` : ''}).</p>
-            <button onClick={runScan} disabled={!pose || !!busy} className="w-full px-2 py-1.5 rounded bg-accent/20 border border-accent text-fg-1 hover:bg-accent/30 disabled:opacity-40 flex items-center justify-center gap-1.5">
+            <label className="flex items-start gap-1.5 text-fg-3 cursor-pointer">
+              <input type="checkbox" checked={selfCalOn} onChange={(e) => setSelfCalOn(e.target.checked)} className="mt-0.5" />
+              <span>Self-calibrate camera lens from the scan <span className="text-fg-4">(board-free focal; falls back to the FOV guess if the estimate is unreliable)</span></span>
+            </label>
+            <button onClick={runScan} disabled={picks.length < 4 || !!busy} className="w-full px-2 py-1.5 rounded bg-accent/20 border border-accent text-fg-1 hover:bg-accent/30 disabled:opacity-40 flex items-center justify-center gap-1.5">
               {busy ? <Loader2 size={13} className="animate-spin" /> : <ScanLine size={13} />} Scan venue
             </button>
             {result && <div className="text-ok text-[10px]">✓ {result.hits}/{result.decoded} rays hit the venue</div>}
@@ -334,6 +338,7 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
               <span className={(result.calibration.intrinsicsRms ?? 9) < 2 ? 'text-ok' : 'text-warn'}>lens RMS {(result.calibration.intrinsicsRms ?? 0).toFixed(2)}px</span>
               <span className={(result.calibration.poseRms ?? 9) < 3 ? 'text-ok' : 'text-warn'}>pose RMS {(result.calibration.poseRms ?? 0).toFixed(2)}px</span>
             </div>
+            <div className="text-fg-4 text-[10px]">Camera lens: {result.selfCal?.ok ? `self-calibrated (Sampson ${result.selfCal.rms.toFixed(2)}px, ${result.selfCal.inliers} inliers)` : result.selfCal ? 'self-cal rejected → assumed FOV' : 'assumed FOV'}</div>
             <div className="flex items-start gap-1.5 text-warn text-[10px] leading-snug"><AlertTriangle size={12} className="shrink-0 mt-0.5" /> Low RMS ≠ correct scale — confirm the projection lands right on the real surface before trusting it.</div>
             <button onClick={finish} className="w-full px-2 py-1.5 rounded bg-ok/20 border border-ok text-fg-1 hover:bg-ok/30">Apply &amp; finish</button>
           </>

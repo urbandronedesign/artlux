@@ -206,6 +206,8 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
         calib.solvePnpRansac(objectPts, imagePts, k, dist, reprojErr));
     ipcMain.handle(IPC.CALIB_CALIBRATE_GUIDED, (_e, objectPoints: number[], imagePoints: number[], pointCounts: number[], projW: number, projH: number, initK: number[], fixPrincipalPoint: boolean, fixAspect: boolean) =>
         calib.calibrateGuided(objectPoints, imagePoints, pointCounts, projW, projH, initK, fixPrincipalPoint, fixAspect));
+    ipcMain.handle(IPC.CALIB_SELF_CALIBRATE, (_e, camX: number[], camY: number[], projX: number[], projY: number[], camW: number, camH: number, projW: number, projH: number) =>
+        calib.selfCalibrate(camX, camY, projX, projY, camW, camH, projW, projH));
 
     // Poll native engine throughput stats ~1 Hz and push to the renderer.
     // The same numbers feed the Prometheus gauges (see ./metrics) — no extra polling.

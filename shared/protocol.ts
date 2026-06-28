@@ -84,6 +84,8 @@ export const IPC = {
   CALIB_SOLVE_PNP_RANSAC: 'calib:solve-pnp-ransac',
   /** Renderer → main (invoke): guided projector resection (intrinsic guess + degeneracy flags). */
   CALIB_CALIBRATE_GUIDED: 'calib:calibrate-guided',
+  /** Renderer → main (invoke): board-free camera intrinsics from the scan (focal-from-F / Bougnoux). */
+  CALIB_SELF_CALIBRATE: 'calib:self-calibrate',
   /** Main → renderer: a native-menu command (save/open/undo/about/…). */
   MENU_ACTION: 'menu:action',
   /** Renderer → main (invoke): app name + version (for About). */
@@ -253,6 +255,17 @@ export interface DenseMap {
   camY: number[];
   projX: number[];
   projY: number[];
+}
+
+// Board-free camera (and bonus projector) intrinsics recovered from the structured-light scan by
+// treating camera↔projector as an uncalibrated stereo pair (fundamental matrix → Bougnoux focal).
+// `ok` is false when it fails the sanity gates (inliers/RMS/focal plausibility) — keep the nominal then.
+export interface CameraSelfCal {
+  camK: number[];   // 9 (empty when !ok)
+  projK: number[];  // 9 (empty when !ok)
+  ok: boolean;
+  rms: number;      // Sampson epipolar RMS over inliers (px)
+  inliers: number;
 }
 
 // One grayscale frame grabbed natively via OpenCV's DirectShow camera backend (CAP_DSHOW). Used for
@@ -635,6 +648,8 @@ export interface ArtluxApi {
   calibSolvePnpRansac(objectPts: number[], imagePts: number[], k: number[], dist: number[], reprojErr: number): Promise<PnpResult | null>;
   /** Guided projector resection (intrinsic guess + degeneracy flags). initK [] → throw-ratio default. */
   calibCalibrateGuided(objectPoints: number[], imagePoints: number[], pointCounts: number[], projW: number, projH: number, initK: number[], fixPrincipalPoint: boolean, fixAspect: boolean): Promise<ProjectorIntrinsicsResult | null>;
+  /** Board-free camera intrinsics from the dense camera↔projector correspondences (focal-from-F). */
+  calibSelfCalibrate(camX: number[], camY: number[], projX: number[], projY: number[], camW: number, camH: number, projW: number, projH: number): Promise<CameraSelfCal | null>;
   // App chrome
   onMenuAction(cb: (action: string) => void): () => void;
   getAppInfo(): Promise<AppInfo>;

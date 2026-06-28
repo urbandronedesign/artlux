@@ -2,7 +2,7 @@ import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type {
-  BoardDetectResult, CornerProjMap, ProjectorIntrinsicsResult, PnpResult, CameraFrame, DenseMap,
+  BoardDetectResult, CornerProjMap, ProjectorIntrinsicsResult, PnpResult, CameraFrame, DenseMap, CameraSelfCal,
 } from '../../shared/protocol';
 
 // Loads the native OpenCV calibration addon (native/calib/calib.node) in the main process — the
@@ -45,6 +45,8 @@ interface CalibNative {
   solvePnpRansac(objectPts: number[], imagePts: number[], k: number[], dist: number[], reprojErr: number): PnpResult;
   /** Guided projector resection (intrinsic guess + degeneracy flags). */
   calibrateProjectorGuided(objectPoints: number[], imagePoints: number[], pointCounts: number[], projW: number, projH: number, initK: number[], fixPrincipalPoint: boolean, fixAspect: boolean): ProjectorIntrinsicsResult;
+  /** Board-free camera intrinsics from dense camera↔projector correspondences (focal-from-F). */
+  selfCalibrateStereo(camX: number[], camY: number[], projX: number[], projY: number[], camW: number, camH: number, projW: number, projH: number): CameraSelfCal;
   /** Open a camera by index via OpenCV's DirectShow backend (for cameras getUserMedia can't drive). */
   cameraOpen(index: number, width: number, height: number, fps: number, fourcc: string): boolean;
   /** Grab one grayscale frame (Buffer of w*h bytes) from the open camera, or null if none ready. */
@@ -156,6 +158,19 @@ export function calibrateGuided(
     return native.calibrateProjectorGuided(objectPoints, imagePoints, pointCounts, projW, projH, initK, fixPrincipalPoint, fixAspect);
   } catch (e) {
     console.warn('[calib] calibrateProjectorGuided failed:', (e as Error)?.message ?? e);
+    return null;
+  }
+}
+
+export function selfCalibrate(
+  camX: number[], camY: number[], projX: number[], projY: number[],
+  camW: number, camH: number, projW: number, projH: number,
+): CameraSelfCal | null {
+  if (!native) return null;
+  try {
+    return native.selfCalibrateStereo(camX, camY, projX, projY, camW, camH, projW, projH);
+  } catch (e) {
+    console.warn('[calib] selfCalibrateStereo failed:', (e as Error)?.message ?? e);
     return null;
   }
 }
