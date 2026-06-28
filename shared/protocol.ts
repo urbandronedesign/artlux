@@ -86,6 +86,14 @@ export const IPC = {
   CALIB_CALIBRATE_GUIDED: 'calib:calibrate-guided',
   /** Renderer → main (invoke): board-free camera intrinsics from the scan (focal-from-F / Bougnoux). */
   CALIB_SELF_CALIBRATE: 'calib:self-calibrate',
+  /** Renderer → main (invoke): is the NVAPI scanout warp/blend addon available (Quadro/RTX-pro)? */
+  NVWARP_AVAILABLE: 'nvwarp:available',
+  /** Renderer → main (invoke): push a scanout warp mesh (XYUVRQ) to an Electron display. */
+  NVWARP_SET_WARP: 'nvwarp:set-warp',
+  /** Renderer → main (invoke): push a scanout intensity/blend map (RGB) to an Electron display. */
+  NVWARP_SET_INTENSITY: 'nvwarp:set-intensity',
+  /** Renderer → main: clear scanout warp + intensity from an Electron display. */
+  NVWARP_CLEAR: 'nvwarp:clear',
   /** Main → renderer: a native-menu command (save/open/undo/about/…). */
   MENU_ACTION: 'menu:action',
   /** Renderer → main (invoke): app name + version (for About). */
@@ -650,6 +658,14 @@ export interface ArtluxApi {
   calibCalibrateGuided(objectPoints: number[], imagePoints: number[], pointCounts: number[], projW: number, projH: number, initK: number[], fixPrincipalPoint: boolean, fixAspect: boolean): Promise<ProjectorIntrinsicsResult | null>;
   /** Board-free camera intrinsics from the dense camera↔projector correspondences (focal-from-F). */
   calibSelfCalibrate(camX: number[], camY: number[], projX: number[], projY: number[], camW: number, camH: number, projW: number, projH: number): Promise<CameraSelfCal | null>;
+  /** Is the NVAPI scanout warp/blend addon available (Quadro/RTX-pro)? Else use the GLSL fallback. */
+  nvwarpAvailable(): Promise<boolean>;
+  /** Push a scanout warp mesh (verts = numVerts*6 XYUVRQ; src = [x,y,w,h]) to an Electron display. */
+  nvwarpSetWarp(electronDisplayId: number, verts: number[], src: number[]): Promise<boolean>;
+  /** Push a scanout intensity/blend map (w*h*3 RGB, 0..1) to an Electron display. */
+  nvwarpSetIntensity(electronDisplayId: number, w: number, h: number, rgb: number[]): Promise<boolean>;
+  /** Clear scanout warp + intensity from an Electron display. */
+  nvwarpClear(electronDisplayId: number): void;
   // App chrome
   onMenuAction(cb: (action: string) => void): () => void;
   getAppInfo(): Promise<AppInfo>;

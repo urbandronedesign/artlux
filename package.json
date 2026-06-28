@@ -13,6 +13,7 @@
     "build:native": "cargo build --release --manifest-path native/output-engine/Cargo.toml && cargo build --release --manifest-path native/spout-receiver/Cargo.toml && cargo build --release --manifest-path native/hap/Cargo.toml && node scripts/copy-native.cjs",
     "build:ndi": "cargo build --release --features ndi --manifest-path native/ndi/Cargo.toml && node scripts/copy-ndi.cjs",
     "build:calib": "powershell -ExecutionPolicy Bypass -File scripts/build-calib.ps1",
+    "build:nvwarp": "powershell -ExecutionPolicy Bypass -File scripts/build-nvwarp.ps1",
     "package": "electron-vite build && electron-builder",
     "package:dir": "electron-vite build && electron-builder --dir",
     "gen:icon": "node scripts/gen-icon.cjs"
@@ -90,6 +91,10 @@
         {
           "from": "native/calib/opencv_world4110.dll",
           "to": "opencv_world4110.dll"
+        },
+        {
+          "from": "native/nvwarp/nvwarp.node",
+          "to": "nvwarp.node"
         }
       ]
     },

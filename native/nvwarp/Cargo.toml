@@ -1,0 +1,20 @@
+[package]
+name = "artlux-nvwarp"
+version = "0.0.0"
+edition = "2021"
+description = "Native NVIDIA scanout warp + intensity (NVAPI) for ArtLux: hardware geometry warp + edge blend on Quadro/RTX-pro GPUs. Builds as a graceful stub when the NVAPI SDK is absent."
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+napi = { version = "2", default-features = false, features = ["napi4"] }
+napi-derive = "2"
+
+[build-dependencies]
+napi-build = "2"
+cc = "1"
+
+[profile.release]
+lto = true
+opt-level = 3

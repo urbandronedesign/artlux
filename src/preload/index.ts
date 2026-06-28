@@ -93,6 +93,13 @@ const api: ArtluxApi = {
         ipcRenderer.invoke(IPC.CALIB_CALIBRATE_GUIDED, objectPoints, imagePoints, pointCounts, projW, projH, initK, fixPrincipalPoint, fixAspect),
     calibSelfCalibrate: (camX: number[], camY: number[], projX: number[], projY: number[], camW: number, camH: number, projW: number, projH: number) =>
         ipcRenderer.invoke(IPC.CALIB_SELF_CALIBRATE, camX, camY, projX, projY, camW, camH, projW, projH),
+    // NVAPI scanout warp/blend
+    nvwarpAvailable: () => ipcRenderer.invoke(IPC.NVWARP_AVAILABLE),
+    nvwarpSetWarp: (electronDisplayId: number, verts: number[], src: number[]) =>
+        ipcRenderer.invoke(IPC.NVWARP_SET_WARP, electronDisplayId, verts, src),
+    nvwarpSetIntensity: (electronDisplayId: number, w: number, h: number, rgb: number[]) =>
+        ipcRenderer.invoke(IPC.NVWARP_SET_INTENSITY, electronDisplayId, w, h, rgb),
+    nvwarpClear: (electronDisplayId: number) => ipcRenderer.send(IPC.NVWARP_CLEAR, electronDisplayId),
     // App chrome
     onMenuAction: (cb: (action: string) => void) => {
         const listener = (_e: unknown, action: string) => cb(action);

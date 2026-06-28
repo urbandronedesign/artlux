@@ -10,6 +10,7 @@ import * as ndi from './transport/ndiManager';
 import * as osc from './transport/oscManager';
 import * as hap from './transport/hapManager';
 import * as calib from './calibManager';
+import * as nvwarp from './nvwarpManager';
 import * as persistence from './persistence';
 import * as projectFolder from './projectFolder';
 import * as metrics from './metrics';
@@ -208,6 +209,14 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
         calib.calibrateGuided(objectPoints, imagePoints, pointCounts, projW, projH, initK, fixPrincipalPoint, fixAspect));
     ipcMain.handle(IPC.CALIB_SELF_CALIBRATE, (_e, camX: number[], camY: number[], projX: number[], projY: number[], camW: number, camH: number, projW: number, projH: number) =>
         calib.selfCalibrate(camX, camY, projX, projY, camW, camH, projW, projH));
+
+    // ---- NVIDIA NVAPI scanout warp/blend (Quadro/RTX-pro; GLSL fallback otherwise) ----
+    ipcMain.handle(IPC.NVWARP_AVAILABLE, () => nvwarp.isAvailable());
+    ipcMain.handle(IPC.NVWARP_SET_WARP, (_e, electronDisplayId: number, verts: number[], src: number[]) =>
+        nvwarp.setWarp(electronDisplayId, verts, src));
+    ipcMain.handle(IPC.NVWARP_SET_INTENSITY, (_e, electronDisplayId: number, w: number, h: number, rgb: number[]) =>
+        nvwarp.setIntensity(electronDisplayId, w, h, rgb));
+    ipcMain.on(IPC.NVWARP_CLEAR, (_e, electronDisplayId: number) => nvwarp.clearDisplay(electronDisplayId));
 
     // Poll native engine throughput stats ~1 Hz and push to the renderer.
     // The same numbers feed the Prometheus gauges (see ./metrics) — no extra polling.
