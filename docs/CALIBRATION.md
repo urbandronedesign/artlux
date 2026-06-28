@@ -20,6 +20,11 @@ It is a **hybrid** of two independent solves:
 > handful of operator-aimed pose points — but `solvePnP` with locked intrinsics is well-conditioned.
 > Spread the pose points and keep them non-coplanar.
 
+> **Markerless successor:** a camera-automated, **board-free** flow (the venue model is the reference)
+> with multi-projector blend, NVAPI hardware warp/blend, and MPCDI interchange now exists — see
+> [AUTO-ALIGN.md](AUTO-ALIGN.md). Open it from this same wizard via the **Board ↔ Auto-Align** header
+> toggle. The board flow below remains the validated, hardware-tested path.
+
 ---
 
 ## Requirements
