@@ -100,6 +100,9 @@ const api: ArtluxApi = {
     nvwarpSetIntensity: (electronDisplayId: number, w: number, h: number, rgb: number[]) =>
         ipcRenderer.invoke(IPC.NVWARP_SET_INTENSITY, electronDisplayId, w, h, rgb),
     nvwarpClear: (electronDisplayId: number) => ipcRenderer.send(IPC.NVWARP_CLEAR, electronDisplayId),
+    // MPCDI interchange
+    exportMpcdi: (regions: unknown[]) => ipcRenderer.invoke(IPC.MPCDI_EXPORT, regions),
+    importMpcdi: () => ipcRenderer.invoke(IPC.MPCDI_IMPORT),
     // App chrome
     onMenuAction: (cb: (action: string) => void) => {
         const listener = (_e: unknown, action: string) => cb(action);

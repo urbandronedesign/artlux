@@ -1,6 +1,6 @@
 import { app, ipcMain, shell, dialog, BrowserWindow } from 'electron';
 import { readFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { IPC, type OutputConfig, type InputConfig, type ProjectData, type RigData, type Prefs, type SpoutConfig, type NdiConfig, type NdiSendConfig, type OscConfig, type AssetType, type WindowCommand } from '../../shared/protocol';
 import * as output from './transport/outputManager';
 import * as input from './transport/input';
@@ -11,6 +11,7 @@ import * as osc from './transport/oscManager';
 import * as hap from './transport/hapManager';
 import * as calib from './calibManager';
 import * as nvwarp from './nvwarpManager';
+import { buildMpcdi, parseMpcdi, type MpcdiRegion } from './mpcdi';
 import * as persistence from './persistence';
 import * as projectFolder from './projectFolder';
 import * as metrics from './metrics';
@@ -217,6 +218,24 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     ipcMain.handle(IPC.NVWARP_SET_INTENSITY, (_e, electronDisplayId: number, w: number, h: number, rgb: number[]) =>
         nvwarp.setIntensity(electronDisplayId, w, h, rgb));
     ipcMain.on(IPC.NVWARP_CLEAR, (_e, electronDisplayId: number) => nvwarp.clearDisplay(electronDisplayId));
+
+    // ---- MPCDI interchange (export/import projector warp+blend) ----
+    ipcMain.handle(IPC.MPCDI_EXPORT, async (e, regions: MpcdiRegion[]) => {
+        const parent = BrowserWindow.fromWebContents(e.sender) ?? undefined;
+        const opts = { title: 'Export MPCDI', defaultPath: 'artlux.mpcdi', filters: [{ name: 'MPCDI', extensions: ['mpcdi'] }] };
+        const res = parent ? await dialog.showSaveDialog(parent, opts) : await dialog.showSaveDialog(opts);
+        if (res.canceled || !res.filePath) return null;
+        try { writeFileSync(res.filePath, buildMpcdi(regions)); return res.filePath; }
+        catch (err) { console.warn('[mpcdi] export failed:', (err as Error)?.message ?? err); return null; }
+    });
+    ipcMain.handle(IPC.MPCDI_IMPORT, async (e) => {
+        const parent = BrowserWindow.fromWebContents(e.sender) ?? undefined;
+        const opts = { title: 'Import MPCDI', filters: [{ name: 'MPCDI', extensions: ['mpcdi'] }], properties: ['openFile' as const] };
+        const res = parent ? await dialog.showOpenDialog(parent, opts) : await dialog.showOpenDialog(opts);
+        if (res.canceled || !res.filePaths[0]) return null;
+        try { return parseMpcdi(readFileSync(res.filePaths[0])); }
+        catch (err) { console.warn('[mpcdi] import failed:', (err as Error)?.message ?? err); return null; }
+    });
 
     // Poll native engine throughput stats ~1 Hz and push to the renderer.
     // The same numbers feed the Prometheus gauges (see ./metrics) — no extra polling.

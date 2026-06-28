@@ -9,6 +9,7 @@ import {
   solveCameraPose, solveGeometry, defaultMarkerlessConfig,
   type CamPick, type CameraPose, type MarkerlessResult,
 } from '../calib/markerlessController';
+import { regionFromCalibration } from '../calib/mpcdiData';
 
 interface Props {
   surfaceId: string;
@@ -206,6 +207,14 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
   const removePick = (i: number) => setPicks((p) => p.filter((_, j) => j !== i));
   const finish = () => { onSetUseCalibration(surfaceId, true); onClose(); };
 
+  const exportMpcdi = async () => {
+    if (!result) return;
+    const region = regionFromCalibration(surfaceId, result.calibration);
+    if (!region) { addLog('✗ MPCDI: no venue model loaded'); return; }
+    const path = await window.artlux?.exportMpcdi?.([region]);
+    addLog(path ? `✓ MPCDI exported → ${path}` : 'MPCDI export cancelled');
+  };
+
   // Step gating.
   const gate: Record<Step, boolean> = {
     setup: addonOk === true && live && hasModel,
@@ -340,7 +349,10 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
             </div>
             <div className="text-fg-4 text-[10px]">Camera lens: {result.selfCal?.ok ? `self-calibrated (Sampson ${result.selfCal.rms.toFixed(2)}px, ${result.selfCal.inliers} inliers)` : result.selfCal ? 'self-cal rejected → assumed FOV' : 'assumed FOV'}</div>
             <div className="flex items-start gap-1.5 text-warn text-[10px] leading-snug"><AlertTriangle size={12} className="shrink-0 mt-0.5" /> Low RMS ≠ correct scale — confirm the projection lands right on the real surface before trusting it.</div>
-            <button onClick={finish} className="w-full px-2 py-1.5 rounded bg-ok/20 border border-ok text-fg-1 hover:bg-ok/30">Apply &amp; finish</button>
+            <div className="flex gap-1.5">
+              <button onClick={finish} className="flex-1 px-2 py-1.5 rounded bg-ok/20 border border-ok text-fg-1 hover:bg-ok/30">Apply &amp; finish</button>
+              <button onClick={exportMpcdi} title="Export this calibration as an MPCDI file (open interchange)" className="px-2 py-1.5 rounded bg-surface-2 border border-line-1 text-fg-2 hover:bg-surface-3">Export MPCDI</button>
+            </div>
           </>
         )}
 

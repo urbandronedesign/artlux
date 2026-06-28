@@ -94,6 +94,10 @@ export const IPC = {
   NVWARP_SET_INTENSITY: 'nvwarp:set-intensity',
   /** Renderer → main: clear scanout warp + intensity from an Electron display. */
   NVWARP_CLEAR: 'nvwarp:clear',
+  /** Renderer → main (invoke): export projector warp+blend regions as an .mpcdi file (save dialog). */
+  MPCDI_EXPORT: 'mpcdi:export',
+  /** Renderer → main (invoke): import an .mpcdi file (open dialog) → regions. */
+  MPCDI_IMPORT: 'mpcdi:import',
   /** Main → renderer: a native-menu command (save/open/undo/about/…). */
   MENU_ACTION: 'menu:action',
   /** Renderer → main (invoke): app name + version (for About). */
@@ -274,6 +278,17 @@ export interface CameraSelfCal {
   ok: boolean;
   rms: number;      // Sampson epipolar RMS over inliers (px)
   inliers: number;
+}
+
+// One MPCDI region = one projector's warp + blend for interchange. `geo` is the per-projector-pixel 3D
+// surface map (world XYZ) on a w×h grid (the geometry warp / PFM); `alpha` is the optional blend map
+// (0..255 / PNG). MPCDI is the open standard for exchanging projector calibration with other media
+// servers + projectors (see src/main/mpcdi.ts).
+export interface MpcdiRegion {
+  id: string;
+  projW: number; projH: number;
+  geo: { w: number; h: number; xyz: Float32Array };
+  alpha?: { w: number; h: number; data: Uint8Array };
 }
 
 // One grayscale frame grabbed natively via OpenCV's DirectShow camera backend (CAP_DSHOW). Used for
@@ -666,6 +681,10 @@ export interface ArtluxApi {
   nvwarpSetIntensity(electronDisplayId: number, w: number, h: number, rgb: number[]): Promise<boolean>;
   /** Clear scanout warp + intensity from an Electron display. */
   nvwarpClear(electronDisplayId: number): void;
+  /** Export projector warp+blend regions as an .mpcdi file (save dialog) → path, or null if cancelled. */
+  exportMpcdi(regions: MpcdiRegion[]): Promise<string | null>;
+  /** Import an .mpcdi file (open dialog) → regions, or null if cancelled/failed. */
+  importMpcdi(): Promise<MpcdiRegion[] | null>;
   // App chrome
   onMenuAction(cb: (action: string) => void): () => void;
   getAppInfo(): Promise<AppInfo>;
