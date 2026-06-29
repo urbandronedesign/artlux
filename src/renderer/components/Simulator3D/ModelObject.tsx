@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { useGLTF, TransformControls } from '@react-three/drei';
 import * as THREE from 'three';
-import { SceneModel } from '../../../../shared/protocol';
+import { SceneModel, modelScaleXYZ } from '../../../../shared/protocol';
 import { useLayerTexture } from './useLayerTexture';
 import { registerVenueMesh, unregisterVenueMesh } from '../../calib/venueRaycast';
 
@@ -10,7 +10,8 @@ const DEG = Math.PI / 180;
 export interface ModelTransform {
   position: { x: number; y: number; z: number };
   rotation: { x: number; y: number; z: number }; // degrees
-  scale: number;
+  scale?: number;                       // uniform (legacy)
+  scaleXYZ?: [number, number, number];  // per-axis (independent) scale
 }
 
 interface Props {
@@ -103,14 +104,16 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scene, model.id]);
 
-  // Keep the group transform synced to the model record.
+  // Keep the group transform synced to the model record (per-axis scale).
   useEffect(() => {
+    const [sx, sy, sz] = modelScaleXYZ(model);
     group.position.set(model.position.x, model.position.y, model.position.z);
     group.rotation.set(model.rotation.x * DEG, model.rotation.y * DEG, model.rotation.z * DEG);
-    group.scale.setScalar(model.scale > 0 ? model.scale : 1);
-  }, [group, model.position, model.rotation, model.scale]);
+    group.scale.set(sx, sy, sz);
+  }, [group, model.position, model.rotation, model.scale, model.scaleXYZ]);
 
-  // Record history on drag start, commit the new transform on drag end.
+  // Record history on drag start, commit the new transform on drag end. Scale is per-axis — the gizmo's
+  // X/Y/Z handles scale each axis independently and we persist all three.
   useEffect(() => {
     const c = controls.current;
     if (!c || !selected) return;
@@ -119,7 +122,7 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
       onCommit(model.id, {
         position: { x: group.position.x, y: group.position.y, z: group.position.z },
         rotation: { x: group.rotation.x / DEG, y: group.rotation.y / DEG, z: group.rotation.z / DEG },
-        scale: Math.max(0.0001, group.scale.x),
+        scaleXYZ: [Math.max(0.0001, group.scale.x), Math.max(0.0001, group.scale.y), Math.max(0.0001, group.scale.z)],
       });
     };
     c.addEventListener('mouseDown', onDown);

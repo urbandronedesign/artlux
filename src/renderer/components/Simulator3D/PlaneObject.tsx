@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { TransformControls } from '@react-three/drei';
 import * as THREE from 'three';
-import { SceneModel } from '../../../../shared/protocol';
+import { SceneModel, modelScaleXYZ } from '../../../../shared/protocol';
 import { ModelTransform } from './ModelObject';
 import { useLayerTexture } from './useLayerTexture';
 
@@ -36,8 +36,9 @@ export const PlaneObject: React.FC<Props> = ({ model, selected, mode, onSelect, 
   useEffect(() => {
     group.position.set(model.position.x, model.position.y, model.position.z);
     group.rotation.set(model.rotation.x * DEG, model.rotation.y * DEG, model.rotation.z * DEG);
-    group.scale.setScalar(model.scale > 0 ? model.scale : 1);
-  }, [group, model.position, model.rotation, model.scale]);
+    const [sx, sy, sz] = modelScaleXYZ(model);
+    group.scale.set(sx, sy, sz);
+  }, [group, model.position, model.rotation, model.scale, model.scaleXYZ]);
 
   useEffect(() => {
     const c = controls.current;
@@ -46,7 +47,7 @@ export const PlaneObject: React.FC<Props> = ({ model, selected, mode, onSelect, 
     const onUp = () => onCommit(model.id, {
       position: { x: group.position.x, y: group.position.y, z: group.position.z },
       rotation: { x: group.rotation.x / DEG, y: group.rotation.y / DEG, z: group.rotation.z / DEG },
-      scale: Math.max(0.0001, group.scale.x),
+      scaleXYZ: [Math.max(0.0001, group.scale.x), Math.max(0.0001, group.scale.y), Math.max(0.0001, group.scale.z)],
     });
     c.addEventListener('mouseDown', onDown);
     c.addEventListener('mouseUp', onUp);

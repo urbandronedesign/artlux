@@ -491,9 +491,17 @@ export interface SceneModel {
   layerId?: string;                   // plane: which timeline track to show
   position: { x: number; y: number; z: number };
   rotation: { x: number; y: number; z: number }; // degrees
-  scale: number;                      // uniform (1 = GLB units are meters)
+  scale: number;                      // uniform (1 = GLB units are meters); legacy fallback
+  scaleXYZ?: [number, number, number]; // per-axis scale; when set it supersedes `scale`
   visible: boolean;
 }
+
+// Effective per-axis scale for a model: the per-axis vector when set, else the uniform `scale`.
+export const modelScaleXYZ = (m: { scale: number; scaleXYZ?: [number, number, number] }): [number, number, number] => {
+  if (m.scaleXYZ) return [m.scaleXYZ[0] || 0.0001, m.scaleXYZ[1] || 0.0001, m.scaleXYZ[2] || 0.0001];
+  const s = m.scale > 0 ? m.scale : 1;
+  return [s, s, s];
+};
 
 // 3D Scene config (venue meshes + lighting), persisted per project.
 export interface Scene3D {

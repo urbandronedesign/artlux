@@ -336,6 +336,7 @@ const App: React.FC = () => {
   // --- projector calibration (structured-light intrinsics + solvePnP pose) ---
   const [calibratingOutputId, setCalibratingOutputId] = useState<string | null>(null);
   const [calibFlow, setCalibFlow] = useState<'board' | 'auto'>('board'); // board structured-light vs markerless auto-align
+  const [autoAlignPicks, setAutoAlignPicks] = useState<[number, number, number][]>([]); // Auto-Align anchor world points (for the 3D markers)
   const sendToProjector = (surfaceId: string, msg: MainToProjector) =>
     projectorPortsRef.current.get(surfaceId)?.postMessage(msg);
   const handleStoreCalibration = (surfaceId: string, patch: Partial<ProjectorCalibration>) => {
@@ -1550,7 +1551,9 @@ const App: React.FC = () => {
                                 calibPickMode={calibPickMode}
                                 onCalibPick={handleCalibPick}
                                 projectorCalibs={projectorOutputs.filter(o => o.calibration?.poseRms != null).map(o => ({ surfaceId: o.surfaceId, calibration: o.calibration! }))}
-                                activePicks={(projectorOutputs.find(o => o.surfaceId === calibratingOutputId)?.calibration?.posePicks ?? []).map(p => ({ world: p.world }))}
+                                activePicks={calibFlow === 'auto'
+                                    ? autoAlignPicks.map(world => ({ world }))
+                                    : (projectorOutputs.find(o => o.surfaceId === calibratingOutputId)?.calibration?.posePicks ?? []).map(p => ({ world: p.world }))}
                             />
                         </div>
                     </>
@@ -1697,7 +1700,7 @@ const App: React.FC = () => {
         const co = projectorOutputs.find(o => o.surfaceId === calibratingOutputId);
         const calibLive = !!co?.enabled && co.displayId != null && (co.displayId === WINDOWED_DISPLAY || displays.some(d => d.id === co.displayId));
         const hasModel = (scene3D.models ?? []).some(m => m.kind !== 'plane' && m.visible);
-        const closeCalib = () => { setCalibratingOutputId(null); setCalibPickMode(false); markerlessPickRef.current = null; setCalibFlow('board'); };
+        const closeCalib = () => { setCalibratingOutputId(null); setCalibPickMode(false); markerlessPickRef.current = null; setCalibFlow('board'); setAutoAlignPicks([]); };
         return calibFlow === 'auto' ? (
           <AutoAlignWizard
             surfaceId={calibratingOutputId}
@@ -1712,6 +1715,7 @@ const App: React.FC = () => {
             onSetCalibPickMode={setCalibPickMode}
             onSetSplit={setSplitView}
             onRegisterMarkerlessPick={(cb) => { markerlessPickRef.current = cb; }}
+            onPicksChange={setAutoAlignPicks}
             onSwitchFlow={setCalibFlow}
             onClose={closeCalib}
           />

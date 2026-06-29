@@ -5,6 +5,7 @@ import { EffectComposer } from '@react-three/postprocessing';
 import { Effect } from 'postprocessing';
 import * as THREE from 'three';
 import type { Scene3D, SceneModel, ProjectorCalibration } from '../../../shared/protocol';
+import { modelScaleXYZ } from '../../../shared/protocol';
 import { cameraPose, glProjectionMatrix } from '../calib/cvCamera';
 import { useLayerTexture } from '../components/Simulator3D/useLayerTexture';
 
@@ -52,7 +53,7 @@ const ProjectorModel: React.FC<{ model: SceneModel; url: string }> = ({ model, u
     <group
       position={[model.position.x, model.position.y, model.position.z]}
       rotation={[model.rotation.x * DEG, model.rotation.y * DEG, model.rotation.z * DEG]}
-      scale={model.scale > 0 ? model.scale : 1}
+      scale={modelScaleXYZ(model)}
     >
       <primitive object={cloned} />
     </group>

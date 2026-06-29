@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Fixture, Surface, Vec3, Euler3, Timeline, defaultTimeline } from '../types';
-import { Scene3D, SceneModel, defaultScene3D, ProjectorCalibration } from '../../../shared/protocol';
+import { Scene3D, SceneModel, defaultScene3D, ProjectorCalibration, modelScaleXYZ } from '../../../shared/protocol';
 import { useModelUrls } from '../components/Simulator3D/useModelUrls';
 import { dmxSignal } from '../services/dmxSignal';
 import { timeline as engine } from '../services/timeline';
@@ -202,12 +202,13 @@ export const SceneApp: React.FC = () => {
                 {timeline.layers.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
               </select>
             </div>
-            <NumRow label="Scale" value={selModel.scale} step={0.1} onChange={(v) => updateModel(selModel.id, { scale: Math.max(0.0001, v) })} />
+            <Vec3Row label="Scl" v={(() => { const [x, y, z] = modelScaleXYZ(selModel); return { x, y, z }; })()} step={0.1} min={0.0001}
+              onChange={(s) => updateModel(selModel.id, { scaleXYZ: [Math.max(0.0001, s.x), Math.max(0.0001, s.y), Math.max(0.0001, s.z)] })} />
             {selModel.kind !== 'plane' && (
               <>
                 <div className="flex gap-1.5">
                   {[1, 10, 100, 1000].map(v => (
-                    <button key={v} onClick={() => updateModel(selModel.id, { scale: v })} className="flex-1 px-1 py-0.5 rounded-[var(--r-sm)] bg-surface-2 border border-line-1 text-fg-2 hover:text-fg-1 num text-[10px]">×{v}</button>
+                    <button key={v} onClick={() => updateModel(selModel.id, { scaleXYZ: [v, v, v] })} className="flex-1 px-1 py-0.5 rounded-[var(--r-sm)] bg-surface-2 border border-line-1 text-fg-2 hover:text-fg-1 num text-[10px]">×{v}</button>
                   ))}
                 </div>
                 <div className="flex items-center gap-1.5 text-[11px]">
@@ -215,7 +216,7 @@ export const SceneApp: React.FC = () => {
                   <input type="number" min={0.01} step={0.5} value={fitMeters} onChange={(e) => { const v = parseFloat(e.target.value); if (v > 0) setFitMeters(v); }} className={numCls} />
                   <span className="text-fg-3">m</span>
                   <button
-                    onClick={() => { const nat = naturalSizes[selModel.id]; if (nat) updateModel(selModel.id, { scale: fitMeters / nat }); }}
+                    onClick={() => { const nat = naturalSizes[selModel.id]; if (nat) { const s = fitMeters / nat; updateModel(selModel.id, { scaleXYZ: [s, s, s] }); } }}
                     disabled={!naturalSizes[selModel.id]}
                     className="px-2 py-0.5 rounded-[var(--r-sm)] bg-accent text-black hover:bg-accent-hover num text-[10px] disabled:opacity-40"
                   >Fit</button>
@@ -257,19 +258,32 @@ export const SceneApp: React.FC = () => {
 
 const numCls = 'w-14 bg-surface-0 border border-line-1 rounded px-1 py-0.5 text-right text-fg-1 num text-[11px] focus:border-accent focus:outline-none';
 
+// Buffered numeric input: type freely (decimals, intermediate values) and commit on Enter/blur, so a
+// live controlled value can't reset the field mid-keystroke.
+const NumInput: React.FC<{ value: number; step?: number; title?: string; min?: number; className?: string; onChange: (v: number) => void }> = ({ value, step = 1, title, min, className, onChange }) => {
+  const [txt, setTxt] = useState<string | null>(null);
+  const commit = () => { if (txt === null) return; const n = parseFloat(txt); setTxt(null); if (!Number.isNaN(n)) onChange(min != null ? Math.max(min, n) : n); };
+  return (
+    <input type="number" step={step} title={title} value={txt ?? String(+value.toFixed(4))}
+      onChange={(e) => setTxt(e.target.value)} onBlur={commit}
+      onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); else if (e.key === 'Escape') setTxt(null); }}
+      className={className ?? numCls} />
+  );
+};
+
 const NumRow: React.FC<{ label: string; value: number; step?: number; onChange: (v: number) => void }> = ({ label, value, step = 1, onChange }) => (
   <div className="flex items-center justify-between gap-2 text-[11px]">
     <span className="text-fg-2">{label}</span>
-    <input type="number" step={step} value={+value.toFixed(4)} onChange={(e) => { const v = parseFloat(e.target.value); if (!Number.isNaN(v)) onChange(v); }} className={numCls} />
+    <NumInput value={value} step={step} onChange={onChange} />
   </div>
 );
 
-const Vec3Row: React.FC<{ label: string; v: { x: number; y: number; z: number }; step?: number; onChange: (v: { x: number; y: number; z: number }) => void }> = ({ label, v, step = 0.1, onChange }) => (
+const Vec3Row: React.FC<{ label: string; v: { x: number; y: number; z: number }; step?: number; min?: number; onChange: (v: { x: number; y: number; z: number }) => void }> = ({ label, v, step = 0.1, min, onChange }) => (
   <div className="flex items-center justify-between gap-1 text-[11px]">
     <span className="text-fg-2 w-8">{label}</span>
     {(['x', 'y', 'z'] as const).map(ax => (
-      <input key={ax} type="number" step={step} value={+v[ax].toFixed(3)} title={ax.toUpperCase()}
-        onChange={(e) => { const n = parseFloat(e.target.value); if (!Number.isNaN(n)) onChange({ ...v, [ax]: n }); }}
+      <NumInput key={ax} value={v[ax]} step={step} title={ax.toUpperCase()} min={min}
+        onChange={(n) => onChange({ ...v, [ax]: n })}
         className="w-12 bg-surface-0 border border-line-1 rounded px-1 py-0.5 text-right text-fg-1 num text-[10px] focus:border-accent focus:outline-none" />
     ))}
   </div>

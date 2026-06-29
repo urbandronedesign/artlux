@@ -58,7 +58,10 @@ scene, a **projector output** (windowed or a display), and a **darkened room**.
 1. **Setup** — checklist + an assumed-horizontal-FOV slider (a rough lens seed; self-cal refines it).
 2. **Camera** — Start (Browser or OpenCV/DShow); grayscale preview.
 3. **Anchor** — click a recognizable point in the **camera image**, then the **same point on the 3D
-   model** (right split); repeat **≥4** well-spread, non-coplanar → RANSAC solvePnP camera pose.
+   model** (right split); repeat **≥4** well-spread, non-coplanar → RANSAC solvePnP camera pose. Each
+   pair drops a **numbered marker** on both sides (cyan crosshair on the preview, matching numbered
+   marker in the 3D scene; a dashed orange ring marks a camera point still awaiting its model match) so
+   correspondences are easy to verify.
 4. **Scan** — *dim the room*, **Scan venue**: Gray-code → dense decode → (optional) **self-calibrate
    the camera lens from the scan** → re-solve pose → raycast the venue mesh → resection the projector.
 5. **Verify** — **residual heatmap** (green good / red ≥4 px — speckle = decode noise, *structured =

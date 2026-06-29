@@ -24,6 +24,7 @@ interface Props {
   onSetCalibPickMode: (on: boolean) => void;
   onSetSplit: (on: boolean) => void;
   onRegisterMarkerlessPick: (cb: ((world: [number, number, number]) => void) | null) => void;
+  onPicksChange?: (worlds: [number, number, number][]) => void; // report anchor world points → 3D markers
   onSwitchFlow?: (flow: 'board' | 'auto') => void;
   onClose: () => void;
 }
@@ -56,6 +57,49 @@ function paintGray(cv: HTMLCanvasElement | null, g: { w: number; h: number; data
   ctx.putImageData(img, 0, 0);
 }
 
+// Overlay a numbered marker for each placed camera-image pick (+ a dashed ring for the pending point
+// awaiting its model match) onto the preview canvas, in native camera-pixel coords so object-contain
+// scales them with the image. Drawn right after each grayscale repaint. Cyan #00e5ff matches the 3D
+// scene markers so correspondences line up by colour + number.
+function drawMarkers(cv: HTMLCanvasElement | null, picks: CamPick[], pending: [number, number] | null): void {
+  if (!cv) return;
+  const ctx = cv.getContext('2d');
+  if (!ctx) return;
+  const r = Math.max(5, Math.round(Math.min(cv.width, cv.height) * 0.012));
+  ctx.lineWidth = Math.max(1.5, r * 0.28);
+  ctx.font = `bold ${Math.max(11, Math.round(r * 1.7))}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  picks.forEach((p, i) => {
+    const [x, y] = p.camPx;
+    ctx.strokeStyle = '#00e5ff';
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x - r * 1.7, y); ctx.lineTo(x + r * 1.7, y);
+    ctx.moveTo(x, y - r * 1.7); ctx.lineTo(x, y + r * 1.7);
+    ctx.stroke();
+    const lx = x + r * 2.2, ly = y - r * 2.2;
+    const label = String(i + 1);
+    ctx.lineWidth = Math.max(2, r * 0.5);
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+    ctx.strokeText(label, lx, ly);
+    ctx.fillStyle = '#00e5ff';
+    ctx.fillText(label, lx, ly);
+    ctx.lineWidth = Math.max(1.5, r * 0.28);
+  });
+  if (pending) {
+    const [x, y] = pending;
+    ctx.strokeStyle = '#ffaa00';
+    ctx.setLineDash([r * 0.7, r * 0.7]);
+    ctx.beginPath(); ctx.arc(x, y, r * 1.25, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(x - r * 1.9, y); ctx.lineTo(x + r * 1.9, y);
+    ctx.moveTo(x, y - r * 1.9); ctx.lineTo(x, y + r * 1.9);
+    ctx.stroke();
+  }
+}
+
 // Map a click on the preview canvas (CSS object-contain) → camera pixel coords, or null if outside.
 function clickToCamPx(cv: HTMLCanvasElement, e: React.MouseEvent): [number, number] | null {
   const fw = cv.width, fh = cv.height;
@@ -75,7 +119,7 @@ function clickToCamPx(cv: HTMLCanvasElement, e: React.MouseEvent): [number, numb
 export const AutoAlignWizard: React.FC<Props> = (props) => {
   const { surfaceId, surfaceName, output, scene3D, live, hasModel,
     sendToProjector, onStoreCalibration, onSetUseCalibration,
-    onSetCalibPickMode, onSetSplit, onRegisterMarkerlessPick, onSwitchFlow, onClose } = props;
+    onSetCalibPickMode, onSetSplit, onRegisterMarkerlessPick, onPicksChange, onSwitchFlow, onClose } = props;
 
   const [step, setStep] = useState<Step>('setup');
   const [addonOk, setAddonOk] = useState<boolean | null>(null);
@@ -98,6 +142,11 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
   const baseRef = useRef<HTMLCanvasElement | null>(null);
   const [pendingCamPx, setPendingCamPx] = useState<[number, number] | null>(null);
   const pendingRef = useRef<[number, number] | null>(null); // mirror for the pick handler closure
+  const picksRef = useRef<CamPick[]>([]); // mirror so the preview loop draws the latest markers
+  picksRef.current = picks;
+
+  // Feed the placed anchor world points up to App so the 3D scene shows a matching marker per pick.
+  useEffect(() => { onPicksChange?.(picks.map((p) => p.world)); }, [picks]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const send = (m: MainToProjector) => sendToProjector(surfaceId, m);
   const addLog = (s: string) => setLog((l) => [...l.slice(-60), s]);
@@ -150,7 +199,7 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
     const loop = async () => {
       if (!alive) return;
       const g = await cam.grab();
-      if (alive && g) paintGray(baseRef.current, g);
+      if (alive && g) { paintGray(baseRef.current, g); drawMarkers(baseRef.current, picksRef.current, pendingRef.current); }
       if (alive) timer = window.setTimeout(loop, 66);
     };
     timer = window.setTimeout(loop, 0);

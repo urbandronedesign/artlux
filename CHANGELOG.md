@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **Auto-Align: anchor markers** — each placed camera↔model correspondence now shows a numbered marker
+  in **both** views: a cyan crosshair + number on the camera preview (with a dashed orange ring for the
+  pending point awaiting its model match) and a matching numbered marker in the 3D scene. Same colour +
+  number on both sides so pairs are easy to verify; the 3D markers appear as you place them (no longer
+  only after a full solve) and aren't hidden behind the model.
+- **3D models: independent per-axis scale + numeric transform** — models can now be scaled
+  **non-uniformly** (X/Y/Z independent), via the gizmo's per-axis handles or exact numeric entry. The
+  main editor's 3D view gained a **transform inspector** (Position / Rotation / per-axis Scale) for the
+  selected model, and the Scene window's Scale field is now per-axis. Numeric fields are buffered (type
+  decimals/values freely, commit on Enter or blur). Data model: `SceneModel.scaleXYZ` supersedes the
+  uniform `scale` when set; existing projects keep their uniform scale until edited.
+
 ## v0.15.0
 
 - **Markerless camera auto-align (projection mapping)** — a new **Auto-Align wizard** (Outputs →
