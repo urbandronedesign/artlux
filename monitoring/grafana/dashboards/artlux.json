@@ -4,6 +4,7 @@
   "graphTooltip": 1,
   "schemaVersion": 39,
   "tags": ["artlux"],
+  "uid": "artlux",
   "title": "ArtLux",
   "time": { "from": "now-15m", "to": "now" },
   "refresh": "5s",
