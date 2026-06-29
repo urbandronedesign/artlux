@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, MonitorUp, RefreshCw, Frame, Undo2, Settings2, Spline, Gauge, Radio, Aperture } from 'lucide-react';
+import { X, MonitorUp, RefreshCw, Frame, Undo2, Settings2, Spline, Gauge, Radio, Aperture, Cpu } from 'lucide-react';
 import { Surface } from '../types';
 import { ProjectorOutput, DisplayInfo, SoftEdge, defaultSoftEdge, WINDOWED_DISPLAY } from '../../../shared/protocol';
 
@@ -23,6 +23,8 @@ interface Props {
   onRefreshDisplays: () => void;
   onCalibrate: (surfaceId: string) => void;
   onSetUseCalibration: (surfaceId: string, on: boolean) => void;
+  nvAvailable: boolean;                                    // NVAPI scanout warp/blend present (Quadro/RTX-pro)
+  onSetHwWarp: (surfaceId: string, on: boolean) => void;   // apply warp+blend at the GPU scanout
 }
 
 const cell = 'bg-surface-0 border border-line-1 rounded-[var(--r-sm)] px-1.5 py-1 text-fg-1 text-[11px] focus:border-accent focus:outline-none disabled:opacity-40';
@@ -36,6 +38,7 @@ export const OutputsPanel: React.FC<Props> = ({
   open, onClose, surfaces, outputs, displays, editingOutputId, fpsCap,
   onSetEnabled, onSetDisplay, onToggleEdit, onResetCorners,
   onToggleWarp, onSetSoftEdge, onSetGamma, onToggleNdiSend, onSetFpsCap, onRefreshDisplays, onCalibrate, onSetUseCalibration,
+  nvAvailable, onSetHwWarp,
 }) => {
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -206,6 +209,15 @@ export const OutputsPanel: React.FC<Props> = ({
                       <input type="checkbox" checked={!!o?.ndiSend} onChange={(e) => onToggleNdiSend(s.id, e.target.checked)} className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0" />
                       Send as NDI <span className="text-fg-3 italic">(publishes “ArtLux — {s.name}” ≤720p, ≤1080p in Broadcast)</span>
                     </label>
+
+                    {/* Hardware (NVAPI) scanout warp + blend — Quadro/RTX-pro only, real displays only */}
+                    {nvAvailable && o?.displayId != null && o.displayId !== WINDOWED_DISPLAY && (
+                      <label className="flex items-center gap-1.5 cursor-pointer text-fg-2">
+                        <Cpu size={12} className="text-fg-3" />
+                        <input type="checkbox" checked={!!o?.hwWarp} onChange={(e) => onSetHwWarp(s.id, e.target.checked)} className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0" />
+                        Hardware warp/blend <span className="text-fg-3 italic">(NVAPI scanout · warp + edge blend on the GPU; GLSL renders flat)</span>
+                      </label>
+                    )}
 
                     {/* Render from calibrated projector (3D venue scene) */}
                     {o?.calibration?.poseRms != null && (

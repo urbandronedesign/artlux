@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+## v0.15.0
+
+- **Markerless camera auto-align (projection mapping)** — a new **Auto-Align wizard** (Outputs →
+  Calibrate → *Board → Auto-Align*) calibrates a projector against the loaded venue 3D model **without a
+  checkerboard**: anchor a few camera↔model points, scan Gray-code, optionally **self-calibrate the
+  camera lens from the scan**, raycast the venue mesh, and resection the projector. A **residual
+  heatmap** flags model/scale mismatches. The scene then renders from the recovered viewpoint (true
+  projection mapping). See [docs/AUTO-ALIGN.md](docs/AUTO-ALIGN.md).
+- **Hardware warp + edge-blend via NVIDIA NVAPI** — on **Quadro / RTX-pro** GPUs, ArtLux can apply each
+  projector's geometry **warp** and **edge blend** at the GPU **scanout** (content-agnostic, persistent)
+  instead of in GLSL. New native addon `native/nvwarp` (Rust/napi over an NVAPI C++ shim), per-output
+  **Hardware warp/blend** toggle, and a panic **Ctrl/Cmd+Shift+W clear-all** + clear-on-quit so a warp is
+  never left stuck. Built and validated on an **RTX 6000 Ada**; GLSL is the automatic fallback on every
+  other GPU. See [docs/NVWARP.md](docs/NVWARP.md).
+- **World-space multi-projector blend** — `blendCompute` computes a per-projector alpha map on the actual
+  3D surface (partition of unity → seamless overlaps), feeding both the NVAPI intensity map and GLSL blend.
+- **MPCDI export/import** — projector calibration round-trips through the **MPCDI** interchange format.
 - **Calibration: black-camera hint** — if a camera opens but delivers all-black frames (almost always
   another app — Teams, the NDI Webcam tool, OBS — holding the device, or a USB hiccup), the wizard now
   says so ("Camera opened but the image is black…") with a close-it / replug / Restart prompt, instead

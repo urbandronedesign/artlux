@@ -84,3 +84,11 @@ export function clearDisplay(electronId: number): boolean {
   if (id == null) return false;
   try { return native.clear(id); } catch (e) { console.warn('[nvwarp] clear failed:', (e as Error)?.message ?? e); return false; }
 }
+
+// Remove warp + intensity from every NVAPI display — called on quit so a crash/exit never leaves a
+// projector (or the operator's screen) stuck with a scanout warp the app can no longer clear.
+export function clearAll(): void {
+  if (!native || !hw) return;
+  try { for (const d of native.listDisplays()) native.clear(d.displayId); }
+  catch (e) { console.warn('[nvwarp] clearAll failed:', (e as Error)?.message ?? e); }
+}

@@ -39,7 +39,7 @@ is a clean future extension into the LiDAR tracking.)
 | Phase | What | Status |
 |---|---|---|
 | **0** | Per-projector markerless geometry (scan → self-cal → picks → raycast venue → resection) + **Auto-Align wizard** | code-complete; **needs hardware validation** |
-| **1** | `native/nvwarp` NVAPI scanout warp/blend addon + ArtLux plumbing | **stub builds + loads** (GLSL fallback); real NVAPI branch **unbuilt/untested** (needs the Quadro + NVAPI SDK) |
+| **1** | `native/nvwarp` NVAPI scanout warp/blend addon + ArtLux plumbing | **real build + on-hardware validated** (RTX 6000 Ada, 2026-06-29): `available()`/warp/intensity/clear all OK; renderer per-output apply (`hwWarp`, `nvwarpApply.ts`) + double-warp guard + panic-clear **wired**. Pending: warped geometry + multi-display mapping with a projector attached |
 | **2** | World-space multi-projector **blend computation** (`blendCompute.ts`) | code-complete; **node-validated** (partition of unity); apply-to-outputs + multi-proj capture pending hardware |
 | **3** | **One-click recalibration** via physical markers + brightness/colour uniformity | not started (needs a working hardware loop) |
 | **4** | **MPCDI** export/import codec | export code-complete; **round-trip node-validated**; import-to-**apply** pending |

@@ -10,6 +10,7 @@ import type { AppInfo, UpdateEvent, Scene3D, ProjectorOutput, DisplayInfo, SoftE
 import type { SceneToMain } from './scene/bridge';
 import type { ProjectorToMain, MainToProjector } from './projector/bridge';
 import { makeBezierWarp } from './projector/warp';
+import { outputToNvwarp } from './projector/nvwarpApply';
 import { OutputsPanel } from './components/OutputsPanel';
 import { UpdateNotice } from './components/UpdateNotice';
 import { autoPatch } from './services/addressing';
@@ -154,6 +155,8 @@ const App: React.FC = () => {
   const projectorPortsRef = useRef<Map<string, MessagePort>>(new Map()); // surfaceId -> port
   const openProjectorsRef = useRef<Map<string, number>>(new Map());      // surfaceId -> displayId (open windows)
   const ndiSendersRef = useRef<Set<string>>(new Set());                  // surfaceIds with a live NDI sender
+  const [nvAvailable, setNvAvailable] = useState(false);                 // NVAPI scanout warp/blend present (Quadro/RTX-pro)
+  const nvAppliedRef = useRef<Map<string, number>>(new Map());           // surfaceId -> displayId with a live NVAPI warp/blend
   const surfacesRef = useRef<Surface[]>(surfaces);                        // live mirror for the frame pump
   surfacesRef.current = surfaces;
 
@@ -1147,6 +1150,16 @@ const App: React.FC = () => {
       return () => cancelAnimationFrame(raf);
   }, []);
 
+  // NVAPI hardware warp/blend: detect once on mount (false on the stub build / non-pro GPUs → GLSL path).
+  useEffect(() => { window.artlux?.nvwarpAvailable?.().then(v => setNvAvailable(!!v)).catch(() => {}); }, []);
+  // True when NVAPI owns this output's 2D geometry warp + edge blend (so the GLSL path must render flat to
+  // avoid double-warp). Same predicate used by the apply reconciler and the content push — keep them in sync.
+  const hwOwnsGeometry = (out: ProjectorOutput | undefined): boolean => {
+      if (!nvAvailable || !out?.hwWarp || !out.enabled || out.displayId == null || out.displayId === WINDOWED_DISPLAY) return false;
+      const d = displays.find(x => x.id === out.displayId);
+      return !!d && !d.internal; // never warp the operator's built-in panel
+  };
+
   // Push the current config (surface + corner-pin + transport) to one projector window.
   const pushProjectorStateRef = useRef<(surfaceId: string) => void>(() => {});
   pushProjectorStateRef.current = (surfaceId: string) => {
@@ -1154,12 +1167,15 @@ const App: React.FC = () => {
       const surface = surfaces.find(s => s.id === surfaceId);
       if (!port || !surface) return;
       const out = projectorOutputs.find(o => o.surfaceId === surfaceId);
+      // When NVAPI applies warp + blend at the scanout, the GLSL path must render flat (identity corner-pin,
+      // no Bézier warp, no soft-edge feather) or the correction is applied twice. Gamma/brightness stay in GLSL.
+      const hwGeom = hwOwnsGeometry(out);
       port.postMessage({
           t: 'config', surface, playing: isVideoPlaying,
           render: {
-              cornerPin: out?.cornerPin ?? defaultCornerPin(),
-              warp: out?.warp ?? null,
-              softEdge: out?.softEdge ?? defaultSoftEdge(),
+              cornerPin: hwGeom ? defaultCornerPin() : (out?.cornerPin ?? defaultCornerPin()),
+              warp: hwGeom ? null : (out?.warp ?? null),
+              softEdge: hwGeom ? defaultSoftEdge() : (out?.softEdge ?? defaultSoftEdge()),
               gamma: out?.gamma ?? 1,
               brightness: projectorBrightness,
               fpsCap: projectorFpsCap,
@@ -1215,7 +1231,7 @@ const App: React.FC = () => {
   // Re-push config (incl. the edit toggle) whenever anything a projector renders changes.
   useEffect(() => {
       for (const surfaceId of projectorPortsRef.current.keys()) pushProjectorStateRef.current(surfaceId);
-  }, [surfaces, projectorOutputs, timeline, isVideoPlaying, editingOutputId, projectorFpsCap, projectorBrightness, scene3D, calibratingOutputId]);
+  }, [surfaces, projectorOutputs, timeline, isVideoPlaying, editingOutputId, projectorFpsCap, projectorBrightness, scene3D, calibratingOutputId, nvAvailable]);
   // Live projector-brightness push (no full config re-send) — drives slider drag render-free.
   const pushProjectorBrightnessRef = useRef<(v: number) => void>(() => {});
   pushProjectorBrightnessRef.current = (v: number) => {
@@ -1275,6 +1291,47 @@ const App: React.FC = () => {
           }
       }
   }, [surfaces, projectorOutputs, displays]);
+
+  // Reconcile NVAPI hardware warp/blend: for each output that opts into hwWarp on a real (non-windowed,
+  // non-internal) display, push the scanout warp mesh + intensity/blend map; clear it otherwise. Runs once
+  // state settles on mount → re-applies saved outputs on relaunch (NVAPI sticky persistence is unreliable).
+  // Keyed by Electron display.id; nvwarpManager maps that to the NVAPI displayId by desktop rect.
+  useEffect(() => {
+      if (!nvAvailable) return;
+      const desired = new Map<string, number>(); // surfaceId -> Electron displayId
+      for (const o of projectorOutputs) {
+          const display = displays.find(d => d.id === o.displayId);
+          if (hwOwnsGeometry(o) && display && surfaces.some(s => s.id === o.surfaceId)) {
+              const payload = outputToNvwarp(o, display); // blendMap feed wired with multi-projector capture
+              window.artlux?.nvwarpSetWarp?.(display.id, payload.verts, payload.src);
+              window.artlux?.nvwarpSetIntensity?.(display.id, payload.intensity.w, payload.intensity.h, payload.intensity.rgb);
+              desired.set(o.surfaceId, display.id);
+          }
+      }
+      for (const [surfaceId, displayId] of [...nvAppliedRef.current]) {
+          if (!desired.has(surfaceId)) { window.artlux?.nvwarpClear?.(displayId); nvAppliedRef.current.delete(surfaceId); }
+      }
+      for (const [surfaceId, displayId] of desired) nvAppliedRef.current.set(surfaceId, displayId);
+  }, [projectorOutputs, displays, nvAvailable]);
+
+  // Panic / safety: clear every live NVAPI warp+blend so a wrong mapping or bad mesh can't leave a display
+  // warped. Exposed as Outputs ▸ a button and a global Ctrl/Cmd+Shift+W; also runs on unmount/quit.
+  const clearAllNvwarp = React.useCallback(() => {
+      for (const [surfaceId, displayId] of [...nvAppliedRef.current]) {
+          window.artlux?.nvwarpClear?.(displayId);
+          nvAppliedRef.current.delete(surfaceId);
+      }
+      for (const d of displays) window.artlux?.nvwarpClear?.(d.id); // belt-and-braces: every known display
+  }, [displays]);
+  useEffect(() => {
+      if (!nvAvailable) return;
+      const onKey = (e: KeyboardEvent) => {
+          if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'W' || e.key === 'w')) { e.preventDefault(); clearAllNvwarp(); }
+      };
+      window.addEventListener('keydown', onKey);
+      window.addEventListener('beforeunload', clearAllNvwarp);
+      return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('beforeunload', clearAllNvwarp); };
+  }, [nvAvailable, clearAllNvwarp]);
 
   // Broadcast mode: load the project (--project= or last-opened) and let the projector
   // reconciler open the saved enabled outputs; Art-Net starts via the normal output effects.
@@ -1633,6 +1690,8 @@ const App: React.FC = () => {
           onRefreshDisplays={refreshDisplays}
           onCalibrate={(surfaceId) => setCalibratingOutputId(surfaceId)}
           onSetUseCalibration={(surfaceId, on) => upsertOutput(surfaceId, { useCalibration: on })}
+          nvAvailable={nvAvailable}
+          onSetHwWarp={(surfaceId, on) => upsertOutput(surfaceId, { hwWarp: on })}
       />
       {calibratingOutputId && (() => {
         const co = projectorOutputs.find(o => o.surfaceId === calibratingOutputId);

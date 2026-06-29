@@ -469,6 +469,8 @@ export interface ProjectorOutput {
   ndiSend?: boolean;          // also publish this output as an NDI source
   calibration?: ProjectorCalibration | null; // recovered intrinsics+distortion+pose (render-from-projector)
   useCalibration?: boolean;   // when calibrated, render the 3D venue scene from the matched projector
+  hwWarp?: boolean;           // apply warp+blend at the GPU scanout via NVAPI (Quadro/RTX-pro) instead
+                              // of the GLSL path; ignored unless nvwarpAvailable() and a real display
 }
 
 export const defaultProjectorOutput = (surfaceId: string): ProjectorOutput => ({

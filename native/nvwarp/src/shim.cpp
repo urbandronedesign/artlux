@@ -72,7 +72,8 @@ int nvw_list_displays(uint32_t* ids, int32_t* rects, int max) {
 }
 
 // Push a warp mesh to a display. verts = numVerts * 6 floats (X,Y screen + U,V texcoord + R,Q
-// perspective), triangle-strip. (sl,st,sw,sh) = the source desktop rect the UVs index into.
+// perspective), as a triangle LIST (every 3 verts = 1 triangle — same decomposition the GLSL path
+// uses, so hardware and GLSL agree). (sl,st,sw,sh) = the source desktop rect the UVs index into.
 int nvw_set_warping(uint32_t displayId, const float* verts, int numVerts, int sl, int st, int sw, int sh) {
 #ifdef NVWARP_HAVE_NVAPI
     NvSBox rect;
@@ -80,13 +81,13 @@ int nvw_set_warping(uint32_t displayId, const float* verts, int numVerts, int sl
     rect.sX = sl; rect.sY = st; rect.sWidth = sw; rect.sHeight = sh;
     NV_SCANOUT_WARPING_DATA data;
     memset(&data, 0, sizeof(data));
-    data.version = NV_SCANOUT_WARPING_DATA_VER;
+    data.version = NV_SCANOUT_WARPING_VER;
     data.numVertices = numVerts;
-    data.vertexFormat = NV_GPU_WARPING_VERTICE_FORMAT_TRIANGLESTRIP_XYUVRQ;
+    data.vertexFormat = NV_GPU_WARPING_VERTICE_FORMAT_TRIANGLES_XYUVRQ;
     data.textureRect = &rect;
     data.vertices = (float*)verts;
     int maxNumVertices = 0;
-    NvU32 sticky = 0;
+    int sticky = 0;
     return NvAPI_GPU_SetScanoutWarping(displayId, &data, &maxNumVertices, &sticky) == NVAPI_OK ? 1 : 0;
 #else
     (void)displayId; (void)verts; (void)numVerts; (void)sl; (void)st; (void)sw; (void)sh;
@@ -105,7 +106,7 @@ int nvw_set_intensity(uint32_t displayId, int w, int h, const float* rgb) {
     data.blendingTexture = (float*)rgb;
     data.offsetTexture = NULL;
     data.offsetTexChannels = 1;
-    NvU32 sticky = 0;
+    int sticky = 0;
     return NvAPI_GPU_SetScanoutIntensity(displayId, &data, &sticky) == NVAPI_OK ? 1 : 0;
 #else
     (void)displayId; (void)w; (void)h; (void)rgb;
@@ -116,10 +117,10 @@ int nvw_set_intensity(uint32_t displayId, int w, int h, const float* rgb) {
 // Remove warp + intensity from a display (numVertices=0 clears the warp; null texture clears blend).
 int nvw_clear(uint32_t displayId) {
 #ifdef NVWARP_HAVE_NVAPI
-    NvU32 sticky = 0;
+    int sticky = 0;
     NV_SCANOUT_WARPING_DATA w;
     memset(&w, 0, sizeof(w));
-    w.version = NV_SCANOUT_WARPING_DATA_VER;
+    w.version = NV_SCANOUT_WARPING_VER;
     w.numVertices = 0;
     int maxNumVertices = 0;
     NvAPI_GPU_SetScanoutWarping(displayId, &w, &maxNumVertices, &sticky);

@@ -28,8 +28,9 @@ detects the NVIDIA **NVAPI SDK** via the `NVAPI_SDK_DIR` env var:
   `available()=false`. Committed as the prebuilt `native/nvwarp/nvwarp.node` so non-NVIDIA hosts build
   and run with the GLSL fallback.
 - **Real NVAPI (Quadro/RTX-pro machine):**
-  1. Download the **NVIDIA NVAPI SDK** (developer.nvidia.com) and unzip it. The root must contain
-     `nvapi.h` and `amd64/nvapi64.lib`. (`nvapi64.dll` is provided by the NVIDIA driver at runtime.)
+  1. Get the **NVIDIA NVAPI SDK**. It is now open-source (MIT) on GitHub — no login/gate:
+     `git clone --depth 1 https://github.com/NVIDIA/nvapi.git`. The root contains `nvapi.h` and
+     `amd64/nvapi64.lib`. (`nvapi64.dll` is provided by the NVIDIA driver at runtime.)
   2. Build with the SDK:
      ```
      npm run build:nvwarp -- -NvapiSdk "C:\path\to\nvapi"
@@ -54,13 +55,25 @@ stub is harmless on any machine (loads, `available()=false`, GLSL fallback); the
 - **Runtime log** — `[nvwarp] addon loaded, NVAPI unavailable (stub build / non-pro GPU) — GLSL
   fallback` (stub) vs. `NVAPI warp/blend available` (real, on a Quadro).
 
-As of 2026-06-28 the committed `native/nvwarp/nvwarp.node` (227 KB) is the **stub** — verified by all
-three checks. Building an installer from the dev box is safe and ships the GLSL-fallback path.
+> Note: NVAPI resolves its functions by ID through `nvapi_QueryInterface`, so an ASCII grep for
+> `NvAPI_Initialize` / `SetScanoutWarping` does **not** reliably distinguish stub from real (the names
+> aren't named imports). The decisive checks are size (real > stub, it links `nvapi64.lib`) and the
+> runtime log line.
 
-> **On-hardware validation pending.** The real NVAPI branch of the shim follows the documented Warp &
-> Blend interface (cf. `errollw/Warp-and-Blend-Quadros`) but has only been built as a stub on a
-> non-NVIDIA box — struct field spellings + the displayId↔Electron mapping need a first run on the
-> RTX 6000 to confirm.
+As of **2026-06-29** the committed `native/nvwarp/nvwarp.node` (~246 KB) is the **REAL** build, built
+against the NVAPI SDK on the **RTX 6000 Ada** and validated on-hardware (see below). The stub was 227 KB.
+Note: the real binary still **loads on any host** and only *activates* on a pro GPU (`available()` is
+false elsewhere → GLSL fallback), so shipping it is safe — but a clean-room build from a non-NVIDIA box
+will regenerate the stub. Re-build on the Quadro (or keep this committed binary) for the hardware path.
+
+> **On-hardware validation (2026-06-29, RTX 6000 Ada, driver 571.96).** Built the real shim against the
+> SDK; fixed three header mismatches (`NV_SCANOUT_WARPING_DATA_VER` → `NV_SCANOUT_WARPING_VER`; the
+> `pbSticky` out-params are `int*`, not `NvU32*`) and switched the warp vertex format to
+> `TRIANGLES_XYUVRQ` (the renderer sends a triangle list matching the GLSL decomposition). `available()`
+> returns true; `listDisplays()`, `setIntensity()`, `setWarping()`, and `clear()` all return `NVAPI_OK`
+> on the live display (a brief intensity dim confirmed it reaches the scanout). Still to validate with a
+> projector attached: the warped geometry landing correctly and multi-display `displayId↔Electron`
+> mapping (only one display was connected during this session).
 
 ## API surface
 
@@ -72,5 +85,28 @@ by matching the scanout source-desktop rect (NVAPI rects are physical px; Electr
 `scaleFactor`), and exposes `isAvailable` / `setWarp` / `setIntensity` / `clearDisplay` over IPC
 (`NVWARP_*`). The renderer calls `window.artlux.nvwarp*` with the familiar Electron `display.id`.
 
-NVAPI `sticky` persistence is unreliable across reboot — ArtLux re-applies warp/intensity on launch
-(to be wired with the per-output integration in Phase 2).
+NVAPI `sticky` persistence is unreliable across reboot — ArtLux re-applies warp/intensity on launch:
+the renderer's apply reconciler (below) runs once state settles after load, re-pushing every saved
+`hwWarp` output.
+
+## Renderer integration (per-output apply)
+
+Wired in `src/renderer/App.tsx` + `src/renderer/projector/nvwarpApply.ts`:
+
+- **Opt-in per output:** `ProjectorOutput.hwWarp` (Outputs panel ▸ *Hardware warp/blend*, shown only when
+  `nvwarpAvailable()` and the output is on a real — non-windowed — display).
+- **`nvwarpApply.ts`** (pure, node-tested) converts an output's corner-pin / Bézier warp into the NVAPI
+  vertex buffer and its soft-edge (+ optional `blendCompute` map) into the intensity buffer. The warp is
+  a **dense triangle-list grid (Q=1)** whose destination positions come from the *same* `evalBezier` /
+  corner-pin homography the GLSL path uses — so hardware and GLSL agree to sub-pixel, and the XYUVRQ
+  per-vertex perspective divide is avoided (grid density carries it, exactly as the GLSL Bézier render).
+- **Double-warp guard:** when NVAPI owns an output's geometry, the GLSL projector renders **flat**
+  (identity corner-pin, no warp, no soft-edge). One helper `hwOwnsGeometry()` drives both the apply
+  reconciler and the GLSL neutralization so they never disagree. Render-from-projector (`useCalibration`)
+  is unaffected — the 3D render is geometry-correct and NVAPI adds only distortion + blend on top.
+- **Panic / safety:** never applies to a windowed output or the operator's `internal` panel; **clear-all**
+  on `Ctrl/Cmd+Shift+W`, on disabling `hwWarp`, on window unload, and `nvwarp.clearAll()` on app quit
+  (`src/main/index.ts` `before-quit`) so no scanout warp is ever left stuck.
+
+The world-space multi-projector blend (`blendCompute.computeBlendMaps`) is plumbed through `buildIntensity`
+but fed only once a multi-projector capture exists; single-projector soft-edge blend works today.

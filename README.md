@@ -26,6 +26,7 @@ fallback) and a **Rust** output engine (napi-rs) that owns UDP transmission on a
 - **Media library** — a managed asset library (video, image, 3D model, LiDAR take): import (copy-in), previews, usage/missing tracking, relink, and drag-to-place onto the Stage or Timeline.
 - **LiDAR tracking + takes** — receive the OSC blob tracking feed, visualize/project it, and **record takes** to replay an interactive show with no tracker present.
 - **Projector outputs + NDI out** — map each surface fullscreen to a projector (corner-pin / Bézier warp, soft-edge, gamma) and optionally publish each output as an **NDI source**.
+- **Projection mapping & auto-align** — calibrate a real projector (structured-light Gray-code + pose, or **markerless camera auto-align** onto the venue 3D model) and render the scene from its recovered viewpoint; export/import **MPCDI**. On **Quadro / RTX-pro** GPUs, apply geometry **warp + edge-blend at the GPU scanout via NVIDIA NVAPI** (content-agnostic, persistent), with a GLSL fallback everywhere else.
 - **2D + 3D** — drag/resize/rotate/snap on a 2D stage; arrange the same fixtures in a 3D simulator.
 - **Per-pixel correctness** — color order, RGBW white extraction, gamma, matrix + serpentine, ledmap.
 - **Per-fixture routing** — each fixture can target its own controller IP / protocol / priority.
