@@ -40,6 +40,23 @@ detects the NVIDIA **NVAPI SDK** via the `NVAPI_SDK_DIR` env var:
 
 Requires the same MSVC/Rust toolchain as the other native addons.
 
+### Which variant is committed? (stub vs real)
+
+Every build bundles `nvwarp.node` — it never goes missing — so the only question is *which* one. The
+stub is harmless on any machine (loads, `available()=false`, GLSL fallback); the real one only
+*activates* on a Quadro/RTX-pro but loads everywhere. To confirm the committed binary is the **stub**
+(so a build from a non-NVIDIA box is clean), check all three:
+
+- **No NVAPI symbols** in the binary — grep `nvwarp.node` for `NvAPI_Initialize`,
+  `SetScanoutWarping`, `NVWARP_HAVE_NVAPI`: all absent in the stub, present in the real build.
+- **No `nvapi64.dll` import** at the PE level — the stub doesn't link the driver lib (that's why it
+  loads on non-NVIDIA hosts).
+- **Runtime log** — `[nvwarp] addon loaded, NVAPI unavailable (stub build / non-pro GPU) — GLSL
+  fallback` (stub) vs. `NVAPI warp/blend available` (real, on a Quadro).
+
+As of 2026-06-28 the committed `native/nvwarp/nvwarp.node` (227 KB) is the **stub** — verified by all
+three checks. Building an installer from the dev box is safe and ships the GLSL-fallback path.
+
 > **On-hardware validation pending.** The real NVAPI branch of the shim follows the documented Warp &
 > Blend interface (cf. `errollw/Warp-and-Blend-Quadros`) but has only been built as a stub on a
 > non-NVIDIA box — struct field spellings + the displayId↔Electron mapping need a first run on the
