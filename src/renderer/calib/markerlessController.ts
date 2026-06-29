@@ -10,16 +10,18 @@
 // from the scan is a later increment. "3D mapping doesn't have to be perfect" (VIOSO) — RANSAC + a
 // generous decode/raycast filter carry the robustness.
 
-import type { ProjectorCalibration } from '../../../shared/protocol';
+import type { ProjectorCalibration, ArucoDetection, MarkerMap } from '../../../shared/protocol';
 import { cameraPixelRayWorld } from './cvCamera';
 import { raycastVenueBatch, hasVenueMeshes } from './venueRaycast';
 import { captureGrayCode } from './slCapture';
+import { applyCamMask, type CamMask } from './camMask';
 
 export interface MarkerlessConfig {
   cameraK: number[];     // camera intrinsics, row-major 3×3 (stored/nominal profile)
   cameraDist: number[];  // camera distortion [k1,k2,p1,p2,k3]
   stride: number;        // dense-decode subsample in camera px (4 → thousands of points)
   settleMs: number;      // camera-exposure settle after each projected plane
+  camMask?: CamMask;     // optional exclusion polygons (reflective hotspots / obstructions) in camera px
 }
 
 export const defaultMarkerlessConfig = (): MarkerlessConfig => ({ cameraK: [], cameraDist: [0, 0, 0, 0, 0], stride: 4, settleMs: 120 });
@@ -28,6 +30,25 @@ export const defaultMarkerlessConfig = (): MarkerlessConfig => ({ cameraK: [], c
 export interface CamPick { camPx: [number, number]; world: [number, number, number] }
 
 export interface CameraPose { rotation: number[]; translation: [number, number, number]; rms: number }
+
+// One-click recalibration: turn an ArUco detection + the venue's registered marker map into the same
+// CamPick[] the manual Anchor step produces — each detected marker contributes its 4 sub-pixel corners
+// paired with the marker's known 3D corners. For markers registered by centre only (no per-corner 3D),
+// all 4 image corners pair with the single 3D point (their mean image point ≈ the centre). 4 corners
+// per marker means even one marker meets the ≥4 minimum; RANSAC in solveCameraPose rejects outliers.
+export function camPicksFromAruco(det: ArucoDetection, map: MarkerMap): CamPick[] {
+  const byId = new Map(map.markers.map((m) => [m.id, m.world]));
+  const picks: CamPick[] = [];
+  for (let i = 0; i < det.ids.length; i++) {
+    const world = byId.get(det.ids[i]);
+    if (!world) continue;
+    const base = i * 8;
+    for (let c = 0; c < 4; c++) {
+      picks.push({ camPx: [det.corners[base + c * 2], det.corners[base + c * 2 + 1]], world });
+    }
+  }
+  return picks;
+}
 
 // Recover the camera's pose in the venue frame from ≥4 camera-image↔model picks (intrinsics fixed).
 export async function solveCameraPose(picks: CamPick[], cameraK: number[], cameraDist: number[]): Promise<CameraPose | { error: string }> {
@@ -68,6 +89,10 @@ export async function solveGeometry(cfg: MarkerlessConfig, picks: CamPick[], sel
   const scan = await captureGrayCode(cfg.settleMs);
   if ('error' in scan) return { error: scan.error };
   const { camW, camH, planeCount, captures, white, black, projW, projH } = scan;
+
+  // Drop masked camera pixels (reflective hotspots / obstructions) before decode by zeroing their
+  // white/black refs — the decode's contrast gate then rejects them (see camMask.ts).
+  if (cfg.camMask) applyCamMask(white, black, camW, camH, cfg.camMask);
 
   // 2. Dense decode → camera↔projector correspondences.
   const dense = await api.calibDecodeDense(

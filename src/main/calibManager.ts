@@ -2,7 +2,7 @@ import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type {
-  BoardDetectResult, CornerProjMap, ProjectorIntrinsicsResult, PnpResult, CameraFrame, DenseMap, CameraSelfCal,
+  BoardDetectResult, ArucoDetection, CornerProjMap, ProjectorIntrinsicsResult, PnpResult, CameraFrame, DenseMap, CameraSelfCal,
 } from '../../shared/protocol';
 
 // Loads the native OpenCV calibration addon (native/calib/calib.node) in the main process — the
@@ -19,6 +19,8 @@ import type {
 interface CalibNative {
   /** findChessboardCornersSB + cornerSubPix on one grayscale/RGBA camera frame. */
   detectBoard(image: Buffer, w: number, h: number, cols: number, rows: number): BoardDetectResult;
+  /** Detect ArUco fiducials → ids + sub-pixel corners (one-click recalibration). */
+  detectAruco(image: Buffer, w: number, h: number, dict: number): ArucoDetection;
   /**
    * Map detected camera-space board corners to projector pixels for one pose. `captures` is
    * `captureCount` grayscale planes (camW*camH each) concatenated — the Gray-code forward+inverse
@@ -53,6 +55,8 @@ interface CalibNative {
   cameraGrabGray(): { w: number; h: number; data: Buffer } | null;
   /** Release the open camera. */
   cameraClose(): void;
+  /** Set a capture property (exposure/gain/gamma) on the open camera; false if rejected/none open. */
+  cameraSetProp(prop: string, value: number): boolean;
 }
 
 const req = createRequire(__filename);
@@ -86,6 +90,16 @@ export function detectBoard(image: Buffer, w: number, h: number, cols: number, r
     return native.detectBoard(image, w, h, cols, rows);
   } catch (e) {
     console.warn('[calib] detectBoard failed:', (e as Error)?.message ?? e);
+    return null;
+  }
+}
+
+export function detectAruco(image: Buffer, w: number, h: number, dict: number): ArucoDetection | null {
+  if (!native?.detectAruco) return null;
+  try {
+    return native.detectAruco(image, w, h, dict);
+  } catch (e) {
+    console.warn('[calib] detectAruco failed:', (e as Error)?.message ?? e);
     return null;
   }
 }
@@ -209,5 +223,15 @@ export function cameraClose(): void {
     native.cameraClose();
   } catch (e) {
     console.warn('[calib] cameraClose failed:', (e as Error)?.message ?? e);
+  }
+}
+
+export function cameraSetProp(prop: string, value: number): boolean {
+  if (!native?.cameraSetProp) return false;
+  try {
+    return native.cameraSetProp(prop, value);
+  } catch (e) {
+    console.warn('[calib] cameraSetProp failed:', (e as Error)?.message ?? e);
+    return false;
   }
 }

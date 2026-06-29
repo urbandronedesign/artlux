@@ -20,7 +20,7 @@ use opencv::core::{
 };
 use opencv::prelude::*;
 use opencv::videoio::{self, VideoCapture, VideoWriter};
-use opencv::{calib3d, imgproc};
+use opencv::{calib3d, imgproc, objdetect};
 use std::cell::RefCell;
 
 #[napi(object)]
@@ -119,6 +119,61 @@ pub fn detect_board(image: Buffer, w: u32, h: u32, cols: u32, rows: u32) -> napi
         Ok(BoardDetectResult { found: true, corners: flat })
     })();
     res.map_err(|e| napi::Error::from_reason(format!("detect_board: {e}")))
+}
+
+// ---- 1b. ArUco fiducial detection (one-click recalibration) ----------------
+//
+// Detect ArUco markers in a camera frame for marker-based camera-pose recovery. Each detected marker
+// yields its id + 4 sub-pixel corners; the renderer looks the id up in the venue's registered marker
+// map (id → 3D point) and feeds the corners as camera↔model correspondences into the SAME solvePnP
+// the manual anchor picks use → no manual re-picking on re-align (VIOSO One-Click-Recalibration).
+//
+// ArUco lives in the MAIN `objdetect` module since OpenCV 4.7 (the build links opencv_world ≥4.7), so
+// no contrib build is required — only re-enabling the objdetect headers in build-calib.ps1. As with the
+// rest of this file, the exact opencv-rust signatures track the pinned crate version (verify on build).
+
+#[napi(object)]
+pub struct ArucoDetection {
+    pub ids: Vec<u32>,       // detected marker ids
+    pub corners: Vec<f64>,   // 8 per id: the 4 corners (x,y) in camera px, in detector order
+}
+
+#[napi]
+pub fn detect_aruco(image: Buffer, w: u32, h: u32, dict: u32) -> napi::Result<ArucoDetection> {
+    let res = (|| -> opencv::Result<ArucoDetection> {
+        let gray = gray_mat(&image, w as i32, h as i32)?;
+        let dict_type = match dict {
+            1 => objdetect::PredefinedDictionaryType::DICT_5X5_50,
+            2 => objdetect::PredefinedDictionaryType::DICT_6X6_50,
+            3 => objdetect::PredefinedDictionaryType::DICT_7X7_50,
+            _ => objdetect::PredefinedDictionaryType::DICT_4X4_50,
+        };
+        let dictionary = objdetect::get_predefined_dictionary(dict_type)?;
+        let mut params = objdetect::DetectorParameters::default()?;
+        // Sub-pixel corner refinement for solvePnP-grade precision.
+        params.set_corner_refinement_method(objdetect::CornerRefineMethod::CORNER_REFINE_SUBPIX as i32);
+        let refine = objdetect::RefineParameters::new(10.0, 3.0, true)?;
+        let detector = objdetect::ArucoDetector::new(&dictionary, &params, refine)?;
+
+        let mut corners: Vector<Vector<Point2f>> = Vector::new();
+        let mut ids: Vector<i32> = Vector::new();
+        let mut rejected: Vector<Vector<Point2f>> = Vector::new();
+        detector.detect_markers(&gray, &mut corners, &mut ids, &mut rejected)?;
+
+        let mut out_ids = Vec::with_capacity(ids.len());
+        let mut out_corners = Vec::with_capacity(ids.len() * 8);
+        for i in 0..ids.len() {
+            out_ids.push(ids.get(i)? as u32);
+            let quad = corners.get(i)?;
+            for j in 0..4 {
+                let p = quad.get(j)?;
+                out_corners.push(p.x as f64);
+                out_corners.push(p.y as f64);
+            }
+        }
+        Ok(ArucoDetection { ids: out_ids, corners: out_corners })
+    })();
+    res.map_err(|e| napi::Error::from_reason(format!("detect_aruco: {e}")))
 }
 
 // ---- 2. Gray-code decode → projector pixel per corner ----------------------
@@ -633,6 +688,33 @@ pub fn camera_open(index: u32, width: u32, height: u32, fps: f64, fourcc: String
         Ok(true)
     })();
     res.map_err(|e| napi::Error::from_reason(format!("camera_open: {e}")))
+}
+
+// Set a capture property on the open camera (manual exposure / gain / gamma for decode SNR — VIOSO
+// tunes these explicitly). `prop` is a short name mapped to a CAP_PROP_* id; `value` is the raw driver
+// value. Returns false if no camera is open or the driver rejects the set. NOTE (DirectShow quirk):
+// manual exposure only takes effect once auto-exposure is disabled — set "autoexposure" to 0.25 first
+// (the DSHOW "manual" sentinel on most UVC drivers), then "exposure" to the log2-seconds value. Units
+// are driver-specific, so the UI exposes the raw value + an auto toggle.
+#[napi]
+pub fn camera_set_prop(prop: String, value: f64) -> napi::Result<bool> {
+    let prop_id = match prop.as_str() {
+        "exposure" => videoio::CAP_PROP_EXPOSURE,
+        "autoexposure" => videoio::CAP_PROP_AUTO_EXPOSURE,
+        "gain" => videoio::CAP_PROP_GAIN,
+        "gamma" => videoio::CAP_PROP_GAMMA,
+        "brightness" => videoio::CAP_PROP_BRIGHTNESS,
+        "contrast" => videoio::CAP_PROP_CONTRAST,
+        _ => return Ok(false),
+    };
+    let res = CAP.with(|c| -> opencv::Result<bool> {
+        let mut guard = c.borrow_mut();
+        match guard.as_mut() {
+            Some(cap) => cap.set(prop_id, value),
+            None => Ok(false),
+        }
+    });
+    res.map_err(|e| napi::Error::from_reason(format!("camera_set_prop: {e}")))
 }
 
 // Grab one frame as a single-channel grayscale buffer at the negotiated resolution. Returns null until

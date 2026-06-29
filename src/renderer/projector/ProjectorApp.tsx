@@ -43,6 +43,8 @@ export const ProjectorApp: React.FC = () => {
   const softRef = useRef<SoftEdge>(defaultSoftEdge());
   const gammaRef = useRef(1);
   const brightnessRef = useRef(1);
+  const colorGainRef = useRef<[number, number, number]>([1, 1, 1]);
+  const blackLiftRef = useRef<[number, number, number]>([0, 0, 0]);
   const fpsCapRef = useRef(0);
   const ndiSendRef = useRef(false);
   const ndiFullResRef = useRef(false);
@@ -90,6 +92,8 @@ export const ProjectorApp: React.FC = () => {
     softRef.current = r.softEdge ?? defaultSoftEdge();
     gammaRef.current = r.gamma ?? 1;
     brightnessRef.current = r.brightness ?? 1;
+    colorGainRef.current = r.colorGain ?? [1, 1, 1];
+    blackLiftRef.current = r.blackLift ?? [0, 0, 0];
     fpsCapRef.current = r.fpsCap ?? 0;
     trackingRenderer.configure(r.trackingSmoothing ?? 0.6, r.trackingPredictMs ?? 50);
     ndiSendRef.current = !!r.ndiSend;
@@ -178,7 +182,7 @@ export const ProjectorApp: React.FC = () => {
       gl.setSize(window.innerWidth, window.innerHeight, window.devicePixelRatio || 1);
       const s = surfaceRef.current;
       const mesh = warpRef.current ? tessellateBezier(warpRef.current, RENDER_TESS) : null;
-      const opts = { cornerPin: pinRef.current, warp: mesh, softEdge: softRef.current, gamma: gammaRef.current, brightness: brightnessRef.current, aa: AA_SAMPLES };
+      const opts = { cornerPin: pinRef.current, warp: mesh, softEdge: softRef.current, gamma: gammaRef.current, brightness: brightnessRef.current, colorGain: colorGainRef.current, blackLift: blackLiftRef.current, aa: AA_SAMPLES };
       if (s && s.content.type === SourceType.TRACKING && s.content.trackingSource) {
         // GPU path: composite bg + blobs + overlay into the source FBO, then warp — no CPU canvas.
         const { w: srcW, h: srcH } = trackingRenderer.sourceSize(s.content.trackingSource);

@@ -1177,6 +1177,9 @@ const App: React.FC = () => {
               cornerPin: hwGeom ? defaultCornerPin() : (out?.cornerPin ?? defaultCornerPin()),
               warp: hwGeom ? null : (out?.warp ?? null),
               softEdge: hwGeom ? defaultSoftEdge() : (out?.softEdge ?? defaultSoftEdge()),
+              // Colour/black match: applied in NVAPI intensity when hardware owns the blend, else in GLSL.
+              colorGain: hwGeom ? [1, 1, 1] : (out?.colorGain ?? [1, 1, 1]),
+              blackLift: hwGeom ? [0, 0, 0] : (out?.blackLift ?? [0, 0, 0]),
               gamma: out?.gamma ?? 1,
               brightness: projectorBrightness,
               fpsCap: projectorFpsCap,
@@ -1688,6 +1691,7 @@ const App: React.FC = () => {
           onToggleWarp={handleToggleWarp}
           onSetSoftEdge={handleSetSoftEdge}
           onSetGamma={handleSetOutputGamma}
+          onSetColorMatch={(sid, patch) => upsertOutput(sid, patch)}
           onToggleNdiSend={handleToggleNdiSend}
           onSetFpsCap={setProjectorFpsCap}
           onRefreshDisplays={refreshDisplays}
@@ -1717,6 +1721,8 @@ const App: React.FC = () => {
             onRegisterMarkerlessPick={(cb) => { markerlessPickRef.current = cb; }}
             onPicksChange={setAutoAlignPicks}
             onSwitchFlow={setCalibFlow}
+            onStoreCamMask={(_sid, mask) => setScene3D(s => ({ ...s, camMask: mask ?? undefined }))}
+            onStoreMarkerMap={(map) => setScene3D(s => ({ ...s, markerMap: map ?? undefined }))}
             onClose={closeCalib}
           />
         ) : (

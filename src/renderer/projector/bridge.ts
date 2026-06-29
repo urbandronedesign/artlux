@@ -8,6 +8,8 @@ export interface ProjectorRender {
   softEdge?: SoftEdge;
   gamma?: number;
   brightness?: number; // projector-content master brightness (1 = full)
+  colorGain?: [number, number, number]; // per-projector white-point/brightness match (1,1,1 = off)
+  blackLift?: [number, number, number]; // per-projector additive black floor (0,0,0 = off)
   fpsCap?: number;   // 0 = uncapped
   ndiSend?: boolean; // also publish this output as an NDI source
   ndiFullRes?: boolean; // Broadcast: capture the NDI send at up to 1080p instead of 720p

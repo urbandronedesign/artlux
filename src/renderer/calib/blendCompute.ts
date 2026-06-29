@@ -19,6 +19,11 @@ export interface BlendMap {
   surfaceId: string;
   w: number; h: number;     // blend-map resolution (low-res; NVAPI/GLSL upsample)
   data: Float32Array;       // w*h alpha 0..1, row-major (0 = unlit by this projector)
+  // Per-cell black-lift weight 0..1 (row-major, same w×h). 1 where this projector sees the *least*
+  // overlap (its black floor must be raised most to match the N× black of the deepest overlap); 0 in
+  // the most-overlapped region. Multiplied by the per-output blackLift magnitude at apply time. Absent
+  // when there is only a single projector (no overlap → nothing to match).
+  black?: Float32Array;
 }
 
 export interface BlendOptions {
@@ -128,5 +133,22 @@ export function computeBlendMaps(projectors: ProjectorBlendInput[], opts: BlendO
     for (const [pi, e] of vm) { const a = e.dRep / denom; for (const c of e.cells) out[pi][c] = a; }
   }
 
-  return grids.map((g, pi) => ({ surfaceId: projectors[pi].surfaceId, w: g.mapW, h: g.mapH, data: out[pi] }));
+  // Black-lift weight: per voxel, overlap count = vm.size. A cell covered by this projector needs to
+  // fake the black of the (maxOverlap − overlapHere) projectors that don't reach it, normalized so the
+  // least-overlapped region = 1 and the deepest overlap = 0. Only meaningful with ≥2 projectors.
+  let maxOverlap = 1;
+  for (const vm of voxels.values()) if (vm.size > maxOverlap) maxOverlap = vm.size;
+  const black = grids.map((g) => new Float32Array(g.n));
+  if (maxOverlap > 1) {
+    const span = maxOverlap - 1;
+    for (const vm of voxels.values()) {
+      const wgt = (maxOverlap - vm.size) / span; // 0 at deepest overlap, 1 at single coverage
+      for (const [pi, e] of vm) for (const c of e.cells) black[pi][c] = wgt;
+    }
+  }
+
+  return grids.map((g, pi) => ({
+    surfaceId: projectors[pi].surfaceId, w: g.mapW, h: g.mapH, data: out[pi],
+    ...(maxOverlap > 1 ? { black: black[pi] } : {}),
+  }));
 }

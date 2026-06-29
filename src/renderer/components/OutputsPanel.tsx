@@ -18,6 +18,7 @@ interface Props {
   onToggleWarp: (surfaceId: string, on: boolean) => void;
   onSetSoftEdge: (surfaceId: string, patch: Partial<SoftEdge>) => void;
   onSetGamma: (surfaceId: string, gamma: number) => void;
+  onSetColorMatch: (surfaceId: string, patch: { colorGain?: [number, number, number]; blackLift?: [number, number, number] }) => void;
   onToggleNdiSend: (surfaceId: string, on: boolean) => void;
   onSetFpsCap: (cap: number) => void;
   onRefreshDisplays: () => void;
@@ -37,7 +38,7 @@ const clamp01h = (v: number) => Math.max(0, Math.min(0.5, v));
 export const OutputsPanel: React.FC<Props> = ({
   open, onClose, surfaces, outputs, displays, editingOutputId, fpsCap,
   onSetEnabled, onSetDisplay, onToggleEdit, onResetCorners,
-  onToggleWarp, onSetSoftEdge, onSetGamma, onToggleNdiSend, onSetFpsCap, onRefreshDisplays, onCalibrate, onSetUseCalibration,
+  onToggleWarp, onSetSoftEdge, onSetGamma, onSetColorMatch, onToggleNdiSend, onSetFpsCap, onRefreshDisplays, onCalibrate, onSetUseCalibration,
   nvAvailable, onSetHwWarp,
 }) => {
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -202,6 +203,39 @@ export const OutputsPanel: React.FC<Props> = ({
                       <span className="num text-fg-2 w-8">{(o?.gamma ?? 1).toFixed(2)}</span>
                       <button onClick={() => onSetGamma(s.id, 1)} className="text-fg-3 hover:text-fg-1">reset</button>
                     </div>
+
+                    {/* Colour + black-level match across projectors (overlap brightness / black floor) */}
+                    {(() => {
+                      const gain = o?.colorGain ?? [1, 1, 1];
+                      const lift = o?.blackLift ?? [0, 0, 0];
+                      const setGain = (i: number, v: number) => { const g = [...gain] as [number, number, number]; g[i] = v; onSetColorMatch(s.id, { colorGain: g }); };
+                      const setLift = (i: number, v: number) => { const l = [...lift] as [number, number, number]; l[i] = v; onSetColorMatch(s.id, { blackLift: l }); };
+                      return (
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-fg-3 w-[68px]">Colour gain</span>
+                            {[0, 1, 2].map((i) => (
+                              <label key={i} className="flex items-center gap-1 text-fg-2">
+                                <span className="uppercase text-[9px] text-fg-3">{'RGB'[i]}</span>
+                                <input type="number" step={0.01} min={0} max={2} value={+gain[i].toFixed(2)}
+                                  onChange={(e) => setGain(i, Math.max(0, +e.target.value))} className={numCell} />
+                              </label>
+                            ))}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-fg-3 w-[68px]">Black lift</span>
+                            {[0, 1, 2].map((i) => (
+                              <label key={i} className="flex items-center gap-1 text-fg-2">
+                                <span className="uppercase text-[9px] text-fg-3">{'RGB'[i]}</span>
+                                <input type="number" step={0.005} min={0} max={0.3} value={+lift[i].toFixed(3)}
+                                  onChange={(e) => setLift(i, Math.max(0, +e.target.value))} className={numCell} />
+                              </label>
+                            ))}
+                            <button onClick={() => onSetColorMatch(s.id, { colorGain: [1, 1, 1], blackLift: [0, 0, 0] })} className="text-fg-3 hover:text-fg-1">reset</button>
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* NDI send */}
                     <label className="flex items-center gap-1.5 cursor-pointer text-fg-2">

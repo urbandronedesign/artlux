@@ -92,17 +92,36 @@ export function warpSrcRect(display: DisplayInfo): [number, number, number, numb
 
 const featherWeight = (d: number, w: number) => (w <= 0 ? 1 : Math.max(0, Math.min(1, d / w)));
 
-// Bilinear sample of a low-res alpha map (row-major, w×h) at normalized (u,v) ∈ [0,1].
-function sampleBlend(b: BlendMap, u: number, v: number): number {
-  const fx = Math.max(0, Math.min(1, u)) * (b.w - 1);
-  const fy = Math.max(0, Math.min(1, v)) * (b.h - 1);
+// Even-odd point-in-polygon (normalized content space). Used for the projector exclusion mask.
+function pointInPoly(px: number, py: number, poly: [number, number][]): boolean {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i], [xj, yj] = poly[j];
+    if ((yi > py) !== (yj > py) && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+// 0 if (u,v) falls inside any projector-mask exclusion polygon (blacked out), else 1.
+function maskWeight(out: ProjectorOutput, u: number, v: number): number {
+  const polys = out.projMask?.polys;
+  if (!polys?.length) return 1;
+  for (const poly of polys) if (poly.length >= 3 && pointInPoly(u, v, poly)) return 0;
+  return 1;
+}
+
+// Bilinear sample of a low-res w×h grid (row-major) at normalized (u,v) ∈ [0,1].
+function sampleGrid(data: Float32Array, w: number, h: number, u: number, v: number): number {
+  const fx = Math.max(0, Math.min(1, u)) * (w - 1);
+  const fy = Math.max(0, Math.min(1, v)) * (h - 1);
   const x0 = Math.floor(fx), y0 = Math.floor(fy);
-  const x1 = Math.min(b.w - 1, x0 + 1), y1 = Math.min(b.h - 1, y0 + 1);
+  const x1 = Math.min(w - 1, x0 + 1), y1 = Math.min(h - 1, y0 + 1);
   const tx = fx - x0, ty = fy - y0;
-  const a = b.data[y0 * b.w + x0], bb = b.data[y0 * b.w + x1];
-  const c = b.data[y1 * b.w + x0], dd = b.data[y1 * b.w + x1];
+  const a = data[y0 * w + x0], bb = data[y0 * w + x1];
+  const c = data[y1 * w + x0], dd = data[y1 * w + x1];
   return a * (1 - tx) * (1 - ty) + bb * tx * (1 - ty) + c * (1 - tx) * ty + dd * tx * ty;
 }
+const sampleBlend = (b: BlendMap, u: number, v: number): number => sampleGrid(b.data, b.w, b.h, u, v);
 
 // Build the NVAPI intensity/blend texture: w*h*3 floats (RGB, 0..1). Replicates the GLSL fragment
 // shader's soft-edge feather (product of the four edge ramps, raised to the blend gamma) on a CPU grid,
@@ -118,6 +137,8 @@ export function buildIntensity(
 ): { w: number; h: number; rgb: number[] } {
   const se = out.softEdge ?? { left: 0, right: 0, top: 0, bottom: 0, gamma: 2.2 };
   const g = Math.max(0.1, se.gamma ?? 2.2);
+  const gain = out.colorGain ?? [1, 1, 1];     // per-channel white-point/brightness match
+  const lift = out.blackLift ?? [0, 0, 0];      // per-channel additive black floor (overlap match)
   const rgb = new Array(w * h * 3);
   for (let y = 0; y < h; y++) {
     const v = h > 1 ? y / (h - 1) : 0;
@@ -126,9 +147,16 @@ export function buildIntensity(
       let a = featherWeight(u, se.left) * featherWeight(1 - u, se.right)
             * featherWeight(v, se.top) * featherWeight(1 - v, se.bottom);
       a = Math.pow(a, g);
+      a *= maskWeight(out, u, v);               // projector exclusion mask (0 inside)
       if (blendMap) a *= sampleBlend(blendMap, u, v);
+      // Spatial black-lift weight (where this projector sees the least overlap → lift its black most).
+      const bw = blendMap?.black ? sampleGrid(blendMap.black, blendMap.w, blendMap.h, u, v) : 1;
       const i = (y * w + x) * 3;
-      rgb[i] = a; rgb[i + 1] = a; rgb[i + 2] = a;
+      // NVAPI intensity is a per-channel multiply: colorGain applies exactly; the additive black lift
+      // raises the floor by blackLift × spatial-weight, clamped to 1.
+      rgb[i]     = Math.min(1, a * gain[0] + lift[0] * bw);
+      rgb[i + 1] = Math.min(1, a * gain[1] + lift[1] * bw);
+      rgb[i + 2] = Math.min(1, a * gain[2] + lift[2] * bw);
     }
   }
   return { w, h, rgb };

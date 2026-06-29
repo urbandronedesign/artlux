@@ -110,6 +110,49 @@ export function stop(): void {
 
 export function isNative(): boolean { return source === 'native'; }
 
+// Set a camera capture property for decode SNR. `prop` is a source-agnostic name:
+//   'autoexposure' | 'exposure' | 'gain' | 'gamma' | 'brightness'
+// Native (OpenCV/DShow): forwarded to the addon's cap.set with the raw driver value (exposure is
+// typically log2-seconds; disable auto first by setting 'autoexposure' to 0.25). Browser
+// (getUserMedia): mapped to MediaStreamTrack constraints, gated on getCapabilities() — returns false
+// (and silently no-ops) for unsupported props so the UI can grey out the slider.
+export async function setProp(prop: string, value: number): Promise<boolean> {
+  if (source === 'native') {
+    return (await window.artlux?.calibCameraSetProp?.(prop, value)) ?? false;
+  }
+  const track = stream?.getVideoTracks()[0];
+  if (!track || !track.applyConstraints) return false;
+  // Capabilities aren't typed in lib.dom for these advanced props — probe loosely.
+  const caps = track.getCapabilities?.() as Record<string, unknown> | undefined;
+  const adv: Record<string, unknown> = {};
+  switch (prop) {
+    case 'autoexposure':
+      if (caps && !('exposureMode' in caps)) return false;
+      adv.exposureMode = value > 0 ? 'continuous' : 'manual';
+      break;
+    case 'exposure':
+      if (caps && !('exposureTime' in caps)) return false;
+      adv.exposureMode = 'manual'; adv.exposureTime = value;
+      break;
+    case 'gain':
+      if (caps && !('iso' in caps)) return false;
+      adv.iso = value;
+      break;
+    case 'brightness':
+      if (caps && !('brightness' in caps)) return false;
+      adv.brightness = value;
+      break;
+    default:
+      return false; // gamma etc. aren't exposed by getUserMedia
+  }
+  try {
+    await track.applyConstraints({ advanced: [adv] } as MediaTrackConstraints);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // The browser MediaStream for a <video> preview (null in native mode — use grab()+canvas instead).
 export function getStream(): MediaStream | null { return source === 'browser' ? stream : null; }
 

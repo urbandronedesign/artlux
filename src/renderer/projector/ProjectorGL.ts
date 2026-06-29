@@ -24,6 +24,8 @@ export interface DrawOpts {
   softEdge?: SoftEdge;
   gamma?: number;      // output gamma (1 = off)
   brightness?: number; // projector-content master brightness (1 = full)
+  colorGain?: [number, number, number]; // per-projector white-point/brightness match (default 1,1,1)
+  blackLift?: [number, number, number]; // per-projector additive black floor (default 0,0,0)
   aa?: number;         // MSAA samples (0/1 = off)
 }
 
@@ -44,13 +46,18 @@ uniform vec4 uSoft;        // left, right, top, bottom feather widths (0 = hard)
 uniform float uBlendGamma; // soft-edge ramp shaping
 uniform float uGamma;      // output gamma (1 = off)
 uniform float uBrightness; // projector-content master brightness (1 = full)
+uniform vec3 uColorGain;   // per-channel white-point/brightness match across projectors (1,1,1 = off)
+uniform vec3 uBlackLift;   // per-channel additive black floor to match overlap black (0,0,0 = off)
 float feather(float d, float w) { return w <= 0.0 ? 1.0 : clamp(d / w, 0.0, 1.0); }
 void main() {
   vec2 uv = vUVQ.xy / vUVQ.z;
   vec4 c = texture2D(uTex, uv);
   float a = feather(uv.x, uSoft.x) * feather(1.0 - uv.x, uSoft.y)
           * feather(uv.y, uSoft.z) * feather(1.0 - uv.y, uSoft.w);
-  c.rgb *= pow(a, uBlendGamma);
+  float pa = pow(a, uBlendGamma);
+  // Edge blend × per-projector colour gain, plus the black floor where content is attenuated so an
+  // overlap's doubled black matches the single-projector black. Identity at gain=1, lift=0.
+  c.rgb = c.rgb * pa * uColorGain + uBlackLift * (1.0 - pa);
   c.rgb *= uBrightness;
   c.rgb = pow(max(c.rgb, 0.0), vec3(1.0 / uGamma));
   gl_FragColor = vec4(c.rgb, 1.0);
@@ -76,6 +83,8 @@ export class ProjectorGL {
   private uBlendGamma: WebGLUniformLocation | null;
   private uGamma: WebGLUniformLocation | null;
   private uBrightness: WebGLUniformLocation | null;
+  private uColorGain: WebGLUniformLocation | null;
+  private uBlackLift: WebGLUniformLocation | null;
   // MSAA (WebGL2 only)
   private msFBO: WebGLFramebuffer | null = null;
   private msColor: WebGLRenderbuffer | null = null;
@@ -109,6 +118,8 @@ export class ProjectorGL {
     this.uBlendGamma = gl.getUniformLocation(prog, 'uBlendGamma');
     this.uGamma = gl.getUniformLocation(prog, 'uGamma');
     this.uBrightness = gl.getUniformLocation(prog, 'uBrightness');
+    this.uColorGain = gl.getUniformLocation(prog, 'uColorGain');
+    this.uBlackLift = gl.getUniformLocation(prog, 'uBlackLift');
 
     this.buf = gl.createBuffer()!;
     this.tex = gl.createTexture()!;
@@ -243,6 +254,9 @@ export class ProjectorGL {
     gl.uniform1f(this.uBlendGamma, Math.max(0.1, soft?.gamma ?? 2.2));
     gl.uniform1f(this.uGamma, Math.max(0.1, o.gamma ?? 1));
     gl.uniform1f(this.uBrightness, Math.max(0, o.brightness ?? 1));
+    const cg = o.colorGain ?? [1, 1, 1], bl = o.blackLift ?? [0, 0, 0];
+    gl.uniform3f(this.uColorGain, cg[0], cg[1], cg[2]);
+    gl.uniform3f(this.uBlackLift, bl[0], bl[1], bl[2]);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.buf);
     gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
     const stride = 5 * 4;

@@ -192,6 +192,8 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     ipcMain.handle(IPC.CALIB_AVAILABLE, () => calib.isAvailable());
     ipcMain.handle(IPC.CALIB_DETECT_BOARD, (_e, image: ArrayBuffer, w: number, h: number, cols: number, rows: number) =>
         calib.detectBoard(Buffer.from(image), w, h, cols, rows));
+    ipcMain.handle(IPC.CALIB_DETECT_ARUCO, (_e, image: ArrayBuffer, w: number, h: number, dict: number) =>
+        calib.detectAruco(Buffer.from(image), w, h, dict));
     ipcMain.handle(IPC.CALIB_MAP_CORNERS, (_e, captures: ArrayBuffer, captureCount: number, camW: number, camH: number, projW: number, projH: number, corners: number[], white: ArrayBuffer, black: ArrayBuffer) =>
         calib.mapCorners(Buffer.from(captures), captureCount, camW, camH, projW, projH, corners, Buffer.from(white), Buffer.from(black)));
     ipcMain.handle(IPC.CALIB_CALIBRATE_PROJECTOR, (_e, objectPoints: number[], imagePoints: number[], pointCounts: number[], projW: number, projH: number) =>
@@ -202,6 +204,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
         calib.cameraOpen(index, width, height, fps, fourcc));
     ipcMain.handle(IPC.CALIB_CAMERA_GRAB, () => calib.cameraGrab());
     ipcMain.on(IPC.CALIB_CAMERA_CLOSE, () => calib.cameraClose());
+    ipcMain.handle(IPC.CALIB_CAMERA_SET_PROP, (_e, prop: string, value: number) => calib.cameraSetProp(prop, value));
     ipcMain.handle(IPC.CALIB_DECODE_DENSE, (_e, captures: ArrayBuffer, captureCount: number, camW: number, camH: number, projW: number, projH: number, white: ArrayBuffer, black: ArrayBuffer, stride: number) =>
         calib.decodeDense(Buffer.from(captures), captureCount, camW, camH, projW, projH, Buffer.from(white), Buffer.from(black), stride));
     ipcMain.handle(IPC.CALIB_SOLVE_PNP_RANSAC, (_e, objectPts: number[], imagePts: number[], k: number[], dist: number[], reprojErr: number) =>

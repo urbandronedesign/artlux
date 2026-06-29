@@ -66,6 +66,8 @@ export const IPC = {
   CALIB_AVAILABLE: 'calib:available',
   /** Renderer → main (invoke): detect a checkerboard in a camera frame → sub-pixel corners. */
   CALIB_DETECT_BOARD: 'calib:detect-board',
+  /** Renderer → main (invoke): detect ArUco fiducials in a camera frame → ids + corners (one-click recal). */
+  CALIB_DETECT_ARUCO: 'calib:detect-aruco',
   /** Renderer → main (invoke): map detected board corners to projector pixels via a captured Gray-code sequence. */
   CALIB_MAP_CORNERS: 'calib:map-corners',
   /** Renderer → main (invoke): calibrateCamera over all board poses → projector intrinsics + distortion. */
@@ -78,6 +80,8 @@ export const IPC = {
   CALIB_CAMERA_GRAB: 'calib:camera-grab',
   /** Renderer → main: release the open OpenCV camera. */
   CALIB_CAMERA_CLOSE: 'calib:camera-close',
+  /** Renderer → main (invoke): set a camera capture property (exposure/gain/gamma) on the open camera. */
+  CALIB_CAMERA_SET_PROP: 'calib:camera-set-prop',
   /** Renderer → main (invoke): dense camera→projector decode (markerless correspondences). */
   CALIB_DECODE_DENSE: 'calib:decode-dense',
   /** Renderer → main (invoke): RANSAC solvePnP (robust pose). */
@@ -235,6 +239,13 @@ export interface HapFrame {
 export interface BoardDetectResult {
   found: boolean;
   corners: number[]; // flat camera-space [x0,y0, x1,y1, …] (length cols*rows*2 when found)
+}
+
+// ArUco fiducial detection result: parallel arrays — ids[i] ↔ corners[i*8 .. i*8+8] (4 sub-pixel
+// camera-pixel corners x,y in detector order). For one-click recalibration (see calib/markerlessController).
+export interface ArucoDetection {
+  ids: number[];
+  corners: number[]; // 8 per id: [x0,y0, x1,y1, x2,y2, x3,y3] camera px
 }
 
 // One board pose's detected camera corners mapped to projector pixels via a decoded Gray-code
@@ -471,7 +482,14 @@ export interface ProjectorOutput {
   useCalibration?: boolean;   // when calibrated, render the 3D venue scene from the matched projector
   hwWarp?: boolean;           // apply warp+blend at the GPU scanout via NVAPI (Quadro/RTX-pro) instead
                               // of the GLSL path; ignored unless nvwarpAvailable() and a real display
+  projMask?: ProjMask;        // exclusion polygons (normalized content space) — constrain projection
+  colorGain?: [number, number, number]; // per-channel white-point/brightness match across projectors (1,1,1 = off)
+  blackLift?: [number, number, number]; // per-channel additive black floor to match overlap black (0 = off)
 }
+
+// Projector exclusion mask: polygons in normalized content space ([0,1], top-left origin). Pixels
+// inside any polygon are blacked out (limit projection to the screen, kill spill onto floor/ceiling).
+export interface ProjMask { polys: [number, number][][] }
 
 export const defaultProjectorOutput = (surfaceId: string): ProjectorOutput => ({
   surfaceId, enabled: false, displayId: null, cornerPin: defaultCornerPin(),
@@ -504,6 +522,22 @@ export const modelScaleXYZ = (m: { scale: number; scaleXYZ?: [number, number, nu
 };
 
 // 3D Scene config (venue meshes + lighting), persisted per project.
+// Camera exclusion mask for markerless calibration: polygons (camera-pixel coords) over reflective
+// hotspots / obstructions whose pixels are dropped from the Gray-code decode. See renderer/calib/camMask.ts.
+export interface CamMask {
+  w: number;                      // camera width the polygons were drawn against
+  h: number;                      // camera height
+  polys: [number, number][][];    // exclusion polygons; each ≥3 [x,y] camera pixels
+}
+
+// A fiducial (ArUco) marker placed in the venue at a known 3D point, registered once. Used for
+// one-click recalibration: the camera detects the marker → its id → this 3D point → camera pose.
+export interface FiducialMarker { id: number; world: [number, number, number] }
+export interface MarkerMap {
+  dict: number;                  // ArUco predefined-dictionary id (e.g. 0 = DICT_4X4_50)
+  markers: FiducialMarker[];
+}
+
 export interface Scene3D {
   models: SceneModel[];
   lightIntensity: number;             // per-fixture venue light gain
@@ -517,6 +551,8 @@ export interface Scene3D {
   trackingLabels?: boolean;           // show each blob's tracking id
   trackingMergePeople?: boolean;      // merge nearby blobs into one "person" (venue emits 2 blobs/person)
   trackingMergeRadius?: number;       // merge radius in metres (blobs within this distance = same person)
+  camMask?: CamMask;                  // markerless calibration camera exclusion mask (reflective hotspots)
+  markerMap?: MarkerMap;              // registered fiducial markers for one-click recalibration
   // Legacy single-model fields (pre-multi-model); migrated into `models` on load.
   modelPath?: string;
   modelScale?: number;
@@ -666,6 +702,8 @@ export interface ArtluxApi {
   // Projector calibration (native OpenCV addon: structured light + solvePnP)
   calibAvailable(): Promise<boolean>;
   calibDetectBoard(image: ArrayBuffer, w: number, h: number, cols: number, rows: number): Promise<BoardDetectResult | null>;
+  /** Detect ArUco fiducials in a camera frame → ids + sub-pixel corners (one-click recalibration). */
+  calibDetectAruco(image: ArrayBuffer, w: number, h: number, dict: number): Promise<ArucoDetection | null>;
   calibMapCorners(captures: ArrayBuffer, captureCount: number, camW: number, camH: number, projW: number, projH: number, corners: number[], white: ArrayBuffer, black: ArrayBuffer): Promise<CornerProjMap | null>;
   calibCalibrateProjector(objectPoints: number[], imagePoints: number[], pointCounts: number[], projW: number, projH: number): Promise<ProjectorIntrinsicsResult | null>;
   calibSolvePnp(objectPts: number[], imagePts: number[], k: number[], dist: number[]): Promise<PnpResult | null>;
@@ -675,6 +713,8 @@ export interface ArtluxApi {
   calibCameraGrab(): Promise<CameraFrame | null>;
   /** Release the open OpenCV camera. */
   calibCameraClose(): void;
+  /** Set a camera capture property (exposure/gain/gamma) on the open OpenCV camera → applied? */
+  calibCameraSetProp(prop: string, value: number): Promise<boolean>;
   /** Dense camera→projector decode for the markerless pipeline (stride subsamples the camera grid). */
   calibDecodeDense(captures: ArrayBuffer, captureCount: number, camW: number, camH: number, projW: number, projH: number, white: ArrayBuffer, black: ArrayBuffer, stride: number): Promise<DenseMap | null>;
   /** RANSAC solvePnP (robust pose); reprojErr is the inlier threshold in projector px. */

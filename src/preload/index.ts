@@ -75,6 +75,8 @@ const api: ArtluxApi = {
     calibAvailable: () => ipcRenderer.invoke(IPC.CALIB_AVAILABLE),
     calibDetectBoard: (image: ArrayBuffer, w: number, h: number, cols: number, rows: number) =>
         ipcRenderer.invoke(IPC.CALIB_DETECT_BOARD, image, w, h, cols, rows),
+    calibDetectAruco: (image: ArrayBuffer, w: number, h: number, dict: number) =>
+        ipcRenderer.invoke(IPC.CALIB_DETECT_ARUCO, image, w, h, dict),
     calibMapCorners: (captures: ArrayBuffer, captureCount: number, camW: number, camH: number, projW: number, projH: number, corners: number[], white: ArrayBuffer, black: ArrayBuffer) =>
         ipcRenderer.invoke(IPC.CALIB_MAP_CORNERS, captures, captureCount, camW, camH, projW, projH, corners, white, black),
     calibCalibrateProjector: (objectPoints: number[], imagePoints: number[], pointCounts: number[], projW: number, projH: number) =>
@@ -85,6 +87,7 @@ const api: ArtluxApi = {
         ipcRenderer.invoke(IPC.CALIB_CAMERA_OPEN, index, width, height, fps, fourcc),
     calibCameraGrab: () => ipcRenderer.invoke(IPC.CALIB_CAMERA_GRAB),
     calibCameraClose: () => ipcRenderer.send(IPC.CALIB_CAMERA_CLOSE),
+    calibCameraSetProp: (prop: string, value: number) => ipcRenderer.invoke(IPC.CALIB_CAMERA_SET_PROP, prop, value),
     calibDecodeDense: (captures: ArrayBuffer, captureCount: number, camW: number, camH: number, projW: number, projH: number, white: ArrayBuffer, black: ArrayBuffer, stride: number) =>
         ipcRenderer.invoke(IPC.CALIB_DECODE_DENSE, captures, captureCount, camW, camH, projW, projH, white, black, stride),
     calibSolvePnpRansac: (objectPts: number[], imagePts: number[], k: number[], dist: number[], reprojErr: number) =>
