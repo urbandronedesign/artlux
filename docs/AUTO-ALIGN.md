@@ -8,7 +8,9 @@ Benchmarked against **Digital Projection Advanced Align** and **VIOSO Projection
 Built **in-house** on ArtLux's existing structured-light + OpenCV + R3F stack.
 
 This is the markerless successor to the board-based flow in [CALIBRATION.md](CALIBRATION.md); see also
-[NVWARP.md](NVWARP.md) for the NVAPI addon build.
+[NVWARP.md](NVWARP.md) for the NVAPI addon build and
+[CALIB-OPTIMIZATIONS.md](CALIB-OPTIMIZATIONS.md) for the VIOSO-parity workflow additions (ArUco
+one-click recalibration, camera/projector masking, exposure controls, colour/black-level matching).
 
 ---
 
