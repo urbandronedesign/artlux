@@ -134,8 +134,7 @@ const api: ArtluxApi = {
         ipcRenderer.on(IPC.UPDATE_EVENT, listener);
         return () => { ipcRenderer.removeListener(IPC.UPDATE_EVENT, listener); };
     },
-    // 3D Scene window
-    openSceneWindow: () => ipcRenderer.send(IPC.SCENE_OPEN),
+    // 3D model import (used by the embedded 3D scene panel)
     pickModel: () => ipcRenderer.invoke(IPC.SCENE_PICK_MODEL),
     readModel: (path: string) => ipcRenderer.invoke(IPC.SCENE_READ_MODEL, path),
     readFile: (path: string) => ipcRenderer.invoke(IPC.READ_FILE, path),
@@ -162,32 +161,25 @@ const api: ArtluxApi = {
 // Bridge MessagePort: a MessagePort can't survive being passed through a contextBridge
 // callback (contextIsolation strips its methods), so forward it into the main world with
 // window.postMessage — which preserves the transferred port. Buffer ports until the renderer
-// signals readiness (it posts a '*-request'/'-ready' after attaching its listener), because
-// transferring to a not-yet-listening window would drop the port. The scene window has at most
-// one port; projector outputs have one each, tagged by surfaceId, so they queue.
-let pendingScenePort: MessagePort | null = null;
+// signals readiness (it posts 'artlux:projector-ready' after attaching its listener), because
+// transferring to a not-yet-listening window would drop the port. Projector outputs have one
+// port each, tagged by surfaceId, so they queue.
 const pendingProjectorPorts: { surfaceId: string; port: MessagePort }[] = [];
 let rendererReady = false;
 const flushPorts = () => {
     if (!rendererReady) return;
-    if (pendingScenePort) {
-        const port = pendingScenePort;
-        pendingScenePort = null;
-        window.postMessage('artlux:scene-port', '*', [port]);
-    }
     while (pendingProjectorPorts.length) {
         const { surfaceId, port } = pendingProjectorPorts.shift()!;
         window.postMessage({ kind: 'artlux:projector-port', surfaceId }, '*', [port]);
     }
 };
-ipcRenderer.on(IPC.SCENE_PORT, (e) => { pendingScenePort = e.ports[0] ?? null; flushPorts(); });
 ipcRenderer.on(IPC.PROJECTOR_PORT, (e, payload: { surfaceId: string }) => {
     const port = e.ports[0];
     if (port) pendingProjectorPorts.push({ surfaceId: payload?.surfaceId, port });
     flushPorts();
 });
 window.addEventListener('message', (e) => {
-    if (e.data === 'artlux:scene-port-request' || e.data === 'artlux:projector-ready') {
+    if (e.data === 'artlux:projector-ready') {
         rendererReady = true;
         flushPorts();
     }

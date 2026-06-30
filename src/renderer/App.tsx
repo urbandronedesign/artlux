@@ -8,8 +8,7 @@ import * as calibController from './calib/calibController';
 import * as slCapture from './calib/slCapture';
 import * as cam from './services/calibCapture';
 import { measureGamma } from './calib/gammaController';
-import type { AppInfo, UpdateEvent, Scene3D, ProjectorOutput, DisplayInfo, SoftEdge } from '../../shared/protocol';
-import type { SceneToMain } from './scene/bridge';
+import type { AppInfo, UpdateEvent, Scene3D, SceneModel, ProjectorOutput, DisplayInfo, SoftEdge } from '../../shared/protocol';
 import type { ProjectorToMain, MainToProjector } from './projector/bridge';
 import { makeBezierWarp } from './projector/warp';
 import { outputToNvwarp } from './projector/nvwarpApply';
@@ -26,6 +25,7 @@ import { MediaPanel } from './components/MediaPanel';
 import { AssetManager } from './components/AssetManager';
 import { Stage } from './components/Stage';
 import Simulator3D from './components/Simulator3D/Simulator3D';
+import ScenePanel3D from './components/Simulator3D/ScenePanel3D';
 import { useModelUrls } from './components/Simulator3D/useModelUrls';
 import type { ModelTransform } from './components/Simulator3D/ModelObject';
 import { DMXMonitor } from './components/DMXMonitor';
@@ -49,7 +49,7 @@ import * as trackingStore from './services/trackingStore';
 import { clusterAndTrack, resetPeopleTracking } from './services/blobClustering';
 import * as trackingPlayback from './services/trackingPlayback';
 import * as trackingDrawable from './services/trackingDrawable';
-import { Activity, SlidersHorizontal, Film, Clapperboard, Columns2 } from 'lucide-react';
+import { Activity, SlidersHorizontal, Film, Clapperboard, Columns2, Maximize2, Minimize2 } from 'lucide-react';
 import { useHistory } from './hooks/useHistory';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -135,7 +135,7 @@ const App: React.FC = () => {
   const [updateUserInitiated, setUpdateUserInitiated] = useState(false);
   const [scene3D, setScene3D] = useState<Scene3D>(defaultScene3D());
   const scene3DRef = useRef(scene3D); scene3DRef.current = scene3D; // live mirror for the []-deps tracking bridge
-  // Embedded 3D scene (split view): model GLB urls + selection/natural-size, shared with the Scene window.
+  // Embedded 3D scene (split view): model GLB urls + selection/natural-size.
   const modelUrls = useModelUrls(scene3D.models);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [modelNaturalSizes, setModelNaturalSizes] = useState<Record<string, number>>({});
@@ -143,7 +143,6 @@ const App: React.FC = () => {
   const [assets, setAssets] = useState<AssetEntry[]>([]); // managed media library (video/image/model)
   const [leftTab, setLeftTab] = useState<'scene' | 'media'>('scene');
   const [assetManagerOpen, setAssetManagerOpen] = useState(false);
-  const scenePortRef = useRef<MessagePort | null>(null);
   const [routingOpen, setRoutingOpen] = useState(false);
   const [outputsOpen, setOutputsOpen] = useState(false);
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
@@ -248,13 +247,31 @@ const App: React.FC = () => {
 
   // --- Surfaces ---
   const handleSelectSurface = (id: string | null) => { setSelectedSurfaceId(id); if (id) { setSelectedFixtureId(null); setSelectedFixtureIds([]); } };
-  // --- embedded 3D model handlers (App is the source of truth; the detached Scene window mirrors) ---
+  // --- embedded 3D model handlers (App is the source of truth for the split-view scene panel) ---
   const handleSelectModel = (id: string | null) => { setSelectedModelId(id); if (id) { setSelectedFixtureId(null); setSelectedFixtureIds([]); setSelectedSurfaceId(null); } };
   const handleCommitModel = (id: string, t: ModelTransform) =>
     setScene3D(s => ({ ...s, models: (s.models ?? []).map(m => m.id === id ? { ...m, ...t } : m) }));
   const handleModelNaturalSize = (id: string, maxDim: number) =>
     setModelNaturalSizes(s => (s[id] === maxDim ? s : { ...s, [id]: maxDim }));
   const handleSceneConfig = (patch: Partial<Scene3D>) => setScene3D(s => ({ ...s, ...patch }));
+  // --- 3D model CRUD (driven by the in-window scene panel; App owns scene3D) ---
+  const addSceneModel = (m: SceneModel) => { recordHistory(); setScene3D(s => ({ ...s, models: [...(s.models ?? []), m] })); handleSelectModel(m.id); };
+  const handleAddModel = async () => {
+    const path = await window.artlux?.pickModel?.();
+    if (!path) return;
+    const name = (path.replace(/\\/g, '/').split('/').pop() || path).replace(/\.(glb|gltf)$/i, '');
+    const count = (scene3D.models ?? []).length;
+    addSceneModel({ id: crypto.randomUUID(), name, path, position: { x: count * 2, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: 1, visible: true });
+  };
+  const handleAddPlane = () => {
+    const count = (scene3D.models ?? []).length;
+    addSceneModel({ id: crypto.randomUUID(), name: `Screen ${count + 1}`, kind: 'plane', path: '', position: { x: count * 2, y: 1.2, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: 2, visible: true });
+  };
+  const handleUpdateModel = (id: string, patch: Partial<SceneModel>) => { recordHistory(); setScene3D(s => ({ ...s, models: (s.models ?? []).map(m => m.id === id ? { ...m, ...patch } : m) })); };
+  const handleRemoveModel = (id: string) => { recordHistory(); setScene3D(s => ({ ...s, models: (s.models ?? []).filter(m => m.id !== id) })); if (selectedModelId === id) setSelectedModelId(null); };
+  const [sceneSaved, setSceneSaved] = useState(false);
+  const sceneSavedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleSceneSave = () => { handleSaveProject().then((path) => { if (path) { setSceneSaved(true); if (sceneSavedTimer.current) clearTimeout(sceneSavedTimer.current); sceneSavedTimer.current = setTimeout(() => setSceneSaved(false), 1500); } }); };
   useEffect(() => { localStorage.setItem('artlux.splitView', splitView ? '1' : '0'); }, [splitView]);
   useEffect(() => { localStorage.setItem('artlux.splitRatio', String(splitRatio)); }, [splitRatio]);
   const startSplitDrag = (e: React.PointerEvent) => {
@@ -267,6 +284,15 @@ const App: React.FC = () => {
     const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+  };
+  // Maximize the 3D pane: shrink the 2D stage to a sliver so the 3D view + panel nearly fill the
+  // area (recovers the old detached-window's near-fullscreen editing). Toggles back to the prior split.
+  const MAX_3D_RATIO = 0.12;
+  const prevSplitRatio = useRef(0.5);
+  const is3DMaximized = splitView && splitRatio <= MAX_3D_RATIO + 0.001;
+  const handleToggle3DMax = () => {
+    if (is3DMaximized) { setSplitRatio(prevSplitRatio.current > 0.2 ? prevSplitRatio.current : 0.5); }
+    else { prevSplitRatio.current = splitRatio; if (!splitView) setSplitView(true); setSplitRatio(MAX_3D_RATIO); }
   };
   // Single-target selection with optional additive (ctrl/cmd) toggle. Clicking an
   // already-selected member without a modifier keeps the multi-selection (so it stays
@@ -358,7 +384,7 @@ const App: React.FC = () => {
     upsertOutput(surfaceId, { calibration: { ...base, ...patch, calibratedAt: new Date().toISOString() } });
   };
   // Pose capture: the projector reports its crosshair pixel; on confirm we hold it as pending and pair
-  // it with the next venue-model pick from the scene window → solvePnP (intrinsics fixed).
+  // it with the next venue-model pick from the embedded 3D view → solvePnP (intrinsics fixed).
   const latestCrosshairRef = useRef<[number, number] | null>(null);
   const pendingPixelRef = useRef<[number, number] | null>(null);
   // When the Auto-Align (markerless) wizard is gathering camera-image↔model picks, it registers a
@@ -386,8 +412,7 @@ const App: React.FC = () => {
     handleStoreCalibration(sid, { posePicks: picks });
     if (picks.length >= 4) void solvePose(sid, picks);
   };
-  const handlePoseModeChange = (surfaceId: string, on: boolean) => {
-    scenePortRef.current?.postMessage({ t: 'calibMode', on, surfaceId: on ? surfaceId : null });
+  const handlePoseModeChange = (_surfaceId: string, on: boolean) => {
     if (!on) { pendingPixelRef.current = null; latestCrosshairRef.current = null; }
   };
   const handleClearPoses = (surfaceId: string) => {
@@ -946,73 +971,13 @@ const App: React.FC = () => {
       return () => unsub?.();
   }, []);
 
-  // --- 3D Scene window bridge (MessagePort to the separate scene renderer) ---
-  // Handle messages coming back from the scene window. Kept in a ref so the port's
-  // onmessage (set once) always calls the latest closure.
-  // Layer ids whose frames the Scene window wants streamed (its screen-planes' layers).
-  const sceneLayersRef = useRef<string[]>([]);
-  const onSceneMsgRef = useRef<(m: SceneToMain) => void>(() => {});
-  onSceneMsgRef.current = (m: SceneToMain) => {
-      if (m.t === 'ready') pushSceneState();
-      else if (m.t === 'select') handleSelectFixture(m.id);
-      else if (m.t === 'commit') handleCommitFixture3D(m.id, { position3D: m.position3D, rotation3D: m.rotation3D, scale3D: m.scale3D });
-      else if (m.t === 'sceneConfig') setScene3D(s => ({ ...s, ...m.patch }));
-      else if (m.t === 'sceneLayers') sceneLayersRef.current = m.layerIds;
-      else if (m.t === 'calibPick') handleCalibPick(m.world);
-      else if (m.t === 'save') handleSaveProject().then((path) => scenePortRef.current?.postMessage({ t: 'saved', ok: !!path }));
-  };
-  const pushSceneState = () => {
-      scenePortRef.current?.postMessage({ t: 'state', fixtures, surfaces, selectedId: selectedFixtureId, scene3D });
-      scenePortRef.current?.postMessage({ t: 'timeline', timeline });
-  };
-  useEffect(() => {
-      const onMsg = (e: MessageEvent) => {
-          if (e.data !== 'artlux:scene-port' || !e.ports[0]) return;
-          const port = e.ports[0];
-          scenePortRef.current = port;
-          port.onmessage = (ev: MessageEvent) => onSceneMsgRef.current(ev.data as SceneToMain);
-          port.start();
-          pushSceneState();
-      };
-      window.addEventListener('message', onMsg);
-      window.postMessage('artlux:scene-port-request', '*');
-      return () => window.removeEventListener('message', onMsg);
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  // Push fresh state to the scene window whenever anything it renders changes.
-  useEffect(() => {
-      scenePortRef.current?.postMessage({ t: 'state', fixtures, surfaces, selectedId: selectedFixtureId, scene3D });
-  }, [fixtures, surfaces, selectedFixtureId, scene3D]);
-  // Push projector calibrations (for the frustum overlays) to the scene window when they change.
-  useEffect(() => {
-      scenePortRef.current?.postMessage({
-          t: 'projectors',
-          calibs: projectorOutputs.map(o => ({ surfaceId: o.surfaceId, calibration: o.calibration ?? null })),
-      });
-  }, [projectorOutputs]);
-  // Forward the live per-LED pixel buffer to the scene window (~30 fps, copy + transfer).
-  useEffect(() => {
-      let last = 0;
-      const unsub = dmxSignal.subscribe(({ pixels }) => {
-          const port = scenePortRef.current;
-          if (!port) return;
-          const now = performance.now();
-          if (now - last < 33) return;
-          last = now;
-          const copy = pixels.slice();
-          port.postMessage({ t: 'pixels', buf: copy.buffer }, [copy.buffer]);
-      });
-      return () => unsub();
-  }, []);
-
-  // --- Timeline: feed the playback engine + bridge transport/data to the Scene window ---
+  // --- Timeline: feed the playback engine + bridge transport/data to the projector windows ---
   useEffect(() => {
       timelineEngine.setData(timeline);
       trackingPlayback.setData(timeline); // replay recorded blob takes when the playhead crosses them
-      scenePortRef.current?.postMessage({ t: 'timeline', timeline });
       for (const port of projectorPortsRef.current.values()) port.postMessage({ t: 'timeline', timeline });
   }, [timeline]);
-  // Start the tracking-take replay loop once (main window only; mirrors get snapshots via the bridge).
+  // Start the tracking-take replay loop once (main window only).
   useEffect(() => { trackingPlayback.start(); }, []);
   useEffect(() => { timelineEngine.setPlaying(isVideoPlaying); }, [isVideoPlaying]);
   // The FSM control layer drives transport by emitting intents; App turns them into React state so
@@ -1044,27 +1009,24 @@ const App: React.FC = () => {
           controlPrefix: settings.oscControlPrefix,
       });
   }, [settings.oscEnabled, settings.oscListenPort, settings.oscListenAddress, settings.oscControlPrefix]);
-  // Stream LiDAR blob snapshots to the 3D Scene window (up to ~60 fps — the payload is tiny, ≤10
-  // blobs, and full-rate data tightens the scene's smoothing/prediction). OSC is received only here
-  // in the main window, so the Scene window's tracking viz is fed over the bridge like transport.
+  // Stream LiDAR blob snapshots to projector windows showing TRACKING content (up to ~60 fps — the
+  // payload is tiny, ≤10 blobs). OSC is received only here in the main window; the embedded 3D view
+  // reads trackingStore directly, so only the separate projector renderers need the bridge.
   useEffect(() => {
       let last = 0;
       const unsub = trackingStore.subscribe(() => {
           const now = performance.now();
           if (now - last < 16) return;
           last = now;
-          const scenePort = scenePortRef.current;
-          // Only build the snapshot if someone consumes it (the Scene window, or a projector
-          // showing TRACKING content).
+          // Only build the snapshot if a projector showing TRACKING content consumes it.
           const trackingProjectors = [...projectorPortsRef.current].filter(([id]) =>
               surfacesRef.current.find(s => s.id === id)?.content.type === SourceType.TRACKING);
-          if (!scenePort && trackingProjectors.length === 0) return;
+          if (trackingProjectors.length === 0) return;
           const raw = trackingStore.snapshot();
-          // Merge the venue's ~2-blobs-per-person into single "people" for the viz + projector
-          // outputs (off by default). The raw store + recorded takes stay untouched.
+          // Merge the venue's ~2-blobs-per-person into single "people" for the projector outputs
+          // (off by default). The raw store + recorded takes stay untouched.
           const cfg = scene3DRef.current;
           const snap = cfg.trackingMergePeople ? clusterAndTrack(raw, cfg.trackingMergeRadius ?? 0.8, now) : raw;
-          scenePort?.postMessage({ t: 'tracking', snap });
           for (const [, port] of trackingProjectors) port.postMessage({ t: 'tracking', snap });
       });
       return () => unsub();
@@ -1075,8 +1037,8 @@ const App: React.FC = () => {
   }, [scene3D.trackingSmoothing, scene3D.trackingPredictMs]);
   // Drop temporal person tracks when merging is off so a re-enable starts with fresh person ids.
   useEffect(() => { if (!scene3D.trackingMergePeople) resetPeopleTracking(); }, [scene3D.trackingMergePeople]);
-  // Stream transport (playing + playhead) to the Scene + projector windows ~30 fps so
-  // their video/layer content stays in sync with the main clock.
+  // Stream transport (playing + playhead) to the projector windows ~30 fps so their video/layer
+  // content stays in sync with the main clock.
   useEffect(() => {
       let last = 0;
       const unsub = timelineEngine.subscribe((playhead) => {
@@ -1084,7 +1046,6 @@ const App: React.FC = () => {
           if (now - last < 33) return;
           last = now;
           const msg = { t: 'transport' as const, playing: timelineEngine.isPlaying(), playhead };
-          scenePortRef.current?.postMessage(msg);
           for (const port of projectorPortsRef.current.values()) port.postMessage(msg);
       });
       return () => unsub();
@@ -1155,36 +1116,6 @@ const App: React.FC = () => {
                   .then(bitmap => { try { port.postMessage({ t: 'frame', bitmap }, [bitmap]); } catch { bitmap.close(); } })
                   .catch(() => {})
                   .finally(() => inFlight.delete(surfaceId));
-          }
-      };
-      raf = requestAnimationFrame(tick);
-      return () => cancelAnimationFrame(raf);
-  }, []);
-
-  // Frame pump for the 3D Scene window's screen-planes: the Scene reports which timeline
-  // layers its planes show (sceneLayersRef); decode them once here and stream each as a
-  // downscaled ImageBitmap (the planes are small on-screen, so native res is wasteful).
-  // flipY because the Scene draws the bitmap through a plain THREE.Texture (which, unlike
-  // VideoTexture, can't flip an ImageBitmap) onto a plane.
-  useEffect(() => {
-      const SCENE_W = 640, SCENE_H = 360;
-      const inFlight = new Set<string>(); // layerIds with a createImageBitmap still pending
-      let raf = 0; let last = 0;
-      const tick = (now: number) => {
-          raf = requestAnimationFrame(tick);
-          if (now - last < 33) return;
-          last = now;
-          const port = scenePortRef.current;
-          if (!port) return;
-          for (const layerId of sceneLayersRef.current) {
-              if (inFlight.has(layerId)) continue; // back-pressure: don't pile up decodes
-              const drawable = timelineEngine.getLayerDrawable(layerId);
-              if (!drawable) continue;
-              inFlight.add(layerId);
-              createImageBitmap(drawable as CanvasImageSource, { resizeWidth: SCENE_W, resizeHeight: SCENE_H, resizeQuality: 'low', imageOrientation: 'flipY' })
-                  .then(bitmap => { try { port.postMessage({ t: 'frame', layerId, bitmap }, [bitmap]); } catch { bitmap.close(); } })
-                  .catch(() => {})
-                  .finally(() => inFlight.delete(layerId));
           }
       };
       raf = requestAnimationFrame(tick);
@@ -1270,6 +1201,9 @@ const App: React.FC = () => {
           pushProjectorStateRef.current(surfaceId);
       };
       window.addEventListener('message', onMsg);
+      // Signal the preload that this window is ready to receive transferred projector ports
+      // (the preload buffers them until a renderer announces readiness).
+      window.postMessage('artlux:projector-ready', '*');
       return () => window.removeEventListener('message', onMsg);
   }, []);
   // Re-push config (incl. the edit toggle) whenever anything a projector renders changes.
@@ -1465,7 +1399,6 @@ const App: React.FC = () => {
           onMenuAction={(a) => dispatchMenuRef.current(a)}
           actions={
             <TopBar
-                onOpenScene={() => window.artlux?.openSceneWindow?.()}
                 onOpenPreferences={() => setPrefsOpen(true)}
                 onOpenRouting={() => setRoutingOpen(true)}
                 onOpenOutputs={() => { refreshDisplays(); setOutputsOpen(true); }}
@@ -1561,15 +1494,26 @@ const App: React.FC = () => {
                         protocol={settings.protocol}
                         onRecordHistory={recordHistory}
                         extraControls={
-                            <button
-                                onClick={() => setSplitView(v => !v)}
-                                title={splitView ? 'Hide 3D scene' : 'Show 3D scene (split view)'}
-                                aria-label="Toggle 3D split view"
-                                aria-pressed={splitView}
-                                className={`p-1.5 rounded-[var(--r-sm)] border transition-colors ${splitView ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2/80 backdrop-blur-sm border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
-                            >
-                                <Columns2 size={14} />
-                            </button>
+                            <>
+                                <button
+                                    onClick={() => setSplitView(v => !v)}
+                                    title={splitView ? 'Hide 3D scene' : 'Show 3D scene (split view)'}
+                                    aria-label="Toggle 3D split view"
+                                    aria-pressed={splitView}
+                                    className={`p-1.5 rounded-[var(--r-sm)] border transition-colors ${splitView ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2/80 backdrop-blur-sm border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
+                                >
+                                    <Columns2 size={14} />
+                                </button>
+                                <button
+                                    onClick={handleToggle3DMax}
+                                    title={is3DMaximized ? 'Restore split' : 'Maximize 3D scene'}
+                                    aria-label="Maximize 3D scene"
+                                    aria-pressed={is3DMaximized}
+                                    className={`p-1.5 rounded-[var(--r-sm)] border transition-colors ${is3DMaximized ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2/80 backdrop-blur-sm border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
+                                >
+                                    {is3DMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                                </button>
+                            </>
                         }
                     />
                     {/* During calibration the big RGB camera viewport is portaled here, over the Stage,
@@ -1604,7 +1548,29 @@ const App: React.FC = () => {
                                     : (projectorOutputs.find(o => o.surfaceId === calibratingOutputId)?.calibration?.posePicks ?? []).map(p => ({ world: p.world }))}
                                 selectedPick={calibFlow === 'auto' ? autoAlignSelectedPick : null}
                                 onSelectPick={calibFlow === 'auto' ? ((i: number) => markerlessSelectRef.current?.(i)) : undefined}
+                                hideInspector
                             />
+                            {/* Full scene outliner (OBJECTS / FIXTURES / transform / LIGHTING + Save).
+                                Hidden during a projector calibration session so it doesn't block the pick markers. */}
+                            {!calibratingOutputId && (
+                                <ScenePanel3D
+                                    scene3D={scene3D}
+                                    fixtures={fixtures}
+                                    selectedModelId={selectedModelId}
+                                    selectedFixtureId={selectedFixtureId}
+                                    timeline={timeline}
+                                    naturalSizes={modelNaturalSizes}
+                                    saved={sceneSaved}
+                                    onSelectModel={handleSelectModel}
+                                    onSelectFixture={(id) => handleSelectFixture(id || null)}
+                                    onAddModel={handleAddModel}
+                                    onAddPlane={handleAddPlane}
+                                    onRemoveModel={handleRemoveModel}
+                                    onUpdateModel={handleUpdateModel}
+                                    onSceneConfig={handleSceneConfig}
+                                    onSave={handleSceneSave}
+                                />
+                            )}
                         </div>
                     </>
                 )}

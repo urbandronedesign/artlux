@@ -128,10 +128,6 @@ export const IPC = {
   UPDATE_INSTALL: 'update:install',
   /** Main → renderer: auto-update lifecycle events. */
   UPDATE_EVENT: 'update:event',
-  /** Renderer → main: open (or focus) the dedicated 3D Scene window. */
-  SCENE_OPEN: 'scene:open',
-  /** Main → renderer: hand off a MessagePort that bridges main ↔ scene windows. */
-  SCENE_PORT: 'scene:port',
   /** Renderer → main (invoke): pick a GLB/glTF venue model → absolute path. */
   SCENE_PICK_MODEL: 'scene:pick-model',
   /** Renderer → main (invoke): read a model file's bytes by path. */
@@ -758,9 +754,7 @@ export interface ArtluxApi {
   downloadUpdate(): void;
   installUpdate(): void;
   onUpdate(cb: (e: UpdateEvent) => void): () => void;
-  // 3D Scene window. The bridge MessagePort arrives via a window 'artlux:scene-port'
-  // message (forwarded by the preload), not through this API — see App/SceneApp.
-  openSceneWindow(): void;
+  // 3D model import (used by the embedded 3D scene panel).
   pickModel(): Promise<string | null>;
   readModel(path: string): Promise<Uint8Array | null>;
   // Generic file access (timeline video clips)

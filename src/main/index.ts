@@ -1,4 +1,4 @@
-import { app, BrowserWindow, session, systemPreferences, ipcMain, MessageChannelMain, Tray, Menu, globalShortcut, nativeTheme } from 'electron';
+import { app, BrowserWindow, session, systemPreferences, ipcMain, Tray, Menu, globalShortcut, nativeTheme } from 'electron';
 import { join, basename } from 'node:path';
 import { registerIpc } from './ipc';
 import { buildAppMenu } from './menu';
@@ -13,7 +13,6 @@ import { IPC } from '../../shared/protocol';
 const APP_ICON = join(__dirname, '../../build/icon.png');
 
 let mainWindow: BrowserWindow | null = null;
-let sceneWindow: BrowserWindow | null = null;
 let broadcastTray: Tray | null = null;
 
 // --headless [--project=<path>]: run only the Stage compute + output loop in an
@@ -119,42 +118,6 @@ function createWindow(): void {
     }
 }
 
-// The 3D Scene runs in its own window (second monitor). It needs live state + the
-// per-LED pixel stream from the main window and sends edits back, so we bridge the two
-// renderers with a MessageChannelMain: each gets one port and they talk directly.
-function bridgeSceneToMain(): void {
-    if (!mainWindow || !sceneWindow) return;
-    const { port1, port2 } = new MessageChannelMain();
-    mainWindow.webContents.postMessage(IPC.SCENE_PORT, null, [port1]);
-    sceneWindow.webContents.postMessage(IPC.SCENE_PORT, null, [port2]);
-}
-
-function createSceneWindow(): void {
-    if (sceneWindow && !sceneWindow.isDestroyed()) { sceneWindow.focus(); return; }
-    sceneWindow = new BrowserWindow({
-        width: 1280,
-        height: 800,
-        backgroundColor: '#0d0d0d',
-        title: 'ArtLux — 3D Scene',
-        icon: APP_ICON,
-        autoHideMenuBar: true,
-        webPreferences: {
-            preload: join(__dirname, '../preload/index.js'),
-            contextIsolation: true,
-            nodeIntegration: false,
-            sandbox: true,
-            backgroundThrottling: false,
-        },
-    });
-    sceneWindow.on('closed', () => { sceneWindow = null; });
-    // Re-bridge once the scene renderer is ready to receive the port.
-    sceneWindow.webContents.once('did-finish-load', () => bridgeSceneToMain());
-
-    const devUrl = process.env['ELECTRON_RENDERER_URL'];
-    if (devUrl) sceneWindow.loadURL(`${devUrl}/scene.html`);
-    else sceneWindow.loadFile(join(__dirname, '../renderer/scene.html'));
-}
-
 // Live-input surfaces (Camera / mic) call getUserMedia in the renderer. Electron denies
 // 'media' permission unless the main process grants it, so wire both handlers.
 function grantMediaPermissions(): void {
@@ -198,7 +161,6 @@ app.whenReady().then(() => {
     registerIpc(() => mainWindow);
     metrics.start(); // Prometheus /metrics endpoint (loopback by default; ARTLUX_METRICS=0 to disable)
     if (!HEADLESS && !BROADCAST) { buildAppMenu(() => mainWindow); setupUpdater(() => mainWindow); }
-    ipcMain.on(IPC.SCENE_OPEN, () => { if (!HEADLESS && !BROADCAST) createSceneWindow(); });
     ipcMain.on(IPC.APP_RELAUNCH_BROADCAST, (_e, projectPath: string) => {
         // app.relaunch replaces argv. When unpacked (dev), argv is [electron, appPath, …flags],
         // so we must re-pass the app path or Electron relaunches with no app (the welcome screen).

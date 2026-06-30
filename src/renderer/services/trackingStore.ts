@@ -28,7 +28,7 @@ export interface SurfaceTrack {
 }
 
 // A flat, serializable copy of the active tracking state — bridged from the OSC-receiving main
-// window to the 3D Scene window (which never sees OSC directly). See scene/bridge.ts.
+// window to projector output windows showing TRACKING content (which never see OSC directly).
 export interface TrackingSnapshot {
   surfaces: { surface: string; scaleX: number; scaleY: number; blobs: Blob[] }[];
 }

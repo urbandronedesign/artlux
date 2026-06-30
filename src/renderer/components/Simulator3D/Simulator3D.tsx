@@ -38,6 +38,8 @@ interface Props {
   activePicks?: Array<{ world: [number, number, number] }>;
   selectedPick?: number | null;                       // highlight the correspondence being edited
   onSelectPick?: (i: number) => void;                 // click a numbered marker → select it for editing
+  /** Hide the built-in floating transform inspector (e.g. when an external panel already shows Pos/Rot/Scale). */
+  hideInspector?: boolean;
 }
 
 type Mode = 'translate' | 'rotate' | 'scale';
@@ -64,6 +66,7 @@ const Simulator3D: React.FC<Props> = ({
   selectedModelId = null,
   onSelectFixture, onSelectModel, onCommitFixture3D, onCommitModel, onModelNaturalSize, onRecordHistory,
   calibPickMode = false, onCalibPick, projectorCalibs = [], activePicks = [], selectedPick = null, onSelectPick,
+  hideInspector = false,
 }) => {
   const [mode, setMode] = useState<Mode>('translate');
   const selectedFixture = (!selectedModelId && fixtures.find(f => f.id === selectedFixtureId)) || null;
@@ -78,7 +81,7 @@ const Simulator3D: React.FC<Props> = ({
       </div>
 
       {/* Numeric transform inspector for the selected model — position, rotation, and per-axis scale. */}
-      {(() => {
+      {!hideInspector && (() => {
         const m = models.find((mm) => mm.id === selectedModelId);
         return m && onCommitModel ? <ModelInspector model={m} onCommit={onCommitModel} /> : null;
       })()}

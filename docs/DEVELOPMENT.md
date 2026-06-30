@@ -13,10 +13,12 @@ the system fits together and [PROGRESS.md](PROGRESS.md) for the running build lo
 6. **Release** = bump version + CHANGELOG, commit, **tag `vX.Y.Z`**, push the tag → CI builds + publishes
    (see Release process).
 
-The app runs **two windows**: the main mapping window (`index.html`/`App.tsx`) and the **3D Scene**
-window (`scene.html`/`scene/SceneApp.tsx`, opened from the top-bar Scene button). They talk over a
-`MessageChannelMain` bridge (`scene/bridge.ts`); the timeline + LED data flow main → scene. Both windows
-disable background throttling so nothing stalls when the other has focus.
+The **3D scene** lives in the main mapping window (`index.html`/`App.tsx`) as a split-view pane —
+the `Simulator3D` canvas plus the `ScenePanel3D` outliner (OBJECTS / FIXTURES / transform / LIGHTING),
+toggled from the Stage toolbar. It reads live LED data, the timeline engine, and tracking in-process,
+so there is no separate window or bridge. Separate **projector output** windows
+(`projector.html`/`projector/ProjectorApp.tsx`) still bridge over `MessageChannelMain`
+(`projector/bridge.ts`) for per-display fullscreen output.
 
 ## Prerequisites
 - **Node.js** (≥ 20) and npm.
