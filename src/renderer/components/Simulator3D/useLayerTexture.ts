@@ -1,11 +1,12 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useId, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { timeline as engine } from '../../services/timeline';
+import { timeline as engine, PROGRAM_LAYER_ID } from '../../services/timeline';
 
 // Keeps a THREE.Texture bound to a timeline layer's live frame — a streamed ImageBitmap in the Scene
-// window (decoded once in main), or a <video> on the legacy path. `onTexture` fires whenever the
-// bound texture's identity changes (new source kind, or cleared to null) so the consumer can
+// window (decoded once in main), or a <video> on the legacy path. `layerId === PROGRAM_LAYER_ID`
+// binds the whole-timeline program composite instead of a single layer. `onTexture` fires whenever
+// the bound texture's identity changes (new source kind, or cleared to null) so the consumer can
 // (re)assign material.map; the per-frame dirty flag is handled here. Extracted from PlaneObject so
 // both projection planes and GLB meshes texture from the timeline through one path.
 export function useLayerTexture(
@@ -16,11 +17,19 @@ export function useLayerTexture(
   const curVid = useRef<HTMLVideoElement | null>(null);
   const cbRef = useRef(onTexture);
   cbRef.current = onTexture;
+  const uid = useId();
+
+  // Keep the program composite alive while a plane is bound to it (refcounted with surfaces).
+  useEffect(() => {
+    if (layerId !== PROGRAM_LAYER_ID) return;
+    engine.retainProgram(`tex:${uid}`);
+    return () => engine.releaseProgram(`tex:${uid}`);
+  }, [layerId, uid]);
 
   useEffect(() => () => { texRef.current?.dispose(); texRef.current = null; curVid.current = null; }, []);
 
   useFrame(() => {
-    const d = layerId ? engine.getLayerDrawable(layerId) : null;
+    const d = layerId === PROGRAM_LAYER_ID ? engine.getProgramDrawable() : layerId ? engine.getLayerDrawable(layerId) : null;
 
     if (!d) {
       if (texRef.current || curVid.current) {

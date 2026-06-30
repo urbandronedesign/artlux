@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Fixture, Timeline } from '../../types';
+import { PROGRAM_LAYER_ID } from '../../services/timeline';
 import { Scene3D, SceneModel, modelScaleXYZ } from '../../../../shared/protocol';
 import { Plus, Trash2, Eye, EyeOff, Box, Lightbulb, Save, Check, MonitorPlay, ChevronDown, ChevronUp } from 'lucide-react';
 
@@ -25,7 +26,7 @@ interface ScenePanel3DProps {
   onSave: () => void;
 }
 
-const ScenePanel3D: React.FC<ScenePanel3DProps> = ({
+const ScenePanel3DBase: React.FC<ScenePanel3DProps> = ({
   scene3D, fixtures, selectedModelId, selectedFixtureId, timeline, naturalSizes, saved,
   onSelectModel, onSelectFixture, onAddModel, onAddPlane, onRemoveModel, onUpdateModel, onSceneConfig, onSave,
 }) => {
@@ -101,8 +102,14 @@ const ScenePanel3D: React.FC<ScenePanel3DProps> = ({
                 <select value={selModel.layerId ?? ''} onChange={(e) => onUpdateModel(selModel.id, { layerId: e.target.value || undefined })}
                   className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-[10px] focus:border-accent focus:outline-none">
                   <option value="">{selModel.kind === 'plane' ? '— no layer —' : '— GLB materials —'}</option>
+                  <option value={PROGRAM_LAYER_ID}>★ Timeline (Program)</option>
                   {timeline.layers.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                 </select>
+                <button
+                  onClick={() => onUpdateModel(selModel.id, { layerId: selModel.layerId === PROGRAM_LAYER_ID ? undefined : PROGRAM_LAYER_ID })}
+                  title="Show the whole timeline (Program composite) on this screen"
+                  className={`shrink-0 px-1.5 py-1 rounded text-[10px] border ${selModel.layerId === PROGRAM_LAYER_ID ? 'bg-accent text-black border-transparent' : 'bg-surface-2 border-line-1 text-fg-2 hover:text-fg-1'}`}
+                >TL</button>
               </div>
               <Vec3Row label="Scl" v={(() => { const [x, y, z] = modelScaleXYZ(selModel); return { x, y, z }; })()} step={0.1} min={0.0001}
                 onChange={(s) => onUpdateModel(selModel.id, { scaleXYZ: [Math.max(0.0001, s.x), Math.max(0.0001, s.y), Math.max(0.0001, s.z)] })} />
@@ -158,6 +165,20 @@ const ScenePanel3D: React.FC<ScenePanel3DProps> = ({
     </div>
   );
 };
+
+// Memoized on its DATA props only — App re-renders frequently (live preview/transport), and a native
+// <select> popup closes if the panel repaints under it. Callback props are intentionally ignored
+// (they're stable enough; the handlers use functional setState), so the panel stays still while the
+// user interacts with its dropdowns.
+const ScenePanel3D = React.memo(ScenePanel3DBase, (a, b) =>
+  a.scene3D === b.scene3D &&
+  a.selectedModelId === b.selectedModelId &&
+  a.selectedFixtureId === b.selectedFixtureId &&
+  a.fixtures === b.fixtures &&
+  a.timeline === b.timeline &&
+  a.naturalSizes === b.naturalSizes &&
+  a.saved === b.saved,
+);
 
 export default ScenePanel3D;
 
