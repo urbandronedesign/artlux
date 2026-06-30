@@ -35,6 +35,9 @@ native/**/target
 # it: run build:calib on a host with OpenCV, or copy from C:\opencv\build\x64\vc16\bin\.
 native/calib/*.dll
 
+# Generated documentation bundle (rebuild with `npm run docs:html`)
+docs/user-guide/artlux-user-guide.html
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

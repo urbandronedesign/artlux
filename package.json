@@ -16,7 +16,9 @@
     "build:nvwarp": "powershell -ExecutionPolicy Bypass -File scripts/build-nvwarp.ps1",
     "package": "electron-vite build && electron-builder",
     "package:dir": "electron-vite build && electron-builder --dir",
-    "gen:icon": "node scripts/gen-icon.cjs"
+    "gen:icon": "node scripts/gen-icon.cjs",
+    "docs:capture": "node scripts/capture-docs.cjs",
+    "docs:html": "node scripts/build-docs-html.cjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
@@ -41,8 +43,10 @@
     "electron": "^42.4.1",
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
+    "marked": "^18.0.5",
     "png-to-ico": "^3.0.1",
     "postcss": "^8.5.15",
+    "puppeteer-core": "^25.2.1",
     "tailwindcss": "^3.4.19",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"

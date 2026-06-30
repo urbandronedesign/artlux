@@ -82,7 +82,8 @@ react-three-fiber · Rust (napi-rs) · Art-Net + sACN/E1.31
 
 ## Documentation
 
-- [docs/USER_GUIDE.md](docs/USER_GUIDE.md) — **end-user guide**: workflows (surfaces, fixtures, LED mapping, outputs, 3D, timeline) + full keyboard/mouse reference.
+- [docs/user-guide/](docs/user-guide/README.md) — **illustrated end-user guide**: a screenshot‑driven, task‑oriented page for every screen of the app (interface, surfaces/content, fixtures, routing, effects, timeline, outputs, 3D, calibration, projects/media, preferences) + keyboard reference.
+- [docs/USER_GUIDE.md](docs/USER_GUIDE.md) — the same end-user guide as a single text page (no screenshots).
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — **how the app works today** (canonical).
 - [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) — setup, build, test, release, gotchas.
 - [docs/FEATURES.md](docs/FEATURES.md) — feature/usage guide.

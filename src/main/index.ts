@@ -47,6 +47,14 @@ if (process.env.ARTLUX_DSHOW_CAPTURE === '1') {
 }
 app.commandLine.appendSwitch('disable-features', disabledFeatures.join(','));
 
+// Dev-only: enable the Chromium remote-debugging (CDP) endpoint so the documentation
+// screenshot harness (scripts/capture-docs.cjs) can attach and drive the UI. Off unless
+// ARTLUX_CDP_PORT is set — no effect on normal runs or packaged builds.
+if (process.env.ARTLUX_CDP_PORT) {
+    app.commandLine.appendSwitch('remote-debugging-port', process.env.ARTLUX_CDP_PORT);
+    app.commandLine.appendSwitch('remote-allow-origins', '*');
+}
+
 function createWindow(): void {
     mainWindow = new BrowserWindow({
         width: 1440,

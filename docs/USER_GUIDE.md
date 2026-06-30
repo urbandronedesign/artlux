@@ -1,5 +1,10 @@
 # ArtLux — User Guide
 
+> 📖 **Looking for the illustrated guide?** There's now a **screenshot‑driven, per‑screen user guide**
+> in **[docs/user-guide/](user-guide/README.md)** — one page per context (interface, surfaces, fixtures,
+> routing, timeline, outputs, 3D, calibration, projects, preferences) with a screenshot and walkthrough
+> for each. This single page remains as a text‑only quick reference.
+
 ArtLux is a professional **addressable-LED pixel-mapping console**. You point a *content source*
 (a video, image, live camera, network stream, or built-in effect) at one or more *surfaces*, lay
 your LED *fixtures* over those surfaces, and ArtLux samples the picture per-pixel and streams it to
