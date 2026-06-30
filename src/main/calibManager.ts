@@ -53,10 +53,14 @@ interface CalibNative {
   cameraOpen(index: number, width: number, height: number, fps: number, fourcc: string): boolean;
   /** Grab one grayscale frame (Buffer of w*h bytes) from the open camera, or null if none ready. */
   cameraGrabGray(): { w: number; h: number; data: Buffer } | null;
+  /** Grab one RGBA frame (Buffer of w*h*4 bytes) from the open camera, or null if none ready. */
+  cameraGrabRgba(): { w: number; h: number; data: Buffer } | null;
   /** Release the open camera. */
   cameraClose(): void;
-  /** Set a capture property (exposure/gain/gamma) on the open camera; false if rejected/none open. */
+  /** Set a capture property on the open camera; false if rejected/none open. */
   cameraSetProp(prop: string, value: number): boolean;
+  /** Read a capture property's current value; null if no camera / unknown / unsupported. */
+  cameraGetProp(prop: string): number | null;
 }
 
 const req = createRequire(__filename);
@@ -217,6 +221,20 @@ export function cameraGrab(): CameraFrame | null {
   }
 }
 
+export function cameraGrabColor(): CameraFrame | null {
+  if (!native?.cameraGrabRgba) return null;
+  try {
+    const f = native.cameraGrabRgba();
+    if (!f) return null;
+    // Hand the renderer a tightly-sliced ArrayBuffer (the napi Buffer may sit in a larger pool).
+    const ab = f.data.buffer.slice(f.data.byteOffset, f.data.byteOffset + f.data.byteLength);
+    return { w: f.w, h: f.h, data: ab };
+  } catch (e) {
+    console.warn('[calib] cameraGrabColor failed:', (e as Error)?.message ?? e);
+    return null;
+  }
+}
+
 export function cameraClose(): void {
   if (!native) return;
   try {
@@ -233,5 +251,15 @@ export function cameraSetProp(prop: string, value: number): boolean {
   } catch (e) {
     console.warn('[calib] cameraSetProp failed:', (e as Error)?.message ?? e);
     return false;
+  }
+}
+
+export function cameraGetProp(prop: string): number | null {
+  if (!native?.cameraGetProp) return null;
+  try {
+    return native.cameraGetProp(prop) ?? null;
+  } catch (e) {
+    console.warn('[calib] cameraGetProp failed:', (e as Error)?.message ?? e);
+    return null;
   }
 }

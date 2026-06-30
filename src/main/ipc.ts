@@ -203,8 +203,10 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     ipcMain.handle(IPC.CALIB_CAMERA_OPEN, (_e, index: number, width: number, height: number, fps: number, fourcc: string) =>
         calib.cameraOpen(index, width, height, fps, fourcc));
     ipcMain.handle(IPC.CALIB_CAMERA_GRAB, () => calib.cameraGrab());
+    ipcMain.handle(IPC.CALIB_CAMERA_GRAB_COLOR, () => calib.cameraGrabColor());
     ipcMain.on(IPC.CALIB_CAMERA_CLOSE, () => calib.cameraClose());
     ipcMain.handle(IPC.CALIB_CAMERA_SET_PROP, (_e, prop: string, value: number) => calib.cameraSetProp(prop, value));
+    ipcMain.handle(IPC.CALIB_CAMERA_GET_PROP, (_e, prop: string) => calib.cameraGetProp(prop));
     ipcMain.handle(IPC.CALIB_DECODE_DENSE, (_e, captures: ArrayBuffer, captureCount: number, camW: number, camH: number, projW: number, projH: number, white: ArrayBuffer, black: ArrayBuffer, stride: number) =>
         calib.decodeDense(Buffer.from(captures), captureCount, camW, camH, projW, projH, Buffer.from(white), Buffer.from(black), stride));
     ipcMain.handle(IPC.CALIB_SOLVE_PNP_RANSAC, (_e, objectPts: number[], imagePts: number[], k: number[], dist: number[], reprojErr: number) =>

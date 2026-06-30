@@ -6,6 +6,8 @@ import { CalibWizard } from './components/CalibWizard';
 import { AutoAlignWizard } from './components/AutoAlignWizard';
 import * as calibController from './calib/calibController';
 import * as slCapture from './calib/slCapture';
+import * as cam from './services/calibCapture';
+import { measureGamma } from './calib/gammaController';
 import type { AppInfo, UpdateEvent, Scene3D, ProjectorOutput, DisplayInfo, SoftEdge } from '../../shared/protocol';
 import type { SceneToMain } from './scene/bridge';
 import type { ProjectorToMain, MainToProjector } from './projector/bridge';
@@ -336,7 +338,15 @@ const App: React.FC = () => {
   // --- projector calibration (structured-light intrinsics + solvePnP pose) ---
   const [calibratingOutputId, setCalibratingOutputId] = useState<string | null>(null);
   const [calibFlow, setCalibFlow] = useState<'board' | 'auto'>('board'); // board structured-light vs markerless auto-align
+  // Portal target in the left split pane: during calibration the big RGB camera viewport lives here
+  // (replacing the 2D Stage) so it sits side-by-side with the 3D scene. Callback ref → re-renders the
+  // wizard once the host element exists, so its createPortal target is reliable.
+  const [calibCameraHost, setCalibCameraHost] = useState<HTMLDivElement | null>(null);
   const [autoAlignPicks, setAutoAlignPicks] = useState<[number, number, number][]>([]); // Auto-Align anchor world points (for the 3D markers)
+  const [autoAlignSelectedPick, setAutoAlignSelectedPick] = useState<number | null>(null); // correspondence being edited (3D highlight)
+  const markerlessSelectRef = useRef<((i: number) => void) | null>(null); // 3D marker click → select pick in the wizard
+  const [measuringGammaId, setMeasuringGammaId] = useState<string | null>(null); // output whose gamma is being camera-measured
+  const [gammaMsg, setGammaMsg] = useState<{ id: string; text: string; ok: boolean } | null>(null);
   const sendToProjector = (surfaceId: string, msg: MainToProjector) =>
     projectorPortsRef.current.get(surfaceId)?.postMessage(msg);
   const handleStoreCalibration = (surfaceId: string, patch: Partial<ProjectorCalibration>) => {
@@ -399,6 +409,36 @@ const App: React.FC = () => {
     upsertOutput(surfaceId, { softEdge: { ...(o?.softEdge ?? defaultSoftEdge()), ...patch } });
   };
   const handleSetOutputGamma = (surfaceId: string, gamma: number) => upsertOutput(surfaceId, { gamma });
+
+  // Camera-based gamma + colour measurement: project a level ramp on this output, sample the camera's
+  // RGB in the lit footprint, fit the response → write the output's gamma + colorGain. Reuses a running
+  // calibration camera if there is one; otherwise opens the default browser camera for the measurement.
+  const handleMeasureGamma = async (surfaceId: string) => {
+    if (measuringGammaId) return;
+    const co = projectorOutputs.find(o => o.surfaceId === surfaceId);
+    const live = !!co?.enabled && co.displayId != null && (co.displayId === WINDOWED_DISPLAY || displays.some(d => d.id === co.displayId));
+    if (!live) { setGammaMsg({ id: surfaceId, text: 'Enable this output on a display first.', ok: false }); return; }
+    setMeasuringGammaId(surfaceId); setGammaMsg(null);
+    const startedCam = !cam.dims().w;
+    try {
+      if (startedCam) {
+        try { await cam.start({ source: 'browser' }); }
+        catch { setGammaMsg({ id: surfaceId, text: 'No camera — start one in the calibration wizard, then retry.', ok: false }); return; }
+      }
+      // Freeze the camera response so it doesn't adapt per ramp level (best-effort; driver may ignore).
+      await cam.setProp('autoexposure', 0.25); await cam.setProp('auto_wb', 0); await cam.setProp('autofocus', 0);
+      const res = await measureGamma(surfaceId, (m) => sendToProjector(surfaceId, m));
+      if ('error' in res) { setGammaMsg({ id: surfaceId, text: res.error, ok: false }); return; }
+      handleSetOutputGamma(surfaceId, +res.gamma.toFixed(3));
+      upsertOutput(surfaceId, { colorGain: res.colorGain });
+      setGammaMsg({ id: surfaceId, ok: true, text: `γ ${res.gamma.toFixed(2)} (R ${res.gammaRGB[0].toFixed(2)} · G ${res.gammaRGB[1].toFixed(2)} · B ${res.gammaRGB[2].toFixed(2)}) · gain ${res.colorGain.map(x => x.toFixed(2)).join('/')} · ${res.footprintPx}px` });
+    } catch (e) {
+      setGammaMsg({ id: surfaceId, text: (e as Error)?.message ?? 'measurement failed', ok: false });
+    } finally {
+      if (startedCam) cam.stop();
+      setMeasuringGammaId(null);
+    }
+  };
   const handleToggleNdiSend = (surfaceId: string, on: boolean) => upsertOutput(surfaceId, { ndiSend: on });
   const refreshDisplays = () => { window.artlux?.listDisplays?.().then(d => setDisplays(d ?? [])); };
   const handleUpdateSurface = (id: string, patch: Partial<Surface>) => {
@@ -1532,6 +1572,11 @@ const App: React.FC = () => {
                             </button>
                         }
                     />
+                    {/* During calibration the big RGB camera viewport is portaled here, over the Stage,
+                        so the operator works camera (left) ⟷ 3D (right). z-[110] clears Stage's own
+                        z-[100] overlay layers (Stage's root is position:relative/z-auto → no stacking
+                        context, so its children would otherwise paint over a lower-z sibling). */}
+                    {calibratingOutputId && <div ref={setCalibCameraHost} className="absolute inset-0 z-[110] bg-black" />}
                 </div>
                 {/* Right: embedded 3D scene (or camera preview during calibration) */}
                 {splitView && (
@@ -1557,6 +1602,8 @@ const App: React.FC = () => {
                                 activePicks={calibFlow === 'auto'
                                     ? autoAlignPicks.map(world => ({ world }))
                                     : (projectorOutputs.find(o => o.surfaceId === calibratingOutputId)?.calibration?.posePicks ?? []).map(p => ({ world: p.world }))}
+                                selectedPick={calibFlow === 'auto' ? autoAlignSelectedPick : null}
+                                onSelectPick={calibFlow === 'auto' ? ((i: number) => markerlessSelectRef.current?.(i)) : undefined}
                             />
                         </div>
                     </>
@@ -1692,6 +1739,9 @@ const App: React.FC = () => {
           onSetSoftEdge={handleSetSoftEdge}
           onSetGamma={handleSetOutputGamma}
           onSetColorMatch={(sid, patch) => upsertOutput(sid, patch)}
+          onMeasureGamma={handleMeasureGamma}
+          measuringGammaId={measuringGammaId}
+          gammaMsg={gammaMsg}
           onToggleNdiSend={handleToggleNdiSend}
           onSetFpsCap={setProjectorFpsCap}
           onRefreshDisplays={refreshDisplays}
@@ -1704,7 +1754,7 @@ const App: React.FC = () => {
         const co = projectorOutputs.find(o => o.surfaceId === calibratingOutputId);
         const calibLive = !!co?.enabled && co.displayId != null && (co.displayId === WINDOWED_DISPLAY || displays.some(d => d.id === co.displayId));
         const hasModel = (scene3D.models ?? []).some(m => m.kind !== 'plane' && m.visible);
-        const closeCalib = () => { setCalibratingOutputId(null); setCalibPickMode(false); markerlessPickRef.current = null; setCalibFlow('board'); setAutoAlignPicks([]); };
+        const closeCalib = () => { setCalibratingOutputId(null); setCalibPickMode(false); markerlessPickRef.current = null; markerlessSelectRef.current = null; setCalibFlow('board'); setAutoAlignPicks([]); setAutoAlignSelectedPick(null); };
         return calibFlow === 'auto' ? (
           <AutoAlignWizard
             surfaceId={calibratingOutputId}
@@ -1723,6 +1773,9 @@ const App: React.FC = () => {
             onSwitchFlow={setCalibFlow}
             onStoreCamMask={(_sid, mask) => setScene3D(s => ({ ...s, camMask: mask ?? undefined }))}
             onStoreMarkerMap={(map) => setScene3D(s => ({ ...s, markerMap: map ?? undefined }))}
+            cameraHost={calibCameraHost}
+            onRegisterMarkerlessSelect={(cb) => { markerlessSelectRef.current = cb; }}
+            onSelectionChange={setAutoAlignSelectedPick}
             onClose={closeCalib}
           />
         ) : (
@@ -1741,6 +1794,7 @@ const App: React.FC = () => {
             onSetCalibPickMode={setCalibPickMode}
             onSetSplit={setSplitView}
             onSwitchFlow={setCalibFlow}
+            cameraHost={calibCameraHost}
             onClose={closeCalib}
           />
         );

@@ -86,8 +86,10 @@ const api: ArtluxApi = {
     calibCameraOpen: (index: number, width: number, height: number, fps: number, fourcc: string) =>
         ipcRenderer.invoke(IPC.CALIB_CAMERA_OPEN, index, width, height, fps, fourcc),
     calibCameraGrab: () => ipcRenderer.invoke(IPC.CALIB_CAMERA_GRAB),
+    calibCameraGrabColor: () => ipcRenderer.invoke(IPC.CALIB_CAMERA_GRAB_COLOR),
     calibCameraClose: () => ipcRenderer.send(IPC.CALIB_CAMERA_CLOSE),
     calibCameraSetProp: (prop: string, value: number) => ipcRenderer.invoke(IPC.CALIB_CAMERA_SET_PROP, prop, value),
+    calibCameraGetProp: (prop: string) => ipcRenderer.invoke(IPC.CALIB_CAMERA_GET_PROP, prop),
     calibDecodeDense: (captures: ArrayBuffer, captureCount: number, camW: number, camH: number, projW: number, projH: number, white: ArrayBuffer, black: ArrayBuffer, stride: number) =>
         ipcRenderer.invoke(IPC.CALIB_DECODE_DENSE, captures, captureCount, camW, camH, projW, projH, white, black, stride),
     calibSolvePnpRansac: (objectPts: number[], imagePts: number[], k: number[], dist: number[], reprojErr: number) =>

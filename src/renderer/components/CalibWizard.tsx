@@ -1,10 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { X, Camera, Check, AlertTriangle, Loader2, ChevronLeft, ChevronRight, Aperture, MonitorUp, Box, Crosshair } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { X, Camera, Check, AlertTriangle, Loader2, ChevronLeft, ChevronRight, Aperture, MonitorUp, Crosshair } from 'lucide-react';
 import type { MainToProjector } from '../projector/bridge';
 import type { ProjectorCalibration, ProjectorOutput, Scene3D } from '../../../shared/protocol';
 import * as cam from '../services/calibCapture';
 import * as ctl from '../calib/calibController';
 import { defaultBoardConfig, type BoardConfig } from '../calib/calibController';
+import { CameraViewport, type CameraViewportHandle } from './calib/CameraViewport';
+import { CameraParamsPanel } from './calib/CameraParamsPanel';
 
 interface Props {
   surfaceId: string;
@@ -21,6 +24,7 @@ interface Props {
   onSetCalibPickMode: (on: boolean) => void;
   onSetSplit: (on: boolean) => void;
   onSwitchFlow?: (flow: 'board' | 'auto') => void; // board (this) ↔ markerless auto-align
+  cameraHost: HTMLElement | null; // portal target for the big RGB camera viewport (left split pane)
   onClose: () => void;
 }
 
@@ -59,7 +63,7 @@ type Detect = { found: true; corners: number[]; w: number; h: number } | { found
 export const CalibWizard: React.FC<Props> = (props) => {
   const { surfaceId, surfaceName, output, scene3D, live, hasModel,
     sendToProjector, onStoreCalibration, onPoseModeChange, onClearPoses, onSetUseCalibration,
-    onSetCalibPickMode, onSetSplit, onSwitchFlow, onClose } = props;
+    onSetCalibPickMode, onSetSplit, onSwitchFlow, cameraHost, onClose } = props;
 
   const [step, setStep] = useState<Step>('prereq');
   const [addonOk, setAddonOk] = useState<boolean | null>(null);
@@ -77,8 +81,9 @@ export const CalibWizard: React.FC<Props> = (props) => {
   const [testProj, setTestProj] = useState(false);
   const [camError, setCamError] = useState<string | null>(null);
   const [camBlank, setCamBlank] = useState(false); // camera opened but frames are all-black (contended/replug)
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const baseRef = useRef<HTMLCanvasElement | null>(null); // native preview frame target
+  const [camMode, setCamMode] = useState({ w: 1280, h: 720, fps: 60 }); // requested capture mode (resolution/fps)
+  const [camSession, setCamSession] = useState(0); // bumped on each (re)start → CameraParamsPanel re-seeds
+  const viewportRef = useRef<CameraViewportHandle | null>(null);
   const blankCount = useRef(0);
 
   const cal = output?.calibration;
@@ -132,21 +137,21 @@ export const CalibWizard: React.FC<Props> = (props) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, testProj]);
 
-  // Live preview + board-detect overlay (camera/intrinsics steps, paused during a capture). Browser
-  // source shows its own <video>; native source has no stream, so we paint each grabbed grayscale
-  // frame into the base canvas here. Board detection runs throttled (~3 Hz) on the latest frame.
+  // Live RGB preview + board-detect overlay (camera/intrinsics steps, paused during a capture). Both
+  // sources grab colour → the big viewport (left). Board detection runs throttled (~3 Hz) on the luma
+  // derived from the same frame, so colour costs no extra camera read.
   useEffect(() => {
     if ((step !== 'camera' && step !== 'intrinsics') || !camOn || busy) return;
     let alive = true;
     let timer = 0;
-    const native = cam.isNative();
     let lastDetect = 0;
     const loop = async () => {
       if (!alive) return;
-      const g = await cam.grab();
+      const c = await cam.grabColor();
       if (!alive) { return; }
-      if (g) {
-        if (native) paintGray(baseRef.current, g);
+      if (c) {
+        viewportRef.current?.paint(c);
+        const g = cam.toGray(c);
         // Detect an all-black frame: the device opened but delivers no image — almost always another
         // app (Teams / NDI Webcam / OBS) holding it, or a USB hiccup. Flag it after a few in a row so
         // the operator gets a real reason instead of a silent black preview. (Strided max ≈ free.)
@@ -161,23 +166,22 @@ export const CalibWizard: React.FC<Props> = (props) => {
           if (alive) setDetect(d && d.found ? { found: true, corners: d.corners, w: g.w, h: g.h } : { found: false });
         }
       }
-      if (alive) timer = window.setTimeout(loop, native ? 60 : 330);
+      if (alive) timer = window.setTimeout(loop, 60);
     };
     timer = window.setTimeout(loop, 0);
     return () => { alive = false; window.clearTimeout(timer); };
   }, [step, camOn, busy, cfg.cols, cfg.rows]);
 
-  const startCam = async () => {
+  const startCam = async (mode = camMode) => {
     try {
       setBusy('Starting camera…'); setCamError(null); setCamBlank(false); blankCount.current = 0;
       if (camSource === 'native') {
-        await cam.start({ source: 'native', index: camIndex, width: 1280, height: 720, fps: 60, fourcc: 'MJPG' });
+        await cam.start({ source: 'native', index: camIndex, width: mode.w, height: mode.h, fps: mode.fps, fourcc: 'MJPG' });
       } else {
-        await cam.start({ source: 'browser', deviceId: deviceId || undefined });
-        if (videoRef.current) { videoRef.current.srcObject = cam.getStream(); await videoRef.current.play().catch(() => {}); }
+        await cam.start({ source: 'browser', deviceId: deviceId || undefined, width: mode.w, height: mode.h, fps: mode.fps });
         setDevices(await cam.enumerate());
       }
-      setCamOn(true);
+      setCamOn(true); setCamSession((s) => s + 1);
       const d = cam.dims(); addLog(`camera ${d.w}×${d.h}${camSource === 'native' ? ` (OpenCV #${camIndex})` : ''}`);
     } catch (e) {
       const msg = camSource === 'native'
@@ -187,6 +191,9 @@ export const CalibWizard: React.FC<Props> = (props) => {
       addLog(`✗ camera: ${(e as Error)?.message ?? (e as DOMException)?.name ?? 'error'}`);
     } finally { setBusy(null); }
   };
+
+  // Re-open the camera at a new resolution / fps (from the params panel).
+  const reopenCam = (w: number, h: number, fps: number) => { const mode = { w, h, fps }; setCamMode(mode); if (camOn) void startCam(mode); };
 
   const capture = async () => {
     setBusy('Capturing — hold the board still…');
@@ -225,6 +232,14 @@ export const CalibWizard: React.FC<Props> = (props) => {
   const finish = () => { onSetUseCalibration(surfaceId, true); onClose(); };
 
   return (
+    <>
+    {cameraHost && createPortal(
+      <CameraViewport
+        ref={viewportRef}
+        active={camOn}
+        detect={step === 'camera' || step === 'intrinsics' ? detect : { found: false }}
+        placeholder="start the camera"
+      />, cameraHost)}
     <div className="fixed left-0 top-9 bottom-6 z-[120] w-[340px] flex flex-col bg-surface-1 border-r border-line-2 shadow-2xl animate-overlay-in">
       {/* Header */}
       <div className="h-10 px-3 flex items-center justify-between border-b border-line-1 bg-surface-2 shrink-0">
@@ -286,7 +301,7 @@ export const CalibWizard: React.FC<Props> = (props) => {
 
         {(step === 'camera' || step === 'intrinsics') && (
           <>
-            <CameraView videoRef={videoRef} baseRef={baseRef} native={camSource === 'native'} camOn={camOn} detect={detect} />
+            <div className="text-fg-4 text-[10px] flex items-center gap-1.5"><Camera size={11} /> The live camera + board overlay are in the large left view — scroll to zoom, drag to pan.</div>
             {/* Capture backend: browser getUserMedia (UVC webcams) or OpenCV DirectShow (cameras
                 getUserMedia can't drive — e.g. the PS3 Eye, addressed by index like vvvv). */}
             <div className="flex items-center gap-1 text-[10px]">
@@ -315,8 +330,9 @@ export const CalibWizard: React.FC<Props> = (props) => {
                   {devices.map((d) => <option key={d.deviceId} value={d.deviceId}>{d.label}</option>)}
                 </select>
               )}
-              <button onClick={startCam} className="px-2 py-1 rounded bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3">{camOn ? 'Restart' : 'Start'}</button>
+              <button onClick={() => startCam()} className="px-2 py-1 rounded bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3">{camOn ? 'Restart' : 'Start'}</button>
             </div>
+            <CameraParamsPanel camOn={camOn} sessionKey={camSession} width={camMode.w} height={camMode.h} fps={camMode.fps} onReopen={reopenCam} />
             {camError && <div className="flex items-start gap-1.5 text-danger text-[10px] leading-snug"><AlertTriangle size={12} className="shrink-0 mt-0.5" /> {camError}</div>}
             {camBlank && !camError && (
               <div className="flex items-start gap-1.5 text-warn text-[10px] leading-snug">
@@ -408,6 +424,7 @@ export const CalibWizard: React.FC<Props> = (props) => {
         )}
       </div>
     </div>
+    </>
   );
 };
 
@@ -455,60 +472,6 @@ const CoverageGrid: React.FC<{ coverage: { cx: number; cy: number; areaFrac: num
         <div className={cells.near ? 'text-ok' : 'text-fg-3'}>{cells.near ? '✓' : '○'} near (large)</div>
         <div className={cells.far ? 'text-ok' : 'text-fg-3'}>{cells.far ? '✓' : '○'} far (small)</div>
       </div>
-    </div>
-  );
-};
-
-// Paint a grayscale frame into a canvas at its native resolution (CSS scales it to fit). Used for the
-// native (OpenCV/DShow) preview, which has no MediaStream to bind to a <video>.
-function paintGray(cv: HTMLCanvasElement | null, g: cam.GrayFrame): void {
-  if (!cv) return;
-  if (cv.width !== g.w || cv.height !== g.h) { cv.width = g.w; cv.height = g.h; }
-  const ctx = cv.getContext('2d');
-  if (!ctx) return;
-  const img = ctx.createImageData(g.w, g.h);
-  const d = img.data;
-  for (let i = 0, px = g.w * g.h; i < px; i++) {
-    const v = g.data[i];
-    d[i * 4] = v; d[i * 4 + 1] = v; d[i * 4 + 2] = v; d[i * 4 + 3] = 255;
-  }
-  ctx.putImageData(img, 0, 0);
-}
-
-// Camera preview with the live board-detect overlay. Browser source shows a <video>; native
-// (OpenCV/DShow) source has no MediaStream, so the wizard's grab loop paints grayscale frames into
-// the base <canvas> (baseRef). The overlay canvas draws the detected corners over either one.
-const CameraView: React.FC<{
-  videoRef: React.RefObject<HTMLVideoElement | null>;
-  baseRef: React.RefObject<HTMLCanvasElement | null>;
-  native: boolean; camOn: boolean; detect: Detect;
-}> = ({ videoRef, baseRef, native, camOn, detect }) => {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  useEffect(() => {
-    const cv = canvasRef.current;
-    const ref = native ? baseRef.current : videoRef.current;
-    if (!cv || !ref) return;
-    const w = ref.clientWidth, h = ref.clientHeight;
-    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
-    const ctx = cv.getContext('2d');
-    if (!ctx) return;
-    ctx.clearRect(0, 0, w, h);
-    if (detect.found) {
-      const sx = w / detect.w, sy = h / detect.h;
-      ctx.fillStyle = '#00ffaa';
-      for (let i = 0; i < detect.corners.length; i += 2) {
-        ctx.beginPath();
-        ctx.arc(detect.corners[i] * sx, detect.corners[i + 1] * sy, 2, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-  }, [detect, native, videoRef, baseRef]);
-  return (
-    <div className="relative aspect-video bg-black rounded border border-line-1 overflow-hidden">
-      <video ref={videoRef} muted playsInline className={`w-full h-full object-contain ${native ? 'hidden' : ''}`} />
-      <canvas ref={baseRef} className={`w-full h-full object-contain ${native ? '' : 'hidden'}`} />
-      <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none" />
-      {!camOn && <div className="absolute inset-0 grid place-items-center text-fg-3 text-[10px]"><Box size={14} className="mr-1" /> start the camera</div>}
     </div>
   );
 };

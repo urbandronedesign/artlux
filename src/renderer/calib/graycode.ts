@@ -54,16 +54,24 @@ export function planeBit(layout: GraycodeLayout, p: number, x: number, y: number
 }
 
 // Special pattern indices on the bridge (outside the coded-plane range): all-white / all-black
-// reference frames for the contrast mask, and 'off' to clear the projector to black between poses.
-export type CalibPatternKind = 'plane' | 'white' | 'black' | 'off';
+// reference frames for the contrast mask, 'off' to clear the projector to black between poses, and
+// 'fill' for an arbitrary flat RGB field (camera-based gamma/colour measurement — a level ramp).
+export type CalibPatternKind = 'plane' | 'white' | 'black' | 'off' | 'fill';
 
-// Render coded plane `p` (or a flat white/black field) into an RGBA ImageData-sized Uint8ClampedArray
-// for a projW×projH buffer. Column planes are vertical stripes (one value per x, repeated down rows)
-// and row planes are horizontal stripes (one value per y), so we compute a 1-D LUT and broadcast it —
-// O(W·H) writes but only O(W) or O(H) bit evaluations.
+// Render coded plane `p` (or a flat white/black/level field) into an RGBA ImageData-sized
+// Uint8ClampedArray for a projW×projH buffer. For 'fill', `rgb` (0..255 per channel) is the flat level.
+// Column planes are vertical stripes (one value per x, repeated down rows) and row planes are
+// horizontal stripes (one value per y), so we compute a 1-D LUT and broadcast it — O(W·H) writes but
+// only O(W) or O(H) bit evaluations.
 export function fillPattern(
   out: Uint8ClampedArray, projW: number, projH: number, kind: CalibPatternKind, p: number,
+  rgb?: [number, number, number],
 ): void {
+  if (kind === 'fill') {
+    const [r, g, b] = rgb ?? [255, 255, 255];
+    for (let i = 0; i < out.length; i += 4) { out[i] = r; out[i + 1] = g; out[i + 2] = b; out[i + 3] = 255; }
+    return;
+  }
   if (kind === 'white' || kind === 'black') {
     out.fill(kind === 'white' ? 255 : 0);
     // keep alpha at 255

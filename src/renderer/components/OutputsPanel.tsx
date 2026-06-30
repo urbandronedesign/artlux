@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, MonitorUp, RefreshCw, Frame, Undo2, Settings2, Spline, Gauge, Radio, Aperture, Cpu } from 'lucide-react';
+import { X, MonitorUp, RefreshCw, Frame, Undo2, Settings2, Spline, Gauge, Radio, Aperture, Cpu, Camera, Loader2 } from 'lucide-react';
 import { Surface } from '../types';
 import { ProjectorOutput, DisplayInfo, SoftEdge, defaultSoftEdge, WINDOWED_DISPLAY } from '../../../shared/protocol';
 
@@ -19,6 +19,9 @@ interface Props {
   onSetSoftEdge: (surfaceId: string, patch: Partial<SoftEdge>) => void;
   onSetGamma: (surfaceId: string, gamma: number) => void;
   onSetColorMatch: (surfaceId: string, patch: { colorGain?: [number, number, number]; blackLift?: [number, number, number] }) => void;
+  onMeasureGamma: (surfaceId: string) => void;                 // camera-measure projector gamma + colour
+  measuringGammaId: string | null;                            // output currently being measured (busy)
+  gammaMsg: { id: string; text: string; ok: boolean } | null; // last measurement result / error
   onToggleNdiSend: (surfaceId: string, on: boolean) => void;
   onSetFpsCap: (cap: number) => void;
   onRefreshDisplays: () => void;
@@ -38,7 +41,7 @@ const clamp01h = (v: number) => Math.max(0, Math.min(0.5, v));
 export const OutputsPanel: React.FC<Props> = ({
   open, onClose, surfaces, outputs, displays, editingOutputId, fpsCap,
   onSetEnabled, onSetDisplay, onToggleEdit, onResetCorners,
-  onToggleWarp, onSetSoftEdge, onSetGamma, onSetColorMatch, onToggleNdiSend, onSetFpsCap, onRefreshDisplays, onCalibrate, onSetUseCalibration,
+  onToggleWarp, onSetSoftEdge, onSetGamma, onSetColorMatch, onMeasureGamma, measuringGammaId, gammaMsg, onToggleNdiSend, onSetFpsCap, onRefreshDisplays, onCalibrate, onSetUseCalibration,
   nvAvailable, onSetHwWarp,
 }) => {
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -202,6 +205,20 @@ export const OutputsPanel: React.FC<Props> = ({
                         onChange={(e) => onSetGamma(s.id, +e.target.value)} className="w-40 accent-accent" />
                       <span className="num text-fg-2 w-8">{(o?.gamma ?? 1).toFixed(2)}</span>
                       <button onClick={() => onSetGamma(s.id, 1)} className="text-fg-3 hover:text-fg-1">reset</button>
+                    </div>
+
+                    {/* Camera-measured gamma + colour: projects a level ramp on this output, samples the
+                        camera RGB in the lit footprint, fits the response → writes Output γ + Colour gain. */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button onClick={() => onMeasureGamma(s.id)} disabled={measuringGammaId != null}
+                        title="Project a ramp and measure this projector's gamma + colour through the camera"
+                        className="flex items-center gap-1.5 px-2 py-1 rounded-[var(--r-sm)] bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3 disabled:opacity-40">
+                        {measuringGammaId === s.id ? <Loader2 size={12} className="animate-spin" /> : <Camera size={12} />}
+                        {measuringGammaId === s.id ? 'Measuring…' : 'Auto-measure (camera)'}
+                      </button>
+                      {gammaMsg?.id === s.id && (
+                        <span className={`text-[10px] num ${gammaMsg.ok ? 'text-ok' : 'text-danger'}`}>{gammaMsg.text}</span>
+                      )}
                     </div>
 
                     {/* Colour + black-level match across projectors (overlap brightness / black floor) */}

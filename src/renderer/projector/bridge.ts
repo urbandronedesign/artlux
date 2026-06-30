@@ -35,7 +35,8 @@ export type MainToProjector =
   // 'crosshair' = faint content + an aim crosshair (pose capture), 'render' = render-from-projector.
   | { t: 'calib'; mode: 'idle' | 'pattern' | 'crosshair' | 'render'; crosshair?: [number, number]; calibration?: ProjectorCalibration | null }
   // Set the current structured-light pattern; the projector renders it raw (no warp/gamma) and acks.
-  | { t: 'calibPattern'; kind: 'plane' | 'white' | 'black' | 'off'; index: number }
+  // 'fill' projects a flat RGB field at `rgb` (0..255) — used for camera-based gamma/colour measurement.
+  | { t: 'calibPattern'; kind: 'plane' | 'white' | 'black' | 'off' | 'fill'; index: number; rgb?: [number, number, number] }
   // The 3D venue scene (models) for render-from-projector mode.
   | { t: 'scene'; scene3D: Scene3D };
 

@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+## v0.16.0
+
+- **Pro calibration workspace (big RGB camera ⟷ 3D)** — the calibration camera now fills a large
+  viewport in the left pane, side-by-side with the 3D scene, with **wheel-zoom, drag-pan, and a
+  magnifier loupe** for sub-pixel point picking. The feed is now **true RGB** for both the OpenCV
+  (DirectShow) and browser sources — previously it was reduced to grayscale before display — via a new
+  native `camera_grab_rgba` colour path (the grayscale path is unchanged for detection/decode). A
+  collapsible **Camera parameters** panel exposes the full set: exposure/gain/gamma/brightness/contrast
+  plus white balance, focus, saturation, hue, sharpness, zoom, and resolution/fps, capability-gated per
+  source.
+- **Edit placed anchor points** — already-placed camera↔model correspondences are now editable. Select
+  one from the camera marker, the 3D sphere, or the list; **drag or arrow-nudge** its camera point and
+  **click the model** to re-place its 3D point. The pose re-solves automatically after each edit.
+- **Camera-measured projector gamma + colour** — an **Auto-measure (camera)** button per output projects
+  a grayscale level ramp, samples the camera RGB in the projector's lit footprint, fits the per-channel
+  response, and writes the output's **gamma** + **colour gain** (white-point match). Applied through the
+  existing GLSL/NVAPI uniforms.
 - **Auto-Align: anchor markers** — each placed camera↔model correspondence now shows a numbered marker
   in **both** views: a cyan crosshair + number on the camera preview (with a dashed orange ring for the
   pending point awaiting its model match) and a matching numbered marker in the 3D scene. Same colour +

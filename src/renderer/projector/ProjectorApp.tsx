@@ -54,7 +54,7 @@ export const ProjectorApp: React.FC = () => {
 
   // Calibration: structured-light pattern display (raw 2D overlay) + mode gate.
   const calibModeRef = useRef<CalibMode>('idle');
-  const patternRef = useRef<{ kind: CalibPatternKind; index: number } | null>(null);
+  const patternRef = useRef<{ kind: CalibPatternKind; index: number; rgb?: [number, number, number] } | null>(null);
   const patternCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [calibMode, setCalibMode] = useState<CalibMode>('idle');
   // Pose capture: an aim crosshair (normalized) the operator points at a known venue feature.
@@ -153,7 +153,7 @@ export const ProjectorApp: React.FC = () => {
           if (m.mode !== 'pattern') patternRef.current = null;
           if (m.calibration !== undefined) setCalibration(m.calibration);
         } else if (m.t === 'calibPattern') {
-          patternRef.current = { kind: m.kind, index: m.index };
+          patternRef.current = { kind: m.kind, index: m.index, rgb: m.rgb };
         } else if (m.t === 'scene') {
           setScene3D(m.scene3D);
         }
@@ -240,7 +240,7 @@ export const ProjectorApp: React.FC = () => {
       const ctx = cv.getContext('2d');
       if (!ctx) return;
       const img = ctx.createImageData(w, h);
-      fillPattern(img.data, w, h, pat.kind, pat.index);
+      fillPattern(img.data, w, h, pat.kind, pat.index, pat.rgb);
       ctx.putImageData(img, 0, 0);
       requestAnimationFrame(() => requestAnimationFrame(() => send({ t: 'patternShown', index: pat.index, projW: w, projH: h })));
     };

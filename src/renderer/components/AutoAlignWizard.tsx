@@ -1,8 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Camera, Check, AlertTriangle, Loader2, Box, MousePointer, ScanLine, Aperture } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { X, Camera, Check, AlertTriangle, Loader2, MousePointer, ScanLine, Aperture } from 'lucide-react';
 import type { MainToProjector } from '../projector/bridge';
 import type { ProjectorCalibration, ProjectorOutput, Scene3D, CamMask, MarkerMap } from '../../../shared/protocol';
 import * as cam from '../services/calibCapture';
+import { CameraViewport, type CameraViewportHandle } from './calib/CameraViewport';
+import { CameraParamsPanel } from './calib/CameraParamsPanel';
 import * as slCapture from '../calib/slCapture';
 import { reproject } from '../calib/cvCamera';
 import {
@@ -28,6 +31,9 @@ interface Props {
   onSwitchFlow?: (flow: 'board' | 'auto') => void;
   onStoreCamMask?: (surfaceId: string, mask: CamMask | null) => void; // persist camera exclusion mask on the venue
   onStoreMarkerMap?: (map: MarkerMap | null) => void; // persist the fiducial marker map on the venue
+  cameraHost: HTMLElement | null; // portal target for the big RGB camera viewport (left split pane)
+  onRegisterMarkerlessSelect?: (cb: ((i: number) => void) | null) => void; // 3D sphere click → select pick
+  onSelectionChange?: (i: number | null) => void; // report the edited correspondence for 3D highlight
   onClose: () => void;
 }
 
@@ -47,102 +53,6 @@ function nominalK(w: number, h: number, hfovDeg: number): number[] {
   return [fx, 0, w / 2, 0, fx, h / 2, 0, 0, 1];
 }
 
-// Paint a grayscale frame into a canvas at its native resolution (CSS object-contain scales it).
-function paintGray(cv: HTMLCanvasElement | null, g: { w: number; h: number; data: Uint8Array }): void {
-  if (!cv) return;
-  if (cv.width !== g.w || cv.height !== g.h) { cv.width = g.w; cv.height = g.h; }
-  const ctx = cv.getContext('2d');
-  if (!ctx) return;
-  const img = ctx.createImageData(g.w, g.h);
-  const d = img.data;
-  for (let i = 0, px = g.w * g.h; i < px; i++) { const v = g.data[i]; d[i * 4] = v; d[i * 4 + 1] = v; d[i * 4 + 2] = v; d[i * 4 + 3] = 255; }
-  ctx.putImageData(img, 0, 0);
-}
-
-// Overlay a numbered marker for each placed camera-image pick (+ a dashed ring for the pending point
-// awaiting its model match) onto the preview canvas, in native camera-pixel coords so object-contain
-// scales them with the image. Drawn right after each grayscale repaint. Cyan #00e5ff matches the 3D
-// scene markers so correspondences line up by colour + number.
-function drawMarkers(cv: HTMLCanvasElement | null, picks: CamPick[], pending: [number, number] | null): void {
-  if (!cv) return;
-  const ctx = cv.getContext('2d');
-  if (!ctx) return;
-  const r = Math.max(5, Math.round(Math.min(cv.width, cv.height) * 0.012));
-  ctx.lineWidth = Math.max(1.5, r * 0.28);
-  ctx.font = `bold ${Math.max(11, Math.round(r * 1.7))}px sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  picks.forEach((p, i) => {
-    const [x, y] = p.camPx;
-    ctx.strokeStyle = '#00e5ff';
-    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(x - r * 1.7, y); ctx.lineTo(x + r * 1.7, y);
-    ctx.moveTo(x, y - r * 1.7); ctx.lineTo(x, y + r * 1.7);
-    ctx.stroke();
-    const lx = x + r * 2.2, ly = y - r * 2.2;
-    const label = String(i + 1);
-    ctx.lineWidth = Math.max(2, r * 0.5);
-    ctx.strokeStyle = 'rgba(0,0,0,0.85)';
-    ctx.strokeText(label, lx, ly);
-    ctx.fillStyle = '#00e5ff';
-    ctx.fillText(label, lx, ly);
-    ctx.lineWidth = Math.max(1.5, r * 0.28);
-  });
-  if (pending) {
-    const [x, y] = pending;
-    ctx.strokeStyle = '#ffaa00';
-    ctx.setLineDash([r * 0.7, r * 0.7]);
-    ctx.beginPath(); ctx.arc(x, y, r * 1.25, 0, Math.PI * 2); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.beginPath();
-    ctx.moveTo(x - r * 1.9, y); ctx.lineTo(x + r * 1.9, y);
-    ctx.moveTo(x, y - r * 1.9); ctx.lineTo(x, y + r * 1.9);
-    ctx.stroke();
-  }
-}
-
-// Map a click on the preview canvas (CSS object-contain) → camera pixel coords, or null if outside.
-function clickToCamPx(cv: HTMLCanvasElement, e: React.MouseEvent): [number, number] | null {
-  const fw = cv.width, fh = cv.height;
-  if (!fw || !fh) return null;
-  const r = cv.getBoundingClientRect();
-  const scale = Math.min(r.width / fw, r.height / fh);
-  const offX = (r.width - fw * scale) / 2, offY = (r.height - fh * scale) / 2;
-  const u = (e.clientX - r.left - offX) / scale, v = (e.clientY - r.top - offY) / scale;
-  if (u < 0 || v < 0 || u > fw || v > fh) return null;
-  return [u, v];
-}
-
-// Overlay the camera exclusion mask: committed polygons (filled translucent red) + the in-progress
-// draft (open red outline with vertex dots). Camera-pixel coords, drawn after the marker overlay.
-function drawMask(cv: HTMLCanvasElement | null, mask: CamMask | null | undefined, draft: [number, number][]): void {
-  if (!cv) return;
-  const ctx = cv.getContext('2d');
-  if (!ctx) return;
-  const ring = (pts: [number, number][], close: boolean) => {
-    if (!pts.length) return;
-    ctx.beginPath();
-    ctx.moveTo(pts[0][0], pts[0][1]);
-    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
-    if (close) ctx.closePath();
-  };
-  ctx.lineWidth = Math.max(1.5, Math.min(cv.width, cv.height) * 0.004);
-  for (const poly of mask?.polys ?? []) {
-    if (poly.length < 3) continue;
-    ring(poly, true);
-    ctx.fillStyle = 'rgba(255,40,40,0.28)'; ctx.fill();
-    ctx.strokeStyle = '#ff5050'; ctx.stroke();
-  }
-  if (draft.length) {
-    ring(draft, false);
-    ctx.strokeStyle = '#ff8080'; ctx.setLineDash([6, 4]); ctx.stroke(); ctx.setLineDash([]);
-    const dot = Math.max(2.5, Math.min(cv.width, cv.height) * 0.006);
-    ctx.fillStyle = '#ff8080';
-    for (const [x, y] of draft) { ctx.beginPath(); ctx.arc(x, y, dot, 0, Math.PI * 2); ctx.fill(); }
-  }
-}
-
 // Markerless camera-driven auto-align (Phase 0 geometry): self-contained sibling of CalibWizard.
 // No board — the loaded venue model is the metric reference. Setup → Camera → Anchor (camera-image↔
 // model picks → camera pose) → Scan (Gray-code → dense decode → raycast venue → resection) → Verify
@@ -150,7 +60,8 @@ function drawMask(cv: HTMLCanvasElement | null, mask: CamMask | null | undefined
 export const AutoAlignWizard: React.FC<Props> = (props) => {
   const { surfaceId, surfaceName, output, scene3D, live, hasModel,
     sendToProjector, onStoreCalibration, onSetUseCalibration,
-    onSetCalibPickMode, onSetSplit, onRegisterMarkerlessPick, onPicksChange, onSwitchFlow, onStoreCamMask, onStoreMarkerMap, onClose } = props;
+    onSetCalibPickMode, onSetSplit, onRegisterMarkerlessPick, onPicksChange, onSwitchFlow, onStoreCamMask, onStoreMarkerMap, cameraHost,
+    onRegisterMarkerlessSelect, onSelectionChange, onClose } = props;
 
   const [step, setStep] = useState<Step>('setup');
   const [addonOk, setAddonOk] = useState<boolean | null>(null);
@@ -162,12 +73,10 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
   const [camErr, setCamErr] = useState<string | null>(null);
   const [camDims, setCamDims] = useState({ w: 0, h: 0 });
   const [hfov, setHfov] = useState(60);
-  const [autoExp, setAutoExp] = useState(true);   // camera auto-exposure (off → manual exposure/gain)
-  const [expVal, setExpVal] = useState(-6);        // manual exposure (log2-seconds on most DShow UVC)
-  const [gainVal, setGainVal] = useState(0);       // manual gain
+  const [camMode, setCamMode] = useState({ w: 1280, h: 720, fps: 60 }); // requested capture mode (resolution/fps)
+  const [camSession, setCamSession] = useState(0); // bumped on each (re)start → CameraParamsPanel re-seeds
   const [maskMode, setMaskMode] = useState(false); // drawing camera exclusion polygons
   const [maskDraft, setMaskDraft] = useState<[number, number][]>([]); // current in-progress polygon
-  const maskDraftRef = useRef<[number, number][]>([]); maskDraftRef.current = maskDraft;
   const ARUCO_DICT = 0; // DICT_4X4_50
   const [detIds, setDetIds] = useState<number[]>([]); // last ArUco detection (ids), for registration UI
   const regMarkerRef = useRef<number | null>(null); // id awaiting its 3D model click during registration
@@ -179,11 +88,11 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
   const [log, setLog] = useState<string[]>([]);
   const cfg = useRef(defaultMarkerlessConfig());
 
-  const baseRef = useRef<HTMLCanvasElement | null>(null);
+  const viewportRef = useRef<CameraViewportHandle | null>(null);
   const [pendingCamPx, setPendingCamPx] = useState<[number, number] | null>(null);
   const pendingRef = useRef<[number, number] | null>(null); // mirror for the pick handler closure
-  const picksRef = useRef<CamPick[]>([]); // mirror so the preview loop draws the latest markers
-  picksRef.current = picks;
+  const [selectedPick, setSelectedPick] = useState<number | null>(null); // correspondence being edited
+  const selectedPickRef = useRef<number | null>(null); selectedPickRef.current = selectedPick;
 
   // Feed the placed anchor world points up to App so the 3D scene shows a matching marker per pick.
   useEffect(() => { onPicksChange?.(picks.map((p) => p.world)); }, [picks]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -192,17 +101,15 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
   const addLog = (s: string) => setLog((l) => [...l.slice(-60), s]);
   const cameraK = camDims.w ? nominalK(camDims.w, camDims.h, hfov) : [];
 
-  // Push the manual-exposure controls to whichever source is live. Disabling auto-exposure first is
-  // required before manual exposure/gain take effect on DirectShow UVC drivers.
-  const applyExposure = async () => {
-    if (!camOn) return;
-    await cam.setProp('autoexposure', autoExp ? 1 : 0.25);
-    if (!autoExp) { await cam.setProp('exposure', expVal); await cam.setProp('gain', gainVal); }
-  };
-
   useEffect(() => { window.artlux?.calibAvailable?.().then(setAddonOk).catch(() => setAddonOk(false)); }, []);
   useEffect(() => () => { cam.stop(); slCapture.endScan(); onRegisterMarkerlessPick(null); onSetCalibPickMode(false); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { applyExposure(); }, [camOn, autoExp, expVal, gainVal]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Report the edited correspondence up so the 3D scene highlights it; register a select handler so a
+  // click on a 3D marker selects the same pick (mirror of clicking its camera marker).
+  useEffect(() => { onSelectionChange?.(selectedPick); }, [selectedPick]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    onRegisterMarkerlessSelect?.(step === 'pose' ? (i: number) => setSelectedPick(i) : null);
+    return () => onRegisterMarkerlessSelect?.(null);
+  }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Projector + scene mode per step. White field lights the venue for picking; the model-pick split is
   // on during Anchor; idle/render otherwise.
@@ -238,6 +145,19 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
         return;
       }
       const camPx = pendingRef.current;
+      // Edit mode: a correspondence is selected and there's no pending camera point → the model click
+      // re-places that pick's 3D point. (Pending always wins so an in-progress new pick still pairs.)
+      if (!camPx && selectedPickRef.current != null) {
+        const i = selectedPickRef.current;
+        setPicks((prev) => {
+          if (i >= prev.length) return prev;
+          const next = prev.map((p, j) => (j === i ? { ...p, world } : p));
+          if (next.length >= 4) void resolvePose(next);
+          return next;
+        });
+        addLog(`✎ point ${i + 1}: 3D point updated`);
+        return;
+      }
       if (!camPx) { addLog('click a point in the camera image first, then the model'); return; }
       pendingRef.current = null; setPendingCamPx(null);
       setPicks((prev) => {
@@ -250,46 +170,57 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
-  // Live grayscale preview (browser + native both via cam.grab → canvas). Paused during the scan so it
-  // doesn't compete with the scan's own grabs for the (single) camera.
+  // Live RGB preview (browser + native both via cam.grabColor → viewport). The viewport owns the
+  // zoom/pan transform + overlays; we just push frames. Paused during the scan so it doesn't compete
+  // with the scan's own grabs for the (single) camera.
   useEffect(() => {
     if (!camOn || !!busy || (step !== 'camera' && step !== 'pose')) return;
     let alive = true; let timer = 0;
     const loop = async () => {
       if (!alive) return;
-      const g = await cam.grab();
-      if (alive && g) {
-        paintGray(baseRef.current, g);
-        drawMarkers(baseRef.current, picksRef.current, pendingRef.current);
-        drawMask(baseRef.current, scene3D.camMask, maskDraftRef.current);
-      }
+      const c = await cam.grabColor();
+      if (alive && c) viewportRef.current?.paint(c);
       if (alive) timer = window.setTimeout(loop, 66);
     };
     timer = window.setTimeout(loop, 0);
     return () => { alive = false; window.clearTimeout(timer); };
   }, [camOn, busy, step]);
 
-  const startCam = async () => {
+  const startCam = async (mode = camMode) => {
     try {
       setBusy('Starting camera…'); setCamErr(null);
-      if (camSource === 'native') await cam.start({ source: 'native', index: camIndex, width: 1280, height: 720, fps: 60, fourcc: 'MJPG' });
-      else { await cam.start({ source: 'browser', deviceId: deviceId || undefined }); setDevices(await cam.enumerate()); }
-      setCamOn(true);
+      if (camSource === 'native') await cam.start({ source: 'native', index: camIndex, width: mode.w, height: mode.h, fps: mode.fps, fourcc: 'MJPG' });
+      else { await cam.start({ source: 'browser', deviceId: deviceId || undefined, width: mode.w, height: mode.h, fps: mode.fps }); setDevices(await cam.enumerate()); }
+      setCamOn(true); setCamSession((s) => s + 1);
       const d = cam.dims(); setCamDims(d); addLog(`camera ${d.w}×${d.h}`);
     } catch (e) {
       setCamErr((e as Error)?.message ?? 'camera failed'); setCamOn(false);
     } finally { setBusy(null); }
   };
 
-  const onPreviewClick = (e: React.MouseEvent) => {
-    if (!baseRef.current) return;
-    const p = clickToCamPx(baseRef.current, e);
-    if (!p) return;
-    if (maskMode) { setMaskDraft((d) => [...d, p]); return; }
+  // Re-open the camera at a new resolution / fps (from the params panel).
+  const reopenCam = (w: number, h: number, fps: number) => { const mode = { w, h, fps }; setCamMode(mode); if (camOn) void startCam(mode); };
+
+  // Place a calibration point: store the camera pixel as pending, then the next 3D model click pairs
+  // with it (handled by the registered markerless-pick callback).
+  const onPick = (p: [number, number]) => {
     if (step !== 'pose') return;
     pendingRef.current = p; setPendingCamPx(p);
     addLog(`camera point (${p[0].toFixed(0)},${p[1].toFixed(0)}) — now click the matching point on the model`);
   };
+  const onMaskPoint = (p: [number, number]) => setMaskDraft((d) => [...d, p]);
+
+  // Edit an already-placed correspondence: move its camera pixel (drag / nudge in the viewport), or
+  // select it (then click the model to re-place its 3D point). Re-solve once ≥4 picks remain.
+  const movePickCam = (i: number, camPx: [number, number]) => {
+    setPicks((prev) => {
+      if (i >= prev.length) return prev;
+      const next = prev.map((p, j) => (j === i ? { ...p, camPx } : p));
+      if (next.length >= 4) void resolvePose(next);
+      return next;
+    });
+  };
+  const selectPick = (i: number | null) => setSelectedPick((cur) => (cur === i ? null : i));
 
   // Double-click closes the in-progress exclusion polygon and commits it to the venue's camera mask.
   const onPreviewDblClick = () => {
@@ -374,7 +305,14 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
     setStep('verify');
   };
 
-  const removePick = (i: number) => setPicks((p) => p.filter((_, j) => j !== i));
+  const removePick = (i: number) => {
+    setPicks((p) => {
+      const next = p.filter((_, j) => j !== i);
+      if (next.length >= 4) void resolvePose(next);
+      return next;
+    });
+    setSelectedPick((cur) => (cur == null ? null : cur === i ? null : cur > i ? cur - 1 : cur));
+  };
   const finish = () => { onSetUseCalibration(surfaceId, true); onClose(); };
 
   const exportMpcdi = async () => {
@@ -397,6 +335,24 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
   const canNext = gate[step];
 
   return (
+    <>
+    {cameraHost && createPortal(
+      <CameraViewport
+        ref={viewportRef}
+        active={camOn}
+        pickActive={step === 'pose' && !maskMode}
+        maskMode={maskMode}
+        picks={picks.map((p) => ({ camPx: p.camPx }))}
+        pending={pendingCamPx}
+        selectedPick={selectedPick}
+        mask={scene3D.camMask}
+        maskDraft={maskDraft}
+        onPick={onPick}
+        onSelectPick={setSelectedPick}
+        onMovePick={movePickCam}
+        onMaskPoint={onMaskPoint}
+        onMaskClose={onPreviewDblClick}
+      />, cameraHost)}
     <div className="fixed left-0 top-9 bottom-6 z-[120] w-[340px] flex flex-col bg-surface-1 border-r border-line-2 shadow-2xl animate-overlay-in">
       <div className="h-10 px-3 flex items-center justify-between border-b border-line-1 bg-surface-2 shrink-0">
         <span className="text-xs font-semibold text-fg-1 uppercase tracking-wider flex items-center gap-1.5"><ScanLine size={14} /> Auto-Align — {surfaceName}</span>
@@ -443,10 +399,7 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
 
         {(step === 'camera' || step === 'pose') && (
           <>
-            <div className="relative aspect-video bg-black rounded border border-line-1 overflow-hidden">
-              <canvas ref={baseRef} onClick={onPreviewClick} onDoubleClick={onPreviewDblClick} className={`w-full h-full object-contain ${(step === 'pose' || maskMode) ? 'cursor-crosshair' : ''}`} />
-              {!camOn && <div className="absolute inset-0 grid place-items-center text-fg-3 text-[10px]"><Box size={14} className="mr-1" /> start the camera</div>}
-            </div>
+            <div className="text-fg-4 text-[10px] flex items-center gap-1.5"><MousePointer size={11} /> The live camera is in the large left view — scroll to zoom, drag to pan, click to place points.</div>
             <div className="flex items-center gap-1 text-[10px]">
               <span className="text-fg-3">Capture via</span>
               {(['browser', 'native'] as cam.CaptureSource[]).map((s) => (
@@ -467,30 +420,11 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
                   {devices.map((d) => <option key={d.deviceId} value={d.deviceId}>{d.label}</option>)}
                 </select>
               )}
-              <button onClick={startCam} className="px-2 py-1 rounded bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3">{camOn ? 'Restart' : 'Start'}</button>
+              <button onClick={() => startCam()} className="px-2 py-1 rounded bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3">{camOn ? 'Restart' : 'Start'}</button>
             </div>
             {camErr && <div className="flex items-start gap-1.5 text-danger text-[10px] leading-snug"><AlertTriangle size={12} className="shrink-0 mt-0.5" /> {camErr}</div>}
 
-            <div className="space-y-1 pt-1 border-t border-line-1">
-              <label className="flex items-center gap-1.5 text-fg-3 text-[10px] cursor-pointer">
-                <input type="checkbox" checked={autoExp} onChange={(e) => setAutoExp(e.target.checked)} />
-                <span>Auto exposure <span className="text-fg-4">(off → tune manually for a clean Gray-code decode)</span></span>
-              </label>
-              {!autoExp && (
-                <>
-                  <label className="flex items-center gap-1.5 text-[10px] text-fg-3">
-                    <span className="w-14 shrink-0">Exposure</span>
-                    <input type="range" min={-13} max={0} step={1} value={expVal} onChange={(e) => setExpVal(parseInt(e.target.value, 10))} className="flex-1" />
-                    <span className="w-8 text-right num">{expVal}</span>
-                  </label>
-                  <label className="flex items-center gap-1.5 text-[10px] text-fg-3">
-                    <span className="w-14 shrink-0">Gain</span>
-                    <input type="range" min={0} max={100} step={1} value={gainVal} onChange={(e) => setGainVal(parseInt(e.target.value, 10))} className="flex-1" />
-                    <span className="w-8 text-right num">{gainVal}</span>
-                  </label>
-                </>
-              )}
-            </div>
+            <CameraParamsPanel camOn={camOn} sessionKey={camSession} width={camMode.w} height={camMode.h} fps={camMode.fps} onReopen={reopenCam} />
 
             <div className="space-y-1 pt-1 border-t border-line-1">
               <div className="flex items-center gap-1.5 text-[10px]">
@@ -543,14 +477,26 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
                   <span className={pose ? 'text-ok' : 'text-fg-3'}>{picks.length} pick{picks.length === 1 ? '' : 's'}{pose ? ` · pose RMS ${pose.rms.toFixed(2)} px` : ''}</span>
                   {pendingCamPx && <span className="text-warn text-[10px]">camera point set → click model</span>}
                 </div>
-                <div className="space-y-0.5 max-h-24 overflow-auto">
-                  {picks.map((p, i) => (
-                    <div key={i} className="flex items-center justify-between text-[10px] text-fg-3">
-                      <span>#{i + 1} cam({p.camPx[0].toFixed(0)},{p.camPx[1].toFixed(0)})</span>
-                      <button onClick={() => removePick(i)} className="text-danger hover:text-fg-1">remove</button>
-                    </div>
-                  ))}
+                {/* Edit a placed correspondence: select it (row / camera marker / 3D sphere), then drag or
+                    arrow-nudge its camera marker, and/or click the model to re-place its 3D point. */}
+                <div className="space-y-0.5 max-h-28 overflow-auto">
+                  {picks.map((p, i) => {
+                    const on = selectedPick === i;
+                    return (
+                      <div key={i} onClick={() => selectPick(i)}
+                        className={`flex items-center justify-between gap-1 text-[10px] px-1 py-0.5 rounded cursor-pointer ${on ? 'bg-accent/20 text-fg-1 border border-accent' : 'text-fg-3 hover:bg-surface-2 border border-transparent'}`}>
+                        <span className="num">#{i + 1} cam({p.camPx[0].toFixed(0)},{p.camPx[1].toFixed(0)})</span>
+                        <button onClick={(e) => { e.stopPropagation(); removePick(i); }} className="text-danger hover:text-fg-1 shrink-0">remove</button>
+                      </div>
+                    );
+                  })}
                 </div>
+                {selectedPick != null && (
+                  <div className="flex items-center justify-between text-[10px] text-accent bg-accent/10 border border-accent/40 rounded px-1.5 py-1">
+                    <span>Editing point {selectedPick + 1} — drag/arrows on camera · click model for 3D</span>
+                    <button onClick={() => setSelectedPick(null)} className="text-fg-3 hover:text-fg-1">done</button>
+                  </div>
+                )}
                 {picks.length >= 4 && <button onClick={() => resolvePose(picks)} className="text-[10px] text-accent hover:underline">re-solve pose</button>}
               </>
             )}
@@ -607,6 +553,7 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
           : <button onClick={() => idx < STEPS.length - 1 && canNext && setStep(STEPS[idx + 1].id)} disabled={!canNext} title={canNext ? '' : 'complete this step'} className="text-[11px] px-2 py-1 rounded bg-accent/20 border border-accent text-fg-1 disabled:opacity-30">Next ›</button>}
       </div>
     </div>
+    </>
   );
 };
 

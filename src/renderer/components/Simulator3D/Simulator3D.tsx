@@ -36,6 +36,8 @@ interface Props {
   onCalibPick?: (world: [number, number, number]) => void;
   projectorCalibs?: Array<{ surfaceId: string; calibration: ProjectorCalibration }>;
   activePicks?: Array<{ world: [number, number, number] }>;
+  selectedPick?: number | null;                       // highlight the correspondence being edited
+  onSelectPick?: (i: number) => void;                 // click a numbered marker → select it for editing
 }
 
 type Mode = 'translate' | 'rotate' | 'scale';
@@ -61,7 +63,7 @@ const Simulator3D: React.FC<Props> = ({
   fixtures, selectedFixtureId, scene3D = defaultScene3D(), modelUrls = {},
   selectedModelId = null,
   onSelectFixture, onSelectModel, onCommitFixture3D, onCommitModel, onModelNaturalSize, onRecordHistory,
-  calibPickMode = false, onCalibPick, projectorCalibs = [], activePicks = [],
+  calibPickMode = false, onCalibPick, projectorCalibs = [], activePicks = [], selectedPick = null, onSelectPick,
 }) => {
   const [mode, setMode] = useState<Mode>('translate');
   const selectedFixture = (!selectedModelId && fixtures.find(f => f.id === selectedFixtureId)) || null;
@@ -128,17 +130,24 @@ const Simulator3D: React.FC<Props> = ({
             or Auto-Align anchors). Rendered independently of a solved calibration so they appear as you
             place them, and depth-test off so a far wall pick isn't hidden by the model. Cyan + number
             match the camera-preview markers. */}
-        {activePicks.map((p, i) => (
-          <group key={`apick-${i}`} position={p.world}>
-            <mesh raycast={() => null} renderOrder={999}>
-              <sphereGeometry args={[0.04, 16, 16]} />
-              <meshBasicMaterial color="#00e5ff" depthTest={false} transparent opacity={0.95} />
-            </mesh>
-            <Html center style={{ pointerEvents: 'none' }}>
-              <div style={{ transform: 'translateY(-15px)', font: 'bold 11px sans-serif', color: '#00e5ff', textShadow: '0 0 3px #000,0 0 3px #000', whiteSpace: 'nowrap' }}>{i + 1}</div>
-            </Html>
-          </group>
-        ))}
+        {activePicks.map((p, i) => {
+          const on = selectedPick === i;
+          const col = on ? '#ffffff' : '#00e5ff';
+          return (
+            <group key={`apick-${i}`} position={p.world}>
+              {/* Clickable when an edit handler is wired (markerless), so selecting from the 3D side
+                  mirrors selecting from the camera/list. Otherwise non-raycasting (board flow). */}
+              <mesh renderOrder={999} raycast={onSelectPick ? undefined : () => null}
+                onClick={onSelectPick ? (e) => { e.stopPropagation(); onSelectPick(i); } : undefined}>
+                <sphereGeometry args={[on ? 0.055 : 0.04, 16, 16]} />
+                <meshBasicMaterial color={col} depthTest={false} transparent opacity={0.95} />
+              </mesh>
+              <Html center style={{ pointerEvents: 'none' }}>
+                <div style={{ transform: 'translateY(-15px)', font: 'bold 11px sans-serif', color: col, textShadow: '0 0 3px #000,0 0 3px #000', whiteSpace: 'nowrap' }}>{i + 1}</div>
+              </Html>
+            </group>
+          );
+        })}
         <FixtureLights fixtures={fixtures} scene3D={scene3D} />
         <InstancedLeds fixtures={fixtures} onSelectFixture={onSelectFixture} />
         <FixtureGizmo

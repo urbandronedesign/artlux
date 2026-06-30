@@ -78,10 +78,14 @@ export const IPC = {
   CALIB_CAMERA_OPEN: 'calib:camera-open',
   /** Renderer → main (invoke): grab one grayscale frame from the open OpenCV camera. */
   CALIB_CAMERA_GRAB: 'calib:camera-grab',
+  /** Renderer → main (invoke): grab one RGBA frame from the open OpenCV camera (colour preview). */
+  CALIB_CAMERA_GRAB_COLOR: 'calib:camera-grab-color',
   /** Renderer → main: release the open OpenCV camera. */
   CALIB_CAMERA_CLOSE: 'calib:camera-close',
-  /** Renderer → main (invoke): set a camera capture property (exposure/gain/gamma) on the open camera. */
+  /** Renderer → main (invoke): set a camera capture property (exposure/gain/gamma/wb/focus/…) on the open camera. */
   CALIB_CAMERA_SET_PROP: 'calib:camera-set-prop',
+  /** Renderer → main (invoke): read a camera capture property's current value (to seed the UI). */
+  CALIB_CAMERA_GET_PROP: 'calib:camera-get-prop',
   /** Renderer → main (invoke): dense camera→projector decode (markerless correspondences). */
   CALIB_DECODE_DENSE: 'calib:decode-dense',
   /** Renderer → main (invoke): RANSAC solvePnP (robust pose). */
@@ -711,10 +715,14 @@ export interface ArtluxApi {
   calibCameraOpen(index: number, width: number, height: number, fps: number, fourcc: string): Promise<boolean>;
   /** Grab one grayscale frame from the open OpenCV camera (null until a frame is ready / no camera open). */
   calibCameraGrab(): Promise<CameraFrame | null>;
+  /** Grab one RGBA frame (data = w*h*4 bytes) from the open OpenCV camera for the colour preview. */
+  calibCameraGrabColor(): Promise<CameraFrame | null>;
   /** Release the open OpenCV camera. */
   calibCameraClose(): void;
-  /** Set a camera capture property (exposure/gain/gamma) on the open OpenCV camera → applied? */
+  /** Set a camera capture property (exposure/gain/gamma/wb/focus/saturation/hue/sharpness/zoom) → applied? */
   calibCameraSetProp(prop: string, value: number): Promise<boolean>;
+  /** Read a camera capture property's current value (null if no camera / unknown prop / unsupported). */
+  calibCameraGetProp(prop: string): Promise<number | null>;
   /** Dense camera→projector decode for the markerless pipeline (stride subsamples the camera grid). */
   calibDecodeDense(captures: ArrayBuffer, captureCount: number, camW: number, camH: number, projW: number, projH: number, white: ArrayBuffer, black: ArrayBuffer, stride: number): Promise<DenseMap | null>;
   /** RANSAC solvePnP (robust pose); reprojErr is the inlier threshold in projector px. */

@@ -36,11 +36,19 @@ export function onPatternShown(a: Ack): void {
   r?.(a);
 }
 
-function showPattern(kind: 'plane' | 'white' | 'black' | 'off', index: number): Promise<Ack> {
+function showPattern(kind: 'plane' | 'white' | 'black' | 'off' | 'fill', index: number, rgb?: [number, number, number]): Promise<Ack> {
   return new Promise<Ack>((resolve) => {
     ackResolver = resolve;
-    active!.send({ t: 'calibPattern', kind, index });
+    active!.send({ t: 'calibPattern', kind, index, rgb });
   });
+}
+
+// Project a flat RGB field (0..255 per channel) and resolve once it's on screen. Used by the
+// camera-based gamma/colour measurement (gammaController) to drive a per-channel level ramp. Requires
+// an active session (beginScan) so the projector is in 'pattern' mode and acks route here.
+export function projectField(rgb: [number, number, number]): Promise<Ack> {
+  if (!active) return Promise.reject(new Error('measurement session not active'));
+  return showPattern('fill', -1, rgb);
 }
 
 export interface GrayCodeCapture {

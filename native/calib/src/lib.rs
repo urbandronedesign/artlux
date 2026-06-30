@@ -53,7 +53,7 @@ pub struct PnpResult {
 pub struct CameraFrame {
     pub w: u32,
     pub h: u32,
-    pub data: Buffer, // grayscale, w*h bytes
+    pub data: Buffer, // grayscale (w*h) from camera_grab_gray, or RGBA (w*h*4) from camera_grab_rgba
 }
 
 #[napi(object)]
@@ -698,14 +698,9 @@ pub fn camera_open(index: u32, width: u32, height: u32, fps: f64, fourcc: String
 // are driver-specific, so the UI exposes the raw value + an auto toggle.
 #[napi]
 pub fn camera_set_prop(prop: String, value: f64) -> napi::Result<bool> {
-    let prop_id = match prop.as_str() {
-        "exposure" => videoio::CAP_PROP_EXPOSURE,
-        "autoexposure" => videoio::CAP_PROP_AUTO_EXPOSURE,
-        "gain" => videoio::CAP_PROP_GAIN,
-        "gamma" => videoio::CAP_PROP_GAMMA,
-        "brightness" => videoio::CAP_PROP_BRIGHTNESS,
-        "contrast" => videoio::CAP_PROP_CONTRAST,
-        _ => return Ok(false),
+    let prop_id = match prop_id_for(&prop) {
+        Some(id) => id,
+        None => return Ok(false),
     };
     let res = CAP.with(|c| -> opencv::Result<bool> {
         let mut guard = c.borrow_mut();
@@ -715,6 +710,47 @@ pub fn camera_set_prop(prop: String, value: f64) -> napi::Result<bool> {
         }
     });
     res.map_err(|e| napi::Error::from_reason(format!("camera_set_prop: {e}")))
+}
+
+// Map a source-agnostic prop name to an OpenCV CAP_PROP_* id. Shared by set/get. Driver support is
+// device-specific (the PS3 Eye exposes only a few) — an unsupported id makes cap.set/get a no-op, so
+// the UI greys the control / snaps the slider back rather than erroring.
+fn prop_id_for(prop: &str) -> Option<i32> {
+    Some(match prop {
+        "exposure" => videoio::CAP_PROP_EXPOSURE,
+        "autoexposure" => videoio::CAP_PROP_AUTO_EXPOSURE,
+        "gain" => videoio::CAP_PROP_GAIN,
+        "gamma" => videoio::CAP_PROP_GAMMA,
+        "brightness" => videoio::CAP_PROP_BRIGHTNESS,
+        "contrast" => videoio::CAP_PROP_CONTRAST,
+        "auto_wb" => videoio::CAP_PROP_AUTO_WB,
+        "wb_temperature" => videoio::CAP_PROP_WB_TEMPERATURE,
+        "focus" => videoio::CAP_PROP_FOCUS,
+        "autofocus" => videoio::CAP_PROP_AUTOFOCUS,
+        "saturation" => videoio::CAP_PROP_SATURATION,
+        "hue" => videoio::CAP_PROP_HUE,
+        "sharpness" => videoio::CAP_PROP_SHARPNESS,
+        "zoom" => videoio::CAP_PROP_ZOOM,
+        _ => return None,
+    })
+}
+
+// Read a capture property's current value (to seed the UI sliders on open). Returns None if no camera
+// is open, the prop name is unknown, or the driver doesn't report it.
+#[napi]
+pub fn camera_get_prop(prop: String) -> napi::Result<Option<f64>> {
+    let prop_id = match prop_id_for(&prop) {
+        Some(id) => id,
+        None => return Ok(None),
+    };
+    let res = CAP.with(|c| -> opencv::Result<Option<f64>> {
+        let guard = c.borrow();
+        match guard.as_ref() {
+            Some(cap) => Ok(Some(cap.get(prop_id)?)),
+            None => Ok(None),
+        }
+    });
+    res.map_err(|e| napi::Error::from_reason(format!("camera_get_prop: {e}")))
 }
 
 // Grab one frame as a single-channel grayscale buffer at the negotiated resolution. Returns null until
@@ -755,6 +791,51 @@ pub fn camera_grab_gray() -> napi::Result<Option<CameraFrame>> {
         Ok(Some(CameraFrame { w: w as u32, h: h as u32, data: gray.into() }))
     });
     res.map_err(|e| napi::Error::from_reason(format!("camera_grab_gray: {e}")))
+}
+
+// Grab one frame as a packed RGBA buffer (w*h*4) at the negotiated resolution, for the colour preview
+// (point-picking needs real colour cues). OpenCV decodes to BGR; we swizzle BGR→RGBA by hand here. The
+// algorithmic paths (detect/decode/scan) keep using camera_grab_gray, so this is preview-only.
+#[napi]
+pub fn camera_grab_rgba() -> napi::Result<Option<CameraFrame>> {
+    let res = CAP.with(|c| -> opencv::Result<Option<CameraFrame>> {
+        let mut guard = c.borrow_mut();
+        let cap = match guard.as_mut() {
+            Some(c) => c,
+            None => return Ok(None),
+        };
+        let mut frame = Mat::default();
+        if !cap.read(&mut frame)? || frame.empty() {
+            return Ok(None);
+        }
+        let w = frame.cols();
+        let h = frame.rows();
+        let ch = frame.channels();
+        let frame = if frame.is_continuous() { frame } else { frame.try_clone()? };
+        let bytes = frame.data_bytes()?;
+        let px = (w * h) as usize;
+        let mut rgba = vec![0u8; px * 4];
+        match ch {
+            1 => {
+                for i in 0..px.min(bytes.len()) {
+                    let v = bytes[i];
+                    rgba[i * 4] = v; rgba[i * 4 + 1] = v; rgba[i * 4 + 2] = v; rgba[i * 4 + 3] = 255;
+                }
+            }
+            3 | 4 => {
+                let stride = ch as usize;
+                for i in 0..px {
+                    rgba[i * 4] = bytes[i * stride + 2];     // R ← B-G-R
+                    rgba[i * 4 + 1] = bytes[i * stride + 1]; // G
+                    rgba[i * 4 + 2] = bytes[i * stride];     // B
+                    rgba[i * 4 + 3] = 255;
+                }
+            }
+            _ => return Ok(None),
+        }
+        Ok(Some(CameraFrame { w: w as u32, h: h as u32, data: rgba.into() }))
+    });
+    res.map_err(|e| napi::Error::from_reason(format!("camera_grab_rgba: {e}")))
 }
 
 // Release the open camera (drops the VideoCapture → frees the device).
