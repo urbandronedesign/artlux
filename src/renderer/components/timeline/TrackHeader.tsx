@@ -1,6 +1,8 @@
-import React from 'react';
-import { Trash2, Eye, EyeOff, Lock, Unlock, GripVertical } from 'lucide-react';
-import { VideoLayer } from '../../types';
+import React, { useState } from 'react';
+import { Trash2, Eye, EyeOff, Lock, Unlock, GripVertical, Blend } from 'lucide-react';
+import { VideoLayer, LayerBlendMode } from '../../types';
+
+const BLEND_MODES: LayerBlendMode[] = ['normal', 'add', 'screen', 'multiply'];
 
 const TRACK_COLORS = ['#27b6c4', '#ff3b3b', '#f5a623', '#7ed321', '#bd10e0', '#4a90e2'];
 
@@ -25,6 +27,8 @@ const Toggle: React.FC<{ on: boolean; label: string; title: string; color?: stri
 );
 
 const TrackHeaderBase: React.FC<Props> = ({ layer, index, height, onPatch, onRemove, onStartReorder, onStartResize }) => {
+  const [fxOpen, setFxOpen] = useState(false);
+  const fxActive = (layer.opacity ?? 1) < 1 || (layer.blendMode ?? 'normal') !== 'normal';
   const cycleColor = () => {
     const i = layer.color ? TRACK_COLORS.indexOf(layer.color) : -1;
     const next = i + 1 >= TRACK_COLORS.length ? undefined : TRACK_COLORS[i + 1];
@@ -54,7 +58,34 @@ const TrackHeaderBase: React.FC<Props> = ({ layer, index, height, onPatch, onRem
           className={`w-4 h-4 rounded-sm flex items-center justify-center border ${layer.enabled === false ? 'text-fg-3 border-line-2 hover:text-fg-1' : 'text-fg-1 border-line-2'}`}>
           {layer.enabled === false ? <EyeOff size={10} /> : <Eye size={10} />}
         </button>
+        {/* Opacity + blend for the timeline (Program) composite — popover so it fits any track height. */}
+        <button title="Opacity & blend in the Timeline (Program) composite" onPointerDown={(e) => e.stopPropagation()} onClick={() => setFxOpen(v => !v)}
+          className={`w-4 h-4 rounded-sm flex items-center justify-center border ${fxActive || fxOpen ? 'text-black border-transparent bg-accent' : 'text-fg-3 border-line-2 hover:text-fg-1'}`}>
+          <Blend size={10} />
+        </button>
       </div>
+      {fxOpen && (
+        <>
+          <div className="fixed inset-0 z-40" onPointerDown={(e) => { e.stopPropagation(); setFxOpen(false); }} />
+          <div className="absolute left-1.5 top-full -mt-1 z-50 w-44 bg-surface-1 border border-line-1 rounded-md p-2 shadow-xl space-y-1.5"
+            onPointerDown={(e) => e.stopPropagation()}>
+            <div className="text-[9px] uppercase tracking-wider text-fg-3">Program composite</div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-fg-2 w-10">Opacity</span>
+              <input type="range" min={0} max={1} step={0.01} value={layer.opacity ?? 1}
+                onChange={(e) => onPatch(layer.id, { opacity: parseFloat(e.target.value) })} className="flex-1 min-w-0 h-1 accent-accent" />
+              <span className="text-[9px] num text-fg-3 w-7 text-right">{Math.round((layer.opacity ?? 1) * 100)}%</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-fg-2 w-10">Blend</span>
+              <select value={layer.blendMode ?? 'normal'} onChange={(e) => onPatch(layer.id, { blendMode: e.target.value as LayerBlendMode })}
+                className="flex-1 bg-surface-0 border border-line-1 rounded text-[10px] text-fg-1 px-1 py-0.5 outline-none focus:border-accent">
+                {BLEND_MODES.map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+          </div>
+        </>
+      )}
       {/* height resize grab strip */}
       <div onPointerDown={(e) => onStartResize(e, layer)} className="absolute left-0 right-0 bottom-0 h-1.5 cursor-ns-resize hover:bg-accent/40" />
     </div>

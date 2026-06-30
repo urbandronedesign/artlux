@@ -65,7 +65,13 @@ function mapAssetPaths(data: ProjectData, map: (path: string) => string): Projec
   const tl = out.timeline as any;
   if (tl && (Array.isArray(tl.clips) || Array.isArray(tl.trackingTakes))) {
     const next = { ...tl };
-    if (Array.isArray(tl.clips)) next.clips = tl.clips.map((c: any) => (isFilePath(c?.path) ? { ...c, path: map(c.path) } : c));
+    if (Array.isArray(tl.clips)) next.clips = tl.clips.map((c: any) => {
+      let n = isFilePath(c?.path) ? { ...c, path: map(c.path) } : c;
+      // Generalized content clips carry the collectable file on content.url (Image/Video sources).
+      const cu = c?.content?.url;
+      if ((c?.content?.type === 'VIDEO' || c?.content?.type === 'IMAGE') && isFilePath(cu)) n = { ...n, content: { ...n.content, url: map(cu) } };
+      return n;
+    });
     if (Array.isArray(tl.trackingTakes)) next.trackingTakes = tl.trackingTakes.map((r: any) => (isFilePath(r?.path) ? { ...r, path: map(r.path) } : r));
     out.timeline = next;
   }

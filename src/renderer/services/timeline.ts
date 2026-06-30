@@ -1,7 +1,8 @@
-import { Timeline, VideoClip, defaultTimeline } from '../types';
+import { Timeline, VideoClip, SurfaceContent, LayerBlendMode, isContentClip, defaultTimeline } from '../types';
 import { getBlobUrl, ensureBlobUrl } from './mediaCache';
 import * as hapDecode from './hapDecode';
 import * as hapGL from './hapGL';
+import * as contentSource from './contentSource';
 import * as fsm from './stateMachine';
 import type { TransportIntent, SmContext } from './stateMachine';
 import * as cueBus from './cueBus';
@@ -18,13 +19,37 @@ import * as cueBus from './cueBus';
 // A layer's playback state: a browser <video> for normal clips, plus a lazily-created canvas
 // fed by the native HAP decoder for HAP clips. `mode` says which is live this frame.
 type HapState = { path: string; canvas: HTMLCanvasElement | null; index: number };
-type LayerVid = { el: HTMLVideoElement; clipId: string | null; srcPath: string | null; mode: 'video' | 'hap' | null; hap: HapState | null };
+type LayerVid = {
+  el: HTMLVideoElement; clipId: string | null; srcPath: string | null;
+  mode: 'video' | 'hap' | 'content' | null; hap: HapState | null;
+  // 'content' mode: a generalized source clip (image/effect/camera/spout/ndi/dmx/tracking) is live
+  // on this layer; pixels come from contentSource keyed by `layer:<id>`.
+  content?: SurfaceContent; contentClipId?: string | null; contentLocalTime?: number;
+};
+
+const layerKey = (layerId: string): string => `layer:${layerId}`;
 
 const layerVideos = new Map<string, LayerVid>();
 // External mirror windows (Scene / projector) don't decode: the main window decodes once
 // and streams each layer's frame here as a transferable ImageBitmap (keeps concurrent
 // hardware-decode sessions to one — see App.tsx scene/projector frame pumps).
 const layerBitmaps = new Map<string, ImageBitmap>();
+
+// --- Program: the whole timeline composited (all contributing layers, z-ordered). Built once per
+// frame in the main window only when a consumer wants it (a surface routed to SourceType.PROGRAM).
+// Mirror windows receive the composited frame over the bridge like any other surface drawable.
+// Sentinel layerId: a 3D plane/mesh (SceneModel.layerId) set to this shows the whole timeline
+// program instead of a single layer — see useLayerTexture.
+export const PROGRAM_LAYER_ID = '__program__';
+const PROGRAM_W = 1280, PROGRAM_H = 720;
+let programCanvas: HTMLCanvasElement | null = null;
+let programCtx: CanvasRenderingContext2D | null = null;
+const programConsumers = new Set<string>(); // surfaces + 3D planes that want the program built
+let programActive = false; // derived from programConsumers — build the composite each frame
+let programReady = false;  // the canvas holds a freshly composited frame this run
+const blendOp = (m?: LayerBlendMode): GlobalCompositeOperation =>
+  m === 'add' ? 'lighter' : m === 'screen' ? 'screen' : m === 'multiply' ? 'multiply' : 'source-over';
+
 const subs = new Set<(playhead: number) => void>();
 // Transport intents emitted by the FSM control layer (main window only). App subscribes and
 // turns them into React transport state, so App stays the single writer of `playing`.
@@ -76,14 +101,32 @@ function activeClip(layerId: string, t: number): VideoClip | null {
   return found;
 }
 
+// Stop holding any generalized-content source this layer had live (clip ended / changed away).
+function releaseContent(lv: LayerVid, layerId: string): void {
+  if (lv.mode === 'content' || lv.content) contentSource.release(layerKey(layerId));
+  lv.content = undefined; lv.contentClipId = null;
+}
+
 function syncLayer(layerId: string, t: number): void {
   const lv = getLayerVideo(layerId);
   const clip = activeClip(layerId, t);
   if (!clip) {
     if (!lv.el.paused) lv.el.pause();
+    releaseContent(lv, layerId);
     lv.clipId = null; lv.mode = null;
     return;
   }
+
+  // Generalized content clip (image/effect/camera/spout/ndi/dmx/tracking).
+  if (isContentClip(clip)) {
+    // Mirror windows (Scene/projector) consume the streamed bitmap rather than opening their own
+    // live receivers — keep this main-window-only, like the non-HAP <video> path below.
+    if (external) { if (!lv.el.paused) lv.el.pause(); releaseContent(lv, layerId); lv.mode = null; lv.clipId = clip.id; return; }
+    syncContentLayer(layerId, lv, clip, t);
+    return;
+  }
+  // Switching from a content clip back to a video/HAP clip: drop the content source first.
+  if (lv.mode === 'content' || lv.content) releaseContent(lv, layerId);
 
   // HAP clips can't go through the <video>; pull the playhead's frame from the native decoder.
   if (hapDecode.isHapCandidate(clip.path)) {
@@ -136,6 +179,24 @@ function syncHapLayer(layerId: string, lv: LayerVid, clip: VideoClip, t: number)
   }
 }
 
+// A generalized content clip: route its SurfaceContent onto the layer via the shared contentSource
+// registry (same producers as surfaces). Acquire on first activation / content edit; the per-frame
+// drawable is pulled in getLayerDrawable. Effects use clip-local time; live sources ignore it.
+function syncContentLayer(layerId: string, lv: LayerVid, clip: VideoClip, t: number): void {
+  if (!lv.el.paused) lv.el.pause(); // the <video> isn't used for this clip
+  const content = clip.content!;
+  const key = layerKey(layerId);
+  // (Re)acquire when the active clip or its content changes; idempotent so a re-acquire is cheap.
+  if (lv.contentClipId !== clip.id || lv.content !== content) {
+    contentSource.acquire(key, content);
+    lv.contentClipId = clip.id;
+    lv.content = content;
+  }
+  lv.clipId = clip.id;
+  lv.mode = 'content';
+  lv.contentLocalTime = t - clip.start + clip.inPoint;
+}
+
 function frame(now: number): void {
   raf = requestAnimationFrame(frame); // reschedule first so a throw below can never kill the loop
   try {
@@ -167,11 +228,51 @@ function frame(now: number): void {
       if (l.kind === 'tracking') continue; // tracking lanes hold blob takes, not video — see trackingPlayback
       try { syncLayer(l.id, playhead); } catch (e) { console.error('[timeline] syncLayer error', e); }
     }
+    // Composite the whole-timeline program once per frame when a surface routes to it (main window
+    // only; mirror windows receive the result as a streamed surface drawable).
+    if (!external && programActive) { try { buildProgram(); } catch (e) { console.error('[timeline] program error', e); } }
+    else programReady = false;
     prevPlayhead = playhead;
     subs.forEach(cb => cb(playhead));
   } catch (e) {
     console.error('[timeline] frame error', e);
   }
+}
+
+// The local (non-mirror) drawable for a layer: HAP canvas, generalized content, or the <video>.
+function layerDrawable(layerId: string): CanvasImageSource | null {
+  const lv = layerVideos.get(layerId);
+  if (!lv || !lv.clipId) return null;
+  if (lv.mode === 'content') return lv.content ? contentSource.getDrawable(layerKey(layerId), lv.content, lv.contentLocalTime ?? 0) : null;
+  if (lv.mode === 'hap') return lv.hap && lv.hap.index >= 0 ? lv.hap.canvas : null;
+  return lv.mode === 'video' && lv.el.readyState >= 2 ? lv.el : null;
+}
+
+// Composite all contributing layers into the program canvas (bottom of the track list = back, top =
+// front). enabled/muted/solo gate contribution; per-layer opacity + blendMode drive the mix.
+function buildProgram(): void {
+  if (!programCanvas) {
+    programCanvas = document.createElement('canvas');
+    programCanvas.width = PROGRAM_W; programCanvas.height = PROGRAM_H;
+    programCtx = programCanvas.getContext('2d');
+  }
+  const ctx = programCtx;
+  if (!ctx) return;
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  ctx.clearRect(0, 0, PROGRAM_W, PROGRAM_H);
+  const anySolo = data.layers.some(l => l.solo && l.kind !== 'tracking');
+  for (let i = data.layers.length - 1; i >= 0; i--) { // last in the list is the back-most layer
+    const l = data.layers[i];
+    if (l.kind === 'tracking' || l.enabled === false || l.muted) continue;
+    if (anySolo && !l.solo) continue;
+    const d = layerDrawable(l.id);
+    if (!d) continue;
+    ctx.globalAlpha = Math.max(0, Math.min(1, l.opacity ?? 1));
+    ctx.globalCompositeOperation = blendOp(l.blendMode);
+    try { ctx.drawImage(d, 0, 0, PROGRAM_W, PROGRAM_H); } catch { /* drawable not ready this frame */ }
+  }
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  programReady = true;
 }
 
 export const timeline = {
@@ -181,12 +282,12 @@ export const timeline = {
     // Pre-warm: open HAP clips natively; preload blob URLs for normal clips. Tracking-take
     // clips (.lblob) aren't video — they're handled by trackingPlayback, so skip them here.
     for (const c of t.clips) {
-      if (c.kind === 'tracking') continue;
+      if (c.kind === 'tracking' || isContentClip(c)) continue; // takes → trackingPlayback; content → lazy on acquire
       if (hapDecode.isHapCandidate(c.path)) void hapDecode.ensureOpen(c.path);
       else ensureBlob(c.path);
     }
     for (const id of [...layerVideos.keys()]) {
-      if (!t.layers.find(l => l.id === id)) { const lv = layerVideos.get(id)!; lv.el.pause(); lv.el.removeAttribute('src'); layerVideos.delete(id); hapGL.release(id); }
+      if (!t.layers.find(l => l.id === id)) { const lv = layerVideos.get(id)!; lv.el.pause(); lv.el.removeAttribute('src'); layerVideos.delete(id); hapGL.release(id); contentSource.release(layerKey(id)); }
     }
   },
   setPlaying(p: boolean): void {
@@ -231,7 +332,7 @@ export const timeline = {
   },
   // The live drawable for a layer: a streamed ImageBitmap in mirror windows, else the HAP
   // canvas (HAP clips) or the decoding <video>. Null when nothing is under the playhead / ready.
-  getLayerDrawable(layerId?: string): HTMLVideoElement | HTMLCanvasElement | ImageBitmap | null {
+  getLayerDrawable(layerId?: string): CanvasImageSource | null {
     if (!layerId) return null;
     if (external) {
       // Locally-decoded HAP wins (the projector decodes its own); else the streamed frame.
@@ -239,11 +340,15 @@ export const timeline = {
       if (hapLocal && lv && lv.mode === 'hap' && lv.hap && lv.hap.index >= 0) return lv.hap.canvas;
       return layerBitmaps.get(layerId) ?? null;
     }
-    const lv = layerVideos.get(layerId);
-    if (!lv || !lv.clipId) return null;
-    if (lv.mode === 'hap') return lv.hap && lv.hap.index >= 0 ? lv.hap.canvas : null;
-    return lv.mode === 'video' && lv.el.readyState >= 2 ? lv.el : null;
+    return layerDrawable(layerId);
   },
+  // Refcount consumers that want the whole-timeline program composite built each frame (a surface
+  // routed to SourceType.PROGRAM, or a 3D plane bound to PROGRAM_LAYER_ID). Build only when wanted.
+  retainProgram(key: string): void { programConsumers.add(key); programActive = true; },
+  releaseProgram(key: string): void { programConsumers.delete(key); if (programConsumers.size === 0) { programActive = false; programReady = false; } },
+  // The composited program drawable (main window only; mirror windows stream it as a surface frame).
+  getProgramDrawable(): CanvasImageSource | null { return !external && programReady && programCanvas ? programCanvas : null; },
+  programSize(): { w: number; h: number } { return { w: PROGRAM_W, h: PROGRAM_H }; },
   subscribe(cb: (playhead: number) => void): () => void { subs.add(cb); return () => { subs.delete(cb); }; },
   start(): void { if (!raf) { originMs = performance.now() - playhead * 1000; raf = requestAnimationFrame(frame); } },
 };

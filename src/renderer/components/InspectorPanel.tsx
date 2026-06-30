@@ -3,11 +3,10 @@ import { Fixture, Surface, SurfaceContent, SourceType, AppSettings, PixelSource,
 import { Monitor, Image as ImageIcon, Video, Map, Sparkles, Grid3x3, Network, Box, Cast, Radio, RefreshCw, Layers, Slash, Film, Crosshair } from 'lucide-react';
 import { CollapsibleSection } from './CollapsibleSection';
 import { Slider } from './ui';
+import { ContentEditor } from './ContentEditor';
 import { EFFECT_NAMES } from '../gpu/effects';
 import { PALETTE_NAMES } from '../gpu/palettes';
 import { effectivePosObj, effectiveRotObj, effectiveLayout } from '../services/led3dDefaults';
-import { listSpoutSenders } from '../services/spoutReceiver';
-import { listNdiSources, ndiAvailable } from '../services/ndiReceiver';
 
 interface InspectorPanelProps {
     surfaces: Surface[];
@@ -48,13 +47,9 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
     layers,
 }) => {
     const [segSel, setSegSel] = useState(0);
-    const [spoutSenders, setSpoutSenders] = useState<string[]>([]);
-    const refreshSpout = async () => setSpoutSenders(await listSpoutSenders());
-    const [ndiSources, setNdiSources] = useState<string[]>([]);
-    const [ndiOk, setNdiOk] = useState(true);
-    const refreshNdi = async () => { setNdiOk(await ndiAvailable()); setNdiSources(await listNdiSources()); };
 
-    // Update the selected surface's content (merge).
+    // Update the selected surface's content (merge / type switch). The picker + per-type config UI
+    // live in ContentEditor (shared with the timeline clip inspector).
     const setContent = (patch: Partial<SurfaceContent>) => {
         if (!selectedSurface) return;
         onUpdateSurface(selectedSurface.id, { content: { ...selectedSurface.content, ...patch } });
@@ -62,20 +57,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
     const setContentType = (type: SurfaceContent['type']) => {
         if (!selectedSurface) return;
         onUpdateSurface(selectedSurface.id, { content: { type } });
-        if (type === SourceType.SPOUT) refreshSpout();
-        if (type === SourceType.NDI) refreshNdi();
     };
-    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: SourceType) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        // Store the real file path (resolved to a blob url at render time) so the surface
-        // media persists across reloads and can be collected into the project folder.
-        const path = window.artlux?.getPathForFile?.(file);
-        setContent({ type, url: path || URL.createObjectURL(file) });
-    };
-
-    const surfBtnCls = (active: boolean) =>
-        `flex flex-col items-center justify-center p-2 rounded border transition-all ${active ? 'bg-sel-surface/10 border-sel-surface text-sel-surface' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3'}`;
 
     // Ledmap import moved to the Fixture editor (FixtureEditor.tsx → "Ledmap" card).
 
@@ -88,157 +70,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                 return (
                 <>
                 <PanelSection title="Content" icon={<Layers size={12}/>}>
-                    <div className="grid grid-cols-3 gap-1">
-                        <button onClick={() => setContentType(SourceType.NONE)} className={surfBtnCls(c.type === SourceType.NONE)}>
-                            <Slash size={16} className="mb-1"/><span className="text-[9px]">None</span>
-                        </button>
-                        <button onClick={() => setContentType(SourceType.CAMERA)} className={surfBtnCls(c.type === SourceType.CAMERA)}>
-                            <Video size={16} className="mb-1"/><span className="text-[9px]">Camera</span>
-                        </button>
-                        <label className={`relative cursor-pointer ${surfBtnCls(c.type === SourceType.VIDEO)}`}>
-                            <input type="file" accept="video/*" className="hidden" onChange={(e) => handleFileUpload(e, SourceType.VIDEO)} />
-                            <Monitor size={16} className="mb-1"/><span className="text-[9px]">Video</span>
-                        </label>
-                        <label className={`relative cursor-pointer ${surfBtnCls(c.type === SourceType.IMAGE)}`}>
-                            <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, SourceType.IMAGE)} />
-                            <ImageIcon size={16} className="mb-1"/><span className="text-[9px]">Image</span>
-                        </label>
-                        <button onClick={() => setContentType(SourceType.DMX_IN)} className={surfBtnCls(c.type === SourceType.DMX_IN)} title="Art-Net / sACN in">
-                            <Network size={16} className="mb-1"/><span className="text-[9px]">DMX In</span>
-                        </button>
-                        <button onClick={() => setContentType(SourceType.SPOUT)} className={surfBtnCls(c.type === SourceType.SPOUT)}>
-                            <Cast size={16} className="mb-1"/><span className="text-[9px]">Spout</span>
-                        </button>
-                        <button onClick={() => setContentType(SourceType.NDI)} className={surfBtnCls(c.type === SourceType.NDI)} title="NDI network video">
-                            <Radio size={16} className="mb-1"/><span className="text-[9px]">NDI</span>
-                        </button>
-                        <button onClick={() => setContentType('EFFECT')} className={surfBtnCls(c.type === 'EFFECT')}>
-                            <Sparkles size={16} className="mb-1"/><span className="text-[9px]">Effect</span>
-                        </button>
-                        <button onClick={() => setContentType(SourceType.LAYER)} className={surfBtnCls(c.type === SourceType.LAYER)} title="A timeline video layer">
-                            <Film size={16} className="mb-1"/><span className="text-[9px]">Layer</span>
-                        </button>
-                        <button onClick={() => setContentType(SourceType.TRACKING)} className={surfBtnCls(c.type === SourceType.TRACKING)} title="LiDAR blob tracking (projection-mappable)">
-                            <Crosshair size={16} className="mb-1"/><span className="text-[9px]">Tracking</span>
-                        </button>
-                    </div>
-
-                    {c.type === SourceType.LAYER && (
-                        <div className="flex items-center gap-1 pt-1">
-                            <label className="text-fg-2 w-12 text-[10px]">Track</label>
-                            <select value={c.layerId ?? ''} onChange={(e) => setContent({ layerId: e.target.value })}
-                                className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-[10px] focus:border-accent focus:outline-none">
-                                <option value="">— select a track —</option>
-                                {layers.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-                            </select>
-                        </div>
-                    )}
-
-                    {c.type === SourceType.SPOUT && (
-                        <div className="flex items-center gap-1 pt-1">
-                            <select
-                                value={c.spoutName ?? ''}
-                                onChange={(e) => setContent({ spoutName: e.target.value })}
-                                className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-[10px] focus:border-accent focus:outline-none"
-                            >
-                                <option value="">Active sender</option>
-                                {spoutSenders.map((s) => <option key={s} value={s}>{s}</option>)}
-                            </select>
-                            <button onClick={refreshSpout} title="Refresh Spout senders" className="p-1.5 rounded border border-line-1 text-fg-2 hover:bg-surface-3"><RefreshCw size={12} /></button>
-                        </div>
-                    )}
-
-                    {c.type === SourceType.NDI && (
-                        <div className="pt-1 space-y-1">
-                            <div className="flex items-center gap-1">
-                                <select
-                                    value={c.ndiName ?? ''}
-                                    onChange={(e) => setContent({ ndiName: e.target.value })}
-                                    className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-[10px] focus:border-accent focus:outline-none"
-                                >
-                                    <option value="">First source</option>
-                                    {ndiSources.map((s) => <option key={s} value={s}>{s}</option>)}
-                                </select>
-                                <button onClick={refreshNdi} title="Refresh NDI sources" className="p-1.5 rounded border border-line-1 text-fg-2 hover:bg-surface-3"><RefreshCw size={12} /></button>
-                            </div>
-                            {!ndiOk && (
-                                <div className="text-[9px] text-warn">
-                                    NDI runtime not found.{' '}
-                                    <button onClick={() => window.artlux?.openExternal?.('https://ndi.video/tools/')} className="underline hover:text-fg-1">Install NDI Tools ↗</button>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {c.type === 'EFFECT' && (
-                        <div className="space-y-3 pt-1">
-                            <div className="flex items-center justify-between text-xs gap-2">
-                                <label className="text-fg-2 w-16 truncate">Effect</label>
-                                <select value={c.effectId ?? 0} onChange={(e) => setContent({ effectId: parseInt(e.target.value) })}
-                                    className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent focus:outline-none">
-                                    {EFFECT_NAMES.map((name, i) => <option key={i} value={i}>{name}</option>)}
-                                </select>
-                            </div>
-                            <div className="flex items-center justify-between text-xs gap-2">
-                                <label className="text-fg-2 w-16 truncate">Palette</label>
-                                <select value={c.paletteId ?? 0} onChange={(e) => setContent({ paletteId: parseInt(e.target.value) })}
-                                    className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent focus:outline-none">
-                                    {PALETTE_NAMES.map((name, i) => <option key={i} value={i}>{name}</option>)}
-                                </select>
-                            </div>
-                            <Slider label="Speed" value={c.speed ?? 0.5} min={0} max={1} step={0.01}
-                                format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => setContent({ speed: v })} />
-                            <Slider label="Intensity" value={c.intensity ?? 0.5} min={0} max={1} step={0.01}
-                                format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => setContent({ intensity: v })} />
-                        </div>
-                    )}
-
-                    {c.type === SourceType.TRACKING && (
-                        <div className="space-y-2 pt-1">
-                            <div className="flex items-center gap-1">
-                                <label className="text-fg-2 w-12 text-[10px]">Source</label>
-                                <select value={c.trackingSource ?? 'SOL'} onChange={(e) => setContent({ trackingSource: e.target.value })}
-                                    className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-[10px] focus:border-accent focus:outline-none">
-                                    <option value="SOL">SOL — floor</option>
-                                    <option value="MUR">MUR — wall</option>
-                                    <option value="SOL_MUR">SOL_MUR — combined</option>
-                                </select>
-                            </div>
-                            <div className="flex items-center gap-1">
-                                <label className="text-fg-2 w-12 text-[10px]" title="A timeline video layer drawn under the blobs (projects as one surface)">Background</label>
-                                <select value={c.bgLayerId ?? ''} onChange={(e) => setContent({ bgLayerId: e.target.value || undefined })}
-                                    className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-[10px] focus:border-accent focus:outline-none">
-                                    <option value="">— none —</option>
-                                    {layers.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-                                </select>
-                            </div>
-                            <Slider label="Blob size" value={c.blobSize ?? 0.04} min={0.01} max={0.15} step={0.005}
-                                format={(v) => `${Math.round(v * 100)}%`} onInput={(v) => setContent({ blobSize: v })} onChange={(v) => setContent({ blobSize: v })} />
-                            <Slider label="Trail (s)" value={c.trailSeconds ?? 1.2} min={0} max={3} step={0.1}
-                                format={(v) => `${v.toFixed(1)}s`} onInput={(v) => setContent({ trailSeconds: v })} onChange={(v) => setContent({ trailSeconds: v })} />
-                            <div className="flex items-center gap-1">
-                                <label className="text-fg-2 w-12 text-[10px]">Rotate</label>
-                                <select value={c.rotate ?? 0} onChange={(e) => setContent({ rotate: parseInt(e.target.value) })}
-                                    className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-[10px] focus:border-accent focus:outline-none">
-                                    {[0, 90, 180, 270].map((d) => <option key={d} value={d}>{d}°</option>)}
-                                </select>
-                            </div>
-                            <div className="grid grid-cols-2 gap-1.5 text-[10px] text-fg-2">
-                                <label className="flex items-center gap-1.5"><input type="checkbox" checked={c.flipH ?? false} onChange={(e) => setContent({ flipH: e.target.checked })} />Flip H</label>
-                                <label className="flex items-center gap-1.5"><input type="checkbox" checked={c.flipV ?? false} onChange={(e) => setContent({ flipV: e.target.checked })} />Flip V</label>
-                                <label className="flex items-center gap-1.5"><input type="checkbox" checked={c.showIds ?? false} onChange={(e) => setContent({ showIds: e.target.checked })} />Show IDs</label>
-                                <label className="flex items-center gap-1.5"><input type="checkbox" checked={c.calibration ?? false} onChange={(e) => setContent({ calibration: e.target.checked })} />Calibrate</label>
-                                <label className="flex items-center gap-1.5"><input type="checkbox" checked={c.trail !== false} onChange={(e) => setContent({ trail: e.target.checked })} />Trail</label>
-                            </div>
-                        </div>
-                    )}
-
-                    {c.type !== SourceType.NONE && (
-                        <div className="pt-2">
-                            <Slider label="Opacity" value={c.opacity ?? 1} min={0} max={1} step={0.01}
-                                format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => setContent({ opacity: v })} />
-                        </div>
-                    )}
+                    <ContentEditor content={c} onChange={setContent} onTypeChange={setContentType} layers={layers} />
                 </PanelSection>
 
                 <PanelSection title="Transform" icon={<Box size={12}/>}>

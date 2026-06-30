@@ -1,237 +1,48 @@
 import { Surface, SourceType } from '../types';
-import { getInputCanvas, startInput, stopInput } from './dmxInput';
-import { getSpoutCanvas, startSpout, stopSpout } from './spoutReceiver';
-import { getNdiCanvas, startNdi, stopNdi } from './ndiReceiver';
-import { SurfaceEffect } from '../gpu/surfaceFx';
 import { timeline } from './timeline';
-import { resolveMediaUrl, mimeForPath } from './mediaCache';
-import * as hap from './hapPlayer';
-import * as trackingDrawable from './trackingDrawable';
+import * as contentSource from './contentSource';
 
-// Owns the media lifecycle for every Surface: one <video>/<img> per VIDEO/IMAGE
-// surface, plus a single live camera / Spout / DMX-in (one live at a time, v1).
-// Stage calls syncSurfaces() when the surfaces change and getDrawable() each
-// frame to composite. Decouples media plumbing from React refs.
+// Owns the media lifecycle for every Surface. The per-type drawable production (one <video>/<img>
+// per VIDEO/IMAGE surface, a single live camera/Spout/NDI/DMX-in, effects, tracking) lives in
+// services/contentSource, which is shared with the timeline so a layer's content clips reuse the
+// exact same producers (and the live receivers are refcounted across surfaces + clips). This module
+// just maps surfaces ⇄ contentSource consumer keys and resolves the LAYER source to the timeline.
 //
-// VIDEO surfaces whose file is a HAP-coded .mov are decoded natively (no hardware
-// video-decode session) and rendered from a canvas instead of an <video> — see hapPlayer.
-// We probe each .mov asynchronously and fall back to a normal <video> if it isn't HAP.
+// Stage calls syncSurfaces() when the surfaces change and getDrawable() each frame to composite.
 
 type Drawable = CanvasImageSource;
-type Entry =
-  | { type: 'VIDEO'; el: HTMLVideoElement; url: string }
-  | { type: 'IMAGE'; el: HTMLImageElement; url: string }
-  | { type: 'HAP'; path: string };
 
-// HAP is carried in QuickTime/MOV; probe those (the parser is ISO-BMFF, not RIFF/.avi).
-const isHapCandidate = (url: string): boolean => /\.mov$/i.test(url);
+// Surface ids we currently hold contentSource instances for (so retyped/removed surfaces release).
+const acquired = new Set<string>();
 
-const media = new Map<string, Entry>(); // keyed by surface id
-const effects = new Map<string, SurfaceEffect>(); // EFFECT surfaces, keyed by id
-let cameraEl: HTMLVideoElement | null = null;
-let cameraStream: MediaStream | null = null;
-let cameraOwner: string | null = null;
-let dmxActive = false;
-let spoutActive = false;
-let spoutName = '';
-let ndiActive = false;
-let ndiName = '';
-let playing = true;
-
-// `url` is a live blob:/http url or an absolute file path (resolved to a blob url via IPC).
-// The element is created synchronously; its src is set once the (possibly async) url resolves.
-function makeVideo(url: string): HTMLVideoElement {
-  const v = document.createElement('video');
-  v.loop = true; v.muted = true; v.playsInline = true; v.crossOrigin = 'anonymous';
-  void resolveMediaUrl(url, 'video/mp4').then((src) => {
-    v.src = src; v.load();
-    if (playing) v.play().catch(() => {});
-  });
-  return v;
-}
-function makeImage(url: string): HTMLImageElement {
-  const i = document.createElement('img');
-  i.crossOrigin = 'anonymous';
-  void resolveMediaUrl(url, mimeForPath(url)).then((src) => { i.src = src; });
-  return i;
-}
-
-async function startCamera(ownerId: string): Promise<void> {
-  cameraOwner = ownerId;
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-    cameraStream = stream;
-    const v = document.createElement('video');
-    v.srcObject = stream; v.muted = true; v.playsInline = true;
-    await v.play();
-    cameraEl = v;
-  } catch (e) {
-    const err = e as DOMException;
-    console.error(`[surfaceMedia] camera failed: ${err?.name ?? 'Error'} — ${err?.message ?? String(e)}`);
-  }
-}
-function stopCamera(): void {
-  cameraStream?.getTracks().forEach((t) => t.stop());
-  cameraStream = null;
-  cameraEl?.pause();
-  cameraEl = null;
-  cameraOwner = null;
-}
-
-// Reconcile media elements + live sources with the current surfaces.
+// Reconcile contentSource consumers with the current surfaces.
 export function syncSurfaces(surfaces: Surface[], isPlaying: boolean): void {
-  playing = isPlaying;
-  const seen = new Set<string>();
-  const seenEffects = new Set<string>();
-  let wantCamera: string | null = null;
-  let wantDmx = false;
-  let wantSpout = false;
-  let wantSpoutName = '';
-  let wantNdi = false;
-  let wantNdiName = '';
-
+  const next = new Set<string>();
+  let wantProgram = false;
   for (const s of surfaces) {
-    const c = s.content;
-    if (c.type === SourceType.VIDEO && c.url) {
-      seen.add(s.id);
-      const e = media.get(s.id);
-      const curUrl = e ? (e.type === 'HAP' ? e.path : e.type === 'VIDEO' ? e.url : null) : null;
-      if (curUrl !== c.url) {
-        if (e?.type === 'VIDEO') e.el.pause();
-        if (e?.type === 'HAP') hap.close(e.path);
-        if (isHapCandidate(c.url)) {
-          // Optimistically treat as HAP; the probe downgrades to a normal <video> if it isn't.
-          const url = c.url;
-          media.set(s.id, { type: 'HAP', path: url });
-          void hap.open(url).then((ok) => {
-            if (ok) return;
-            const cur = media.get(s.id);
-            if (cur && cur.type === 'HAP' && cur.path === url) {
-              media.set(s.id, { type: 'VIDEO', el: makeVideo(url), url });
-            }
-          });
-        } else {
-          media.set(s.id, { type: 'VIDEO', el: makeVideo(c.url), url: c.url });
-        }
-      }
-    } else if (c.type === SourceType.IMAGE && c.url) {
-      seen.add(s.id);
-      const e = media.get(s.id);
-      if (!e || e.type !== 'IMAGE' || e.url !== c.url) {
-        media.set(s.id, { type: 'IMAGE', el: makeImage(c.url), url: c.url });
-      }
-    } else if (c.type === SourceType.CAMERA) {
-      if (!wantCamera) wantCamera = s.id; // first camera surface owns the single live camera
-    } else if (c.type === SourceType.DMX_IN) {
-      wantDmx = true;
-    } else if (c.type === SourceType.SPOUT) {
-      wantSpout = true; wantSpoutName = c.spoutName ?? '';
-    } else if (c.type === SourceType.NDI) {
-      wantNdi = true; wantNdiName = c.ndiName ?? '';
-    } else if (c.type === 'EFFECT') {
-      seenEffects.add(s.id);
-    }
+    const t = s.content.type;
+    if (t === SourceType.PROGRAM) wantProgram = true;
+    if (t === SourceType.NONE || t === SourceType.LAYER || t === SourceType.PROGRAM) continue; // handled by the timeline
+    contentSource.acquire(s.id, s.content);
+    next.add(s.id);
   }
-
-  // Drop media for removed / retyped surfaces.
-  for (const [id, e] of media) {
-    if (!seen.has(id)) {
-      if (e.type === 'VIDEO') e.el.pause();
-      if (e.type === 'HAP') hap.close(e.path);
-      media.delete(id);
-    }
-  }
-  for (const id of effects.keys()) if (!seenEffects.has(id)) effects.delete(id);
-
-  // Single live camera.
-  if (wantCamera !== cameraOwner) {
-    stopCamera();
-    if (wantCamera) void startCamera(wantCamera);
-  }
-
-  // Apply play/pause to all video elements + the camera + HAP sources (global toggle).
-  for (const e of media.values()) {
-    if (e.type === 'VIDEO') { if (playing) e.el.play().catch(() => {}); else e.el.pause(); }
-  }
-  if (cameraEl) { if (playing) cameraEl.play().catch(() => {}); else cameraEl.pause(); }
-  hap.setPlaying(playing);
-
-  // DMX-in (single live).
-  if (wantDmx !== dmxActive) {
-    dmxActive = wantDmx;
-    if (wantDmx) {
-      window.artlux?.configureInput?.({ enabled: true, protocol: 'both', universes: [0, 1, 2, 3, 4, 5, 6, 7] });
-      startInput();
-    } else {
-      window.artlux?.configureInput?.({ enabled: false, protocol: 'both', universes: [] });
-      stopInput();
-    }
-  }
-
-  // Spout (single live).
-  if (wantSpout !== spoutActive || wantSpoutName !== spoutName) {
-    spoutActive = wantSpout; spoutName = wantSpoutName;
-    if (wantSpout) startSpout(wantSpoutName); else stopSpout();
-  }
-
-  // NDI (single live).
-  if (wantNdi !== ndiActive || wantNdiName !== ndiName) {
-    ndiActive = wantNdi; ndiName = wantNdiName;
-    if (wantNdi) startNdi(wantNdiName); else stopNdi();
-  }
+  for (const id of acquired) if (!next.has(id)) contentSource.release(id);
+  acquired.clear();
+  for (const id of next) acquired.add(id);
+  contentSource.setPlaying(isPlaying);
+  if (wantProgram) timeline.retainProgram('surfaces'); else timeline.releaseProgram('surfaces'); // composite only when consumed
 }
 
 // Natural aspect ratio (w/h) of a surface's current content once it's loaded, or null
 // if unknown / not applicable. Used by the Stage to fit the surface rect to its media.
 export function getContentAspect(s: Surface): number | null {
-  switch (s.content.type) {
-    case SourceType.IMAGE: {
-      const e = media.get(s.id);
-      return e && e.type === 'IMAGE' && e.el.naturalWidth > 0 ? e.el.naturalWidth / e.el.naturalHeight : null;
-    }
-    case SourceType.VIDEO: {
-      const e = media.get(s.id);
-      if (e?.type === 'HAP') return hap.getHapAspect(e.path);
-      return e && e.type === 'VIDEO' && e.el.videoWidth > 0 ? e.el.videoWidth / e.el.videoHeight : null;
-    }
-    case SourceType.CAMERA:
-      return cameraOwner === s.id && cameraEl && cameraEl.videoWidth > 0 ? cameraEl.videoWidth / cameraEl.videoHeight : null;
-    default:
-      return null; // EFFECT / SPOUT / DMX_IN / NONE — no intrinsic aspect to fit
-  }
+  if (s.content.type === SourceType.PROGRAM) { const { w, h } = timeline.programSize(); return w / h; }
+  return contentSource.getAspect(s.id, s.content);
 }
 
 // Drawable for a surface this frame, or null if not ready / no content.
 export function getDrawable(s: Surface): Drawable | null {
-  switch (s.content.type) {
-    case SourceType.VIDEO: {
-      const e = media.get(s.id);
-      if (!e) return null;
-      if (e.type === 'HAP') return hap.getHapCanvas(e.path);
-      return e.type === 'VIDEO' && e.el.readyState >= 2 ? e.el : null;
-    }
-    case SourceType.IMAGE: {
-      const e = media.get(s.id);
-      return e && e.type === 'IMAGE' && e.el.complete && e.el.naturalWidth > 0 ? e.el : null;
-    }
-    case SourceType.CAMERA:
-      return cameraOwner === s.id && cameraEl && cameraEl.readyState >= 2 ? cameraEl : null;
-    case SourceType.SPOUT:
-      return getSpoutCanvas();
-    case SourceType.NDI:
-      return getNdiCanvas();
-    case SourceType.DMX_IN:
-      return getInputCanvas();
-    case SourceType.LAYER:
-      return timeline.getLayerDrawable(s.content.layerId);
-    case SourceType.TRACKING:
-      return trackingDrawable.get(s);
-    case 'EFFECT': {
-      let e = effects.get(s.id);
-      if (!e) { e = new SurfaceEffect(); effects.set(s.id, e); }
-      return e.render(s.content, performance.now() / 1000);
-    }
-    default:
-      return null; // NONE
-  }
+  if (s.content.type === SourceType.LAYER) return timeline.getLayerDrawable(s.content.layerId);
+  if (s.content.type === SourceType.PROGRAM) return timeline.getProgramDrawable();
+  return contentSource.getDrawable(s.id, s.content, performance.now() / 1000);
 }

@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Timeline as TL, VideoClip, VideoLayer, StateMachine, defaultStateMachine } from '../../types';
+import { X } from 'lucide-react';
+import { Timeline as TL, VideoClip, VideoLayer, SurfaceContent, SourceType, StateMachine, defaultStateMachine, isContentClip } from '../../types';
 import { timeline as engine } from '../../services/timeline';
+import { ContentEditor } from '../ContentEditor';
 import { GUTTER, RULER_H, LANE_H, MIN_LANE_H, MAX_LANE_H, PAGE_SECS, laneHeight, clamp, fmtTimecode } from './geometry';
 import { splitClipAt, bladeAt, rippleDelete, liftDelete } from './operations';
 import { collectSnapPoints, snap } from './snapping';
@@ -310,6 +312,59 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, playing, onToggl
     v.src = url;
   };
 
+  // --- generalized content clips (any surface source type scheduled on a layer) ---
+  const CONTENT_LABELS: Record<string, string> = {
+    CAMERA: 'Camera', VIDEO: 'Video', IMAGE: 'Image', DMX_IN: 'DMX In', SPOUT: 'Spout',
+    NDI: 'NDI', EFFECT: 'Effect', TRACKING: 'Tracking', LAYER: 'Layer', NONE: 'Empty',
+  };
+  const contentLabel = (c: SurfaceContent): string => CONTENT_LABELS[c.type] ?? c.type;
+  const DEFAULT_CONTENT_DURATION = 5;
+  // Right-click an empty lane → source-picker popover anchored at the cursor.
+  const [contentMenu, setContentMenu] = useState<{ layerId: string; start: number; x: number; y: number } | null>(null);
+  const openContentMenu = (e: React.MouseEvent, layerId: string) => {
+    const layer = timelineRef.current.layers.find(l => l.id === layerId);
+    if (!layer || layer.kind === 'tracking' || layer.locked) return; // tracking lanes take recorded takes only
+    e.preventDefault();
+    setContentMenu({ layerId, start: Math.max(0, clientXToTime(e.clientX)), x: e.clientX, y: e.clientY });
+  };
+  const createContentClip = (layerId: string, start: number, content: SurfaceContent) => {
+    const clip: VideoClip = {
+      id: crypto.randomUUID(), layerId, name: contentLabel(content), content,
+      path: content.url ?? '', start: Math.max(0, start), duration: DEFAULT_CONTENT_DURATION, inPoint: 0,
+    };
+    onChangeRef.current({ ...timelineRef.current, clips: [...timelineRef.current.clips, clip] });
+    setSelected(clip.id);
+    setContentMenu(null);
+  };
+  // Edit the selected content clip's source config from the clip inspector.
+  const patchClipContent = (id: string, patch: Partial<SurfaceContent>) => onChangeRef.current({
+    ...timelineRef.current,
+    clips: timelineRef.current.clips.map(c => c.id === id
+      ? { ...c, content: { ...(c.content ?? { type: SourceType.NONE }), ...patch }, ...(patch.url !== undefined ? { path: patch.url ?? '' } : {}) }
+      : c),
+  });
+  const changeClipContentType = (id: string, type: SurfaceContent['type']) => onChangeRef.current({
+    ...timelineRef.current,
+    clips: timelineRef.current.clips.map(c => c.id === id ? { ...c, content: { type }, name: contentLabel({ type }), path: '' } : c),
+  });
+
+  // Badge clips that contend for a single-instance live receiver (Spout/NDI) with a different sender
+  // while overlapping in time — the last one under the playhead wins (see contentSource reconcilers).
+  const conflictIds = useMemo(() => {
+    const ids = new Set<string>();
+    const live = timeline.clips.filter(c => c.content && (c.content.type === SourceType.SPOUT || c.content.type === SourceType.NDI));
+    for (let i = 0; i < live.length; i++) for (let j = i + 1; j < live.length; j++) {
+      const a = live[i], b = live[j];
+      if (a.content!.type !== b.content!.type) continue;
+      if (!(a.start < b.start + b.duration && b.start < a.start + a.duration)) continue; // no time overlap
+      const an = a.content!.type === SourceType.SPOUT ? a.content!.spoutName : a.content!.ndiName;
+      const bn = b.content!.type === SourceType.SPOUT ? b.content!.spoutName : b.content!.ndiName;
+      if ((an ?? '') !== (bn ?? '')) { ids.add(a.id); ids.add(b.id); }
+    }
+    return ids;
+  }, [timeline.clips]);
+  const selectedClip = useMemo(() => timeline.clips.find(c => c.id === selected) ?? null, [timeline.clips, selected]);
+
   // --- keyboard shortcuts (scoped to panel hover/focus) ---
   useTimelineKeys({
     togglePlay: onTogglePlay,
@@ -332,7 +387,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, playing, onToggl
 
   return (
     <div ref={panelRef} tabIndex={0} onMouseEnter={() => { hoverRef.current = true; }} onMouseLeave={() => { hoverRef.current = false; }}
-      className="h-full flex flex-col bg-surface-0 text-fg-1 text-xs select-none outline-none">
+      className="relative h-full flex flex-col bg-surface-0 text-fg-1 text-xs select-none outline-none">
       <TimelineToolbar
         playing={playing} onTogglePlay={onTogglePlay} timeRef={timeRef}
         duration={dur} onChangeDuration={(d) => onChange({ ...timeline, duration: d })}
@@ -387,8 +442,8 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, playing, onToggl
                 </div>
                 <Lane
                   layer={l} clips={laneClips} selectedId={selected} tool={tool} pxPerSec={pxPerSec}
-                  width={Math.max(width, 100)} laneH={h}
-                  onSeek={seekTo} onDropFile={onDropFile} onStartDrag={onStartDrag} onBlade={onBlade} onRemoveClip={onRemoveClip}
+                  width={Math.max(width, 100)} laneH={h} conflictIds={conflictIds}
+                  onSeek={seekTo} onDropFile={onDropFile} onAddContent={openContentMenu} onStartDrag={onStartDrag} onBlade={onBlade} onRemoveClip={onRemoveClip}
                 />
               </div>
             );
@@ -405,6 +460,42 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, playing, onToggl
       {smEditorOpen && (
         <StateGraphEditor sm={sm} markers={timeline.markers ?? []} layers={layers} scenes={scenes} cues={cues}
           onChange={setStateMachine} onClose={() => setSmEditorOpen(false)} />
+      )}
+
+      {/* Right-click an empty lane → source-type picker → places a default-length content clip. */}
+      {contentMenu && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setContentMenu(null)} onContextMenu={(e) => { e.preventDefault(); setContentMenu(null); }} />
+          <div className="fixed z-50 w-56 bg-surface-1 border border-line-1 rounded-md p-2 shadow-xl"
+            style={{ left: Math.min(contentMenu.x, window.innerWidth - 236), top: Math.min(contentMenu.y, window.innerHeight - 200) }}>
+            <div className="text-[10px] font-bold uppercase tracking-wider text-fg-3 mb-1.5 px-0.5">Add clip</div>
+            <ContentEditor
+              content={{ type: SourceType.NONE }}
+              layers={layers}
+              showLayerOption={false}
+              onTypeChange={(type) => { if (type !== SourceType.NONE) createContentClip(contentMenu.layerId, contentMenu.start, { type }); }}
+              onChange={(patch) => { if (patch.type && patch.url !== undefined) createContentClip(contentMenu.layerId, contentMenu.start, { type: patch.type, url: patch.url }); }}
+            />
+          </div>
+        </>
+      )}
+
+      {/* Inspector for a selected generalized-content clip (reuses the surface content editor). */}
+      {selectedClip && isContentClip(selectedClip) && (
+        <div className="absolute top-2 right-2 z-30 w-60 bg-surface-1/95 backdrop-blur-sm border border-line-1 rounded-md p-2.5 shadow-xl space-y-2"
+          onPointerDown={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-fg-3 truncate">{selectedClip.name}</span>
+            <button onClick={() => setSelected(null)} className="text-fg-3 hover:text-fg-1" title="Close"><X size={12} /></button>
+          </div>
+          <ContentEditor
+            content={selectedClip.content!}
+            layers={layers}
+            showLayerOption={false}
+            onChange={(patch) => patchClipContent(selectedClip.id, patch)}
+            onTypeChange={(type) => changeClipContentType(selectedClip.id, type)}
+          />
+        </div>
       )}
     </div>
   );

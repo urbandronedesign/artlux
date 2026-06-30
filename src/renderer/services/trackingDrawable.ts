@@ -7,7 +7,7 @@
 //
 // A minimal 2D fallback is used only when WebGL2 is unavailable.
 
-import type { Surface } from '../types';
+import type { Surface, SurfaceContent } from '../types';
 import { timeline } from './timeline';
 import * as trackingRenderer from './trackingRenderer';
 import * as blobPass from '../gpu/blobPass';
@@ -32,13 +32,27 @@ function getGL(id: string): GLSurf | null {
   return s;
 }
 
-export function get(surface: Surface): HTMLCanvasElement | null {
-  const source = surface.content.trackingSource;
+// Render tracking content keyed by an arbitrary consumer key (surface id, or `layer:<id>` for a
+// timeline content clip). The renderers read only `content` (+ the key for the canvas map), so a
+// synthetic surface is sufficient — trackingRenderer keys its state by blob/track id, not surface.
+export function getFor(key: string, content: SurfaceContent): HTMLCanvasElement | null {
+  const source = content.trackingSource;
   if (!source) return null;
   const now = performance.now();
   const { w, h } = trackingRenderer.sourceSize(source);
-  const g = getGL(surface.id);
+  const surface = { id: key, content } as Surface;
+  const g = getGL(key);
   return g ? renderGL(g, surface, w, h, now) : renderCPU(surface, w, h, now);
+}
+
+export function get(surface: Surface): HTMLCanvasElement | null {
+  return getFor(surface.id, surface.content);
+}
+
+// Drop a consumer's canvases (called when a surface/clip stops needing tracking content).
+export function release(key: string): void {
+  glSurfaces.delete(key);
+  cpuSurfaces.delete(key);
 }
 
 function renderGL(g: GLSurf, surface: Surface, w: number, h: number, now: number): HTMLCanvasElement {

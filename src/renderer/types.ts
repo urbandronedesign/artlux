@@ -148,7 +148,8 @@ export enum SourceType {
   DMX_IN = 'DMX_IN',
   SPOUT = 'SPOUT',
   NDI = 'NDI',           // network video (NDI receive)
-  LAYER = 'LAYER',       // a timeline track (by layerId)
+  LAYER = 'LAYER',       // a single timeline track (by layerId)
+  PROGRAM = 'PROGRAM',   // the whole timeline composited (all contributing layers, z-ordered)
   TRACKING = 'TRACKING', // LiDAR blob positions (by trackingSource)
   NONE = 'NONE'
 }
@@ -188,16 +189,21 @@ export interface SurfaceContent {
 // A layer is either a normal video track or the special 'tracking' lane that holds recorded
 // LiDAR blob takes (replayed into the tracking store during playback). Absent kind ⇒ 'video'.
 export type LayerKind = 'video' | 'tracking';
+export type LayerBlendMode = 'normal' | 'add' | 'screen' | 'multiply';
 export interface VideoLayer {
   id: string;
   name: string;
   kind?: LayerKind;      // 'tracking' = LiDAR-blob take lane; undefined/'video' = normal track
   height?: number;       // lane height in px (default LANE_H)
   color?: string;        // hex label color for the track header (default none)
-  muted?: boolean;       // UX-only dim flag (engine ignores)
-  solo?: boolean;        // UX-only highlight flag (engine ignores)
+  // muted/solo/enabled gate the timeline PROGRAM composite (SourceType.PROGRAM). A surface bound
+  // directly to a single layer (SourceType.LAYER) shows it regardless of these flags.
+  muted?: boolean;       // excluded from the program
+  solo?: boolean;        // when any layer is soloed, only soloed (non-muted) layers contribute
   locked?: boolean;      // prevents clip edits on this track in the UI
-  enabled?: boolean;     // visibility toggle (UX-only); default true
+  enabled?: boolean;     // false = excluded from the program; default true
+  opacity?: number;      // program composite alpha 0..1 (default 1)
+  blendMode?: LayerBlendMode; // program composite blend (default 'normal')
 }
 // A clip placed on a track. All times are seconds.
 export interface VideoClip {
@@ -207,12 +213,18 @@ export interface VideoClip {
   path: string;          // MP4 file path (video) or .lblob take file (tracking) — loaded via IPC
   kind?: 'video' | 'tracking'; // matches the host layer's kind; undefined ⇒ 'video'
   takeId?: string;       // tracking clips: id of the source take in timeline.trackingTakes
+  // Generalized content: any surface source type (Image/Camera/DMX-in/Spout/NDI/Effect/Tracking)
+  // scheduled on the layer for this clip's span. Absent (or type VIDEO) ⇒ legacy path-based video.
+  content?: SurfaceContent;
   start: number;         // timeline position where the clip begins
   duration: number;      // clip length on the timeline
   inPoint: number;       // offset into the source where playback starts (trim)
   sourceDuration?: number; // full length of the source video/take (for trim limits)
   color?: string;        // per-clip tint override (optional)
 }
+// A clip whose pixels come from a generalized content source (not the legacy video <video>/HAP path).
+// Video clips stay path-based even if they also carry content={type:VIDEO,...}.
+export const isContentClip = (c: VideoClip): boolean => !!c.content && c.content.type !== SourceType.VIDEO;
 // Managed media library types live in shared/ (crosses the IPC boundary on import); re-exported
 // here so renderer code imports them from './types' alongside everything else.
 export type { AssetType, AssetEntry } from '../../shared/protocol';

@@ -18,7 +18,7 @@ type CalibMode = 'idle' | 'pattern' | 'crosshair' | 'render';
 // camera/Spout/DMX-in/NDI AND file video / timeline layers — is decoded once in the main
 // window and streamed here as ImageBitmaps, so the same media isn't decoded per window.
 const SELF_RENDER = new Set<SourceType | 'EFFECT'>([SourceType.IMAGE, 'EFFECT', SourceType.TRACKING]);
-const STREAMED = new Set<SourceType | 'EFFECT'>([SourceType.CAMERA, SourceType.SPOUT, SourceType.DMX_IN, SourceType.NDI, SourceType.VIDEO, SourceType.LAYER]);
+const STREAMED = new Set<SourceType | 'EFFECT'>([SourceType.CAMERA, SourceType.SPOUT, SourceType.DMX_IN, SourceType.NDI, SourceType.VIDEO, SourceType.LAYER, SourceType.PROGRAM]);
 const CORNER_KEYS: (keyof CornerPin)[] = ['tl', 'tr', 'br', 'bl'];
 const CORNER_LABELS = ['TL', 'TR', 'BR', 'BL'];
 const AA_SAMPLES = 4;
