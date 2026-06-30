@@ -12,8 +12,7 @@ import { TrackHeader } from './TrackHeader';
 import { Lane } from './Lane';
 import { StateLane } from './StateLane';
 import { TakesBin } from './TakesBin';
-import * as trackingRecorder from '../../services/trackingRecorder';
-import * as trackingTake from '../../services/trackingTake';
+import { trackingRecorder, trackingTake } from '@artlux/plugin-lidar-tracking';
 import { ensureBlobUrl, mimeForPath } from '../../services/mediaCache';
 import { StateGraphEditor } from './StateGraphEditor';
 import { DragMode } from './ClipBlock';
@@ -284,9 +283,14 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     const assetRaw = e.dataTransfer.getData('application/artlux-asset');
     if (assetRaw) {
       let asset: { type: string; path: string }; try { asset = JSON.parse(assetRaw); } catch { return; }
-      if (asset.type !== 'video') return;
       const start = clientXToTime(e.clientX);
       const name = asset.path.split(/[\\/]/).pop()?.replace(/\.[^.]+$/, '') ?? 'clip';
+      // Images have no intrinsic duration → place a default-length IMAGE content clip.
+      if (asset.type === 'image') {
+        onChangeRef.current({ ...timelineRef.current, clips: [...timelineRef.current.clips, { id: crypto.randomUUID(), layerId, name, content: { type: SourceType.IMAGE, url: asset.path }, path: asset.path, start, duration: DEFAULT_CONTENT_DURATION, inPoint: 0 }] });
+        return;
+      }
+      if (asset.type !== 'video') return;
       const addClip = (d: number) => onChangeRef.current({ ...timelineRef.current, clips: [...timelineRef.current.clips, { id: crypto.randomUUID(), layerId, name, path: asset.path, start, duration: d, inPoint: 0, sourceDuration: d }] });
       void (async () => {
         const url = await ensureBlobUrl(asset.path, mimeForPath(asset.path));
@@ -298,11 +302,18 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       })();
       return;
     }
-    const file = Array.from(e.dataTransfer.files).find(f => f.type.startsWith('video') || /\.(mp4|webm|mov|mkv)$/i.test(f.name));
+    const file = Array.from(e.dataTransfer.files).find(f =>
+      f.type.startsWith('video') || /\.(mp4|webm|mov|mkv)$/i.test(f.name) ||
+      f.type.startsWith('image') || /\.(png|jpe?g|gif|webp|bmp|avif)$/i.test(f.name));
     if (!file) return;
     const path = window.artlux?.getPathForFile?.(file);
     if (!path) return;
     const start = clientXToTime(e.clientX);
+    // Images have no intrinsic duration → place a default-length IMAGE content clip.
+    if (file.type.startsWith('image') || /\.(png|jpe?g|gif|webp|bmp|avif)$/i.test(file.name)) {
+      onChangeRef.current({ ...timelineRef.current, clips: [...timelineRef.current.clips, { id: crypto.randomUUID(), layerId, name: file.name.replace(/\.[^.]+$/, ''), content: { type: SourceType.IMAGE, url: path }, path, start, duration: DEFAULT_CONTENT_DURATION, inPoint: 0 }] });
+      return;
+    }
     const url = URL.createObjectURL(file);
     const v = document.createElement('video');
     v.preload = 'metadata';

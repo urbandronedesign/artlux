@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import * as take from '../../services/trackingTake';
+import { trackingTake as take } from '@artlux/plugin-lidar-tracking';
 
 interface Props {
   path: string;        // the take's .lblob sidecar

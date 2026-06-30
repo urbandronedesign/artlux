@@ -4,8 +4,7 @@ import { defaultCornerPin, defaultSoftEdge, type CornerPin, type BezierWarp, typ
 import { ProjectorScene } from './ProjectorScene';
 import { syncSurfaces, getDrawable } from '../services/surfaceMedia';
 import { timeline as engine } from '../services/timeline';
-import * as trackingStore from '../services/trackingStore';
-import * as trackingRenderer from '../services/trackingRenderer';
+import { trackingStore, trackingRenderer } from '@artlux/plugin-lidar-tracking';
 import { ProjectorGL } from './ProjectorGL';
 import { squareToQuad, applyH } from './homography';
 import { makeBezierWarp, tessellateBezier, evalBezier, BEZIER_CORNERS } from './warp';

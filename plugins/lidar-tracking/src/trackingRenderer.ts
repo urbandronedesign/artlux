@@ -3,10 +3,10 @@
 // stage (trackingDrawable's GL canvas) and the projector (ProjectorGL's source FBO), so the look
 // and the calibration math stay identical regardless of where it's drawn.
 
-import type { Surface, SurfaceContent } from '../types';
+import type { Surface, SurfaceContent } from '@/types'; // host domain types (transitional; type-only)
 import * as tracking from './trackingStore';
 import * as blobMotion from './blobMotion';
-import type { BlobInst } from '../gpu/blobPass';
+import type { BlobInst } from './blobPass';
 
 const BASE_W = 1920;                 // source width; height derives from the zone aspect
 const DEFAULT_ASPECT = 1024 / 1920;  // venue content-map aspect until specs arrive

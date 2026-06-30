@@ -5,7 +5,7 @@ import { getNdiCanvas, startNdi, stopNdi } from './ndiReceiver';
 import { SurfaceEffect } from '../gpu/surfaceFx';
 import { resolveMediaUrl, mimeForPath } from './mediaCache';
 import * as hap from './hapPlayer';
-import * as trackingDrawable from './trackingDrawable';
+import { contentSourceRegistry } from '../host/registries';
 
 // One registry that turns ANY consumer's content into a drawable, keyed by an arbitrary string
 // (surfaces use their id; timeline layers use `layer:<layerId>`). Per-instance producers (video /
@@ -160,6 +160,12 @@ export function acquire(key: string, content: SurfaceContent): void {
   if (content.type === SourceType.NDI) setNdiConsumer(key, content.ndiName ?? ''); else ndiConsumers.delete(key);
   if (content.type === SourceType.DMX_IN) dmxConsumers.add(key); else dmxConsumers.delete(key);
 
+  // Plugin-contributed content sources: hand the key to the matching provider, drop it from the
+  // rest (mirrors the per-type add/delete discipline above). Empty until a plugin registers one.
+  for (const p of contentSourceRegistry.all()) {
+    if (content.type === p.type) p.acquire?.(key, content); else p.release?.(key);
+  }
+
   reconcileCamera(); reconcileSpout(); reconcileNdi(); reconcileDmx();
 }
 
@@ -168,7 +174,7 @@ export function release(key: string): void {
   dropMedia(key);
   effects.delete(key);
   cameraConsumers.delete(key); spoutConsumers.delete(key); ndiConsumers.delete(key); dmxConsumers.delete(key);
-  trackingDrawable.release(key);
+  for (const p of contentSourceRegistry.all()) p.release?.(key);
   reconcileCamera(); reconcileSpout(); reconcileNdi(); reconcileDmx();
 }
 
@@ -202,15 +208,15 @@ export function getDrawable(key: string, content: SurfaceContent, timeSec: numbe
       return getNdiCanvas();
     case SourceType.DMX_IN:
       return getInputCanvas();
-    case SourceType.TRACKING:
-      return trackingDrawable.getFor(key, content);
     case 'EFFECT': {
       let e = effects.get(key);
       if (!e) { e = new SurfaceEffect(); effects.set(key, e); }
       return e.render(content, timeSec);
     }
-    default:
-      return null; // NONE / LAYER
+    default: {
+      const p = contentSourceRegistry.get(content.type); // plugin-contributed type, else NONE / LAYER
+      return p ? p.getDrawable(key, content, timeSec) : null;
+    }
   }
 }
 
@@ -228,7 +234,9 @@ export function getAspect(key: string, content: SurfaceContent): number | null {
     }
     case SourceType.CAMERA:
       return cameraEl && cameraEl.videoWidth > 0 ? cameraEl.videoWidth / cameraEl.videoHeight : null;
-    default:
-      return null;
+    default: {
+      const p = contentSourceRegistry.get(content.type);
+      return p?.getAspect ? p.getAspect(key, content) : null;
+    }
   }
 }

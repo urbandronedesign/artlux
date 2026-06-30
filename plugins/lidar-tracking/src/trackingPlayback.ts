@@ -7,10 +7,10 @@
 // Kept OUT of services/timeline.ts on purpose: the video engine must not couple to the tracking
 // store (docs/TIMELINE.md). Main window only — App constructs this; mirror windows already receive
 // the resulting snapshots over the bridge.
-import { timeline as engine } from './timeline';
+import { timeline as engine } from '@/services/timeline'; // host timeline engine (transitional runtime seam)
 import * as trackingStore from './trackingStore';
 import * as take from './trackingTake';
-import type { Timeline, VideoClip } from '../types';
+import type { Timeline, VideoClip } from '@/types';        // host domain types (transitional; type-only)
 
 let data: Timeline | null = null;
 let active = false;   // a tracking clip is currently driving the store

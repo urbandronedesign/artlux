@@ -22,6 +22,21 @@
     "paths": {
       "@/*": [
         "./src/renderer/*"
+      ],
+      "@artlux/sdk": [
+        "./packages/sdk/src/index.ts"
+      ],
+      "@artlux/sdk/main": [
+        "./packages/sdk/src/main.ts"
+      ],
+      "@artlux/sdk/renderer": [
+        "./packages/sdk/src/renderer.ts"
+      ],
+      "@artlux/plugin-lidar-tracking": [
+        "./plugins/lidar-tracking/src/index.ts"
+      ],
+      "@artlux/plugin-lidar-tracking/*": [
+        "./plugins/lidar-tracking/src/*"
       ]
     },
     "allowImportingTsExtensions": true,

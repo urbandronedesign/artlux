@@ -1,7 +1,7 @@
 import type { CornerPin, WarpGrid, SoftEdge } from '../../../shared/protocol';
 import { cornerQs, toClip } from './homography';
-import * as blobPass from '../gpu/blobPass';
-import type { BlobInst } from '../gpu/blobPass';
+import { blobPass } from '@artlux/plugin-lidar-tracking';
+import type { BlobInst } from '@artlux/plugin-lidar-tracking';
 
 // LiDAR blob content rendered straight into the source FBO on the GPU (no CPU canvas, no per-frame
 // full-canvas upload): bg video + soft blob discs + optional overlay → warped onto the display.

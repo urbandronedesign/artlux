@@ -42,13 +42,11 @@ import { dmxSignal } from './services/dmxSignal';
 import { getDrawable } from './services/surfaceMedia';
 import { timeline as timelineEngine } from './services/timeline';
 import * as oscController from './services/oscController';
+import { activateRendererPlugins } from './host/plugins';
 import * as cueBus from './services/cueBus';
 import * as transitions from './services/transitions';
 import { collectFadeableTargets, getByPath, setByPath, isFadeablePath, type StateView } from './services/paramPath';
-import * as trackingStore from './services/trackingStore';
-import { clusterAndTrack, resetPeopleTracking } from './services/blobClustering';
-import * as trackingPlayback from './services/trackingPlayback';
-import * as trackingDrawable from './services/trackingDrawable';
+import { trackingStore, trackingPlayback, trackingDrawable, clusterAndTrack, resetPeopleTracking } from '@artlux/plugin-lidar-tracking';
 import { Activity, SlidersHorizontal, Film, Clapperboard, Columns2, Maximize2, Minimize2 } from 'lucide-react';
 import { useHistory } from './hooks/useHistory';
 
@@ -1006,6 +1004,9 @@ const App: React.FC = () => {
   }, []);
   // Feed the project-level state machine to the engine, which ticks it each frame on its standalone clock.
   useEffect(() => { timelineEngine.setStateMachine(stateMachine); }, [stateMachine]);
+  // Activate first-party plugins (main window) before any compositing/OSC: this registers the LiDAR
+  // plugin's TRACKING content source and its live blob ingestion.
+  useEffect(() => { activateRendererPlugins('main'); }, []);
   // OSC: subscribe the controller to forwarded messages once; (re)bind the UDP listener and refresh
   // the control namespace whenever the OSC settings change. Control intents flow back through the
   // subscribeIntent path above; LiDAR blob data lands in the tracking store.

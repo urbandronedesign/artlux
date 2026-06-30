@@ -7,10 +7,10 @@
 //
 // A minimal 2D fallback is used only when WebGL2 is unavailable.
 
-import type { Surface, SurfaceContent } from '../types';
-import { timeline } from './timeline';
+import type { Surface, SurfaceContent } from '@/types'; // host domain types (transitional; type-only)
+import { timeline } from '@/services/timeline';          // host timeline engine (transitional runtime seam)
 import * as trackingRenderer from './trackingRenderer';
-import * as blobPass from '../gpu/blobPass';
+import * as blobPass from './blobPass';
 
 export function configure(smoothing: number, predictMs: number): void {
   trackingRenderer.configure(smoothing, predictMs);

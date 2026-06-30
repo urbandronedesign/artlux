@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Circle, Square, Plus, Trash2, Radio } from 'lucide-react';
 import { TrackingTakeRef } from '../../types';
-import * as recorder from '../../services/trackingRecorder';
+import { trackingRecorder as recorder } from '@artlux/plugin-lidar-tracking';
 import { fmtClock } from './geometry';
 
 interface Props {

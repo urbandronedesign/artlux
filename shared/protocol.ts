@@ -319,23 +319,12 @@ export interface NdiSendConfig {
 }
 
 // ---- OSC (external control + LiDAR blob tracking) ----------------------------
-// ArtLux listens as an OSC receiver (the 61fps tracking server emits OSC to port 10000).
-// Two message classes share the socket: control messages under `controlPrefix` (routed to
-// the timeline/state-machine) and LiDAR blob/spec messages (routed to the tracking store).
-export interface OscConfig {
-  enabled: boolean;
-  listenPort: number;     // UDP port to bind (installation default: 10000)
-  controlPrefix: string;  // namespace for external control, e.g. '/artlux'
-  listenAddress?: string; // bind to a specific LOCAL NIC IP (this machine's 192.168.61.x address);
-                          // '' / undefined = all interfaces (0.0.0.0)
-}
-
-// One decoded OSC message. `args` are raw values (ints/floats decode to number, strings to
-// string); the tracking protocol sends one value per address, so args is usually length 1.
-export interface OscMessage {
-  address: string;
-  args: (number | string)[];
-}
+// OscConfig / OscMessage now live in the (unstable, internal) plugin SDK because both the host
+// and first-party plugins (the LiDAR tracking transport) speak this vocabulary. Imported for
+// local use in this file's types and re-exported so existing `shared/protocol` import sites
+// keep working unchanged.
+import type { OscConfig, OscMessage } from '@artlux/sdk';
+export type { OscConfig, OscMessage };
 
 // One Art-Net node found via ArtPoll/ArtPollReply discovery.
 export interface ArtNetDevice {
@@ -781,6 +770,11 @@ export interface ArtluxApi {
   closeProjector(surfaceId: string): void;
   setProjectorDisplay(surfaceId: string, displayId: number): void;
   onDisplaysChanged(cb: (displays: DisplayInfo[]) => void): () => void;
+  // Generic plugin IPC bridge (channels namespaced under 'plugin:<channel>' by preload). First-party
+  // plugins use these to talk to their own main-process entry without bespoke preload methods.
+  pluginInvoke(channel: string, ...args: unknown[]): Promise<unknown>;
+  pluginSend(channel: string, ...args: unknown[]): void;
+  pluginOn(channel: string, cb: (...args: unknown[]) => void): () => void;
 }
 
 declare global {

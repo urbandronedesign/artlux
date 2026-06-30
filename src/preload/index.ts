@@ -156,6 +156,18 @@ const api: ArtluxApi = {
         ipcRenderer.on(IPC.PROJECTOR_DISPLAYS_CHANGED, listener);
         return () => { ipcRenderer.removeListener(IPC.PROJECTOR_DISPLAYS_CHANGED, listener); };
     },
+    // Generic plugin IPC bridge. contextIsolation keeps plugin code out of preload and `artlux` is
+    // built once, so first-party plugins can't add their own named methods. Instead they funnel all
+    // main↔renderer traffic through these three forwarders, namespaced under 'plugin:<channel>'.
+    // `pluginOn` adds an independent listener per call (multiple subscribers coexist, like onOscMessage),
+    // and delivery preserves the caller's argument shape (a plugin batches its own firehose into one arg).
+    pluginInvoke: (channel: string, ...args: unknown[]) => ipcRenderer.invoke('plugin:' + channel, ...args),
+    pluginSend: (channel: string, ...args: unknown[]) => ipcRenderer.send('plugin:' + channel, ...args),
+    pluginOn: (channel: string, cb: (...args: unknown[]) => void) => {
+        const listener = (_e: unknown, ...args: unknown[]) => cb(...args);
+        ipcRenderer.on('plugin:' + channel, listener);
+        return () => { ipcRenderer.removeListener('plugin:' + channel, listener); };
+    },
 };
 
 // Bridge MessagePort: a MessagePort can't survive being passed through a contextBridge

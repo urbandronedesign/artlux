@@ -1,14 +1,14 @@
 import type { OscMessage } from '../../../shared/protocol';
 import { timeline } from './timeline';
-import * as tracking from './trackingStore';
 import * as cueBus from './cueBus';
 
-// Routes incoming OSC (received in main, forwarded via window.artlux.onOscMessage) to its sink:
-//   • LiDAR blob/spec messages  → trackingStore
-//   • control messages under the configured prefix → timeline transport + state machine
-// Singleton, React-free: it calls the timeline engine singleton directly. Transport intents flow
-// through timeline.dispatchTransportIntent → App's subscribeIntent, so App stays the single writer
-// of `playing`; named state transitions go through timeline.triggerSmTransition.
+// Routes incoming OSC control messages (received in main, forwarded via window.artlux.onOscMessage)
+// under the configured prefix → timeline transport + state machine. LiDAR blob/spec messages are
+// ingested by the lidar-tracking plugin, which taps the same OSC stream independently (the preload
+// bridge supports multiple subscribers). Singleton, React-free: it calls the timeline engine
+// singleton directly. Transport intents flow through timeline.dispatchTransportIntent → App's
+// subscribeIntent, so App stays the single writer of `playing`; named state transitions go through
+// timeline.triggerSmTransition.
 
 let controlPrefix = '/artlux';
 let unsub: (() => void) | null = null;
@@ -50,8 +50,8 @@ function handleControl(rest: string, args: (number | string)[]): void {
 function route(msgs: OscMessage[]): void {
   for (const msg of msgs) {
     const { address, args } = msg;
-    // Tracking data first (blob/spec leaves carry a single numeric value).
-    if (typeof args[0] === 'number' && tracking.ingest(address, args[0])) continue;
+    // Tracking blob/spec leaves don't carry the control prefix, so they fall through untouched
+    // (the lidar-tracking plugin ingests them via its own onOscMessage subscription).
     if (address.startsWith(controlPrefix)) {
       handleControl(address.slice(controlPrefix.length), args);
     }

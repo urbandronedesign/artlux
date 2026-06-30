@@ -1,0 +1,12 @@
+{
+  "name": "@artlux/sdk",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Internal (unstable) plugin SDK for ArtLux — platform-neutral types + contribution contracts shared by the host and first-party plugins. NOT a public API yet.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./main": "./src/main.ts",
+    "./renderer": "./src/renderer.ts"
+  }
+}
