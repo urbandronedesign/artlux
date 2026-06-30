@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+## v0.17.0
+
+- **Timeline = a full content + compositing system.** Two big additions on one shared model:
+  - **Any source type as a clip.** A timeline clip can now carry a full content source — **Camera,
+    Image, DMX-in, Spout, NDI, Effect, Tracking** — not just video. Right-click a lane to pick a type
+    (the same source picker used by surfaces, now shared) and place a clip; a clip inspector configures
+    it. Live sources are **scheduled** (a clip routes the live feed onto its layer only while the
+    playhead is inside it) via a shared, refcounted receiver registry, so a feed runs when either a
+    surface or a clip needs it. Overlapping Spout/NDI clips that want different senders show a conflict
+    badge (single-sender, last-one-wins). Existing video/HAP clips and projects are unaffected.
+  - **Layered Program output.** The timeline now **composites all of its layers** (top track in front,
+    per-layer **opacity + blend mode**, with **enabled/solo/mute** finally gating the output) into one
+    Program image each frame. A surface can route to the **whole Timeline (Program)** in addition to a
+    single **Layer**; projector outputs stream it through the existing path. Per-layer opacity/blend
+    live in a track-header popover.
+- **The timeline Program on a 3D screen.** A 3D scene screen (plane or mesh) can display the whole
+  composited timeline, not just one layer — via a **★ Timeline (Program)** binding (dropdown or a
+  one-click **TL** toggle).
+- **One unified 3D scene.** The detached "3D Scene" window is gone; the **split-view 3D pane** now
+  carries the full toolset — object import/add (GLB + screen planes), per-object transform, the
+  lighting/tracking controls, and Save — plus a **collapse** toggle and a **maximize-3D** button.
+  Removing the second renderer process and its MessagePort bridge (per-LED pixel copies, frame
+  streaming, tracking fan-out) is also a real performance win.
+
 ## v0.16.0
 
 - **Pro calibration workspace (big RGB camera ⟷ 3D)** — the calibration camera now fills a large
