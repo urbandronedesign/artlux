@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
-import { Timeline as TL, VideoClip, VideoLayer, SurfaceContent, SourceType, StateMachine, defaultStateMachine, isContentClip } from '../../types';
+import { Timeline as TL, VideoClip, VideoLayer, SurfaceContent, SourceType, StateMachine, defaultStateMachine, isContentClip, type AssetEntry } from '../../types';
 import { timeline as engine } from '../../services/timeline';
 import { ContentEditor } from '../ContentEditor';
 import { GUTTER, RULER_H, LANE_H, MIN_LANE_H, MAX_LANE_H, PAGE_SECS, laneHeight, clamp, fmtTimecode } from './geometry';
@@ -28,6 +28,7 @@ interface Props {
   maximized?: boolean;
   onToggleMax?: () => void;
   projectPath?: string | null; // when set, recorded takes are copied into the project's assets/tracking
+  onRegisterAsset?: (entry: AssetEntry) => void; // a file dropped onto a lane is imported + added to the library
   scenes?: { id: string; name: string }[]; // for the FSM 'recallScene' action picker
   cues?: { id: string; name: string }[];   // for the FSM 'fireCue' action picker
 }
@@ -36,7 +37,7 @@ interface Props {
 // (top-bar play) drives the engine — the playback clock. Edits commit to project state via
 // onChange; the live playhead/time are read from the engine render-free. Layout is a single
 // vertical scroller with a sticky track-header gutter and a sticky timecode ruler.
-export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, onStateMachineChange, playing, onTogglePlay, maximized = false, onToggleMax, projectPath, scenes = [], cues = [] }) => {
+export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, onStateMachineChange, playing, onTogglePlay, maximized = false, onToggleMax, projectPath, onRegisterAsset, scenes = [], cues = [] }) => {
   const [pxPerSec, setPxPerSec] = useState(40);
   const [selected, setSelected] = useState<string | null>(null);
   const [tool, setTool] = useState<'select' | 'blade'>('select');
@@ -306,23 +307,34 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       f.type.startsWith('video') || /\.(mp4|webm|mov|mkv)$/i.test(f.name) ||
       f.type.startsWith('image') || /\.(png|jpe?g|gif|webp|bmp|avif)$/i.test(f.name));
     if (!file) return;
-    const path = window.artlux?.getPathForFile?.(file);
-    if (!path) return;
+    const srcPath = window.artlux?.getPathForFile?.(file);
+    if (!srcPath) return;
     const start = clientXToTime(e.clientX);
-    // Images have no intrinsic duration → place a default-length IMAGE content clip.
-    if (file.type.startsWith('image') || /\.(png|jpe?g|gif|webp|bmp|avif)$/i.test(file.name)) {
-      onChangeRef.current({ ...timelineRef.current, clips: [...timelineRef.current.clips, { id: crypto.randomUUID(), layerId, name: file.name.replace(/\.[^.]+$/, ''), content: { type: SourceType.IMAGE, url: path }, path, start, duration: DEFAULT_CONTENT_DURATION, inPoint: 0 }] });
-      return;
-    }
-    const url = URL.createObjectURL(file);
-    const v = document.createElement('video');
-    v.preload = 'metadata';
-    v.onloadedmetadata = () => {
-      const d = v.duration && isFinite(v.duration) ? v.duration : 5;
-      URL.revokeObjectURL(url);
-      onChangeRef.current({ ...timelineRef.current, clips: [...timelineRef.current.clips, { id: crypto.randomUUID(), layerId, name: file.name.replace(/\.[^.]+$/, ''), path, start, duration: d, inPoint: 0, sourceDuration: d }] });
-    };
-    v.src = url;
+    const name = file.name.replace(/\.[^.]+$/, '');
+    const isImage = file.type.startsWith('image') || /\.(png|jpe?g|gif|webp|bmp|avif)$/i.test(file.name);
+    void (async () => {
+      // Drop = import + place: copy the file into the project's assets/ and register a library entry,
+      // so it shows in the Media tab (same as an explicit import). Without a project folder, reference
+      // the file in place — there's nowhere to collect it and no library to add it to.
+      let path = srcPath;
+      if (projectPath) {
+        const entry = await window.artlux?.importAssetFile?.(projectPath, srcPath, isImage ? 'image' : 'video', name);
+        if (entry) { path = entry.path; onRegisterAsset?.(entry); }
+      }
+      // Images have no intrinsic duration → place a default-length IMAGE content clip.
+      if (isImage) {
+        onChangeRef.current({ ...timelineRef.current, clips: [...timelineRef.current.clips, { id: crypto.randomUUID(), layerId, name, content: { type: SourceType.IMAGE, url: path }, path, start, duration: DEFAULT_CONTENT_DURATION, inPoint: 0 }] });
+        return;
+      }
+      // Video: probe duration from the dropped File in memory (independent of where we stored it).
+      const url = URL.createObjectURL(file);
+      const v = document.createElement('video');
+      v.preload = 'metadata';
+      const place = (d: number) => { URL.revokeObjectURL(url); onChangeRef.current({ ...timelineRef.current, clips: [...timelineRef.current.clips, { id: crypto.randomUUID(), layerId, name, path, start, duration: d, inPoint: 0, sourceDuration: d }] }); };
+      v.onloadedmetadata = () => place(v.duration && isFinite(v.duration) ? v.duration : 5);
+      v.onerror = () => place(5);
+      v.src = url;
+    })();
   };
 
   // --- generalized content clips (any surface source type scheduled on a layer) ---

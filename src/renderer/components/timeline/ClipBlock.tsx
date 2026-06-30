@@ -1,11 +1,26 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Trash2, AlertTriangle } from 'lucide-react';
-import { VideoClip, isContentClip } from '../../types';
+import { VideoClip, isContentClip, SourceType } from '../../types';
 import { Filmstrip } from './Filmstrip';
 import { BlobSparkline } from './BlobSparkline';
 import { fmtClock } from './geometry';
+import { ensureBlobUrl, mimeForPath } from '../../services/mediaCache';
 
 export type DragMode = 'move' | 'l' | 'r';
+
+// Cover-fit thumbnail for an IMAGE content clip — resolves the file to a blob URL (file:// can't
+// be loaded directly), then fills the clip body like the video filmstrip does.
+const ImageStrip: React.FC<{ path: string }> = ({ path }) => {
+  const [url, setUrl] = useState<string | undefined>();
+  useEffect(() => {
+    if (!path) { setUrl(undefined); return; }
+    let live = true;
+    void ensureBlobUrl(path, mimeForPath(path)).then(u => { if (live) setUrl(u); });
+    return () => { live = false; };
+  }, [path]);
+  if (!url) return null;
+  return <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: `url("${url}")`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }} />;
+};
 
 interface Props {
   clip: VideoClip;
@@ -42,7 +57,9 @@ const ClipBlockBase: React.FC<Props> = ({ clip, selected, locked, tool, pxPerSec
       {widthPx > 18 && (clip.kind === 'tracking'
         ? <BlobSparkline path={clip.path} inPoint={clip.inPoint} clipDuration={clip.duration} widthPx={widthPx} heightPx={laneH - 8} />
         : isContentClip(clip)
-          ? <div className="absolute inset-0 flex items-center justify-center text-[9px] uppercase tracking-wider text-fg-3 bg-surface-2/40 pointer-events-none">{clip.content!.type === 'EFFECT' ? 'EFFECT' : clip.content!.type}</div>
+          ? (clip.content!.type === SourceType.IMAGE && (clip.content!.url || clip.path)
+            ? <ImageStrip path={clip.content!.url || clip.path} />
+            : <div className="absolute inset-0 flex items-center justify-center text-[9px] uppercase tracking-wider text-fg-3 bg-surface-2/40 pointer-events-none">{clip.content!.type === 'EFFECT' ? 'EFFECT' : clip.content!.type}</div>)
           : <Filmstrip path={clip.path} inPoint={clip.inPoint} clipDuration={clip.duration} widthPx={widthPx} heightPx={laneH - 8} />)}
       <div className="absolute inset-x-0 top-0 h-4 bg-gradient-to-b from-black/55 to-transparent pointer-events-none" />
       <div className="relative px-1.5 pt-0.5 text-[10px] leading-tight truncate text-fg-1 pointer-events-none drop-shadow">{clip.name}</div>

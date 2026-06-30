@@ -230,5 +230,27 @@ export function collectAssets(projectFile: string, data: ProjectData): CollectRe
 
   // Second pass: rewrite references to the collected copies.
   const out = mapAssetPaths(data, (p) => remap.get(p) ?? p);
+
+  // Ensure every collected media file has a library entry, so it shows in the Media tab. Clips and
+  // surfaces can reference files that were never imported (e.g. dragged straight onto the timeline);
+  // without this they play but stay invisible in the library. Takes live in trackingTakes, not here.
+  const CAT_TYPE: Record<string, AssetType> = { video: 'video', images: 'image', models: 'model' };
+  const norm = (p: string) => (p || '').replace(/\\/g, '/').toLowerCase();
+  const have = new Set<string>((out.assets ?? []).map((a) => norm(a?.path)));
+  const added: AssetEntry[] = [];
+  for (const dest of new Set(remap.values())) {
+    if (!isInside(assetsDir, dest)) continue;          // only in-project files belong in the library
+    const cat = categoryFor(dest);
+    const type = cat ? CAT_TYPE[cat] : undefined;
+    if (!type) continue;                               // unknown type, or a tracking take → skip
+    const key = norm(dest);
+    if (have.has(key)) continue;
+    have.add(key);
+    try {
+      added.push({ id: randomUUID(), name: basename(dest, extname(dest)), type, path: dest, size: statSync(dest).size, addedAt: new Date().toISOString() });
+    } catch { /* file vanished between passes — skip */ }
+  }
+  if (added.length) out.assets = [...(out.assets ?? []), ...added];
+
   return { data: out, copied, skipped, missing };
 }

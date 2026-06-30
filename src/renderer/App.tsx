@@ -876,6 +876,12 @@ const App: React.FC = () => {
       const entries = await window.artlux?.importAssets?.(currentProjectPath, type);
       if (entries && entries.length) setAssets(prev => [...prev, ...entries]);
   };
+  // A media file dropped straight onto the timeline is copied into the project by the Timeline, then
+  // registered here so it appears in the Media library — same as an explicit import. Dedupe by path.
+  const handleRegisterAsset = (entry: AssetEntry) => {
+      const key = entry.path.replace(/\\/g, '/').toLowerCase();
+      setAssets(prev => prev.some(a => a.path.replace(/\\/g, '/').toLowerCase() === key) ? prev : [...prev, entry]);
+  };
   // Remove a library entry. Recorded takes live on the timeline, so removing a take also drops it
   // from trackingTakes (and any clips referencing it). References to imported assets are left as-is.
   const handleRemoveAsset = (asset: AssetEntry) => {
@@ -1604,7 +1610,7 @@ const App: React.FC = () => {
                     timelineMax ? (
                         <div className="h-full flex items-center justify-center text-fg-3 text-[11px] italic">Timeline maximized — press F or the restore button to dock it</div>
                     ) : (
-                        <TimelinePanel timeline={timeline} onChange={setTimeline} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} onToggleMax={() => setTimelineMax(true)} projectPath={currentProjectPath} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} />
+                        <TimelinePanel timeline={timeline} onChange={setTimeline} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} onToggleMax={() => setTimelineMax(true)} projectPath={currentProjectPath} onRegisterAsset={handleRegisterAsset} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} />
                     )
                 ) : dockTab === DockTab.SCENES ? (
                     <CueBankPanel
@@ -1793,7 +1799,7 @@ const App: React.FC = () => {
 
       {timelineMax && (
         <div className="fixed inset-0 z-50 bg-surface-0 flex flex-col">
-          <TimelinePanel timeline={timeline} onChange={setTimeline} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} maximized onToggleMax={() => setTimelineMax(false)} projectPath={currentProjectPath} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} />
+          <TimelinePanel timeline={timeline} onChange={setTimeline} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} maximized onToggleMax={() => setTimelineMax(false)} projectPath={currentProjectPath} onRegisterAsset={handleRegisterAsset} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} />
         </div>
       )}
 
