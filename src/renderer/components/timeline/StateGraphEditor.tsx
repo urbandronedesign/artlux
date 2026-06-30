@@ -1,6 +1,7 @@
-import React, { useRef, useState } from 'react';
-import { StateMachine, SmState, SmTransition, SmAction, SmActionKind, SmTriggerKind, Marker, VideoLayer } from '../../types';
-import { X, Plus, Star, Trash2, ArrowRight } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { StateMachine, SmState, SmTransition, SmRegion, SmAction, SmActionKind, SmTriggerKind, Marker, VideoLayer } from '../../types';
+import { timeline as engine } from '../../services/timeline';
+import { X, Plus, Star, Trash2, ArrowRight, Wand2, SquareDashed, Film } from 'lucide-react';
 
 export interface SceneRef { id: string; name: string }
 export interface CueRef { id: string; name: string }
@@ -15,30 +16,78 @@ interface Props {
   onClose: () => void;
 }
 
-const NODE_W = 132;
-const NODE_H = 50;
+// AutomataUI-style node-graph editor for the project-level "Show" machine over scenes. States are
+// circular nodes (each can bind a Scene, recalled on entry); the initial state is drawn as the cyan
+// Init node and the live/active state gets an orange ring. Transitions are bezier edges with draggable
+// control handles, an auto-derived label + a [transition-time] badge (the scene crossfade on arrival).
+// Regions are resizable group boxes that move their member states. Double-click empty canvas to add a
+// state, drag a node's link nub onto another node to connect, Ctrl+click an edge to fire it manually.
+
+const R = 34;                 // state node radius
+const D = R * 2;
+const CW = 2600, CH = 1700;   // canvas coordinate space
 const ACTION_KINDS: SmActionKind[] = ['play', 'pause', 'stop', 'seek', 'setLoop', 'jumpMarker', 'recallScene', 'fireCue'];
 const TRIGGER_KINDS: SmTriggerKind[] = ['manual', 'afterDelay', 'atTime', 'onMarker', 'onClipEnd'];
-
 const uid = () => crypto.randomUUID();
 
-// Modal node-graph editor for the control-layer FSM. States are draggable nodes (x/y persisted);
-// transitions are edges authored by selecting a source then clicking a target. The inspector edits
-// the selected state's entry actions or the selected transition's trigger. Every edit commits via
-// onChange (node drags commit on release).
+type Vec = { x: number; y: number };
+const C = (s: SmState): Vec => ({ x: s.x + R, y: s.y + R });
+const sub = (a: Vec, b: Vec): Vec => ({ x: a.x - b.x, y: a.y - b.y });
+const add = (a: Vec, b: Vec): Vec => ({ x: a.x + b.x, y: a.y + b.y });
+const mul = (a: Vec, k: number): Vec => ({ x: a.x * k, y: a.y * k });
+const length = (a: Vec) => Math.hypot(a.x, a.y) || 1;
+const norm = (a: Vec): Vec => mul(a, 1 / length(a));
+const lerp = (a: Vec, b: Vec, t: number): Vec => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+const defaultC = (a: Vec, b: Vec): [Vec, Vec] => [lerp(a, b, 0.33), lerp(a, b, 0.66)];
+const rim = (c: Vec, toward: Vec): Vec => add(c, mul(norm(sub(toward, c)), R));
+const bezAt = (p0: Vec, p1: Vec, p2: Vec, p3: Vec, t: number): Vec => {
+  const u = 1 - t, w0 = u * u * u, w1 = 3 * u * u * t, w2 = 3 * u * t * t, w3 = t * t * t;
+  return { x: w0 * p0.x + w1 * p1.x + w2 * p2.x + w3 * p3.x, y: w0 * p0.y + w1 * p1.y + w2 * p2.y + w3 * p3.y };
+};
+const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+
+type Drag =
+  | { kind: 'node'; id: string; x: number; y: number }
+  | { kind: 'region'; id: string; x: number; y: number }
+  | { kind: 'regionSize'; id: string; w: number; h: number }
+  | { kind: 'handle'; id: string; which: 'c1' | 'c2' }
+  | { kind: 'pan' };
+
 export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes, cues, onChange, onClose }) => {
-  const [sel, setSel] = useState<{ kind: 'state' | 'transition'; id: string } | null>(null);
-  const [linkFrom, setLinkFrom] = useState<string | null>(null); // source state while drawing a transition
-  const [drag, setDrag] = useState<{ id: string; x: number; y: number } | null>(null);
-  const canvasRef = useRef<HTMLDivElement>(null);
+  const [sel, setSel] = useState<{ kind: 'state' | 'transition' | 'region'; id: string } | null>(null);
+  const [linkFrom, setLinkFrom] = useState<string | null>(null);     // source state while drawing a transition
+  const [linkTo, setLinkTo] = useState<Vec | null>(null);            // live cursor (canvas coords) while linking
+  const [drag, setDrag] = useState<Drag | null>(null);
+  const [scale, setScale] = useState(1);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [firedId, setFiredId] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const regions = sm.regions ?? [];
+
+  // Live "current state" ring + fired-edge pulse driven render-free by the engine.
+  useEffect(() => engine.subscribeSmState(setActiveId), []);
+  useEffect(() => engine.subscribeSmFired((id) => {
+    setFiredId(id);
+    const t = window.setTimeout(() => setFiredId((cur) => (cur === id ? null : cur)), 450);
+    return () => window.clearTimeout(t);
+  }), []);
 
   const patch = (next: Partial<StateMachine>) => onChange({ ...sm, ...next });
   const patchState = (id: string, p: Partial<SmState>) => patch({ states: sm.states.map(s => s.id === id ? { ...s, ...p } : s) });
   const patchTransition = (id: string, p: Partial<SmTransition>) => patch({ transitions: sm.transitions.map(t => t.id === id ? { ...t, ...p } : t) });
+  const patchRegion = (id: string, p: Partial<SmRegion>) => patch({ regions: regions.map(r => r.id === id ? { ...r, ...p } : r) });
 
-  const addState = () => {
-    const n = sm.states.length;
-    const st: SmState = { id: uid(), name: `State ${n + 1}`, x: 40 + (n % 4) * (NODE_W + 30), y: 40 + Math.floor(n / 4) * (NODE_H + 40), entry: [] };
+  const toCanvas = (clientX: number, clientY: number): Vec => {
+    const el = scrollRef.current; if (!el) return { x: 0, y: 0 };
+    const r = el.getBoundingClientRect();
+    return { x: (clientX - r.left + el.scrollLeft) / scale, y: (clientY - r.top + el.scrollTop) / scale };
+  };
+  const regionAt = (c: Vec): string | undefined =>
+    [...regions].reverse().find(r => c.x >= r.x && c.x <= r.x + r.w && c.y >= r.y && c.y <= r.y + r.h)?.id;
+
+  // --- create / delete ---
+  const addStateAt = (x: number, y: number) => {
+    const st: SmState = { id: uid(), name: `State ${sm.states.length + 1}`, x: x - R, y: y - R, entry: [], regionId: regionAt({ x, y }) };
     patch({ states: [...sm.states, st], initialStateId: sm.initialStateId ?? st.id });
     setSel({ kind: 'state', id: st.id });
   };
@@ -50,79 +99,260 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
     });
     setSel(null);
   };
-  const onNodeClick = (id: string) => {
-    if (linkFrom && linkFrom !== id) {
-      const tr: SmTransition = { id: uid(), from: linkFrom, to: id, trigger: { kind: 'manual' } };
-      patch({ transitions: [...sm.transitions, tr] });
-      setLinkFrom(null); setSel({ kind: 'transition', id: tr.id });
-      return;
-    }
-    setSel({ kind: 'state', id });
+  const addRegion = () => {
+    const r: SmRegion = { id: uid(), name: `Region ${regions.length + 1}`, x: 80 + regions.length * 30, y: 60 + regions.length * 30, w: 360, h: 320 };
+    patch({ regions: [...regions, r] });
+    setSel({ kind: 'region', id: r.id });
+  };
+  const removeRegion = (id: string) => {
+    patch({ regions: regions.filter(r => r.id !== id), states: sm.states.map(s => s.regionId === id ? { ...s, regionId: undefined } : s) });
+    setSel(null);
+  };
+  const removeTransition = (id: string) => { patch({ transitions: sm.transitions.filter(t => t.id !== id) }); setSel(null); };
+
+  // One node per scene, laid out in a grid, each pre-bound to its scene — seeds a show graph fast.
+  const buildFromScenes = () => {
+    if (!scenes.length) return;
+    const cols = Math.ceil(Math.sqrt(scenes.length));
+    const gapX = D + 80, gapY = D + 70, ox = 90, oy = 90;
+    const states: SmState[] = scenes.map((sc, i) => ({
+      id: uid(), name: sc.name, sceneId: sc.id, entry: [],
+      x: ox + (i % cols) * gapX, y: oy + Math.floor(i / cols) * gapY,
+    }));
+    patch({ states: [...sm.states, ...states], initialStateId: sm.initialStateId ?? states[0]?.id ?? null });
   };
 
-  // Node drag (commit on release).
-  const startNodeDrag = (e: React.PointerEvent, st: SmState) => {
+  // --- drags (commit on release for node/region/resize; handles patch live) ---
+  const beginNodeDrag = (e: React.PointerEvent, s: SmState) => {
     e.stopPropagation();
-    const c = canvasRef.current; if (!c) return;
-    const r = c.getBoundingClientRect();
-    const offX = e.clientX - (r.left + st.x), offY = e.clientY - (r.top + st.y);
-    const move = (ev: PointerEvent) => setDrag({ id: st.id, x: Math.max(0, ev.clientX - r.left - offX), y: Math.max(0, ev.clientY - r.top - offY) });
+    const start = toCanvas(e.clientX, e.clientY); const off = { x: start.x - s.x, y: start.y - s.y };
+    const move = (ev: PointerEvent) => { const c = toCanvas(ev.clientX, ev.clientY); setDrag({ kind: 'node', id: s.id, x: c.x - off.x, y: c.y - off.y }); };
     const up = (ev: PointerEvent) => {
-      const x = Math.max(0, ev.clientX - r.left - offX), y = Math.max(0, ev.clientY - r.top - offY);
-      patchState(st.id, { x, y }); setDrag(null);
+      const c = toCanvas(ev.clientX, ev.clientY); const x = c.x - off.x, y = c.y - off.y;
+      patchState(s.id, { x, y, regionId: regionAt({ x: x + R, y: y + R }) });
+      setDrag(null); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+    setSel({ kind: 'state', id: s.id });
+  };
+  const beginRegionDrag = (e: React.PointerEvent, r: SmRegion) => {
+    e.stopPropagation();
+    const start = toCanvas(e.clientX, e.clientY); const off = { x: start.x - r.x, y: start.y - r.y };
+    const members = sm.states.filter(s => s.regionId === r.id).map(s => ({ id: s.id, dx: s.x - r.x, dy: s.y - r.y }));
+    const move = (ev: PointerEvent) => { const c = toCanvas(ev.clientX, ev.clientY); setDrag({ kind: 'region', id: r.id, x: c.x - off.x, y: c.y - off.y }); };
+    const up = (ev: PointerEvent) => {
+      const c = toCanvas(ev.clientX, ev.clientY); const x = c.x - off.x, y = c.y - off.y;
+      patch({ regions: regions.map(rr => rr.id === r.id ? { ...rr, x, y } : rr), states: sm.states.map(s => { const m = members.find(mm => mm.id === s.id); return m ? { ...s, x: x + m.dx, y: y + m.dy } : s; }) });
+      setDrag(null); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+    setSel({ kind: 'region', id: r.id });
+  };
+  const beginRegionResize = (e: React.PointerEvent, r: SmRegion) => {
+    e.stopPropagation();
+    const move = (ev: PointerEvent) => { const c = toCanvas(ev.clientX, ev.clientY); setDrag({ kind: 'regionSize', id: r.id, w: Math.max(140, c.x - r.x), h: Math.max(120, c.y - r.y) }); };
+    const up = (ev: PointerEvent) => { const c = toCanvas(ev.clientX, ev.clientY); patchRegion(r.id, { w: Math.max(140, c.x - r.x), h: Math.max(120, c.y - r.y) }); setDrag(null); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+  };
+  const beginHandleDrag = (e: React.PointerEvent, t: SmTransition, which: 'c1' | 'c2') => {
+    e.stopPropagation();
+    setDrag({ kind: 'handle', id: t.id, which });
+    const move = (ev: PointerEvent) => { const c = toCanvas(ev.clientX, ev.clientY); patchTransition(t.id, { [which]: c } as Partial<SmTransition>); };
+    const up = () => { setDrag(null); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+  };
+  // Drag a node's link nub onto another node to create a transition.
+  const beginLink = (e: React.PointerEvent, fromId: string) => {
+    e.stopPropagation();
+    setLinkFrom(fromId); setLinkTo(toCanvas(e.clientX, e.clientY));
+    const move = (ev: PointerEvent) => setLinkTo(toCanvas(ev.clientX, ev.clientY));
+    const up = (ev: PointerEvent) => {
       window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
+      const tgt = (ev.target as HTMLElement)?.closest('[data-node]')?.getAttribute('data-node');
+      if (tgt && tgt !== fromId) {
+        const tr: SmTransition = { id: uid(), from: fromId, to: tgt, trigger: { kind: 'manual' } };
+        patch({ transitions: [...sm.transitions, tr] }); setSel({ kind: 'transition', id: tr.id });
+      }
+      setLinkFrom(null); setLinkTo(null);
     };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
   };
 
-  const nodePos = (s: SmState) => (drag && drag.id === s.id ? { x: drag.x, y: drag.y } : { x: s.x, y: s.y });
+  // Pan with the middle mouse button; Ctrl/Cmd-wheel zooms around the cursor (plain wheel scrolls).
+  const beginPan = (e: React.PointerEvent) => {
+    if (e.button !== 1) return; e.preventDefault();
+    const el = scrollRef.current!; const sx = e.clientX, sy = e.clientY, l = el.scrollLeft, t = el.scrollTop;
+    const move = (ev: PointerEvent) => { el.scrollLeft = l - (ev.clientX - sx); el.scrollTop = t - (ev.clientY - sy); };
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+  };
+  useEffect(() => {
+    const el = scrollRef.current; if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return; e.preventDefault();
+      const r = el.getBoundingClientRect();
+      const cx = (e.clientX - r.left + el.scrollLeft) / scale, cy = (e.clientY - r.top + el.scrollTop) / scale;
+      const next = Math.min(2, Math.max(0.4, scale * (e.deltaY < 0 ? 1.1 : 0.9)));
+      setScale(next);
+      requestAnimationFrame(() => { el.scrollLeft = cx * next - (e.clientX - r.left); el.scrollTop = cy * next - (e.clientY - r.top); });
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [scale]);
+
+  // Delete the selection with Del/Backspace (unless typing in a field).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+      const t = document.activeElement?.tagName;
+      if (t === 'INPUT' || t === 'SELECT' || t === 'TEXTAREA') return;
+      if (!sel) return; e.preventDefault();
+      if (sel.kind === 'state') removeState(sel.id);
+      else if (sel.kind === 'transition') removeTransition(sel.id);
+      else removeRegion(sel.id);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
+  // --- live positions (drag overrides) ---
+  const nodePos = (s: SmState): Vec => (drag?.kind === 'node' && drag.id === s.id ? { x: drag.x, y: drag.y } : { x: s.x, y: s.y });
+  const regionBox = (r: SmRegion) => {
+    if (drag?.kind === 'region' && drag.id === r.id) return { ...r, x: drag.x, y: drag.y };
+    if (drag?.kind === 'regionSize' && drag.id === r.id) return { ...r, w: drag.w, h: drag.h };
+    return r;
+  };
+  const memberOffset = (s: SmState): Vec => {
+    if (drag?.kind === 'region' && s.regionId === drag.id) { const r = regions.find(rr => rr.id === drag.id)!; return { x: drag.x - r.x, y: drag.y - r.y }; }
+    return { x: 0, y: 0 };
+  };
+  const liveCenter = (s: SmState): Vec => { const p = nodePos(s); const o = memberOffset(s); return { x: p.x + o.x + R, y: p.y + o.y + R }; };
+
   const selState = sel?.kind === 'state' ? sm.states.find(s => s.id === sel.id) ?? null : null;
   const selTrans = sel?.kind === 'transition' ? sm.transitions.find(t => t.id === sel.id) ?? null : null;
+  const selRegion = sel?.kind === 'region' ? regions.find(r => r.id === sel.id) ?? null : null;
+
+  const trLabel = (t: SmTransition) => {
+    const to = sm.states.find(s => s.id === t.to);
+    const base = to ? `to${cap(to.name.replace(/\s+/g, ''))}` : 'transition';
+    return t.fadeSec != null ? `${base} [${t.fadeSec}]` : base;
+  };
 
   return (
     <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center" onPointerDown={onClose}>
-      <div className="w-[860px] h-[560px] bg-surface-0 border border-line-1 rounded-[var(--r-md)] shadow-xl flex flex-col overflow-hidden" onPointerDown={e => e.stopPropagation()}>
+      <div className="w-[1000px] h-[640px] bg-surface-0 border border-line-1 rounded-[var(--r-md)] shadow-xl flex flex-col overflow-hidden" onPointerDown={e => e.stopPropagation()}>
         <div className="h-9 shrink-0 flex items-center gap-2 px-3 border-b border-line-1 bg-surface-1">
-          <span className="text-[12px] text-fg-1 font-medium">State machine — logic</span>
-          <button onClick={addState} className="flex items-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-[11px] text-fg-1 hover:bg-surface-3"><Plus size={12} /> State</button>
-          {linkFrom && <span className="text-[10px] text-accent">click a target state to connect…</span>}
-          <button onClick={onClose} className="ml-auto inline-flex items-center justify-center h-6 w-6 rounded text-fg-2 hover:text-fg-1 hover:bg-surface-2"><X size={14} /></button>
+          <span className="text-[12px] text-fg-1 font-medium">Show machine — states & scenes</span>
+          <button onClick={() => addStateAt(CW / 2, CH / 2)} className="flex items-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-[11px] text-fg-1 hover:bg-surface-3"><Plus size={12} /> State</button>
+          <button onClick={addRegion} className="flex items-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-[11px] text-fg-1 hover:bg-surface-3"><SquareDashed size={12} /> Region</button>
+          <button onClick={buildFromScenes} disabled={!scenes.length} title={scenes.length ? 'Create one state per scene' : 'No scenes captured yet'}
+            className="flex items-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-[11px] text-fg-1 hover:bg-surface-3 disabled:opacity-40"><Wand2 size={12} /> Build from scenes</button>
+          {linkFrom && <span className="text-[10px] text-accent">drag onto a target state to connect…</span>}
+          <span className="ml-auto text-[9px] text-fg-3">dbl-click empty: add · dbl-click state: fire · drag nub: link · Ctrl+click edge: fire · Ctrl+wheel: zoom</span>
+          <button onClick={onClose} className="inline-flex items-center justify-center h-6 w-6 rounded text-fg-2 hover:text-fg-1 hover:bg-surface-2"><X size={14} /></button>
         </div>
 
         <div className="flex-1 min-h-0 flex">
           {/* canvas */}
-          <div ref={canvasRef} className="relative flex-1 overflow-auto bg-surface-0" onPointerDown={() => { setSel(null); setLinkFrom(null); }}>
-            <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ minWidth: 1200, minHeight: 800 }}>
-              <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="var(--accent, #5b9bff)" /></marker></defs>
-              {sm.transitions.map(t => {
-                const a = sm.states.find(s => s.id === t.from), b = sm.states.find(s => s.id === t.to);
-                if (!a || !b) return null;
-                const pa = nodePos(a), pb = nodePos(b);
-                const x1 = pa.x + NODE_W / 2, y1 = pa.y + NODE_H / 2, x2 = pb.x + NODE_W / 2, y2 = pb.y + NODE_H / 2;
-                return <line key={t.id} x1={x1} y1={y1} x2={x2} y2={y2} stroke={sel?.id === t.id ? '#5b9bff' : '#6b7280'} strokeWidth={sel?.id === t.id ? 2 : 1.5} markerEnd="url(#arrow)" />;
-              })}
-            </svg>
-            {sm.states.map(s => {
-              const p = nodePos(s);
-              const isInit = sm.initialStateId === s.id;
-              const selected = sel?.kind === 'state' && sel.id === s.id;
-              return (
-                <div key={s.id} onPointerDown={(e) => startNodeDrag(e, s)} onClick={(e) => { e.stopPropagation(); onNodeClick(s.id); }}
-                  className={`absolute rounded-md border px-2 py-1 cursor-grab select-none ${selected ? 'border-accent bg-accent/15' : 'border-line-1 bg-surface-2'} ${linkFrom === s.id ? 'ring-2 ring-accent' : ''}`}
-                  style={{ left: p.x, top: p.y, width: NODE_W, height: NODE_H }}>
-                  <div className="flex items-center gap-1">
-                    {isInit && <Star size={11} className="text-accent shrink-0" fill="currentColor" />}
-                    <span className="text-[11px] text-fg-1 truncate">{s.name}</span>
+          <div ref={scrollRef} className="relative flex-1 overflow-auto bg-surface-0"
+            onPointerDown={(e) => { beginPan(e); setSel(null); setLinkFrom(null); }}
+            onDoubleClick={(e) => { if ((e.target as HTMLElement).closest('[data-node]')) return; const c = toCanvas(e.clientX, e.clientY); addStateAt(c.x, c.y); }}>
+            <div className="relative" style={{ width: CW * scale, height: CH * scale }}>
+              <div className="absolute top-0 left-0" style={{ width: CW, height: CH, transform: `scale(${scale})`, transformOrigin: '0 0' }}>
+                {/* regions (behind everything) */}
+                {regions.map(r => {
+                  const b = regionBox(r); const selected = selRegion?.id === r.id;
+                  return (
+                    <div key={r.id} className={`absolute rounded-lg border ${selected ? 'border-accent' : 'border-line-2'} bg-surface-1/30`} style={{ left: b.x, top: b.y, width: b.w, height: b.h }}
+                      onPointerDown={(e) => { e.stopPropagation(); setSel({ kind: 'region', id: r.id }); }}>
+                      <div className="absolute -top-0.5 left-0 right-3 h-6 flex items-center px-2 cursor-grab text-[11px] text-fg-2" onPointerDown={(e) => beginRegionDrag(e, r)}>{r.name}</div>
+                      <div className="absolute bottom-0 right-0 w-3 h-3 cursor-nwse-resize" onPointerDown={(e) => beginRegionResize(e, r)}>
+                        <div className="absolute bottom-0.5 right-0.5 w-2 h-2 border-r-2 border-b-2 border-fg-3" />
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* transition edges */}
+                <svg className="absolute inset-0" width={CW} height={CH} style={{ overflow: 'visible' }}>
+                  <defs>
+                    <marker id="sm-arrow" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="currentColor" /></marker>
+                  </defs>
+                  {sm.transitions.map(t => {
+                    const a = sm.states.find(s => s.id === t.from), b = sm.states.find(s => s.id === t.to);
+                    if (!a || !b) return null;
+                    const ca = liveCenter(a), cb = liveCenter(b);
+                    const [d1, d2] = defaultC(ca, cb);
+                    const c1 = t.c1 ?? d1, c2 = t.c2 ?? d2;
+                    const p0 = rim(ca, c1), p3 = rim(cb, c2);
+                    const mid = bezAt(p0, c1, c2, p3, 0.5);
+                    const selected = sel?.kind === 'transition' && sel.id === t.id;
+                    const fired = firedId === t.id;
+                    const color = fired ? '#ef4444' : selected ? '#5b9bff' : (activeId === t.from ? '#7dd3fc' : '#6b7280');
+                    return (
+                      <g key={t.id} style={{ color }}>
+                        <path d={`M${p0.x},${p0.y} C${c1.x},${c1.y} ${c2.x},${c2.y} ${p3.x},${p3.y}`} fill="none" stroke="transparent" strokeWidth={14}
+                          style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
+                          onPointerDown={(e) => { e.stopPropagation(); if (e.ctrlKey || e.metaKey) engine.triggerSmTransition(t.id); else setSel({ kind: 'transition', id: t.id }); }} />
+                        <path d={`M${p0.x},${p0.y} C${c1.x},${c1.y} ${c2.x},${c2.y} ${p3.x},${p3.y}`} fill="none" stroke="currentColor"
+                          strokeWidth={selected || fired ? 2.5 : 1.6} markerEnd="url(#sm-arrow)" pointerEvents="none" />
+                        {/* label + transition-time badge */}
+                        <g transform={`translate(${mid.x},${mid.y})`} pointerEvents="none">
+                          <rect x={-trLabel(t).length * 3.2 - 5} y={-9} width={trLabel(t).length * 6.4 + 10} height={16} rx={3} fill="#1b1d23" stroke="#2b2f38" />
+                          <text textAnchor="middle" dy={3} fontSize={10} fill="#c8ccd4">{trLabel(t)}</text>
+                        </g>
+                        {/* bezier control handles (only when selected) */}
+                        {selected && (
+                          <>
+                            <line x1={p0.x} y1={p0.y} x2={c1.x} y2={c1.y} stroke="#f5a623" strokeWidth={0.75} strokeDasharray="3 3" />
+                            <line x1={p3.x} y1={p3.y} x2={c2.x} y2={c2.y} stroke="#f5a623" strokeWidth={0.75} strokeDasharray="3 3" />
+                            <circle cx={c1.x} cy={c1.y} r={6} fill="#f5a623" style={{ cursor: 'grab', pointerEvents: 'all' }} onPointerDown={(e) => beginHandleDrag(e, t, 'c1')} />
+                            <circle cx={c2.x} cy={c2.y} r={6} fill="#f5a623" style={{ cursor: 'grab', pointerEvents: 'all' }} onPointerDown={(e) => beginHandleDrag(e, t, 'c2')} />
+                          </>
+                        )}
+                      </g>
+                    );
+                  })}
+                  {/* live link preview */}
+                  {linkFrom && linkTo && (() => {
+                    const a = sm.states.find(s => s.id === linkFrom); if (!a) return null;
+                    const ca = liveCenter(a); const p0 = rim(ca, linkTo);
+                    return <line x1={p0.x} y1={p0.y} x2={linkTo.x} y2={linkTo.y} stroke="#5b9bff" strokeWidth={1.5} strokeDasharray="4 3" />;
+                  })()}
+                </svg>
+
+                {/* state nodes */}
+                {sm.states.map(s => {
+                  const p = nodePos(s); const o = memberOffset(s);
+                  const left = p.x + o.x, top = p.y + o.y;
+                  const isInit = sm.initialStateId === s.id;
+                  const isActive = activeId === s.id;
+                  const selected = sel?.kind === 'state' && sel.id === s.id;
+                  const scene = scenes.find(sc => sc.id === s.sceneId);
+                  return (
+                    <div key={s.id} data-node={s.id} onPointerDown={(e) => beginNodeDrag(e, s)}
+                      onDoubleClick={(e) => { e.stopPropagation(); if (!sm.enabled) patch({ enabled: true }); engine.enterSmState(s.id); }}
+                      title="Double-click to fire this state"
+                      className={`absolute rounded-full flex flex-col items-center justify-center text-center cursor-grab select-none border-2
+                        ${isInit ? 'bg-[#16e0d8]/85 text-black border-[#16e0d8]' : 'bg-surface-2 text-fg-1 border-line-1'}
+                        ${selected ? 'ring-2 ring-accent' : ''} ${isActive ? 'ring-4 ring-[#f5a623]' : ''}`}
+                      style={{ left, top, width: D, height: D }}>
+                      <span className="text-[10px] font-medium leading-tight px-1 truncate max-w-[60px]">{s.name.toUpperCase()}</span>
+                      {s.lockSec != null && <span className={`text-[9px] ${isInit ? 'text-black/70' : 'text-fg-3'}`}>[{s.lockSec}]</span>}
+                      {scene && <span className={`inline-flex items-center gap-0.5 text-[8px] ${isInit ? 'text-black/70' : 'text-accent'}`}><Film size={8} /> {scene.name}</span>}
+                      {/* link nub */}
+                      <div title="Drag onto another state to connect" onPointerDown={(e) => beginLink(e, s.id)}
+                        className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-accent border border-surface-0 cursor-crosshair" />
+                    </div>
+                  );
+                })}
+                {sm.states.length === 0 && regions.length === 0 && (
+                  <div className="absolute inset-0 flex items-center justify-center text-fg-3 text-[12px] italic pointer-events-none">
+                    Double-click to add a state, or “Build from scenes”.
                   </div>
-                  <div className="flex items-center justify-between mt-0.5">
-                    <span className="text-[9px] text-fg-3">{s.entry.length} action{s.entry.length === 1 ? '' : 's'}</span>
-                    <button onClick={(e) => { e.stopPropagation(); setLinkFrom(s.id); }} title="Draw transition from here"
-                      className="text-[9px] text-fg-3 hover:text-accent inline-flex items-center gap-0.5"><ArrowRight size={10} /> link</button>
-                  </div>
-                </div>
-              );
-            })}
-            {sm.states.length === 0 && <div className="absolute inset-0 flex items-center justify-center text-fg-3 text-[12px] italic pointer-events-none">Add a state to begin</div>}
+                )}
+              </div>
+            </div>
           </div>
 
           {/* inspector */}
@@ -142,6 +372,9 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
                   className={`w-full inline-flex items-center justify-center gap-1 px-2 py-1 rounded border ${sm.initialStateId === selState.id ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:text-fg-1'}`}>
                   <Star size={12} /> {sm.initialStateId === selState.id ? 'Initial state' : 'Set as initial'}
                 </button>
+                <SelectField label="Scene (recalled on entry)" value={selState.sceneId ?? ''} options={scenes.map(s => ({ v: s.id, l: s.name }))}
+                  onChange={(v) => patchState(selState.id, { sceneId: v || undefined })} />
+                <NumField label="Lock time (s) — dwell before auto transitions" value={selState.lockSec ?? 0} onChange={(v) => patchState(selState.id, { lockSec: v || undefined })} />
 
                 <div>
                   <div className="flex items-center justify-between mb-1">
@@ -154,7 +387,7 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
                         onChange={(na) => patchState(selState.id, { entry: selState.entry.map((x, j) => j === i ? na : x) })}
                         onRemove={() => patchState(selState.id, { entry: selState.entry.filter((_, j) => j !== i) })} />
                     ))}
-                    {selState.entry.length === 0 && <div className="text-fg-3 italic">No actions — this state just waits for a transition.</div>}
+                    {selState.entry.length === 0 && <div className="text-fg-3 italic">No extra actions — entering recalls the bound scene (if set).</div>}
                   </div>
                 </div>
               </div>
@@ -164,7 +397,7 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-fg-2 font-medium">Transition</span>
-                  <button onClick={() => { patch({ transitions: sm.transitions.filter(t => t.id !== selTrans.id) }); setSel(null); }} className="text-fg-3 hover:text-red-400"><Trash2 size={12} /></button>
+                  <button onClick={() => removeTransition(selTrans.id)} className="text-fg-3 hover:text-red-400"><Trash2 size={12} /></button>
                 </div>
                 <div className="text-fg-3">
                   {sm.states.find(s => s.id === selTrans.from)?.name} <ArrowRight size={10} className="inline" /> {sm.states.find(s => s.id === selTrans.to)?.name}
@@ -190,11 +423,27 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
                   <SelectField label="Track" value={selTrans.trigger.layerId ?? ''} options={layers.map(l => ({ v: l.id, l: l.name }))}
                     onChange={(v) => patchTransition(selTrans.id, { trigger: { ...selTrans.trigger, layerId: v } })} />
                 )}
-                {selTrans.trigger.kind === 'manual' && <div className="text-fg-3 italic">Fires from the state-lane button (or an external trigger).</div>}
+                {selTrans.trigger.kind === 'manual' && <div className="text-fg-3 italic">Fires from the state-lane button, Ctrl+click on the edge, or OSC.</div>}
+                <NumField label="Transition time (s) — scene crossfade on arrival" value={selTrans.fadeSec ?? 0} onChange={(v) => patchTransition(selTrans.id, { fadeSec: v || undefined })} />
               </div>
             )}
 
-            {!selState && !selTrans && <div className="text-fg-3 italic">Select a state or transition to edit it. Use a node's “link” to connect states.</div>}
+            {selRegion && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-fg-2 font-medium">Region</span>
+                  <button onClick={() => removeRegion(selRegion.id)} className="text-fg-3 hover:text-red-400"><Trash2 size={12} /></button>
+                </div>
+                <label className="block">
+                  <span className="text-fg-3 text-[10px]">Name</span>
+                  <input value={selRegion.name} onChange={(e) => patchRegion(selRegion.id, { name: e.target.value })}
+                    className="w-full mt-0.5 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent outline-none" />
+                </label>
+                <div className="text-fg-3 italic">A group box that organizes states. Drag it to move its members; drag the corner to resize.</div>
+              </div>
+            )}
+
+            {!selState && !selTrans && !selRegion && <div className="text-fg-3 italic">Select a state, transition or region to edit it. Bind each state to a scene; a transition's time is the crossfade.</div>}
           </div>
         </div>
       </div>

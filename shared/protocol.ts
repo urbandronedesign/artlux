@@ -609,6 +609,7 @@ export interface ProjectData {
   cueBanks?: unknown[]; // CueBank[] (renderer type) — granular cue grid; row 0 references scenes
   scene3D?: Scene3D;
   timeline?: unknown; // Timeline (renderer type) — video-layer NLE
+  stateMachine?: unknown; // StateMachine (renderer type) — project-level show graph over scenes
   assets?: AssetEntry[]; // managed media library (video/image/model/take)
   projectorOutputs?: ProjectorOutput[]; // per-surface fullscreen projector mappings
   projectorFpsCap?: number; // performance mode: cap projector output fps (0 = uncapped/vsync)

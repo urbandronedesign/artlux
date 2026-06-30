@@ -3,7 +3,7 @@
 // trigger sources call requestRecall(ref); App subscribes once and resolves the ref against its
 // `scenes` state. `ref` is a Scene id OR name, so OSC can fire scenes by readable name.
 
-type RecallCb = (ref: string) => void;
+type RecallCb = (ref: string, fadeSec?: number) => void;      // optional fade overrides the scene's default
 type FireCueCb = (ref: string) => void;                       // cue id or name
 type FireColumnCb = (bankRef: string, col: number) => void;   // bank id/name + 0-based column
 
@@ -11,9 +11,10 @@ const subs = new Set<RecallCb>();
 const cueSubs = new Set<FireCueCb>();
 const colSubs = new Set<FireColumnCb>();
 
-// Ask App to recall a scene by id or name. No-op if nothing is subscribed.
-export function requestRecall(ref: string): void {
-  subs.forEach(cb => cb(ref));
+// Ask App to recall a scene by id or name. `fadeSec`, when given, overrides the scene's stored fade
+// (the state machine passes a transition's fade here). No-op if nothing is subscribed.
+export function requestRecall(ref: string, fadeSec?: number): void {
+  subs.forEach(cb => cb(ref, fadeSec));
 }
 
 // Subscribe to recall requests. Returns an unsubscribe.

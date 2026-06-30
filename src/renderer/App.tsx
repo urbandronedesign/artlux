@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, type AssetEntry, type AssetType } from './types';
+import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, defaultStateMachine, normalizeStateMachine, type AssetEntry, type AssetType } from './types';
 import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge, WINDOWED_DISPLAY } from '../../shared/protocol';
 import type { ProjectorCalibration } from '../../shared/protocol';
 import { CalibWizard } from './components/CalibWizard';
@@ -140,6 +140,9 @@ const App: React.FC = () => {
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [modelNaturalSizes, setModelNaturalSizes] = useState<Record<string, number>>({});
   const [timeline, setTimeline] = useState<Timeline>(defaultTimeline());
+  // Project-level "Show" state machine over scenes (lives outside the timeline; runs on a standalone
+  // clock via the engine — see services/timeline.ts setStateMachine).
+  const [stateMachine, setStateMachine] = useState<StateMachine>(defaultStateMachine());
   const [assets, setAssets] = useState<AssetEntry[]>([]); // managed media library (video/image/model)
   const [leftTab, setLeftTab] = useState<'scene' | 'media'>('scene');
   const [assetManagerOpen, setAssetManagerOpen] = useState(false);
@@ -604,10 +607,11 @@ const App: React.FC = () => {
   const handleRemoveScene = (id: string) => setScenes(scenes.filter(s => s.id !== id));
   // Resolve a cueBus recall request (id then name) against current scenes. Held in a ref so the
   // once-subscribed cueBus listener always sees the latest scenes/handler closure.
-  const recallByRefRef = useRef<(ref: string) => void>(() => {});
-  recallByRefRef.current = (ref: string) => {
+  const recallByRefRef = useRef<(ref: string, fadeSec?: number) => void>(() => {});
+  recallByRefRef.current = (ref: string, fadeSec?: number) => {
     const scene = scenes.find(s => s.id === ref) ?? scenes.find(s => s.name === ref);
-    if (scene) handleRecallScene(scene);
+    // A state-machine transition can override the scene's stored fade with its own transition time.
+    if (scene) handleRecallScene(fadeSec != null ? { ...scene, fadeSec } : scene);
   };
 
   // --- Granular cues (apply a subset of params; compose; fade per entry) ---
@@ -701,6 +705,7 @@ const App: React.FC = () => {
       cueBanks,
       scene3D,
       timeline,
+      stateMachine,
       assets,
       projectorOutputs,
       projectorFpsCap,
@@ -735,6 +740,9 @@ const App: React.FC = () => {
       }
       const tl = normalizeTimeline(data?.timeline);
       setTimeline(tl);
+      // State machine: project-level field, else migrate a legacy machine nested in the timeline.
+      const legacySm = (data?.timeline as any)?.stateMachine;
+      setStateMachine(normalizeStateMachine(data?.stateMachine ?? legacySm));
       // Asset library: use saved assets; migrate a legacy take-only project (trackingTakes but no
       // assets) so recorded takes still appear in the library. Takes stay owned by the timeline.
       setAssets(Array.isArray(data?.assets) ? data.assets as AssetEntry[] : []);
@@ -991,11 +999,13 @@ const App: React.FC = () => {
   }), []);
   // Scene/cue triggers requested by a source (FSM action, OSC) — resolve by id/name and apply.
   useEffect(() => {
-    const u1 = cueBus.subscribeRecall((ref) => recallByRefRef.current(ref));
+    const u1 = cueBus.subscribeRecall((ref, fadeSec) => recallByRefRef.current(ref, fadeSec));
     const u2 = cueBus.subscribeFireCue((ref) => fireCueRef.current(ref));
     const u3 = cueBus.subscribeFireColumn((bankRef, col) => fireColumnRef.current(bankRef, col));
     return () => { u1(); u2(); u3(); };
   }, []);
+  // Feed the project-level state machine to the engine, which ticks it each frame on its standalone clock.
+  useEffect(() => { timelineEngine.setStateMachine(stateMachine); }, [stateMachine]);
   // OSC: subscribe the controller to forwarded messages once; (re)bind the UDP listener and refresh
   // the control namespace whenever the OSC settings change. Control intents flow back through the
   // subscribeIntent path above; LiDAR blob data lands in the tracking store.
@@ -1593,7 +1603,7 @@ const App: React.FC = () => {
                     timelineMax ? (
                         <div className="h-full flex items-center justify-center text-fg-3 text-[11px] italic">Timeline maximized — press F or the restore button to dock it</div>
                     ) : (
-                        <TimelinePanel timeline={timeline} onChange={setTimeline} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} onToggleMax={() => setTimelineMax(true)} projectPath={currentProjectPath} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} />
+                        <TimelinePanel timeline={timeline} onChange={setTimeline} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} onToggleMax={() => setTimelineMax(true)} projectPath={currentProjectPath} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} />
                     )
                 ) : dockTab === DockTab.SCENES ? (
                     <CueBankPanel
@@ -1673,6 +1683,7 @@ const App: React.FC = () => {
           rightOpen={showRightPanel}
           onToggleRight={() => setShowRightPanel(!showRightPanel)}
           targetIp={settings.artNetIp}
+          stateMachine={stateMachine}
       />
 
       <Preferences open={prefsOpen} onClose={() => setPrefsOpen(false)} settings={settings} onChange={updateSettings} />
@@ -1781,7 +1792,7 @@ const App: React.FC = () => {
 
       {timelineMax && (
         <div className="fixed inset-0 z-50 bg-surface-0 flex flex-col">
-          <TimelinePanel timeline={timeline} onChange={setTimeline} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} maximized onToggleMax={() => setTimelineMax(false)} projectPath={currentProjectPath} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} />
+          <TimelinePanel timeline={timeline} onChange={setTimeline} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} maximized onToggleMax={() => setTimelineMax(false)} projectPath={currentProjectPath} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} />
         </div>
       )}
 

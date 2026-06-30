@@ -1,10 +1,15 @@
-import { StateMachine, SmTransition, SmAction, Marker } from '../types';
+import { StateMachine, SmState, SmTransition, SmAction, Marker } from '../types';
 
-// Finite-state-machine runtime for the timeline control layer. Pure-ish module singleton driven
-// once per frame by the engine (services/timeline.ts), main window only. It never touches the
-// transport directly — it emits TransportIntents which App turns into React state so App stays the
-// single writer of `playing` (see App's subscribeIntent). Current-state is exposed render-free via
-// subscribeState for the timeline's state lane.
+// Finite-state-machine runtime for the project-level "Show" graph over scenes. Pure-ish module
+// singleton driven once per frame by the engine (services/timeline.ts), main window only. It never
+// touches the transport directly — it emits TransportIntents which App turns into React state so App
+// stays the single writer of `playing` (see App's subscribeIntent). Scenes are recalled via
+// ctx.recallScene (routed through cueBus to App). Current-state + elapsed are exposed render-free via
+// subscribeState / getStateElapsedSec for the lane and the main-UI status chip.
+//
+// Clock: `afterDelay` runs off a standalone wall clock (ctx.nowSec) so it advances even when the
+// timeline transport is stopped; `atTime`/`onMarker`/`onClipEnd` use the timeline playhead and only
+// fire when it advances.
 
 export type TransportIntent =
   | { kind: 'play' }
@@ -17,14 +22,19 @@ export interface SmContext {
   markers: Marker[];
   clipActive: (layerId: string, t: number) => boolean; // is a clip under the playhead on this layer?
   emit: (i: TransportIntent) => void;
-  recallScene: (sceneId: string) => void; // recall a Scene by id (routed via cueBus to App)
+  recallScene: (sceneId: string, fadeSec?: number) => void; // recall a Scene by id (fade overrides default)
   fireCue: (cueId: string) => void;       // fire a granular Cue by id (routed via cueBus to App)
+  nowSec: number;                          // monotonic wall clock (seconds) — drives afterDelay
 }
 
 let currentStateId: string | null = null;
 let stateEnteredAt = 0;     // playhead seconds when the current state was entered
+let stateEnteredAtWall = 0; // wall-clock seconds when the current state was entered (standalone clock)
+let lastNowSec = 0;         // most recent ctx.nowSec seen by tick() — for getStateElapsedSec()
 let lastEnabled = false;    // for rising-edge (re)initialization
+let forcedId: string | null = null; // external "go to this state" request, applied on the next tick
 const stateSubs = new Set<(id: string | null) => void>();
+const firedSubs = new Set<(transitionId: string) => void>();
 
 const notify = (): void => { stateSubs.forEach(cb => cb(currentStateId)); };
 
@@ -32,7 +42,19 @@ const notify = (): void => { stateSubs.forEach(cb => cb(currentStateId)); };
 export function subscribeState(cb: (id: string | null) => void): () => void {
   stateSubs.add(cb); cb(currentStateId); return () => { stateSubs.delete(cb); };
 }
+// Subscribe to "a transition just fired" events (for active-edge pulse in the editor).
+export function subscribeFired(cb: (transitionId: string) => void): () => void {
+  firedSubs.add(cb); return () => { firedSubs.delete(cb); };
+}
 export function getCurrentStateId(): string | null { return currentStateId; }
+// Queue an external "force-enter this state" request (UI double-click / future OSC/MIDI triggers).
+// Applied on the next tick once the machine is enabled, taking precedence over the rising-edge re-init
+// so it survives the React→engine enable-propagation delay. No-op target is harmless (ignored if gone).
+export function requestEnter(stateId: string): void { forcedId = stateId; }
+// Seconds spent in the current state on the standalone wall clock (0 when no state).
+export function getStateElapsedSec(): number {
+  return currentStateId == null ? 0 : Math.max(0, lastNowSec - stateEnteredAtWall);
+}
 
 function runEntry(actions: SmAction[], ctx: SmContext): void {
   for (const a of actions) {
@@ -49,11 +71,16 @@ function runEntry(actions: SmAction[], ctx: SmContext): void {
   }
 }
 
-function enter(sm: StateMachine, stateId: string, playhead: number, ctx: SmContext): void {
+// Enter a state: recall its bound scene (with the arriving transition's fade, if any), run its entry
+// actions, then notify. `via` is the transition we arrived through (null on (re)initialization).
+function enter(sm: StateMachine, stateId: string, playhead: number, ctx: SmContext, via: SmTransition | null): void {
   currentStateId = stateId;
   stateEnteredAt = playhead;
+  stateEnteredAtWall = ctx.nowSec;
   const s = sm.states.find(st => st.id === stateId);
+  if (s?.sceneId) ctx.recallScene(s.sceneId, via?.fadeSec); // 1:1 scene binding — crossfade over the transition time
   if (s) runEntry(s.entry, ctx);
+  if (via) firedSubs.forEach(cb => cb(via.id));
   notify();
 }
 
@@ -64,11 +91,17 @@ function crossed(T: number, prev: number, cur: number): boolean {
   return T > prev || T <= cur;
 }
 
-function triggerFires(tr: SmTransition, playhead: number, prev: number, ctx: SmContext): boolean {
+function triggerFires(tr: SmTransition, fromState: SmState | undefined, playhead: number, prev: number, ctx: SmContext): boolean {
   const g = tr.trigger;
   switch (g.kind) {
     case 'manual': return false; // only via triggerManual()
-    case 'afterDelay': { const dt = playhead - stateEnteredAt; return dt < 0 || dt >= (g.seconds ?? 0); }
+    case 'afterDelay': {
+      // Standalone wall clock so it advances while the transport is stopped. Gate on the source
+      // state's lock time (dwell) before any auto transition may fire.
+      const wall = ctx.nowSec - stateEnteredAtWall;
+      if (wall < (fromState?.lockSec ?? 0)) return false;
+      return wall >= (g.seconds ?? 0);
+    }
     case 'atTime': return g.time != null && crossed(g.time, prev, playhead);
     case 'onMarker': { const m = ctx.markers.find(mk => mk.id === g.markerId); return !!m && crossed(m.time, prev, playhead); }
     case 'onClipEnd': return !!g.layerId && ctx.clipActive(g.layerId, prev) && !ctx.clipActive(g.layerId, playhead);
@@ -79,26 +112,34 @@ function triggerFires(tr: SmTransition, playhead: number, prev: number, ctx: SmC
 // Advance the machine one frame. Re-initializes on the enabled rising edge or when the current
 // state is missing (graph edited). Evaluates at most one transition per frame to avoid cascades.
 export function tick(sm: StateMachine | undefined, playhead: number, prev: number, ctx: SmContext): void {
+  lastNowSec = ctx.nowSec;
   if (!sm || !sm.enabled) { lastEnabled = false; return; }
+  // External force-enter (double-click / triggers): apply before re-init so enabling can't clobber it.
+  if (forcedId != null) {
+    const fid = forcedId; forcedId = null; lastEnabled = true;
+    if (sm.states.some(s => s.id === fid)) { enter(sm, fid, playhead, ctx, null); return; }
+  }
   const justEnabled = !lastEnabled;
   lastEnabled = true;
 
   const valid = currentStateId != null && sm.states.some(s => s.id === currentStateId);
   if (justEnabled || !valid) {
     const init = sm.initialStateId && sm.states.some(s => s.id === sm.initialStateId) ? sm.initialStateId : (sm.states[0]?.id ?? null);
-    if (init) enter(sm, init, playhead, ctx); else { currentStateId = null; notify(); }
+    if (init) enter(sm, init, playhead, ctx, null); else { currentStateId = null; notify(); }
     return; // re-evaluate transitions next frame
   }
 
+  const from = sm.states.find(s => s.id === currentStateId);
   for (const tr of sm.transitions) {
     if (tr.from !== currentStateId) continue;
-    if (triggerFires(tr, playhead, prev, ctx)) { enter(sm, tr.to, playhead, ctx); return; }
+    if (triggerFires(tr, from, playhead, prev, ctx)) { enter(sm, tr.to, playhead, ctx, tr); return; }
   }
 }
 
 // Fire a manual transition (by id) out of the current state — wired to UI buttons / external triggers.
 export function triggerManual(sm: StateMachine | undefined, transitionId: string, playhead: number, ctx: SmContext): void {
   if (!sm || !sm.enabled) return;
+  lastNowSec = ctx.nowSec;
   const tr = sm.transitions.find(t => t.id === transitionId && t.from === currentStateId);
-  if (tr) enter(sm, tr.to, playhead, ctx);
+  if (tr) enter(sm, tr.to, playhead, ctx, tr);
 }

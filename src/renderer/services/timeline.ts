@@ -1,4 +1,4 @@
-import { Timeline, VideoClip, SurfaceContent, LayerBlendMode, isContentClip, defaultTimeline } from '../types';
+import { Timeline, VideoClip, SurfaceContent, LayerBlendMode, StateMachine, isContentClip, defaultTimeline } from '../types';
 import { getBlobUrl, ensureBlobUrl } from './mediaCache';
 import * as hapDecode from './hapDecode';
 import * as hapGL from './hapGL';
@@ -74,10 +74,15 @@ let raf = 0;
 let prevPlayhead = 0; // previous frame's playhead — for FSM crossing detection
 const SLEW = 0.1; // fraction of residual drift a mirror window corrects per transport update
 
+// The project-level state machine (set by App via setStateMachine). Lives here — not in `data` — so
+// it runs independently of the timeline document and can drive scenes while the transport is stopped.
+let projectSm: StateMachine | undefined;
+let frameNowSec = 0; // wall clock (seconds) sampled each frame — the FSM's standalone clock
+
 // Is a clip live under the playhead on this layer? (for the FSM 'onClipEnd' trigger)
 const clipActive = (layerId: string, t: number): boolean => activeClip(layerId, t) != null;
 // Per-frame context handed to the FSM runtime.
-const smContext = (): SmContext => ({ markers: data.markers ?? [], clipActive, emit: emitIntent, recallScene: (id) => cueBus.requestRecall(id), fireCue: (id) => cueBus.requestFireCue(id) });
+const smContext = (): SmContext => ({ markers: data.markers ?? [], clipActive, emit: emitIntent, recallScene: (id, fadeSec) => cueBus.requestRecall(id, fadeSec), fireCue: (id) => cueBus.requestFireCue(id), nowSec: frameNowSec });
 
 const ensureBlob = (path: string): void => { void ensureBlobUrl(path, 'video/mp4'); };
 
@@ -219,8 +224,10 @@ function frame(now: number): void {
       }
     }
     // FSM control layer (main window only — mirrors receive the resulting transport via the bridge).
+    // Ticks every frame regardless of `playing` so the standalone wall clock advances while stopped.
     if (!external) {
-      try { fsm.tick(data.stateMachine, playhead, prevPlayhead, smContext()); } catch (e) { console.error('[timeline] fsm error', e); }
+      frameNowSec = now / 1000;
+      try { fsm.tick(projectSm, playhead, prevPlayhead, smContext()); } catch (e) { console.error('[timeline] fsm error', e); }
     }
     // Main window decodes everything; mirror windows decode only HAP locally (when hapLocal),
     // otherwise they consume streamed frames and skip decoding entirely.
@@ -321,8 +328,17 @@ export const timeline = {
   // same subscribeIntent consumers, so App remains the single writer of `playing`.
   dispatchTransportIntent(i: TransportIntent): void { if (!external) emitIntent(i); },
   subscribeSmState(cb: (id: string | null) => void): () => void { return fsm.subscribeState(cb); },
+  // Subscribe to "a transition just fired" events (for the editor's active-edge pulse).
+  subscribeSmFired(cb: (transitionId: string) => void): () => void { return fsm.subscribeFired(cb); },
+  // Seconds spent in the current state on the standalone wall clock (for the main-UI status chip).
+  getSmElapsedSec(): number { return fsm.getStateElapsedSec(); },
+  // Register the project-level state machine to drive each frame. App calls this whenever it changes.
+  setStateMachine(sm: StateMachine | undefined): void { projectSm = sm; },
   // Fire a manual FSM transition out of the current state (wired to the state-lane buttons).
-  triggerSmTransition(id: string): void { if (!external) fsm.triggerManual(data.stateMachine, id, playhead, smContext()); },
+  triggerSmTransition(id: string): void { if (!external) fsm.triggerManual(projectSm, id, playhead, smContext()); },
+  // Force-enter a state by id, independent of the timeline (UI double-click test + future external
+  // triggers like OSC/MIDI). Queued and applied on the next tick once the machine is enabled.
+  enterSmState(id: string): void { if (!external) fsm.requestEnter(id); },
   // Store the latest streamed frame for a layer (mirror windows only). Closes the prior
   // bitmap it replaces so transferred frames don't leak.
   setLayerBitmap(layerId: string, bmp: ImageBitmap): void {

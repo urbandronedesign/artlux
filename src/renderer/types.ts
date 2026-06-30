@@ -246,11 +246,13 @@ export interface Marker {
   note?: string;
 }
 
-// --- State machine (control layer) ---
-// An always-available, optional finite-state graph that can drive the transport (play/pause/
-// seek/loop) as the playhead moves. It lives OUTSIDE layers[]/clips[] so the video engine is
-// untouched. While `enabled`, the engine runtime (services/stateMachine.ts) evaluates the
-// current state's outgoing transitions each frame and emits transport intents back to App.
+// --- State machine (project-level "Show" graph over scenes) ---
+// An always-available, optional finite-state graph. Each state can bind a Scene (recalled on entry)
+// and/or run transport actions (play/pause/seek/loop). It lives at PROJECT scope (ProjectData.
+// stateMachine), driven by the engine runtime (services/stateMachine.ts) on a standalone wall clock:
+// `manual`/`afterDelay` work with the transport stopped, while `atTime`/`onMarker`/`onClipEnd` fire
+// when the timeline plays. While `enabled`, it evaluates the current state's outgoing transitions
+// each frame, recalls bound scenes (with the transition's fade) and emits transport intents to App.
 export type SmActionKind = 'play' | 'pause' | 'stop' | 'seek' | 'setLoop' | 'jumpMarker' | 'recallScene' | 'fireCue';
 export interface SmAction {
   kind: SmActionKind;
@@ -279,21 +281,39 @@ export interface SmState {
   x: number;             // node position in the graph editor
   y: number;
   entry: SmAction[];     // actions run when this state is entered
+  sceneId?: string;      // scene auto-recalled on entry (1:1 binding — nodes ARE looks)
+  lockSec?: number;      // AutomataUI "lock time": dwell before this state's auto/afterDelay transitions fire
+  regionId?: string;     // owning Region (visual grouping — see SmRegion)
 }
 export interface SmTransition {
   id: string;
   from: string;          // SmState.id
   to: string;            // SmState.id
   trigger: SmTrigger;
+  fadeSec?: number;      // AutomataUI "transition time": scene crossfade applied on the target state
+  c1?: { x: number; y: number }; // cubic-bezier control handle 1 (canvas coords) — curved edge
+  c2?: { x: number; y: number }; // cubic-bezier control handle 2 (canvas coords)
+}
+// A resizable group box ("the big OR") that organizes related states. Visual/organizational only —
+// states inside carry its id in `regionId` and move/resize with it.
+export interface SmRegion {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  color?: string;
 }
 export interface StateMachine {
   enabled: boolean;
   states: SmState[];
   transitions: SmTransition[];
   initialStateId: string | null;
+  regions?: SmRegion[];
 }
 export const defaultStateMachine = (): StateMachine => ({
-  enabled: false, states: [], transitions: [], initialStateId: null,
+  enabled: false, states: [], transitions: [], initialStateId: null, regions: [],
 });
 
 export interface Timeline {
@@ -305,12 +325,13 @@ export interface Timeline {
   inPoint?: number | null;  // timeline range start (export/loop region) — NOT clip trim
   outPoint?: number | null; // timeline range end
   loop?: boolean;        // when true, playback wraps over [inPoint, outPoint); else unbounded
-  stateMachine?: StateMachine; // optional control-layer FSM
   trackingTakes?: TrackingTakeRef[]; // recorded LiDAR-blob take library (drag onto a tracking lane)
+  /** @deprecated moved to project scope (ProjectData.stateMachine); kept read-only for migration. */
+  stateMachine?: StateMachine;
 }
 export const defaultTimeline = (): Timeline => ({
   layers: [], clips: [], duration: 60, fps: 30, markers: [], inPoint: null, outPoint: null,
-  loop: false, stateMachine: defaultStateMachine(), trackingTakes: [],
+  loop: false, trackingTakes: [],
 });
 
 // Fill defaults for fields added after a project was saved, so old projects load cleanly.
@@ -319,10 +340,10 @@ export const defaultTimeline = (): Timeline => ({
 export const normalizeTimeline = (t: Partial<Timeline> | null | undefined): Timeline => {
   const base = defaultTimeline();
   if (!t || !Array.isArray(t.layers)) return base;
-  const sm = t.stateMachine;
+  const { stateMachine: _legacySm, ...rest } = t; // legacy field migrated to project scope in App's loader
   return {
     ...base,
-    ...t,
+    ...rest,
     layers: (t.layers ?? []).map(l => ({ enabled: true, ...l })),
     clips: t.clips ?? [],
     trackingTakes: t.trackingTakes ?? [],
@@ -331,9 +352,18 @@ export const normalizeTimeline = (t: Partial<Timeline> | null | undefined): Time
     outPoint: t.outPoint ?? null,
     fps: t.fps ?? base.fps,
     loop: t.loop ?? false,
-    stateMachine: sm
-      ? { enabled: !!sm.enabled, states: sm.states ?? [], transitions: sm.transitions ?? [], initialStateId: sm.initialStateId ?? null }
-      : defaultStateMachine(),
+  };
+};
+
+// Normalize a persisted/partial state machine into a complete one (fills new fields on old saves).
+export const normalizeStateMachine = (sm: Partial<StateMachine> | null | undefined): StateMachine => {
+  if (!sm || !Array.isArray(sm.states)) return defaultStateMachine();
+  return {
+    enabled: !!sm.enabled,
+    states: sm.states ?? [],
+    transitions: sm.transitions ?? [],
+    initialStateId: sm.initialStateId ?? null,
+    regions: sm.regions ?? [],
   };
 };
 

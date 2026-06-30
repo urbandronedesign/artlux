@@ -22,6 +22,8 @@ import { useTimelineKeys } from './hooks/useTimelineKeys';
 interface Props {
   timeline: TL;
   onChange: (t: TL) => void;
+  stateMachine: StateMachine;                          // project-level show graph (lives in App, not the timeline)
+  onStateMachineChange: (sm: StateMachine) => void;
   playing: boolean;
   onTogglePlay: () => void;
   maximized?: boolean;
@@ -35,7 +37,7 @@ interface Props {
 // (top-bar play) drives the engine — the playback clock. Edits commit to project state via
 // onChange; the live playhead/time are read from the engine render-free. Layout is a single
 // vertical scroller with a sticky track-header gutter and a sticky timecode ruler.
-export const Timeline: React.FC<Props> = ({ timeline, onChange, playing, onTogglePlay, maximized = false, onToggleMax, projectPath, scenes = [], cues = [] }) => {
+export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, onStateMachineChange, playing, onTogglePlay, maximized = false, onToggleMax, projectPath, scenes = [], cues = [] }) => {
   const [pxPerSec, setPxPerSec] = useState(40);
   const [selected, setSelected] = useState<string | null>(null);
   const [tool, setTool] = useState<'select' | 'blade'>('select');
@@ -48,7 +50,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, playing, onToggl
   const layers = timeline.layers;
   const dur = timeline.duration;
   const fps = timeline.fps ?? 30;
-  const sm = timeline.stateMachine ?? defaultStateMachine();
+  const sm = stateMachine ?? defaultStateMachine();
   // Infinite timeline: content width grows with the furthest content end AND the explored viewport
   // (pages bumped imperatively as the playhead/scroll approaches the right edge — never per frame).
   const contentEnd = useMemo(
@@ -254,8 +256,8 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, playing, onToggl
   const onZoom = (f: number) => setPxPerSec(p => clamp(p * f, 5, 300));
   const onZoomFit = () => { const el = scrollRef.current; const avail = (el ? el.clientWidth : 800) - GUTTER - 24; setPxPerSec(clamp(avail / Math.max(1, contentEnd), 5, 300)); };
   const toggleLoop = () => onChange({ ...timeline, loop: !timeline.loop });
-  const toggleSm = () => onChange({ ...timeline, stateMachine: { ...sm, enabled: !sm.enabled } });
-  const setStateMachine = (next: StateMachine) => onChange({ ...timeline, stateMachine: next });
+  const toggleSm = () => onStateMachineChange({ ...sm, enabled: !sm.enabled });
+  const setStateMachine = (next: StateMachine) => onStateMachineChange(next);
   const addMarker = () => onChange({ ...timeline, markers: [...(timeline.markers ?? []), { id: crypto.randomUUID(), time: engine.getPlayhead(), color: '#f5a623' }] });
   const setIn = () => { const t = engine.getPlayhead(); const out = timeline.outPoint != null && timeline.outPoint <= t ? null : timeline.outPoint ?? null; onChange({ ...timeline, inPoint: t, outPoint: out }); };
   const setOut = () => { const t = engine.getPlayhead(); const inp = timeline.inPoint != null && timeline.inPoint >= t ? null : timeline.inPoint ?? null; onChange({ ...timeline, inPoint: inp, outPoint: t }); };
