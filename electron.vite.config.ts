@@ -13,6 +13,9 @@ const sdkAliases = [
   // First-party plugins are bundled in-process. Deep subpath imports (…/trackingStore) resolve under
   // the package's src/ so each window only bundles the modules it uses.
   { find: '@artlux/plugin-lidar-tracking', replacement: resolve(__dirname, 'plugins/lidar-tracking/src') },
+  // NDI spans both processes → explicit main/renderer subpath entries (like @artlux/sdk).
+  { find: '@artlux/plugin-ndi/main', replacement: resolve(__dirname, 'plugins/ndi/src/main.ts') },
+  { find: '@artlux/plugin-ndi/renderer', replacement: resolve(__dirname, 'plugins/ndi/src/renderer.ts') },
 ];
 
 export default defineConfig({

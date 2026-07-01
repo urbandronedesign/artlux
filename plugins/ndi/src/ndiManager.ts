@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import type { NdiFrame } from '../../../shared/protocol';
+import type { NdiFrame } from './types';
 
 // Loads the native NDI addon (native/ndi/ndi.node) in the main process — the sandboxed
 // renderer can't require a .node, so frames cross via IPC. Mirrors spoutManager for receive;

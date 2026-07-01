@@ -3,31 +3,26 @@
 // Safe to use `node:*` types here. NEVER import `react` / WebGL from this entry: the main bundle
 // must not pull renderer-only deps. STATUS: internal + UNSTABLE (see ./index.ts).
 
-import type { OscMessage } from './index.ts';
-
 export type { OscMessage, OscConfig, PluginManifest } from './index.ts';
 
-// ─── Main-process input transport contribution ──────────────────────────────────────────────
-// A plugin that ingests external data (e.g. a UDP/OSC LiDAR feed) registers a transport. The
-// host owns the IPC wiring: it installs `ipcMain.on(configureChannel)` and, on each decoded
-// batch, the transport calls `push(messages)` which the host forwards to the renderer over
-// `messageChannel`. Delivery stays array-batched (one IPC message per source packet) so the
-// 61fps firehose never stalls the render loop.
-export interface MainTransport {
-  id: string;
-  configureChannel: string; // plugin IPC channel the renderer sends config on (without 'plugin:' prefix)
-  messageChannel: string;   // plugin IPC channel the host sends decoded batches on
-  start(config: unknown, push: (messages: OscMessage[]) => void): void;
-  stop(): void;
-}
-
-export interface MainTransportRegistry {
-  register(transport: MainTransport): void;
+// ─── Main-process plugin IPC ────────────────────────────────────────────────────────────────
+// The general handle a plugin's main entry uses to talk to its renderer counterpart. The host
+// namespaces every channel under 'plugin:<channel>' and binds it to the active window; the plugin
+// passes the bare channel. This deliberately supersedes the first cut's OSC-shaped MainTransport
+// (push: OscMessage[]) — the NDI plugin needs request/response discovery AND binary frame pushes,
+// neither of which the narrow transport contract could express.
+export interface MainPluginIpc {
+  /** Request/response from the renderer (ipcMain.handle). For discovery, capability checks, etc. */
+  handle(channel: string, handler: (...args: unknown[]) => unknown | Promise<unknown>): void;
+  /** Fire-and-forget from the renderer (ipcMain.on). For configure/control messages. */
+  on(channel: string, handler: (...args: unknown[]) => void): void;
+  /** Push to the active window's renderer (webContents.send). For frame/event streams. */
+  send(channel: string, ...args: unknown[]): void;
 }
 
 // Context handed to a plugin's main-process `activate()`.
 export interface MainPluginContext {
-  transports: MainTransportRegistry;
+  ipc: MainPluginIpc;
 }
 
 export interface MainPlugin {

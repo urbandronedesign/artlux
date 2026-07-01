@@ -1,0 +1,15 @@
+{
+  "name": "@artlux/plugin-ndi",
+  "version": "0.0.0",
+  "private": true,
+  "description": "First-party ArtLux plugin: NDI network video — receive (content source) + send (per-output publishing).",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./main": "./src/main.ts",
+    "./renderer": "./src/renderer.ts"
+  },
+  "dependencies": {
+    "@artlux/sdk": "*"
+  }
+}

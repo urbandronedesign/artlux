@@ -1,12 +1,11 @@
 import { app, ipcMain, shell, dialog, BrowserWindow } from 'electron';
 import { readFile } from 'node:fs/promises';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { IPC, type OutputConfig, type InputConfig, type ProjectData, type RigData, type Prefs, type SpoutConfig, type NdiConfig, type NdiSendConfig, type OscConfig, type AssetType, type WindowCommand } from '../../shared/protocol';
+import { IPC, type OutputConfig, type InputConfig, type ProjectData, type RigData, type Prefs, type SpoutConfig, type OscConfig, type AssetType, type WindowCommand } from '../../shared/protocol';
 import * as output from './transport/outputManager';
 import * as input from './transport/input';
 import * as discovery from './transport/discovery';
 import * as spout from './transport/spoutManager';
-import * as ndi from './transport/ndiManager';
 import * as osc from './transport/oscManager';
 import * as hap from './transport/hapManager';
 import * as calib from './calibManager';
@@ -16,6 +15,7 @@ import * as persistence from './persistence';
 import * as projectFolder from './projectFolder';
 import * as metrics from './metrics';
 import { rebuildAppMenu } from './menu';
+import { activateMainPlugins } from './host/plugins';
 
 // Wire renderer IPC to the native Art-Net transport and report status back.
 export function registerIpc(getWindow: () => BrowserWindow | null): void {
@@ -153,22 +153,9 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
         }
     });
 
-    // ---- NDI (network video): receive onto a surface + send per-output ----
-    ipcMain.handle(IPC.NDI_AVAILABLE, () => ndi.available());
-    ipcMain.handle(IPC.NDI_LIST, () => ndi.listSources());
-    ipcMain.on(IPC.NDI_CONFIGURE, (_e, cfg: NdiConfig) => {
-        if (cfg.enabled) {
-            ndi.startRecv(cfg.name ?? '', (frame) => getWindow()?.webContents.send(IPC.NDI_FRAME, frame));
-        } else {
-            ndi.stopRecv();
-        }
-    });
-    ipcMain.on(IPC.NDI_SEND_CONFIGURE, (_e, cfg: NdiSendConfig) => {
-        ndi.sendConfigure(cfg.outputId, cfg.enabled, cfg.name ?? 'ArtLux');
-    });
-    ipcMain.on(IPC.NDI_SEND_FRAME, (_e, outputId: string, width: number, height: number, data: ArrayBuffer) => {
-        ndi.sendFrame(outputId, width, height, Buffer.from(data));
-    });
+    // First-party main plugins register their own IPC through the generic plugin bridge. NDI lives in
+    // @artlux/plugin-ndi now (channels: ndi:available / ndi:list / ndi:configure / ndi:frame / ndi:send-*).
+    activateMainPlugins(getWindow);
 
     // ---- OSC (external control + LiDAR blob tracking): receive onto the renderer ----
     ipcMain.on(IPC.OSC_CONFIGURE, (_e, cfg: OscConfig) => {

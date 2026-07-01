@@ -12,8 +12,9 @@ import {
 import { timeline } from '../services/timeline';
 import type { RendererPlugin, RendererPluginContext, PluginIpc } from '@artlux/sdk/renderer';
 import { plugin as lidarTracking } from '@artlux/plugin-lidar-tracking';
+import { plugin as ndi } from '@artlux/plugin-ndi/renderer';
 
-const FIRST_PARTY: RendererPlugin[] = [lidarTracking];
+const FIRST_PARTY: RendererPlugin[] = [lidarTracking, ndi];
 
 let activated = false;
 

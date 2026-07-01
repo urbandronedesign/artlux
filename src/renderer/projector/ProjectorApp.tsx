@@ -212,7 +212,7 @@ export const ProjectorApp: React.FC = () => {
           const mw = ndiFullResRef.current ? NDI_BCAST_W : NDI_MAX_W;
           const mh = ndiFullResRef.current ? NDI_BCAST_H : NDI_MAX_H;
           const shot = gl.captureRGBA(mw, mh);
-          if (shot) window.artlux?.sendNdiFrame?.(id, shot.width, shot.height, shot.data.buffer as ArrayBuffer);
+          if (shot) window.artlux?.pluginSend?.('ndi:send-frame', id, shot.width, shot.height, shot.data.buffer as ArrayBuffer);
         }
       }
     };

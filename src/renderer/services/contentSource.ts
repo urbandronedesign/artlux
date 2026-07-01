@@ -1,7 +1,6 @@
 import { SourceType, type SurfaceContent } from '../types';
 import { getInputCanvas, startInput, stopInput } from './dmxInput';
 import { getSpoutCanvas, startSpout, stopSpout } from './spoutReceiver';
-import { getNdiCanvas, startNdi, stopNdi } from './ndiReceiver';
 import { SurfaceEffect } from '../gpu/surfaceFx';
 import { resolveMediaUrl, mimeForPath } from './mediaCache';
 import * as hap from './hapPlayer';
@@ -29,11 +28,10 @@ const media = new Map<string, Entry>();          // VIDEO / IMAGE / HAP, keyed b
 const effects = new Map<string, SurfaceEffect>(); // EFFECT, keyed by consumer key
 
 // Shared live receivers, refcounted by consumer key. Spout/NDI carry the desired sender + a seq so
-// the latest acquirer wins on conflict.
+// the latest acquirer wins on conflict. (NDI moved to @artlux/plugin-ndi — same refcount pattern.)
 let seq = 0;
 const cameraConsumers = new Set<string>();
 const spoutConsumers = new Map<string, { name: string; seq: number }>();
-const ndiConsumers = new Map<string, { name: string; seq: number }>();
 const dmxConsumers = new Set<string>();
 
 let cameraEl: HTMLVideoElement | null = null;
@@ -41,7 +39,6 @@ let cameraStream: MediaStream | null = null;
 let cameraStarting = false;
 let dmxActive = false;
 let spoutActive = false, spoutName = '';
-let ndiActive = false, ndiName = '';
 let playing = true;
 
 // `url` is a live blob:/http url or an absolute file path (resolved to a blob url via IPC).
@@ -132,11 +129,6 @@ function reconcileSpout(): void {
   for (const v of spoutConsumers.values()) { want = true; if (v.seq > best) { best = v.seq; name = v.name; } }
   if (want !== spoutActive || name !== spoutName) { spoutActive = want; spoutName = name; if (want) startSpout(name); else stopSpout(); }
 }
-function reconcileNdi(): void {
-  let want = false, name = '', best = -1;
-  for (const v of ndiConsumers.values()) { want = true; if (v.seq > best) { best = v.seq; name = v.name; } }
-  if (want !== ndiActive || name !== ndiName) { ndiActive = want; ndiName = name; if (want) startNdi(name); else stopNdi(); }
-}
 function reconcileDmx(): void {
   const want = dmxConsumers.size > 0;
   if (want === dmxActive) return;
@@ -146,7 +138,6 @@ function reconcileDmx(): void {
 }
 
 const setSpoutConsumer = (key: string, name: string): void => { const c = spoutConsumers.get(key); if (!c || c.name !== name) spoutConsumers.set(key, { name, seq: ++seq }); };
-const setNdiConsumer = (key: string, name: string): void => { const c = ndiConsumers.get(key); if (!c || c.name !== name) ndiConsumers.set(key, { name, seq: ++seq }); };
 
 // Declare that `key` wants `content` live this frame. Idempotent — safe to call every sync; the
 // receiver reconcilers only start/stop on an actual change.
@@ -157,25 +148,24 @@ export function acquire(key: string, content: SurfaceContent): void {
 
   if (content.type === SourceType.CAMERA) cameraConsumers.add(key); else cameraConsumers.delete(key);
   if (content.type === SourceType.SPOUT) setSpoutConsumer(key, content.spoutName ?? ''); else spoutConsumers.delete(key);
-  if (content.type === SourceType.NDI) setNdiConsumer(key, content.ndiName ?? ''); else ndiConsumers.delete(key);
   if (content.type === SourceType.DMX_IN) dmxConsumers.add(key); else dmxConsumers.delete(key);
 
-  // Plugin-contributed content sources: hand the key to the matching provider, drop it from the
-  // rest (mirrors the per-type add/delete discipline above). Empty until a plugin registers one.
+  // Plugin-contributed content sources (e.g. NDI, TRACKING): hand the key to the matching provider,
+  // drop it from the rest (mirrors the per-type add/delete discipline above).
   for (const p of contentSourceRegistry.all()) {
     if (content.type === p.type) p.acquire?.(key, content); else p.release?.(key);
   }
 
-  reconcileCamera(); reconcileSpout(); reconcileNdi(); reconcileDmx();
+  reconcileCamera(); reconcileSpout(); reconcileDmx();
 }
 
 // Drop everything `key` was holding (instance element + receiver refcounts + tracking canvas).
 export function release(key: string): void {
   dropMedia(key);
   effects.delete(key);
-  cameraConsumers.delete(key); spoutConsumers.delete(key); ndiConsumers.delete(key); dmxConsumers.delete(key);
+  cameraConsumers.delete(key); spoutConsumers.delete(key); dmxConsumers.delete(key);
   for (const p of contentSourceRegistry.all()) p.release?.(key);
-  reconcileCamera(); reconcileSpout(); reconcileNdi(); reconcileDmx();
+  reconcileCamera(); reconcileSpout(); reconcileDmx();
 }
 
 // Global transport toggle — applies to <video> elements + the camera (live receivers ignore it).
@@ -204,8 +194,6 @@ export function getDrawable(key: string, content: SurfaceContent, timeSec: numbe
       return cameraEl && cameraEl.readyState >= 2 ? cameraEl : null;
     case SourceType.SPOUT:
       return getSpoutCanvas();
-    case SourceType.NDI:
-      return getNdiCanvas();
     case SourceType.DMX_IN:
       return getInputCanvas();
     case 'EFFECT': {

@@ -1,7 +1,8 @@
-import type { NdiFrame } from '../../../shared/protocol';
+import type { NdiFrame } from './types';
 
-// Receives NDI frames (downscaled RGBA) from the main process and assembles them into a
-// canvas usable as surface content — mirrors spoutReceiver.ts.
+// Receives NDI frames (downscaled RGBA) from the plugin's main entry over the generic plugin IPC
+// bridge and assembles them into a canvas usable as surface content — mirrors spoutReceiver.ts.
+// Channels: 'ndi:configure' (send), 'ndi:frame' (on), 'ndi:list' / 'ndi:available' (invoke).
 
 let unsub: (() => void) | null = null;
 let canvas: HTMLCanvasElement | null = null;
@@ -10,25 +11,25 @@ let latest: NdiFrame | null = null;
 
 export function startNdi(name: string): void {
   if (typeof window === 'undefined' || !window.artlux) return;
-  window.artlux.configureNdi?.({ enabled: true, name });
+  window.artlux.pluginSend?.('ndi:configure', { enabled: true, name });
   if (!unsub) {
-    unsub = window.artlux.onNdiFrame?.((f) => { latest = f; }) ?? null;
+    unsub = window.artlux.pluginOn?.('ndi:frame', (f) => { latest = f as NdiFrame; }) ?? null;
   }
 }
 
 export function stopNdi(): void {
-  window.artlux?.configureNdi?.({ enabled: false });
+  window.artlux?.pluginSend?.('ndi:configure', { enabled: false });
   unsub?.();
   unsub = null;
   latest = null;
 }
 
 export async function listNdiSources(): Promise<string[]> {
-  return (await window.artlux?.listNdiSources?.()) ?? [];
+  return ((await window.artlux?.pluginInvoke?.('ndi:list')) as string[] | undefined) ?? [];
 }
 
 export async function ndiAvailable(): Promise<boolean> {
-  return (await window.artlux?.ndiAvailable?.()) ?? false;
+  return ((await window.artlux?.pluginInvoke?.('ndi:available')) as boolean | undefined) ?? false;
 }
 
 // The active source's true aspect ratio (w/h), or null until a frame arrives.

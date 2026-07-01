@@ -1275,13 +1275,13 @@ const App: React.FC = () => {
       }
       for (const [surfaceId, name] of desired) {
           if (!ndiSendersRef.current.has(surfaceId)) {
-              window.artlux?.configureNdiSend?.({ outputId: surfaceId, enabled: true, name });
+              window.artlux?.pluginSend?.('ndi:send-configure', { outputId: surfaceId, enabled: true, name });
               ndiSendersRef.current.add(surfaceId);
           }
       }
       for (const surfaceId of [...ndiSendersRef.current]) {
           if (!desired.has(surfaceId)) {
-              window.artlux?.configureNdiSend?.({ outputId: surfaceId, enabled: false });
+              window.artlux?.pluginSend?.('ndi:send-configure', { outputId: surfaceId, enabled: false });
               ndiSendersRef.current.delete(surfaceId);
           }
       }

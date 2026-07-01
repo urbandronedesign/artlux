@@ -37,6 +37,12 @@
       ],
       "@artlux/plugin-lidar-tracking/*": [
         "./plugins/lidar-tracking/src/*"
+      ],
+      "@artlux/plugin-ndi/main": [
+        "./plugins/ndi/src/main.ts"
+      ],
+      "@artlux/plugin-ndi/renderer": [
+        "./plugins/ndi/src/renderer.ts"
       ]
     },
     "allowImportingTsExtensions": true,

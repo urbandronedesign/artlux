@@ -5,7 +5,7 @@ import { Slider } from './ui';
 import { EFFECT_NAMES } from '../gpu/effects';
 import { PALETTE_NAMES } from '../gpu/palettes';
 import { listSpoutSenders } from '../services/spoutReceiver';
-import { listNdiSources, ndiAvailable } from '../services/ndiReceiver';
+import { contentSourceRegistry } from '../host/registries';
 
 // The content-source picker grid + per-type config (Spout sender, NDI source, Effect params,
 // Tracking options, Layer track, opacity). Shared by the surface inspector and the timeline clip
@@ -26,18 +26,15 @@ const btnCls = (active: boolean) =>
 
 export const ContentEditor: React.FC<ContentEditorProps> = ({ content: c, onChange, onTypeChange, layers, showLayerOption = true }) => {
   const [spoutSenders, setSpoutSenders] = useState<string[]>([]);
-  const [ndiSources, setNdiSources] = useState<string[]>([]);
-  const [ndiOk, setNdiOk] = useState(true);
   const refreshSpout = async () => setSpoutSenders(await listSpoutSenders());
-  const refreshNdi = async () => { setNdiOk(await ndiAvailable()); setNdiSources(await listNdiSources()); };
 
-  // Populate the sender/source lists when those types are shown.
-  useEffect(() => { if (c.type === SourceType.SPOUT) void refreshSpout(); if (c.type === SourceType.NDI) void refreshNdi(); }, [c.type]);
+  // Populate the Spout sender list when that type is shown (plugin types like NDI own their own
+  // discovery inside the provider's editor).
+  useEffect(() => { if (c.type === SourceType.SPOUT) void refreshSpout(); }, [c.type]);
 
   const pickType = (type: SurfaceContent['type']) => {
     onTypeChange(type);
     if (type === SourceType.SPOUT) void refreshSpout();
-    if (type === SourceType.NDI) void refreshNdi();
   };
   const onFile = (e: React.ChangeEvent<HTMLInputElement>, type: SourceType) => {
     const file = e.target.files?.[0];
@@ -112,24 +109,11 @@ export const ContentEditor: React.FC<ContentEditorProps> = ({ content: c, onChan
         </div>
       )}
 
-      {c.type === SourceType.NDI && (
-        <div className="pt-1 space-y-1">
-          <div className="flex items-center gap-1">
-            <select value={c.ndiName ?? ''} onChange={(e) => onChange({ ndiName: e.target.value })}
-              className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-[10px] focus:border-accent focus:outline-none">
-              <option value="">First source</option>
-              {ndiSources.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-            <button onClick={refreshNdi} title="Refresh NDI sources" className="p-1.5 rounded border border-line-1 text-fg-2 hover:bg-surface-3"><RefreshCw size={12} /></button>
-          </div>
-          {!ndiOk && (
-            <div className="text-[9px] text-warn">
-              NDI runtime not found.{' '}
-              <button onClick={() => window.artlux?.openExternal?.('https://ndi.video/tools/')} className="underline hover:text-fg-1">Install NDI Tools ↗</button>
-            </div>
-          )}
-        </div>
-      )}
+      {/* Plugin-contributed content types (e.g. NDI) render their own inspector + discovery here. */}
+      {(() => {
+        const Editor = contentSourceRegistry.get(c.type)?.editor;
+        return Editor ? <Editor content={c} onChange={onChange} /> : null;
+      })()}
 
       {c.type === 'EFFECT' && (
         <div className="space-y-3 pt-1">
