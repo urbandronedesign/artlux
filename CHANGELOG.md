@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+## v0.18.0
+
+- **Plugin architecture — features become first-party plugins.** A new in-process, contribution-based
+  plugin foundation: an npm-workspaces monorepo with an internal `@artlux/sdk`, host contribution
+  registries, and a generic plugin IPC bridge. **LiDAR tracking** and **NDI** are the first two features
+  extracted into self-contained plugins (`@artlux/plugin-lidar-tracking`, `@artlux/plugin-ndi`) — same
+  behavior, cleaner boundaries — laying the groundwork for the rest of the app (next: projector
+  calibration; see [docs/ROADMAP.md](docs/ROADMAP.md)).
+- **State machine — a project-level "Show" graph.** An always-available finite-state graph over scenes:
+  each state binds a scene (recalled on entry) and/or runs transport actions, driven on a standalone
+  wall clock. Triggers cover **manual / after-delay / at-time / on-marker / on-clip-end**, with an
+  **AutomataUI** node editor (per-state lock time + per-transition fade time, curved bézier edges,
+  grouping regions).
+- **Drop images straight onto timeline lanes** — with a thumbnail preview and one-step import into the
+  project's asset library.
+- **Contributor docs** — a full `CLAUDE.md` entry point (build/run, repo map, plugin conventions,
+  documentation index) plus the `docs/ROADMAP.md` plugin-architecture roadmap.
+
 ## v0.17.0
 
 - **Timeline = a full content + compositing system.** Two big additions on one shared model:
