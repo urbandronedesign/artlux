@@ -1,80 +1,159 @@
 # CLAUDE.md
 
-Guidance for Claude Code (and humans) working in this repo.
+Entry point for Claude Code **and** human contributors. Orients you, gives the working loop, documents
+the plugin architecture (the active migration — not covered in the older docs), and indexes the deep
+docs. When a topic has a dedicated doc below, read it rather than reverse-engineering the code.
 
 ## What ArtLux is
 
-A GPU-accelerated **addressable-LED pixel-mapping + projection** app (Electron + React 19). It maps
-video/image/camera/effect/NDI/LiDAR content onto stage **surfaces**, samples per-fixture colors on the
-GPU, and outputs **Art-Net / sACN** (native engine) plus **projector** outputs with warp/blend and
-OpenCV auto-calibration. Also: a timeline NLE, a project-level state machine, scenes/cues, and a 3D
-simulator.
+A GPU-accelerated **addressable-LED pixel-mapping + projection-mapping** desktop app (Electron · React 19
+· TypeScript · Vite/electron-vite · WebGPU · react-three-fiber · Rust napi-rs). It maps content
+(video / image / camera / Spout / NDI / DMX-in / generative effects / LiDAR tracking) onto stage
+**surfaces**, samples per-fixture LED colors on the GPU, and outputs **Art-Net / sACN** via a native Rust
+engine — plus **projector** outputs with warp/blend and OpenCV auto-calibration. Also: a timeline NLE,
+a project-level state machine, scenes/cues, OSC control, and a 3D simulator.
 
-## Commands
+## Documentation index (read the relevant one before diving in)
 
-- `npm run dev` — electron-vite dev (live reload). Launches the Electron app.
-- `npm run build` — production bundle (main + preload + renderer).
-- `npx tsc -p tsconfig.json --noEmit` — typecheck (there is **no** dedicated `typecheck` script and
-  **no test suite**; verify changes with build + typecheck + running the app).
-- `npm run package` — electron-builder installer.
-- Native modules (Rust napi + C++): `npm run build:native` (output-engine/spout/hap), `build:calib`
-  (OpenCV — needs C:\opencv + LLVM + MSVC, built in a vcvars64 env), `build:ndi`, `build:nvwarp`.
-  Native addons degrade gracefully when absent (feature disabled, not a crash).
+| Topic | Doc |
+|---|---|
+| **How the system fits together (canonical)** | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| **Setup / build / test / release + env gotchas** | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) |
+| **Plugin-architecture roadmap + next extraction plan** | [docs/ROADMAP.md](docs/ROADMAP.md) |
+| Surfaces engine (content/mapping model) | [docs/SURFACES.md](docs/SURFACES.md) |
+| Outputs / controllers / routing | [docs/OUTPUTS.md](docs/OUTPUTS.md) |
+| LED map / fixture geometry | [docs/LEDMAP.md](docs/LEDMAP.md) |
+| Timeline NLE | [docs/TIMELINE.md](docs/TIMELINE.md) |
+| Scenes & cues | [docs/SCENES.md](docs/SCENES.md) |
+| Projector calibration (structured light + pose) | [docs/CALIBRATION.md](docs/CALIBRATION.md), [docs/AUTO-ALIGN.md](docs/AUTO-ALIGN.md), [docs/CALIB-OPTIMIZATIONS.md](docs/CALIB-OPTIMIZATIONS.md) |
+| NVIDIA hardware warp/blend | [docs/NVWARP.md](docs/NVWARP.md) |
+| NDI network video | [docs/NDI.md](docs/NDI.md) |
+| OSC control + LiDAR tracking protocol | [docs/OSC.md](docs/OSC.md), [docs/TRACKING_SYNC.md](docs/TRACKING_SYNC.md), [docs/TRACKING_TAKES.md](docs/TRACKING_TAKES.md) |
+| Assets / portable projects | [docs/ASSETS.md](docs/ASSETS.md) |
+| Metrics / monitoring | [docs/MONITORING.md](docs/MONITORING.md) |
+| Feature overview / user guide | [docs/FEATURES.md](docs/FEATURES.md), [docs/USER_GUIDE.md](docs/USER_GUIDE.md), `docs/user-guide/` |
+| Build log (chronological) | [docs/PROGRESS.md](docs/PROGRESS.md), [CHANGELOG.md](CHANGELOG.md) |
 
-CLI flags: `--headless` (compute-only), `--broadcast` (hidden editor + fullscreen projector outputs),
-`--project=<path>`.
+## Commands & the working loop
 
-## Architecture
+```bash
+npm install
+npm run build:native          # Rust crates → native/*/*.node (gitignored). Also: build:ndi / build:calib / build:nvwarp
+npm run dev                   # electron-vite dev + launch the app (hot-reloads the renderer)
+```
+- **Typecheck (do this — there's no test suite):** `npx tsc -p tsconfig.json --noEmit` (checks the whole tree).
+- **Build:** `npm run build` (main + preload + renderer). Needed after adding an HTML entry / dep / native change.
+- **Package:** `npm run package` (installers) or `npm run package:dir` (unpacked, fast smoke test).
+- **Verify a change in the real app:** run `npm run dev` and exercise it. There is no unit-test runner;
+  see DEVELOPMENT.md → Testing for the patterns (throwaway `tsc`-checked scripts for pure logic;
+  `--headless --project=<file>` + a `dgram` listener parsing ArtDmx/sACN for output; the LiDAR emitter
+  `node scripts/lidar-emitter.cjs` for tracking; CDP `scripts/capture-docs.cjs` for renderer screenshots).
 
-Three processes (electron-vite, three renderer HTML entries: `index.html` editor, `projector.html`
-per-surface fullscreen output, `headless.html`):
+**Loop rules:**
+- **Renderer** code hot-reloads. **Main / preload** changes need a **full app restart** (stop dev, kill
+  stray `electron`, relaunch).
+- **Rebuilding a native `.node` while the app runs fails `EBUSY`** — stop dev + kill `electron` first.
+- Native addons **degrade gracefully** when missing/unbuilt (feature disabled + a `[module] unavailable`
+  log, never a crash). If a native feature "does nothing," check it built and loaded.
+- This repo **commits directly to `main`** (small, scoped commits). **Push/commit only when asked.** Keep
+  the tree buildable + typechecking clean. Releases are driven by a `vX.Y.Z` tag (DEVELOPMENT.md → Release).
 
-- **main** (`src/main`) — window/lifecycle, native module loading, persistence, transports
-  (`src/main/transport/*`), projector windows.
-- **preload** (`src/preload/index.ts`) — contextBridge exposes the typed `window.artlux` API
-  (contextIsolation on; renderer can't `require` natives).
-- **renderer** (`src/renderer`) — React UI + the WebGL/WebGPU mapping engine + R3F 3D scene.
+## Repo layout
 
-- **IPC contract**: `shared/protocol.ts` — the `IPC` channel constants, the `ArtluxApi` interface, and
-  shared types. Imported by all three processes.
+```
+src/main/            Electron main: lifecycle, windows, native loading, persistence
+  transport/         Art-Net/sACN output engine wrapper, sACN, discovery, input, spout/hap managers
+  host/              main-side plugin activation (plugins.ts)
+src/preload/         contextBridge → the typed `window.artlux` API (contextIsolation ON)
+src/renderer/        React UI + the frame-generation loop
+  components/        UI (Stage, panels, wizards, timeline/, Simulator3D/, calib/)
+  services/          engine singletons: contentSource, surfaceMedia, timeline, stateMachine,
+                     cueBus, dmxSignal, addressing, mediaCache, …
+  gpu/               WebGPUMapper (WGSL compute), GPUMapper (WebGL fallback), surfaceFx, palettes
+  projector/         per-surface fullscreen output window (ProjectorApp) + MessagePort bridge
+  calib/             projector-calibration logic (structured light, gray code, pose, blend) — see ROADMAP
+  host/              renderer-side plugin registries + activation
+shared/              protocol.ts (IPC contract + `ArtluxApi` + shared types), frameCodec.ts
+native/              Rust/C++ napi crates: output-engine, spout-receiver, hap, calib, ndi, nvwarp
+packages/sdk/        @artlux/sdk — internal plugin SDK (subpaths /main, /renderer)
+plugins/             first-party plugins: lidar-tracking, ndi
+docs/                topic docs (see index above)
+scripts/             build/copy helpers, doc capture, lidar emitter
+```
+
+## Architecture in brief (full detail: docs/ARCHITECTURE.md)
+
+Three processes: **main** (OS access — UDP, fs, `.node` addons), **preload** (`window.artlux` over IPC),
+**renderer** (React + the GPU frame loop). Three renderer HTML entries: `index.html` (editor + embedded
+3D + timeline), `projector.html` (per-display fullscreen output), `headless.html` (compute-only).
+
+- **IPC contract:** `shared/protocol.ts` — `IPC` channel constants, the `ArtluxApi` interface, shared
+  types. Imported by all three processes. `.on/.send` = fire-and-forget; `.invoke/.handle` = req/response.
+- **Frame pipeline** (`components/Stage.tsx` `tick()`): composite surfaces → per-surface WebGPU sampling
+  (strict per-surface UVs) → universe packing (color order + gamma + channels/pixel) → publish over
+  `dmx:frame` → main → native output engine.
 - **Projector windows** talk to the main window over a **MessagePort** bridge
-  (`src/renderer/projector/bridge.ts`), not IPC.
-- **Native modules** (loaded in main, `process.resourcesPath`-based paths): output-engine, spout,
-  hap, calib (OpenCV), nvwarp. NDI now lives in a plugin.
-- Key renderer services: `services/contentSource.ts` (content → drawable registry),
-  `services/timeline.ts`, `services/stateMachine.ts`, `services/cueBus.ts`, `gpu/WebGPUMapper.ts`.
+  (`renderer/projector/bridge.ts`), NOT ipc.
+- **Persistence** (`main/persistence.ts` + `projectFolder.ts`): `.artlux` JSON projects (portable
+  folders with `assets/`); **all asset-path translation lives in main — the renderer always sees absolute
+  paths.** Prefs in `userData/artlux-prefs.json`.
+- **Domain model** (`renderer/types.ts`): `Surface` (rect + one `SurfaceContent`), `Fixture` (LED layout
+  linked to one surface), `Controller` (output device), `Scene`/`Cue`, `Timeline`, `StateMachine`,
+  `ProjectorOutput` (+ `ProjectorCalibration`).
 
-Reference docs: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (current), [docs/SURFACES.md](docs/SURFACES.md),
-[docs/ARCHITECTURE_PLAN.md](docs/ARCHITECTURE_PLAN.md) (historical).
+## Native modules
 
-## Plugin architecture (active migration)
+Six napi crates in `native/`, loaded in **main** via `process.resourcesPath`-based paths, packaged as
+electron-builder `extraResources`, all graceful-degrading:
 
-The app is being restructured around an **in-process, contribution-based plugin architecture** (npm
-workspaces): host app + `@artlux/sdk` (`packages/sdk`, subpaths `/main` + `/renderer`) + `plugins/*`
-(shipped: `lidar-tracking`, `ndi`). Host contribution registries live in
-`src/renderer/host/registries.ts`; plugin activation in `src/renderer/host/plugins.ts` and
-`src/main/host/plugins.ts`; the generic plugin IPC bridge (`pluginInvoke/Send/On`, channels namespaced
-`plugin:<ch>`) is in the preload.
+| Crate | Purpose | Loaded by |
+|---|---|---|
+| `output-engine` | Art-Net/sACN send thread (pacer, keep-alive, sparse, ArtSync) | `transport/outputManager.ts` |
+| `spout-receiver` | Windows Spout video receive | `transport/spoutManager.ts` |
+| `hap` | HAP video codec decode | `transport/hapManager.ts` |
+| `ndi` | NDI network video (receive + send) | **`@artlux/plugin-ndi`** |
+| `calib` | OpenCV projector calibration (needs `opencv_world4110.dll`) | `main/calibManager.ts` (→ plugin, see ROADMAP) |
+| `nvwarp` | NVIDIA NVAPI scanout warp/blend (Quadro/RTX) | `main/nvwarpManager.ts` |
 
-**Conventions when touching / adding plugins:**
-- **Barrel-only imports (critical):** host code imports a plugin ONLY through its barrel
-  (`@artlux/plugin-x` or `@artlux/plugin-x/{main,renderer}`); the plugin's own files import each other
-  **relatively**; set `"sideEffects": false` in the plugin's package.json. Mixing the package alias
-  with relative imports **duplicates module singletons** (writers hit one instance, readers the empty
-  other — this caused a real bug). Verify with a unique string marker: the singleton should appear
-  once per window bundle.
-- Core enum values / persisted project types (e.g. `SourceType.NDI/TRACKING`, `ProjectorCalibration`)
-  **stay in core**; only behavior moves into the plugin (zero project-file migration).
-- Plugins that span both processes use explicit `/main` + `/renderer` barrels (like `@artlux/sdk`);
-  renderer-only plugins can use a single barrel.
-- The SDK is **internal and unstable** — no public/versioned API yet.
+Toolchain: Rust (rustup, stable) + MSVC on Windows; `calib` additionally needs OpenCV + LLVM (built in a
+vcvars64 env — see `scripts/build-calib.ps1`). `.node` files are gitignored.
 
-**The roadmap + next extraction plan (projector calibration) is [docs/ROADMAP.md](docs/ROADMAP.md).**
+## Plugin architecture (active migration — read docs/ROADMAP.md)
+
+The app is being restructured into an **in-process, contribution-based plugin architecture** (VS Code
+style), so features become self-contained first-party plugins. Shipped: `plugins/lidar-tracking`,
+`plugins/ndi`. Planned next: projector calibration (ROADMAP).
+
+- **Workspaces:** host app + `@artlux/sdk` (`packages/sdk`, subpaths `/main` + `/renderer`) + `plugins/*`.
+- **SDK is internal + UNSTABLE** — no public/versioned API or third-party disk-loading yet.
+- **Host wiring:** contribution registries in `src/renderer/host/registries.ts` (content source, clip
+  kind, projector channel, settings section, panel); plugin activation in `src/renderer/host/plugins.ts`
+  and `src/main/host/plugins.ts`.
+- **Generic plugin IPC bridge** in the preload: `pluginInvoke` / `pluginSend` / `pluginOn`, channels
+  namespaced `plugin:<ch>` (contextIsolation means plugins can't add named preload methods). Main-side
+  plugins get a `ctx.ipc.{handle,on,send}`.
+
+**Conventions when touching / adding plugins (non-negotiable):**
+- **Barrel-only imports (this caused a real bug):** host code imports a plugin ONLY through its barrel
+  (`@artlux/plugin-x`, or `@artlux/plugin-x/{main,renderer}` for cross-process plugins); the plugin's own
+  files import each other **relatively**; set `"sideEffects": false` in the plugin package.json. Mixing
+  the package alias with relative imports makes the bundler treat them as two modules and **duplicates
+  singletons** (writers hit one instance, readers the empty other). Verify with a unique string marker —
+  the singleton must appear once per window bundle (`grep -o "<marker>" out/.../*.js | wc -l`).
+- **Core stays core:** persisted project types and enum values used across the app (`SourceType.NDI`/
+  `TRACKING`, `ProjectorCalibration`, `SurfaceContent.ndiName`, …) stay in `shared/protocol.ts` /
+  `renderer/types.ts`. Only *behavior* moves into the plugin → zero project-file migration.
+- **Cross-process plugins** (native in main + UI in renderer, e.g. ndi/calib) use explicit `/main` +
+  `/renderer` barrels like the SDK; renderer-only plugins (lidar-tracking) use one barrel.
+- **Structural edits don't HMR cleanly into open projector windows** — close & reopen them after such
+  changes when testing.
 
 ## Conventions
 
-- Match the surrounding code: dense, heavily-commented explaining **why** (not what). ES2022, strict-ish
-  TS, `moduleResolution: "bundler"`.
-- The renderer repaints per-frame during playback — memoize child panels or native `<select>`s drop
-  selections (see existing `React.memo` usage).
-- Commit/push only when asked. Keep the working tree buildable + typechecking clean.
+- **Match the surrounding code:** dense, heavily-commented explaining **why** (not what); the comment
+  density in existing files is intentional. ES2022, strict-ish TS, `moduleResolution: "bundler"`.
+- The renderer **repaints per-frame during playback** — memoize child panels (`React.memo`) or a native
+  `<select>` will drop selections mid-interaction.
+- Camera/mic surfaces need the main process to grant the `'media'` permission — see DEVELOPMENT.md if a
+  live camera source stays blank.
+- Keep commit messages quote-free-ish when authored via PowerShell here-strings (DEVELOPMENT.md gotcha).
