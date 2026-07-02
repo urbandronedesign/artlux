@@ -13,8 +13,9 @@ backlog (and the calibration extraction) see [ROADMAP.md](ROADMAP.md); for the b
 Features were wired by direct import across `App.tsx`, `contentSource.ts`, `ipc.ts`, the preload, etc.
 The plugin architecture makes a feature a **self-contained package** that *registers contributions*
 into the host instead of the host reaching into it — VS-Code style. Shipped so far:
-`plugins/lidar-tracking` and `plugins/ndi`. Two goals: shrink the core, and let features own their
-main + renderer + IPC in one place.
+`plugins/lidar-tracking`, `plugins/ndi`, and `plugins/calibration` (Stage 1 — engine + logic; its
+wizard UI is still host-side). Two goals: shrink the core, and let features own their main + renderer
++ IPC in one place.
 
 ## Layout
 
@@ -46,18 +47,20 @@ clean (plugin → sdk only; the plugin never imports host modules for types beyo
 
 ### Contribution registries (renderer)
 
-`src/renderer/host/registries.ts` exposes five singletons. **Not all are consumed yet** — the table is
+`src/renderer/host/registries.ts` exposes six singletons. **Not all are consumed yet** — the table is
 honest about what's wired end-to-end today:
 
 | Registry | Contract (`@artlux/sdk/renderer`) | Wired today? |
 |---|---|---|
 | `contentSourceRegistry` | `ContentSourceProvider` (`type`, `acquire?`, `release?`, `getDrawable`, `getAspect?`, `editor?`, `pickerButton?`) | ✅ NDI + LiDAR TRACKING. The compositor's `getDrawable`/`acquire`/`release` default-arm dispatches unknown `content.type` through it; `ContentEditor` renders `provider.editor`. |
-| `clipKindRegistry` | `ClipKindContribution` (`kind`, `preWarm?`, `excludeFromProgram?`, `skipVideoSync?`) | ⏳ scaffolded, unused — `timeline.ts` still uses `kind === 'tracking'` literals. |
-| `projectorChannelRegistry` | `ProjectorChannel` (`channel`, `shouldSend?`, `build?`, `apply?`) | ⏳ scaffolded, unused — the projector bridge still uses typed `tracking`/`calib` messages. |
-| `settingsSectionRegistry` | `SettingsSection` (`id`, `title`, `Component`, `defaults`) | ⏳ scaffolded, unused. |
-| `panelRegistry` | `PanelContribution` (`id`, `mount`, `menuAction?`, `Component`) | ⏳ scaffolded, unused (calibration Stage 2 is the planned first consumer). |
+| `clipKindRegistry` | `ClipKindContribution` (`kind`, `preWarm?`, `excludeFromProgram?`, `skipVideoSync?`) | ✅ LiDAR registers `tracking`; `timeline.ts` reads the registry instead of `kind === 'tracking'` literals. |
+| `projectorChannelRegistry` | `ProjectorChannel` (`channel`, `appliesTo?`, `subscribe?`, `build?`, `throttleMs?`, `apply?` + the GPU-render trio `projectorSourceSize?`, `renderSource?`, `onConfig?`) | ✅ LiDAR. Two halves: **data** (`build`→`{t:'pluginData'}` bridge→`apply`) and **GPU render** (host `drawComposited` calls `renderSource` — see Projector contributions below). |
+| `sceneVizRegistry` | `SceneVizContribution` (`id`, `enabled?(scene3D)`, `Component`) | ✅ LiDAR `TrackingViz`. `Simulator3D` maps the registry inside its R3F `<Canvas>` instead of importing the component. |
+| `settingsSectionRegistry` | `SettingsSection` (`id`, `title`, `Component`, `defaults`) | ⏳ scaffolded, unused. No clean first consumer yet: the obvious candidate (OSC receive settings) is **shared core infra** — the OSC listener drives both external control and LiDAR tracking — so it stays core (see Core stays core). |
+| `panelRegistry` | `PanelContribution` (`id`, `mount`, `menuAction?`, `Component`) | ⏳ scaffolded, unused. `OscMonitor`/`TakesBin` are candidates but stay host-side today (TakesBin is woven into the timeline around the core `trackingTakes` field; the no-prop `Component` shape needs a host-services surface first). |
 
-A plugin's renderer `activate(ctx)` registers into these via the context (`ctx.contentSources`, etc.).
+A plugin's renderer `activate(ctx)` registers into these via the context (`ctx.contentSources`,
+`ctx.clipKinds`, `ctx.projectorChannels`, `ctx.sceneViz`, `ctx.settings`, `ctx.panels`).
 
 ### The generic plugin IPC bridge
 
@@ -86,15 +89,57 @@ firehose into one arg — e.g. NDI pushes a whole frame, LiDAR taps OSC batches)
 > The first cut had an OSC-shaped `MainTransport` (`push: OscMessage[]`). NDI (binary frames +
 > request/response discovery) didn't fit it — that's why the general `ipc.{handle,on,send}` exists.
 
+### Projector contributions (`ProjectorChannel`)
+
+Projector output windows are separate renderer windows linked to the main window by a **MessagePort**,
+not IPC (`src/renderer/projector/bridge.ts`). A plugin drives per-output behavior through a single
+`ProjectorChannel`, registered in **both** windows (the host calls whichever half applies to the window
+it's in). It has two independent halves — use either or both:
+
+- **Data half** (producer in main → consumer in projector). The main window's generic producer loop
+  (`App.tsx`) watches every channel: `subscribe(onChange)` fires → `build()` returns a payload → the
+  host sends a generic `{ t:'pluginData', channel, payload }` over the port (throttled by `throttleMs`,
+  gated per surface by `appliesTo`). The projector window's consumer applies it via `apply(payload)`.
+  This replaced the old hardcoded `{ t:'tracking' }` bridge message — the core bridge is now content-
+  agnostic. (LiDAR streams blob snapshots this way.)
+- **GPU-render half** (consumer in projector). A channel can also render its content straight into the
+  projector's WebGL pipeline. Per frame, `ProjectorApp` finds a channel with `renderSource` whose
+  `appliesTo(surface)` holds, asks `projectorSourceSize(surface)` (null → fall through to the host's
+  default draw), then calls `ProjectorGL.drawComposited(w, h, composite, opts)`: the host binds + sizes
+  a **source framebuffer**, the plugin's `renderSource(gl, surface, host)` composites into it with raw
+  WebGL, and the host warps the result through its corner-pin / soft-edge / gamma stage. The plugin gets
+  only what it needs via `ProjectorRenderHost` (`timeMs`, `getLayerDrawable(id)`) — no host-service
+  import. `onConfig(surface, render)` delivers per-output config on each `config` message (LiDAR reads
+  `trackingSmoothing`/`trackingPredictMs`). (LiDAR composites bg + trails + blob discs + `#id` overlay
+  in `plugins/lidar-tracking/src/trackingProjector.ts`; the host's `ProjectorGL`/`ProjectorApp` no
+  longer import the plugin.)
+
+> **Per-GL-context resources.** Each projector window owns its own WebGL context, so a plugin that keeps
+> textures/programs for `renderSource` must key them by the `gl` it's handed (LiDAR uses a
+> `WeakMap<WebGLRenderingContext, …>`) — a single module-level handle would be shared across contexts and
+> crash the GPU process.
+
+**Still host-side:** calibration's projector pattern display + render-from-projector 3D still live in
+`ProjectorApp` as a transitional seam — they need the GPU-render hook **plus** a projector→main
+back-channel (patternShown/crosshair/confirm), which the data half doesn't yet cover (see ROADMAP.md).
+
 ### Activation
 
 - **Renderer:** `src/renderer/host/plugins.ts` holds `const FIRST_PARTY = [lidarTracking, ndi]` and
-  `activateRendererPlugins(window)`. `App.tsx` calls `activateRendererPlugins('main')` once on mount;
-  it builds `RendererPluginContext` (registries + `ipc` + `onPlayhead`) and calls each plugin's
-  `activate(ctx)`. Projector windows don't use the renderer registries today, so they aren't activated.
-- **Main:** `src/main/host/plugins.ts` holds `FIRST_PARTY` (main plugins) and
+  `activateRendererPlugins(window, hostServices?)`. It builds `RendererPluginContext` — the six
+  registries + `ipc` + `onPlayhead` + `getScene3D` — and calls each plugin's `activate(ctx)`. The
+  context is activated **once per window**:
+  - `App.tsx` (main editor window) calls `activateRendererPlugins('main', { getScene3D })` — the
+    `getScene3D` handle lets a plugin read live 3D-scene state (e.g. LiDAR's projector channel reads
+    its people-merge config; `getScene3D` is the one host-service handle so far).
+  - each **projector output window** (`ProjectorApp`) calls `activateRendererPlugins('projector')` so a
+    channel's `apply()` (data) and `renderSource()` (GPU) run there. `ctx.window` tells a plugin which
+    side it's on (producer vs. consumer). Activation is idempotent per window.
+- **Main:** `src/main/host/plugins.ts` holds `FIRST_PARTY = [ndi, calibration]` and
   `activateMainPlugins(getWindow)`, called from `registerIpc()` in `ipc.ts`. It builds
-  `MainPluginContext` (the `ipc` handle bound to the active window) and activates each.
+  `MainPluginContext` (the `ipc` handle bound to the active window) and activates each. (`lidar-tracking`
+  is renderer-only — its OSC ingestion taps the core `window.artlux.onOscMessage`, so it needs no main
+  plugin.)
 
 ### Core stays core
 
@@ -200,8 +245,13 @@ ingestion taps the core `window.artlux.onOscMessage` since OSC stays a core tran
 
 ## Not yet (see ROADMAP.md)
 
-- The `clipKind`, `projectorChannel`, `settingsSection`, and `panel` registries exist but are unused —
-  first consumers arrive with the timeline clip-kind inversion and calibration Stage 2.
-- No **projector-contribution** type yet: plugins can't drive projector-window rendering, so LiDAR's
-  projector self-render and calibration's pattern display stay as transitional host seams.
+- `settingsSection` + `panel` registries exist but have **no consumer yet** — the natural candidates
+  are shared core infra (OSC settings) or deeply timeline-coupled (TakesBin), so they wait for a
+  host-services surface rather than being force-fit.
+- **Calibration is only Stage 1** (engine + logic in `plugins/calibration`); its wizard UI and its
+  projector pattern/3D rendering stay host-side. The latter needs the `ProjectorChannel` GPU-render
+  hook **plus** a projector→main **back-channel** (the data half is one-way main→projector today).
+- **No host-services surface yet** beyond `getScene3D` + `ProjectorRenderHost` — a feature plugin that
+  needs to read/patch app state (calibration's wizards) has no general API. That's the next real SDK
+  growth (ROADMAP → calibration Stage 2).
 - No public/versioned API, no third-party / disk-loaded plugins, no plugin test harness.
