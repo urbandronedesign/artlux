@@ -38,6 +38,7 @@ import { getDrawable } from './services/surfaceMedia';
 import { timeline as timelineEngine } from './services/timeline';
 import * as oscController from './services/oscController';
 import { activateRendererPlugins } from './host/plugins';
+import { setEnabled as mp4SetEnabled } from '@artlux/plugin-mp4';
 import type { RendererHostServices } from '@artlux/sdk/renderer';
 import { projectorChannelRegistry } from './host/registries';
 import * as cueBus from './services/cueBus';
@@ -998,6 +999,8 @@ const App: React.FC = () => {
   useEffect(() => { activateRendererPlugins('main', pluginHost); }, [pluginHost]);
   // Tell the calibration plugin which output its board-pose pairing targets (the one being calibrated).
   useEffect(() => { calibWorkspace.setTarget(calibratingOutputId); }, [calibratingOutputId]);
+  // Gate the WebCodecs MP4 decoder on its setting (off → .mp4 keeps using the default <video>).
+  useEffect(() => { mp4SetEnabled(settings.mp4WebCodecs ?? false); }, [settings.mp4WebCodecs]);
   // OSC: subscribe the controller to forwarded messages once; (re)bind the UDP listener and refresh
   // the control namespace whenever the OSC settings change. Control intents flow back through the
   // subscribeIntent path above; LiDAR blob data lands in the tracking store.

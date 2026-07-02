@@ -112,6 +112,10 @@ export const Preferences: React.FC<Props> = ({ open, onClose, settings, onChange
           <Slider label="Gamma" value={settings.gamma} min={1} max={3} step={0.05} format={(v) => v.toFixed(2)} onChange={(v) => onChange({ gamma: v })} />
         </Section>
 
+        <Section title="Video" icon={<Cpu size={12} />}>
+          <Toggle label="GPU MP4 decode (WebCodecs)" checked={settings.mp4WebCodecs ?? false} onChange={(v) => onChange({ mp4WebCodecs: v })} title="Decode .mp4/.m4v with the hardware WebCodecs decoder (frame-accurate, no video-session cap) instead of the default <video> element. Restart playback after toggling." />
+        </Section>
+
         <Section title="OSC / Tracking" icon={<Radio size={12} />}>
           <Toggle label="OSC receive" checked={settings.oscEnabled} onChange={(v) => onChange({ oscEnabled: v })} title="Bind a UDP listener for external control + LiDAR blob tracking" />
           <NumberField label="Listen port" value={settings.oscListenPort} step={1} min={1} max={65535} onChange={(v) => onChange({ oscListenPort: Math.max(1, Math.min(65535, Math.round(v))) })} />

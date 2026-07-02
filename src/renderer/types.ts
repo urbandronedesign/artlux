@@ -397,6 +397,9 @@ export interface AppSettings {
   oscControlPrefix: string; // namespace for external control messages, e.g. '/artlux'
   // Help panel
   helpLang: 'en' | 'fr'; // language for the bilingual Help panel + contextual hints
+  // Video decode
+  mp4WebCodecs?: boolean; // decode .mp4/.m4v via the WebCodecs plugin (frame-accurate; no HW-session cap)
+                          // instead of the default <video> element. Off by default → unchanged behaviour.
 }
 
 export enum ViewMode {

@@ -1,0 +1,12 @@
+{
+  "name": "@artlux/plugin-mp4",
+  "version": "0.0.0",
+  "private": true,
+  "description": "First-party ArtLux plugin: frame-accurate MP4 (H.264/H.265) decode via WebCodecs + mp4box demux, registered as a VideoCodec. Renderer-only; opt-in via the mp4WebCodecs setting.",
+  "type": "module",
+  "sideEffects": false,
+  "dependencies": {
+    "@artlux/sdk": "*",
+    "mp4box": "^0.5.2"
+  }
+}

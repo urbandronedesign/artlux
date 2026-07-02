@@ -61,6 +61,9 @@
       ],
       "@artlux/plugin-hap/renderer": [
         "./plugins/hap/src/renderer.ts"
+      ],
+      "@artlux/plugin-mp4": [
+        "./plugins/mp4/src/index.ts"
       ]
     },
     "allowImportingTsExtensions": true,

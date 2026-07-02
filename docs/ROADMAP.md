@@ -55,12 +55,15 @@ new plugin + `videoCodecRegistry.register`.
      probe order matters** — the registry returns the first `canDecode` true; make `probe` authoritative
      (open native, confirm fourcc) and have `canDecode` gate on extension only, letting `probe` decline.
   3. Register; `.mov` now tries HAP then DXV then falls back to `<video>` (H.264).
-- **Native MP4** (frame-accurate H.264/H.265 decode, an alternative to the `<video>` element for exact
-  scrubbing / no hardware-session cap). Bigger: needs a native decoder (ffmpeg/OS media foundation) or a
-  `WebCodecs` `VideoDecoder`-based renderer codec (no native crate — decode in the renderer via
-  `VideoDecoder`, feed `VideoFrame`s as the drawable). The WebCodecs route is the lightest first cut and
-  fits the same contract (`openSurface`/`layerFrame` return the `VideoFrame`/canvas). Gate it behind a
-  setting so the default `<video>` path is unchanged.
+- ~~**Native MP4**~~ 🚧 **first cut shipped** (`plugins/mp4`, renderer-only) — GPU-accelerated H.264/H.265
+  via `WebCodecs VideoDecoder` (`hardwareAcceleration:'prefer-hardware'`) + `mp4box` demux, registered as
+  a `VideoCodec`. **Optimized:** demux once → keep only the tiny *encoded* samples; decode **on demand**
+  around the playhead from the nearest keyframe; bounded GPU `VideoFrame` buffer (LRU-closed); returns the
+  `VideoFrame` **directly** so the compositor uploads it zero-copy as a texture (no 2D-canvas round-trip).
+  **Opt-in** via the `mp4WebCodecs` setting (off → `.mp4` keeps the default `<video>`). **Remaining/rig:**
+  needs on-hardware verification of playback + scrub; known first-cut limits — one decoder per file (a
+  surface + a timeline layer on the *same* file at different times contend), thumbnails reuse the playback
+  decoder, no per-consumer seek. Follow-ups: per-consumer decoders, tune the seek/look-ahead, HEVC checks.
 
 **Contract gaps to close when adding the 2nd codec:** `canDecode` currently returns the first match;
 with HAP+DXV both `.mov`, make the registry try each codec's async `probe` in order and cache the winner

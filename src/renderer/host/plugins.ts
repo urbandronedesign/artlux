@@ -17,8 +17,9 @@ import { plugin as ndi } from '@artlux/plugin-ndi/renderer';
 import { plugin as calibration } from '@artlux/plugin-calibration/renderer';
 import { plugin as spout } from '@artlux/plugin-spout/renderer';
 import { plugin as hap } from '@artlux/plugin-hap/renderer';
+import { plugin as mp4 } from '@artlux/plugin-mp4';
 
-const FIRST_PARTY: RendererPlugin[] = [lidarTracking, ndi, calibration, spout, hap];
+const FIRST_PARTY: RendererPlugin[] = [lidarTracking, ndi, calibration, spout, hap, mp4];
 
 let activated = false;
 
