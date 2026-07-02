@@ -110,7 +110,7 @@ electron-builder `extraResources`, all graceful-degrading:
 | Crate | Purpose | Loaded by |
 |---|---|---|
 | `output-engine` | Art-Net/sACN send thread (pacer, keep-alive, sparse, ArtSync) | `transport/outputManager.ts` |
-| `spout-receiver` | Windows Spout video receive | `transport/spoutManager.ts` |
+| `spout-receiver` | Windows Spout video receive | **`@artlux/plugin-spout`** |
 | `hap` | HAP video codec decode | `transport/hapManager.ts` |
 | `ndi` | NDI network video (receive + send) | **`@artlux/plugin-ndi`** |
 | `calib` | OpenCV projector calibration (needs `opencv_world4110.dll`) | `main/calibManager.ts` (→ plugin, see ROADMAP) |
@@ -124,9 +124,11 @@ vcvars64 env — see `scripts/build-calib.ps1`). `.node` files are gitignored.
 The app is being restructured into an **in-process, contribution-based plugin architecture** (VS Code
 style), so features become self-contained first-party plugins. Shipped: `plugins/lidar-tracking`
 (fully inverted — content source, clip-kind, projector data + GPU-render channel, 3D scene-viz),
-`plugins/ndi`, and `plugins/calibration` (engine + logic + host-services surface + back-channel; the
-wizard UIs are co-located in the plugin but App still mounts them with props). Next: calibration
-Stage 2c (rewire wizard props → `ctx.host` + panel contribution, rig-verified) — see ROADMAP.
+`plugins/ndi`, `plugins/calibration` (fully inverted through Stage 3 — engine, host-services,
+back-channel, wizards, pose orchestration, projector-panel rendering; App/ProjectorApp import zero
+calibration code), and `plugins/spout` (Windows Spout receive — a receive-only NDI-shaped extraction).
+The SDK now spans content-source, clip-kind, projector (data + GPU + panel), scene-viz, and
+host-services contributions. `npm run verify:plugins` guards single-identity. See ROADMAP for backlog.
 
 - **Workspaces:** host app + `@artlux/sdk` (`packages/sdk`, subpaths `/main` + `/renderer`) + `plugins/*`.
 - **SDK is internal + UNSTABLE** — no public/versioned API or third-party disk-loading yet.

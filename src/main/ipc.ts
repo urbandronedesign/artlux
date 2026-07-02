@@ -1,11 +1,10 @@
 import { app, ipcMain, shell, dialog, BrowserWindow } from 'electron';
 import { readFile } from 'node:fs/promises';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { IPC, type OutputConfig, type InputConfig, type ProjectData, type RigData, type Prefs, type SpoutConfig, type OscConfig, type AssetType, type WindowCommand } from '../../shared/protocol';
+import { IPC, type OutputConfig, type InputConfig, type ProjectData, type RigData, type Prefs, type OscConfig, type AssetType, type WindowCommand } from '../../shared/protocol';
 import * as output from './transport/outputManager';
 import * as input from './transport/input';
 import * as discovery from './transport/discovery';
-import * as spout from './transport/spoutManager';
 import * as osc from './transport/oscManager';
 import * as hap from './transport/hapManager';
 import * as nvwarp from './nvwarpManager';
@@ -141,16 +140,8 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
         }
     });
     ipcMain.handle(IPC.WINDOW_IS_MAXIMIZED, () => !!getWindow()?.isMaximized());
-
-    // ---- Spout receiver ----
-    ipcMain.handle(IPC.SPOUT_LIST, () => spout.listSenders());
-    ipcMain.on(IPC.SPOUT_CONFIGURE, (_e, cfg: SpoutConfig) => {
-        if (cfg.enabled) {
-            spout.start(cfg.name ?? '', (frame) => getWindow()?.webContents.send(IPC.SPOUT_FRAME, frame));
-        } else {
-            spout.stop();
-        }
-    });
+    // Spout receive moved to @artlux/plugin-spout (spout:list / spout:configure / spout:frame over the
+    // generic plugin bridge; activated via activateMainPlugins below).
 
     // First-party main plugins register their own IPC through the generic plugin bridge. NDI lives in
     // @artlux/plugin-ndi now (channels: ndi:available / ndi:list / ndi:configure / ndi:frame / ndi:send-*).

@@ -14,8 +14,9 @@ import type { RendererPlugin, RendererPluginContext, PluginIpc, RendererHostServ
 import { plugin as lidarTracking } from '@artlux/plugin-lidar-tracking';
 import { plugin as ndi } from '@artlux/plugin-ndi/renderer';
 import { plugin as calibration } from '@artlux/plugin-calibration/renderer';
+import { plugin as spout } from '@artlux/plugin-spout/renderer';
 
-const FIRST_PARTY: RendererPlugin[] = [lidarTracking, ndi, calibration];
+const FIRST_PARTY: RendererPlugin[] = [lidarTracking, ndi, calibration, spout];
 
 let activated = false;
 

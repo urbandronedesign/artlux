@@ -1,10 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { SurfaceContent, SourceType, VideoLayer } from '../types';
-import { Monitor, Image as ImageIcon, Video, Sparkles, Network, Cast, Radio, RefreshCw, Slash, Film, Clapperboard, Crosshair } from 'lucide-react';
+import { Monitor, Image as ImageIcon, Video, Sparkles, Network, Cast, Radio, Slash, Film, Clapperboard, Crosshair } from 'lucide-react';
 import { Slider } from './ui';
 import { EFFECT_NAMES } from '../gpu/effects';
 import { PALETTE_NAMES } from '../gpu/palettes';
-import { listSpoutSenders } from '../services/spoutReceiver';
 import { contentSourceRegistry } from '../host/registries';
 
 // The content-source picker grid + per-type config (Spout sender, NDI source, Effect params,
@@ -25,17 +24,9 @@ const btnCls = (active: boolean) =>
   `flex flex-col items-center justify-center p-2 rounded border transition-all ${active ? 'bg-sel-surface/10 border-sel-surface text-sel-surface' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3'}`;
 
 export const ContentEditor: React.FC<ContentEditorProps> = ({ content: c, onChange, onTypeChange, layers, showLayerOption = true }) => {
-  const [spoutSenders, setSpoutSenders] = useState<string[]>([]);
-  const refreshSpout = async () => setSpoutSenders(await listSpoutSenders());
-
-  // Populate the Spout sender list when that type is shown (plugin types like NDI own their own
-  // discovery inside the provider's editor).
-  useEffect(() => { if (c.type === SourceType.SPOUT) void refreshSpout(); }, [c.type]);
-
-  const pickType = (type: SurfaceContent['type']) => {
-    onTypeChange(type);
-    if (type === SourceType.SPOUT) void refreshSpout();
-  };
+  // Plugin content types (Spout, NDI, TRACKING) own their own inspector + discovery inside the
+  // provider's `editor` (rendered below); the picker buttons just switch the core SourceType enum.
+  const pickType = (type: SurfaceContent['type']) => onTypeChange(type);
   const onFile = (e: React.ChangeEvent<HTMLInputElement>, type: SourceType) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -98,18 +89,7 @@ export const ContentEditor: React.FC<ContentEditorProps> = ({ content: c, onChan
         </div>
       )}
 
-      {c.type === SourceType.SPOUT && (
-        <div className="flex items-center gap-1 pt-1">
-          <select value={c.spoutName ?? ''} onChange={(e) => onChange({ spoutName: e.target.value })}
-            className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-[10px] focus:border-accent focus:outline-none">
-            <option value="">Active sender</option>
-            {spoutSenders.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <button onClick={refreshSpout} title="Refresh Spout senders" className="p-1.5 rounded border border-line-1 text-fg-2 hover:bg-surface-3"><RefreshCw size={12} /></button>
-        </div>
-      )}
-
-      {/* Plugin-contributed content types (e.g. NDI) render their own inspector + discovery here. */}
+      {/* Plugin-contributed content types (Spout, NDI, …) render their own inspector + discovery here. */}
       {(() => {
         const Editor = contentSourceRegistry.get(c.type)?.editor;
         return Editor ? <Editor content={c} onChange={onChange} /> : null;

@@ -7,8 +7,9 @@ import { ipcMain, type BrowserWindow } from 'electron';
 import type { MainPlugin, MainPluginContext, MainPluginIpc } from '@artlux/sdk/main';
 import { plugin as ndi } from '@artlux/plugin-ndi/main';
 import { plugin as calibration } from '@artlux/plugin-calibration/main';
+import { plugin as spout } from '@artlux/plugin-spout/main';
 
-const FIRST_PARTY: MainPlugin[] = [ndi, calibration];
+const FIRST_PARTY: MainPlugin[] = [ndi, calibration, spout];
 
 let activated = false;
 

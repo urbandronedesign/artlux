@@ -1,0 +1,15 @@
+{
+  "name": "@artlux/plugin-spout",
+  "version": "0.0.0",
+  "private": true,
+  "description": "First-party ArtLux plugin: Windows Spout video receive (content source). Native spout-receiver.node in main, refcounted receiver + content source in renderer.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./main": "./src/main.ts",
+    "./renderer": "./src/renderer.ts"
+  },
+  "dependencies": {
+    "@artlux/sdk": "*"
+  }
+}

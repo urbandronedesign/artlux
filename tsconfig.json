@@ -49,6 +49,12 @@
       ],
       "@artlux/plugin-calibration/renderer": [
         "./plugins/calibration/src/renderer.ts"
+      ],
+      "@artlux/plugin-spout/main": [
+        "./plugins/spout/src/main.ts"
+      ],
+      "@artlux/plugin-spout/renderer": [
+        "./plugins/spout/src/renderer.ts"
       ]
     },
     "allowImportingTsExtensions": true,

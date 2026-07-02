@@ -1,6 +1,5 @@
 import { SourceType, type SurfaceContent } from '../types';
 import { getInputCanvas, startInput, stopInput } from './dmxInput';
-import { getSpoutCanvas, startSpout, stopSpout } from './spoutReceiver';
 import { SurfaceEffect } from '../gpu/surfaceFx';
 import { resolveMediaUrl, mimeForPath } from './mediaCache';
 import * as hap from './hapPlayer';
@@ -8,10 +7,10 @@ import { contentSourceRegistry } from '../host/registries';
 
 // One registry that turns ANY consumer's content into a drawable, keyed by an arbitrary string
 // (surfaces use their id; timeline layers use `layer:<layerId>`). Per-instance producers (video /
-// image / effect) live one-per-key; the live receivers (camera / Spout / NDI / DMX-in) are shared
+// image / effect) live one-per-key; the built-in live receivers (camera / DMX-in) are shared
 // single-instance singletons refcounted across all consumers, so they run when EITHER a surface or
-// a timeline clip wants them and stop the instant none do. The receivers are single-sender: when
-// consumers disagree, the most-recently-acquired sender wins (see reconcileSpout/reconcileNdi).
+// a timeline clip wants them and stop the instant none do. Plugin-contributed live sources (Spout /
+// NDI / TRACKING) own the same refcount discipline inside their provider.
 //
 // surfaceMedia delegates here for surfaces; services/timeline delegates here for content clips.
 
@@ -27,18 +26,15 @@ const isHapCandidate = (url: string): boolean => /\.mov$/i.test(url);
 const media = new Map<string, Entry>();          // VIDEO / IMAGE / HAP, keyed by consumer key
 const effects = new Map<string, SurfaceEffect>(); // EFFECT, keyed by consumer key
 
-// Shared live receivers, refcounted by consumer key. Spout/NDI carry the desired sender + a seq so
-// the latest acquirer wins on conflict. (NDI moved to @artlux/plugin-ndi — same refcount pattern.)
-let seq = 0;
+// Shared live receivers, refcounted by consumer key. (Spout + NDI moved to their plugins — same
+// refcount pattern, now owned by the content-source providers.)
 const cameraConsumers = new Set<string>();
-const spoutConsumers = new Map<string, { name: string; seq: number }>();
 const dmxConsumers = new Set<string>();
 
 let cameraEl: HTMLVideoElement | null = null;
 let cameraStream: MediaStream | null = null;
 let cameraStarting = false;
 let dmxActive = false;
-let spoutActive = false, spoutName = '';
 let playing = true;
 
 // `url` is a live blob:/http url or an absolute file path (resolved to a blob url via IPC).
@@ -124,11 +120,6 @@ function reconcileCamera(): void {
   if (want && !cameraEl && !cameraStarting) void startCamera();
   else if (!want && (cameraEl || cameraStream)) stopCamera();
 }
-function reconcileSpout(): void {
-  let want = false, name = '', best = -1;
-  for (const v of spoutConsumers.values()) { want = true; if (v.seq > best) { best = v.seq; name = v.name; } }
-  if (want !== spoutActive || name !== spoutName) { spoutActive = want; spoutName = name; if (want) startSpout(name); else stopSpout(); }
-}
 function reconcileDmx(): void {
   const want = dmxConsumers.size > 0;
   if (want === dmxActive) return;
@@ -136,8 +127,6 @@ function reconcileDmx(): void {
   if (want) { window.artlux?.configureInput?.({ enabled: true, protocol: 'both', universes: [0, 1, 2, 3, 4, 5, 6, 7] }); startInput(); }
   else { window.artlux?.configureInput?.({ enabled: false, protocol: 'both', universes: [] }); stopInput(); }
 }
-
-const setSpoutConsumer = (key: string, name: string): void => { const c = spoutConsumers.get(key); if (!c || c.name !== name) spoutConsumers.set(key, { name, seq: ++seq }); };
 
 // Declare that `key` wants `content` live this frame. Idempotent — safe to call every sync; the
 // receiver reconcilers only start/stop on an actual change.
@@ -147,25 +136,24 @@ export function acquire(key: string, content: SurfaceContent): void {
   else effects.delete(key);
 
   if (content.type === SourceType.CAMERA) cameraConsumers.add(key); else cameraConsumers.delete(key);
-  if (content.type === SourceType.SPOUT) setSpoutConsumer(key, content.spoutName ?? ''); else spoutConsumers.delete(key);
   if (content.type === SourceType.DMX_IN) dmxConsumers.add(key); else dmxConsumers.delete(key);
 
-  // Plugin-contributed content sources (e.g. NDI, TRACKING): hand the key to the matching provider,
-  // drop it from the rest (mirrors the per-type add/delete discipline above).
+  // Plugin-contributed content sources (e.g. Spout, NDI, TRACKING): hand the key to the matching
+  // provider, drop it from the rest (mirrors the per-type add/delete discipline above).
   for (const p of contentSourceRegistry.all()) {
     if (content.type === p.type) p.acquire?.(key, content); else p.release?.(key);
   }
 
-  reconcileCamera(); reconcileSpout(); reconcileDmx();
+  reconcileCamera(); reconcileDmx();
 }
 
 // Drop everything `key` was holding (instance element + receiver refcounts + tracking canvas).
 export function release(key: string): void {
   dropMedia(key);
   effects.delete(key);
-  cameraConsumers.delete(key); spoutConsumers.delete(key); dmxConsumers.delete(key);
+  cameraConsumers.delete(key); dmxConsumers.delete(key);
   for (const p of contentSourceRegistry.all()) p.release?.(key);
-  reconcileCamera(); reconcileSpout(); reconcileDmx();
+  reconcileCamera(); reconcileDmx();
 }
 
 // Global transport toggle — applies to <video> elements + the camera (live receivers ignore it).
@@ -192,8 +180,6 @@ export function getDrawable(key: string, content: SurfaceContent, timeSec: numbe
     }
     case SourceType.CAMERA:
       return cameraEl && cameraEl.readyState >= 2 ? cameraEl : null;
-    case SourceType.SPOUT:
-      return getSpoutCanvas();
     case SourceType.DMX_IN:
       return getInputCanvas();
     case 'EFFECT': {

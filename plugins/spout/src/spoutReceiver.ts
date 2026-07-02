@@ -1,7 +1,8 @@
-import type { SpoutFrame } from '../../../shared/protocol';
+import type { SpoutFrame } from './types';
 
-// Receives Spout frames (downscaled 512² RGBA) from the main process and
-// assembles them into a canvas usable as a content source — mirrors dmxInput.ts.
+// Receives Spout frames (downscaled RGBA) from the plugin's main entry over the generic plugin IPC
+// bridge and assembles them into a canvas usable as surface content — mirrors ndiReceiver.ts.
+// Channels: 'spout:configure' (send), 'spout:frame' (on), 'spout:list' (invoke).
 
 let unsub: (() => void) | null = null;
 let canvas: HTMLCanvasElement | null = null;
@@ -10,21 +11,21 @@ let latest: SpoutFrame | null = null;
 
 export function startSpout(name: string): void {
   if (typeof window === 'undefined' || !window.artlux) return;
-  window.artlux.configureSpout?.({ enabled: true, name });
+  window.artlux.pluginSend?.('spout:configure', { enabled: true, name });
   if (!unsub) {
-    unsub = window.artlux.onSpoutFrame?.((f) => { latest = f; }) ?? null;
+    unsub = window.artlux.pluginOn?.('spout:frame', (f) => { latest = f as SpoutFrame; }) ?? null;
   }
 }
 
 export function stopSpout(): void {
-  window.artlux?.configureSpout?.({ enabled: false });
+  window.artlux?.pluginSend?.('spout:configure', { enabled: false });
   unsub?.();
   unsub = null;
   latest = null;
 }
 
 export async function listSpoutSenders(): Promise<string[]> {
-  return (await window.artlux?.listSpoutSenders?.()) ?? [];
+  return ((await window.artlux?.pluginInvoke?.('spout:list')) as string[] | undefined) ?? [];
 }
 
 // The active sender's true aspect ratio (w/h), or null until a frame arrives.

@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import {
     IPC, type OutputConfig, type OutputStats, type InputConfig, type InputFrame, type ArtluxApi,
-    type ProjectData, type RigData, type Prefs, type SpoutConfig, type SpoutFrame, type UpdateEvent,
+    type ProjectData, type RigData, type Prefs, type UpdateEvent,
     type DisplayInfo, type OscConfig, type OscMessage,
     type WindowCommand,
 } from '../../shared/protocol';
@@ -37,15 +37,8 @@ const api: ArtluxApi = {
     getPrefs: () => ipcRenderer.invoke(IPC.PREFS_GET),
     setPrefs: (patch: Partial<Prefs>) => ipcRenderer.invoke(IPC.PREFS_SET, patch),
     discoverDevices: () => ipcRenderer.invoke(IPC.ARTNET_DISCOVER),
-    // Spout
-    listSpoutSenders: () => ipcRenderer.invoke(IPC.SPOUT_LIST),
-    configureSpout: (cfg: SpoutConfig) => ipcRenderer.send(IPC.SPOUT_CONFIGURE, cfg),
-    onSpoutFrame: (cb: (frame: SpoutFrame) => void) => {
-        const listener = (_e: unknown, frame: SpoutFrame) => cb(frame);
-        ipcRenderer.on(IPC.SPOUT_FRAME, listener);
-        return () => { ipcRenderer.removeListener(IPC.SPOUT_FRAME, listener); };
-    },
-    // NDI moved to @artlux/plugin-ndi (uses the generic pluginInvoke/Send/On bridge below).
+    // Spout + NDI moved to their plugins (@artlux/plugin-spout / -ndi) — they use the generic
+    // pluginInvoke/Send/On bridge below.
     // OSC (external control + LiDAR tracking)
     configureOsc: (cfg: OscConfig) => ipcRenderer.send(IPC.OSC_CONFIGURE, cfg),
     onOscMessage: (cb: (msgs: OscMessage[]) => void) => {

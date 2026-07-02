@@ -34,6 +34,8 @@ const CHECKS = [
   { plugin: 'ndi',            where: 'renderer', marker: 'ndi:configure',        note: 'ndiReceiver plugin-IPC channel' },
   { plugin: 'ndi',            where: 'main',     marker: 'NDI_RUNTIME_DIR_V6',   note: 'ndiManager native runtime dir' },
   { plugin: 'calibration',    where: 'main',     marker: 'calib:detect-board',   note: 'calibManager IPC handle' },
+  { plugin: 'spout',          where: 'renderer', marker: 'spout:configure',      note: 'spoutReceiver plugin-IPC channel' },
+  { plugin: 'spout',          where: 'main',     marker: 'spout] native receiver loaded', note: 'spoutManager native-load log' },
 ];
 
 function fail(msg) { console.error(`\x1b[31m✗\x1b[0m ${msg}`); }

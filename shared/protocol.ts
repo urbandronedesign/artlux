@@ -30,13 +30,8 @@ export const IPC = {
   PREFS_SET: 'prefs:set',
   /** Renderer → main (invoke): ArtPoll broadcast → discovered Art-Net nodes. */
   ARTNET_DISCOVER: 'artnet:discover',
-  /** Renderer → main (invoke): list available Spout sender names. */
-  SPOUT_LIST: 'spout:list',
-  /** Renderer → main: connect/disconnect the Spout receiver. */
-  SPOUT_CONFIGURE: 'spout:configure',
-  /** Main → renderer: a received Spout frame (downscaled 512² RGBA). */
-  SPOUT_FRAME: 'spout:frame',
-  // NDI channels moved to @artlux/plugin-ndi (carried over the generic 'plugin:ndi:*' bridge).
+  // Spout + NDI channels moved to their plugins (carried over the generic 'plugin:spout:*' /
+  // 'plugin:ndi:*' bridge).
   /** Renderer → main: enable/disable the OSC UDP listener (external control + LiDAR tracking). */
   OSC_CONFIGURE: 'osc:configure',
   /** Main → renderer: a batch of received OSC messages (one UDP packet → 1+ messages). */
@@ -137,20 +132,8 @@ export interface AppInfo {
   version: string;
 }
 
-export interface SpoutConfig {
-  enabled: boolean;
-  name?: string; // empty/undefined = active sender
-}
-
-export interface SpoutFrame {
-  width: number;
-  height: number;
-  data: Uint8Array; // RGBA (downscaled to width×height)
-  srcWidth: number;  // sender's true resolution (for stage aspect)
-  srcHeight: number;
-}
-
-// NDI types (NdiConfig / NdiFrame / NdiSendConfig) moved to @artlux/plugin-ndi.
+// Spout types (SpoutConfig / SpoutFrame) moved to @artlux/plugin-spout; NDI types
+// (NdiConfig / NdiFrame / NdiSendConfig) moved to @artlux/plugin-ndi.
 
 // HAP video — a HAP-coded .mov decoded natively in the main process (no hardware video-decode
 // session). The renderer pulls the exact frame for the current playhead by index (all-intra,
@@ -607,11 +590,7 @@ export interface ArtluxApi {
   getPrefs(): Promise<Prefs>;
   setPrefs(patch: Partial<Prefs>): Promise<void>;
   discoverDevices(): Promise<ArtNetDevice[]>;
-  // Spout
-  listSpoutSenders(): Promise<string[]>;
-  configureSpout(cfg: SpoutConfig): void;
-  onSpoutFrame(cb: (frame: SpoutFrame) => void): () => void;
-  // NDI (network video) moved to @artlux/plugin-ndi (generic pluginInvoke/Send/On bridge).
+  // Spout + NDI (video receive) moved to their plugins (generic pluginInvoke/Send/On bridge).
   // OSC (external control + LiDAR tracking) — receive-first; send is a scaffold.
   configureOsc(cfg: OscConfig): void;
   onOscMessage(cb: (msgs: OscMessage[]) => void): () => void;

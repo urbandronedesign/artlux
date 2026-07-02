@@ -5,8 +5,8 @@ import { buildAppMenu } from './menu';
 import { setupUpdater } from './updater';
 import { registerProjectorWindows, closeAllProjectors } from './projector';
 import { ndiManager as ndi } from '@artlux/plugin-ndi/main'; // app lifecycle (recv cap / quit) — transitional host→plugin seam
+import { spoutManager as spout } from '@artlux/plugin-spout/main'; // broadcast cap — transitional host→plugin seam
 import * as nvwarp from './nvwarpManager';
-import * as spout from './transport/spoutManager';
 import * as metrics from './metrics';
 import { IPC } from '../../shared/protocol';
 

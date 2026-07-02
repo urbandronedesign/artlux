@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import type { SpoutFrame } from '../../../shared/protocol';
+import type { SpoutFrame } from './types';
 
 // Loads the native Spout receiver (native/spout-receiver/spout-receiver.node) in
 // the main process — the sandboxed renderer can't require a .node, so frames
