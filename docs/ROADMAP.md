@@ -30,7 +30,10 @@ with relative imports duplicates singletons (writers hit one instance, readers t
 |---|---|---|
 | **lidar-tracking** | ✅ shipped | Content source + OSC ingestion cleanly inverted. 3D-viz + projector self-render kept as transitional host→plugin imports (see Deferred). |
 | **ndi** | ✅ shipped | Receive fully inverted (content source + discovery via provider editor); send routed through the generic bridge. Forced the `MainTransport`→general `MainPluginContext.ipc` fix + main-side activation. |
-| **calibration** | 📋 planned | This document, below. The largest extraction. |
+| **calibration** | 🚧 Stage 1 shipped | Engine (calibManager/OpenCV) + renderer logic extracted to `plugins/calibration` (native IPC via `calib:*`, `calibNative` wrapper). Stage 2 (wizards as panels + host-services) and Stage 3 (projector-contribution) remain — see below. |
+
+Also done: the **timeline clip-kind** inversion — `timeline.ts` no longer hardcodes `kind==='tracking'`;
+the lidar plugin registers the `tracking` kind into `clipKindRegistry` (first end-to-end consumer).
 
 ---
 
@@ -141,9 +144,8 @@ pattern/crosshair/`ProjectorScene` rendering lives in `ProjectorApp`.
   (`ProjectorApp`/`ProjectorGL`, `Simulator3D/TrackingViz`). Fully inverting needs the
   **projector-contribution** + a **scene-viz contribution** SDK type. The projector-contribution is
   shared with calibration Stage 3 — build once, use for both.
-- **Timeline clip-kind inversion** — `timeline.ts` still uses `kind === 'tracking'` literals;
-  `clipKindRegistry` exists but is unused. Swap the literals to registry lookups and register the
-  `tracking` kind from the LiDAR plugin.
+- ~~**Timeline clip-kind inversion**~~ ✅ done — the literals are gone; the LiDAR plugin registers the
+  `tracking` kind into `clipKindRegistry` (first end-to-end consumer).
 - **Settings/panels registry inversion** — `settingsSectionRegistry` + `PanelRegistry` exist but are
   unused; migrate the LiDAR OSC/tracking settings + OscMonitor/TakesBin panels onto them (calibration
   Stage 2 is the first PanelRegistry consumer).
