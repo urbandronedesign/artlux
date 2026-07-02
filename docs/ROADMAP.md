@@ -140,10 +140,14 @@ pattern/crosshair/`ProjectorScene` rendering lives in `ProjectorApp`.
 
 ## Deferred backlog (accumulated from shipped plugins)
 
-- **LiDAR projector self-render + 3D-viz tendrils** — currently transitional host→plugin imports
-  (`ProjectorApp`/`ProjectorGL`, `Simulator3D/TrackingViz`). Fully inverting needs the
-  **projector-contribution** + a **scene-viz contribution** SDK type. The projector-contribution is
-  shared with calibration Stage 3 — build once, use for both.
+- **Projector-contribution** — the DATA half is ✅ shipped: `ProjectorChannel` (appliesTo/subscribe/
+  build/apply) + a generic `{t:'pluginData'}` bridge + projector-window plugin activation; LiDAR's
+  snapshot→projector bridge now rides it (the core bridge no longer carries `tracking`). **Remaining:**
+  (a) the **GL render hook** (a plugin drawing into `ProjectorGL` — the hard, bespoke part; LiDAR's blob
+  *draw* + calibration's pattern/3D rendering still live in `ProjectorApp`/`ProjectorGL` transitionally),
+  and (b) the **projector→main back-channel** (for calibration's patternShown/crosshair/confirm).
+- **LiDAR 3D-viz tendril** — `Simulator3D/TrackingViz` still imports the plugin transitionally; needs a
+  **scene-viz contribution** SDK type.
 - ~~**Timeline clip-kind inversion**~~ ✅ done — the literals are gone; the LiDAR plugin registers the
   `tracking` kind into `clipKindRegistry` (first end-to-end consumer).
 - **Settings/panels registry inversion** — `settingsSectionRegistry` + `PanelRegistry` exist but are
