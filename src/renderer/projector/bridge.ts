@@ -1,6 +1,5 @@
 import type { Surface, Timeline } from '../types';
 import type { CornerPin, BezierWarp, SoftEdge, ProjectorCalibration, Scene3D } from '../../../shared/protocol';
-import type { TrackingSnapshot } from '@artlux/plugin-lidar-tracking';
 
 export interface ProjectorRender {
   cornerPin: CornerPin;
@@ -29,8 +28,7 @@ export type MainToProjector =
   | { t: 'edit'; on: boolean }                                // toggle corner-pin / mesh editing
   | { t: 'frame'; bitmap: ImageBitmap }                       // streamed source frame (camera/Spout/DMX-in/NDI + video/layer, decoded once in main)
   | { t: 'layerFrame'; layerId: string; bitmap: ImageBitmap } // a timeline layer frame (TRACKING content background; decoded once in main)
-  | { t: 'tracking'; snap: TrackingSnapshot }                 // LiDAR blobs for TRACKING content (OSC arrives in main only)
-  | { t: 'pluginData'; channel: string; payload: unknown }    // generic per-frame plugin channel (see ProjectorChannel); replaces 'tracking' in Phase 2
+  | { t: 'pluginData'; channel: string; payload: unknown }    // generic per-frame plugin channel (see ProjectorChannel) — e.g. LiDAR tracking snapshots
   // --- calibration (physical-projector calibration: structured light + pose) ---
   // mode gates what the projector draws: 'pattern' = a Gray-code/flat field (SL intrinsics capture),
   // 'crosshair' = faint content + an aim crosshair (pose capture), 'render' = render-from-projector.

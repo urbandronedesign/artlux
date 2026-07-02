@@ -8,11 +8,13 @@
 // bridge, timeline take record/replay, smoothing config, recording UI) is still driven by host
 // code that imports this package's modules transitionally — see the plan's "pragmatic seam".
 
-import type { RendererPlugin, RendererPluginContext } from '@artlux/sdk/renderer';
-import type { SurfaceContent, VideoClip } from '@/types';
+import type { RendererPlugin, RendererPluginContext, ProjectorChannel } from '@artlux/sdk/renderer';
+import type { SurfaceContent, VideoClip, Surface } from '@/types';
 import * as trackingStore from './trackingStore';
+import type { TrackingSnapshot } from './trackingStore';
 import * as trackingDrawable from './trackingDrawable';
 import * as take from './trackingTake';
+import { clusterAndTrack } from './blobClustering';
 
 let oscUnsub: (() => void) | null = null;
 
@@ -37,6 +39,23 @@ export const plugin: RendererPlugin = {
       excludeFromProgram: true,
       preWarm: (clip) => { const p = (clip as VideoClip).path; if (p) void take.ensureLoaded(p); },
     });
+
+    // Projector data channel: stream the (optionally people-merged) blob snapshot to projector windows
+    // showing TRACKING content, over the generic pluginData bridge. Registered in BOTH windows — the
+    // host calls `build`/`subscribe` in the main window (producer) and `apply` in each projector
+    // window (consumer). Replaces App's former hardcoded { t:'tracking' } bridge.
+    ctx.projectorChannels.register({
+      channel: 'lidar-tracking',
+      throttleMs: 16,
+      appliesTo: (surface) => (surface as Surface).content.type === 'TRACKING',
+      subscribe: (cb) => trackingStore.subscribe(cb),
+      build: () => {
+        const raw = trackingStore.snapshot();
+        const cfg = ctx.getScene3D() as { trackingMergePeople?: boolean; trackingMergeRadius?: number };
+        return cfg.trackingMergePeople ? clusterAndTrack(raw, cfg.trackingMergeRadius ?? 0.8, performance.now()) : raw;
+      },
+      apply: (payload) => trackingStore.applySnapshot(payload as TrackingSnapshot),
+    } as ProjectorChannel);
 
     // Live OSC blob/spec ingestion. Main window only — projector windows never see OSC (they get
     // snapshots over the bridge). Taps the shared OSC stream alongside the host's control router

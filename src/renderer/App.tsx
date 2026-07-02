@@ -40,10 +40,11 @@ import { getDrawable } from './services/surfaceMedia';
 import { timeline as timelineEngine } from './services/timeline';
 import * as oscController from './services/oscController';
 import { activateRendererPlugins } from './host/plugins';
+import { projectorChannelRegistry } from './host/registries';
 import * as cueBus from './services/cueBus';
 import * as transitions from './services/transitions';
 import { collectFadeableTargets, getByPath, setByPath, isFadeablePath, type StateView } from './services/paramPath';
-import { trackingStore, trackingPlayback, trackingDrawable, clusterAndTrack, resetPeopleTracking } from '@artlux/plugin-lidar-tracking';
+import { trackingPlayback, trackingDrawable, resetPeopleTracking } from '@artlux/plugin-lidar-tracking';
 import { Activity, SlidersHorizontal, Film, Clapperboard, Columns2, Maximize2, Minimize2 } from 'lucide-react';
 import { useHistory } from './hooks/useHistory';
 
@@ -1009,7 +1010,7 @@ const App: React.FC = () => {
   useEffect(() => { timelineEngine.setStateMachine(stateMachine); }, [stateMachine]);
   // Activate first-party plugins (main window) before any compositing/OSC: this registers the LiDAR
   // plugin's TRACKING content source and its live blob ingestion.
-  useEffect(() => { activateRendererPlugins('main'); }, []);
+  useEffect(() => { activateRendererPlugins('main', { getScene3D: () => scene3DRef.current }); }, []);
   // OSC: subscribe the controller to forwarded messages once; (re)bind the UDP listener and refresh
   // the control namespace whenever the OSC settings change. Control intents flow back through the
   // subscribeIntent path above; LiDAR blob data lands in the tracking store.
@@ -1023,27 +1024,30 @@ const App: React.FC = () => {
           controlPrefix: settings.oscControlPrefix,
       });
   }, [settings.oscEnabled, settings.oscListenPort, settings.oscListenAddress, settings.oscControlPrefix]);
-  // Stream LiDAR blob snapshots to projector windows showing TRACKING content (up to ~60 fps — the
-  // payload is tiny, ≤10 blobs). OSC is received only here in the main window; the embedded 3D view
-  // reads trackingStore directly, so only the separate projector renderers need the bridge.
+  // Generic projector-channel producer: each registered projector channel (e.g. the LiDAR tracking
+  // snapshot) sends its payload to the projector windows whose surface it appliesTo, over the generic
+  // { t:'pluginData' } bridge. Plugin-agnostic — replaces the former per-feature (tracking) bridge.
   useEffect(() => {
-      let last = 0;
-      const unsub = trackingStore.subscribe(() => {
-          const now = performance.now();
-          if (now - last < 16) return;
-          last = now;
-          // Only build the snapshot if a projector showing TRACKING content consumes it.
-          const trackingProjectors = [...projectorPortsRef.current].filter(([id]) =>
-              surfacesRef.current.find(s => s.id === id)?.content.type === SourceType.TRACKING);
-          if (trackingProjectors.length === 0) return;
-          const raw = trackingStore.snapshot();
-          // Merge the venue's ~2-blobs-per-person into single "people" for the projector outputs
-          // (off by default). The raw store + recorded takes stay untouched.
-          const cfg = scene3DRef.current;
-          const snap = cfg.trackingMergePeople ? clusterAndTrack(raw, cfg.trackingMergeRadius ?? 0.8, now) : raw;
-          for (const [, port] of trackingProjectors) port.postMessage({ t: 'tracking', snap });
-      });
-      return () => unsub();
+      const unsubs: (() => void)[] = [];
+      for (const ch of projectorChannelRegistry.all()) {
+          if (!ch.subscribe) continue; // subscribe-driven channels only (tracking); poll channels TBD
+          let last = 0;
+          const throttle = ch.throttleMs ?? 16;
+          unsubs.push(ch.subscribe(() => {
+              const now = performance.now();
+              if (now - last < throttle) return;
+              const ports = [...projectorPortsRef.current].filter(([id]) => {
+                  const s = surfacesRef.current.find(x => x.id === id);
+                  return !!s && !!ch.appliesTo?.(s);
+              });
+              if (!ports.length) return;
+              const payload = ch.build?.();
+              if (payload == null) return;
+              last = now;
+              for (const [, port] of ports) port.postMessage({ t: 'pluginData', channel: ch.channel, payload });
+          }));
+      }
+      return () => { for (const u of unsubs) u(); };
   }, []);
   // Keep the main-window tracking renderer's smoothing/prediction in sync (stage preview).
   useEffect(() => {

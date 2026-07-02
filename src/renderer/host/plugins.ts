@@ -2,8 +2,8 @@
 //
 // In-tree plugins are statically imported (no dynamic disk loading). This module builds the plugin
 // context from the host registries + service handles and activates each registered renderer plugin
-// once per window. App (main window) calls activateRendererPlugins('main'); the projector window
-// doesn't use the renderer registries today, so it isn't activated.
+// once per window. App (main window) calls activateRendererPlugins('main', {...}); each projector
+// window calls activateRendererPlugins('projector') so projector-channel `apply()` runs there too.
 
 import {
   contentSourceRegistry, clipKindRegistry, projectorChannelRegistry,
@@ -18,7 +18,12 @@ const FIRST_PARTY: RendererPlugin[] = [lidarTracking, ndi];
 
 let activated = false;
 
-function makeContext(win: 'main' | 'projector'): RendererPluginContext {
+// Host service handles a plugin context needs that the host must inject (it owns the state).
+export interface RendererHostServices {
+  getScene3D?: () => unknown; // current 3D scene (main window only)
+}
+
+function makeContext(win: 'main' | 'projector', host: RendererHostServices): RendererPluginContext {
   const ipc: PluginIpc = {
     invoke: (ch, ...a) => window.artlux!.pluginInvoke(ch, ...a),
     send: (ch, ...a) => window.artlux!.pluginSend(ch, ...a),
@@ -35,13 +40,14 @@ function makeContext(win: 'main' | 'projector'): RendererPluginContext {
     panels: panelRegistry,
     ipc,
     onPlayhead: (cb) => timeline.subscribe(cb),
+    getScene3D: () => host.getScene3D?.() ?? {},
   } as unknown as RendererPluginContext;
 }
 
-export function activateRendererPlugins(win: 'main' | 'projector'): void {
+export function activateRendererPlugins(win: 'main' | 'projector', host: RendererHostServices = {}): void {
   if (activated) return;
   activated = true;
-  const ctx = makeContext(win);
+  const ctx = makeContext(win, host);
   for (const p of FIRST_PARTY) {
     try { p.activate(ctx); } catch (e) { console.error(`[plugins] ${p.manifest.id} activate failed`, e); }
   }

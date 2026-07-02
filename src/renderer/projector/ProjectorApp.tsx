@@ -4,12 +4,14 @@ import { defaultCornerPin, defaultSoftEdge, type CornerPin, type BezierWarp, typ
 import { ProjectorScene } from './ProjectorScene';
 import { syncSurfaces, getDrawable } from '../services/surfaceMedia';
 import { timeline as engine } from '../services/timeline';
-import { trackingStore, trackingRenderer } from '@artlux/plugin-lidar-tracking';
+import { trackingRenderer } from '@artlux/plugin-lidar-tracking';
 import { ProjectorGL } from './ProjectorGL';
 import { squareToQuad, applyH } from './homography';
 import { makeBezierWarp, tessellateBezier, evalBezier, BEZIER_CORNERS } from './warp';
 import type { MainToProjector, ProjectorToMain, ProjectorRender } from './bridge';
 import { fillPattern, type CalibPatternKind } from '@artlux/plugin-calibration/renderer';
+import { activateRendererPlugins } from '../host/plugins';
+import { projectorChannelRegistry } from '../host/registries';
 
 type CalibMode = 'idle' | 'pattern' | 'crosshair' | 'render';
 
@@ -109,6 +111,10 @@ export const ProjectorApp: React.FC = () => {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
+  // Activate first-party plugins in this projector window so projector-channel `apply()` (e.g. the
+  // LiDAR tracking snapshot → its store) runs here before any pluginData messages arrive.
+  useEffect(() => { activateRendererPlugins('projector'); }, []);
+
   // --- MessagePort handshake ---
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
@@ -141,8 +147,8 @@ export const ProjectorApp: React.FC = () => {
           if (s) syncSurfaces(SELF_RENDER.has(s.content.type) ? [s] : [], m.playing);
         } else if (m.t === 'brightness') {
           brightnessRef.current = m.value;
-        } else if (m.t === 'tracking') {
-          trackingStore.applySnapshot(m.snap);
+        } else if (m.t === 'pluginData') {
+          projectorChannelRegistry.get(m.channel)?.apply?.(m.payload); // e.g. LiDAR tracking snapshot → its store
         } else if (m.t === 'edit') {
           setEditing(m.on);
           if (m.on) window.focus();

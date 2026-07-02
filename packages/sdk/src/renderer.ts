@@ -64,10 +64,15 @@ export interface ClipKindRegistry<Clip = unknown> {
 // the host calls whichever applies to the window it's in.
 export interface ProjectorChannel<SurfaceT = unknown, Payload = unknown> {
   channel: string;
-  // Producer (main window): whether any connected projector wants this channel's data.
-  shouldSend?(surfaces: SurfaceT[]): boolean;
-  // Producer: build the per-frame payload (null = nothing to send this frame).
+  // Producer (main window): which projector surfaces receive this channel's data (per-surface gate).
+  appliesTo?(surface: SurfaceT): boolean;
+  // Producer (main window): fire the callback when the payload changes → the host sends. Returns unsub.
+  // Omit for a poll-per-frame channel (the host then sends every transport tick, throttled).
+  subscribe?(onChange: () => void): () => void;
+  // Producer (main window): build the payload to send (null = skip this send).
   build?(): Payload | null;
+  // Producer: minimum ms between sends (default 16 ≈ 60fps).
+  throttleMs?: number;
   // Consumer (projector window): apply a received payload to local state.
   apply?(payload: Payload): void;
 }
@@ -133,6 +138,9 @@ export interface RendererPluginContext<C = unknown, SurfaceT = unknown, Clip = u
   ipc: PluginIpc;
   // Subscribe to the timeline engine's coalesced per-frame playhead (seconds). Returns unsub.
   onPlayhead(cb: (playheadSec: number) => void): () => void;
+  // Read the current 3D scene state (models, tracking/merge config, …). Main window only; a
+  // general host accessor — e.g. the LiDAR projector channel reads its merge config from here.
+  getScene3D(): unknown;
 }
 
 export interface RendererPlugin {
