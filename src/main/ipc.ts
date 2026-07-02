@@ -6,7 +6,6 @@ import * as output from './transport/outputManager';
 import * as input from './transport/input';
 import * as discovery from './transport/discovery';
 import * as osc from './transport/oscManager';
-import * as hap from './transport/hapManager';
 import * as nvwarp from './nvwarpManager';
 import { buildMpcdi, parseMpcdi, type MpcdiRegion } from './mpcdi';
 import * as persistence from './persistence';
@@ -159,11 +158,8 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
         osc.send(host, port, address, args);
     });
     ipcMain.handle(IPC.OSC_LOCAL_ADDRS, () => osc.localAddresses());
-
-    // ---- HAP video (native decode; renderer pulls frames by index) ----
-    ipcMain.handle(IPC.HAP_OPEN, (_e, path: string) => hap.open(path));
-    ipcMain.handle(IPC.HAP_DECODE, (_e, path: string, index: number) => hap.decode(path, index));
-    ipcMain.on(IPC.HAP_CLOSE, (_e, path: string) => hap.close(path));
+    // HAP video decode moved to @artlux/plugin-hap (hap:open / hap:decode / hap:close over the generic
+    // plugin bridge; activated via activateMainPlugins).
 
     // Projector calibration (native OpenCV addon) now lives in @artlux/plugin-calibration — its main
     // entry registers the solve/camera IPC (channels 'calib:*') via activateMainPlugins above.

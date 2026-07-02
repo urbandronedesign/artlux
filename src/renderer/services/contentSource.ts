@@ -2,8 +2,7 @@ import { SourceType, type SurfaceContent } from '../types';
 import { getInputCanvas, startInput, stopInput } from './dmxInput';
 import { SurfaceEffect } from '../gpu/surfaceFx';
 import { resolveMediaUrl, mimeForPath } from './mediaCache';
-import * as hap from './hapPlayer';
-import { contentSourceRegistry } from '../host/registries';
+import { contentSourceRegistry, videoCodecRegistry } from '../host/registries';
 
 // One registry that turns ANY consumer's content into a drawable, keyed by an arbitrary string
 // (surfaces use their id; timeline layers use `layer:<layerId>`). Per-instance producers (video /
@@ -18,12 +17,9 @@ type Drawable = CanvasImageSource;
 type Entry =
   | { type: 'VIDEO'; el: HTMLVideoElement; url: string }
   | { type: 'IMAGE'; el: HTMLImageElement; url: string }
-  | { type: 'HAP'; path: string };
+  | { type: 'CODEC'; codecId: string; path: string }; // a plugin VideoCodec (e.g. HAP) decodes this file
 
-// HAP is carried in QuickTime/MOV; probe those (the parser is ISO-BMFF, not RIFF/.avi).
-const isHapCandidate = (url: string): boolean => /\.mov$/i.test(url);
-
-const media = new Map<string, Entry>();          // VIDEO / IMAGE / HAP, keyed by consumer key
+const media = new Map<string, Entry>();          // VIDEO / IMAGE / CODEC, keyed by consumer key
 const effects = new Map<string, SurfaceEffect>(); // EFFECT, keyed by consumer key
 
 // Shared live receivers, refcounted by consumer key. (Spout + NDI moved to their plugins — same
@@ -83,7 +79,7 @@ function dropMedia(key: string): void {
   const e = media.get(key);
   if (!e) return;
   if (e.type === 'VIDEO') e.el.pause();
-  if (e.type === 'HAP') hap.close(e.path);
+  if (e.type === 'CODEC') videoCodecRegistry.get(e.codecId)?.closeSurface(e.path);
   media.delete(key);
 }
 
@@ -91,18 +87,20 @@ function dropMedia(key: string): void {
 function reconcileMedia(key: string, content: SurfaceContent): void {
   if (content.type === SourceType.VIDEO && content.url) {
     const e = media.get(key);
-    const curUrl = e ? (e.type === 'HAP' ? e.path : e.type === 'VIDEO' ? e.url : null) : null;
+    const curUrl = e ? (e.type === 'CODEC' ? e.path : e.type === 'VIDEO' ? e.url : null) : null;
     if (curUrl === content.url) return;
     if (e?.type === 'VIDEO') e.el.pause();
-    if (e?.type === 'HAP') hap.close(e.path);
+    if (e?.type === 'CODEC') videoCodecRegistry.get(e.codecId)?.closeSurface(e.path);
     const url = content.url;
-    if (isHapCandidate(url)) {
-      // Optimistically treat as HAP; the probe downgrades to a normal <video> if it isn't.
-      media.set(key, { type: 'HAP', path: url });
-      void hap.open(url).then((ok) => {
+    const codec = videoCodecRegistry.forPath(url); // a plugin decoder claims this file (e.g. HAP .mov)
+    if (codec) {
+      // Optimistically use the codec; its probe downgrades to a normal <video> if it isn't (e.g. an
+      // H.264 .mov that isn't HAP).
+      media.set(key, { type: 'CODEC', codecId: codec.id, path: url });
+      void codec.openSurface(url).then((ok) => {
         if (ok) return;
         const cur = media.get(key);
-        if (cur && cur.type === 'HAP' && cur.path === url) media.set(key, { type: 'VIDEO', el: makeVideo(url), url });
+        if (cur && cur.type === 'CODEC' && cur.path === url) media.set(key, { type: 'VIDEO', el: makeVideo(url), url });
       });
     } else {
       media.set(key, { type: 'VIDEO', el: makeVideo(url), url });
@@ -161,7 +159,7 @@ export function setPlaying(p: boolean): void {
   playing = p;
   for (const e of media.values()) if (e.type === 'VIDEO') { if (p) e.el.play().catch(() => {}); else e.el.pause(); }
   if (cameraEl) { if (p) cameraEl.play().catch(() => {}); else cameraEl.pause(); }
-  hap.setPlaying(p);
+  for (const c of videoCodecRegistry.all()) c.setPlaying(p);
 }
 
 // Drawable for `key`'s content this frame, or null if not ready. `timeSec` drives generative EFFECT
@@ -171,7 +169,7 @@ export function getDrawable(key: string, content: SurfaceContent, timeSec: numbe
     case SourceType.VIDEO: {
       const e = media.get(key);
       if (!e) return null;
-      if (e.type === 'HAP') return hap.getHapCanvas(e.path);
+      if (e.type === 'CODEC') return videoCodecRegistry.get(e.codecId)?.surfaceFrame(e.path) ?? null;
       return e.type === 'VIDEO' && e.el.readyState >= 2 ? e.el : null;
     }
     case SourceType.IMAGE: {
@@ -203,7 +201,7 @@ export function getAspect(key: string, content: SurfaceContent): number | null {
     }
     case SourceType.VIDEO: {
       const e = media.get(key);
-      if (e?.type === 'HAP') return hap.getHapAspect(e.path);
+      if (e?.type === 'CODEC') return videoCodecRegistry.get(e.codecId)?.aspect(e.path) ?? null;
       return e && e.type === 'VIDEO' && e.el.videoWidth > 0 ? e.el.videoWidth / e.el.videoHeight : null;
     }
     case SourceType.CAMERA:

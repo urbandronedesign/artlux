@@ -36,6 +36,8 @@ const CHECKS = [
   { plugin: 'calibration',    where: 'main',     marker: 'calib:detect-board',   note: 'calibManager IPC handle' },
   { plugin: 'spout',          where: 'renderer', marker: 'spout:configure',      note: 'spoutReceiver plugin-IPC channel' },
   { plugin: 'spout',          where: 'main',     marker: 'spout] native receiver loaded', note: 'spoutManager native-load log' },
+  { plugin: 'hap',            where: 'renderer', marker: 'hap:decode',           note: 'hapDecode plugin-IPC channel' },
+  { plugin: 'hap',            where: 'main',     marker: 'hap] native decoder loaded', note: 'hapManager native-load log' },
 ];
 
 function fail(msg) { console.error(`\x1b[31m✗\x1b[0m ${msg}`); }

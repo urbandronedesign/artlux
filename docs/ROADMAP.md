@@ -32,9 +32,40 @@ with relative imports duplicates singletons (writers hit one instance, readers t
 | **ndi** | ✅ shipped | Receive fully inverted (content source + discovery via provider editor); send routed through the generic bridge. Forced the `MainTransport`→general `MainPluginContext.ipc` fix + main-side activation. |
 | **calibration** | ✅ fully inverted (Stage 1 → 3) | Engine + logic (1); host-services + back-channel (2-foundation); wizard/camera UIs relocated (2b); write path via `calibHost.ts` (2c); pose orchestration → `calibWorkspace.ts` (2d); projector-side rendering → a `ProjectorPanelContribution` (`CalibProjector.tsx` + moved `ProjectorScene.tsx`) (3). `App`/`ProjectorApp`/`ProjectorGL` import zero calibration code. **Wizard UI rig-confirmed 2026-07-02** (needed the Tailwind `content` glob to scan `plugins/` — see PLUGINS.md gotchas). The board/markerless calibration *pass* itself still needs on-rig sign-off. |
 | **spout** | ✅ shipped | Windows Spout video receive fully inverted — native `spoutManager` (main) + refcounted `spoutContentSource` provider + `SpoutEditor` (renderer), all over the generic plugin bridge. Receive-only (no send). `SourceType.SPOUT`/`SurfaceContent.spoutName` stay core. `spout-receiver.node` stays root `extraResources`. Runtime receive needs a Spout sender on the rig. |
+| **hap** | ✅ shipped | HAP video codec fully inverted — native `hapManager` (main) + prefetch-ring `hapDecode` + WebGL2 BC-decompress `hapGL` + surface `hapPlayer` (renderer), registered as the first **`VideoCodec`** contribution. The three consumers (`contentSource` surfaces, the timeline LAYER engine, `thumbnailCache`) dispatch `.mov` through `videoCodecRegistry` — no HAP code left in core. `hap.node` stays root `extraResources`. Rig-verified for playback (surface HAP auto-plays on boot; timeline-layer + thumbnails need on-rig sign-off). |
 
 Also done: the **timeline clip-kind** inversion — `timeline.ts` no longer hardcodes `kind==='tracking'`;
 the lidar plugin registers the `tracking` kind into `clipKindRegistry` (first end-to-end consumer).
+
+---
+
+## Next: more video codecs (DXV, native MP4) via the `VideoCodec` contribution
+
+The `hap` plugin established the **`VideoCodec`** contribution (`@artlux/sdk/renderer`): a decoder
+registers `canDecode`/`probe`/`openSurface`/`surfaceFrame`/`layerFrame`/`thumbnail`/`setPlaying`/… and
+the three consumers (`contentSource` surfaces, timeline LAYER engine, `thumbnailCache`) dispatch a file
+path to the first codec whose `canDecode` matches. New codecs slot in with **no host changes** — just a
+new plugin + `videoCodecRegistry.register`.
+
+- **DXV** (Resolume's GPU codec, in `.mov`/`.avi`). Closest to HAP: all-intra, BC/GPU-decompressible.
+  1. New Rust crate `native/dxv` (demux + per-frame block extract; DXV1–3). Mirror `native/hap`.
+  2. `plugins/dxv` (cross-process): `dxvManager` (main, native) + `dxvDecode` (prefetch ring — reuse
+     HAP's shape) + `dxvGL` (BC-decompress; DXV3 = DXT5+alpha, DXV1/2 = DXT1/5) + a `VideoCodec`.
+     `canDecode` must probe the container's codec fourcc (both HAP and DXV live in `.mov`), so **codec
+     probe order matters** — the registry returns the first `canDecode` true; make `probe` authoritative
+     (open native, confirm fourcc) and have `canDecode` gate on extension only, letting `probe` decline.
+  3. Register; `.mov` now tries HAP then DXV then falls back to `<video>` (H.264).
+- **Native MP4** (frame-accurate H.264/H.265 decode, an alternative to the `<video>` element for exact
+  scrubbing / no hardware-session cap). Bigger: needs a native decoder (ffmpeg/OS media foundation) or a
+  `WebCodecs` `VideoDecoder`-based renderer codec (no native crate — decode in the renderer via
+  `VideoDecoder`, feed `VideoFrame`s as the drawable). The WebCodecs route is the lightest first cut and
+  fits the same contract (`openSurface`/`layerFrame` return the `VideoFrame`/canvas). Gate it behind a
+  setting so the default `<video>` path is unchanged.
+
+**Contract gaps to close when adding the 2nd codec:** `canDecode` currently returns the first match;
+with HAP+DXV both `.mov`, make the registry try each codec's async `probe` in order and cache the winner
+per path (today `contentSource`/`timeline` call `forPath` = first `canDecode`, then rely on `probe`
+returning false to fall back — fine for one codec, needs the try-in-order loop for two).
 
 ---
 

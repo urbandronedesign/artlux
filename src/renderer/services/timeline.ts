@@ -1,9 +1,8 @@
 import { Timeline, VideoClip, SurfaceContent, LayerBlendMode, StateMachine, isContentClip, defaultTimeline } from '../types';
 import { getBlobUrl, ensureBlobUrl } from './mediaCache';
-import * as hapDecode from './hapDecode';
-import * as hapGL from './hapGL';
 import * as contentSource from './contentSource';
-import { clipKindRegistry } from '../host/registries';
+import { clipKindRegistry, videoCodecRegistry } from '../host/registries';
+import type { VideoCodecContribution } from '@artlux/sdk/renderer';
 import * as fsm from './stateMachine';
 import type { TransportIntent, SmContext } from './stateMachine';
 import * as cueBus from './cueBus';
@@ -14,15 +13,16 @@ import * as cueBus from './cueBus';
 // The main window advances the playhead itself; the Scene window runs in `external` mode
 // and is driven by the bridged transport.
 //
-// HAP clips can't be decoded by the browser <video>, so for those we pull the exact frame
-// for the playhead from the native decoder (hapDecode) and paint it onto a per-layer canvas.
+// Files the browser <video> can't decode (HAP; later DXV / native MP4) are handled by a plugin
+// VideoCodec: for those we pull the exact frame for the playhead from the codec and it paints a
+// per-layer canvas we draw like a <video>.
 
-// A layer's playback state: a browser <video> for normal clips, plus a lazily-created canvas
-// fed by the native HAP decoder for HAP clips. `mode` says which is live this frame.
-type HapState = { path: string; canvas: HTMLCanvasElement | null; index: number };
+// A layer's playback state: a browser <video> for normal clips, plus a lazily-created canvas fed by
+// a plugin VideoCodec for codec clips. `mode` says which is live this frame.
+type CodecState = { path: string; canvas: CanvasImageSource | null; codecId: string };
 type LayerVid = {
   el: HTMLVideoElement; clipId: string | null; srcPath: string | null;
-  mode: 'video' | 'hap' | 'content' | null; hap: HapState | null;
+  mode: 'video' | 'codec' | 'content' | null; codec: CodecState | null;
   // 'content' mode: a generalized source clip (image/effect/camera/spout/ndi/dmx/tracking) is live
   // on this layer; pixels come from contentSource keyed by `layer:<id>`.
   content?: SurfaceContent; contentClipId?: string | null; contentLocalTime?: number;
@@ -92,7 +92,7 @@ function getLayerVideo(layerId: string): LayerVid {
   if (!lv) {
     const el = document.createElement('video');
     el.muted = true; el.playsInline = true; el.loop = false; el.crossOrigin = 'anonymous';
-    lv = { el, clipId: null, srcPath: null, mode: null, hap: null };
+    lv = { el, clipId: null, srcPath: null, mode: null, codec: null };
     layerVideos.set(layerId, lv);
   }
   return lv;
@@ -134,12 +134,13 @@ function syncLayer(layerId: string, t: number): void {
   // Switching from a content clip back to a video/HAP clip: drop the content source first.
   if (lv.mode === 'content' || lv.content) releaseContent(lv, layerId);
 
-  // HAP clips can't go through the <video>; pull the playhead's frame from the native decoder.
-  if (hapDecode.isHapCandidate(clip.path)) {
-    const known = hapDecode.isHap(clip.path);
-    if (known === undefined) { void hapDecode.ensureOpen(clip.path); return; } // still probing
-    if (known) { syncHapLayer(layerId, lv, clip, t); return; } // decode locally (any window)
-    // known === false → a non-HAP .mov (e.g. H.264); fall through to the <video> path.
+  // Codec clips (HAP, …) can't go through the <video>; pull the playhead's frame from the plugin codec.
+  const codec = videoCodecRegistry.forPath(clip.path);
+  if (codec) {
+    const known = codec.probed(clip.path);
+    if (known === undefined) { void codec.probe(clip.path); return; } // still probing
+    if (known) { syncCodecLayer(layerId, lv, clip, t, codec); return; } // decode locally (any window)
+    // known === false → the codec declined (e.g. a non-HAP .mov / H.264); fall through to <video>.
   }
   // Non-HAP clips are only decoded in the main window; mirror windows consume streamed frames.
   if (external) { lv.mode = null; return; }
@@ -164,25 +165,17 @@ function syncVideoLayer(lv: LayerVid, clip: VideoClip, t: number): void {
   else if (!lv.el.paused) lv.el.pause();
 }
 
-function syncHapLayer(layerId: string, lv: LayerVid, clip: VideoClip, t: number): void {
-  const info = hapDecode.getInfo(clip.path);
-  if (!info) return;
+function syncCodecLayer(layerId: string, lv: LayerVid, clip: VideoClip, t: number, codec: VideoCodecContribution): void {
   if (!lv.el.paused) lv.el.pause(); // not using the <video> for this clip
-  if (!lv.hap || lv.hap.path !== clip.path) {
-    lv.hap = { path: clip.path, canvas: null, index: -1 };
+  if (!lv.codec || lv.codec.path !== clip.path) {
+    lv.codec = { path: clip.path, canvas: null, codecId: codec.id };
   }
   lv.clipId = clip.id;
-  lv.mode = 'hap';
-  // Frame index for this playhead position within the clip's source (clamped). Show the best
-  // available decoded frame; upload it to the GPU (blocks → compressed texture) when it advances.
-  const target = t - clip.start + clip.inPoint;
-  const idx = Math.max(0, Math.min(Math.round(target * info.fps), info.frameCount - 1));
-  const h = lv.hap;
-  const got = hapDecode.getFrame(clip.path, idx);
-  if (got && got.index !== h.index) {
-    h.canvas = hapGL.uploadFrame(layerId, got.frame);
-    h.index = got.index;
-  }
+  lv.mode = 'codec';
+  // The codec samples the exact frame for this clip-local playhead time and paints its per-layer
+  // canvas (GPU decompress); it tracks the decoded index internally so it only re-uploads on advance.
+  const clipTime = t - clip.start + clip.inPoint;
+  lv.codec.canvas = codec.layerFrame(layerId, clip.path, clipTime);
 }
 
 // A generalized content clip: route its SurfaceContent onto the layer via the shared contentSource
@@ -252,7 +245,7 @@ function layerDrawable(layerId: string): CanvasImageSource | null {
   const lv = layerVideos.get(layerId);
   if (!lv || !lv.clipId) return null;
   if (lv.mode === 'content') return lv.content ? contentSource.getDrawable(layerKey(layerId), lv.content, lv.contentLocalTime ?? 0) : null;
-  if (lv.mode === 'hap') return lv.hap && lv.hap.index >= 0 ? lv.hap.canvas : null;
+  if (lv.mode === 'codec') return lv.codec ? lv.codec.canvas : null;
   return lv.mode === 'video' && lv.el.readyState >= 2 ? lv.el : null;
 }
 
@@ -291,11 +284,12 @@ export const timeline = {
     // clips (.lblob) aren't video — they're handled by trackingPlayback, so skip them here.
     for (const c of t.clips) {
       if ((c.kind && clipKindRegistry.has(c.kind)) || isContentClip(c)) continue; // non-video kinds (takes → trackingPlayback); content → lazy on acquire
-      if (hapDecode.isHapCandidate(c.path)) void hapDecode.ensureOpen(c.path);
+      const codec = videoCodecRegistry.forPath(c.path);
+      if (codec) codec.preWarm(c.path);
       else ensureBlob(c.path);
     }
     for (const id of [...layerVideos.keys()]) {
-      if (!t.layers.find(l => l.id === id)) { const lv = layerVideos.get(id)!; lv.el.pause(); lv.el.removeAttribute('src'); layerVideos.delete(id); hapGL.release(id); contentSource.release(layerKey(id)); }
+      if (!t.layers.find(l => l.id === id)) { const lv = layerVideos.get(id)!; lv.el.pause(); lv.el.removeAttribute('src'); layerVideos.delete(id); for (const c of videoCodecRegistry.all()) c.releaseLayer(id); contentSource.release(layerKey(id)); }
     }
   },
   setPlaying(p: boolean): void {
@@ -354,7 +348,7 @@ export const timeline = {
     if (external) {
       // Locally-decoded HAP wins (the projector decodes its own); else the streamed frame.
       const lv = layerVideos.get(layerId);
-      if (hapLocal && lv && lv.mode === 'hap' && lv.hap && lv.hap.index >= 0) return lv.hap.canvas;
+      if (hapLocal && lv && lv.mode === 'codec' && lv.codec) return lv.codec.canvas;
       return layerBitmaps.get(layerId) ?? null;
     }
     return layerDrawable(layerId);

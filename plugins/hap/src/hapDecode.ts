@@ -1,4 +1,4 @@
-import type { HapInfo, HapFrame } from '../../../shared/protocol';
+import type { HapInfo, HapFrame } from './types';
 
 // Renderer-side helper around the native HAP decoder (main process). Caches per-file stream
 // info from a one-time probe, and runs a small per-file prefetch pipeline so playback paints
@@ -16,10 +16,10 @@ const probing = new Set<string>();
 export async function ensureOpen(path: string): Promise<HapInfo | null> {
   if (infos.has(path)) return infos.get(path)!;
   if (probing.has(path)) return null; // in flight — caller re-checks next frame
-  if (typeof window === 'undefined' || !window.artlux?.openHap) return null;
+  if (typeof window === 'undefined' || !window.artlux?.pluginInvoke) return null;
   probing.add(path);
   try {
-    const info = (await window.artlux.openHap(path)) ?? null;
+    const info = ((await window.artlux.pluginInvoke('hap:open', path)) as HapInfo | null) ?? null;
     infos.set(path, info);
     return info;
   } catch {
@@ -66,7 +66,7 @@ function request(path: string, idx: number): void {
   const p = getPipe(path);
   if (p.cache.has(idx) || p.inflight.has(idx)) return;
   p.inflight.add(idx);
-  (window.artlux?.decodeHapFrame?.(path, idx) ?? Promise.resolve(null))
+  ((window.artlux?.pluginInvoke?.('hap:decode', path, idx) as Promise<HapFrame | null> | undefined) ?? Promise.resolve(null))
     .then((f) => {
       p.inflight.delete(idx);
       if (f) p.cache.set(idx, f);
@@ -121,7 +121,7 @@ export function release(path: string): void {
   infos.delete(path);
   probing.delete(path);
   pipes.delete(path);
-  window.artlux?.closeHap?.(path);
+  window.artlux?.pluginSend?.('hap:close', path);
 }
 
 // One-shot decode that bypasses the playback prefetch ring entirely. Used by the thumbnail
@@ -129,7 +129,7 @@ export function release(path: string): void {
 // would starve playback). Returns null if the native decoder is unavailable.
 export async function decodeFrameRaw(path: string, idx: number): Promise<HapFrame | null> {
   try {
-    return (await window.artlux?.decodeHapFrame?.(path, idx)) ?? null;
+    return ((await window.artlux?.pluginInvoke?.('hap:decode', path, idx)) as HapFrame | null) ?? null;
   } catch {
     return null;
   }

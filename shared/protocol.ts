@@ -40,13 +40,8 @@ export const IPC = {
   OSC_SEND: 'osc:send',
   /** Renderer → main (invoke): list this machine's local IPv4 addresses (for NIC binding). */
   OSC_LOCAL_ADDRS: 'osc:local-addrs',
-  /** Renderer → main (invoke): open a HAP-coded .mov; returns stream info or null if not HAP. */
-  HAP_OPEN: 'hap:open',
-  /** Renderer → main (invoke): decode one frame by index → RGBA (frame-accurate pull). */
-  HAP_DECODE: 'hap:decode',
-  /** Renderer → main: release a HAP source (by file path). */
-  HAP_CLOSE: 'hap:close',
-  // CALIB_* channels moved to @artlux/plugin-calibration (carried over the generic 'plugin:calib:*' bridge).
+  // HAP video + CALIB_* channels moved to their plugins (carried over the generic 'plugin:hap:*' /
+  // 'plugin:calib:*' bridge).
   /** Renderer → main (invoke): is the NVAPI scanout warp/blend addon available (Quadro/RTX-pro)? */
   NVWARP_AVAILABLE: 'nvwarp:available',
   /** Renderer → main (invoke): push a scanout warp mesh (XYUVRQ) to an Electron display. */
@@ -132,30 +127,8 @@ export interface AppInfo {
   version: string;
 }
 
-// Spout types (SpoutConfig / SpoutFrame) moved to @artlux/plugin-spout; NDI types
-// (NdiConfig / NdiFrame / NdiSendConfig) moved to @artlux/plugin-ndi.
-
-// HAP video — a HAP-coded .mov decoded natively in the main process (no hardware video-decode
-// session). The renderer pulls the exact frame for the current playhead by index (all-intra,
-// so any frame decodes independently — ideal for scrubbing) and paints the RGBA onto a canvas
-// that renders through the same drawable path as Spout/NDI. Keyed by file path.
-export interface HapInfo {
-  width: number;
-  height: number;
-  frameCount: number;
-  fps: number;
-  codec: string;     // fourcc: Hap1 (DXT1) / Hap5 (DXT5) / HapY (scaled YCoCg) / HapA / HapM
-  hasAlpha: boolean;
-}
-
-// A decoded HAP frame as raw GPU blocks (uploaded as a compressed texture in the renderer —
-// the GPU decompresses, so this is ~8× smaller than RGBA over IPC).
-export interface HapFrame {
-  width: number;
-  height: number;
-  format: string;    // "dxt1" | "dxt5" | "ycocg" | "rgtc1" | "bptc"
-  data: Uint8Array;  // raw BC/DXT block bytes
-}
+// Spout (SpoutConfig/SpoutFrame) → @artlux/plugin-spout; NDI (NdiConfig/NdiFrame/NdiSendConfig) →
+// @artlux/plugin-ndi; HAP video (HapInfo/HapFrame) → @artlux/plugin-hap.
 
 // ---- Projector calibration (native OpenCV addon: structured light + solvePnP) ----
 // All point/matrix fields are flat plain-number arrays so the IPC payloads stay structured-cloneable
@@ -596,11 +569,7 @@ export interface ArtluxApi {
   onOscMessage(cb: (msgs: OscMessage[]) => void): () => void;
   sendOsc(host: string, port: number, address: string, args: (number | string)[]): void;
   listLocalAddrs(): Promise<string[]>;
-  // HAP video (native decode, frame-accurate pull → RGBA)
-  openHap(path: string): Promise<HapInfo | null>;
-  decodeHapFrame(path: string, index: number): Promise<HapFrame | null>;
-  closeHap(path: string): void;
-  // Projector calibration moved to @artlux/plugin-calibration (generic pluginInvoke/Send bridge).
+  // HAP video + projector calibration moved to their plugins (generic pluginInvoke/Send bridge).
   /** Is the NVAPI scanout warp/blend addon available (Quadro/RTX-pro)? Else use the GLSL fallback. */
   nvwarpAvailable(): Promise<boolean>;
   /** Push a scanout warp mesh (verts = numVerts*6 XYUVRQ; src = [x,y,w,h]) to an Electron display. */

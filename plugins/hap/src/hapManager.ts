@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import type { HapInfo, HapFrame } from '../../../shared/protocol';
+import type { HapInfo, HapFrame } from './types';
 
 // Loads the native HAP decoder (native/hap/hap.node) in the main process — the sandboxed
 // renderer can't require a .node, so it pulls decoded RGBA frames by index via IPC. HAP

@@ -49,11 +49,7 @@ const api: ArtluxApi = {
     sendOsc: (host: string, port: number, address: string, args: (number | string)[]) =>
         ipcRenderer.send(IPC.OSC_SEND, host, port, address, args),
     listLocalAddrs: () => ipcRenderer.invoke(IPC.OSC_LOCAL_ADDRS),
-    // HAP video (frame-accurate pull)
-    openHap: (path: string) => ipcRenderer.invoke(IPC.HAP_OPEN, path),
-    decodeHapFrame: (path: string, index: number) => ipcRenderer.invoke(IPC.HAP_DECODE, path, index),
-    closeHap: (path: string) => ipcRenderer.send(IPC.HAP_CLOSE, path),
-    // Projector calibration moved to @artlux/plugin-calibration (generic pluginInvoke/Send bridge).
+    // HAP video + projector calibration moved to their plugins (generic pluginInvoke/Send bridge).
     // NVAPI scanout warp/blend
     nvwarpAvailable: () => ipcRenderer.invoke(IPC.NVWARP_AVAILABLE),
     nvwarpSetWarp: (electronDisplayId: number, verts: number[], src: number[]) =>

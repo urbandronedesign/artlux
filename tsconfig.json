@@ -55,6 +55,12 @@
       ],
       "@artlux/plugin-spout/renderer": [
         "./plugins/spout/src/renderer.ts"
+      ],
+      "@artlux/plugin-hap/main": [
+        "./plugins/hap/src/main.ts"
+      ],
+      "@artlux/plugin-hap/renderer": [
+        "./plugins/hap/src/renderer.ts"
       ]
     },
     "allowImportingTsExtensions": true,

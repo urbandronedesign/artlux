@@ -8,8 +8,9 @@ import type { MainPlugin, MainPluginContext, MainPluginIpc } from '@artlux/sdk/m
 import { plugin as ndi } from '@artlux/plugin-ndi/main';
 import { plugin as calibration } from '@artlux/plugin-calibration/main';
 import { plugin as spout } from '@artlux/plugin-spout/main';
+import { plugin as hap } from '@artlux/plugin-hap/main';
 
-const FIRST_PARTY: MainPlugin[] = [ndi, calibration, spout];
+const FIRST_PARTY: MainPlugin[] = [ndi, calibration, spout, hap];
 
 let activated = false;
 

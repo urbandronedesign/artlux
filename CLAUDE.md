@@ -111,7 +111,7 @@ electron-builder `extraResources`, all graceful-degrading:
 |---|---|---|
 | `output-engine` | Art-Net/sACN send thread (pacer, keep-alive, sparse, ArtSync) | `transport/outputManager.ts` |
 | `spout-receiver` | Windows Spout video receive | **`@artlux/plugin-spout`** |
-| `hap` | HAP video codec decode | `transport/hapManager.ts` |
+| `hap` | HAP video codec decode | **`@artlux/plugin-hap`** |
 | `ndi` | NDI network video (receive + send) | **`@artlux/plugin-ndi`** |
 | `calib` | OpenCV projector calibration (needs `opencv_world4110.dll`) | `main/calibManager.ts` (→ plugin, see ROADMAP) |
 | `nvwarp` | NVIDIA NVAPI scanout warp/blend (Quadro/RTX) | `main/nvwarpManager.ts` |
@@ -126,9 +126,11 @@ style), so features become self-contained first-party plugins. Shipped: `plugins
 (fully inverted — content source, clip-kind, projector data + GPU-render channel, 3D scene-viz),
 `plugins/ndi`, `plugins/calibration` (fully inverted through Stage 3 — engine, host-services,
 back-channel, wizards, pose orchestration, projector-panel rendering; App/ProjectorApp import zero
-calibration code), and `plugins/spout` (Windows Spout receive — a receive-only NDI-shaped extraction).
-The SDK now spans content-source, clip-kind, projector (data + GPU + panel), scene-viz, and
-host-services contributions. `npm run verify:plugins` guards single-identity. See ROADMAP for backlog.
+calibration code), `plugins/spout` (Windows Spout receive), and `plugins/hap` (HAP video codec — the
+first `VideoCodec` contribution; `.mov` decode dispatched through `videoCodecRegistry` from surfaces,
+the timeline, and thumbnails). The SDK spans content-source, clip-kind, projector (data + GPU + panel),
+scene-viz, host-services, and video-codec contributions. `npm run verify:plugins` guards single-identity.
+Next codecs (DXV, native MP4) slot into the `VideoCodec` contract — see ROADMAP.
 
 - **Workspaces:** host app + `@artlux/sdk` (`packages/sdk`, subpaths `/main` + `/renderer`) + `plugins/*`.
 - **SDK is internal + UNSTABLE** — no public/versioned API or third-party disk-loading yet.

@@ -17,6 +17,7 @@ import type {
   PanelContribution, PanelRegistry,
   SceneVizContribution, SceneVizRegistry,
   ProjectorPanelContribution, ProjectorPanelRegistry,
+  VideoCodecContribution, VideoCodecRegistry,
 } from '@artlux/sdk/renderer';
 import type { SurfaceContent, Surface, VideoClip, AppSettings } from '../types';
 import type { Scene3D } from '../../../shared/protocol';
@@ -57,6 +58,15 @@ const sceneVizzes: SceneVizContribution<Scene3D>[] = [];
 export const sceneVizRegistry: SceneVizRegistry<Scene3D> = {
   register(v) { sceneVizzes.push(v); },
   all() { return sceneVizzes.slice(); },
+};
+
+// ── Video codecs (pluggable decoders for non-<video> file content, e.g. HAP) ────────────────
+const videoCodecs: VideoCodecContribution[] = [];
+export const videoCodecRegistry: VideoCodecRegistry = {
+  register(c) { videoCodecs.push(c); },
+  all() { return videoCodecs.slice(); },
+  forPath(path) { return videoCodecs.find((c) => c.canDecode(path)); },
+  get(id) { return videoCodecs.find((c) => c.id === id); },
 };
 
 // ── Projector panels (full-window overlays in projector output windows) ─────────────────────

@@ -8,6 +8,7 @@
 import {
   contentSourceRegistry, clipKindRegistry, projectorChannelRegistry,
   settingsSectionRegistry, panelRegistry, sceneVizRegistry, projectorPanelRegistry,
+  videoCodecRegistry,
 } from './registries';
 import { timeline } from '../services/timeline';
 import type { RendererPlugin, RendererPluginContext, PluginIpc, RendererHostServices } from '@artlux/sdk/renderer';
@@ -15,8 +16,9 @@ import { plugin as lidarTracking } from '@artlux/plugin-lidar-tracking';
 import { plugin as ndi } from '@artlux/plugin-ndi/renderer';
 import { plugin as calibration } from '@artlux/plugin-calibration/renderer';
 import { plugin as spout } from '@artlux/plugin-spout/renderer';
+import { plugin as hap } from '@artlux/plugin-hap/renderer';
 
-const FIRST_PARTY: RendererPlugin[] = [lidarTracking, ndi, calibration, spout];
+const FIRST_PARTY: RendererPlugin[] = [lidarTracking, ndi, calibration, spout, hap];
 
 let activated = false;
 
@@ -46,6 +48,7 @@ function makeContext(win: 'main' | 'projector', host: RendererHostServices): Ren
     panels: panelRegistry,
     sceneViz: sceneVizRegistry,
     projectorPanels: projectorPanelRegistry,
+    videoCodecs: videoCodecRegistry,
     ipc,
     onPlayhead: (cb) => timeline.subscribe(cb),
     host,

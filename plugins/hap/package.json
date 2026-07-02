@@ -1,0 +1,15 @@
+{
+  "name": "@artlux/plugin-hap",
+  "version": "0.0.0",
+  "private": true,
+  "description": "First-party ArtLux plugin: HAP video codec (GPU-decompressed .mov). Native decoder in main, prefetch ring + WebGL2 BC-decompress in renderer, registered as a VideoCodec.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./main": "./src/main.ts",
+    "./renderer": "./src/renderer.ts"
+  },
+  "dependencies": {
+    "@artlux/sdk": "*"
+  }
+}

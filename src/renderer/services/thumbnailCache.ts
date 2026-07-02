@@ -1,13 +1,12 @@
 import { ensureBlobUrl, mimeForPath } from './mediaCache';
-import * as hapDecode from './hapDecode';
-import * as hapGL from './hapGL';
+import { videoCodecRegistry } from '../host/registries';
 
 // Async thumbnail extraction + LRU cache for timeline filmstrips. Frames are decoded at a fixed
 // small size (good cache reuse across zoom) and quantized in time so adjacent strip slots share
 // frames. Fully decoupled from playback: normal video uses its own offscreen <video> pool (never
-// the engine's layer videos); HAP uses a one-shot decode (decodeFrameRaw) + a dedicated hapGL key,
-// so it never disturbs the live decode ring or a layer's canvas. The UI never blocks — getThumb()
-// returns a cached/nearest frame synchronously and the Filmstrip repaints via onThumb().
+// the engine's layer videos); codec files (HAP, …) use the plugin codec's one-shot `thumbnail`
+// (own GL context), so it never disturbs the live decode ring or a layer's canvas. The UI never
+// blocks — getThumb() returns a cached/nearest frame synchronously and the Filmstrip repaints via onThumb().
 
 const Q = 0.5;          // time quantization (seconds)
 const THUMB_W = 160;    // decoded thumbnail size (16:9); drawn scaled into each slot
@@ -107,22 +106,20 @@ function pumpVideo(): void {
   }
 }
 
-// --- HAP path (serial; reuses a dedicated GL context key so it never clobbers a live layer) ---
-let hapBusy = false;
-const hapQueue: { path: string; qt: number; key: string }[] = [];
+// --- codec path (serial; the codec uses its own dedicated GL context so it never clobbers a layer) ---
+let codecBusy = false;
+const codecQueue: { path: string; qt: number; key: string }[] = [];
 
-async function pumpHap(): Promise<void> {
-  if (hapBusy || !hapQueue.length) return;
-  hapBusy = true;
-  const job = hapQueue.shift()!;
+async function pumpCodec(): Promise<void> {
+  if (codecBusy || !codecQueue.length) return;
+  codecBusy = true;
+  const job = codecQueue.shift()!;
   try {
-    const info = await hapDecode.ensureOpen(job.path);
-    if (!info) { // not HAP after all → route to the video pool
+    const codec = videoCodecRegistry.forPath(job.path);
+    if (!codec || !(await codec.probe(job.path))) { // codec declined (e.g. a non-HAP .mov) → video pool
       videoQueue.push(job); pumpVideo();
     } else {
-      const idx = Math.max(0, Math.min(Math.round(job.qt * info.fps), info.frameCount - 1));
-      const frame = await hapDecode.decodeFrameRaw(job.path, idx);
-      const canvas = frame ? hapGL.uploadFrame('__thumb__', frame) : null;
+      const canvas = await codec.thumbnail(job.path, job.qt);
       if (canvas) {
         const bmp = await createImageBitmap(canvas, { resizeWidth: THUMB_W, resizeHeight: THUMB_H, resizeQuality: 'low' });
         store(job.key, { bmp, path: job.path, qt: job.qt });
@@ -131,15 +128,15 @@ async function pumpHap(): Promise<void> {
     }
   } catch { /* ignore */ } finally {
     inFlight.delete(job.key);
-    hapBusy = false;
-    if (hapQueue.length) void pumpHap();
+    codecBusy = false;
+    if (codecQueue.length) void pumpCodec();
   }
 }
 
 function schedule(path: string, qt: number, key: string): void {
   if (inFlight.has(key)) return;
   inFlight.add(key);
-  if (hapDecode.isHapCandidate(path)) { hapQueue.push({ path, qt, key }); void pumpHap(); }
+  if (videoCodecRegistry.forPath(path)) { codecQueue.push({ path, qt, key }); void pumpCodec(); }
   else { videoQueue.push({ path, qt, key }); pumpVideo(); }
 }
 

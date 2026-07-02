@@ -56,6 +56,44 @@ export interface ClipKindRegistry<Clip = unknown> {
   get(kind: string): ClipKindContribution<Clip> | undefined;
 }
 
+// ─── Video codec contribution ─────────────────────────────────────────────────────────────
+// A pluggable video decoder for file content the browser `<video>` can't play (HAP; later DXV, or a
+// native-decode MP4). The host dispatches a matching file path to the first codec whose `canDecode`
+// accepts it. A codec serves two playback contexts: free-running **surface** playback (own clock,
+// paused via setPlaying, keyed by file path — a file's live decode is shared) and playhead-driven
+// **timeline layer** frames (keyed by a per-layer GL key). Each returns a `CanvasImageSource` the
+// compositor draws exactly like a `<video>`/Spout/NDI drawable.
+export interface VideoCodecContribution {
+  id: string;
+  canDecode(path: string): boolean;        // fast synchronous gate (usually by extension)
+  probe(path: string): Promise<boolean>;   // async: open natively + confirm; false = not this codec
+  probed(path: string): boolean | undefined; // sync: true / false / undefined (still probing)
+  aspect(path: string): number | null;     // natural w/h once probed, else null
+
+  // Surface playback (free-running internal clock; keyed by file path). openSurface begins playback
+  // and resolves false if the file isn't actually this codec (caller falls back to a plain <video>).
+  openSurface(path: string): Promise<boolean>;
+  surfaceFrame(path: string): CanvasImageSource | null;
+  closeSurface(path: string): void;
+
+  // Timeline layer frame at a clip-local time (playhead-driven). `layerKey` scopes the GPU canvas.
+  layerFrame(layerKey: string, path: string, clipTimeSec: number): CanvasImageSource | null;
+  releaseLayer(layerKey: string): void;
+
+  setPlaying(playing: boolean): void;      // affects surface playback clocks
+  preWarm(path: string): void;             // open/probe ahead of playback
+  // One-shot frame at a source time (seconds) for the thumbnail cache (bypasses the playback
+  // prefetch ring; uses its own shared GL context so it never disturbs a live layer's decode).
+  thumbnail(path: string, timeSec: number): Promise<CanvasImageSource | null>;
+}
+
+export interface VideoCodecRegistry {
+  register(c: VideoCodecContribution): void;
+  all(): VideoCodecContribution[];
+  forPath(path: string): VideoCodecContribution | undefined; // first codec whose canDecode(path) is true
+  get(id: string): VideoCodecContribution | undefined;
+}
+
 // ─── Projector data channel contribution ────────────────────────────────────────────────────
 // Bridges per-frame plugin data from the main editor window to projector output windows over the
 // existing MessagePort. The host transports a generic { t:'pluginData', channel, payload } message.
@@ -229,6 +267,7 @@ export interface RendererPluginContext<C = unknown, SurfaceT = unknown, Clip = u
   panels: PanelRegistry;
   sceneViz: SceneVizRegistry;
   projectorPanels: ProjectorPanelRegistry;
+  videoCodecs: VideoCodecRegistry;
   ipc: PluginIpc;
   // Subscribe to the timeline engine's coalesced per-frame playhead (seconds). Returns unsub.
   onPlayhead(cb: (playheadSec: number) => void): () => void;

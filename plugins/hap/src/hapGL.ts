@@ -1,4 +1,4 @@
-import type { HapFrame } from '../../../shared/protocol';
+import type { HapFrame } from './types';
 
 // GPU decompression for HAP frames. Uploads the raw BC/DXT blocks as a compressed WebGL2
 // texture (WEBGL_compressed_texture_s3tc) and draws them to an offscreen canvas — the GPU
