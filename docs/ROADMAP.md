@@ -77,9 +77,10 @@ new plugin + `videoCodecRegistry.register`.
     looping surface runs straight past the last sample into sample 0 (a keyframe) of the next loop with no
     reset/no buffer drop → no loop-seam hitch; (b) **per-layer timeline decoders** — each timeline codec
     clip gets its own seekable decoder (keyed by layerId) for frame-exact scrub, isolated from the surface's
-    decoder. NEXT: rig-verify both; the prior rig-confirmed good state is the first working commit if a
-    regression appears. Still deferred: HEVC on-rig verify, DXV (native crate like HAP). (Full detail in the
-    plugin-architecture memory.)
+    decoder. **Rig-confirmed working** (loop seam continuous; timeline scrub + timeline loop play cleanly on
+    every pass — a loop-back freeze was fixed by detecting the playhead moving backward via lastWantUs).
+    Still deferred: HEVC on-rig verify, DXV (native crate like HAP). (Full detail in the plugin-architecture
+    memory.)
 
 **Contract gaps to close when adding the 2nd codec:** `canDecode` currently returns the first match;
 with HAP+DXV both `.mov`, make the registry try each codec's async `probe` in order and cache the winner

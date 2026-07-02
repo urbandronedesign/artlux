@@ -32,6 +32,7 @@ const TARGET_AHEAD = 5;  // decoded (or in-flight) frames to keep ahead — must
 const KEEP_BEHIND = 1;   // decoded past frames to retain (present frame + async-consumer slack)
 const MAX_BUFFER = 12;   // safety cap on live VideoFrames (paced feeding keeps us well under this)
 const QUEUE_BUDGET = 8;  // in-flight chunk cap — ≥ TARGET_AHEAD so we can actually reach the target depth
+const EPS_US = 8_000;    // ~½ a 60fps frame — playhead-jitter tolerance for backward-jump detection
 
 interface Info { width: number; height: number; durationSec: number; }
 interface Enc { ts: number; dur: number; key: boolean; data: Uint8Array } // decode order, µs timestamps
@@ -66,6 +67,7 @@ class FileDecoder {
   private segAbs = -1;     // absolute keyframe index the decoder was last (re)started from (-1 = idle)
   private fedAbs = -1;     // last absolute index fed to the decoder since the last seek
   private wantUs = 0;      // latest requested ABSOLUTE presentation time (µs)
+  private lastWantUs = -Infinity; // previous frame()'s wantUs — detects a backward jump (timeline loop / scrub)
 
   async open(path: string): Promise<Info | null> {
     if (typeof VideoDecoder === 'undefined') return null; // WebCodecs unavailable
@@ -188,15 +190,27 @@ class FileDecoder {
     const localKf = this.localKeyframeForTime(localUs);
     const kfAbs = loopCount * N + localKf;
     const fedTs = this.fedAbs >= 0 ? this.tsOfAbs(this.fedAbs) : -Infinity;
+    // Is there a frame we can actually present at/just-before the playhead right now?
+    const havePresentable = this.buffer.some((f) => f.timestamp <= this.wantUs + EPS_US);
+    // Did the playhead jump BACKWARD since last frame()? (timeline loop-back / scrub-back). NOT the
+    // seamless surface loop, whose wantUs is absolute-monotonic — that never trips this.
+    const wentBackward = this.wantUs < this.lastWantUs - EPS_US;
 
     if (this.segAbs === -1 || kfAbs < this.segAbs) {
-      this.seekSegment(kfAbs);              // idle, or backward jump (scrub) before the current segment
+      this.seekSegment(kfAbs);              // idle, or backward jump before the current segment's anchor
     } else if (kfAbs > this.segAbs && fedTs < this.wantUs) {
       this.seekSegment(kfAbs);              // fell behind the playhead and a nearer keyframe exists → skip
+    } else if (wentBackward && !havePresentable) {
+      // Backward jump WITHIN the same anchor GOP (e.g. a non-looping timeline layer whose segAbs stayed at
+      // keyframe 0 for the whole clip): kfAbs === segAbs so the checks above miss it, yet we've already fed
+      // past the target and hold only stale forward frames → must re-seek or the layer freezes after the
+      // first pass. (Guarded by !havePresentable so a tiny scrub-back that's still buffered doesn't reset,
+      // and by wentBackward so forward playback/startup — monotonic wantUs — never trips it.)
+      this.seekSegment(kfAbs);
     }
-    // NOTE: at a LOOP wrap, kfAbs advances to (loopCount+1)*N but fedTs is already ≥ wantUs (we fed ahead),
-    // so neither branch fires — the feed simply continues into sample 0 of the next loop (a keyframe),
-    // giving a reset-free, seamless loop.
+    // NOTE: at a seamless surface LOOP wrap, kfAbs advances to (loopCount+1)*N but wantUs is absolute-
+    // monotonic (never backward) and fedTs is already ≥ wantUs, so NO branch fires — the feed simply
+    // continues into sample 0 of the next loop (a keyframe), giving a reset-free, seamless loop.
 
     const dec = this.ensureDecoder();
     if (!dec) return;
@@ -231,6 +245,7 @@ class FileDecoder {
       this.wantUs = localUs;
     }
     this.pump(loop && this.durUs > 0, loopCount, localUs);
+    this.lastWantUs = this.wantUs; // for next call's backward-jump detection
 
     // Prefer the latest decoded frame at/just-before the playhead (never show a future frame); if none is
     // ready yet (right after a seek), fall back to the earliest buffered frame so we show something.
@@ -246,7 +261,7 @@ class FileDecoder {
     for (const f of this.buffer) f.close();
     this.buffer = [];
     try { if (this.decoder && this.decoder.state !== 'closed') this.decoder.close(); } catch { /* */ }
-    this.decoder = null; this.segAbs = -1; this.fedAbs = -1;
+    this.decoder = null; this.segAbs = -1; this.fedAbs = -1; this.lastWantUs = -Infinity;
   }
 }
 
