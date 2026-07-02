@@ -281,9 +281,18 @@ rewired mount — need a real projector to confirm.
   now maps `sceneVizRegistry.all()` inside its `<Canvas>` instead of importing `TrackingViz`.
 - ~~**Timeline clip-kind inversion**~~ ✅ done — the literals are gone; the LiDAR plugin registers the
   `tracking` kind into `clipKindRegistry` (first end-to-end consumer).
-- **Settings/panels registry inversion** — `settingsSectionRegistry` + `PanelRegistry` exist but are
-  unused; migrate the LiDAR OSC/tracking settings + OscMonitor/TakesBin panels onto them (calibration
-  Stage 2 is the first PanelRegistry consumer).
+- ~~**Settings/panels registry inversion**~~ ✅ done — both registries now have real consumers.
+  **Settings sections:** Preferences renders `settingsSectionRegistry.all()` after the core sections; the
+  **mp4** plugin contributes the "Video" (GPU-decode) section (`VideoSettings.tsx`) — the `mp4WebCodecs`
+  field stays core (persisted), only its editor moved. **Modal panels:** App mounts `panelRegistry.byMount('modal')`
+  and routes menu actions to them (a `default:` case toggles the panel whose `menuAction` matches); the
+  **lidar** plugin contributes **OscMonitor** (moved out of core, toggled by the `osc-monitor` menu action).
+  Grew the SDK: `host.settings` (read + subscribe) on `RendererHostServices` (a modal panel has no props
+  path to settings — OscMonitor reads live OSC settings via `trackingHost.useHostSettings`), and
+  `PanelContribution.Component` now takes `PanelProps { onClose? }`. **Left core on purpose:** the
+  OSC/Tracking Preferences section (OSC is shared control + tracking infra, not plugin-specific) and
+  **TakesBin** (tightly timeline-engine-coupled — takes/record/lane/remove all from Timeline's own logic;
+  inverting it would over-fit the SDK). `dock`/`timeline-bin` panel mounts remain unused (no consumer yet).
 - **Public API stabilization** — once calibration (plugin #3) validates the host-services surface,
   write up `@artlux/sdk` as a documented, versioned public plugin API. Only then consider a
   third-party / disk-loaded plugin tier (manifest + semver host-range + capability model + sandboxing

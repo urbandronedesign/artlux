@@ -28,7 +28,6 @@ import { FixtureEditor } from './components/FixtureEditor';
 import { Dock } from './components/Dock';
 import { Timeline as TimelinePanel } from './components/timeline/Timeline';
 import { Preferences } from './components/Preferences';
-import { OscMonitor } from './components/OscMonitor';
 import { MenuBar } from './components/MenuBar';
 import { HelpPanel } from './components/HelpPanel';
 import { StatusBar } from './components/StatusBar';
@@ -40,7 +39,7 @@ import * as oscController from './services/oscController';
 import { activateRendererPlugins } from './host/plugins';
 import { setEnabled as mp4SetEnabled } from '@artlux/plugin-mp4';
 import type { RendererHostServices } from '@artlux/sdk/renderer';
-import { projectorChannelRegistry } from './host/registries';
+import { projectorChannelRegistry, panelRegistry } from './host/registries';
 import * as cueBus from './services/cueBus';
 import * as transitions from './services/transitions';
 import { collectFadeableTargets, getByPath, setByPath, isFadeablePath, type StateView } from './services/paramPath';
@@ -124,13 +123,14 @@ const App: React.FC = () => {
   const [currentProjectPath, setCurrentProjectPath] = useState<string | null>(null);
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
   const [aboutOpen, setAboutOpen] = useState(false);
-  const [oscMonitorOpen, setOscMonitorOpen] = useState(false);
+  const [openModals, setOpenModals] = useState<Set<string>>(new Set()); // plugin modal panels open by id
   const [showHelp, setShowHelp] = useState(false);
   const [helpWidth, setHelpWidth] = useState(320);
   const [update, setUpdate] = useState<UpdateEvent | null>(null);
   const [updateUserInitiated, setUpdateUserInitiated] = useState(false);
   const [scene3D, setScene3D] = useState<Scene3D>(defaultScene3D());
   const scene3DRef = useRef(scene3D); scene3DRef.current = scene3D; // live mirror for the []-deps tracking bridge
+  const settingsRef = useRef(settings); settingsRef.current = settings; // live mirror for host.settings service
   // Embedded 3D scene (split view): model GLB urls + selection/natural-size.
   const modelUrls = useModelUrls(scene3D.models);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
@@ -917,11 +917,16 @@ const App: React.FC = () => {
           case 'preferences': setPrefsOpen(true); break;
           case 'routing': setRoutingOpen(true); break;
           case 'about': setAboutOpen(true); break;
-          case 'osc-monitor': setOscMonitorOpen(true); break;
           case 'help-panel': setShowHelp((v) => !v); break;
           case 'check-updates': setUpdateUserInitiated(true); window.artlux?.checkForUpdates?.(); break;
           case 'undo': undo(); break;
           case 'redo': redo(); break;
+          default: {
+            // Plugin modal panels: a menu action toggles the panel whose menuAction matches (e.g. the
+            // LiDAR plugin's 'osc-monitor'). Host owns open state; the panel owns its own chrome.
+            const panel = panelRegistry.byMount('modal').find((p) => p.menuAction === action);
+            if (panel) setOpenModals((s) => { const n = new Set(s); n.has(panel.id) ? n.delete(panel.id) : n.add(panel.id); return n; });
+          }
       }
   };
   const dispatchMenuRef = useRef(dispatchMenu);
@@ -974,6 +979,7 @@ const App: React.FC = () => {
   // router; `projectors.onMessage` is the projector→main back-channel (e.g. calibration patternShown).
   const outputSubs = useRef(new Set<() => void>());
   const sceneSubs = useRef(new Set<() => void>());
+  const settingsSubs = useRef(new Set<() => void>());
   const projMsgSubs = useRef(new Set<(surfaceId: string, msg: unknown) => void>());
   const pluginHost = useMemo<RendererHostServices>(() => ({
     projectorOutputs: {
@@ -991,9 +997,14 @@ const App: React.FC = () => {
       send: (id, msg) => sendToProjector(id, msg as MainToProjector),
       onMessage: (cb) => { projMsgSubs.current.add(cb); return () => { projMsgSubs.current.delete(cb); }; },
     },
+    settings: {
+      get: () => settingsRef.current,
+      subscribe: (cb) => { settingsSubs.current.add(cb); return () => { settingsSubs.current.delete(cb); }; },
+    },
   }), []);
   useEffect(() => { outputSubs.current.forEach(cb => cb()); }, [projectorOutputs]);
   useEffect(() => { sceneSubs.current.forEach(cb => cb()); }, [scene3D]);
+  useEffect(() => { settingsSubs.current.forEach(cb => cb()); }, [settings]);
   // Activate first-party plugins (main window) before any compositing/OSC: this registers the LiDAR
   // plugin's TRACKING content source + blob ingestion and the calibration back-channel tap.
   useEffect(() => { activateRendererPlugins('main', pluginHost); }, [pluginHost]);
@@ -1682,7 +1693,10 @@ const App: React.FC = () => {
 
       <Preferences open={prefsOpen} onClose={() => setPrefsOpen(false)} settings={settings} onChange={updateSettings} />
       <About open={aboutOpen} onClose={() => setAboutOpen(false)} info={appInfo} />
-      <OscMonitor open={oscMonitorOpen} onClose={() => setOscMonitorOpen(false)} settings={settings} />
+      {/* Plugin modal panels (e.g. LiDAR OSC Monitor) — mounted only while open, toggled by menu action. */}
+      {panelRegistry.byMount('modal').map((p) => openModals.has(p.id)
+        ? <p.Component key={p.id} onClose={() => setOpenModals((s) => { const n = new Set(s); n.delete(p.id); return n; })} />
+        : null)}
 
       {update && (
         <UpdateNotice

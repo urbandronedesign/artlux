@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X, Pause, Play, Trash2, Radio, Search } from 'lucide-react';
 import type { OscMessage } from '../../../shared/protocol';
-import type { AppSettings } from '../types';
-import { Button } from './ui';
+import type { PanelProps } from '@artlux/sdk/renderer';
+import { Button } from '@/components/ui'; // host UI primitive (pure presentational — no singleton)
+import { useHostSettings } from './trackingHost';
 
 // OSC sniffer / monitor — a diagnostic view of the raw incoming OSC stream, for testing the
 // LiDAR tracking system (is the venue server actually sending blobs to this machine?).
@@ -16,12 +17,6 @@ import { Button } from './ui';
 // Perf: at 61 fps × many leaf addresses this is a firehose. We never setState per message —
 // messages accumulate into a mutable ref synchronously, and a ~4 Hz interval flushes a derived
 // snapshot into React state. (See the perf-rerenders note: high-rate signals must stay render-free.)
-
-interface Props {
-  open: boolean;
-  onClose: () => void;
-  settings: AppSettings;
-}
 
 const SPEC_RE = /^\/([^/]+)\/specs\/(Scalex|Scaley)$/i;
 const BLOB_RE = /^\/([^/]+)\/blobs\/blob(\d+)\/(id|tx|ty|u|v)$/i;
@@ -54,7 +49,12 @@ function fmtArgs(args: (number | string)[]): string {
     .join(', ');
 }
 
-export const OscMonitor: React.FC<Props> = ({ open, onClose, settings }) => {
+// Registered as a 'modal' PanelContribution — the host mounts it only while open and passes `onClose`.
+// OSC settings (for the status strip) come from the host settings service, not props.
+export const OscMonitor: React.FC<PanelProps> = ({ onClose }) => {
+  const settings = useHostSettings();
+  const onCloseRef = useRef(onClose); onCloseRef.current = onClose; // host passes a fresh onClose each render
+  const close = () => onCloseRef.current?.();
   const accum = useRef<Accum>(freshAccum());
   const pausedRef = useRef(false);
   const loggingRef = useRef(false);
@@ -73,12 +73,11 @@ export const OscMonitor: React.FC<Props> = ({ open, onClose, settings }) => {
   loggingRef.current = logging;
   filterRef.current = filter;
 
-  // Subscribe to the raw OSC stream while open. Reset stats each time the panel opens.
+  // Subscribe to the raw OSC stream for the panel's lifetime (mounted only while open). Reset stats on mount.
   useEffect(() => {
-    if (!open) return;
     accum.current = freshAccum();
     setSeenAny(false);
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCloseRef.current?.(); };
     window.addEventListener('keydown', onKey);
 
     const ingest = (msgs: OscMessage[]) => {
@@ -115,11 +114,10 @@ export const OscMonitor: React.FC<Props> = ({ open, onClose, settings }) => {
 
     const unsub = window.artlux?.onOscMessage?.(ingest) ?? null;
     return () => { window.removeEventListener('keydown', onKey); unsub?.(); };
-  }, [open, onClose]);
+  }, []);
 
   // Flush accumulated stats into React state on a fixed cadence.
   useEffect(() => {
-    if (!open) return;
     const id = window.setInterval(() => {
       const a = accum.current;
       const now = performance.now();
@@ -152,9 +150,7 @@ export const OscMonitor: React.FC<Props> = ({ open, onClose, settings }) => {
       if (loggingRef.current) setLogLines(a.log.slice(-200));
     }, FLUSH_MS);
     return () => window.clearInterval(id);
-  }, [open]);
-
-  if (!open) return null;
+  }, []);
 
   const clear = () => {
     accum.current = freshAccum();
@@ -165,7 +161,7 @@ export const OscMonitor: React.FC<Props> = ({ open, onClose, settings }) => {
   const totalActive = surfRows.reduce((n, s) => n + s.active, 0);
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 animate-overlay-in" onClick={onClose}>
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 animate-overlay-in" onClick={close}>
       <div
         role="dialog"
         aria-modal="true"
@@ -178,7 +174,7 @@ export const OscMonitor: React.FC<Props> = ({ open, onClose, settings }) => {
           <div className="flex items-center gap-2 text-fg-1 text-sm font-semibold">
             <Radio size={15} className="text-accent" /> OSC Monitor
           </div>
-          <button onClick={onClose} aria-label="Close OSC monitor" title="Close" className="text-fg-2 hover:text-fg-1"><X size={16} /></button>
+          <button onClick={close} aria-label="Close OSC monitor" title="Close" className="text-fg-2 hover:text-fg-1"><X size={16} /></button>
         </div>
 
         {/* Status strip */}

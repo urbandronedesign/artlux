@@ -161,14 +161,19 @@ export interface SettingsSectionRegistry<S = unknown> {
 }
 
 // ─── Panel contribution ─────────────────────────────────────────────────────────────────────
-// A plugin-owned UI panel mounted by the host. 'modal' = right-side dialog toggled by a menu
-// action; 'timeline-bin' = a panel inside the timeline dock.
+// A plugin-owned UI panel mounted by the host. 'modal' = a dialog toggled by a menu action (the host
+// mounts it only while open and passes `onClose`); 'dock'/'timeline-bin' = a panel inside a dock (no
+// onClose). The panel owns its own chrome + any host-services reads (e.g. host.settings) it needs.
+export interface PanelProps {
+  onClose?: () => void; // provided for 'modal' panels (host controls open by mounting/unmounting)
+}
+
 export interface PanelContribution {
   id: string;
   mount: 'modal' | 'dock' | 'timeline-bin';
   menuAction?: string; // host menu action id that toggles a 'modal' panel
   title?: string;
-  Component: ComponentType<Record<string, never>>;
+  Component: ComponentType<PanelProps>;
 }
 
 export interface PanelRegistry {
@@ -242,6 +247,13 @@ export interface Scene3DService<S = unknown> {
   subscribe(cb: () => void): () => void; // fires when the 3D scene changes
 }
 
+// Read-only view of the persisted app settings (AppSettings), for feature plugins whose UI has no
+// props path to them (e.g. a modal panel). Editing settings goes through a SettingsSection instead.
+export interface SettingsService<S = unknown> {
+  get(): S;
+  subscribe(cb: () => void): () => void; // fires when settings change
+}
+
 // Talk to projector output windows over the host's MessagePort bridge. `send` is the main→projector
 // direction (per surface); `onMessage` is the projector→main back-channel (all surfaces, tagged).
 export interface ProjectorsService<Out = unknown, In = unknown> {
@@ -253,6 +265,7 @@ export interface RendererHostServices {
   projectorOutputs: ProjectorOutputsService;
   scene3D: Scene3DService;
   projectors: ProjectorsService;
+  settings: SettingsService;
 }
 
 // ─── Renderer plugin context ────────────────────────────────────────────────────────────────

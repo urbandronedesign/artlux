@@ -30,6 +30,7 @@ const NOOP_HOST: RendererHostServices = {
   projectorOutputs: { get: () => undefined, list: () => [], patch: () => {}, subscribe: () => () => {} },
   scene3D: { get: () => ({}), patch: () => {}, subscribe: () => () => {} },
   projectors: { send: () => {}, onMessage: () => () => {} },
+  settings: { get: () => ({}), subscribe: () => () => {} },
 };
 
 function makeContext(win: 'main' | 'projector', host: RendererHostServices): RendererPluginContext {

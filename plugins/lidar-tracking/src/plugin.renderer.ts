@@ -18,6 +18,8 @@ import * as trackingProjector from './trackingProjector';
 import * as take from './trackingTake';
 import { clusterAndTrack } from './blobClustering';
 import TrackingViz from './TrackingViz';
+import { OscMonitor } from './OscMonitor';
+import { setHost } from './trackingHost';
 
 let oscUnsub: (() => void) | null = null;
 
@@ -25,6 +27,14 @@ export const plugin: RendererPlugin = {
   manifest: { id: 'lidar-tracking', name: 'LiDAR Tracking', version: '0.0.0' },
 
   activate(ctx: RendererPluginContext): void {
+    // Stash host services so the OSC Monitor panel (below) can read live OSC settings for its status strip.
+    setHost(ctx.host);
+
+    // OSC Monitor: a diagnostic modal that sniffs the raw OSC stream (LiDAR blob addresses). Registered
+    // as a 'modal' panel toggled by the 'osc-monitor' menu action — App mounts it from the panel registry
+    // (no longer imports it or owns its open state).
+    ctx.panels.register({ id: 'osc-monitor', mount: 'modal', menuAction: 'osc-monitor', title: 'OSC Monitor', Component: OscMonitor });
+
     // TRACKING content: the host compositor dispatches unknown content types through the registry.
     ctx.contentSources.register({
       type: 'TRACKING', // SourceType.TRACKING — kept as a core enum value; only behavior lives here
