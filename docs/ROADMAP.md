@@ -30,7 +30,7 @@ with relative imports duplicates singletons (writers hit one instance, readers t
 |---|---|---|
 | **lidar-tracking** | ✅ shipped | Content source + OSC ingestion + clip-kind + projector data-channel + 3D-viz (scene-viz contribution) inverted. Projector blob *self-render* (GL draw) kept as transitional host import (see Deferred). |
 | **ndi** | ✅ shipped | Receive fully inverted (content source + discovery via provider editor); send routed through the generic bridge. Forced the `MainTransport`→general `MainPluginContext.ipc` fix + main-side activation. |
-| **calibration** | 🚧 Stage 1 shipped | Engine (calibManager/OpenCV) + renderer logic extracted to `plugins/calibration` (native IPC via `calib:*`, `calibNative` wrapper). Stage 2 (wizards as panels + host-services) and Stage 3 (projector-contribution) remain — see below. |
+| **calibration** | 🚧 Stage 1 + Stage 2 "foundation" shipped | Engine + renderer logic extracted (Stage 1). Stage 2 foundation: the reusable **host-services** SDK surface (`RendererHostServices` = projectorOutputs/scene3D/projectors on `ctx.host`) + a calibration **renderer plugin** that taps the projector→main back-channel (`patternShown` routing moved out of `App`). **Stage 2b** (the wizard UIs as a panel contribution + the crosshair/embedded-3D-pick workspace) and **Stage 3** (projector-contribution pattern render) remain — see below. |
 
 Also done: the **timeline clip-kind** inversion — `timeline.ts` no longer hardcodes `kind==='tracking'`;
 the lidar plugin registers the `tracking` kind into `clipKindRegistry` (first end-to-end consumer).
@@ -67,16 +67,20 @@ for feature plugins, and optionally the deferred **projector-contribution** seam
 ### New SDK surface this requires
 
 Calibration is a *feature* plugin (not content-source/transport) — it must reach core app
-capabilities. Add a **host-services** object to `RendererPluginContext` (concrete in host, generic in
-SDK) exposing only what calibration needs:
+capabilities. This is the **host-services** object on `RendererPluginContext.host` (concrete in host,
+generic in SDK). **The reusable core shipped (Stage 2 foundation):**
 
-- `projectors`: `send(surfaceId, msg)` + `onMessage(cb)` — projector MessagePorts (wraps App's
-  `sendToProjector` + `onProjectorMsg`).
-- `projectorOutputs`: `get()` / `patch(surfaceId, partial)` — read/patch `ProjectorOutput` (wraps
-  `upsertOutput`; plugin patches `.calibration`).
-- `scene3D`: `get()` / `patch(partial)` + venue-mesh handle + `setPickMode(on)` + `onPick(cb)` — for
-  markerless picking + raycast.
-- `panels`: already exists (`PanelRegistry`) — the wizards register here (first real use).
+- ✅ `projectors`: `send(surfaceId, msg)` + `onMessage(cb)` — projector MessagePorts (wraps App's
+  `sendToProjector` + the projector→main router). First consumer: the calibration renderer plugin taps
+  `patternShown` here (moved out of `App`).
+- ✅ `projectorOutputs`: `get(id)` / `list()` / `patch(id, partial)` / `subscribe(cb)` — read/patch
+  `ProjectorOutput` (wraps `upsertOutput`). Consumed by the wizard move (Stage 2b) for `.calibration`.
+- ✅ `scene3D`: `get()` / `patch(partial)` / `subscribe(cb)` — read/patch the 3D scene. Already
+  consumed (LiDAR migrated off the old `getScene3D()`); the wizard move patches `camMask`/`markerMap`.
+- ⏳ **Not yet** — the *workspace* bits calibration's wizards need beyond plain state: venue-mesh handle
+  + `setPickMode(on)` + `onPick(cb)` for markerless picking, the camera-viewport DOM portal, and the
+  split layout. These couple to App's embedded Simulator3D and move with the wizards (Stage 2b).
+- `panels`: `PanelRegistry` already exists — the wizards register here when moved (first real use).
 
 This host-services surface is the significant, reusable API growth — evidence for the eventual
 public-API doc.
@@ -97,14 +101,22 @@ public-API doc.
    **Verify:** build + typecheck + single-identity (calib.node once in main) + clean boot with
    `[calib] native OpenCV addon loaded` firing via the plugin.
 
-**Stage 2 — Wizards as panel contributions + host-services.**
-1. Add the host-services surface (above) to `RendererPluginContext`, implemented in
-   `src/renderer/host/plugins.ts` (wrapping App's `sendToProjector`, `upsertOutput`, scene3D setters,
-   pick refs).
-2. Move the 4 wizard/camera UIs in; register as **panel contributions** (`mount:'modal'`, toggled by
-   `calibratingOutputId`); rewire their props to host-services handles.
-3. Remove wizard mounts + calib orchestration from `App.tsx`; App keeps the port registry,
-   `calibratingOutputId` toggle, and host-services wiring.
+**Stage 2 foundation — host-services + back-channel (✅ shipped).**
+1. ✅ Added the reusable host-services surface (`RendererHostServices` on `ctx.host`) to the SDK,
+   implemented in `src/renderer/host/plugins.ts` (no-op impls for projector windows) + `App.tsx` (a
+   stable object whose methods delegate to live refs; subscriber sets fired by change effects).
+2. ✅ Added a calibration **renderer plugin** (`plugins/calibration/src/plugin.renderer.ts`, now in
+   renderer `FIRST_PARTY`) that taps `ctx.host.projectors.onMessage` for `patternShown` →
+   `calibController`/`slCapture` — removing that routing from `App`. Migrated LiDAR off `getScene3D()`.
+
+**Stage 2b — the wizard workspace (remaining).**
+1. Move the 4 wizard/camera UIs (`CalibWizard`, `AutoAlignWizard`, `calib/CameraViewport`,
+   `CameraParamsPanel`) into `plugins/calibration`; register as **panel contributions**
+   (`mount:'modal'`, toggled by `calibratingOutputId`).
+2. Rewire their props onto `ctx.host` (`projectorOutputs.patch` for calibration/useCalibration,
+   `scene3D.patch` for camMask/markerMap, `projectors.send` for patterns) + the deferred workspace
+   handles (embedded-3D pick mode, camera portal, split, crosshair/`handleCalibPick`).
+3. Remove wizard mounts + the remaining calib orchestration from `App.tsx`.
    **Verify:** open a wizard, run a board/markerless pass (needs camera + projector), confirm results
    write to `ProjectorOutput.calibration` and the projector renders from the pose.
 

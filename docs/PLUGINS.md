@@ -125,21 +125,38 @@ back-channel (patternShown/crosshair/confirm), which the data half doesn't yet c
 
 ### Activation
 
-- **Renderer:** `src/renderer/host/plugins.ts` holds `const FIRST_PARTY = [lidarTracking, ndi]` and
-  `activateRendererPlugins(window, hostServices?)`. It builds `RendererPluginContext` — the six
-  registries + `ipc` + `onPlayhead` + `getScene3D` — and calls each plugin's `activate(ctx)`. The
-  context is activated **once per window**:
-  - `App.tsx` (main editor window) calls `activateRendererPlugins('main', { getScene3D })` — the
-    `getScene3D` handle lets a plugin read live 3D-scene state (e.g. LiDAR's projector channel reads
-    its people-merge config; `getScene3D` is the one host-service handle so far).
-  - each **projector output window** (`ProjectorApp`) calls `activateRendererPlugins('projector')` so a
-    channel's `apply()` (data) and `renderSource()` (GPU) run there. `ctx.window` tells a plugin which
-    side it's on (producer vs. consumer). Activation is idempotent per window.
+- **Renderer:** `src/renderer/host/plugins.ts` holds `const FIRST_PARTY = [lidarTracking, ndi,
+  calibration]` and `activateRendererPlugins(window, hostServices?)`. It builds `RendererPluginContext`
+  — the six registries + `ipc` + `onPlayhead` + `host` (host-services) — and calls each plugin's
+  `activate(ctx)`. The context is activated **once per window**:
+  - `App.tsx` (main editor window) calls `activateRendererPlugins('main', pluginHost)` — `pluginHost`
+    is the real `RendererHostServices` (see Host services below). A stable object whose methods delegate
+    to live refs, so a plugin captures it once yet always sees current state.
+  - each **projector output window** (`ProjectorApp`) calls `activateRendererPlugins('projector')`,
+    which uses the inert `NOOP_HOST` (no editor state there) so a channel's `apply()` (data) and
+    `renderSource()` (GPU) still run. `ctx.window` tells a plugin which side it's on. Idempotent per window.
 - **Main:** `src/main/host/plugins.ts` holds `FIRST_PARTY = [ndi, calibration]` and
   `activateMainPlugins(getWindow)`, called from `registerIpc()` in `ipc.ts`. It builds
   `MainPluginContext` (the `ipc` handle bound to the active window) and activates each. (`lidar-tracking`
   is renderer-only — its OSC ingestion taps the core `window.artlux.onOscMessage`, so it needs no main
   plugin.)
+
+### Host services (`ctx.host`)
+
+Contribution registries cover content/clip/projector/scene-viz, but a **feature** plugin (calibration)
+also needs to reach core app state. `RendererPluginContext.host: RendererHostServices` is that surface
+— generic in the SDK, concrete in the host:
+
+- `projectorOutputs` — `get(id)` / `list()` / `patch(id, partial)` / `subscribe(cb)` over `ProjectorOutput`.
+- `scene3D` — `get()` / `patch(partial)` / `subscribe(cb)` over the 3D scene (replaced the old `getScene3D()`).
+- `projectors` — `send(surfaceId, msg)` (main→projector) + `onMessage(cb)` (the projector→main
+  **back-channel**, tagged by surface).
+
+`App.tsx` builds one **stable** `pluginHost` (a `useMemo([])`) whose methods delegate to live refs +
+subscriber `Set`s, so a plugin can capture it at activation yet always read current state; projector
+windows get the inert `NOOP_HOST`. First consumers: the calibration renderer plugin taps
+`projectors.onMessage` for structured-light `patternShown` (was hardcoded in `App`); LiDAR reads
+`scene3D.get()`. The remaining `patch`/`send` land for the calibration wizard move (ROADMAP → Stage 2b).
 
 ### Core stays core
 
@@ -248,10 +265,11 @@ ingestion taps the core `window.artlux.onOscMessage` since OSC stays a core tran
 - `settingsSection` + `panel` registries exist but have **no consumer yet** — the natural candidates
   are shared core infra (OSC settings) or deeply timeline-coupled (TakesBin), so they wait for a
   host-services surface rather than being force-fit.
-- **Calibration is only Stage 1** (engine + logic in `plugins/calibration`); its wizard UI and its
-  projector pattern/3D rendering stay host-side. The latter needs the `ProjectorChannel` GPU-render
-  hook **plus** a projector→main **back-channel** (the data half is one-way main→projector today).
-- **No host-services surface yet** beyond `getScene3D` + `ProjectorRenderHost` — a feature plugin that
-  needs to read/patch app state (calibration's wizards) has no general API. That's the next real SDK
-  growth (ROADMAP → calibration Stage 2).
+- **Calibration is Stage 1 + Stage 2 foundation.** Engine + logic + the host-services surface + the
+  projector→main back-channel tap (a renderer plugin) have shipped. The **wizard UIs** and their
+  embedded-3D pick workspace stay host-side (Stage 2b), and the projector-side pattern/3D **render**
+  still lives in `ProjectorApp` (needs the `ProjectorChannel` GPU-render hook wired for calibration).
+- **Host services are minimal by design** — `ctx.host` covers projectorOutputs/scene3D/projectors; the
+  *workspace* handles the wizards need (venue-mesh pick mode, camera portal, split layout) are not in
+  the SDK yet and move with the wizards (ROADMAP → Stage 2b).
 - No public/versioned API, no third-party / disk-loaded plugins, no plugin test harness.

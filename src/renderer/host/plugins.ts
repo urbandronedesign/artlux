@@ -10,18 +10,23 @@ import {
   settingsSectionRegistry, panelRegistry, sceneVizRegistry,
 } from './registries';
 import { timeline } from '../services/timeline';
-import type { RendererPlugin, RendererPluginContext, PluginIpc } from '@artlux/sdk/renderer';
+import type { RendererPlugin, RendererPluginContext, PluginIpc, RendererHostServices } from '@artlux/sdk/renderer';
 import { plugin as lidarTracking } from '@artlux/plugin-lidar-tracking';
 import { plugin as ndi } from '@artlux/plugin-ndi/renderer';
+import { plugin as calibration } from '@artlux/plugin-calibration/renderer';
 
-const FIRST_PARTY: RendererPlugin[] = [lidarTracking, ndi];
+const FIRST_PARTY: RendererPlugin[] = [lidarTracking, ndi, calibration];
 
 let activated = false;
 
-// Host service handles a plugin context needs that the host must inject (it owns the state).
-export interface RendererHostServices {
-  getScene3D?: () => unknown; // current 3D scene (main window only)
-}
+// Projector windows (and any caller that doesn't own editor state) get inert host services: reads
+// return empty, patches/sends are dropped, and projector→main onMessage never fires (only the main
+// window owns the bridge ports). The main window (App) injects the real implementations.
+const NOOP_HOST: RendererHostServices = {
+  projectorOutputs: { get: () => undefined, list: () => [], patch: () => {}, subscribe: () => () => {} },
+  scene3D: { get: () => ({}), patch: () => {}, subscribe: () => () => {} },
+  projectors: { send: () => {}, onMessage: () => () => {} },
+};
 
 function makeContext(win: 'main' | 'projector', host: RendererHostServices): RendererPluginContext {
   const ipc: PluginIpc = {
@@ -41,11 +46,11 @@ function makeContext(win: 'main' | 'projector', host: RendererHostServices): Ren
     sceneViz: sceneVizRegistry,
     ipc,
     onPlayhead: (cb) => timeline.subscribe(cb),
-    getScene3D: () => host.getScene3D?.() ?? {},
+    host,
   } as unknown as RendererPluginContext;
 }
 
-export function activateRendererPlugins(win: 'main' | 'projector', host: RendererHostServices = {}): void {
+export function activateRendererPlugins(win: 'main' | 'projector', host: RendererHostServices = NOOP_HOST): void {
   if (activated) return;
   activated = true;
   const ctx = makeContext(win, host);

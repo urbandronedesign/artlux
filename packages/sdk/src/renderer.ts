@@ -164,6 +164,37 @@ export interface PluginIpc {
   on(channel: string, cb: (...args: unknown[]) => void): () => void;
 }
 
+// ─── Host services ──────────────────────────────────────────────────────────────────────────
+// Concrete app capabilities a *feature* plugin (not a content-source/transport) needs to reach —
+// read/patch persisted output + scene state, and talk to projector windows. Generic over the host
+// domain types (opaque here); the host injects real implementations at activation. This is the
+// reusable API growth that lets calibration (and future feature plugins) live outside the core.
+export interface ProjectorOutputsService<O = unknown> {
+  get(surfaceId: string): O | undefined;
+  list(): O[];
+  patch(surfaceId: string, partial: Partial<O>): void;
+  subscribe(cb: () => void): () => void; // fires when any output changes
+}
+
+export interface Scene3DService<S = unknown> {
+  get(): S;
+  patch(partial: Partial<S>): void;
+  subscribe(cb: () => void): () => void; // fires when the 3D scene changes
+}
+
+// Talk to projector output windows over the host's MessagePort bridge. `send` is the main→projector
+// direction (per surface); `onMessage` is the projector→main back-channel (all surfaces, tagged).
+export interface ProjectorsService<Out = unknown, In = unknown> {
+  send(surfaceId: string, msg: Out): void;
+  onMessage(cb: (surfaceId: string, msg: In) => void): () => void;
+}
+
+export interface RendererHostServices {
+  projectorOutputs: ProjectorOutputsService;
+  scene3D: Scene3DService;
+  projectors: ProjectorsService;
+}
+
 // ─── Renderer plugin context ────────────────────────────────────────────────────────────────
 // Handed to a plugin's renderer `activate()`. Carries the contribution registries plus the host
 // service handles a plugin needs. Concrete (host-typed) in the host; generic here.
@@ -178,9 +209,10 @@ export interface RendererPluginContext<C = unknown, SurfaceT = unknown, Clip = u
   ipc: PluginIpc;
   // Subscribe to the timeline engine's coalesced per-frame playhead (seconds). Returns unsub.
   onPlayhead(cb: (playheadSec: number) => void): () => void;
-  // Read the current 3D scene state (models, tracking/merge config, …). Main window only; a
-  // general host accessor — e.g. the LiDAR projector channel reads its merge config from here.
-  getScene3D(): unknown;
+  // Host capabilities for feature plugins (read/patch outputs + scene, projector I/O). In projector
+  // windows the read/patch services are no-ops (no editor state there); `projectors.onMessage` only
+  // fires in the main window (it owns the bridge ports). Replaces the former `getScene3D()`.
+  host: RendererHostServices;
 }
 
 export interface RendererPlugin {

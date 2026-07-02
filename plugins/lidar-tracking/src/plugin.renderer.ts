@@ -54,7 +54,7 @@ export const plugin: RendererPlugin = {
       subscribe: (cb) => trackingStore.subscribe(cb),
       build: () => {
         const raw = trackingStore.snapshot();
-        const cfg = ctx.getScene3D() as { trackingMergePeople?: boolean; trackingMergeRadius?: number };
+        const cfg = ctx.host.scene3D.get() as { trackingMergePeople?: boolean; trackingMergeRadius?: number };
         return cfg.trackingMergePeople ? clusterAndTrack(raw, cfg.trackingMergeRadius ?? 0.8, performance.now()) : raw;
       },
       apply: (payload) => trackingStore.applySnapshot(payload as TrackingSnapshot),

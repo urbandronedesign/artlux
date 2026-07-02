@@ -1,7 +1,10 @@
 // @artlux/plugin-calibration/renderer — renderer barrel. Host code imports the calibration logic +
 // the native wrapper ONLY through here (single module identity — see docs/PLUGINS.md). NEVER pull
-// main/node code (calibManager). Stage 1 has no renderer registry contribution, so there is no
-// `plugin` export / renderer activation yet (wizards + panels are Stage 2).
+// main/node code (calibManager). The `plugin` export (Stage 2 "foundation" slice) registers the
+// projector→main back-channel tap; the wizard UIs are still host-side (Stage 2b).
+
+// Plugin entry (registered by the host's activateRendererPlugins).
+export { plugin } from './plugin.renderer';
 
 // Namespaces (host imports these as `import { X }` and uses X.member).
 export * as calibController from './calibController';

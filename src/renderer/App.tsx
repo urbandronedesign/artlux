@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, defaultStateMachine, normalizeStateMachine, type AssetEntry, type AssetType } from './types';
 import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge, WINDOWED_DISPLAY } from '../../shared/protocol';
 import type { ProjectorCalibration } from '../../shared/protocol';
 import { CalibWizard } from './components/CalibWizard';
 import { AutoAlignWizard } from './components/AutoAlignWizard';
-import { calibController, slCapture, calibCapture as cam, measureGamma, calibNative } from '@artlux/plugin-calibration/renderer';
+import { calibCapture as cam, measureGamma, calibNative } from '@artlux/plugin-calibration/renderer';
 import type { AppInfo, UpdateEvent, Scene3D, SceneModel, ProjectorOutput, DisplayInfo, SoftEdge } from '../../shared/protocol';
 import type { ProjectorToMain, MainToProjector } from './projector/bridge';
 import { makeBezierWarp } from './projector/warp';
@@ -40,6 +40,7 @@ import { getDrawable } from './services/surfaceMedia';
 import { timeline as timelineEngine } from './services/timeline';
 import * as oscController from './services/oscController';
 import { activateRendererPlugins } from './host/plugins';
+import type { RendererHostServices } from '@artlux/sdk/renderer';
 import { projectorChannelRegistry } from './host/registries';
 import * as cueBus from './services/cueBus';
 import * as transitions from './services/transitions';
@@ -351,6 +352,7 @@ const App: React.FC = () => {
       ? prev.map(o => o.surfaceId === surfaceId ? { ...o, ...patch } : o)
       : [...prev, { ...defaultProjectorOutput(surfaceId), ...patch }]);
   };
+  const projectorOutputsRef = useRef(projectorOutputs); projectorOutputsRef.current = projectorOutputs; // live mirror for plugin host services
   const handleSetOutputEnabled = (surfaceId: string, enabled: boolean) => upsertOutput(surfaceId, { enabled });
   const handleSetOutputDisplay = (surfaceId: string, displayId: number | null) =>
     upsertOutput(surfaceId, {
@@ -1008,9 +1010,35 @@ const App: React.FC = () => {
   }, []);
   // Feed the project-level state machine to the engine, which ticks it each frame on its standalone clock.
   useEffect(() => { timelineEngine.setStateMachine(stateMachine); }, [stateMachine]);
+  // Host services handed to feature plugins (calibration, LiDAR). One stable object whose methods
+  // delegate to live refs / stable setters, so the plugin captures it once at activation yet always
+  // sees current state. Subscriber sets fire from the change effects below and the projector message
+  // router; `projectors.onMessage` is the projector→main back-channel (e.g. calibration patternShown).
+  const outputSubs = useRef(new Set<() => void>());
+  const sceneSubs = useRef(new Set<() => void>());
+  const projMsgSubs = useRef(new Set<(surfaceId: string, msg: unknown) => void>());
+  const pluginHost = useMemo<RendererHostServices>(() => ({
+    projectorOutputs: {
+      get: (id) => projectorOutputsRef.current.find(o => o.surfaceId === id),
+      list: () => projectorOutputsRef.current,
+      patch: (id, partial) => upsertOutput(id, partial as Partial<ProjectorOutput>),
+      subscribe: (cb) => { outputSubs.current.add(cb); return () => { outputSubs.current.delete(cb); }; },
+    },
+    scene3D: {
+      get: () => scene3DRef.current,
+      patch: (partial) => setScene3D(s => ({ ...s, ...(partial as Partial<Scene3D>) })),
+      subscribe: (cb) => { sceneSubs.current.add(cb); return () => { sceneSubs.current.delete(cb); }; },
+    },
+    projectors: {
+      send: (id, msg) => sendToProjector(id, msg as MainToProjector),
+      onMessage: (cb) => { projMsgSubs.current.add(cb); return () => { projMsgSubs.current.delete(cb); }; },
+    },
+  }), []);
+  useEffect(() => { outputSubs.current.forEach(cb => cb()); }, [projectorOutputs]);
+  useEffect(() => { sceneSubs.current.forEach(cb => cb()); }, [scene3D]);
   // Activate first-party plugins (main window) before any compositing/OSC: this registers the LiDAR
-  // plugin's TRACKING content source and its live blob ingestion.
-  useEffect(() => { activateRendererPlugins('main', { getScene3D: () => scene3DRef.current }); }, []);
+  // plugin's TRACKING content source + blob ingestion and the calibration back-channel tap.
+  useEffect(() => { activateRendererPlugins('main', pluginHost); }, [pluginHost]);
   // OSC: subscribe the controller to forwarded messages once; (re)bind the UDP listener and refresh
   // the control namespace whenever the OSC settings change. Control intents flow back through the
   // subscribeIntent path above; LiDAR blob data lands in the tracking store.
@@ -1199,13 +1227,10 @@ const App: React.FC = () => {
       else if (m.t === 'cornerPin') upsertOutput(surfaceId, { cornerPin: m.cornerPin });
       else if (m.t === 'warp') upsertOutput(surfaceId, { warp: m.warp });
       else if (m.t === 'editOff') setEditingOutputId(prev => prev === surfaceId ? null : prev);
-      else if (m.t === 'patternShown') {
-        const ack = { index: m.index, projW: m.projW, projH: m.projH };
-        calibController.onPatternShown(ack); // board flow
-        slCapture.onPatternShown(ack);       // markerless flow (inactive one is a no-op)
-      }
       else if (m.t === 'calibCrosshair') latestCrosshairRef.current = m.pixel;
       else if (m.t === 'calibConfirm') pendingPixelRef.current = latestCrosshairRef.current;
+      // Fan out to plugin back-channel subscribers (e.g. calibration's patternShown → capture controllers).
+      projMsgSubs.current.forEach(cb => cb(surfaceId, m));
   };
   useEffect(() => {
       const onMsg = (e: MessageEvent) => {
