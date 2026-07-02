@@ -72,11 +72,14 @@ new plugin + `videoCodecRegistry.register`.
     cover the seam.
   - Thumbnails use **dedicated** decoders (isolated from the playing surface's decoder — reusing it made a
     filmstrip scrub reseek playback and stutter).
-  - **Later optimization pass (deferred, user OK'd):** smooth the loop seam (pre-decode the first GOP before
-    wrap so there's no refill hitch); consider decoding short surface loops once; per-consumer decoders (one
-    decoder/file today, so a surface + a timeline layer on the same file at different times contend); HEVC
-    on-rig verification. Reconsider scope: `<video>` already plays surfaces well — WebCodecs' real win is
-    frame-exact TIMELINE scrub + no HW-session cap. (Full detail in the plugin-architecture memory.)
+  - **Optimization pass — code landed, pending rig verification** (user stopped mid-test to continue in a
+    later session): (a) **seamless loop** — the decoder feeds in an absolute index/timestamp space so a
+    looping surface runs straight past the last sample into sample 0 (a keyframe) of the next loop with no
+    reset/no buffer drop → no loop-seam hitch; (b) **per-layer timeline decoders** — each timeline codec
+    clip gets its own seekable decoder (keyed by layerId) for frame-exact scrub, isolated from the surface's
+    decoder. NEXT: rig-verify both; the prior rig-confirmed good state is the first working commit if a
+    regression appears. Still deferred: HEVC on-rig verify, DXV (native crate like HAP). (Full detail in the
+    plugin-architecture memory.)
 
 **Contract gaps to close when adding the 2nd codec:** `canDecode` currently returns the first match;
 with HAP+DXV both `.mov`, make the registry try each codec's async `probe` in order and cache the winner

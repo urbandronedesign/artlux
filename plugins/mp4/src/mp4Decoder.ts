@@ -9,29 +9,24 @@ import { resolveMediaUrl } from '@/services/mediaCache'; // host: absolute path 
 //  • `VideoDecoder` runs with `hardwareAcceleration: 'prefer-hardware'`, so decode uses the GPU's
 //    fixed-function video block (NVDEC/…) — no CPU decode, no H.264 hardware-*session* cap the way a
 //    <video> element has, so many surfaces/layers can run at once.
-//  • Decode is DECOUPLED from presentation. `frame()` just records the wanted playhead time and picks
-//    the nearest already-decoded frame — it never blocks on decode. A windowed *pump* (run from the
-//    same call, but the decoder works asynchronously in its worker between calls) keeps a small window
-//    of frames decoded AHEAD of the playhead. That is the whole fix for the old choppiness: the pull-
-//    based decoder used to grind forward one GOP at a time and fall hopelessly behind a free-running
-//    wall clock. Now the buffer stays ahead and getDrawable is O(buffer).
-//  • We re-seek to a keyframe ONLY on a backward jump (loop wrap / scrub) or when the playhead has
-//    actually caught up to what we've fed (a big forward jump). We do NOT reset at every GOP boundary
-//    during normal playback — the decoder swallows mid-stream keyframes as ordinary chunks, so forward
-//    play is reset-free and seamless.
-//  • `frame()` returns the `VideoFrame` DIRECTLY — a VideoFrame is a `CanvasImageSource`, so the
-//    WebGPU/WebGL compositor uploads it straight to a texture (zero CPU copy). Returned frames stay
-//    alive in the buffer until evicted, covering async consumers (NDI capture / projector streaming)
-//    that read the drawable after the tick.
+//  • Decode is DECOUPLED from presentation. `frame()` records the wanted playhead time and picks the
+//    nearest already-decoded frame — it never blocks. A paced pump keeps a SMALL window of frames
+//    decoded ahead (a HW decoder's output-surface pool is tiny — holding many 4K frames stalls NVDEC).
+//  • SEAMLESS LOOP: we work in an ABSOLUTE sample index / absolute timestamp space. For a looping
+//    surface the wanted time is the free-running (monotonic) clock, so the feed just keeps going — at
+//    the wrap boundary the next fed sample is sample 0 (a keyframe) with its timestamp offset by
+//    +duration, which the decoder consumes as a fresh GOP mid-stream with NO reset and NO buffer drop.
+//    That removes the loop-point hitch entirely. We only reset the decoder on a BACKWARD jump
+//    (timeline scrub) — never during forward looped playback.
+//  • Samples are fed in DECODE order (as mp4box delivers them). A VideoDecoder MUST be fed in decode
+//    order — sorting by presentation time feeds B-frames before their references → corruption. We drive
+//    seeking off presentation time (`ts`, monotonic for keyframes) WITHOUT reordering the feed.
+//  • `frame()` returns the `VideoFrame` DIRECTLY — a VideoFrame is a `CanvasImageSource`, so the GPU
+//    compositor uploads it straight to a texture (zero CPU copy).
 //
 // WebCodecs is a Chromium renderer API (present in the Electron renderer). If it or the codec is
 // unavailable, open() resolves null and the host falls back to a plain <video> element.
 
-// Decoded-frame accounting is deliberately SMALL. A hardware VideoDecoder (NVDEC/…) has a fixed, small
-// pool of output surfaces — at 4K each held VideoFrame is a ~12 MB GPU surface, and holding many exhausts
-// that pool so the decoder BLOCKS (the cause of 4K judder). So we keep only a few decoded frames live,
-// retire past ones immediately (freeing surfaces), and pace feeding to stay just a few frames ahead. The
-// ENCODED sample look-ahead is separate and cheap; only decoded frames are scarce.
 const TARGET_AHEAD = 5;  // decoded (or in-flight) frames to keep ahead — must exceed the B-frame reorder
                          // depth (≤4 for H.264) or the decoder never emits its first frame (startup stall)
 const KEEP_BEHIND = 1;   // decoded past frames to retain (present frame + async-consumer slack)
@@ -63,11 +58,14 @@ class FileDecoder {
   private cfg: VideoDecoderConfig | null = null;
   private samples: Enc[] = [];      // ALL encoded samples in DECODE order — cheap; decoded on demand
   private keyframes: number[] = []; // decode-order indices in samples[] that are keyframes (ascending)
-  private buffer: VideoFrame[] = []; // decoded frames (GPU), sorted by presentation timestamp
+  private buffer: VideoFrame[] = []; // decoded frames (GPU), sorted by ABSOLUTE presentation timestamp
   private info: Info | null = null;
-  private segStart = -1;   // keyframe sample index the decoder was last (re)started from (-1 = idle)
-  private fedTo = -1;      // last sample index fed to the decoder since the last seek (decode order)
-  private wantUs = 0;      // latest requested presentation time (µs), looped into [0, dur)
+  private durUs = 0;       // clip duration in µs (loop period)
+  // Absolute space: an "abs" index can exceed samples.length; loop L, local i → abs = L*N + i, and its
+  // timestamp is samples[i].ts + L*durUs. This makes a looping feed a plain monotonically-advancing feed.
+  private segAbs = -1;     // absolute keyframe index the decoder was last (re)started from (-1 = idle)
+  private fedAbs = -1;     // last absolute index fed to the decoder since the last seek
+  private wantUs = 0;      // latest requested ABSOLUTE presentation time (µs)
 
   async open(path: string): Promise<Info | null> {
     if (typeof VideoDecoder === 'undefined') return null; // WebCodecs unavailable
@@ -89,6 +87,7 @@ class FileDecoder {
           width: track.video.width, height: track.video.height,
           durationSec: mp4.duration && mp4.timescale ? mp4.duration / mp4.timescale : 0,
         };
+        this.durUs = this.info.durationSec * 1e6;
         this.cfg = {
           codec: track.codec,
           description: codecDescription(file, track.id),
@@ -108,10 +107,6 @@ class FileDecoder {
         file.setExtractionOptions(track.id, null, { nbSamples: track.nb_samples });
         file.start();
         file.flush(); // drain remaining samples synchronously
-        // NOTE: samples stay in DECODE order (as mp4box delivers them). A VideoDecoder must be fed in
-        // decode order — sorting by presentation time would feed B-frames before their references and
-        // produce corruption. We drive seeking/look-ahead by each sample's presentation time (`ts`)
-        // WITHOUT reordering the feed. Keyframe presentation times ARE monotonic in decode order.
         done(this.samples.length ? this.info : null);
       };
 
@@ -129,7 +124,7 @@ class FileDecoder {
     if (!this.cfg) return null;
     this.decoder = new VideoDecoder({
       output: (frame) => {
-        // Insert keeping the buffer ordered by presentation timestamp.
+        // Insert keeping the buffer ordered by (absolute) presentation timestamp.
         if (this.buffer.length && frame.timestamp < this.buffer[this.buffer.length - 1].timestamp) {
           let i = this.buffer.length;
           while (i > 0 && this.buffer[i - 1].timestamp > frame.timestamp) i--;
@@ -144,11 +139,13 @@ class FileDecoder {
     return this.decoder; // configured lazily in seekSegment (single reset+configure path)
   }
 
+  // --- absolute-index helpers (N = sample count; loop L, local i ↔ abs = L*N + i) -----------------
+  private sampleOfAbs(abs: number): Enc { const N = this.samples.length; return this.samples[((abs % N) + N) % N]; }
+  private tsOfAbs(abs: number): number { const N = this.samples.length; return this.sampleOfAbs(abs).ts + Math.floor(abs / N) * this.durUs; }
+
   // Retire decoded frames the playhead has passed (keeping KEEP_BEHIND) so the hardware decoder's output
   // surfaces free up promptly — the key to not stalling NVDEC at 4K. Buffer stays sorted ascending by ts.
   private evict(): void {
-    // Frames with ts ≤ wantUs are a prefix; keep the most recent KEEP_BEHIND of them (incl. the present
-    // frame) and close the rest.
     let firstAhead = 0;
     while (firstAhead < this.buffer.length && this.buffer[firstAhead].timestamp <= this.wantUs) firstAhead++;
     const removePast = Math.max(0, firstAhead - KEEP_BEHIND);
@@ -158,19 +155,18 @@ class FileDecoder {
     while (this.buffer.length > MAX_BUFFER) this.buffer.pop()!.close();
   }
 
-  // Decode-order index of the latest keyframe whose presentation time ≤ `us`. Keyframe (IDR) times are
-  // monotonic in decode order, so a forward scan of the (small) keyframe list is correct.
-  private keyframeForTime(us: number): number {
+  // Local decode-order index of the latest keyframe whose presentation time ≤ `localUs`. Keyframe (IDR)
+  // times are monotonic in decode order, so a forward scan of the (small) keyframe list is correct.
+  private localKeyframeForTime(localUs: number): number {
     let kf = this.keyframes.length ? this.keyframes[0] : 0;
-    for (const k of this.keyframes) { if (this.samples[k].ts <= us) kf = k; else break; }
+    for (const k of this.keyframes) { if (this.samples[k].ts <= localUs) kf = k; else break; }
     return kf;
   }
 
-  // Restart decoding from keyframe `kf`. Drops the buffered frames — they belong to the OLD segment, and
-  // keeping them would poison the feed pacing: after a loop wrap (wantUs → 0) the stale end-of-clip frames
-  // still read as "ahead" (ts > 0), so framesAhead would hit target and we'd never feed → freeze. We keep
-  // ONLY the newest frame so the seam shows the last frame during the ~2-frame refill instead of black.
-  private seekSegment(kf: number): void {
+  // Restart decoding from absolute keyframe `absKf` (backward scrub only). Drops the buffered frames — they
+  // belong to the OLD position and would poison the feed pacing — but keeps the single newest so the seam
+  // shows a frame during the ~2-frame refill instead of black. NOT called during forward looped playback.
+  private seekSegment(absKf: number): void {
     const dec = this.ensureDecoder();
     if (!dec) return;
     try { dec.reset(); } catch { /* */ }
@@ -180,51 +176,61 @@ class FileDecoder {
       for (let i = 0; i < this.buffer.length - 1; i++) this.buffer[i].close();
       this.buffer = [hold];
     }
-    this.segStart = kf;
-    this.fedTo = kf - 1;
+    this.segAbs = absKf;
+    this.fedAbs = absKf - 1;
   }
 
-  // Feed the decoder (in DECODE order) so presentation times up to playhead + LOOKAHEAD are decoded.
-  // Re-seeks only when needed: idle, backward jump, or the playhead has passed the fed edge and a nearer
-  // keyframe lets us skip ahead. Forward playback across GOP boundaries needs NO reset (the decoder
-  // consumes mid-stream keyframes as ordinary chunks).
-  private pump(): void {
-    if (!this.samples.length) return;
-    const kf = this.keyframeForTime(this.wantUs);
-    const fedTs = this.fedTo >= 0 ? this.samples[this.fedTo].ts : -Infinity;
+  // Feed the decoder (in DECODE order, across the loop boundary when `loop`) to keep ~TARGET_AHEAD frames
+  // decoded-or-in-flight past the playhead. Re-seeks ONLY on a backward jump (scrub) or a big forward jump.
+  private pump(loop: boolean, loopCount: number, localUs: number): void {
+    const N = this.samples.length;
+    if (!N) return;
+    const localKf = this.localKeyframeForTime(localUs);
+    const kfAbs = loopCount * N + localKf;
+    const fedTs = this.fedAbs >= 0 ? this.tsOfAbs(this.fedAbs) : -Infinity;
 
-    if (this.segStart === -1 || kf < this.segStart) {
-      this.seekSegment(kf);               // idle, or backward jump (loop wrap / scrub) before this segment
-    } else if (kf > this.segStart && fedTs < this.wantUs) {
-      this.seekSegment(kf);               // fell behind the playhead and a nearer keyframe exists → skip
+    if (this.segAbs === -1 || kfAbs < this.segAbs) {
+      this.seekSegment(kfAbs);              // idle, or backward jump (scrub) before the current segment
+    } else if (kfAbs > this.segAbs && fedTs < this.wantUs) {
+      this.seekSegment(kfAbs);              // fell behind the playhead and a nearer keyframe exists → skip
     }
+    // NOTE: at a LOOP wrap, kfAbs advances to (loopCount+1)*N but fedTs is already ≥ wantUs (we fed ahead),
+    // so neither branch fires — the feed simply continues into sample 0 of the next loop (a keyframe),
+    // giving a reset-free, seamless loop.
 
     const dec = this.ensureDecoder();
     if (!dec) return;
-    // Pace feeding to keep ~TARGET_AHEAD frames decoded-or-in-flight past the playhead — NOT a big time
-    // window (that would hold too many 4K surfaces and stall NVDEC). framesAhead counts already-decoded
-    // frames past the playhead; decodeQueueSize counts in-flight. Feed until their sum hits the target.
+    const maxAbs = loop ? Infinity : N - 1; // don't loop-feed a timeline layer / thumbnail
     let framesAhead = 0;
     for (const f of this.buffer) if (f.timestamp > this.wantUs) framesAhead++;
-    while (
-      this.fedTo + 1 < this.samples.length &&
-      dec.decodeQueueSize < QUEUE_BUDGET &&
-      framesAhead + dec.decodeQueueSize < TARGET_AHEAD
-    ) {
-      const next = this.samples[++this.fedTo];
-      try { dec.decode(new EncodedVideoChunk({ type: next.key ? 'key' : 'delta', timestamp: next.ts, duration: next.dur, data: next.data })); }
+    while (this.fedAbs < maxAbs && dec.decodeQueueSize < QUEUE_BUDGET && framesAhead + dec.decodeQueueSize < TARGET_AHEAD) {
+      this.fedAbs++;
+      const s = this.sampleOfAbs(this.fedAbs);
+      const ts = this.tsOfAbs(this.fedAbs);
+      try { dec.decode(new EncodedVideoChunk({ type: s.key ? 'key' : 'delta', timestamp: ts, duration: s.dur, data: s.data })); }
       catch { /* skip a bad chunk */ }
     }
     this.evict();
   }
 
-  // Return the decoded frame for (looped) `timeSec`, driving decode-ahead. Zero-copy VideoFrame.
-  frame(timeSec: number): VideoFrame | null {
-    if (!this.samples.length) return null;
-    const dur = this.info?.durationSec || 0;
-    const t = dur > 0 ? ((timeSec % dur) + dur) % dur : Math.max(0, timeSec);
-    this.wantUs = t * 1e6;
-    this.pump();
+  // Return the decoded frame for `timeSec`. `loop` (surfaces): timeSec is the monotonic wall clock and the
+  // decoder loops seamlessly. `!loop` (timeline layer / thumbnail): timeSec is clip-local, clamped, seekable.
+  frame(timeSec: number, loop = true): VideoFrame | null {
+    const N = this.samples.length;
+    if (!N) return null;
+    const timeUs = timeSec * 1e6;
+    let loopCount: number, localUs: number;
+    if (loop && this.durUs > 0) {
+      const abs = Math.max(0, timeUs);
+      loopCount = Math.floor(abs / this.durUs);
+      localUs = abs - loopCount * this.durUs;
+      this.wantUs = abs;
+    } else {
+      loopCount = 0;
+      localUs = this.durUs > 0 ? Math.min(Math.max(0, timeUs), this.durUs) : Math.max(0, timeUs);
+      this.wantUs = localUs;
+    }
+    this.pump(loop && this.durUs > 0, loopCount, localUs);
 
     // Prefer the latest decoded frame at/just-before the playhead (never show a future frame); if none is
     // ready yet (right after a seek), fall back to the earliest buffered frame so we show something.
@@ -240,17 +246,22 @@ class FileDecoder {
     for (const f of this.buffer) f.close();
     this.buffer = [];
     try { if (this.decoder && this.decoder.state !== 'closed') this.decoder.close(); } catch { /* */ }
-    this.decoder = null; this.segStart = -1; this.fedTo = -1;
+    this.decoder = null; this.segAbs = -1; this.fedAbs = -1;
   }
 }
 
-// --- per-path registries -------------------------------------------------------------------------
-// Surfaces + timeline layers share ONE playback decoder per file (one playhead per file). Thumbnails
-// get SEPARATE decoders: a filmstrip scrubs to scattered times, and reusing the playback decoder would
-// reseek it out from under a playing surface (the old cause of stutter). Isolation keeps play smooth.
+// --- decoder registries --------------------------------------------------------------------------
+// Three isolated pools, because their playheads move independently and one decoder = one playhead:
+//  • per-PATH  — the playing surface (looping, monotonic clock).
+//  • per-LAYER — a timeline clip (keyed by layerId): frame-exact scrub, isolated so a scrub never reseeks
+//    the surface's decoder (that contention was a stutter source), and each layer scrubs independently.
+//  • per-PATH thumbnails — a filmstrip scrubs to scattered times; isolated from the playing surface.
 const decoders = new Map<string, FileDecoder>();
 const opening = new Map<string, Promise<Info | null>>();
 const results = new Map<string, boolean>(); // probed: true = decodable MP4, false = not (fall back to <video>)
+
+const layerDecoders = new Map<string, { dec: FileDecoder; path: string }>(); // key = layerId
+const layerOpening = new Map<string, Promise<Info | null>>();
 
 const thumbDecoders = new Map<string, FileDecoder>();
 const thumbOpening = new Map<string, Promise<Info | null>>();
@@ -271,11 +282,31 @@ export function ensureOpen(path: string): Promise<Info | null> {
 }
 
 export function probed(path: string): boolean | undefined { return results.get(path); }
-export function frame(path: string, timeSec: number): VideoFrame | null { return decoders.get(path)?.frame(timeSec) ?? null; }
+export function frame(path: string, timeSec: number): VideoFrame | null { return decoders.get(path)?.frame(timeSec, true) ?? null; }
 export function aspect(path: string): number | null { return decoders.get(path)?.aspect() ?? null; }
 export function close(path: string): void { decoders.get(path)?.close(); decoders.delete(path); results.delete(path); }
 
-// Dedicated thumbnail decoder (isolated from the playback decoder above).
+// Timeline layer: a dedicated, non-looping (seekable) decoder per layerId. Lazily opened; returns null
+// until ready. `clipTimeSec` is clip-local (already includes in-point) — a scrub seeks frame-exactly.
+export function layerFrame(layerId: string, path: string, clipTimeSec: number): VideoFrame | null {
+  const cur = layerDecoders.get(layerId);
+  if (cur && cur.path === path) return cur.dec.frame(clipTimeSec, false);
+  if (cur) { cur.dec.close(); layerDecoders.delete(layerId); } // clip on this layer changed file
+  if (!layerOpening.has(layerId)) {
+    const nd = new FileDecoder();
+    const p = nd.open(path).then((info) => { if (info) layerDecoders.set(layerId, { dec: nd, path }); else nd.close(); layerOpening.delete(layerId); return info; });
+    layerOpening.set(layerId, p);
+  }
+  return null; // opening
+}
+
+export function releaseLayer(layerId: string): void {
+  const cur = layerDecoders.get(layerId);
+  if (cur) cur.dec.close();
+  layerDecoders.delete(layerId);
+}
+
+// Dedicated thumbnail decoder (isolated from the playback decoder above), seekable (non-looping).
 export async function thumbnail(path: string, timeSec: number): Promise<VideoFrame | null> {
   let d = thumbDecoders.get(path);
   if (!d) {
@@ -289,5 +320,5 @@ export async function thumbnail(path: string, timeSec: number): Promise<VideoFra
     d = thumbDecoders.get(path);
     if (!d) return null;
   }
-  return d.frame(timeSec);
+  return d.frame(timeSec, false);
 }

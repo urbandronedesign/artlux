@@ -38,11 +38,10 @@ export const mp4Codec: VideoCodecContribution = {
   surfaceFrame: (path) => dec.frame(path, clock),
   closeSurface: (path) => { surfaces.delete(path); dec.close(path); },
 
-  // Timeline layer: playhead-exact. Shares the per-file decoder (one playhead per file); a surface +
-  // a layer on the SAME file at different times would contend — rare; a per-consumer decoder is a
-  // follow-up. `layerKey` is unused (the decoder is keyed by path).
-  layerFrame: (_layerKey, path, clipTimeSec) => dec.frame(path, clipTimeSec),
-  releaseLayer: (_layerKey) => { /* decoder is per-path; closed on closeSurface / process teardown */ },
+  // Timeline layer: playhead-exact, on a DEDICATED per-layer decoder (keyed by layerKey) so a scrub
+  // seeks frame-exactly without disturbing the playing surface's decoder, and layers scrub independently.
+  layerFrame: (layerKey, path, clipTimeSec) => dec.layerFrame(layerKey, path, clipTimeSec),
+  releaseLayer: (layerKey) => dec.releaseLayer(layerKey),
 
   setPlaying: (p) => { if (p === playing) return; playing = p; if (p) clockOriginMs = performance.now() - clock * 1000; },
   preWarm: (path) => { void dec.ensureOpen(path); },
