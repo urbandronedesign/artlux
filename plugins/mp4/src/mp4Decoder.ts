@@ -94,6 +94,7 @@ class FileDecoder {
         file.start();
         file.flush(); // drain remaining samples synchronously
         // Frames may arrive out of decode order for B-frames → keep the buffer ordered by timestamp.
+        console.log('[mp4] demuxed', path, { w: this.info.width, h: this.info.height, dur: this.info.durationSec, samples: this.samples.length, keyframes: this.keyframes.length, codec: this.cfg.codec, desc: this.cfg.description ? (this.cfg.description as Uint8Array).byteLength : 'none' });
         done(this.samples.length ? this.info : null);
       };
 
@@ -106,11 +107,14 @@ class FileDecoder {
   getInfo(): Info | null { return this.info; }
   aspect(): number | null { return this.info && this.info.width > 0 ? this.info.width / this.info.height : null; }
 
+  private decoded = 0;
   private ensureDecoder(): VideoDecoder | null {
     if (this.decoder && this.decoder.state !== 'closed') return this.decoder;
     if (!this.cfg) return null;
     this.decoder = new VideoDecoder({
       output: (frame) => {
+        this.decoded++;
+        if (this.decoded <= 2 || this.decoded % 60 === 0) console.log('[mp4] decoded', this.decoded, 'ts', frame.timestamp, 'buffer', this.buffer.length + 1);
         // Insert keeping the buffer ordered by presentation timestamp; evict the oldest past BUFFER.
         this.buffer.push(frame);
         if (this.buffer.length > 1 && frame.timestamp < this.buffer[this.buffer.length - 2].timestamp) {
@@ -118,10 +122,9 @@ class FileDecoder {
         }
         while (this.buffer.length > BUFFER) this.buffer.shift()?.close();
       },
-      error: () => { /* transient — a reset on the next seek recovers */ },
+      error: (e) => { console.warn('[mp4] decode error', e.message); },
     });
-    try { this.decoder.configure(this.cfg); } catch { this.decoder = null; }
-    return this.decoder;
+    return this.decoder; // configured in seekSegment (reset+configure) so there is one config path
   }
 
   // Nearest keyframe sample index at or before `sampleIdx`.
@@ -135,11 +138,13 @@ class FileDecoder {
   private seekSegment(kf: number): void {
     const dec = this.ensureDecoder();
     if (!dec) return;
-    try { dec.reset(); dec.configure(this.cfg!); } catch { /* */ }
+    try { dec.reset(); } catch { /* */ }
+    try { dec.configure(this.cfg!); } catch (e) { console.warn('[mp4] configure failed', (e as Error).message); return; }
     for (const f of this.buffer) f.close();
     this.buffer = [];
     this.segStart = kf;
     this.fedTo = kf - 1;
+    console.log('[mp4] seek → keyframe', kf);
   }
 
   // Return the decoded frame for (looped) `timeSec`, driving decode-ahead. Zero-copy VideoFrame.
@@ -178,8 +183,10 @@ class FileDecoder {
     // Pick the buffered frame nearest the target (frames just behind the playhead are ideal).
     let best: VideoFrame | null = null, bd = Infinity;
     for (const f of this.buffer) { const d = Math.abs(f.timestamp - targetUs); if (d < bd) { bd = d; best = f; } }
+    if ((this.dbg++ % 120) === 0) console.log('[mp4] frame', { t: t.toFixed(2), targetIdx, seg: this.segStart, fedTo: this.fedTo, buf: this.buffer.length, q: dec?.decodeQueueSize, retTs: best?.timestamp });
     return best;
   }
+  private dbg = 0;
 
   close(): void {
     for (const f of this.buffer) f.close();

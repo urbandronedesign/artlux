@@ -60,10 +60,16 @@ new plugin + `videoCodecRegistry.register`.
   a `VideoCodec`. **Optimized:** demux once → keep only the tiny *encoded* samples; decode **on demand**
   around the playhead from the nearest keyframe; bounded GPU `VideoFrame` buffer (LRU-closed); returns the
   `VideoFrame` **directly** so the compositor uploads it zero-copy as a texture (no 2D-canvas round-trip).
-  **Opt-in** via the `mp4WebCodecs` setting (off → `.mp4` keeps the default `<video>`). **Remaining/rig:**
-  needs on-hardware verification of playback + scrub; known first-cut limits — one decoder per file (a
-  surface + a timeline layer on the *same* file at different times contend), thumbnails reuse the playback
-  decoder, no per-consumer seek. Follow-ups: per-consumer decoders, tune the seek/look-ahead, HEVC checks.
+  **Opt-in** via the `mp4WebCodecs` setting (off → `.mp4` keeps the default `<video>`). **Rig-tested: plays
+  but CHOPPY** — needs a decode rework. Diagnosis: the pull-based design decodes *inside* getDrawable gated
+  by the queue budget, so the free-running clock outruns the buffer (`fedTo` stalls while the playhead races
+  ahead → stale/jumpy frames); re-seeks on loop-wrap clear the buffer. **Fix:** decouple decode from
+  presentation — a steady decode PUMP fills ahead of the playhead; getDrawable just picks the nearest
+  decoded frame (no seek/feed in the hot path); for short surface loops decode the whole clip once + present
+  by time; don't clear the buffer on loop-wrap. Also reconsider scope: `<video>` already plays surfaces
+  smoothly (HW-decoded) — WebCodecs' real win is frame-exact TIMELINE scrub + no session cap, so surfaces
+  could keep `<video>` and WebCodecs serve only the timeline. Other limits: one decoder/file, thumbnails
+  reuse the playback decoder, HEVC unverified. (Full detail in the plugin-architecture memory.)
 
 **Contract gaps to close when adding the 2nd codec:** `canDecode` currently returns the first match;
 with HAP+DXV both `.mov`, make the registry try each codec's async `probe` in order and cache the winner
