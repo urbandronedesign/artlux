@@ -75,6 +75,11 @@ If a release re-run is needed, clear the broken one first:
 `gh release delete vX.Y.Z --yes --cleanup-tag`, then re-tag + push.
 
 **Gotchas that have bitten the release:**
+- **`package-lock.json` must be in sync with the workspaces.** CI installs with `npm ci`, which fails
+  hard when the lockfile is out of sync with `package.json` — and electron-builder also needs it to
+  detect the workspace root. Adding a `packages/*` or `plugins/*` package (or changing `"workspaces"`)
+  **requires `npm install`** to regenerate the lockfile; commit it. This broke the v0.18.0 build on all
+  three runners (the lockfile predated the plugin workspaces). See [PLUGINS.md](PLUGINS.md).
 - **Artifact filenames must be space-free.** electron-builder's default names ("ArtLux Setup x.y.z.exe")
   make `softprops` 404 on the asset-rename step → publish fails. Fixed by `build.artifactName:
   "${productName}-${version}-${arch}.${ext}"` and dropping the Windows `portable` target (NSIS is the

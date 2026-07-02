@@ -19,6 +19,7 @@ a project-level state machine, scenes/cues, OSC control, and a 3D simulator.
 |---|---|
 | **How the system fits together (canonical)** | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | **Setup / build / test / release + env gotchas** | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) |
+| **Plugin architecture — developer guide** | [docs/PLUGINS.md](docs/PLUGINS.md) |
 | **Plugin-architecture roadmap + next extraction plan** | [docs/ROADMAP.md](docs/ROADMAP.md) |
 | Surfaces engine (content/mapping model) | [docs/SURFACES.md](docs/SURFACES.md) |
 | Outputs / controllers / routing | [docs/OUTPUTS.md](docs/OUTPUTS.md) |
@@ -118,7 +119,7 @@ electron-builder `extraResources`, all graceful-degrading:
 Toolchain: Rust (rustup, stable) + MSVC on Windows; `calib` additionally needs OpenCV + LLVM (built in a
 vcvars64 env — see `scripts/build-calib.ps1`). `.node` files are gitignored.
 
-## Plugin architecture (active migration — read docs/ROADMAP.md)
+## Plugin architecture (active migration — guide: docs/PLUGINS.md · roadmap: docs/ROADMAP.md)
 
 The app is being restructured into an **in-process, contribution-based plugin architecture** (VS Code
 style), so features become self-contained first-party plugins. Shipped: `plugins/lidar-tracking`,

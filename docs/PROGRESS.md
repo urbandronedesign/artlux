@@ -20,6 +20,7 @@ Newest decisions at the bottom of each section. Commit hashes are on `main`.
 | HAP | GPU-decompressed HAP video + vsync-locked playback | ✅ done (v0.9.0–v0.10.0) | `794723d`, `dfe31c3` |
 | Timeline | DaVinci-style NLE: filmstrips, pro track headers, blade/snap/ripple, timecode/markers/shortcuts (editing-UX only) | ✅ done (v0.11.0) | `9cfbce1` |
 | Timeline+ | Infinite/unbounded clock + optional loop region, wheel-zoom/middle-pan, maximize, and a state-machine control layer (emits transport intents; App stays sole transport writer) | ✅ done (v0.12.0) | `330549c` |
+| Plugins | In-process, contribution-based **plugin architecture** (npm workspaces + `@artlux/sdk` + host registries + generic plugin IPC bridge). **LiDAR tracking** and **NDI** extracted into first-party plugins (`plugins/lidar-tracking`, `plugins/ndi`) with parity. Guide: [PLUGINS.md](PLUGINS.md); roadmap + next extraction (calibration): [ROADMAP.md](ROADMAP.md). | ✅ done (v0.18.0) | `9a2dad9`, `3ae4480` |
 
 ## What works today
 - Runs as a native **Electron** desktop app: `npm run dev` (electron-vite). Three-process build: main / preload / renderer.
