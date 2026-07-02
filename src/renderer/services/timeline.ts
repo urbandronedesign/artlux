@@ -3,6 +3,7 @@ import { getBlobUrl, ensureBlobUrl } from './mediaCache';
 import * as hapDecode from './hapDecode';
 import * as hapGL from './hapGL';
 import * as contentSource from './contentSource';
+import { clipKindRegistry } from '../host/registries';
 import * as fsm from './stateMachine';
 import type { TransportIntent, SmContext } from './stateMachine';
 import * as cueBus from './cueBus';
@@ -232,7 +233,7 @@ function frame(now: number): void {
     // Main window decodes everything; mirror windows decode only HAP locally (when hapLocal),
     // otherwise they consume streamed frames and skip decoding entirely.
     if (!external || hapLocal) for (const l of data.layers) {
-      if (l.kind === 'tracking') continue; // tracking lanes hold blob takes, not video — see trackingPlayback
+      if (clipKindRegistry.get(l.kind ?? '')?.skipVideoSync) continue; // non-video lanes (e.g. tracking takes) — see the plugin's clip-kind contribution
       try { syncLayer(l.id, playhead); } catch (e) { console.error('[timeline] syncLayer error', e); }
     }
     // Composite the whole-timeline program once per frame when a surface routes to it (main window
@@ -267,10 +268,10 @@ function buildProgram(): void {
   if (!ctx) return;
   ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
   ctx.clearRect(0, 0, PROGRAM_W, PROGRAM_H);
-  const anySolo = data.layers.some(l => l.solo && l.kind !== 'tracking');
+  const anySolo = data.layers.some(l => l.solo && !clipKindRegistry.get(l.kind ?? '')?.excludeFromProgram);
   for (let i = data.layers.length - 1; i >= 0; i--) { // last in the list is the back-most layer
     const l = data.layers[i];
-    if (l.kind === 'tracking' || l.enabled === false || l.muted) continue;
+    if (clipKindRegistry.get(l.kind ?? '')?.excludeFromProgram || l.enabled === false || l.muted) continue;
     if (anySolo && !l.solo) continue;
     const d = layerDrawable(l.id);
     if (!d) continue;
@@ -289,7 +290,7 @@ export const timeline = {
     // Pre-warm: open HAP clips natively; preload blob URLs for normal clips. Tracking-take
     // clips (.lblob) aren't video — they're handled by trackingPlayback, so skip them here.
     for (const c of t.clips) {
-      if (c.kind === 'tracking' || isContentClip(c)) continue; // takes → trackingPlayback; content → lazy on acquire
+      if ((c.kind && clipKindRegistry.has(c.kind)) || isContentClip(c)) continue; // non-video kinds (takes → trackingPlayback); content → lazy on acquire
       if (hapDecode.isHapCandidate(c.path)) void hapDecode.ensureOpen(c.path);
       else ensureBlob(c.path);
     }

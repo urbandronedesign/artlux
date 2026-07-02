@@ -9,9 +9,10 @@
 // code that imports this package's modules transitionally — see the plan's "pragmatic seam".
 
 import type { RendererPlugin, RendererPluginContext } from '@artlux/sdk/renderer';
-import type { SurfaceContent } from '@/types';
+import type { SurfaceContent, VideoClip } from '@/types';
 import * as trackingStore from './trackingStore';
 import * as trackingDrawable from './trackingDrawable';
+import * as take from './trackingTake';
 
 let oscUnsub: (() => void) | null = null;
 
@@ -24,6 +25,17 @@ export const plugin: RendererPlugin = {
       type: 'TRACKING', // SourceType.TRACKING — kept as a core enum value; only behavior lives here
       getDrawable: (key, content) => trackingDrawable.getFor(key, content as SurfaceContent),
       release: (key) => trackingDrawable.release(key),
+    });
+
+    // The 'tracking' timeline lane kind: takes are .lblob blob recordings, not video — so the engine
+    // must skip them in its video sync + Program composite. Replay/record itself is driven by
+    // trackingPlayback/trackingRecorder (host-side, via engine.subscribe); this just tells the
+    // kind-agnostic engine how to treat the lane. preWarm mirrors trackingPlayback's own preload.
+    ctx.clipKinds.register({
+      kind: 'tracking',
+      skipVideoSync: true,
+      excludeFromProgram: true,
+      preWarm: (clip) => { const p = (clip as VideoClip).path; if (p) void take.ensureLoaded(p); },
     });
 
     // Live OSC blob/spec ingestion. Main window only — projector windows never see OSC (they get
