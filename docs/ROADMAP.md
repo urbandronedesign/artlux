@@ -30,7 +30,7 @@ with relative imports duplicates singletons (writers hit one instance, readers t
 |---|---|---|
 | **lidar-tracking** | ✅ shipped | Content source + OSC ingestion + clip-kind + projector data-channel + 3D-viz (scene-viz contribution) inverted. Projector blob *self-render* (GL draw) kept as transitional host import (see Deferred). |
 | **ndi** | ✅ shipped | Receive fully inverted (content source + discovery via provider editor); send routed through the generic bridge. Forced the `MainTransport`→general `MainPluginContext.ipc` fix + main-side activation. |
-| **calibration** | 🚧 Stage 1 → 2d shipped | Engine + logic (1); host-services + back-channel plugin (2-foundation); wizard/camera UIs relocated (2b); write path via `ctx.host`/`calibHost.ts` (2c); the **pose-pairing orchestration** (crosshair↔model-pick → solvePnP, the pose refs, markerless pick/select registration, crosshair back-channel) moved from App into `calibWorkspace.ts` (2d). App now only owns the embedded-3D + camera-portal *rendering* + UI state, forwarding 3D picks into `calibWorkspace`. Remaining: **Stage 3** (projector-side pattern/3D render via the GPU-render hook). All calibration behavior is **rig-verified** — build/tsc/boot pass but the board/markerless pass needs camera+projector. |
+| **calibration** | ✅ fully inverted (Stage 1 → 3) | Engine + logic (1); host-services + back-channel (2-foundation); wizard/camera UIs relocated (2b); write path via `ctx.host`/`calibHost.ts` (2c); pose-pairing orchestration → `calibWorkspace.ts` (2d); and the **projector-side rendering** (structured-light pattern / pose crosshair / render-from-projector) → a `ProjectorPanelContribution` (`CalibProjector.tsx` + moved `ProjectorScene.tsx`), so `ProjectorApp` no longer imports calibration (3). Core keeps only persisted types (`ProjectorCalibration`/`ProjectorOutput`, `scene3D.markerMap/camMask`) + the Stage rendering App owns (embedded-3D + camera portal). **All calibration behavior is rig-verified** — build/tsc/single-identity/boot pass but the board/markerless pass + projector pattern display need camera+projector. |
 
 Also done: the **timeline clip-kind** inversion — `timeline.ts` no longer hardcodes `kind==='tracking'`;
 the lidar plugin registers the `tracking` kind into `clipKindRegistry` (first end-to-end consumer).
@@ -137,13 +137,18 @@ the `calibNative` import. The wizard **rendering** (embedded Simulator3D + camer
 App-owned by design. **Rig-verified:** build/tsc/single-identity/boot pass; the board/markerless pass
 needs camera+projector.
 
-**Stage 3 — Projector-contribution seam (decide: pragmatic vs. full).** The projector-side
-pattern/crosshair/`ProjectorScene` rendering lives in `ProjectorApp`.
-- **Pragmatic (recommended first):** leave it in `ProjectorApp` as a transitional host seam (same as
-  LiDAR's projector self-render). Ship Stages 1–2; calibration fully works.
-- **Full:** design a **projector-contribution** SDK type (plugin drives projector-window rendering +
-  a typed bidirectional channel). Bigger investment, but it also inverts LiDAR's deferred projector
-  tendril. Dedicated follow-up once Stages 1–2 are proven.
+**Stage 3 — Projector-panel contribution (✅ shipped, the "full" option).** Added a
+`ProjectorPanelContribution` to the SDK: a plugin React component the projector window mounts full-window
+over the base GL canvas, with a `ProjectorPanelContext` = `{ onMessage, send }` (the projector's
+bidirectional bridge) + a reactive `size`. `ProjectorApp` now mounts every registered panel generically
+(fanning the main→projector message stream to `panelMsgSubs`) and no longer imports calibration — the
+structured-light pattern (raw pixel-exact 2D canvas + double-rAF `patternShown` ack), the pose crosshair
+(pointer/key capture → `calibCrosshair`/`calibConfirm`), and render-from-projector all moved into
+`plugins/calibration/src/CalibProjector.tsx` (+ `ProjectorScene.tsx` moved in, importing the host
+`useLayerTexture` via `@/` transitionally). The projector chunk shrank ~11 KB; `calibCrosshair`/
+`patternShown` now live only in the plugins chunk. **Rig-verified:** build/tsc/single-identity/boot pass,
+but pattern display / crosshair / render-from-projector — and the normal projector-output path through the
+rewired mount — need a real projector to confirm.
 
 ### Critical files
 - Engine/native: `src/main/calibManager.ts`, `src/main/ipc.ts` (CALIB_*), `src/preload/index.ts`
@@ -169,15 +174,14 @@ pattern/crosshair/`ProjectorScene` rendering lives in `ProjectorApp`.
 
 ## Deferred backlog (accumulated from shipped plugins)
 
-- **Projector-contribution** — DATA half ✅ and **GL render hook** ✅ shipped. Data: `ProjectorChannel`
-  (appliesTo/subscribe/build/apply) + a generic `{t:'pluginData'}` bridge + projector-window plugin
-  activation; LiDAR's snapshot→projector bridge rides it. GL render hook: `ProjectorChannel` gained
-  `projectorSourceSize`/`renderSource`/`onConfig` + a `ProjectorRenderHost` (timeMs + getLayerDrawable);
-  `ProjectorGL.drawTracking` → generic `drawComposited(w,h,composite,opts)` (host no longer imports
-  `blobPass`/`trackingRenderer`); LiDAR composites bg+trails+blobs+overlay in `trackingProjector.ts`.
-  **Remaining:** (a) **calibration's** projector pattern/3D rendering still lives in `ProjectorApp`
-  transitionally (it needs the render hook + a back-channel, not just a source composite), and (b) the
-  **projector→main back-channel** (for calibration's patternShown/crosshair/confirm).
+- ~~**Projector-contribution**~~ ✅ complete. Three seams shipped: (1) **data channel** — `ProjectorChannel`
+  (appliesTo/subscribe/build/apply) + a generic `{t:'pluginData'}` bridge (LiDAR snapshots); (2) **GPU
+  render hook** — `ProjectorChannel.{projectorSourceSize,renderSource,onConfig}` + `ProjectorRenderHost`;
+  `ProjectorGL.drawTracking` → generic `drawComposited` (LiDAR blob composite in `trackingProjector.ts`);
+  (3) **projector-panel** — `ProjectorPanelContribution` (a full-window React overlay + a bidirectional
+  `ProjectorPanelContext`) for calibration's pattern/crosshair/render (`CalibProjector.tsx`). The
+  projector→main **back-channel** rides `ProjectorPanelContext.send` + the main-side `host.projectors.onMessage`
+  tap. `ProjectorApp`/`ProjectorGL` no longer import any plugin.
 - ~~**LiDAR 3D-viz tendril**~~ ✅ done — added a **scene-viz contribution** (`SceneVizContribution` +
   `sceneVizRegistry`): `TrackingViz` moved into the lidar plugin and registers as scene-viz; `Simulator3D`
   now maps `sceneVizRegistry.all()` inside its `<Canvas>` instead of importing `TrackingViz`.

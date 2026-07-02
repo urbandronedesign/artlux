@@ -16,6 +16,7 @@ import type {
   SettingsSection, SettingsSectionRegistry,
   PanelContribution, PanelRegistry,
   SceneVizContribution, SceneVizRegistry,
+  ProjectorPanelContribution, ProjectorPanelRegistry,
 } from '@artlux/sdk/renderer';
 import type { SurfaceContent, Surface, VideoClip, AppSettings } from '../types';
 import type { Scene3D } from '../../../shared/protocol';
@@ -56,6 +57,13 @@ const sceneVizzes: SceneVizContribution<Scene3D>[] = [];
 export const sceneVizRegistry: SceneVizRegistry<Scene3D> = {
   register(v) { sceneVizzes.push(v); },
   all() { return sceneVizzes.slice(); },
+};
+
+// ── Projector panels (full-window overlays in projector output windows) ─────────────────────
+const projectorPanels: ProjectorPanelContribution[] = [];
+export const projectorPanelRegistry: ProjectorPanelRegistry = {
+  register(p) { projectorPanels.push(p); },
+  all() { return projectorPanels.slice(); },
 };
 
 // ── Panels ────────────────────────────────────────────────────────────────────────────────

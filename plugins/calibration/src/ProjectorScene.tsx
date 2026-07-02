@@ -6,8 +6,8 @@ import { Effect } from 'postprocessing';
 import * as THREE from 'three';
 import type { Scene3D, SceneModel, ProjectorCalibration } from '../../../shared/protocol';
 import { modelScaleXYZ } from '../../../shared/protocol';
-import { cameraPose, glProjectionMatrix } from '@artlux/plugin-calibration/renderer';
-import { useLayerTexture } from '../components/Simulator3D/useLayerTexture';
+import { cameraPose, glProjectionMatrix } from './cvCamera';
+import { useLayerTexture } from '@/components/Simulator3D/useLayerTexture'; // host hook — transitional seam
 
 const DEG = Math.PI / 180;
 const NEAR = 0.05, FAR = 200;

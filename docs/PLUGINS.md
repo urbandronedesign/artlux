@@ -47,7 +47,7 @@ clean (plugin → sdk only; the plugin never imports host modules for types beyo
 
 ### Contribution registries (renderer)
 
-`src/renderer/host/registries.ts` exposes six singletons. **Not all are consumed yet** — the table is
+`src/renderer/host/registries.ts` exposes seven singletons. **Not all are consumed yet** — the table is
 honest about what's wired end-to-end today:
 
 | Registry | Contract (`@artlux/sdk/renderer`) | Wired today? |
@@ -56,11 +56,13 @@ honest about what's wired end-to-end today:
 | `clipKindRegistry` | `ClipKindContribution` (`kind`, `preWarm?`, `excludeFromProgram?`, `skipVideoSync?`) | ✅ LiDAR registers `tracking`; `timeline.ts` reads the registry instead of `kind === 'tracking'` literals. |
 | `projectorChannelRegistry` | `ProjectorChannel` (`channel`, `appliesTo?`, `subscribe?`, `build?`, `throttleMs?`, `apply?` + the GPU-render trio `projectorSourceSize?`, `renderSource?`, `onConfig?`) | ✅ LiDAR. Two halves: **data** (`build`→`{t:'pluginData'}` bridge→`apply`) and **GPU render** (host `drawComposited` calls `renderSource` — see Projector contributions below). |
 | `sceneVizRegistry` | `SceneVizContribution` (`id`, `enabled?(scene3D)`, `Component`) | ✅ LiDAR `TrackingViz`. `Simulator3D` maps the registry inside its R3F `<Canvas>` instead of importing the component. |
+| `projectorPanelRegistry` | `ProjectorPanelContribution` (`id`, `Component: {ctx: ProjectorPanelContext, size}`) | ✅ calibration `CalibProjector` (pattern / crosshair / render-from-projector). `ProjectorApp` mounts every registered panel over its base canvas + fans the message stream to them. |
 | `settingsSectionRegistry` | `SettingsSection` (`id`, `title`, `Component`, `defaults`) | ⏳ scaffolded, unused. No clean first consumer yet: the obvious candidate (OSC receive settings) is **shared core infra** — the OSC listener drives both external control and LiDAR tracking — so it stays core (see Core stays core). |
 | `panelRegistry` | `PanelContribution` (`id`, `mount`, `menuAction?`, `Component`) | ⏳ scaffolded, unused. `OscMonitor`/`TakesBin` are candidates but stay host-side today (TakesBin is woven into the timeline around the core `trackingTakes` field; the no-prop `Component` shape needs a host-services surface first). |
 
 A plugin's renderer `activate(ctx)` registers into these via the context (`ctx.contentSources`,
-`ctx.clipKinds`, `ctx.projectorChannels`, `ctx.sceneViz`, `ctx.settings`, `ctx.panels`).
+`ctx.clipKinds`, `ctx.projectorChannels`, `ctx.sceneViz`, `ctx.projectorPanels`, `ctx.settings`,
+`ctx.panels`).
 
 ### The generic plugin IPC bridge
 
@@ -119,9 +121,15 @@ it's in). It has two independent halves — use either or both:
 > `WeakMap<WebGLRenderingContext, …>`) — a single module-level handle would be shared across contexts and
 > crash the GPU process.
 
-**Still host-side:** calibration's projector pattern display + render-from-projector 3D still live in
-`ProjectorApp` as a transitional seam — they need the GPU-render hook **plus** a projector→main
-back-channel (patternShown/crosshair/confirm), which the data half doesn't yet cover (see ROADMAP.md).
+A third seam — the **`ProjectorPanelContribution`** (`ctx.projectorPanels`) — is for content that isn't a
+source-texture-to-warp: a plugin contributes a full-window **React** overlay the projector window mounts
+over its base canvas, with a bidirectional `ProjectorPanelContext` = `{ onMessage, send }` (the projector's
+MessagePort bridge) + a reactive `size`. `ProjectorApp` mounts every registered panel and fans the
+main→projector message stream to them; the panel owns its own React tree, input, and back-channel acks.
+Calibration uses it (`CalibProjector.tsx`) for the structured-light pattern (raw pixel-exact 2D canvas,
+**bypassing** the GL warp), the pose crosshair (pointer/key capture → `calibCrosshair`/`calibConfirm`), and
+render-from-projector 3D. With this, `ProjectorApp`/`ProjectorGL` import **no** plugin — the projector
+window is fully generic.
 
 ### Activation
 
@@ -267,13 +275,12 @@ ingestion taps the core `window.artlux.onOscMessage` since OSC stays a core tran
 - `settingsSection` + `panel` registries exist but have **no consumer yet** — the natural candidates
   are shared core infra (OSC settings) or deeply timeline-coupled (TakesBin), so they wait for a
   host-services surface rather than being force-fit.
-- **Calibration is Stage 1 → 2d.** Engine + logic + host-services + back-channel tap; wizard/camera UIs
-  co-located in `plugins/calibration`; the wizards' **write path** goes through `ctx.host` via
-  `calibHost.ts`; and the **pose-pairing orchestration** (crosshair↔model-pick → solvePnP, the pose refs,
-  markerless pick registration, crosshair back-channel) moved from App into `calibWorkspace.ts`. App now
-  owns only the embedded-3D + camera-portal *rendering* + UI state, forwarding 3D picks into the plugin.
-  Remaining: the projector-side pattern/3D **render** still lives in `ProjectorApp` (needs the
-  `ProjectorChannel` GPU-render hook wired for calib — Stage 3). All calibration behavior is rig-verified.
+- **Calibration is fully inverted (Stage 1 → 3).** Engine + logic + host-services + back-channel; wizard
+  UIs co-located; write path via `calibHost.ts`; pose-pairing orchestration in `calibWorkspace.ts`; and
+  the projector-side rendering (pattern / crosshair / render-from-projector) in `CalibProjector.tsx` via a
+  `ProjectorPanelContribution`. `App`, `ProjectorApp`, and `ProjectorGL` no longer import calibration; core
+  keeps only the persisted types + the Stage rendering App owns (embedded-3D + camera portal). All
+  calibration *behavior* is rig-verified (build/tsc/boot pass; the actual pass needs camera+projector).
 - **Host services are minimal by design** — `ctx.host` covers projectorOutputs/scene3D/projectors; the
   *workspace* handles the wizards need (venue-mesh pick mode, camera portal, split layout) are not in
   the SDK yet and move with the wizards (ROADMAP → Stage 2b).

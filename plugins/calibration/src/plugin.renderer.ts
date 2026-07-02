@@ -15,6 +15,7 @@ import * as calibController from './calibController';
 import * as slCapture from './slCapture';
 import * as calibWorkspace from './calibWorkspace';
 import { setHost } from './calibHost';
+import { CalibProjector } from './CalibProjector';
 
 // The projector→main message shape we care about (a subset of the host's ProjectorToMain union —
 // typed structurally so the plugin doesn't import a host module).
@@ -29,6 +30,10 @@ export const plugin: RendererPlugin = {
     // Give the wizard components host-services access (they mutate outputs/scene + send to projectors
     // through this instead of App callback props). Harmless in projector windows (inert host).
     setHost(ctx.host);
+
+    // The projector-window calibration overlay (structured-light pattern / pose crosshair / render-from-
+    // projector). Projector windows mount every registered panel; the editor window ignores this registry.
+    ctx.projectorPanels.register({ id: 'calibration', Component: CalibProjector });
 
     // Only the main window owns the bridge ports, so this fires there; in projector windows the host
     // service is inert and the callback is never invoked.

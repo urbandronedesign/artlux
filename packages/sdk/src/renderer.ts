@@ -139,6 +139,28 @@ export interface PanelRegistry {
   byMount(mount: PanelContribution['mount']): PanelContribution[];
 }
 
+// ─── Projector panel contribution ───────────────────────────────────────────────────────────
+// A plugin-contributed full-window overlay MOUNTED IN A PROJECTOR OUTPUT WINDOW (not the editor) —
+// e.g. calibration's structured-light pattern, the pose-capture crosshair, and render-from-projector.
+// It renders on top of the window's base GL canvas and owns its own React tree, input, and back-channel
+// acks. The context is the projector window's bidirectional bridge (the same MessagePort the base
+// window uses); `size` is passed separately (reactive). The panel decides from the message stream when
+// to show itself — projector windows mount every registered panel.
+export interface ProjectorPanelContext<In = unknown, Out = unknown> {
+  onMessage(cb: (msg: In) => void): () => void; // main→projector stream for this window; returns unsub
+  send(msg: Out): void;                          // projector→main (acks: patternShown / crosshair / confirm)
+}
+
+export interface ProjectorPanelContribution {
+  id: string;
+  Component: ComponentType<{ ctx: ProjectorPanelContext; size: { w: number; h: number } }>;
+}
+
+export interface ProjectorPanelRegistry {
+  register(p: ProjectorPanelContribution): void;
+  all(): ProjectorPanelContribution[];
+}
+
 // ─── Scene-viz contribution ─────────────────────────────────────────────────────────────────
 // A react-three-fiber component the host's 3D scene (Simulator3D) mounts inside its <Canvas>. Lets
 // a plugin draw a 3D overlay (e.g. LiDAR blob markers + zones) without the host importing it. The
@@ -206,6 +228,7 @@ export interface RendererPluginContext<C = unknown, SurfaceT = unknown, Clip = u
   settings: SettingsSectionRegistry<S>;
   panels: PanelRegistry;
   sceneViz: SceneVizRegistry;
+  projectorPanels: ProjectorPanelRegistry;
   ipc: PluginIpc;
   // Subscribe to the timeline engine's coalesced per-frame playhead (seconds). Returns unsub.
   onPlayhead(cb: (playheadSec: number) => void): () => void;
