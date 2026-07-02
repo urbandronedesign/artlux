@@ -7,9 +7,10 @@
 // show each Gray-code plane → grab; mapCornersToProjector decodes the projector pixel at each board
 // corner (local homography). After enough poses, calibrateProjector runs calibrateCamera over them.
 
-import type { MainToProjector } from '../projector/bridge';
+import type { MainToProjector } from '@/projector/bridge'; // host projector bridge (type-only, transitional)
 import { graycodeLayout } from './graycode';
-import * as cam from '../services/calibCapture';
+import * as cam from './calibCapture';
+import * as calibNative from './calibNative';
 
 export interface BoardConfig {
   cols: number;       // inner corners across
@@ -76,7 +77,7 @@ function showPattern(kind: 'plane' | 'white' | 'black' | 'off', index: number): 
 // Capture one board pose: returns ok with running totals, or a reason it was rejected.
 export async function capturePose(cfg: BoardConfig): Promise<CaptureResult> {
   if (!active) return { ok: false, reason: 'calibration not active' };
-  const api = window.artlux;
+  const api = calibNative;
   if (!api?.calibDetectBoard) return { ok: false, reason: 'calibration addon unavailable' };
 
   // White field: detect the (printed) board and keep the bright reference.
@@ -153,7 +154,7 @@ export interface IntrinsicsSolve { k: number[]; dist: number[]; rms: number }
 // Solve projector intrinsics + distortion over all captured poses.
 export async function solve(): Promise<IntrinsicsSolve | { error: string }> {
   if (pointCounts.length < 3) return { error: 'need at least 3 board poses' };
-  const api = window.artlux;
+  const api = calibNative;
   if (!api?.calibCalibrateProjector) return { error: 'calibration addon unavailable' };
   const r = await api.calibCalibrateProjector(objectPoints, imagePoints, pointCounts, projW, projH);
   if (!r) return { error: 'calibration addon unavailable' };

@@ -60,33 +60,7 @@ const api: ArtluxApi = {
     openHap: (path: string) => ipcRenderer.invoke(IPC.HAP_OPEN, path),
     decodeHapFrame: (path: string, index: number) => ipcRenderer.invoke(IPC.HAP_DECODE, path, index),
     closeHap: (path: string) => ipcRenderer.send(IPC.HAP_CLOSE, path),
-    // Projector calibration (native OpenCV addon)
-    calibAvailable: () => ipcRenderer.invoke(IPC.CALIB_AVAILABLE),
-    calibDetectBoard: (image: ArrayBuffer, w: number, h: number, cols: number, rows: number) =>
-        ipcRenderer.invoke(IPC.CALIB_DETECT_BOARD, image, w, h, cols, rows),
-    calibDetectAruco: (image: ArrayBuffer, w: number, h: number, dict: number) =>
-        ipcRenderer.invoke(IPC.CALIB_DETECT_ARUCO, image, w, h, dict),
-    calibMapCorners: (captures: ArrayBuffer, captureCount: number, camW: number, camH: number, projW: number, projH: number, corners: number[], white: ArrayBuffer, black: ArrayBuffer) =>
-        ipcRenderer.invoke(IPC.CALIB_MAP_CORNERS, captures, captureCount, camW, camH, projW, projH, corners, white, black),
-    calibCalibrateProjector: (objectPoints: number[], imagePoints: number[], pointCounts: number[], projW: number, projH: number) =>
-        ipcRenderer.invoke(IPC.CALIB_CALIBRATE_PROJECTOR, objectPoints, imagePoints, pointCounts, projW, projH),
-    calibSolvePnp: (objectPts: number[], imagePts: number[], k: number[], dist: number[]) =>
-        ipcRenderer.invoke(IPC.CALIB_SOLVE_PNP, objectPts, imagePts, k, dist),
-    calibCameraOpen: (index: number, width: number, height: number, fps: number, fourcc: string) =>
-        ipcRenderer.invoke(IPC.CALIB_CAMERA_OPEN, index, width, height, fps, fourcc),
-    calibCameraGrab: () => ipcRenderer.invoke(IPC.CALIB_CAMERA_GRAB),
-    calibCameraGrabColor: () => ipcRenderer.invoke(IPC.CALIB_CAMERA_GRAB_COLOR),
-    calibCameraClose: () => ipcRenderer.send(IPC.CALIB_CAMERA_CLOSE),
-    calibCameraSetProp: (prop: string, value: number) => ipcRenderer.invoke(IPC.CALIB_CAMERA_SET_PROP, prop, value),
-    calibCameraGetProp: (prop: string) => ipcRenderer.invoke(IPC.CALIB_CAMERA_GET_PROP, prop),
-    calibDecodeDense: (captures: ArrayBuffer, captureCount: number, camW: number, camH: number, projW: number, projH: number, white: ArrayBuffer, black: ArrayBuffer, stride: number) =>
-        ipcRenderer.invoke(IPC.CALIB_DECODE_DENSE, captures, captureCount, camW, camH, projW, projH, white, black, stride),
-    calibSolvePnpRansac: (objectPts: number[], imagePts: number[], k: number[], dist: number[], reprojErr: number) =>
-        ipcRenderer.invoke(IPC.CALIB_SOLVE_PNP_RANSAC, objectPts, imagePts, k, dist, reprojErr),
-    calibCalibrateGuided: (objectPoints: number[], imagePoints: number[], pointCounts: number[], projW: number, projH: number, initK: number[], fixPrincipalPoint: boolean, fixAspect: boolean) =>
-        ipcRenderer.invoke(IPC.CALIB_CALIBRATE_GUIDED, objectPoints, imagePoints, pointCounts, projW, projH, initK, fixPrincipalPoint, fixAspect),
-    calibSelfCalibrate: (camX: number[], camY: number[], projX: number[], projY: number[], camW: number, camH: number, projW: number, projH: number) =>
-        ipcRenderer.invoke(IPC.CALIB_SELF_CALIBRATE, camX, camY, projX, projY, camW, camH, projW, projH),
+    // Projector calibration moved to @artlux/plugin-calibration (generic pluginInvoke/Send bridge).
     // NVAPI scanout warp/blend
     nvwarpAvailable: () => ipcRenderer.invoke(IPC.NVWARP_AVAILABLE),
     nvwarpSetWarp: (electronDisplayId: number, verts: number[], src: number[]) =>

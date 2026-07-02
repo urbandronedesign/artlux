@@ -3,9 +3,7 @@ import { createPortal } from 'react-dom';
 import { X, Camera, Check, AlertTriangle, Loader2, ChevronLeft, ChevronRight, Aperture, MonitorUp, Crosshair } from 'lucide-react';
 import type { MainToProjector } from '../projector/bridge';
 import type { ProjectorCalibration, ProjectorOutput, Scene3D } from '../../../shared/protocol';
-import * as cam from '../services/calibCapture';
-import * as ctl from '../calib/calibController';
-import { defaultBoardConfig, type BoardConfig } from '../calib/calibController';
+import { calibCapture as cam, calibController as ctl, defaultBoardConfig, type BoardConfig, calibNative } from '@artlux/plugin-calibration/renderer';
 import { CameraViewport, type CameraViewportHandle } from './calib/CameraViewport';
 import { CameraParamsPanel } from './calib/CameraParamsPanel';
 
@@ -98,7 +96,7 @@ export const CalibWizard: React.FC<Props> = (props) => {
   useEffect(() => {
     ctl.begin(surfaceId, (m) => sendToProjector(surfaceId, m));
     onSetSplit(true);
-    window.artlux?.calibAvailable?.().then((v) => setAddonOk(!!v)).catch(() => setAddonOk(false));
+    calibNative.calibAvailable().then((v) => setAddonOk(!!v)).catch(() => setAddonOk(false));
     primeDevices();
     return () => { ctl.end(); cam.stop(); onSetCalibPickMode(false); onPoseModeChange(surfaceId, false); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -160,9 +158,9 @@ export const CalibWizard: React.FC<Props> = (props) => {
         blankCount.current = mx <= 8 ? blankCount.current + 1 : 0;
         if (alive) setCamBlank(blankCount.current >= 6); // setState bails out when unchanged → no churn
         const now = performance.now();
-        if (now - lastDetect > 330 && window.artlux?.calibDetectBoard) {
+        if (now - lastDetect > 330) {
           lastDetect = now;
-          const d = await window.artlux.calibDetectBoard(g.data.buffer as ArrayBuffer, g.w, g.h, cfg.cols, cfg.rows);
+          const d = await calibNative.calibDetectBoard(g.data.buffer as ArrayBuffer, g.w, g.h, cfg.cols, cfg.rows);
           if (alive) setDetect(d && d.found ? { found: true, corners: d.corners, w: g.w, h: g.h } : { found: false });
         }
       }

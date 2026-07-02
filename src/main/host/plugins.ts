@@ -6,8 +6,9 @@
 import { ipcMain, type BrowserWindow } from 'electron';
 import type { MainPlugin, MainPluginContext, MainPluginIpc } from '@artlux/sdk/main';
 import { plugin as ndi } from '@artlux/plugin-ndi/main';
+import { plugin as calibration } from '@artlux/plugin-calibration/main';
 
-const FIRST_PARTY: MainPlugin[] = [ndi];
+const FIRST_PARTY: MainPlugin[] = [ndi, calibration];
 
 let activated = false;
 

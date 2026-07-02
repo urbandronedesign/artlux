@@ -3,16 +3,13 @@ import { createPortal } from 'react-dom';
 import { X, Camera, Check, AlertTriangle, Loader2, MousePointer, ScanLine, Aperture } from 'lucide-react';
 import type { MainToProjector } from '../projector/bridge';
 import type { ProjectorCalibration, ProjectorOutput, Scene3D, CamMask, MarkerMap } from '../../../shared/protocol';
-import * as cam from '../services/calibCapture';
 import { CameraViewport, type CameraViewportHandle } from './calib/CameraViewport';
 import { CameraParamsPanel } from './calib/CameraParamsPanel';
-import * as slCapture from '../calib/slCapture';
-import { reproject } from '../calib/cvCamera';
 import {
+  calibCapture as cam, slCapture, reproject, regionFromCalibration, calibNative,
   solveCameraPose, solveGeometry, defaultMarkerlessConfig, camPicksFromAruco,
   type CamPick, type CameraPose, type MarkerlessResult,
-} from '../calib/markerlessController';
-import { regionFromCalibration } from '../calib/mpcdiData';
+} from '@artlux/plugin-calibration/renderer';
 
 interface Props {
   surfaceId: string;
@@ -101,7 +98,7 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
   const addLog = (s: string) => setLog((l) => [...l.slice(-60), s]);
   const cameraK = camDims.w ? nominalK(camDims.w, camDims.h, hfov) : [];
 
-  useEffect(() => { window.artlux?.calibAvailable?.().then(setAddonOk).catch(() => setAddonOk(false)); }, []);
+  useEffect(() => { calibNative.calibAvailable().then(setAddonOk).catch(() => setAddonOk(false)); }, []);
   useEffect(() => () => { cam.stop(); slCapture.endScan(); onRegisterMarkerlessPick(null); onSetCalibPickMode(false); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // Report the edited correspondence up so the 3D scene highlights it; register a select handler so a
   // click on a 3D marker selects the same pick (mirror of clicking its camera marker).
@@ -253,7 +250,7 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
   const detectMarkers = async () => {
     const g = await cam.grab();
     if (!g) { addLog('no camera frame'); return null; }
-    const det = await window.artlux?.calibDetectAruco?.(g.data.buffer as ArrayBuffer, g.w, g.h, scene3D.markerMap?.dict ?? ARUCO_DICT);
+    const det = await calibNative.calibDetectAruco(g.data.buffer as ArrayBuffer, g.w, g.h, scene3D.markerMap?.dict ?? ARUCO_DICT);
     if (!det) { addLog('✗ ArUco unavailable (rebuild calib.node with objdetect enabled)'); return null; }
     setDetIds(det.ids);
     addLog(det.ids.length ? `detected markers: ${det.ids.join(', ')}` : 'no markers detected — check lighting / exposure');

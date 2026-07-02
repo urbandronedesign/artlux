@@ -6,7 +6,7 @@ import { Effect } from 'postprocessing';
 import * as THREE from 'three';
 import type { Scene3D, SceneModel, ProjectorCalibration } from '../../../shared/protocol';
 import { modelScaleXYZ } from '../../../shared/protocol';
-import { cameraPose, glProjectionMatrix } from '../calib/cvCamera';
+import { cameraPose, glProjectionMatrix } from '@artlux/plugin-calibration/renderer';
 import { useLayerTexture } from '../components/Simulator3D/useLayerTexture';
 
 const DEG = Math.PI / 180;

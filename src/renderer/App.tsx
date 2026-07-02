@@ -4,10 +4,7 @@ import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEd
 import type { ProjectorCalibration } from '../../shared/protocol';
 import { CalibWizard } from './components/CalibWizard';
 import { AutoAlignWizard } from './components/AutoAlignWizard';
-import * as calibController from './calib/calibController';
-import * as slCapture from './calib/slCapture';
-import * as cam from './services/calibCapture';
-import { measureGamma } from './calib/gammaController';
+import { calibController, slCapture, calibCapture as cam, measureGamma, calibNative } from '@artlux/plugin-calibration/renderer';
 import type { AppInfo, UpdateEvent, Scene3D, SceneModel, ProjectorOutput, DisplayInfo, SoftEdge } from '../../shared/protocol';
 import type { ProjectorToMain, MainToProjector } from './projector/bridge';
 import { makeBezierWarp } from './projector/warp';
@@ -396,7 +393,7 @@ const App: React.FC = () => {
     if (!cal) return;
     const obj = picks.flatMap(p => p.world);
     const img = picks.flatMap(p => p.pixel);
-    const res = await window.artlux?.calibSolvePnp?.(obj, img, cal.intrinsics, cal.distortion ?? [0, 0, 0, 0, 0]);
+    const res = await calibNative.calibSolvePnp(obj, img, cal.intrinsics, cal.distortion ?? [0, 0, 0, 0, 0]);
     if (!res) return;
     handleStoreCalibration(surfaceId, { rotation: res.rotation, translation: res.translation, poseRms: res.rms });
   };

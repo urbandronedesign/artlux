@@ -15,6 +15,7 @@ import { cameraPixelRayWorld } from './cvCamera';
 import { raycastVenueBatch, hasVenueMeshes } from './venueRaycast';
 import { captureGrayCode } from './slCapture';
 import { applyCamMask, type CamMask } from './camMask';
+import * as calibNative from './calibNative';
 
 export interface MarkerlessConfig {
   cameraK: number[];     // camera intrinsics, row-major 3×3 (stored/nominal profile)
@@ -54,7 +55,7 @@ export function camPicksFromAruco(det: ArucoDetection, map: MarkerMap): CamPick[
 export async function solveCameraPose(picks: CamPick[], cameraK: number[], cameraDist: number[]): Promise<CameraPose | { error: string }> {
   if (picks.length < 4) return { error: 'need ≥4 camera↔model picks' };
   if (cameraK.length !== 9) return { error: 'camera intrinsics not set' };
-  const api = window.artlux;
+  const api = calibNative;
   if (!api?.calibSolvePnpRansac) return { error: 'calibration addon unavailable' };
   const obj: number[] = [], img: number[] = [];
   for (const p of picks) { obj.push(p.world[0], p.world[1], p.world[2]); img.push(p.camPx[0], p.camPx[1]); }
@@ -80,7 +81,7 @@ export interface MarkerlessResult {
 // cfg.cameraK is the nominal/fallback profile; when `selfCal` and the gates pass it's replaced by the
 // focal-from-fundamental-matrix estimate.
 export async function solveGeometry(cfg: MarkerlessConfig, picks: CamPick[], selfCal: boolean): Promise<MarkerlessResult | { error: string }> {
-  const api = window.artlux;
+  const api = calibNative;
   if (!api?.calibDecodeDense || !api?.calibCalibrateGuided || !api?.calibSolvePnpRansac) return { error: 'calibration addon unavailable' };
   if (!hasVenueMeshes()) return { error: 'no venue model loaded' };
   if (picks.length < 4) return { error: 'need ≥4 camera↔model picks (Anchor step)' };

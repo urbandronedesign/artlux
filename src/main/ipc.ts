@@ -8,7 +8,6 @@ import * as discovery from './transport/discovery';
 import * as spout from './transport/spoutManager';
 import * as osc from './transport/oscManager';
 import * as hap from './transport/hapManager';
-import * as calib from './calibManager';
 import * as nvwarp from './nvwarpManager';
 import { buildMpcdi, parseMpcdi, type MpcdiRegion } from './mpcdi';
 import * as persistence from './persistence';
@@ -175,33 +174,8 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     ipcMain.handle(IPC.HAP_DECODE, (_e, path: string, index: number) => hap.decode(path, index));
     ipcMain.on(IPC.HAP_CLOSE, (_e, path: string) => hap.close(path));
 
-    // ---- Projector calibration (native OpenCV addon; renderer drives the solves) ----
-    ipcMain.handle(IPC.CALIB_AVAILABLE, () => calib.isAvailable());
-    ipcMain.handle(IPC.CALIB_DETECT_BOARD, (_e, image: ArrayBuffer, w: number, h: number, cols: number, rows: number) =>
-        calib.detectBoard(Buffer.from(image), w, h, cols, rows));
-    ipcMain.handle(IPC.CALIB_DETECT_ARUCO, (_e, image: ArrayBuffer, w: number, h: number, dict: number) =>
-        calib.detectAruco(Buffer.from(image), w, h, dict));
-    ipcMain.handle(IPC.CALIB_MAP_CORNERS, (_e, captures: ArrayBuffer, captureCount: number, camW: number, camH: number, projW: number, projH: number, corners: number[], white: ArrayBuffer, black: ArrayBuffer) =>
-        calib.mapCorners(Buffer.from(captures), captureCount, camW, camH, projW, projH, corners, Buffer.from(white), Buffer.from(black)));
-    ipcMain.handle(IPC.CALIB_CALIBRATE_PROJECTOR, (_e, objectPoints: number[], imagePoints: number[], pointCounts: number[], projW: number, projH: number) =>
-        calib.calibrateProjector(objectPoints, imagePoints, pointCounts, projW, projH));
-    ipcMain.handle(IPC.CALIB_SOLVE_PNP, (_e, objectPts: number[], imagePts: number[], k: number[], dist: number[]) =>
-        calib.solvePnp(objectPts, imagePts, k, dist));
-    ipcMain.handle(IPC.CALIB_CAMERA_OPEN, (_e, index: number, width: number, height: number, fps: number, fourcc: string) =>
-        calib.cameraOpen(index, width, height, fps, fourcc));
-    ipcMain.handle(IPC.CALIB_CAMERA_GRAB, () => calib.cameraGrab());
-    ipcMain.handle(IPC.CALIB_CAMERA_GRAB_COLOR, () => calib.cameraGrabColor());
-    ipcMain.on(IPC.CALIB_CAMERA_CLOSE, () => calib.cameraClose());
-    ipcMain.handle(IPC.CALIB_CAMERA_SET_PROP, (_e, prop: string, value: number) => calib.cameraSetProp(prop, value));
-    ipcMain.handle(IPC.CALIB_CAMERA_GET_PROP, (_e, prop: string) => calib.cameraGetProp(prop));
-    ipcMain.handle(IPC.CALIB_DECODE_DENSE, (_e, captures: ArrayBuffer, captureCount: number, camW: number, camH: number, projW: number, projH: number, white: ArrayBuffer, black: ArrayBuffer, stride: number) =>
-        calib.decodeDense(Buffer.from(captures), captureCount, camW, camH, projW, projH, Buffer.from(white), Buffer.from(black), stride));
-    ipcMain.handle(IPC.CALIB_SOLVE_PNP_RANSAC, (_e, objectPts: number[], imagePts: number[], k: number[], dist: number[], reprojErr: number) =>
-        calib.solvePnpRansac(objectPts, imagePts, k, dist, reprojErr));
-    ipcMain.handle(IPC.CALIB_CALIBRATE_GUIDED, (_e, objectPoints: number[], imagePoints: number[], pointCounts: number[], projW: number, projH: number, initK: number[], fixPrincipalPoint: boolean, fixAspect: boolean) =>
-        calib.calibrateGuided(objectPoints, imagePoints, pointCounts, projW, projH, initK, fixPrincipalPoint, fixAspect));
-    ipcMain.handle(IPC.CALIB_SELF_CALIBRATE, (_e, camX: number[], camY: number[], projX: number[], projY: number[], camW: number, camH: number, projW: number, projH: number) =>
-        calib.selfCalibrate(camX, camY, projX, projY, camW, camH, projW, projH));
+    // Projector calibration (native OpenCV addon) now lives in @artlux/plugin-calibration — its main
+    // entry registers the solve/camera IPC (channels 'calib:*') via activateMainPlugins above.
 
     // ---- NVIDIA NVAPI scanout warp/blend (Quadro/RTX-pro; GLSL fallback otherwise) ----
     ipcMain.handle(IPC.NVWARP_AVAILABLE, () => nvwarp.isAvailable());

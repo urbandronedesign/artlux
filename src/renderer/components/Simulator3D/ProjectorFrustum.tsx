@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Line } from '@react-three/drei';
 import * as THREE from 'three';
 import type { ProjectorCalibration } from '../../../../shared/protocol';
-import { frustumCorners } from '../../calib/cvCamera';
+import { frustumCorners } from '@artlux/plugin-calibration/renderer';
 
 // Draws the recovered virtual projector's frustum in the 3D scene: optical center + the four
 // image-corner rays + the far rectangle. A correctly-solved pose puts the apex at the real projector's

@@ -16,6 +16,8 @@ const sdkAliases = [
   // NDI spans both processes → explicit main/renderer subpath entries (like @artlux/sdk).
   { find: '@artlux/plugin-ndi/main', replacement: resolve(__dirname, 'plugins/ndi/src/main.ts') },
   { find: '@artlux/plugin-ndi/renderer', replacement: resolve(__dirname, 'plugins/ndi/src/renderer.ts') },
+  { find: '@artlux/plugin-calibration/main', replacement: resolve(__dirname, 'plugins/calibration/src/main.ts') },
+  { find: '@artlux/plugin-calibration/renderer', replacement: resolve(__dirname, 'plugins/calibration/src/renderer.ts') },
 ];
 
 export default defineConfig({

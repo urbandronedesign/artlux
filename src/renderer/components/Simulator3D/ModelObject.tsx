@@ -3,7 +3,7 @@ import { useGLTF, TransformControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { SceneModel, modelScaleXYZ } from '../../../../shared/protocol';
 import { useLayerTexture } from './useLayerTexture';
-import { registerVenueMesh, unregisterVenueMesh } from '../../calib/venueRaycast';
+import { registerVenueMesh, unregisterVenueMesh } from '@artlux/plugin-calibration/renderer';
 
 const DEG = Math.PI / 180;
 

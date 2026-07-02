@@ -51,38 +51,7 @@ export const IPC = {
   HAP_DECODE: 'hap:decode',
   /** Renderer → main: release a HAP source (by file path). */
   HAP_CLOSE: 'hap:close',
-  /** Renderer → main (invoke): is the native OpenCV calibration addon present? */
-  CALIB_AVAILABLE: 'calib:available',
-  /** Renderer → main (invoke): detect a checkerboard in a camera frame → sub-pixel corners. */
-  CALIB_DETECT_BOARD: 'calib:detect-board',
-  /** Renderer → main (invoke): detect ArUco fiducials in a camera frame → ids + corners (one-click recal). */
-  CALIB_DETECT_ARUCO: 'calib:detect-aruco',
-  /** Renderer → main (invoke): map detected board corners to projector pixels via a captured Gray-code sequence. */
-  CALIB_MAP_CORNERS: 'calib:map-corners',
-  /** Renderer → main (invoke): calibrateCamera over all board poses → projector intrinsics + distortion. */
-  CALIB_CALIBRATE_PROJECTOR: 'calib:calibrate-projector',
-  /** Renderer → main (invoke): solvePnP (intrinsics fixed) → projector pose in venue frame. */
-  CALIB_SOLVE_PNP: 'calib:solve-pnp',
-  /** Renderer → main (invoke): open a calibration camera via OpenCV's DirectShow backend (by index). */
-  CALIB_CAMERA_OPEN: 'calib:camera-open',
-  /** Renderer → main (invoke): grab one grayscale frame from the open OpenCV camera. */
-  CALIB_CAMERA_GRAB: 'calib:camera-grab',
-  /** Renderer → main (invoke): grab one RGBA frame from the open OpenCV camera (colour preview). */
-  CALIB_CAMERA_GRAB_COLOR: 'calib:camera-grab-color',
-  /** Renderer → main: release the open OpenCV camera. */
-  CALIB_CAMERA_CLOSE: 'calib:camera-close',
-  /** Renderer → main (invoke): set a camera capture property (exposure/gain/gamma/wb/focus/…) on the open camera. */
-  CALIB_CAMERA_SET_PROP: 'calib:camera-set-prop',
-  /** Renderer → main (invoke): read a camera capture property's current value (to seed the UI). */
-  CALIB_CAMERA_GET_PROP: 'calib:camera-get-prop',
-  /** Renderer → main (invoke): dense camera→projector decode (markerless correspondences). */
-  CALIB_DECODE_DENSE: 'calib:decode-dense',
-  /** Renderer → main (invoke): RANSAC solvePnP (robust pose). */
-  CALIB_SOLVE_PNP_RANSAC: 'calib:solve-pnp-ransac',
-  /** Renderer → main (invoke): guided projector resection (intrinsic guess + degeneracy flags). */
-  CALIB_CALIBRATE_GUIDED: 'calib:calibrate-guided',
-  /** Renderer → main (invoke): board-free camera intrinsics from the scan (focal-from-F / Bougnoux). */
-  CALIB_SELF_CALIBRATE: 'calib:self-calibrate',
+  // CALIB_* channels moved to @artlux/plugin-calibration (carried over the generic 'plugin:calib:*' bridge).
   /** Renderer → main (invoke): is the NVAPI scanout warp/blend addon available (Quadro/RTX-pro)? */
   NVWARP_AVAILABLE: 'nvwarp:available',
   /** Renderer → main (invoke): push a scanout warp mesh (XYUVRQ) to an Electron display. */
@@ -652,34 +621,7 @@ export interface ArtluxApi {
   openHap(path: string): Promise<HapInfo | null>;
   decodeHapFrame(path: string, index: number): Promise<HapFrame | null>;
   closeHap(path: string): void;
-  // Projector calibration (native OpenCV addon: structured light + solvePnP)
-  calibAvailable(): Promise<boolean>;
-  calibDetectBoard(image: ArrayBuffer, w: number, h: number, cols: number, rows: number): Promise<BoardDetectResult | null>;
-  /** Detect ArUco fiducials in a camera frame → ids + sub-pixel corners (one-click recalibration). */
-  calibDetectAruco(image: ArrayBuffer, w: number, h: number, dict: number): Promise<ArucoDetection | null>;
-  calibMapCorners(captures: ArrayBuffer, captureCount: number, camW: number, camH: number, projW: number, projH: number, corners: number[], white: ArrayBuffer, black: ArrayBuffer): Promise<CornerProjMap | null>;
-  calibCalibrateProjector(objectPoints: number[], imagePoints: number[], pointCounts: number[], projW: number, projH: number): Promise<ProjectorIntrinsicsResult | null>;
-  calibSolvePnp(objectPts: number[], imagePts: number[], k: number[], dist: number[]): Promise<PnpResult | null>;
-  /** Open a calibration camera via OpenCV's DirectShow backend (by index) → ok? (for cameras getUserMedia can't drive). */
-  calibCameraOpen(index: number, width: number, height: number, fps: number, fourcc: string): Promise<boolean>;
-  /** Grab one grayscale frame from the open OpenCV camera (null until a frame is ready / no camera open). */
-  calibCameraGrab(): Promise<CameraFrame | null>;
-  /** Grab one RGBA frame (data = w*h*4 bytes) from the open OpenCV camera for the colour preview. */
-  calibCameraGrabColor(): Promise<CameraFrame | null>;
-  /** Release the open OpenCV camera. */
-  calibCameraClose(): void;
-  /** Set a camera capture property (exposure/gain/gamma/wb/focus/saturation/hue/sharpness/zoom) → applied? */
-  calibCameraSetProp(prop: string, value: number): Promise<boolean>;
-  /** Read a camera capture property's current value (null if no camera / unknown prop / unsupported). */
-  calibCameraGetProp(prop: string): Promise<number | null>;
-  /** Dense camera→projector decode for the markerless pipeline (stride subsamples the camera grid). */
-  calibDecodeDense(captures: ArrayBuffer, captureCount: number, camW: number, camH: number, projW: number, projH: number, white: ArrayBuffer, black: ArrayBuffer, stride: number): Promise<DenseMap | null>;
-  /** RANSAC solvePnP (robust pose); reprojErr is the inlier threshold in projector px. */
-  calibSolvePnpRansac(objectPts: number[], imagePts: number[], k: number[], dist: number[], reprojErr: number): Promise<PnpResult | null>;
-  /** Guided projector resection (intrinsic guess + degeneracy flags). initK [] → throw-ratio default. */
-  calibCalibrateGuided(objectPoints: number[], imagePoints: number[], pointCounts: number[], projW: number, projH: number, initK: number[], fixPrincipalPoint: boolean, fixAspect: boolean): Promise<ProjectorIntrinsicsResult | null>;
-  /** Board-free camera intrinsics from the dense camera↔projector correspondences (focal-from-F). */
-  calibSelfCalibrate(camX: number[], camY: number[], projX: number[], projY: number[], camW: number, camH: number, projW: number, projH: number): Promise<CameraSelfCal | null>;
+  // Projector calibration moved to @artlux/plugin-calibration (generic pluginInvoke/Send bridge).
   /** Is the NVAPI scanout warp/blend addon available (Quadro/RTX-pro)? Else use the GLSL fallback. */
   nvwarpAvailable(): Promise<boolean>;
   /** Push a scanout warp mesh (verts = numVerts*6 XYUVRQ; src = [x,y,w,h]) to an Electron display. */

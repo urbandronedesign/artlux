@@ -9,7 +9,7 @@ import { ProjectorGL } from './ProjectorGL';
 import { squareToQuad, applyH } from './homography';
 import { makeBezierWarp, tessellateBezier, evalBezier, BEZIER_CORNERS } from './warp';
 import type { MainToProjector, ProjectorToMain, ProjectorRender } from './bridge';
-import { fillPattern, type CalibPatternKind } from '../calib/graycode';
+import { fillPattern, type CalibPatternKind } from '@artlux/plugin-calibration/renderer';
 
 type CalibMode = 'idle' | 'pattern' | 'crosshair' | 'render';
 

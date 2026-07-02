@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ChevronRight, SlidersHorizontal, RotateCcw } from 'lucide-react';
-import * as cam from '../../services/calibCapture';
+import { calibCapture as cam } from '@artlux/plugin-calibration/renderer';
 
 // Full camera-parameter panel for the calibration workspace. Exposes every capture property the
 // addon / browser can drive (exposure, gain, gamma, brightness, contrast, white balance, focus,

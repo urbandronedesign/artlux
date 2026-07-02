@@ -11,8 +11,8 @@
 // DISABLED before measuring (the caller freezes them) — otherwise the camera adapts per level and the
 // curve is meaningless.
 
-import type { MainToProjector } from '../projector/bridge';
-import * as cam from '../services/calibCapture';
+import type { MainToProjector } from '@/projector/bridge'; // host projector bridge (type-only, transitional)
+import * as cam from './calibCapture';
 import * as slCapture from './slCapture';
 
 export interface GammaSample { level: number; rgb: [number, number, number] }

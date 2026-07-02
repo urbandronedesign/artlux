@@ -3,9 +3,9 @@
 // controller (the board controller keeps its own copy). The host (App) routes the projector's
 // patternShown acks to onPatternShown so showPattern() resolves in sync with the displayed plane.
 
-import type { MainToProjector } from '../projector/bridge';
+import type { MainToProjector } from '@/projector/bridge'; // host projector bridge (type-only, transitional)
 import { graycodeLayout } from './graycode';
-import * as cam from '../services/calibCapture';
+import * as cam from './calibCapture';
 
 type Sender = (m: MainToProjector) => void;
 type Ack = { index: number; projW: number; projH: number };

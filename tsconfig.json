@@ -43,6 +43,12 @@
       ],
       "@artlux/plugin-ndi/renderer": [
         "./plugins/ndi/src/renderer.ts"
+      ],
+      "@artlux/plugin-calibration/main": [
+        "./plugins/calibration/src/main.ts"
+      ],
+      "@artlux/plugin-calibration/renderer": [
+        "./plugins/calibration/src/renderer.ts"
       ]
     },
     "allowImportingTsExtensions": true,

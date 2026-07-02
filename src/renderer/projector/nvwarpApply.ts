@@ -13,7 +13,7 @@
 
 import type { ProjectorOutput, DisplayInfo } from '../../../shared/protocol';
 import { defaultCornerPin } from '../../../shared/protocol';
-import type { BlendMap } from '../calib/blendCompute';
+import type { BlendMap } from '@artlux/plugin-calibration/renderer';
 import { evalBezier } from './warp';
 import { squareToQuad, applyH, type Mat3 } from './homography';
 

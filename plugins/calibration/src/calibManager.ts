@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type {
   BoardDetectResult, ArucoDetection, CornerProjMap, ProjectorIntrinsicsResult, PnpResult, CameraFrame, DenseMap, CameraSelfCal,
-} from '../../shared/protocol';
+} from '../../../shared/protocol';
 
 // Loads the native OpenCV calibration addon (native/calib/calib.node) in the main process — the
 // sandboxed renderer can't require a .node, so it asks for CV solves over IPC. The addon links

@@ -9,6 +9,8 @@
 //
 // Both expose the same `grab()` → grayscale frame, which feeds detectBoard / mapCorners unchanged.
 
+import * as calibNative from './calibNative';
+
 export type CaptureSource = 'browser' | 'native';
 
 export interface CameraDevice { deviceId: string; label: string }
@@ -69,8 +71,7 @@ export async function start(opts: StartOpts): Promise<void> {
 
 // --- native (OpenCV / DirectShow) -------------------------------------------
 async function startNative(opts: StartOpts): Promise<void> {
-  const api = window.artlux;
-  if (!api?.calibCameraOpen) throw new Error('calibration addon unavailable');
+  const api = calibNative;
   const w = opts.width ?? 1280, h = opts.height ?? 720, fps = opts.fps ?? 60, fourcc = opts.fourcc ?? 'MJPG';
   const ok = await api.calibCameraOpen(opts.index ?? 0, w, h, fps, fourcc);
   if (!ok) throw new Error(`could not open OpenCV camera at index ${opts.index ?? 0}`);
@@ -121,7 +122,7 @@ export function stop(): void {
   stream = null;
   if (video) { video.srcObject = null; video = null; }
   // native
-  if (nativeOpen) { window.artlux?.calibCameraClose?.(); nativeOpen = false; }
+  if (nativeOpen) { calibNative.calibCameraClose(); nativeOpen = false; }
   nativeDims = { w: 0, h: 0 };
 }
 
@@ -135,7 +136,7 @@ export function isNative(): boolean { return source === 'native'; }
 // (and silently no-ops) for unsupported props so the UI can grey out the slider.
 export async function setProp(prop: string, value: number): Promise<boolean> {
   if (source === 'native') {
-    return (await window.artlux?.calibCameraSetProp?.(prop, value)) ?? false;
+    return (await calibNative.calibCameraSetProp(prop, value)) ?? false;
   }
   const track = stream?.getVideoTracks()[0];
   if (!track || !track.applyConstraints) return false;
@@ -259,7 +260,7 @@ export function dims(): { w: number; h: number } {
 export async function grab(): Promise<GrayFrame | null> {
   if (source === 'native') {
     if (!nativeOpen) return null;
-    const f = await window.artlux?.calibCameraGrab?.();
+    const f = await calibNative.calibCameraGrab();
     if (!f) return null;
     nativeDims = { w: f.w, h: f.h };
     return { w: f.w, h: f.h, data: new Uint8Array(f.data) };
@@ -273,7 +274,7 @@ export async function grab(): Promise<GrayFrame | null> {
 export async function grabColor(): Promise<ColorFrame | null> {
   if (source === 'native') {
     if (!nativeOpen) return null;
-    const f = await window.artlux?.calibCameraGrabColor?.();
+    const f = await calibNative.calibCameraGrabColor();
     if (!f) return null;
     nativeDims = { w: f.w, h: f.h };
     return { w: f.w, h: f.h, data: new Uint8ClampedArray(f.data) };
@@ -292,7 +293,7 @@ export async function grabColor(): Promise<ColorFrame | null> {
 // Browser: pulled from the live track settings. Returns null when unknown/unsupported.
 export async function getProp(prop: string): Promise<number | null> {
   if (source === 'native') {
-    return (await window.artlux?.calibCameraGetProp?.(prop)) ?? null;
+    return (await calibNative.calibCameraGetProp(prop)) ?? null;
   }
   const track = stream?.getVideoTracks()[0];
   const s = track?.getSettings?.() as Record<string, unknown> | undefined;
