@@ -1,6 +1,10 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  content: ['./src/renderer/index.html', './src/renderer/**/*.{ts,tsx}'],
+  // First-party plugins render UI too (calibration wizards, NDI editor, LiDAR viz), so their sources
+  // must be scanned — otherwise Tailwind drops any class used ONLY in a plugin file (e.g. the wizard's
+  // `w-[340px]`), and that element renders unstyled/sizeless. Regression source: the calibration
+  // wizards moved from src/renderer into plugins/ during the plugin migration.
+  content: ['./src/renderer/index.html', './src/renderer/**/*.{ts,tsx}', './plugins/**/*.{ts,tsx}'],
   theme: {
     extend: {
       colors: {
