@@ -55,21 +55,28 @@ new plugin + `videoCodecRegistry.register`.
      probe order matters** — the registry returns the first `canDecode` true; make `probe` authoritative
      (open native, confirm fourcc) and have `canDecode` gate on extension only, letting `probe` decline.
   3. Register; `.mov` now tries HAP then DXV then falls back to `<video>` (H.264).
-- ~~**Native MP4**~~ 🚧 **first cut shipped** (`plugins/mp4`, renderer-only) — GPU-accelerated H.264/H.265
+- ~~**Native MP4**~~ ✅ **shipped + working** (`plugins/mp4`, renderer-only) — GPU-accelerated H.264/H.265
   via `WebCodecs VideoDecoder` (`hardwareAcceleration:'prefer-hardware'`) + `mp4box` demux, registered as
-  a `VideoCodec`. **Optimized:** demux once → keep only the tiny *encoded* samples; decode **on demand**
-  around the playhead from the nearest keyframe; bounded GPU `VideoFrame` buffer (LRU-closed); returns the
-  `VideoFrame` **directly** so the compositor uploads it zero-copy as a texture (no 2D-canvas round-trip).
-  **Opt-in** via the `mp4WebCodecs` setting (off → `.mp4` keeps the default `<video>`). **Rig-tested: plays
-  but CHOPPY** — needs a decode rework. Diagnosis: the pull-based design decodes *inside* getDrawable gated
-  by the queue budget, so the free-running clock outruns the buffer (`fedTo` stalls while the playhead races
-  ahead → stale/jumpy frames); re-seeks on loop-wrap clear the buffer. **Fix:** decouple decode from
-  presentation — a steady decode PUMP fills ahead of the playhead; getDrawable just picks the nearest
-  decoded frame (no seek/feed in the hot path); for short surface loops decode the whole clip once + present
-  by time; don't clear the buffer on loop-wrap. Also reconsider scope: `<video>` already plays surfaces
-  smoothly (HW-decoded) — WebCodecs' real win is frame-exact TIMELINE scrub + no session cap, so surfaces
-  could keep `<video>` and WebCodecs serve only the timeline. Other limits: one decoder/file, thumbnails
-  reuse the playback decoder, HEVC unverified. (Full detail in the plugin-architecture memory.)
+  a `VideoCodec`. **Design:** demux once → keep only the tiny *encoded* samples (decode order); decode **on
+  demand** around the playhead from the nearest keyframe; return the `VideoFrame` **directly** so the
+  compositor uploads it zero-copy as a texture (no 2D-canvas round-trip). **Opt-in** via the `mp4WebCodecs`
+  setting (off → `.mp4` keeps the default `<video>`). **Rig-tested on 4K/RTX A6000: plays smooth, loops
+  clean.** Key correctness/perf lessons baked in:
+  - **Feed in DECODE order, never presentation order** — sorting samples by `cts` feeds B-frames before
+    their references → corruption. Drive seek/look-ahead off `cts` but keep the feed in decode order.
+  - **Keep few *decoded* frames live** — a HW decoder's output-surface pool is small; holding ~24 live 4K
+    `VideoFrame`s exhausts it and NVDEC *blocks* (the 4K-judder cause). Pace to ~`TARGET_AHEAD` frames
+    ahead, retire past frames immediately, `optimizeForLatency:false` for throughput/reorder.
+  - **Drop the buffer on a backward (loop-wrap/scrub) seek** — stale end-of-clip frames otherwise read as
+    "ahead" and poison the feed-pacing counter → the loop freezes on round 2. Keep only the newest frame to
+    cover the seam.
+  - Thumbnails use **dedicated** decoders (isolated from the playing surface's decoder — reusing it made a
+    filmstrip scrub reseek playback and stutter).
+  - **Later optimization pass (deferred, user OK'd):** smooth the loop seam (pre-decode the first GOP before
+    wrap so there's no refill hitch); consider decoding short surface loops once; per-consumer decoders (one
+    decoder/file today, so a surface + a timeline layer on the same file at different times contend); HEVC
+    on-rig verification. Reconsider scope: `<video>` already plays surfaces well — WebCodecs' real win is
+    frame-exact TIMELINE scrub + no HW-session cap. (Full detail in the plugin-architecture memory.)
 
 **Contract gaps to close when adding the 2nd codec:** `canDecode` currently returns the first match;
 with HAP+DXV both `.mov`, make the registry try each codec's async `probe` in order and cache the winner

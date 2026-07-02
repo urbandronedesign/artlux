@@ -46,6 +46,7 @@ export const mp4Codec: VideoCodecContribution = {
 
   setPlaying: (p) => { if (p === playing) return; playing = p; if (p) clockOriginMs = performance.now() - clock * 1000; },
   preWarm: (path) => { void dec.ensureOpen(path); },
-  // Thumbnails reuse the per-file decoder (a scrub may briefly seek it); good enough for a first cut.
-  thumbnail: async (path, timeSec) => { await dec.ensureOpen(path); return dec.frame(path, timeSec); },
+  // Thumbnails use a DEDICATED decoder (dec.thumbnail) so a filmstrip scrub never reseeks the playing
+  // surface's decoder out from under it — that contention was the old cause of stutter.
+  thumbnail: (path, timeSec) => dec.thumbnail(path, timeSec),
 };
