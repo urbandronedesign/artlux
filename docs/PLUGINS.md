@@ -182,13 +182,15 @@ the projector got none, because `App`'s snapshot bridge and the OSC-tap `trackin
   main bundle never pulls renderer code and vice-versa. Host imports `@artlux/plugin-ndi/main` /
   `@artlux/plugin-ndi/renderer`.
 
-**Verify single identity** after wiring: pick a string unique to a singleton module and grep the built
-bundles — it must appear once per window bundle.
+**Verify single identity** after wiring, with the automated harness:
 ```bash
-npm run build
-grep -o "tracking] subscriber" out/renderer/assets/*.js | wc -l   # expect 1
-grep -o "NDI_RUNTIME_DIR_V6"   out/main/index.js       | wc -l     # expect 1 (native manager, main only)
+npm run build && npm run verify:plugins
 ```
+`scripts/verify-plugins.cjs` greps the built bundles for a per-plugin marker (a string literal unique to
+one singleton module) and asserts it lives in **exactly one renderer chunk** (a marker in 2+ chunks =
+a duplicated module) / occurs **once** in the single main bundle. It exits non-zero on any violation, so
+it doubles as a CI/pre-commit gate. When you add a plugin, add a marker to the `CHECKS` array. To check
+by hand, the same idea: `grep -o "tracking] subscriber" out/renderer/assets/*.js | wc -l` → expect 1.
 
 ## Anatomy of a cross-process plugin (`plugins/ndi`)
 
@@ -248,8 +250,8 @@ ingestion taps the core `window.artlux.onOscMessage` since OSC stays a core tran
 6. **Run `npm install`** — new workspace packages must land in `package-lock.json` or CI's `npm ci`
    (and electron-builder's workspace detection) fail (see [DEVELOPMENT.md](DEVELOPMENT.md) → release
    gotchas).
-7. Verify: `npm run build` + `npx tsc -p tsconfig.json --noEmit` + the single-identity grep + run the
-   app (`npm run dev`) and exercise the feature.
+7. Verify: `npm run build` + `npx tsc -p tsconfig.json --noEmit` + `npm run verify:plugins` (add your
+   plugin's marker to its `CHECKS`) + run the app (`npm run dev`) and exercise the feature.
 
 ## Gotchas
 
@@ -275,4 +277,5 @@ ingestion taps the core `window.artlux.onOscMessage` since OSC stays a core tran
 - **Host services are minimal by design** — `ctx.host` covers projectorOutputs/scene3D/projectors; the
   *workspace* handles the wizards need (venue-mesh pick mode, camera portal, split layout) are not in
   the SDK yet and move with the wizards (ROADMAP → Stage 2b).
-- No public/versioned API, no third-party / disk-loaded plugins, no plugin test harness.
+- No public/versioned API, no third-party / disk-loaded plugins. The only automated plugin gate so far
+  is `npm run verify:plugins` (single-identity); no broader contract/behavior harness yet.

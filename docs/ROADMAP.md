@@ -189,4 +189,6 @@ pattern/crosshair/`ProjectorScene` rendering lives in `ProjectorApp`.
 - **SurfaceContent.type widening** — generalize to an open string space + a settings namespace
   (`AppSettings.plugins.*`) once a plugin needs a genuinely new content type (all so far reuse core
   enum values: `TRACKING`, `NDI`).
-- **Plugin test harness** — no automated tests yet; a per-plugin contract/validation harness.
+- **Plugin test harness** — single-identity is now automated (`npm run verify:plugins` →
+  `scripts/verify-plugins.cjs`, asserts each plugin's singleton marker lives in one bundle). Still
+  wanted: a broader per-plugin contract/behavior harness (activation, registry population, IPC round-trips).

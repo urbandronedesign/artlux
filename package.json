@@ -14,6 +14,7 @@
     "dev:broadcast": "electron-vite build && electron . --broadcast",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
+    "verify:plugins": "node scripts/verify-plugins.cjs",
     "build:native": "cargo build --release --manifest-path native/output-engine/Cargo.toml && cargo build --release --manifest-path native/spout-receiver/Cargo.toml && cargo build --release --manifest-path native/hap/Cargo.toml && node scripts/copy-native.cjs",
     "build:ndi": "cargo build --release --features ndi --manifest-path native/ndi/Cargo.toml && node scripts/copy-ndi.cjs",
     "build:calib": "powershell -ExecutionPolicy Bypass -File scripts/build-calib.ps1",
