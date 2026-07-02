@@ -269,6 +269,11 @@ ingestion taps the core `window.artlux.onOscMessage` since OSC stays a core tran
 - **Structural import edits don't HMR cleanly into an already-open projector window** — close & reopen
   projector outputs after such changes when testing.
 - **Main/preload changes need a full app restart** (only the renderer hot-reloads).
+- **Tailwind must scan `plugins/`** — `tailwind.config.js` `content` includes `./plugins/**/*.{ts,tsx}`.
+  When you move UI into a plugin, any Tailwind class used ONLY in a plugin file is otherwise never
+  generated, so that element renders unstyled/sizeless (a calibration wizard's `w-[340px]` was dropped
+  → the panel lost its width and sprawled over the camera preview — looked like a z-order bug, wasn't).
+  After moving plugin UI, confirm a plugin-unique arbitrary class appears in `out/renderer/assets/*.css`.
 
 ## Not yet (see ROADMAP.md)
 

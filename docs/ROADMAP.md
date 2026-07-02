@@ -28,12 +28,55 @@ with relative imports duplicates singletons (writers hit one instance, readers t
 
 | Plugin | State | Notes |
 |---|---|---|
-| **lidar-tracking** | ✅ shipped | Content source + OSC ingestion + clip-kind + projector data-channel + 3D-viz (scene-viz contribution) inverted. Projector blob *self-render* (GL draw) kept as transitional host import (see Deferred). |
+| **lidar-tracking** | ✅ shipped | Content source + OSC ingestion + clip-kind + projector data-channel + 3D-viz (scene-viz) + projector blob GPU self-render (`ProjectorChannel.renderSource` → `trackingProjector.ts`) all inverted. Fully self-contained. |
 | **ndi** | ✅ shipped | Receive fully inverted (content source + discovery via provider editor); send routed through the generic bridge. Forced the `MainTransport`→general `MainPluginContext.ipc` fix + main-side activation. |
-| **calibration** | ✅ fully inverted (Stage 1 → 3) | Engine + logic (1); host-services + back-channel (2-foundation); wizard/camera UIs relocated (2b); write path via `ctx.host`/`calibHost.ts` (2c); pose-pairing orchestration → `calibWorkspace.ts` (2d); and the **projector-side rendering** (structured-light pattern / pose crosshair / render-from-projector) → a `ProjectorPanelContribution` (`CalibProjector.tsx` + moved `ProjectorScene.tsx`), so `ProjectorApp` no longer imports calibration (3). Core keeps only persisted types (`ProjectorCalibration`/`ProjectorOutput`, `scene3D.markerMap/camMask`) + the Stage rendering App owns (embedded-3D + camera portal). **All calibration behavior is rig-verified** — build/tsc/single-identity/boot pass but the board/markerless pass + projector pattern display need camera+projector. |
+| **calibration** | ✅ fully inverted (Stage 1 → 3) | Engine + logic (1); host-services + back-channel (2-foundation); wizard/camera UIs relocated (2b); write path via `calibHost.ts` (2c); pose orchestration → `calibWorkspace.ts` (2d); projector-side rendering → a `ProjectorPanelContribution` (`CalibProjector.tsx` + moved `ProjectorScene.tsx`) (3). `App`/`ProjectorApp`/`ProjectorGL` import zero calibration code. **Wizard UI rig-confirmed 2026-07-02** (needed the Tailwind `content` glob to scan `plugins/` — see PLUGINS.md gotchas). The board/markerless calibration *pass* itself still needs on-rig sign-off. |
+| **spout** | 🔜 next | Windows Spout video receive (`SourceType.SPOUT`). Direct parallel to NDI but simpler (receive-only, no send). Plan below. |
 
 Also done: the **timeline clip-kind** inversion — `timeline.ts` no longer hardcodes `kind==='tracking'`;
 the lidar plugin registers the `tracking` kind into `clipKindRegistry` (first end-to-end consumer).
+
+---
+
+## Next: `@artlux/plugin-spout` (Windows Spout video receive)
+
+A direct parallel to the shipped **ndi** plugin, but **simpler**: Spout is Windows-only and **receive-only**
+(no send path), so no generic-bridge send routing. Cross-process (`/main` + `/renderer` barrels). The
+NDI plugin is the exact template — mirror `ndiManager`/`ndiReceiver`/`ndiContentSource`/`NdiEditor`.
+
+**Current wiring to invert (all mirrors NDI's pre-extraction state):**
+- Main: `src/main/transport/spoutManager.ts` (native `spout-receiver.node` — setCap/listSenders/start/stop);
+  `src/main/ipc.ts` `SPOUT_LIST`/`SPOUT_CONFIGURE`/`SPOUT_FRAME` handlers; `src/main/index.ts` broadcast
+  `spout.setCap(1920,1080)`.
+- Renderer: `src/renderer/services/spoutReceiver.ts` (uses `window.artlux.configureSpout`/`onSpoutFrame`/
+  `listSpoutSenders`); `src/renderer/services/contentSource.ts` still has the **built-in** SPOUT dispatch
+  (`spoutConsumers`/`reconcileSpout`/`getSpoutCanvas`) — NDI's equivalent was removed when it became a
+  provider; `src/renderer/components/ContentEditor.tsx` SPOUT picker button + sender dropdown.
+- Core stays: `SourceType.SPOUT`, `SurfaceContent.spoutName`. `SpoutConfig`/`SpoutFrame` + the `SPOUT_*`
+  IPC consts + `ArtluxApi.{listSpoutSenders,configureSpout,onSpoutFrame}` move to the plugin.
+
+**Steps (mirror ndi):**
+1. Create `plugins/spout/` (`/main`+`/renderer` barrels, `sideEffects:false`); alias in
+   `electron.vite.config.ts` + `tsconfig.json`; `npm install` (lockfile).
+2. Main: move `spoutManager.ts` in; `plugin.main.ts` registers `spout:list` (handle), `spout:configure`
+   (on → start/stop, push frames via `ctx.ipc.send('spout:frame', …)`); broadcast setCap via a
+   transitional `@artlux/plugin-spout/main` import in `main/index.ts` (like NDI's recv-cap). Move
+   `SpoutConfig`/`SpoutFrame` to plugin `types.ts`.
+3. Renderer: move `spoutReceiver.ts` in, rewire to `pluginInvoke/Send/On`; add `spoutContentSource.ts`
+   (a `ContentSourceProvider` — move `reconcileSpout`/refcount/`getSpoutCanvas` out of `contentSource.ts`
+   into acquire/release/getDrawable + `getAspect`); `SpoutEditor.tsx` (the provider's `editor` +
+   `pickerButton`).
+4. Strip core: remove SPOUT from `contentSource.ts`, `ContentEditor.tsx`, `ipc.ts`, `preload/index.ts`,
+   `shared/protocol.ts` (`SPOUT_*` consts + spout `ArtluxApi` methods + `SpoutConfig`/`SpoutFrame`). Keep
+   `SourceType.SPOUT`/`SurfaceContent.spoutName`.
+5. Add to `FIRST_PARTY` (main + renderer). `spout-receiver.node` stays **root** `extraResources`
+   (electron-builder reads root only). Add a `spout:configure` marker to `scripts/verify-plugins.cjs`.
+6. Verify: build + tsc + `npm run verify:plugins` + clean boot (`[spout] native receiver loaded` via the
+   plugin). Runtime: needs a Spout **sender** on the Windows rig (OBS Spout-out / Resolume / TouchDesigner)
+   — the user can confirm receive end-to-end (unlike NDI which needed an external NDI source).
+
+**Risk:** low — smallest real extraction (receive-only, one native, NDI-proven pattern). No new SDK
+surface. `spoutManager` is Windows-only + graceful-degrades, so non-Windows/CI still builds+boots.
 
 ---
 
