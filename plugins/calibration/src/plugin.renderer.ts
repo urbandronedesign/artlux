@@ -13,6 +13,7 @@
 import type { RendererPlugin, RendererPluginContext } from '@artlux/sdk/renderer';
 import * as calibController from './calibController';
 import * as slCapture from './slCapture';
+import { setHost } from './calibHost';
 
 // The projector→main message shape we care about (a subset of the host's ProjectorToMain union —
 // typed structurally so the plugin doesn't import a host module).
@@ -24,6 +25,10 @@ export const plugin: RendererPlugin = {
   manifest: { id: 'calibration', name: 'Projector Calibration', version: '0.0.0' },
 
   activate(ctx: RendererPluginContext): void {
+    // Give the wizard components host-services access (they mutate outputs/scene + send to projectors
+    // through this instead of App callback props). Harmless in projector windows (inert host).
+    setHost(ctx.host);
+
     // Only the main window owns the bridge ports, so this fires there; in projector windows the host
     // service is inert and the callback is never invoked.
     msgUnsub = ctx.host.projectors.onMessage((_surfaceId, msg) => {

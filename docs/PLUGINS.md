@@ -265,12 +265,13 @@ ingestion taps the core `window.artlux.onOscMessage` since OSC stays a core tran
 - `settingsSection` + `panel` registries exist but have **no consumer yet** — the natural candidates
   are shared core infra (OSC settings) or deeply timeline-coupled (TakesBin), so they wait for a
   host-services surface rather than being force-fit.
-- **Calibration is Stage 1 + 2-foundation + 2b-relocation.** Engine + logic + the host-services surface
-  + the projector→main back-channel tap have shipped, and the wizard/camera UIs are now **co-located in
-  `plugins/calibration`** (App mounts them from the barrel with props — a documented seam). Remaining:
-  rewire those props → `ctx.host` + workspace handles + register as a panel contribution (Stage 2c,
-  rig-verified); and the projector-side pattern/3D **render** still lives in `ProjectorApp` (needs the
-  `ProjectorChannel` GPU-render hook wired for calibration).
+- **Calibration is Stage 1 → 2c.** Engine + logic + host-services surface + back-channel tap; the
+  wizard/camera UIs are co-located in `plugins/calibration`; and the wizards' **write path**
+  (sendToProjector / storeCalibration / setUseCalibration / camMask / markerMap) now goes through
+  `ctx.host` via `calibHost.ts` (App stopped passing those props). Remaining (**Stage 2d**, rig-verified):
+  the App-owned *workspace* props (embedded-3D pick, camera portal, split, pose pairing) + registering
+  the wizard as a panel contribution so App no longer mounts it; and the projector-side pattern/3D
+  **render** still lives in `ProjectorApp` (needs the `ProjectorChannel` GPU-render hook wired for calib).
 - **Host services are minimal by design** — `ctx.host` covers projectorOutputs/scene3D/projectors; the
   *workspace* handles the wizards need (venue-mesh pick mode, camera portal, split layout) are not in
   the SDK yet and move with the wizards (ROADMAP → Stage 2b).

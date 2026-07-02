@@ -1771,16 +1771,11 @@ const App: React.FC = () => {
             scene3D={scene3D}
             live={calibLive}
             hasModel={hasModel}
-            sendToProjector={sendToProjector}
-            onStoreCalibration={handleStoreCalibration}
-            onSetUseCalibration={(sid, on) => upsertOutput(sid, { useCalibration: on })}
             onSetCalibPickMode={setCalibPickMode}
             onSetSplit={setSplitView}
             onRegisterMarkerlessPick={(cb) => { markerlessPickRef.current = cb; }}
             onPicksChange={setAutoAlignPicks}
             onSwitchFlow={setCalibFlow}
-            onStoreCamMask={(_sid, mask) => setScene3D(s => ({ ...s, camMask: mask ?? undefined }))}
-            onStoreMarkerMap={(map) => setScene3D(s => ({ ...s, markerMap: map ?? undefined }))}
             cameraHost={calibCameraHost}
             onRegisterMarkerlessSelect={(cb) => { markerlessSelectRef.current = cb; }}
             onSelectionChange={setAutoAlignSelectedPick}
@@ -1794,11 +1789,8 @@ const App: React.FC = () => {
             scene3D={scene3D}
             live={calibLive}
             hasModel={hasModel}
-            sendToProjector={sendToProjector}
-            onStoreCalibration={handleStoreCalibration}
             onPoseModeChange={handlePoseModeChange}
             onClearPoses={handleClearPoses}
-            onSetUseCalibration={(sid, on) => upsertOutput(sid, { useCalibration: on })}
             onSetCalibPickMode={setCalibPickMode}
             onSetSplit={setSplitView}
             onSwitchFlow={setCalibFlow}

@@ -6,6 +6,7 @@ import type { ProjectorCalibration, ProjectorOutput, Scene3D, CamMask, MarkerMap
 import { CameraViewport, type CameraViewportHandle } from './calib/CameraViewport';
 import { CameraParamsPanel } from './calib/CameraParamsPanel';
 import * as cam from './calibCapture';
+import * as calibHost from './calibHost';
 import * as slCapture from './slCapture';
 import { reproject } from './cvCamera';
 import { regionFromCalibration } from './mpcdiData';
@@ -22,16 +23,14 @@ interface Props {
   scene3D: Scene3D;
   live: boolean;
   hasModel: boolean;
-  sendToProjector: (surfaceId: string, msg: MainToProjector) => void;
-  onStoreCalibration: (surfaceId: string, patch: Partial<ProjectorCalibration>) => void;
-  onSetUseCalibration: (surfaceId: string, on: boolean) => void;
+  // Mutations/IO (sendToProjector, storeCalibration, setUseCalibration, storeCamMask, storeMarkerMap)
+  // go through ctx.host via ./calibHost — not props. Remaining props are reactive data + the App-owned
+  // 3D/camera workspace.
   onSetCalibPickMode: (on: boolean) => void;
   onSetSplit: (on: boolean) => void;
   onRegisterMarkerlessPick: (cb: ((world: [number, number, number]) => void) | null) => void;
   onPicksChange?: (worlds: [number, number, number][]) => void; // report anchor world points → 3D markers
   onSwitchFlow?: (flow: 'board' | 'auto') => void;
-  onStoreCamMask?: (surfaceId: string, mask: CamMask | null) => void; // persist camera exclusion mask on the venue
-  onStoreMarkerMap?: (map: MarkerMap | null) => void; // persist the fiducial marker map on the venue
   cameraHost: HTMLElement | null; // portal target for the big RGB camera viewport (left split pane)
   onRegisterMarkerlessSelect?: (cb: ((i: number) => void) | null) => void; // 3D sphere click → select pick
   onSelectionChange?: (i: number | null) => void; // report the edited correspondence for 3D highlight
@@ -60,9 +59,14 @@ function nominalK(w: number, h: number, hfovDeg: number): number[] {
 // (residual heatmap). Produces the same ProjectorCalibration the projector window renders from.
 export const AutoAlignWizard: React.FC<Props> = (props) => {
   const { surfaceId, surfaceName, output, scene3D, live, hasModel,
-    sendToProjector, onStoreCalibration, onSetUseCalibration,
-    onSetCalibPickMode, onSetSplit, onRegisterMarkerlessPick, onPicksChange, onSwitchFlow, onStoreCamMask, onStoreMarkerMap, cameraHost,
+    onSetCalibPickMode, onSetSplit, onRegisterMarkerlessPick, onPicksChange, onSwitchFlow, cameraHost,
     onRegisterMarkerlessSelect, onSelectionChange, onClose } = props;
+  // Write path via host-services (see ./calibHost). Same names as the former props → call sites unchanged.
+  const sendToProjector = calibHost.sendToProjector;
+  const onStoreCalibration = calibHost.storeCalibration;
+  const onSetUseCalibration = calibHost.setUseCalibration;
+  const onStoreCamMask = (_surfaceId: string, mask: CamMask | null) => calibHost.storeCamMask(mask);
+  const onStoreMarkerMap = (map: MarkerMap | null) => calibHost.storeMarkerMap(map);
 
   const [step, setStep] = useState<Step>('setup');
   const [addonOk, setAddonOk] = useState<boolean | null>(null);
