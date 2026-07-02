@@ -36,6 +36,11 @@ export function setUseCalibration(surfaceId: string, on: boolean): void {
   host?.projectorOutputs.patch(surfaceId, { useCalibration: on } as Partial<ProjectorOutput>);
 }
 
+// Live read of an output's current calibration (for the pose-pairing orchestration in calibWorkspace).
+export function getCalibration(surfaceId: string): ProjectorCalibration | undefined {
+  return (host?.projectorOutputs.get(surfaceId) as ProjectorOutput | undefined)?.calibration ?? undefined;
+}
+
 // Camera exclusion mask + fiducial marker map live on the 3D scene (venue), not the output.
 export function storeCamMask(mask: CamMask | null): void {
   host?.scene3D.patch({ camMask: mask ?? undefined } as Partial<Scene3D>);

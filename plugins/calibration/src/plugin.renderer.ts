@@ -13,6 +13,7 @@
 import type { RendererPlugin, RendererPluginContext } from '@artlux/sdk/renderer';
 import * as calibController from './calibController';
 import * as slCapture from './slCapture';
+import * as calibWorkspace from './calibWorkspace';
 import { setHost } from './calibHost';
 
 // The projector→main message shape we care about (a subset of the host's ProjectorToMain union —
@@ -38,6 +39,10 @@ export const plugin: RendererPlugin = {
         const ack = { index: a.index, projW: a.projW, projH: a.projH };
         calibController.onPatternShown(ack); // board flow
         slCapture.onPatternShown(ack);       // markerless flow (the inactive one is a no-op)
+      } else if (m.t === 'calibCrosshair') {
+        calibWorkspace.onCrosshair((m as { pixel: [number, number] }).pixel); // projector aim → pending pose pixel
+      } else if (m.t === 'calibConfirm') {
+        calibWorkspace.onConfirm(); // operator confirmed the crosshair is on target
       }
     });
   },

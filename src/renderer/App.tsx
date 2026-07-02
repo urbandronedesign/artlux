@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, defaultStateMachine, normalizeStateMachine, type AssetEntry, type AssetType } from './types';
 import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge, WINDOWED_DISPLAY } from '../../shared/protocol';
 import type { ProjectorCalibration } from '../../shared/protocol';
-import { CalibWizard, AutoAlignWizard, calibCapture as cam, measureGamma, calibNative } from '@artlux/plugin-calibration/renderer';
+import { CalibWizard, AutoAlignWizard, calibCapture as cam, measureGamma, calibWorkspace } from '@artlux/plugin-calibration/renderer';
 import type { AppInfo, UpdateEvent, Scene3D, SceneModel, ProjectorOutput, DisplayInfo, SoftEdge } from '../../shared/protocol';
 import type { ProjectorToMain, MainToProjector } from './projector/bridge';
 import { makeBezierWarp } from './projector/warp';
@@ -369,55 +369,14 @@ const App: React.FC = () => {
   const [calibCameraHost, setCalibCameraHost] = useState<HTMLDivElement | null>(null);
   const [autoAlignPicks, setAutoAlignPicks] = useState<[number, number, number][]>([]); // Auto-Align anchor world points (for the 3D markers)
   const [autoAlignSelectedPick, setAutoAlignSelectedPick] = useState<number | null>(null); // correspondence being edited (3D highlight)
-  const markerlessSelectRef = useRef<((i: number) => void) | null>(null); // 3D marker click → select pick in the wizard
   const [measuringGammaId, setMeasuringGammaId] = useState<string | null>(null); // output whose gamma is being camera-measured
   const [gammaMsg, setGammaMsg] = useState<{ id: string; text: string; ok: boolean } | null>(null);
   const sendToProjector = (surfaceId: string, msg: MainToProjector) =>
     projectorPortsRef.current.get(surfaceId)?.postMessage(msg);
-  const handleStoreCalibration = (surfaceId: string, patch: Partial<ProjectorCalibration>) => {
-    const prev = projectorOutputs.find(x => x.surfaceId === surfaceId)?.calibration ?? null;
-    const base: ProjectorCalibration = prev ?? {
-      intrinsics: [1, 0, 0, 0, 1, 0, 0, 0, 1], distortion: [0, 0, 0, 0, 0],
-      rotation: [1, 0, 0, 0, 1, 0, 0, 0, 1], translation: [0, 0, 0], imageSize: [0, 0],
-    };
-    upsertOutput(surfaceId, { calibration: { ...base, ...patch, calibratedAt: new Date().toISOString() } });
-  };
-  // Pose capture: the projector reports its crosshair pixel; on confirm we hold it as pending and pair
-  // it with the next venue-model pick from the embedded 3D view → solvePnP (intrinsics fixed).
-  const latestCrosshairRef = useRef<[number, number] | null>(null);
-  const pendingPixelRef = useRef<[number, number] | null>(null);
-  // When the Auto-Align (markerless) wizard is gathering camera-image↔model picks, it registers a
-  // handler here so a model click is paired with a camera-image pixel instead of the board-pose logic.
-  const markerlessPickRef = useRef<((world: [number, number, number]) => void) | null>(null);
-  const solvePose = async (surfaceId: string, picks: NonNullable<ProjectorCalibration['posePicks']>) => {
-    const cal = projectorOutputs.find(x => x.surfaceId === surfaceId)?.calibration;
-    if (!cal) return;
-    const obj = picks.flatMap(p => p.world);
-    const img = picks.flatMap(p => p.pixel);
-    const res = await calibNative.calibSolvePnp(obj, img, cal.intrinsics, cal.distortion ?? [0, 0, 0, 0, 0]);
-    if (!res) return;
-    handleStoreCalibration(surfaceId, { rotation: res.rotation, translation: res.translation, poseRms: res.rms });
-  };
-  const handleCalibPick = (world: [number, number, number]) => {
-    // Markerless camera-pose pick takes precedence when its wizard step is active.
-    if (markerlessPickRef.current) { markerlessPickRef.current(world); return; }
-    const sid = calibratingOutputId;
-    const pixel = pendingPixelRef.current;
-    if (!sid || !pixel) return; // operator must confirm a crosshair on the projector first
-    pendingPixelRef.current = null;
-    const cal = projectorOutputs.find(x => x.surfaceId === sid)?.calibration;
-    if (!cal) return;
-    const picks = [...(cal.posePicks ?? []), { world, pixel }];
-    handleStoreCalibration(sid, { posePicks: picks });
-    if (picks.length >= 4) void solvePose(sid, picks);
-  };
-  const handlePoseModeChange = (_surfaceId: string, on: boolean) => {
-    if (!on) { pendingPixelRef.current = null; latestCrosshairRef.current = null; }
-  };
-  const handleClearPoses = (surfaceId: string) => {
-    pendingPixelRef.current = null;
-    handleStoreCalibration(surfaceId, { posePicks: [], poseRms: undefined, rotation: [1, 0, 0, 0, 1, 0, 0, 0, 1], translation: [0, 0, 0] });
-  };
+  // Pose-pairing orchestration (crosshair↔model-pick → solvePnP), the pose refs, and the markerless
+  // pick/select registration all live in the calibration plugin now (calibWorkspace); App only tells it
+  // which output is the board-pose target and forwards embedded-3D picks to it (see the Simulator3D
+  // wiring + the setTarget effect below).
   const handleResetCorners = (surfaceId: string) => {
     const o = projectorOutputs.find(x => x.surfaceId === surfaceId);
     if (o?.warp) upsertOutput(surfaceId, { warp: makeBezierWarp(o.cornerPin) });
@@ -1037,6 +996,8 @@ const App: React.FC = () => {
   // Activate first-party plugins (main window) before any compositing/OSC: this registers the LiDAR
   // plugin's TRACKING content source + blob ingestion and the calibration back-channel tap.
   useEffect(() => { activateRendererPlugins('main', pluginHost); }, [pluginHost]);
+  // Tell the calibration plugin which output its board-pose pairing targets (the one being calibrated).
+  useEffect(() => { calibWorkspace.setTarget(calibratingOutputId); }, [calibratingOutputId]);
   // OSC: subscribe the controller to forwarded messages once; (re)bind the UDP listener and refresh
   // the control namespace whenever the OSC settings change. Control intents flow back through the
   // subscribeIntent path above; LiDAR blob data lands in the tracking store.
@@ -1225,9 +1186,8 @@ const App: React.FC = () => {
       else if (m.t === 'cornerPin') upsertOutput(surfaceId, { cornerPin: m.cornerPin });
       else if (m.t === 'warp') upsertOutput(surfaceId, { warp: m.warp });
       else if (m.t === 'editOff') setEditingOutputId(prev => prev === surfaceId ? null : prev);
-      else if (m.t === 'calibCrosshair') latestCrosshairRef.current = m.pixel;
-      else if (m.t === 'calibConfirm') pendingPixelRef.current = latestCrosshairRef.current;
-      // Fan out to plugin back-channel subscribers (e.g. calibration's patternShown → capture controllers).
+      // Fan out to plugin back-channel subscribers: calibration taps patternShown (capture controllers)
+      // + calibCrosshair/calibConfirm (pose pairing in calibWorkspace).
       projMsgSubs.current.forEach(cb => cb(surfaceId, m));
   };
   useEffect(() => {
@@ -1582,13 +1542,13 @@ const App: React.FC = () => {
                                 onSceneConfig={handleSceneConfig}
                                 onRecordHistory={recordHistory}
                                 calibPickMode={calibPickMode}
-                                onCalibPick={handleCalibPick}
+                                onCalibPick={(world) => calibWorkspace.pick(world)}
                                 projectorCalibs={projectorOutputs.filter(o => o.calibration?.poseRms != null).map(o => ({ surfaceId: o.surfaceId, calibration: o.calibration! }))}
                                 activePicks={calibFlow === 'auto'
                                     ? autoAlignPicks.map(world => ({ world }))
                                     : (projectorOutputs.find(o => o.surfaceId === calibratingOutputId)?.calibration?.posePicks ?? []).map(p => ({ world: p.world }))}
                                 selectedPick={calibFlow === 'auto' ? autoAlignSelectedPick : null}
-                                onSelectPick={calibFlow === 'auto' ? ((i: number) => markerlessSelectRef.current?.(i)) : undefined}
+                                onSelectPick={calibFlow === 'auto' ? ((i: number) => calibWorkspace.selectPick(i)) : undefined}
                                 hideInspector
                             />
                             {/* Full scene outliner (OBJECTS / FIXTURES / transform / LIGHTING + Save).
@@ -1762,7 +1722,7 @@ const App: React.FC = () => {
         const co = projectorOutputs.find(o => o.surfaceId === calibratingOutputId);
         const calibLive = !!co?.enabled && co.displayId != null && (co.displayId === WINDOWED_DISPLAY || displays.some(d => d.id === co.displayId));
         const hasModel = (scene3D.models ?? []).some(m => m.kind !== 'plane' && m.visible);
-        const closeCalib = () => { setCalibratingOutputId(null); setCalibPickMode(false); markerlessPickRef.current = null; markerlessSelectRef.current = null; setCalibFlow('board'); setAutoAlignPicks([]); setAutoAlignSelectedPick(null); };
+        const closeCalib = () => { setCalibratingOutputId(null); setCalibPickMode(false); calibWorkspace.reset(); setCalibFlow('board'); setAutoAlignPicks([]); setAutoAlignSelectedPick(null); };
         return calibFlow === 'auto' ? (
           <AutoAlignWizard
             surfaceId={calibratingOutputId}
@@ -1773,11 +1733,9 @@ const App: React.FC = () => {
             hasModel={hasModel}
             onSetCalibPickMode={setCalibPickMode}
             onSetSplit={setSplitView}
-            onRegisterMarkerlessPick={(cb) => { markerlessPickRef.current = cb; }}
             onPicksChange={setAutoAlignPicks}
             onSwitchFlow={setCalibFlow}
             cameraHost={calibCameraHost}
-            onRegisterMarkerlessSelect={(cb) => { markerlessSelectRef.current = cb; }}
             onSelectionChange={setAutoAlignSelectedPick}
             onClose={closeCalib}
           />
@@ -1789,8 +1747,6 @@ const App: React.FC = () => {
             scene3D={scene3D}
             live={calibLive}
             hasModel={hasModel}
-            onPoseModeChange={handlePoseModeChange}
-            onClearPoses={handleClearPoses}
             onSetCalibPickMode={setCalibPickMode}
             onSetSplit={setSplitView}
             onSwitchFlow={setCalibFlow}

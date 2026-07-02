@@ -6,11 +6,12 @@
 // Plugin entry (registered by the host's activateRendererPlugins).
 export { plugin } from './plugin.renderer';
 
-// Wizard UIs — the calibration workspace, co-located here (Stage 2b). Still mounted by App with props
-// (a transitional seam): App owns the embedded Simulator3D + camera portal the wizards drive. The
-// prop→ctx.host rewire + panel-registry registration is the remaining rig-verified step (Stage 2c).
+// Wizard UIs + the pose-pairing orchestration, co-located here. App mounts the wizards (it owns the
+// embedded Simulator3D + camera portal they drive) and forwards 3D picks into `calibWorkspace`, which
+// owns the board/markerless pose logic (moved out of App, Stage 2d).
 export { CalibWizard } from './CalibWizard';
 export { AutoAlignWizard } from './AutoAlignWizard';
+export * as calibWorkspace from './calibWorkspace';
 
 // Namespaces (host imports these as `import { X }` and uses X.member).
 export * as calibController from './calibController';

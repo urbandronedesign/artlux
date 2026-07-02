@@ -267,13 +267,13 @@ ingestion taps the core `window.artlux.onOscMessage` since OSC stays a core tran
 - `settingsSection` + `panel` registries exist but have **no consumer yet** — the natural candidates
   are shared core infra (OSC settings) or deeply timeline-coupled (TakesBin), so they wait for a
   host-services surface rather than being force-fit.
-- **Calibration is Stage 1 → 2c.** Engine + logic + host-services surface + back-channel tap; the
-  wizard/camera UIs are co-located in `plugins/calibration`; and the wizards' **write path**
-  (sendToProjector / storeCalibration / setUseCalibration / camMask / markerMap) now goes through
-  `ctx.host` via `calibHost.ts` (App stopped passing those props). Remaining (**Stage 2d**, rig-verified):
-  the App-owned *workspace* props (embedded-3D pick, camera portal, split, pose pairing) + registering
-  the wizard as a panel contribution so App no longer mounts it; and the projector-side pattern/3D
-  **render** still lives in `ProjectorApp` (needs the `ProjectorChannel` GPU-render hook wired for calib).
+- **Calibration is Stage 1 → 2d.** Engine + logic + host-services + back-channel tap; wizard/camera UIs
+  co-located in `plugins/calibration`; the wizards' **write path** goes through `ctx.host` via
+  `calibHost.ts`; and the **pose-pairing orchestration** (crosshair↔model-pick → solvePnP, the pose refs,
+  markerless pick registration, crosshair back-channel) moved from App into `calibWorkspace.ts`. App now
+  owns only the embedded-3D + camera-portal *rendering* + UI state, forwarding 3D picks into the plugin.
+  Remaining: the projector-side pattern/3D **render** still lives in `ProjectorApp` (needs the
+  `ProjectorChannel` GPU-render hook wired for calib — Stage 3). All calibration behavior is rig-verified.
 - **Host services are minimal by design** — `ctx.host` covers projectorOutputs/scene3D/projectors; the
   *workspace* handles the wizards need (venue-mesh pick mode, camera portal, split layout) are not in
   the SDK yet and move with the wizards (ROADMAP → Stage 2b).

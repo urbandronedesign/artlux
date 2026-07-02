@@ -5,6 +5,7 @@ import type { MainToProjector } from '@/projector/bridge'; // host bridge type �
 import type { ProjectorCalibration, ProjectorOutput, Scene3D } from '../../../shared/protocol';
 import * as cam from './calibCapture';
 import * as calibHost from './calibHost';
+import * as calibWorkspace from './calibWorkspace';
 import * as ctl from './calibController';
 import { defaultBoardConfig, type BoardConfig } from './calibController';
 import * as calibNative from './calibNative';
@@ -19,9 +20,8 @@ interface Props {
   live: boolean;        // projector output is enabled + on a connected display
   hasModel: boolean;    // a visible venue mesh is loaded (needed for the pose step)
   // Mutations/IO (sendToProjector, storeCalibration, setUseCalibration) go through ctx.host via
-  // ./calibHost — not props. The remaining props are reactive data + the App-owned 3D/camera workspace.
-  onPoseModeChange: (surfaceId: string, on: boolean) => void;
-  onClearPoses: (surfaceId: string) => void;
+  // ./calibHost, and the pose-pairing logic (poseModeChange/clearPoses) via ./calibWorkspace — not
+  // props. The remaining props are reactive data + the App-owned 3D/camera workspace.
   onSetCalibPickMode: (on: boolean) => void;
   onSetSplit: (on: boolean) => void;
   onSwitchFlow?: (flow: 'board' | 'auto') => void; // board (this) ↔ markerless auto-align
@@ -63,12 +63,14 @@ type Detect = { found: true; corners: number[]; w: number; h: number } | { found
 // pose step picks directly on the embedded Simulator3D (right split pane).
 export const CalibWizard: React.FC<Props> = (props) => {
   const { surfaceId, surfaceName, output, scene3D, live, hasModel,
-    onPoseModeChange, onClearPoses,
     onSetCalibPickMode, onSetSplit, onSwitchFlow, cameraHost, onClose } = props;
-  // Write path via host-services (see ./calibHost). Same names as the former props → call sites unchanged.
+  // Write path via host-services (see ./calibHost); pose pairing via ./calibWorkspace. Same names as
+  // the former props → call sites unchanged.
   const sendToProjector = calibHost.sendToProjector;
   const onStoreCalibration = calibHost.storeCalibration;
   const onSetUseCalibration = calibHost.setUseCalibration;
+  const onPoseModeChange = (_surfaceId: string, on: boolean) => calibWorkspace.poseModeChange(on);
+  const onClearPoses = (sid: string) => calibWorkspace.clearPoses(sid);
 
   const [step, setStep] = useState<Step>('prereq');
   const [addonOk, setAddonOk] = useState<boolean | null>(null);

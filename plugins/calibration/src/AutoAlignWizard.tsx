@@ -7,6 +7,7 @@ import { CameraViewport, type CameraViewportHandle } from './calib/CameraViewpor
 import { CameraParamsPanel } from './calib/CameraParamsPanel';
 import * as cam from './calibCapture';
 import * as calibHost from './calibHost';
+import * as calibWorkspace from './calibWorkspace';
 import * as slCapture from './slCapture';
 import { reproject } from './cvCamera';
 import { regionFromCalibration } from './mpcdiData';
@@ -23,16 +24,13 @@ interface Props {
   scene3D: Scene3D;
   live: boolean;
   hasModel: boolean;
-  // Mutations/IO (sendToProjector, storeCalibration, setUseCalibration, storeCamMask, storeMarkerMap)
-  // go through ctx.host via ./calibHost — not props. Remaining props are reactive data + the App-owned
-  // 3D/camera workspace.
+  // Mutations/IO (via ./calibHost) and pick registration (via ./calibWorkspace) go through the plugin,
+  // not props. Remaining props are reactive data + the App-owned 3D/camera workspace.
   onSetCalibPickMode: (on: boolean) => void;
   onSetSplit: (on: boolean) => void;
-  onRegisterMarkerlessPick: (cb: ((world: [number, number, number]) => void) | null) => void;
   onPicksChange?: (worlds: [number, number, number][]) => void; // report anchor world points → 3D markers
   onSwitchFlow?: (flow: 'board' | 'auto') => void;
   cameraHost: HTMLElement | null; // portal target for the big RGB camera viewport (left split pane)
-  onRegisterMarkerlessSelect?: (cb: ((i: number) => void) | null) => void; // 3D sphere click → select pick
   onSelectionChange?: (i: number | null) => void; // report the edited correspondence for 3D highlight
   onClose: () => void;
 }
@@ -59,14 +57,17 @@ function nominalK(w: number, h: number, hfovDeg: number): number[] {
 // (residual heatmap). Produces the same ProjectorCalibration the projector window renders from.
 export const AutoAlignWizard: React.FC<Props> = (props) => {
   const { surfaceId, surfaceName, output, scene3D, live, hasModel,
-    onSetCalibPickMode, onSetSplit, onRegisterMarkerlessPick, onPicksChange, onSwitchFlow, cameraHost,
-    onRegisterMarkerlessSelect, onSelectionChange, onClose } = props;
-  // Write path via host-services (see ./calibHost). Same names as the former props → call sites unchanged.
+    onSetCalibPickMode, onSetSplit, onPicksChange, onSwitchFlow, cameraHost,
+    onSelectionChange, onClose } = props;
+  // Write path via host-services (see ./calibHost); pick registration via ./calibWorkspace. Same names
+  // as the former props → call sites unchanged.
   const sendToProjector = calibHost.sendToProjector;
   const onStoreCalibration = calibHost.storeCalibration;
   const onSetUseCalibration = calibHost.setUseCalibration;
   const onStoreCamMask = (_surfaceId: string, mask: CamMask | null) => calibHost.storeCamMask(mask);
   const onStoreMarkerMap = (map: MarkerMap | null) => calibHost.storeMarkerMap(map);
+  const onRegisterMarkerlessPick = calibWorkspace.registerMarkerlessPick;
+  const onRegisterMarkerlessSelect = calibWorkspace.registerMarkerlessSelect;
 
   const [step, setStep] = useState<Step>('setup');
   const [addonOk, setAddonOk] = useState<boolean | null>(null);

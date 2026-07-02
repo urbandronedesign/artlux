@@ -30,7 +30,7 @@ with relative imports duplicates singletons (writers hit one instance, readers t
 |---|---|---|
 | **lidar-tracking** | ✅ shipped | Content source + OSC ingestion + clip-kind + projector data-channel + 3D-viz (scene-viz contribution) inverted. Projector blob *self-render* (GL draw) kept as transitional host import (see Deferred). |
 | **ndi** | ✅ shipped | Receive fully inverted (content source + discovery via provider editor); send routed through the generic bridge. Forced the `MainTransport`→general `MainPluginContext.ipc` fix + main-side activation. |
-| **calibration** | 🚧 Stage 1 + 2-foundation + 2b + 2c-writepath shipped | Engine + logic (1); host-services SDK surface + back-channel plugin (2-foundation); wizard/camera UIs relocated into `plugins/calibration` (2b); the wizards' **write path** (sendToProjector / storeCalibration / setUseCalibration / camMask / markerMap) rewired off App onto `ctx.host` via `calibHost.ts` (2c). Remaining: the App-owned **workspace** props (embedded-3D pick, camera portal, split, pose pairing) + registering as a panel contribution — the rig-verified deep part; and **Stage 3** (projector-contribution pattern render). |
+| **calibration** | 🚧 Stage 1 → 2d shipped | Engine + logic (1); host-services + back-channel plugin (2-foundation); wizard/camera UIs relocated (2b); write path via `ctx.host`/`calibHost.ts` (2c); the **pose-pairing orchestration** (crosshair↔model-pick → solvePnP, the pose refs, markerless pick/select registration, crosshair back-channel) moved from App into `calibWorkspace.ts` (2d). App now only owns the embedded-3D + camera-portal *rendering* + UI state, forwarding 3D picks into `calibWorkspace`. Remaining: **Stage 3** (projector-side pattern/3D render via the GPU-render hook). All calibration behavior is **rig-verified** — build/tsc/boot pass but the board/markerless pass needs camera+projector. |
 
 Also done: the **timeline clip-kind** inversion — `timeline.ts` no longer hardcodes `kind==='tracking'`;
 the lidar plugin registers the `tracking` kind into `clipKindRegistry` (first end-to-end consumer).
@@ -121,17 +121,21 @@ All calibration code now lives in the plugin. Verified build + tsc + single-iden
 in the renderer plugin's `activate`) and exposes `sendToProjector` (→ `projectors.send`),
 `storeCalibration` / `setUseCalibration` (→ `projectorOutputs.patch`), `storeCamMask` / `storeMarkerMap`
 (→ `scene3D.patch`). Each wizard binds same-named locals to these (call sites unchanged) and drops the 5
-props; `App` stops passing them (keeps its own `handleStoreCalibration`/`sendToProjector` for the pose
-orchestration below + gamma). Reactive data (`output`/`scene3D`/`live`/`hasModel`) stays props.
+props; `App` stops passing them (keeps its own `sendToProjector` for gamma). Reactive data
+(`output`/`scene3D`/`live`/`hasModel`) stays props.
 
-**Stage 2d — the workspace + panel-ization (remaining, rig-verified).** What's left is the genuinely
-App-coupled part: the wizards still take the embedded-Simulator3D pick handles (`onSetCalibPickMode`,
-`onRegisterMarkerlessPick`/`Select`, `onPicksChange`, `onSelectionChange`, `onPoseModeChange`,
-`onClearPoses`), the camera-viewport DOM portal (`cameraHost`), the split toggle, and lifecycle
-(`surfaceId`/`onSwitchFlow`/`onClose`) as props, and App still owns `handleCalibPick` + the
-crosshair/`pendingPixel` pose pairing. Inverting these (a calibration "workspace" surface + registering
-the wizard as a panel contribution so App no longer mounts it) is the deep part — **do it on the rig**,
-since the board/markerless pass can't be smoke-tested from a clean boot.
+**Stage 2d — move the pose-pairing orchestration off App (✅ shipped).** Chosen mechanism: the
+*orchestration move* (not panel-ization — the wizard is a Stage-coupled workspace, so a no-props panel +
+App→plugin store would add indirection for the same coupling). New `plugins/calibration/src/calibWorkspace.ts`
+owns the board/markerless pose logic that lived in App — `pick(world)` (crosshair↔model-pick pairing),
+`solvePose` (solvePnP via `calibNative`), `poseModeChange`/`clearPoses`, the `pendingPixel`/`latestCrosshair`
+refs, and `registerMarkerlessPick`/`Select` + `selectPick`. The crosshair/confirm back-channel moved into
+the plugin's `host.projectors.onMessage` tap; `App` forwards embedded-3D picks via `onCalibPick={(w) =>
+calibWorkspace.pick(w)}` and syncs the target via `setTarget(calibratingOutputId)`. App shed
+`handleStoreCalibration`/`solvePose`/`handleCalibPick`/`handlePoseModeChange`/`handleClearPoses` + 4 refs +
+the `calibNative` import. The wizard **rendering** (embedded Simulator3D + camera portal) + UI state stay
+App-owned by design. **Rig-verified:** build/tsc/single-identity/boot pass; the board/markerless pass
+needs camera+projector.
 
 **Stage 3 — Projector-contribution seam (decide: pragmatic vs. full).** The projector-side
 pattern/crosshair/`ProjectorScene` rendering lives in `ProjectorApp`.
