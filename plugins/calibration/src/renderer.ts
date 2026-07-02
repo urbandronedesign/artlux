@@ -6,6 +6,12 @@
 // Plugin entry (registered by the host's activateRendererPlugins).
 export { plugin } from './plugin.renderer';
 
+// Wizard UIs — the calibration workspace, co-located here (Stage 2b). Still mounted by App with props
+// (a transitional seam): App owns the embedded Simulator3D + camera portal the wizards drive. The
+// prop→ctx.host rewire + panel-registry registration is the remaining rig-verified step (Stage 2c).
+export { CalibWizard } from './CalibWizard';
+export { AutoAlignWizard } from './AutoAlignWizard';
+
 // Namespaces (host imports these as `import { X }` and uses X.member).
 export * as calibController from './calibController';
 export * as slCapture from './slCapture';

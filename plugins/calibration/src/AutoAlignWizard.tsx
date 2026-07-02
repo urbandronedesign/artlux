@@ -1,15 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Camera, Check, AlertTriangle, Loader2, MousePointer, ScanLine, Aperture } from 'lucide-react';
-import type { MainToProjector } from '../projector/bridge';
+import type { MainToProjector } from '@/projector/bridge'; // host bridge type — transitional seam (props still App-driven)
 import type { ProjectorCalibration, ProjectorOutput, Scene3D, CamMask, MarkerMap } from '../../../shared/protocol';
 import { CameraViewport, type CameraViewportHandle } from './calib/CameraViewport';
 import { CameraParamsPanel } from './calib/CameraParamsPanel';
+import * as cam from './calibCapture';
+import * as slCapture from './slCapture';
+import { reproject } from './cvCamera';
+import { regionFromCalibration } from './mpcdiData';
+import * as calibNative from './calibNative';
 import {
-  calibCapture as cam, slCapture, reproject, regionFromCalibration, calibNative,
   solveCameraPose, solveGeometry, defaultMarkerlessConfig, camPicksFromAruco,
   type CamPick, type CameraPose, type MarkerlessResult,
-} from '@artlux/plugin-calibration/renderer';
+} from './markerlessController';
 
 interface Props {
   surfaceId: string;

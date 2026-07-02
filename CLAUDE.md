@@ -124,8 +124,9 @@ vcvars64 env — see `scripts/build-calib.ps1`). `.node` files are gitignored.
 The app is being restructured into an **in-process, contribution-based plugin architecture** (VS Code
 style), so features become self-contained first-party plugins. Shipped: `plugins/lidar-tracking`
 (fully inverted — content source, clip-kind, projector data + GPU-render channel, 3D scene-viz),
-`plugins/ndi`, and `plugins/calibration` (Stage 1: engine + logic; wizard UI still host-side). Next:
-calibration Stage 2 (wizards + a host-services SDK surface) — see ROADMAP.
+`plugins/ndi`, and `plugins/calibration` (engine + logic + host-services surface + back-channel; the
+wizard UIs are co-located in the plugin but App still mounts them with props). Next: calibration
+Stage 2c (rewire wizard props → `ctx.host` + panel contribution, rig-verified) — see ROADMAP.
 
 - **Workspaces:** host app + `@artlux/sdk` (`packages/sdk`, subpaths `/main` + `/renderer`) + `plugins/*`.
 - **SDK is internal + UNSTABLE** — no public/versioned API or third-party disk-loading yet.

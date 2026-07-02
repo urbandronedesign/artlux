@@ -1,7 +1,7 @@
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { ZoomIn, ZoomOut, Maximize2, Box, Hand, MousePointer } from 'lucide-react';
 import type { CamMask } from '../../../../shared/protocol';
-import type { ColorFrame } from '@artlux/plugin-calibration/renderer';
+import type { ColorFrame } from '../calibCapture';
 
 // A large, zoomable RGB camera viewport for precise calibration point-picking. The owning wizard runs
 // the camera grab loop and pushes each colour frame in via the imperative `paint()` handle; this

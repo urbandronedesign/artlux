@@ -30,7 +30,7 @@ with relative imports duplicates singletons (writers hit one instance, readers t
 |---|---|---|
 | **lidar-tracking** | ✅ shipped | Content source + OSC ingestion + clip-kind + projector data-channel + 3D-viz (scene-viz contribution) inverted. Projector blob *self-render* (GL draw) kept as transitional host import (see Deferred). |
 | **ndi** | ✅ shipped | Receive fully inverted (content source + discovery via provider editor); send routed through the generic bridge. Forced the `MainTransport`→general `MainPluginContext.ipc` fix + main-side activation. |
-| **calibration** | 🚧 Stage 1 + Stage 2 "foundation" shipped | Engine + renderer logic extracted (Stage 1). Stage 2 foundation: the reusable **host-services** SDK surface (`RendererHostServices` = projectorOutputs/scene3D/projectors on `ctx.host`) + a calibration **renderer plugin** that taps the projector→main back-channel (`patternShown` routing moved out of `App`). **Stage 2b** (the wizard UIs as a panel contribution + the crosshair/embedded-3D-pick workspace) and **Stage 3** (projector-contribution pattern render) remain — see below. |
+| **calibration** | 🚧 Stage 1 + 2-foundation + 2b-relocation shipped | Engine + renderer logic (Stage 1); host-services SDK surface + back-channel renderer plugin (2-foundation); the 4 wizard/camera UIs **relocated into `plugins/calibration`** and mounted by App from the barrel (2b, props still App-driven). Remaining: **Stage 2c** (rewire wizard props → `ctx.host` + workspace handles + register as a panel contribution — rig-verified) and **Stage 3** (projector-contribution pattern render). |
 
 Also done: the **timeline clip-kind** inversion — `timeline.ts` no longer hardcodes `kind==='tracking'`;
 the lidar plugin registers the `tracking` kind into `clipKindRegistry` (first end-to-end consumer).
@@ -109,16 +109,23 @@ public-API doc.
    renderer `FIRST_PARTY`) that taps `ctx.host.projectors.onMessage` for `patternShown` →
    `calibController`/`slCapture` — removing that routing from `App`. Migrated LiDAR off `getScene3D()`.
 
-**Stage 2b — the wizard workspace (remaining).**
-1. Move the 4 wizard/camera UIs (`CalibWizard`, `AutoAlignWizard`, `calib/CameraViewport`,
-   `CameraParamsPanel`) into `plugins/calibration`; register as **panel contributions**
-   (`mount:'modal'`, toggled by `calibratingOutputId`).
-2. Rewire their props onto `ctx.host` (`projectorOutputs.patch` for calibration/useCalibration,
-   `scene3D.patch` for camMask/markerMap, `projectors.send` for patterns) + the deferred workspace
-   handles (embedded-3D pick mode, camera portal, split, crosshair/`handleCalibPick`).
-3. Remove wizard mounts + the remaining calib orchestration from `App.tsx`.
+**Stage 2b — relocate the wizard UIs (✅ shipped).** `git mv` the 4 wizard/camera UIs (`CalibWizard`,
+`AutoAlignWizard`, `calib/CameraViewport`, `CameraParamsPanel`) into `plugins/calibration/src`; barrel
+imports rewired to relative (barrel rule); host bridge type via `@/projector/bridge` (transitional).
+Exported from the `/renderer` barrel; `App` imports the wizards from there and **mounts them with the
+same props** (a documented seam — App still owns the embedded Simulator3D + camera portal they drive).
+All calibration code now lives in the plugin. Verified build + tsc + single-identity + boot.
+
+**Stage 2c — rewire the wizard workspace (remaining, rig-verified).**
+1. Rewire the wizard props onto `ctx.host` (`projectorOutputs.patch` for calibration/useCalibration,
+   `scene3D.patch` for camMask/markerMap, `projectors.send` for patterns).
+2. Add the **workspace** host handles the wizards need beyond plain state (embedded-3D pick mode +
+   `onPick`, the camera-viewport DOM portal, split layout, crosshair/`handleCalibPick` pose pairing),
+   then register the wizards as **panel contributions** (`mount:'modal'`, toggled by `calibratingOutputId`).
+3. Remove the wizard mounts + remaining calib orchestration from `App.tsx`.
    **Verify:** open a wizard, run a board/markerless pass (needs camera + projector), confirm results
-   write to `ProjectorOutput.calibration` and the projector renders from the pose.
+   write to `ProjectorOutput.calibration` and the projector renders from the pose. **Do this on the rig**
+   — the calibration pass can't be smoke-tested from a clean boot.
 
 **Stage 3 — Projector-contribution seam (decide: pragmatic vs. full).** The projector-side
 pattern/crosshair/`ProjectorScene` rendering lives in `ProjectorApp`.

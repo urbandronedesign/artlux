@@ -1,9 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Camera, Check, AlertTriangle, Loader2, ChevronLeft, ChevronRight, Aperture, MonitorUp, Crosshair } from 'lucide-react';
-import type { MainToProjector } from '../projector/bridge';
+import type { MainToProjector } from '@/projector/bridge'; // host bridge type — transitional seam (props still App-driven)
 import type { ProjectorCalibration, ProjectorOutput, Scene3D } from '../../../shared/protocol';
-import { calibCapture as cam, calibController as ctl, defaultBoardConfig, type BoardConfig, calibNative } from '@artlux/plugin-calibration/renderer';
+import * as cam from './calibCapture';
+import * as ctl from './calibController';
+import { defaultBoardConfig, type BoardConfig } from './calibController';
+import * as calibNative from './calibNative';
 import { CameraViewport, type CameraViewportHandle } from './calib/CameraViewport';
 import { CameraParamsPanel } from './calib/CameraParamsPanel';
 
