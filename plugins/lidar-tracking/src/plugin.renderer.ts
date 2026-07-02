@@ -14,6 +14,7 @@ import type { SurfaceContent, VideoClip, Surface } from '@/types';
 import * as trackingStore from './trackingStore';
 import type { TrackingSnapshot } from './trackingStore';
 import * as trackingDrawable from './trackingDrawable';
+import * as trackingProjector from './trackingProjector';
 import * as take from './trackingTake';
 import { clusterAndTrack } from './blobClustering';
 import TrackingViz from './TrackingViz';
@@ -57,6 +58,12 @@ export const plugin: RendererPlugin = {
         return cfg.trackingMergePeople ? clusterAndTrack(raw, cfg.trackingMergeRadius ?? 0.8, performance.now()) : raw;
       },
       apply: (payload) => trackingStore.applySnapshot(payload as TrackingSnapshot),
+      // Projector GPU render (consumer side): the plugin composites bg + trails + blobs + overlay
+      // into the host's source FBO; the host warps it. Replaces ProjectorGL.drawTracking, so host
+      // code no longer imports blobPass / trackingRenderer. Runs in projector windows only.
+      projectorSourceSize: (surface) => trackingProjector.sourceSize(surface as Surface),
+      renderSource: (gl, surface, host) => trackingProjector.renderSource(gl, surface as Surface, host),
+      onConfig: (_surface, render) => trackingProjector.configure(render as { trackingSmoothing?: number; trackingPredictMs?: number }),
     } as ProjectorChannel);
 
     // 3D scene overlay: the venue zones + smoothed/predicted/labelled blob markers rendered inside

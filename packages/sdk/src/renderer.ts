@@ -62,6 +62,13 @@ export interface ClipKindRegistry<Clip = unknown> {
 // Producer side runs in the main window (build/shouldSend); consumer side runs in each projector
 // window (apply, and optionally a per-frame render hook). The same plugin registers both sides;
 // the host calls whichever applies to the window it's in.
+// Host resources handed to a channel's projector-side GPU render hook (see renderSource). Keeps the
+// plugin from importing host services directly — the host injects only what the composite needs.
+export interface ProjectorRenderHost {
+  timeMs: number; // the projector window's current rAF timestamp (ms)
+  getLayerDrawable(layerId: string): Drawable | null; // a timeline layer's decoded frame (e.g. TRACKING bg)
+}
+
 export interface ProjectorChannel<SurfaceT = unknown, Payload = unknown> {
   channel: string;
   // Producer (main window): which projector surfaces receive this channel's data (per-surface gate).
@@ -75,6 +82,22 @@ export interface ProjectorChannel<SurfaceT = unknown, Payload = unknown> {
   throttleMs?: number;
   // Consumer (projector window): apply a received payload to local state.
   apply?(payload: Payload): void;
+
+  // ── Consumer (projector window): GPU render hook ──────────────────────────────────────────
+  // A channel may also RENDER its content into the projector's WebGL pipeline, not just apply()
+  // data. The plugin composites its own source texture (bg + effects + overlay) into the source
+  // framebuffer the host provides; the host then warps that source through its corner-pin/soft-
+  // edge/gamma stage. Used for GPU content types that self-render per output (e.g. LiDAR blobs).
+  //
+  // The source framebuffer size this surface wants this frame; null → this channel isn't rendering
+  // (the host falls back to its default draw path). Cheap; polled each frame before renderSource.
+  projectorSourceSize?(surface: SurfaceT): { w: number; h: number } | null;
+  // Composite this surface's content into the already-bound, (w×h)-sized source framebuffer with
+  // raw WebGL. The host owns the FBO lifecycle and warps the result afterward.
+  renderSource?(gl: WebGLRenderingContext, surface: SurfaceT, host: ProjectorRenderHost): void;
+  // The projector window received updated render config for a surface this channel applies to
+  // (e.g. smoothing/prediction). `render` is the host's per-output render config (opaque here).
+  onConfig?(surface: SurfaceT, render: unknown): void;
 }
 
 export interface ProjectorChannelRegistry<SurfaceT = unknown, Payload = unknown> {

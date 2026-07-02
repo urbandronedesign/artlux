@@ -140,12 +140,15 @@ pattern/crosshair/`ProjectorScene` rendering lives in `ProjectorApp`.
 
 ## Deferred backlog (accumulated from shipped plugins)
 
-- **Projector-contribution** — the DATA half is ✅ shipped: `ProjectorChannel` (appliesTo/subscribe/
-  build/apply) + a generic `{t:'pluginData'}` bridge + projector-window plugin activation; LiDAR's
-  snapshot→projector bridge now rides it (the core bridge no longer carries `tracking`). **Remaining:**
-  (a) the **GL render hook** (a plugin drawing into `ProjectorGL` — the hard, bespoke part; LiDAR's blob
-  *draw* + calibration's pattern/3D rendering still live in `ProjectorApp`/`ProjectorGL` transitionally),
-  and (b) the **projector→main back-channel** (for calibration's patternShown/crosshair/confirm).
+- **Projector-contribution** — DATA half ✅ and **GL render hook** ✅ shipped. Data: `ProjectorChannel`
+  (appliesTo/subscribe/build/apply) + a generic `{t:'pluginData'}` bridge + projector-window plugin
+  activation; LiDAR's snapshot→projector bridge rides it. GL render hook: `ProjectorChannel` gained
+  `projectorSourceSize`/`renderSource`/`onConfig` + a `ProjectorRenderHost` (timeMs + getLayerDrawable);
+  `ProjectorGL.drawTracking` → generic `drawComposited(w,h,composite,opts)` (host no longer imports
+  `blobPass`/`trackingRenderer`); LiDAR composites bg+trails+blobs+overlay in `trackingProjector.ts`.
+  **Remaining:** (a) **calibration's** projector pattern/3D rendering still lives in `ProjectorApp`
+  transitionally (it needs the render hook + a back-channel, not just a source composite), and (b) the
+  **projector→main back-channel** (for calibration's patternShown/crosshair/confirm).
 - ~~**LiDAR 3D-viz tendril**~~ ✅ done — added a **scene-viz contribution** (`SceneVizContribution` +
   `sceneVizRegistry`): `TrackingViz` moved into the lidar plugin and registers as scene-viz; `Simulator3D`
   now maps `sceneVizRegistry.all()` inside its `<Canvas>` instead of importing `TrackingViz`.

@@ -4,7 +4,6 @@ import { defaultCornerPin, defaultSoftEdge, type CornerPin, type BezierWarp, typ
 import { ProjectorScene } from './ProjectorScene';
 import { syncSurfaces, getDrawable } from '../services/surfaceMedia';
 import { timeline as engine } from '../services/timeline';
-import { trackingRenderer } from '@artlux/plugin-lidar-tracking';
 import { ProjectorGL } from './ProjectorGL';
 import { squareToQuad, applyH } from './homography';
 import { makeBezierWarp, tessellateBezier, evalBezier, BEZIER_CORNERS } from './warp';
@@ -96,7 +95,10 @@ export const ProjectorApp: React.FC = () => {
     colorGainRef.current = r.colorGain ?? [1, 1, 1];
     blackLiftRef.current = r.blackLift ?? [0, 0, 0];
     fpsCapRef.current = r.fpsCap ?? 0;
-    trackingRenderer.configure(r.trackingSmoothing ?? 0.6, r.trackingPredictMs ?? 50);
+    // Hand the render config to any projector channel that applies to this surface (e.g. LiDAR reads
+    // trackingSmoothing/PredictMs). The host no longer knows which fields are plugin-specific.
+    const cs = surfaceRef.current;
+    if (cs) for (const ch of projectorChannelRegistry.all()) if (ch.appliesTo?.(cs)) ch.onConfig?.(cs, r);
     ndiSendRef.current = !!r.ndiSend;
     ndiFullResRef.current = !!r.ndiFullRes;
   };
@@ -188,18 +190,14 @@ export const ProjectorApp: React.FC = () => {
       const s = surfaceRef.current;
       const mesh = warpRef.current ? tessellateBezier(warpRef.current, RENDER_TESS) : null;
       const opts = { cornerPin: pinRef.current, warp: mesh, softEdge: softRef.current, gamma: gammaRef.current, brightness: brightnessRef.current, colorGain: colorGainRef.current, blackLift: blackLiftRef.current, aa: AA_SAMPLES };
-      if (s && s.content.type === SourceType.TRACKING && s.content.trackingSource) {
-        // GPU path: composite bg + blobs + overlay into the source FBO, then warp — no CPU canvas.
-        const { w: srcW, h: srcH } = trackingRenderer.sourceSize(s.content.trackingSource);
-        const bg = s.content.bgLayerId ? engine.getLayerDrawable(s.content.bgLayerId) : null;
-        const trails = s.content.trail !== false ? trackingRenderer.trails(s, now, s.content.trailSeconds ?? 1.2) : null;
-        gl.drawTracking({
-          srcW, srcH,
-          bgSource: bg as TexImageSource | null,
-          trails,
-          blobs: trackingRenderer.instances(s, now),
-          overlaySource: trackingRenderer.overlayCanvas(s, srcW, srcH),
-        }, opts);
+      // A projector channel may GPU-render this surface's content itself (e.g. LiDAR tracking): the
+      // plugin composites a source texture, we warp it — no CPU canvas, no host knowledge of content.
+      const rch = s ? projectorChannelRegistry.all().find((c) => c.renderSource && c.appliesTo?.(s)) : undefined;
+      const srcSize = rch && s ? rch.projectorSourceSize?.(s) : null;
+      if (rch && s && srcSize) {
+        gl.drawComposited(srcSize.w, srcSize.h,
+          (rgl) => rch.renderSource!(rgl, s, { timeMs: now, getLayerDrawable: (id) => engine.getLayerDrawable(id) }),
+          opts);
       } else {
         // For HAP LAYER content getDrawable returns this window's locally-decoded canvas; for
         // other streamed sources it's null, so we fall back to the frame pushed from main.

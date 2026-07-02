@@ -1,17 +1,5 @@
 import type { CornerPin, WarpGrid, SoftEdge } from '../../../shared/protocol';
 import { cornerQs, toClip } from './homography';
-import { blobPass } from '@artlux/plugin-lidar-tracking';
-import type { BlobInst } from '@artlux/plugin-lidar-tracking';
-
-// LiDAR blob content rendered straight into the source FBO on the GPU (no CPU canvas, no per-frame
-// full-canvas upload): bg video + soft blob discs + optional overlay → warped onto the display.
-export interface TrackingOpts {
-  srcW: number; srcH: number;
-  bgSource?: TexImageSource | null;   // background video frame (decoded in main, streamed here)
-  trails?: Float32Array | null;       // comet-trail ribbon vertices (drawn under the blobs)
-  blobs: BlobInst[];
-  overlaySource?: TexImageSource | null; // calibration / #id overlay (only when enabled)
-}
 
 // Renders one surface's content as either a perspective-correct corner-pinned quad or a
 // grid-mesh warp, with per-output soft-edge blending + gamma, into a multisampled WebGL2
@@ -93,11 +81,9 @@ export class ProjectorGL {
   private capFBO: WebGLFramebuffer | null = null;
   private capTex: WebGLTexture | null = null;
   private capW = 0; private capH = 0;
-  // Source FBO for GPU-composited TRACKING content (bg + blobs + overlay → warp)
+  // Source FBO for GPU-composited plugin content (a plugin draws into srcTex; we warp it → screen)
   private srcFBO: WebGLFramebuffer | null = null;
   private srcTex: WebGLTexture | null = null;
-  private bgTex: WebGLTexture | null = null;
-  private overlayTex: WebGLTexture | null = null;
   private srcW = 0; private srcH = 0;
 
   constructor(private canvas: HTMLCanvasElement) {
@@ -200,8 +186,6 @@ export class ProjectorGL {
     if (this.srcW === w && this.srcH === h && this.srcFBO) return;
     if (!this.srcFBO) this.srcFBO = gl.createFramebuffer();
     if (!this.srcTex) this.srcTex = gl.createTexture();
-    if (!this.bgTex) this.bgTex = gl.createTexture();
-    if (!this.overlayTex) this.overlayTex = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, this.srcTex);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -214,22 +198,19 @@ export class ProjectorGL {
     this.srcW = w; this.srcH = h;
   }
 
-  // Composite TRACKING content (bg + blobs + overlay) on the GPU into the source FBO, then warp it.
-  drawTracking(t: TrackingOpts, o: DrawOpts): void {
+  // Composite plugin-provided content into the source FBO, then warp it. `composite` draws into the
+  // already-bound, (w×h)-sized source framebuffer with raw WebGL (the plugin owns its shaders +
+  // textures); the host owns the FBO lifecycle and the warp/soft-edge/gamma resolve. This is the
+  // generic seam a ProjectorChannel.renderSource hook drives (e.g. LiDAR tracking) — the host no
+  // longer knows what the content is.
+  drawComposited(w: number, h: number, composite: (gl: WebGLRenderingContext) => void, o: DrawOpts): void {
     const gl = this.gl;
-    this.ensureSrcFBO(t.srcW, t.srcH);
+    this.ensureSrcFBO(w, h);
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.srcFBO);
-    gl.viewport(0, 0, t.srcW, t.srcH);
+    gl.viewport(0, 0, w, h);
     gl.disable(gl.BLEND);
     gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT); gl.clearColor(0, 0, 0, 1);
-    if (t.bgSource && this.bgTex && blobPass.uploadTexture(gl, this.bgTex, t.bgSource)) {
-      blobPass.drawTex(gl, this.bgTex, 1, false, true);
-    }
-    if (t.trails && t.trails.length) blobPass.drawSolid(gl, t.trails, true);
-    blobPass.drawBlobs(gl, t.srcW, t.srcH, t.blobs, true);
-    if (t.overlaySource && this.overlayTex && blobPass.uploadTexture(gl, this.overlayTex, t.overlaySource)) {
-      blobPass.drawTex(gl, this.overlayTex, 1, true, true);
-    }
+    composite(gl);
     this.warpFromTexture(this.srcTex, o);
   }
 
@@ -333,7 +314,5 @@ export class ProjectorGL {
     if (this.capTex) gl.deleteTexture(this.capTex);
     if (this.srcFBO) gl.deleteFramebuffer(this.srcFBO);
     if (this.srcTex) gl.deleteTexture(this.srcTex);
-    if (this.bgTex) gl.deleteTexture(this.bgTex);
-    if (this.overlayTex) gl.deleteTexture(this.overlayTex);
   }
 }
