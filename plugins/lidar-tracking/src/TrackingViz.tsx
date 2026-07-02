@@ -2,8 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Line, Html } from '@react-three/drei';
 import * as THREE from 'three';
-import { Scene3D } from '../../../../shared/protocol';
-import { trackingStore as tracking, blobMotion } from '@artlux/plugin-lidar-tracking';
+import { Scene3D } from '../../../shared/protocol';
+import * as tracking from './trackingStore';
+import * as blobMotion from './blobMotion';
 
 // LiDAR tracking visualization for the 3D Scene. Reconstructs the venue's interactive zones at
 // real-world dimensions and renders a smoothed, predicted, ID-labeled marker per tracked blob.

@@ -15,7 +15,7 @@ import { ModelBoundary } from './ModelBoundary';
 import { GroundGrid } from './GroundGrid';
 import { ReflectiveFloor } from './ReflectiveFloor';
 import { Lighting } from './Lighting';
-import TrackingViz from './TrackingViz';
+import { sceneVizRegistry } from '../../host/registries';
 
 interface Props {
   fixtures: Fixture[];
@@ -97,7 +97,9 @@ const Simulator3D: React.FC<Props> = ({
         <Lighting env={scene3D.environment} />
         {scene3D.reflectiveFloor && <ReflectiveFloor />}
         {scene3D.gridVisible !== false && <GroundGrid />}
-        {scene3D.trackingViz && <TrackingViz scene3D={scene3D} />}
+        {/* Plugin-contributed 3D overlays (e.g. LiDAR blob viz). Each plugin registers a scene-viz
+            component + an `enabled` gate; the host stays agnostic of what they draw. */}
+        {sceneVizRegistry.all().map((v) => (v.enabled?.(scene3D) ?? true) ? <v.Component key={v.id} scene3D={scene3D} /> : null)}
         {models.map((m) => m.kind === 'plane' ? (
           <PlaneObject
             key={m.id}

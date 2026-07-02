@@ -15,8 +15,10 @@ import type {
   ProjectorChannel, ProjectorChannelRegistry,
   SettingsSection, SettingsSectionRegistry,
   PanelContribution, PanelRegistry,
+  SceneVizContribution, SceneVizRegistry,
 } from '@artlux/sdk/renderer';
 import type { SurfaceContent, Surface, VideoClip, AppSettings } from '../types';
+import type { Scene3D } from '../../../shared/protocol';
 
 // ── Content sources ───────────────────────────────────────────────────────────────────────
 const contentProviders = new Map<string, ContentSourceProvider<SurfaceContent>>();
@@ -47,6 +49,13 @@ const settingsSections: SettingsSection<AppSettings>[] = [];
 export const settingsSectionRegistry: SettingsSectionRegistry<AppSettings> = {
   register(s) { settingsSections.push(s); },
   all() { return settingsSections.slice(); },
+};
+
+// ── Scene-viz (3D overlays) ─────────────────────────────────────────────────────────────────
+const sceneVizzes: SceneVizContribution<Scene3D>[] = [];
+export const sceneVizRegistry: SceneVizRegistry<Scene3D> = {
+  register(v) { sceneVizzes.push(v); },
+  all() { return sceneVizzes.slice(); },
 };
 
 // ── Panels ────────────────────────────────────────────────────────────────────────────────

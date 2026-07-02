@@ -7,7 +7,7 @@
 
 import {
   contentSourceRegistry, clipKindRegistry, projectorChannelRegistry,
-  settingsSectionRegistry, panelRegistry,
+  settingsSectionRegistry, panelRegistry, sceneVizRegistry,
 } from './registries';
 import { timeline } from '../services/timeline';
 import type { RendererPlugin, RendererPluginContext, PluginIpc } from '@artlux/sdk/renderer';
@@ -38,6 +38,7 @@ function makeContext(win: 'main' | 'projector', host: RendererHostServices): Ren
     projectorChannels: projectorChannelRegistry,
     settings: settingsSectionRegistry,
     panels: panelRegistry,
+    sceneViz: sceneVizRegistry,
     ipc,
     onPlayhead: (cb) => timeline.subscribe(cb),
     getScene3D: () => host.getScene3D?.() ?? {},

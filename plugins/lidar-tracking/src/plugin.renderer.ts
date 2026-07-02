@@ -8,6 +8,7 @@
 // bridge, timeline take record/replay, smoothing config, recording UI) is still driven by host
 // code that imports this package's modules transitionally — see the plan's "pragmatic seam".
 
+import type { ComponentType } from 'react';
 import type { RendererPlugin, RendererPluginContext, ProjectorChannel } from '@artlux/sdk/renderer';
 import type { SurfaceContent, VideoClip, Surface } from '@/types';
 import * as trackingStore from './trackingStore';
@@ -15,6 +16,7 @@ import type { TrackingSnapshot } from './trackingStore';
 import * as trackingDrawable from './trackingDrawable';
 import * as take from './trackingTake';
 import { clusterAndTrack } from './blobClustering';
+import TrackingViz from './TrackingViz';
 
 let oscUnsub: (() => void) | null = null;
 
@@ -56,6 +58,16 @@ export const plugin: RendererPlugin = {
       },
       apply: (payload) => trackingStore.applySnapshot(payload as TrackingSnapshot),
     } as ProjectorChannel);
+
+    // 3D scene overlay: the venue zones + smoothed/predicted/labelled blob markers rendered inside
+    // Simulator3D's react-three-fiber <Canvas>. The host mounts registered scene-viz components; this
+    // replaces Simulator3D's former direct `import TrackingViz`. Gated on the scene's trackingViz flag.
+    // Only the main window has the 3D scene, but registering in both is harmless (no consumer elsewhere).
+    ctx.sceneViz.register({
+      id: 'lidar-tracking',
+      enabled: (s) => (s as { trackingViz?: boolean }).trackingViz === true,
+      Component: TrackingViz as ComponentType<{ scene3D: unknown }>,
+    });
 
     // Live OSC blob/spec ingestion. Main window only — projector windows never see OSC (they get
     // snapshots over the bridge). Taps the shared OSC stream alongside the host's control router

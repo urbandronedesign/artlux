@@ -116,6 +116,22 @@ export interface PanelRegistry {
   byMount(mount: PanelContribution['mount']): PanelContribution[];
 }
 
+// ─── Scene-viz contribution ─────────────────────────────────────────────────────────────────
+// A react-three-fiber component the host's 3D scene (Simulator3D) mounts inside its <Canvas>. Lets
+// a plugin draw a 3D overlay (e.g. LiDAR blob markers + zones) without the host importing it. The
+// component receives the current `scene3D` state; `enabled` gates it on a scene flag (default on).
+// Rendered only in the main window (the editor 3D scene); harmless no-op elsewhere.
+export interface SceneVizContribution<Scene = unknown> {
+  id: string;
+  enabled?(scene3D: Scene): boolean;
+  Component: ComponentType<{ scene3D: Scene }>;
+}
+
+export interface SceneVizRegistry<Scene = unknown> {
+  register(v: SceneVizContribution<Scene>): void;
+  all(): SceneVizContribution<Scene>[];
+}
+
 // ─── Plugin IPC bridge (renderer side) ──────────────────────────────────────────────────────
 // The host preload exposes three generic forwarders so a plugin can talk to its own main-process
 // entry without per-plugin preload methods (contextIsolation keeps plugin code out of preload).
@@ -135,6 +151,7 @@ export interface RendererPluginContext<C = unknown, SurfaceT = unknown, Clip = u
   projectorChannels: ProjectorChannelRegistry<SurfaceT>;
   settings: SettingsSectionRegistry<S>;
   panels: PanelRegistry;
+  sceneViz: SceneVizRegistry;
   ipc: PluginIpc;
   // Subscribe to the timeline engine's coalesced per-frame playhead (seconds). Returns unsub.
   onPlayhead(cb: (playheadSec: number) => void): () => void;

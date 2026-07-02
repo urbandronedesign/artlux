@@ -28,7 +28,7 @@ with relative imports duplicates singletons (writers hit one instance, readers t
 
 | Plugin | State | Notes |
 |---|---|---|
-| **lidar-tracking** | ✅ shipped | Content source + OSC ingestion cleanly inverted. 3D-viz + projector self-render kept as transitional host→plugin imports (see Deferred). |
+| **lidar-tracking** | ✅ shipped | Content source + OSC ingestion + clip-kind + projector data-channel + 3D-viz (scene-viz contribution) inverted. Projector blob *self-render* (GL draw) kept as transitional host import (see Deferred). |
 | **ndi** | ✅ shipped | Receive fully inverted (content source + discovery via provider editor); send routed through the generic bridge. Forced the `MainTransport`→general `MainPluginContext.ipc` fix + main-side activation. |
 | **calibration** | 🚧 Stage 1 shipped | Engine (calibManager/OpenCV) + renderer logic extracted to `plugins/calibration` (native IPC via `calib:*`, `calibNative` wrapper). Stage 2 (wizards as panels + host-services) and Stage 3 (projector-contribution) remain — see below. |
 
@@ -146,15 +146,14 @@ pattern/crosshair/`ProjectorScene` rendering lives in `ProjectorApp`.
   (a) the **GL render hook** (a plugin drawing into `ProjectorGL` — the hard, bespoke part; LiDAR's blob
   *draw* + calibration's pattern/3D rendering still live in `ProjectorApp`/`ProjectorGL` transitionally),
   and (b) the **projector→main back-channel** (for calibration's patternShown/crosshair/confirm).
-- **LiDAR 3D-viz tendril** — `Simulator3D/TrackingViz` still imports the plugin transitionally; needs a
-  **scene-viz contribution** SDK type.
+- ~~**LiDAR 3D-viz tendril**~~ ✅ done — added a **scene-viz contribution** (`SceneVizContribution` +
+  `sceneVizRegistry`): `TrackingViz` moved into the lidar plugin and registers as scene-viz; `Simulator3D`
+  now maps `sceneVizRegistry.all()` inside its `<Canvas>` instead of importing `TrackingViz`.
 - ~~**Timeline clip-kind inversion**~~ ✅ done — the literals are gone; the LiDAR plugin registers the
   `tracking` kind into `clipKindRegistry` (first end-to-end consumer).
 - **Settings/panels registry inversion** — `settingsSectionRegistry` + `PanelRegistry` exist but are
   unused; migrate the LiDAR OSC/tracking settings + OscMonitor/TakesBin panels onto them (calibration
   Stage 2 is the first PanelRegistry consumer).
-- **Scene-viz contribution** — 3D-scene visualization contribution type (LiDAR TrackingViz, and any
-  future 3D overlays).
 - **Public API stabilization** — once calibration (plugin #3) validates the host-services surface,
   write up `@artlux/sdk` as a documented, versioned public plugin API. Only then consider a
   third-party / disk-loaded plugin tier (manifest + semver host-range + capability model + sandboxing
