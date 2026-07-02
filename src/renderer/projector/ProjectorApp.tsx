@@ -14,8 +14,10 @@ import type { ProjectorPanelContext } from '@artlux/sdk/renderer';
 // IMAGE (one cheap decode) + EFFECT (procedural) render locally. Everything HW-decoded —
 // camera/Spout/DMX-in/NDI AND file video / timeline layers — is decoded once in the main
 // window and streamed here as ImageBitmaps, so the same media isn't decoded per window.
-const SELF_RENDER = new Set<SourceType | 'EFFECT'>([SourceType.IMAGE, 'EFFECT', SourceType.TRACKING]);
-const STREAMED = new Set<SourceType | 'EFFECT'>([SourceType.CAMERA, SourceType.SPOUT, SourceType.DMX_IN, SourceType.NDI, SourceType.VIDEO, SourceType.LAYER, SourceType.PROGRAM]);
+// Content-type-string membership sets (SurfaceContent.type is an open string space; SourceType values
+// are strings, so a Set<string> both constructs from the enum and accepts any plugin type id at .has()).
+const SELF_RENDER = new Set<string>([SourceType.IMAGE, 'EFFECT', SourceType.TRACKING]);
+const STREAMED = new Set<string>([SourceType.CAMERA, SourceType.SPOUT, SourceType.DMX_IN, SourceType.NDI, SourceType.VIDEO, SourceType.LAYER, SourceType.PROGRAM]);
 const CORNER_KEYS: (keyof CornerPin)[] = ['tl', 'tr', 'br', 'bl'];
 const CORNER_LABELS = ['TL', 'TR', 'BR', 'BL'];
 const AA_SAMPLES = 4;

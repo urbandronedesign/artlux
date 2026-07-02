@@ -161,17 +161,19 @@ export interface SettingsSectionRegistry<S = unknown> {
 }
 
 // ─── Panel contribution ─────────────────────────────────────────────────────────────────────
-// A plugin-owned UI panel mounted by the host. 'modal' = a dialog toggled by a menu action (the host
-// mounts it only while open and passes `onClose`); 'dock'/'timeline-bin' = a panel inside a dock (no
-// onClose). The panel owns its own chrome + any host-services reads (e.g. host.settings) it needs.
+// A plugin-owned UI panel mounted by the host. Currently only 'modal' — a dialog toggled by a menu
+// action; the host mounts it only while open and passes `onClose`. The panel owns its own chrome + any
+// host-services reads (e.g. host.settings) it needs. (Dock / timeline-bin mounts are intentionally NOT
+// modelled yet — no plugin needs them, and an unstable SDK shouldn't ship speculative surface. Add a
+// mount kind + a host mount point together, when a real consumer appears — see docs/SDK.md.)
 export interface PanelProps {
   onClose?: () => void; // provided for 'modal' panels (host controls open by mounting/unmounting)
 }
 
 export interface PanelContribution {
   id: string;
-  mount: 'modal' | 'dock' | 'timeline-bin';
-  menuAction?: string; // host menu action id that toggles a 'modal' panel
+  mount: 'modal';
+  menuAction?: string; // host menu action id that toggles the panel
   title?: string;
   Component: ComponentType<PanelProps>;
 }

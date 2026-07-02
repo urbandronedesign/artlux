@@ -41,6 +41,17 @@ const CHECKS = [
   { plugin: 'mp4',            where: 'renderer', marker: 'mp4-webcodecs',        note: 'mp4Codec id (renderer-only)' },
 ];
 
+// Contribution-coverage: distinctive strings proving a plugin still REGISTERS a given contribution into
+// a host registry. Unlike CHECKS (which assert single module identity == 1), these assert PRESENCE
+// (>= 1 across the renderer bundle) — they catch a plugin silently dropping a UI contribution (a
+// settings section / panel that stops being registered but still builds). Use value strings (not object
+// keys) that survive minification. Add one line per contribution worth guarding.
+const CONTRIBUTIONS = [
+  { plugin: 'lidar-tracking', marker: 'osc-monitor',    note: 'OSC Monitor — modal PanelContribution id (panelRegistry)' },
+  { plugin: 'lidar-tracking', marker: 'OSC Monitor',    note: 'OSC Monitor — panel body shipped' },
+  { plugin: 'mp4',            marker: 'GPU MP4 decode',  note: 'Video — SettingsSection (settingsSectionRegistry)' },
+];
+
 function fail(msg) { console.error(`\x1b[31m✗\x1b[0m ${msg}`); }
 function ok(msg) { console.log(`\x1b[32m✓\x1b[0m ${msg}`); }
 
@@ -88,9 +99,16 @@ function main() {
     }
   }
 
+  // Contribution-coverage: each marker must appear at least once across the renderer chunks.
+  for (const c of CONTRIBUTIONS) {
+    const hits = chunks.filter((k) => k.text.includes(c.marker)).length;
+    if (hits >= 1) ok(`[${c.plugin}] contribution "${c.marker}" — present (${hits} chunk${hits > 1 ? 's' : ''}) — ${c.note}`);
+    else { failures++; fail(`[${c.plugin}] contribution "${c.marker}" — MISSING from the renderer bundle (contribution dropped, or the marker changed) — ${c.note}`); }
+  }
+
   console.log('');
-  if (failures) { console.error(`\x1b[31mplugin single-identity: ${failures} failure(s)\x1b[0m`); process.exit(1); }
-  console.log(`\x1b[32mplugin single-identity OK (${CHECKS.length} markers)\x1b[0m`);
+  if (failures) { console.error(`\x1b[31mplugin verification: ${failures} failure(s)\x1b[0m`); process.exit(1); }
+  console.log(`\x1b[32mplugin verification OK (${CHECKS.length} identity + ${CONTRIBUTIONS.length} contribution markers)\x1b[0m`);
 }
 
 main();

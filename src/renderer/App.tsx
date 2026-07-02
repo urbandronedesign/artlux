@@ -1100,7 +1100,7 @@ const App: React.FC = () => {
   // layers all stream — only IMAGE / EFFECT self-render in the projector. Decoding the same
   // media in every window otherwise exhausts the GPU's concurrent hardware-decode sessions.
   useEffect(() => {
-      const STREAMED = new Set<SourceType | 'EFFECT'>([SourceType.CAMERA, SourceType.SPOUT, SourceType.DMX_IN, SourceType.NDI, SourceType.VIDEO, SourceType.LAYER, SourceType.PROGRAM]);
+      const STREAMED = new Set<string>([SourceType.CAMERA, SourceType.SPOUT, SourceType.DMX_IN, SourceType.NDI, SourceType.VIDEO, SourceType.LAYER, SourceType.PROGRAM]); // content-type strings (open type space)
       const inFlight = new Set<string>(); // surfaceIds with a createImageBitmap still pending
       let raf = 0; let last = 0;
       const tick = (now: number) => {

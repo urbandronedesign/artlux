@@ -158,7 +158,12 @@ export enum SourceType {
 // Fixtures sample surfaces (see Fixture.surfaceId). EFFECT content is rendered
 // in S2; for now it shows nothing.
 export interface SurfaceContent {
-  type: SourceType | 'EFFECT';
+  // Core source types + 'EFFECT', OR an OPEN plugin-contributed type string. `(string & {})` keeps the
+  // union's editor autocomplete for the known values while still accepting any plugin type id. The
+  // compositor dispatches unknown types through `contentSourceRegistry` (see contentSource.getDrawable's
+  // default branch), so a plugin can introduce a new content type with NO core enum edit. Core enum
+  // values (TRACKING, NDI, SPOUT, …) stay in the enum so persisted projects need zero migration.
+  type: SourceType | 'EFFECT' | (string & {});
   url?: string;        // VIDEO / IMAGE object URL or file path
   spoutName?: string;  // SPOUT sender name (empty = active sender)
   ndiName?: string;    // NDI source name (empty = first discovered)
@@ -400,6 +405,10 @@ export interface AppSettings {
   // Video decode
   mp4WebCodecs?: boolean; // decode .mp4/.m4v via the WebCodecs plugin (frame-accurate; no HW-session cap)
                           // instead of the default <video> element. Off by default → unchanged behaviour.
+  // Namespace for plugin-private settings that don't warrant a core field. A plugin keys by its id
+  // (`settings.plugins?.['my-plugin']`) and owns the shape. Cross-app persisted settings that the host
+  // also reads (like mp4WebCodecs) stay top-level core fields; this is for genuinely plugin-local prefs.
+  plugins?: Record<string, unknown>;
 }
 
 export enum ViewMode {

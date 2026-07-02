@@ -292,14 +292,23 @@ rewired mount — need a real projector to confirm.
   `PanelContribution.Component` now takes `PanelProps { onClose? }`. **Left core on purpose:** the
   OSC/Tracking Preferences section (OSC is shared control + tracking infra, not plugin-specific) and
   **TakesBin** (tightly timeline-engine-coupled — takes/record/lane/remove all from Timeline's own logic;
-  inverting it would over-fit the SDK). `dock`/`timeline-bin` panel mounts remain unused (no consumer yet).
-- **Public API stabilization** — once calibration (plugin #3) validates the host-services surface,
-  write up `@artlux/sdk` as a documented, versioned public plugin API. Only then consider a
-  third-party / disk-loaded plugin tier (manifest + semver host-range + capability model + sandboxing
-  for non-realtime plugins).
-- **SurfaceContent.type widening** — generalize to an open string space + a settings namespace
-  (`AppSettings.plugins.*`) once a plugin needs a genuinely new content type (all so far reuse core
-  enum values: `TRACKING`, `NDI`).
-- **Plugin test harness** — single-identity is now automated (`npm run verify:plugins` →
-  `scripts/verify-plugins.cjs`, asserts each plugin's singleton marker lives in one bundle). Still
-  wanted: a broader per-plugin contract/behavior harness (activation, registry population, IPC round-trips).
+  inverting it would over-fit the SDK). `dock`/`timeline-bin` panel mounts were **trimmed** (see below).
+- ~~**Public API stabilization (write-up)**~~ ✅ done — [docs/SDK.md](SDK.md) documents the API surface
+  (registries / host-services / IPC bridge), the **UNSTABLE/INTERNAL** stability policy, the invariants
+  a plugin must uphold, the layered testing model, and the concrete gate to a versioned third-party API
+  (contract soak → semver + host-range → capability model → sandboxing → disk loading). The third-party
+  *tier itself* remains future work (tracked there), not this write-up.
+- ~~**SurfaceContent.type widening**~~ ✅ done — `SurfaceContent.type` is now
+  `SourceType | 'EFFECT' | (string & {})` (open to plugin type strings; the compositor already
+  dispatches unknown types through `contentSourceRegistry`), plus an `AppSettings.plugins?:
+  Record<string, unknown>` namespace for plugin-private prefs. Core enum + top-level persisted fields
+  unchanged → zero migration. (No plugin *uses* a new string type yet — the surface is now ready.)
+- ~~**Plugin test harness (static)**~~ ✅ extended — `npm run verify:plugins` now asserts single-identity
+  **and** contribution-coverage (each guarded UI contribution string is present in the build; catches a
+  settings section / panel that silently stops registering). Type conformance is enforced by `tsc` via
+  the `RendererPlugin[]`/`MainPlugin[]` arrays. **Still deferred:** a *runtime* behavioral harness
+  (mock-context activation → assert registrations → IPC round-trip) — blocked on a headless activation
+  environment (plugins import host `@/` + browser/GPU globals at import time). See docs/SDK.md → testing.
+- **Panel mounts trimmed to `'modal'`** — `dock`/`timeline-bin` had no consumer; an unstable SDK
+  shouldn't ship speculative surface. Re-add a mount kind together with its host mount point when a real
+  consumer appears.
