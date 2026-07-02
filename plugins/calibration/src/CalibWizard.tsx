@@ -238,7 +238,10 @@ export const CalibWizard: React.FC<Props> = (props) => {
   const back = () => { if (idx > 0) setStep(STEPS[idx - 1].id); };
   const finish = () => { onSetUseCalibration(surfaceId, true); onClose(); };
 
-  return (
+  // Portal to <body>: the wizard is a `fixed` left rail, but App's layout has a stacking-context /
+  // transformed ancestor (the split host) that would otherwise trap it BELOW the camera viewport's
+  // z-[110] — so the panel rendered *under* the camera preview. At the document root its z-[120] wins.
+  return createPortal(
     <>
     {cameraHost && createPortal(
       <CameraViewport
@@ -247,7 +250,7 @@ export const CalibWizard: React.FC<Props> = (props) => {
         detect={step === 'camera' || step === 'intrinsics' ? detect : { found: false }}
         placeholder="start the camera"
       />, cameraHost)}
-    <div className="fixed left-0 top-9 bottom-6 z-[120] w-[340px] flex flex-col bg-surface-1 border-r border-line-2 shadow-2xl animate-overlay-in">
+    <div className="fixed left-0 top-9 bottom-6 z-[300] w-[340px] flex flex-col bg-surface-1 border-r border-line-2 shadow-2xl animate-overlay-in">
       {/* Header */}
       <div className="h-10 px-3 flex items-center justify-between border-b border-line-1 bg-surface-2 shrink-0">
         <span className="text-xs font-semibold text-fg-1 uppercase tracking-wider flex items-center gap-1.5"><Aperture size={14} /> Calibrate — {surfaceName}</span>
@@ -431,7 +434,8 @@ export const CalibWizard: React.FC<Props> = (props) => {
         )}
       </div>
     </div>
-    </>
+    </>,
+    document.body,
   );
 };
 
