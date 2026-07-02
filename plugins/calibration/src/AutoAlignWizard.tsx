@@ -340,9 +340,7 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
   const idx = STEPS.findIndex((s) => s.id === step);
   const canNext = gate[step];
 
-  // Portal to <body> so the `fixed` left rail isn't trapped below the camera viewport (z-[110]) by a
-  // transformed/stacking-context ancestor in App's layout — see the CalibWizard note.
-  return createPortal(
+  return (
     <>
     {cameraHost && createPortal(
       <CameraViewport
@@ -361,7 +359,7 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
         onMaskPoint={onMaskPoint}
         onMaskClose={onPreviewDblClick}
       />, cameraHost)}
-    <div className="fixed left-0 top-9 bottom-6 z-[300] w-[340px] flex flex-col bg-surface-1 border-r border-line-2 shadow-2xl animate-overlay-in">
+    <div className="fixed left-0 top-9 bottom-6 z-[120] w-[340px] flex flex-col bg-surface-1 border-r border-line-2 shadow-2xl animate-overlay-in">
       <div className="h-10 px-3 flex items-center justify-between border-b border-line-1 bg-surface-2 shrink-0">
         <span className="text-xs font-semibold text-fg-1 uppercase tracking-wider flex items-center gap-1.5"><ScanLine size={14} /> Auto-Align — {surfaceName}</span>
         <div className="flex items-center gap-2">
@@ -561,8 +559,7 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
           : <button onClick={() => idx < STEPS.length - 1 && canNext && setStep(STEPS[idx + 1].id)} disabled={!canNext} title={canNext ? '' : 'complete this step'} className="text-[11px] px-2 py-1 rounded bg-accent/20 border border-accent text-fg-1 disabled:opacity-30">Next ›</button>}
       </div>
     </div>
-    </>,
-    document.body,
+    </>
   );
 };
 
