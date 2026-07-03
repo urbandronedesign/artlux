@@ -38,51 +38,51 @@ export const ContentEditor: React.FC<ContentEditorProps> = ({ content: c, onChan
     <>
       <div className="grid grid-cols-3 gap-1">
         <button onClick={() => pickType(SourceType.NONE)} className={btnCls(c.type === SourceType.NONE)}>
-          <Slash size={16} className="mb-1" /><span className="text-[9px]">None</span>
+          <Slash size={16} className="mb-1" /><span className="text-micro">None</span>
         </button>
         <button onClick={() => pickType(SourceType.CAMERA)} className={btnCls(c.type === SourceType.CAMERA)}>
-          <Video size={16} className="mb-1" /><span className="text-[9px]">Camera</span>
+          <Video size={16} className="mb-1" /><span className="text-micro">Camera</span>
         </button>
         <label className={`relative cursor-pointer ${btnCls(c.type === SourceType.VIDEO)}`}>
           <input type="file" accept="video/*" className="hidden" onChange={(e) => onFile(e, SourceType.VIDEO)} />
-          <Monitor size={16} className="mb-1" /><span className="text-[9px]">Video</span>
+          <Monitor size={16} className="mb-1" /><span className="text-micro">Video</span>
         </label>
         <label className={`relative cursor-pointer ${btnCls(c.type === SourceType.IMAGE)}`}>
           <input type="file" accept="image/*" className="hidden" onChange={(e) => onFile(e, SourceType.IMAGE)} />
-          <ImageIcon size={16} className="mb-1" /><span className="text-[9px]">Image</span>
+          <ImageIcon size={16} className="mb-1" /><span className="text-micro">Image</span>
         </label>
         <button onClick={() => pickType(SourceType.DMX_IN)} className={btnCls(c.type === SourceType.DMX_IN)} title="Art-Net / sACN in">
-          <Network size={16} className="mb-1" /><span className="text-[9px]">DMX In</span>
+          <Network size={16} className="mb-1" /><span className="text-micro">DMX In</span>
         </button>
         <button onClick={() => pickType(SourceType.SPOUT)} className={btnCls(c.type === SourceType.SPOUT)}>
-          <Cast size={16} className="mb-1" /><span className="text-[9px]">Spout</span>
+          <Cast size={16} className="mb-1" /><span className="text-micro">Spout</span>
         </button>
         <button onClick={() => pickType(SourceType.NDI)} className={btnCls(c.type === SourceType.NDI)} title="NDI network video">
-          <Radio size={16} className="mb-1" /><span className="text-[9px]">NDI</span>
+          <Radio size={16} className="mb-1" /><span className="text-micro">NDI</span>
         </button>
         <button onClick={() => pickType('EFFECT')} className={btnCls(c.type === 'EFFECT')}>
-          <Sparkles size={16} className="mb-1" /><span className="text-[9px]">Effect</span>
+          <Sparkles size={16} className="mb-1" /><span className="text-micro">Effect</span>
         </button>
         {showLayerOption && (
           <button onClick={() => pickType(SourceType.LAYER)} className={btnCls(c.type === SourceType.LAYER)} title="A single timeline track">
-            <Film size={16} className="mb-1" /><span className="text-[9px]">Layer</span>
+            <Film size={16} className="mb-1" /><span className="text-micro">Layer</span>
           </button>
         )}
         {showLayerOption && (
           <button onClick={() => pickType(SourceType.PROGRAM)} className={btnCls(c.type === SourceType.PROGRAM)} title="The whole timeline composited (all contributing layers)">
-            <Clapperboard size={16} className="mb-1" /><span className="text-[9px]">Timeline</span>
+            <Clapperboard size={16} className="mb-1" /><span className="text-micro">Timeline</span>
           </button>
         )}
         <button onClick={() => pickType(SourceType.TRACKING)} className={btnCls(c.type === SourceType.TRACKING)} title="LiDAR blob tracking (projection-mappable)">
-          <Crosshair size={16} className="mb-1" /><span className="text-[9px]">Tracking</span>
+          <Crosshair size={16} className="mb-1" /><span className="text-micro">Tracking</span>
         </button>
       </div>
 
       {showLayerOption && c.type === SourceType.LAYER && (
         <div className="flex items-center gap-1 pt-1">
-          <label className="text-fg-2 w-12 text-[10px]">Track</label>
+          <label className="text-fg-2 w-12 text-micro">Track</label>
           <select value={c.layerId ?? ''} onChange={(e) => onChange({ layerId: e.target.value })}
-            className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-[10px] focus:border-accent focus:outline-none">
+            className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-micro focus:border-accent focus:outline-none">
             <option value="">— select a track —</option>
             {layers.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
@@ -121,18 +121,18 @@ export const ContentEditor: React.FC<ContentEditorProps> = ({ content: c, onChan
       {c.type === SourceType.TRACKING && (
         <div className="space-y-2 pt-1">
           <div className="flex items-center gap-1">
-            <label className="text-fg-2 w-12 text-[10px]">Source</label>
+            <label className="text-fg-2 w-12 text-micro">Source</label>
             <select value={c.trackingSource ?? 'SOL'} onChange={(e) => onChange({ trackingSource: e.target.value })}
-              className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-[10px] focus:border-accent focus:outline-none">
+              className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-micro focus:border-accent focus:outline-none">
               <option value="SOL">SOL — floor</option>
               <option value="MUR">MUR — wall</option>
               <option value="SOL_MUR">SOL_MUR — combined</option>
             </select>
           </div>
           <div className="flex items-center gap-1">
-            <label className="text-fg-2 w-12 text-[10px]" title="A timeline video layer drawn under the blobs (projects as one surface)">Background</label>
+            <label className="text-fg-2 w-12 text-micro" title="A timeline video layer drawn under the blobs (projects as one surface)">Background</label>
             <select value={c.bgLayerId ?? ''} onChange={(e) => onChange({ bgLayerId: e.target.value || undefined })}
-              className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-[10px] focus:border-accent focus:outline-none">
+              className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-micro focus:border-accent focus:outline-none">
               <option value="">— none —</option>
               {layers.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
             </select>
@@ -142,13 +142,13 @@ export const ContentEditor: React.FC<ContentEditorProps> = ({ content: c, onChan
           <Slider label="Trail (s)" value={c.trailSeconds ?? 1.2} min={0} max={3} step={0.1}
             format={(v) => `${v.toFixed(1)}s`} onInput={(v) => onChange({ trailSeconds: v })} onChange={(v) => onChange({ trailSeconds: v })} />
           <div className="flex items-center gap-1">
-            <label className="text-fg-2 w-12 text-[10px]">Rotate</label>
+            <label className="text-fg-2 w-12 text-micro">Rotate</label>
             <select value={c.rotate ?? 0} onChange={(e) => onChange({ rotate: parseInt(e.target.value) })}
-              className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-[10px] focus:border-accent focus:outline-none">
+              className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-micro focus:border-accent focus:outline-none">
               {[0, 90, 180, 270].map((d) => <option key={d} value={d}>{d}°</option>)}
             </select>
           </div>
-          <div className="grid grid-cols-2 gap-1.5 text-[10px] text-fg-2">
+          <div className="grid grid-cols-2 gap-1.5 text-micro text-fg-2">
             <label className="flex items-center gap-1.5"><input type="checkbox" checked={c.flipH ?? false} onChange={(e) => onChange({ flipH: e.target.checked })} />Flip H</label>
             <label className="flex items-center gap-1.5"><input type="checkbox" checked={c.flipV ?? false} onChange={(e) => onChange({ flipV: e.target.checked })} />Flip V</label>
             <label className="flex items-center gap-1.5"><input type="checkbox" checked={c.showIds ?? false} onChange={(e) => onChange({ showIds: e.target.checked })} />Show IDs</label>

@@ -17,8 +17,8 @@ interface Props {
 const Card: React.FC<{ title: string; icon?: React.ReactNode; children: React.ReactNode; className?: string }> = ({
   title, icon, children, className = '',
 }) => (
-  <div className={`bg-surface-1 border border-line-1 rounded-[var(--r-md)] flex flex-col min-w-[200px] ${className}`}>
-    <div className="px-3 py-1.5 border-b border-line-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-fg-2">
+  <div className={`bg-surface-1 border border-line-1 rounded-md flex flex-col min-w-[200px] ${className}`}>
+    <div className="px-3 py-1.5 border-b border-line-1 flex items-center gap-2 text-mini font-semibold uppercase tracking-wider text-fg-2">
       {icon && <span className="text-fg-3">{icon}</span>}
       {title}
     </div>
@@ -32,7 +32,7 @@ const MatrixPreview: React.FC<{ cols: number; rows: number; serpentine: boolean 
   const c = Math.min(cols, cap);
   const r = Math.min(rows, cap);
   return (
-    <div className="inline-grid gap-px bg-line-1 p-px rounded-[var(--r-sm)]" style={{ gridTemplateColumns: `repeat(${c}, minmax(0, 1fr))` }}>
+    <div className="inline-grid gap-px bg-line-1 p-px rounded-sm" style={{ gridTemplateColumns: `repeat(${c}, minmax(0, 1fr))` }}>
       {Array.from({ length: r }).map((_, row) =>
         Array.from({ length: c }).map((_, col) => {
           const physCol = serpentine && row % 2 === 1 ? c - 1 - col : col;
@@ -41,7 +41,7 @@ const MatrixPreview: React.FC<{ cols: number; rows: number; serpentine: boolean 
           return (
             <div
               key={`${row}-${col}`}
-              className="w-4 h-4 flex items-center justify-center text-[7px] num text-fg-1"
+              className="w-4 h-4 flex items-center justify-center text-micro num text-fg-1"
               style={{ background: `rgba(39,182,196,${0.12 + t * 0.5})` }}
               title={`#${idx}`}
             />
@@ -126,13 +126,13 @@ export const FixtureEditor: React.FC<Props> = ({
         <Card title="Create" icon={<Plus size={12} />} className="min-w-[160px]">
           <button
             onClick={onAdd}
-            className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-[var(--r-sm)] bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3 text-xs"
+            className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-sm bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3 text-xs"
           >
             <Plus size={13} /> Add fixture
           </button>
           <button
             onClick={onAutoPatch}
-            className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-[var(--r-sm)] bg-surface-2 border border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1 text-xs"
+            className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-sm bg-surface-2 border border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1 text-xs"
             title="Assign universes/addresses to all fixtures"
           >
             <Hash size={13} /> Auto-patch
@@ -144,7 +144,7 @@ export const FixtureEditor: React.FC<Props> = ({
           <button
             onClick={onSaveTemplate}
             disabled={!fixture}
-            className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-[var(--r-sm)] bg-surface-2 border border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1 text-xs disabled:opacity-40 disabled:cursor-not-allowed"
+            className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-sm bg-surface-2 border border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1 text-xs disabled:opacity-40 disabled:cursor-not-allowed"
             title="Save the selected fixture as a template"
           >
             <Save size={13} /> Save selected
@@ -228,7 +228,7 @@ export const FixtureEditor: React.FC<Props> = ({
           {shape === LedShape.MATRIX ? (
             <>
               <MatrixPreview cols={cols} rows={rows} serpentine={fixture.serpentine ?? false} />
-              {(cols > 16 || rows > 16) && <div className="text-[9px] text-fg-3">Preview capped at 16×16.</div>}
+              {(cols > 16 || rows > 16) && <div className="text-micro text-fg-3">Preview capped at 16×16.</div>}
             </>
           ) : (
             <div className="flex flex-wrap gap-px max-w-[260px]">
@@ -237,25 +237,25 @@ export const FixtureEditor: React.FC<Props> = ({
                 const idx = fixture.reverse ? fixture.ledCount - 1 - i : i;
                 return <div key={i} className="w-2.5 h-2.5 rounded-[1px]" title={`#${idx}`} style={{ background: `rgba(39,182,196,${0.15 + t * 0.55})` }} />;
               })}
-              {fixture.ledCount > 64 && <span className="text-[9px] text-fg-3 self-center ml-1">+{fixture.ledCount - 64}</span>}
+              {fixture.ledCount > 64 && <span className="text-micro text-fg-3 self-center ml-1">+{fixture.ledCount - 64}</span>}
             </div>
           )}
-          <div className="num text-[10px] text-fg-3 pt-1">{totalChannels} ch · {fixture.ledCount} px × {cpp}</div>
+          <div className="num text-micro text-fg-3 pt-1">{totalChannels} ch · {fixture.ledCount} px × {cpp}</div>
         </Card>
 
         {/* Ledmap = WLED-style physical→geometry pixel remap */}
         <Card title="Ledmap" icon={<Route size={12} />} className="min-w-[200px]">
           <input ref={ledmapInput} type="file" accept=".json,application/json" className="hidden" onChange={handleLedmapUpload} />
-          <div className="text-[10px] text-fg-3 leading-snug">
+          <div className="text-micro text-fg-3 leading-snug">
             Remaps physical pixel order → geometry. Only needed for irregular wiring that Reverse / Serpentine can't express.
           </div>
-          <div className="num text-[10px] pt-0.5">
+          <div className="num text-micro pt-0.5">
             {fixture.ledMap
               ? <span className={ledMapMismatch ? 'text-warn' : 'text-fg-2'}>Loaded: {ledMapLen} pts</span>
               : <span className="text-fg-3">No ledmap (identity order)</span>}
           </div>
           {ledMapMismatch && (
-            <div className="flex items-start gap-1 text-[9px] text-warn">
+            <div className="flex items-start gap-1 text-micro text-warn">
               <AlertTriangle size={11} className="shrink-0 mt-px" />
               <span>Length ({ledMapLen}) ≠ LED count ({fixture.ledCount}); unmapped pixels fall back to identity.</span>
             </div>

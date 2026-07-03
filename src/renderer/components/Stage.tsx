@@ -752,7 +752,7 @@ export const Stage: React.FC<StageProps> = ({
       >
           <div
             ref={containerRef}
-            className="absolute shadow-2xl bg-[#404040] border border-line-1"
+            className="absolute shadow-e3 bg-surface-4 border border-line-1"
             style={{
                 width: `${stageW}px`,
                 height: `${stageH}px`,
@@ -773,14 +773,14 @@ export const Stage: React.FC<StageProps> = ({
                 />
             )}
             {activeSnapLines.x.map((x, i) => (
-                <div key={`sx-${i}`} className="absolute top-0 bottom-0 w-px bg-sel-surface z-[60] shadow-[0_0_4px_rgba(39,182,196,0.8)]" style={{ left: `${x * 100}%` }}></div>
+                <div key={`sx-${i}`} className="absolute top-0 bottom-0 w-px bg-sel-surface z-stage-guide shadow-[0_0_4px_rgba(39,182,196,0.8)]" style={{ left: `${x * 100}%` }}></div>
             ))}
             {activeSnapLines.y.map((y, i) => (
-                <div key={`sy-${i}`} className="absolute left-0 right-0 h-px bg-sel-surface z-[60] shadow-[0_0_4px_rgba(39,182,196,0.8)]" style={{ top: `${y * 100}%` }}></div>
+                <div key={`sy-${i}`} className="absolute left-0 right-0 h-px bg-sel-surface z-stage-guide shadow-[0_0_4px_rgba(39,182,196,0.8)]" style={{ top: `${y * 100}%` }}></div>
             ))}
 
             {webglError && (
-            <div className="absolute inset-0 z-[100] bg-black/90 flex flex-col items-center justify-center text-danger font-mono text-xs text-center p-4">
+            <div className="absolute inset-0 z-stage-overlay bg-black/90 flex flex-col items-center justify-center text-danger font-mono text-xs text-center p-4">
                 <AlertCircle className="w-8 h-8 mb-2" />
                 <p>WebGL Initialization Failed</p>
                 <p className="opacity-50 mt-1">Check browser hardware acceleration settings</p>
@@ -812,7 +812,7 @@ export const Stage: React.FC<StageProps> = ({
                     >
                         <div className={`w-full h-full border ${sel ? 'border-sel-surface shadow-[0_0_10px_rgba(39,182,196,0.25)]' : 'border-dashed border-sel-surface/40'}`}></div>
                         <div
-                            className="absolute -top-5 left-0 text-[9px] font-mono text-sel-surface bg-black/70 px-1 whitespace-nowrap pointer-events-none"
+                            className="absolute -top-5 left-0 text-micro font-mono text-sel-surface bg-black/70 px-1 whitespace-nowrap pointer-events-none"
                             style={{ transform: `rotate(${-s.rotation}deg)` }}
                         >{s.name}</div>
                         {sel && (
@@ -892,7 +892,7 @@ export const Stage: React.FC<StageProps> = ({
                             ></div>
 
                             <div
-                                className="absolute -top-6 left-0 text-[10px] font-mono text-sel-fixture bg-black/80 px-1 border border-sel-fixture/25 whitespace-nowrap z-50 pointer-events-none"
+                                className="absolute -top-6 left-0 text-micro font-mono text-sel-fixture bg-black/80 px-1 border border-sel-fixture/25 whitespace-nowrap z-50 pointer-events-none"
                                 style={{ transform: `rotate(-${fixture.rotation || 0}deg)` }}
                             >
                                 {fixture.name} <span className="text-fg-3">|</span> U:{fixture.universe}.{fixture.startAddress}
@@ -907,12 +907,12 @@ export const Stage: React.FC<StageProps> = ({
       </div>
         
         <div
-            className="absolute top-2 right-2 flex items-center gap-1 z-[100]"
+            className="absolute top-2 right-2 flex items-center gap-1 z-stage-overlay"
             onMouseDown={(e) => e.stopPropagation()}
         >
             <button
                 onClick={resetView}
-                className="p-1.5 rounded-[var(--r-sm)] border bg-surface-2/80 backdrop-blur-sm border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1 transition-colors"
+                className="p-1.5 rounded-sm border bg-surface-2/80 backdrop-blur-sm border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1 transition-colors"
                 title="Reset View"
                 aria-label="Reset view"
             >
@@ -921,7 +921,7 @@ export const Stage: React.FC<StageProps> = ({
             <div className="w-px h-5 bg-line-2 mx-1"></div>
             <button
                 onClick={() => setShowGrid(!showGrid)}
-                className={`p-1.5 rounded-[var(--r-sm)] border transition-colors ${showGrid ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2/80 backdrop-blur-sm border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
+                className={`p-1.5 rounded-sm border transition-colors ${showGrid ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2/80 backdrop-blur-sm border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
                 title="Toggle Grid"
                 aria-label="Toggle grid"
                 aria-pressed={showGrid}
@@ -937,12 +937,12 @@ export const Stage: React.FC<StageProps> = ({
                     onChange={(e) => setGridDivisions(Math.max(1, Math.min(64, Math.round(parseFloat(e.target.value) || 1))))}
                     title="Grid divisions"
                     aria-label="Grid divisions"
-                    className="w-11 px-1.5 py-1 text-center num text-[11px] rounded-[var(--r-sm)] border border-line-1 bg-surface-2/80 backdrop-blur-sm text-fg-1 focus:border-accent focus:outline-none"
+                    className="w-11 px-1.5 py-1 text-center num text-mini rounded-sm border border-line-1 bg-surface-2/80 backdrop-blur-sm text-fg-1 focus:border-accent focus:outline-none"
                 />
             )}
             <button
                 onClick={() => setSnapEnabled(!snapEnabled)}
-                className={`p-1.5 rounded-[var(--r-sm)] border transition-colors ${snapEnabled ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2/80 backdrop-blur-sm border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
+                className={`p-1.5 rounded-sm border transition-colors ${snapEnabled ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2/80 backdrop-blur-sm border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
                 title="Toggle Snapping"
                 aria-label="Toggle snapping"
                 aria-pressed={snapEnabled}

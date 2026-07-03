@@ -32,10 +32,10 @@ export const StateLane: React.FC<Props> = ({ sm, pxPerSec, width, onTrigger, onE
           className={`inline-flex items-center justify-center h-5 w-5 rounded ${sm.enabled ? 'bg-accent text-black' : 'bg-surface-2 text-fg-3'}`}>
           <Workflow size={12} />
         </button>
-        <span className="text-[10px] text-fg-2 truncate" title={current ? current.name : 'no state'}>
+        <span className="text-micro text-fg-2 truncate" title={current ? current.name : 'no state'}>
           {sm.enabled ? (current ? current.name : (sm.states.length ? '—' : 'empty')) : 'disabled'}
         </span>
-        <button onClick={onEdit} className="ml-auto text-[9px] text-fg-3 hover:text-fg-1 underline">edit</button>
+        <button onClick={onEdit} className="ml-auto text-micro text-fg-3 hover:text-fg-1 underline">edit</button>
       </div>
 
       <div className="relative" style={{ width, height: SM_LANE_H, opacity: dim ? 0.45 : 1 }}>
@@ -45,7 +45,7 @@ export const StateLane: React.FC<Props> = ({ sm, pxPerSec, width, onTrigger, onE
             const to = sm.states.find(s => s.id === t.to);
             return (
               <button key={t.id} onClick={() => onTrigger(t.id)} title={`Trigger → ${to?.name ?? '?'}`}
-                className="px-1.5 h-5 rounded bg-surface-2 border border-line-1 text-[10px] text-fg-1 hover:bg-accent hover:text-black inline-flex items-center gap-1">
+                className="px-1.5 h-5 rounded bg-surface-2 border border-line-1 text-micro text-fg-1 hover:bg-accent hover:text-black inline-flex items-center gap-1">
                 <ChevronsRight size={10} /> {to?.name ?? '?'}
               </button>
             );

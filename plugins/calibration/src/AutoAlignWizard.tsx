@@ -359,12 +359,12 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
         onMaskPoint={onMaskPoint}
         onMaskClose={onPreviewDblClick}
       />, cameraHost)}
-    <div className="fixed left-0 top-9 bottom-6 z-[120] w-[340px] flex flex-col bg-surface-1 border-r border-line-2 shadow-2xl animate-overlay-in">
+    <div className="fixed left-0 top-9 bottom-6 z-calib-panel w-[340px] flex flex-col bg-surface-1 border-r border-line-2 shadow-e3 animate-overlay-in">
       <div className="h-10 px-3 flex items-center justify-between border-b border-line-1 bg-surface-2 shrink-0">
         <span className="text-xs font-semibold text-fg-1 uppercase tracking-wider flex items-center gap-1.5"><ScanLine size={14} /> Auto-Align — {surfaceName}</span>
         <div className="flex items-center gap-2">
           {onSwitchFlow && (
-            <div className="flex items-center rounded border border-line-1 overflow-hidden text-[10px]">
+            <div className="flex items-center rounded border border-line-1 overflow-hidden text-micro">
               <button onClick={() => onSwitchFlow('board')} className="px-1.5 py-0.5 bg-surface-1 text-fg-3 hover:bg-surface-2" title="Switch to board structured-light">Board</button>
               <span className="px-1.5 py-0.5 bg-accent/20 text-fg-1">Auto-Align</span>
             </div>
@@ -379,7 +379,7 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
           const done = i < idx, cur = i === idx;
           return (
             <button key={s.id} onClick={() => i <= idx && setStep(s.id)}
-              className={`flex items-center gap-1 text-[10px] px-1 ${cur ? 'text-fg-1' : done ? 'text-ok' : 'text-fg-3'}`}>
+              className={`flex items-center gap-1 text-micro px-1 ${cur ? 'text-fg-1' : done ? 'text-ok' : 'text-fg-3'}`}>
               <span className={`w-4 h-4 rounded-full grid place-items-center border ${cur ? 'border-accent text-accent' : done ? 'border-ok text-ok' : 'border-line-1'}`}>
                 {done ? <Check size={10} /> : i + 1}
               </span>{s.label}{i < STEPS.length - 1 && <span className="text-fg-4">›</span>}
@@ -388,7 +388,7 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
         })}
       </div>
 
-      <div className="flex-1 min-h-0 overflow-auto p-3 space-y-3 text-[11px]">
+      <div className="flex-1 min-h-0 overflow-auto p-3 space-y-3 text-mini">
         {step === 'setup' && (
           <>
             <p className="text-fg-3 leading-relaxed">Markerless camera auto-align onto the <b>loaded 3D model</b> — no checkerboard. You'll click a few matching points to anchor the camera, then scan. Needs a <b>camera</b>, a <b>venue model</b>, a <b>darkened room</b>, and a <b>projector output</b>.</p>
@@ -398,15 +398,15 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
             <div className="pt-1 text-fg-3">Assumed camera horizontal FOV
               <span className="ml-1 text-fg-1 num">{hfov}°</span>
               <input type="range" min={30} max={110} value={hfov} onChange={(e) => setHfov(parseInt(e.target.value, 10))} className="w-full" />
-              <span className="text-fg-4 text-[10px]">A rough lens guess (board-free); refined later. PS3 Eye ≈ 56–75°.</span>
+              <span className="text-fg-4 text-micro">A rough lens guess (board-free); refined later. PS3 Eye ≈ 56–75°.</span>
             </div>
           </>
         )}
 
         {(step === 'camera' || step === 'pose') && (
           <>
-            <div className="text-fg-4 text-[10px] flex items-center gap-1.5"><MousePointer size={11} /> The live camera is in the large left view — scroll to zoom, drag to pan, click to place points.</div>
-            <div className="flex items-center gap-1 text-[10px]">
+            <div className="text-fg-4 text-micro flex items-center gap-1.5"><MousePointer size={11} /> The live camera is in the large left view — scroll to zoom, drag to pan, click to place points.</div>
+            <div className="flex items-center gap-1 text-micro">
               <span className="text-fg-3">Capture via</span>
               {(['browser', 'native'] as cam.CaptureSource[]).map((s) => (
                 <button key={s} onClick={() => { if (camOn) cam.stop(); setCamOn(false); setCamSource(s); }}
@@ -421,19 +421,19 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
                 <input type="number" min={0} max={9} value={camIndex} onChange={(e) => setCamIndex(Math.max(0, Math.min(9, parseInt(e.target.value || '0', 10))))}
                   className="w-14 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 num focus:border-accent focus:outline-none" />
               ) : (
-                <select value={deviceId} onChange={(e) => setDeviceId(e.target.value)} className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-[10px] focus:border-accent focus:outline-none">
+                <select value={deviceId} onChange={(e) => setDeviceId(e.target.value)} className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-micro focus:border-accent focus:outline-none">
                   <option value="">Default camera</option>
                   {devices.map((d) => <option key={d.deviceId} value={d.deviceId}>{d.label}</option>)}
                 </select>
               )}
               <button onClick={() => startCam()} className="px-2 py-1 rounded bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3">{camOn ? 'Restart' : 'Start'}</button>
             </div>
-            {camErr && <div className="flex items-start gap-1.5 text-danger text-[10px] leading-snug"><AlertTriangle size={12} className="shrink-0 mt-0.5" /> {camErr}</div>}
+            {camErr && <div className="flex items-start gap-1.5 text-danger text-micro leading-snug"><AlertTriangle size={12} className="shrink-0 mt-0.5" /> {camErr}</div>}
 
             <CameraParamsPanel camOn={camOn} sessionKey={camSession} width={camMode.w} height={camMode.h} fps={camMode.fps} onReopen={reopenCam} />
 
             <div className="space-y-1 pt-1 border-t border-line-1">
-              <div className="flex items-center gap-1.5 text-[10px]">
+              <div className="flex items-center gap-1.5 text-micro">
                 <button onClick={() => { setMaskMode((m) => !m); setMaskDraft([]); }}
                   className={`px-1.5 py-0.5 rounded border ${maskMode ? 'bg-danger/20 border-danger text-fg-1' : 'bg-surface-1 border-line-1 text-fg-3 hover:bg-surface-2'}`}>
                   {maskMode ? 'Drawing mask…' : 'Camera mask'}
@@ -441,14 +441,14 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
                 {(scene3D.camMask?.polys.length ?? 0) > 0 && <span className="text-fg-3">{scene3D.camMask!.polys.length} region{scene3D.camMask!.polys.length === 1 ? '' : 's'}</span>}
                 {((scene3D.camMask?.polys.length ?? 0) > 0 || maskDraft.length > 0) && <button onClick={clearMask} className="text-danger hover:text-fg-1 ml-auto">clear</button>}
               </div>
-              {maskMode && <div className="text-fg-4 text-[10px] leading-snug">Click to outline a reflective hotspot / obstruction; <b>double-click</b> to close the region. Masked pixels are dropped from the scan.</div>}
+              {maskMode && <div className="text-fg-4 text-micro leading-snug">Click to outline a reflective hotspot / obstruction; <b>double-click</b> to close the region. Masked pixels are dropped from the scan.</div>}
             </div>
 
             {step === 'pose' && (
               <>
                 {/* Fiducial markers → one-click recalibration (VIOSO One-Click-Recalibration). */}
                 <div className="space-y-1 pt-1 border-t border-line-1">
-                  <div className="flex items-center gap-1.5 text-[10px]">
+                  <div className="flex items-center gap-1.5 text-micro">
                     <Aperture size={12} className="text-accent shrink-0" />
                     <span className="text-fg-2 font-medium">Fiducial markers</span>
                     {(scene3D.markerMap?.markers.length ?? 0) > 0 && <span className="text-fg-3">{scene3D.markerMap!.markers.length} registered</span>}
@@ -458,7 +458,7 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
                       <Aperture size={12} /> Auto-anchor (detect markers)
                     </button>
                   )}
-                  <div className="flex items-center gap-1.5 text-[10px]">
+                  <div className="flex items-center gap-1.5 text-micro">
                     <button onClick={() => detectMarkers()} disabled={!camOn} className="px-1.5 py-0.5 rounded border bg-surface-1 border-line-1 text-fg-3 hover:bg-surface-2 disabled:opacity-40">Detect markers</button>
                     <span className="text-fg-4">register: click an id, then its point on the model</span>
                   </div>
@@ -468,20 +468,20 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
                         const known = (scene3D.markerMap?.markers ?? []).some((m) => m.id === id);
                         return (
                           <button key={id} onClick={() => registerMarker(id)}
-                            className={`px-1.5 py-0.5 rounded border text-[10px] ${regMarkerRef.current === id ? 'bg-warn/20 border-warn text-fg-1' : known ? 'bg-ok/15 border-ok/60 text-fg-2' : 'bg-surface-1 border-line-1 text-fg-3 hover:bg-surface-2'}`}>
+                            className={`px-1.5 py-0.5 rounded border text-micro ${regMarkerRef.current === id ? 'bg-warn/20 border-warn text-fg-1' : known ? 'bg-ok/15 border-ok/60 text-fg-2' : 'bg-surface-1 border-line-1 text-fg-3 hover:bg-surface-2'}`}>
                             {id}{known ? ' ✓' : ''}
                           </button>
                         );
                       })}
                     </div>
                   )}
-                  {(scene3D.markerMap?.markers.length ?? 0) > 0 && <button onClick={() => onStoreMarkerMap?.(null)} className="text-[10px] text-danger hover:text-fg-1">clear marker map</button>}
+                  {(scene3D.markerMap?.markers.length ?? 0) > 0 && <button onClick={() => onStoreMarkerMap?.(null)} className="text-micro text-danger hover:text-fg-1">clear marker map</button>}
                 </div>
 
                 <div className="text-fg-3 leading-relaxed flex items-start gap-1.5"><MousePointer size={12} className="shrink-0 mt-0.5 text-accent" /> Or pick manually: click a recognizable point in the camera image, then the <b>same</b> point on the 3D model (right). Repeat <b>≥4</b>, well-spread + non-coplanar.</div>
                 <div className="flex items-center justify-between">
                   <span className={pose ? 'text-ok' : 'text-fg-3'}>{picks.length} pick{picks.length === 1 ? '' : 's'}{pose ? ` · pose RMS ${pose.rms.toFixed(2)} px` : ''}</span>
-                  {pendingCamPx && <span className="text-warn text-[10px]">camera point set → click model</span>}
+                  {pendingCamPx && <span className="text-warn text-micro">camera point set → click model</span>}
                 </div>
                 {/* Edit a placed correspondence: select it (row / camera marker / 3D sphere), then drag or
                     arrow-nudge its camera marker, and/or click the model to re-place its 3D point. */}
@@ -489,8 +489,9 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
                   {picks.map((p, i) => {
                     const on = selectedPick === i;
                     return (
-                      <div key={i} onClick={() => selectPick(i)}
-                        className={`flex items-center justify-between gap-1 text-[10px] px-1 py-0.5 rounded cursor-pointer ${on ? 'bg-accent/20 text-fg-1 border border-accent' : 'text-fg-3 hover:bg-surface-2 border border-transparent'}`}>
+                      <div key={i} role="button" tabIndex={0} onClick={() => selectPick(i)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectPick(i); } }}
+                        className={`flex items-center justify-between gap-1 text-micro px-1 py-0.5 rounded cursor-pointer ${on ? 'bg-accent/20 text-fg-1 border border-accent' : 'text-fg-3 hover:bg-surface-2 border border-transparent'}`}>
                         <span className="num">#{i + 1} cam({p.camPx[0].toFixed(0)},{p.camPx[1].toFixed(0)})</span>
                         <button onClick={(e) => { e.stopPropagation(); removePick(i); }} className="text-danger hover:text-fg-1 shrink-0">remove</button>
                       </div>
@@ -498,12 +499,12 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
                   })}
                 </div>
                 {selectedPick != null && (
-                  <div className="flex items-center justify-between text-[10px] text-accent bg-accent/10 border border-accent/40 rounded px-1.5 py-1">
+                  <div className="flex items-center justify-between text-micro text-accent bg-accent/10 border border-accent/40 rounded px-1.5 py-1">
                     <span>Editing point {selectedPick + 1} — drag/arrows on camera · click model for 3D</span>
                     <button onClick={() => setSelectedPick(null)} className="text-fg-3 hover:text-fg-1">done</button>
                   </div>
                 )}
-                {picks.length >= 4 && <button onClick={() => resolvePose(picks)} className="text-[10px] text-accent hover:underline">re-solve pose</button>}
+                {picks.length >= 4 && <button onClick={() => resolvePose(picks)} className="text-micro text-accent hover:underline">re-solve pose</button>}
               </>
             )}
           </>
@@ -519,14 +520,14 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
             <button onClick={runScan} disabled={picks.length < 4 || !!busy} className="w-full px-2 py-1.5 rounded bg-accent/20 border border-accent text-fg-1 hover:bg-accent/30 disabled:opacity-40 flex items-center justify-center gap-1.5">
               {busy ? <Loader2 size={13} className="animate-spin" /> : <ScanLine size={13} />} Scan venue
             </button>
-            {result && <div className="text-ok text-[10px]">✓ {result.hits}/{result.decoded} rays hit the venue</div>}
+            {result && <div className="text-ok text-micro">✓ {result.hits}/{result.decoded} rays hit the venue</div>}
           </>
         )}
 
         {step === 'verify' && result && (
           <>
             <ResidualHeatmap result={result} />
-            <div className="grid grid-cols-2 gap-1 text-[10px] text-fg-3">
+            <div className="grid grid-cols-2 gap-1 text-micro text-fg-3">
               <span>fx {result.calibration.intrinsics[0].toFixed(0)}</span>
               <span>fy {result.calibration.intrinsics[4].toFixed(0)}</span>
               <span>cx {result.calibration.intrinsics[2].toFixed(0)}</span>
@@ -534,8 +535,8 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
               <span className={(result.calibration.intrinsicsRms ?? 9) < 2 ? 'text-ok' : 'text-warn'}>lens RMS {(result.calibration.intrinsicsRms ?? 0).toFixed(2)}px</span>
               <span className={(result.calibration.poseRms ?? 9) < 3 ? 'text-ok' : 'text-warn'}>pose RMS {(result.calibration.poseRms ?? 0).toFixed(2)}px</span>
             </div>
-            <div className="text-fg-4 text-[10px]">Camera lens: {result.selfCal?.ok ? `self-calibrated (Sampson ${result.selfCal.rms.toFixed(2)}px, ${result.selfCal.inliers} inliers)` : result.selfCal ? 'self-cal rejected → assumed FOV' : 'assumed FOV'}</div>
-            <div className="flex items-start gap-1.5 text-warn text-[10px] leading-snug"><AlertTriangle size={12} className="shrink-0 mt-0.5" /> Low RMS ≠ correct scale — confirm the projection lands right on the real surface before trusting it.</div>
+            <div className="text-fg-4 text-micro">Camera lens: {result.selfCal?.ok ? `self-calibrated (Sampson ${result.selfCal.rms.toFixed(2)}px, ${result.selfCal.inliers} inliers)` : result.selfCal ? 'self-cal rejected → assumed FOV' : 'assumed FOV'}</div>
+            <div className="flex items-start gap-1.5 text-warn text-micro leading-snug"><AlertTriangle size={12} className="shrink-0 mt-0.5" /> Low RMS ≠ correct scale — confirm the projection lands right on the real surface before trusting it.</div>
             <div className="flex gap-1.5">
               <button onClick={finish} className="flex-1 px-2 py-1.5 rounded bg-ok/20 border border-ok text-fg-1 hover:bg-ok/30">Apply &amp; finish</button>
               <button onClick={exportMpcdi} title="Export this calibration as an MPCDI file (open interchange)" className="px-2 py-1.5 rounded bg-surface-2 border border-line-1 text-fg-2 hover:bg-surface-3">Export MPCDI</button>
@@ -544,7 +545,7 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
         )}
 
         {log.length > 0 && (
-          <div className="pt-2 border-t border-line-1 space-y-0.5 font-mono text-[10px] text-fg-3">
+          <div className="pt-2 border-t border-line-1 space-y-0.5 font-mono text-micro text-fg-3">
             {log.slice(-6).map((l, i) => <div key={i} className={l.startsWith('✗') ? 'text-danger' : l.startsWith('✓') ? 'text-ok' : ''}>{l}</div>)}
           </div>
         )}
@@ -552,11 +553,11 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
 
       {/* Footer */}
       <div className="h-11 px-3 flex items-center justify-between border-t border-line-1 bg-surface-2 shrink-0">
-        <button onClick={() => idx > 0 && setStep(STEPS[idx - 1].id)} disabled={idx === 0} className="text-[11px] text-fg-2 hover:text-fg-1 disabled:opacity-30">‹ Back</button>
-        {busy && <span className="text-[10px] text-fg-3 flex items-center gap-1"><Loader2 size={11} className="animate-spin" /> {busy}</span>}
+        <button onClick={() => idx > 0 && setStep(STEPS[idx - 1].id)} disabled={idx === 0} className="text-mini text-fg-2 hover:text-fg-1 disabled:opacity-30">‹ Back</button>
+        {busy && <span className="text-micro text-fg-3 flex items-center gap-1"><Loader2 size={11} className="animate-spin" /> {busy}</span>}
         {step === 'verify'
-          ? <button onClick={finish} className="text-[11px] px-2 py-1 rounded bg-ok/20 border border-ok text-fg-1">Finish</button>
-          : <button onClick={() => idx < STEPS.length - 1 && canNext && setStep(STEPS[idx + 1].id)} disabled={!canNext} title={canNext ? '' : 'complete this step'} className="text-[11px] px-2 py-1 rounded bg-accent/20 border border-accent text-fg-1 disabled:opacity-30">Next ›</button>}
+          ? <button onClick={finish} className="text-mini px-2 py-1 rounded bg-ok/20 border border-ok text-fg-1">Finish</button>
+          : <button onClick={() => idx < STEPS.length - 1 && canNext && setStep(STEPS[idx + 1].id)} disabled={!canNext} title={canNext ? '' : 'complete this step'} className="text-mini px-2 py-1 rounded bg-accent/20 border border-accent text-fg-1 disabled:opacity-30">Next ›</button>}
       </div>
     </div>
     </>
@@ -596,7 +597,7 @@ const ResidualHeatmap: React.FC<{ result: MarkerlessResult }> = ({ result }) => 
   }, [result]);
   return (
     <div>
-      <div className="text-fg-3 text-[10px] mb-1 flex items-center gap-1"><Aperture size={11} /> Residual heatmap (projector raster) — green good, red ≥4px</div>
+      <div className="text-fg-3 text-micro mb-1 flex items-center gap-1"><Aperture size={11} /> Residual heatmap (projector raster) — green good, red ≥4px</div>
       <canvas ref={ref} className="w-full rounded border border-line-1 bg-black" />
     </div>
   );

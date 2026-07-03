@@ -365,9 +365,9 @@ export const CameraViewport = forwardRef<CameraViewportHandle, Props>((props, re
 
       {/* Zoom toolbar */}
       {active && (
-        <div className="absolute top-2 right-2 flex items-center gap-1 bg-surface-2/80 backdrop-blur-sm border border-line-1 rounded-[var(--r-sm)] px-1 py-0.5 text-fg-2">
+        <div className="absolute top-2 right-2 flex items-center gap-1 bg-surface-2/80 backdrop-blur-sm border border-line-1 rounded-sm px-1 py-0.5 text-fg-2">
           <button title="Zoom out" onClick={() => { const { w, h } = hostSize(); setScaleAbout(view.current.scale / 1.3, w / 2, h / 2); }} className="p-1 hover:text-fg-1"><ZoomOut size={14} /></button>
-          <span className="num text-[10px] w-10 text-center tabular-nums">{zoomPct}%</span>
+          <span className="num text-micro w-10 text-center tabular-nums">{zoomPct}%</span>
           <button title="Zoom in" onClick={() => { const { w, h } = hostSize(); setScaleAbout(view.current.scale * 1.3, w / 2, h / 2); }} className="p-1 hover:text-fg-1"><ZoomIn size={14} /></button>
           <button title="Fit" onClick={fit} className="p-1 hover:text-fg-1"><Maximize2 size={14} /></button>
         </div>
@@ -375,14 +375,14 @@ export const CameraViewport = forwardRef<CameraViewportHandle, Props>((props, re
 
       {/* Live source readout (confirms the RGB feed is arriving) */}
       {active && dims && (
-        <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-surface-2/80 backdrop-blur-sm border border-line-1 rounded-[var(--r-sm)] px-2 py-0.5 text-[10px] text-fg-2 num">
+        <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-surface-2/80 backdrop-blur-sm border border-line-1 rounded-sm px-2 py-0.5 text-micro text-fg-2 num">
           <span className="w-1.5 h-1.5 rounded-full bg-ok animate-pulse" /> {dims.w}×{dims.h} RGB
         </div>
       )}
 
       {/* Mode hint */}
       {active && picking && (
-        <div className="absolute bottom-2 left-2 flex items-center gap-1.5 bg-surface-2/80 backdrop-blur-sm border border-line-1 rounded-[var(--r-sm)] px-2 py-1 text-[10px] text-fg-2">
+        <div className="absolute bottom-2 left-2 flex items-center gap-1.5 bg-surface-2/80 backdrop-blur-sm border border-line-1 rounded-sm px-2 py-1 text-micro text-fg-2">
           {maskMode ? <><Hand size={12} className="text-danger" /> click to outline · double-click to close</> : <><MousePointer size={12} className="text-accent" /> scroll to zoom · drag (no pick) to pan · click to place</>}
         </div>
       )}

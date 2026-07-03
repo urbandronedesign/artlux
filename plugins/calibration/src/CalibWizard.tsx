@@ -43,7 +43,7 @@ const intrinsicsBand = (r: number) => (r < 1 ? 'ok' : r < 2 ? 'warn' : 'danger')
 const poseBand = (r: number) => (r < 2 ? 'ok' : r < 5 ? 'warn' : 'danger');
 const bandColor = { ok: 'text-ok', warn: 'text-warn', danger: 'text-danger' } as const;
 
-const numCls = 'w-14 bg-surface-0 border border-line-1 rounded px-1 py-0.5 text-right text-fg-1 num text-[11px] focus:border-accent focus:outline-none';
+const numCls = 'w-14 bg-surface-0 border border-line-1 rounded px-1 py-0.5 text-right text-fg-1 num text-mini focus:border-accent focus:outline-none';
 
 // Map a getUserMedia failure to actionable text.
 const camErrorMsg = (e: unknown): string => {
@@ -247,13 +247,13 @@ export const CalibWizard: React.FC<Props> = (props) => {
         detect={step === 'camera' || step === 'intrinsics' ? detect : { found: false }}
         placeholder="start the camera"
       />, cameraHost)}
-    <div className="fixed left-0 top-9 bottom-6 z-[120] w-[340px] flex flex-col bg-surface-1 border-r border-line-2 shadow-2xl animate-overlay-in">
+    <div className="fixed left-0 top-9 bottom-6 z-calib-panel w-[340px] flex flex-col bg-surface-1 border-r border-line-2 shadow-e3 animate-overlay-in">
       {/* Header */}
       <div className="h-10 px-3 flex items-center justify-between border-b border-line-1 bg-surface-2 shrink-0">
         <span className="text-xs font-semibold text-fg-1 uppercase tracking-wider flex items-center gap-1.5"><Aperture size={14} /> Calibrate — {surfaceName}</span>
         <div className="flex items-center gap-2">
           {onSwitchFlow && (
-            <div className="flex items-center rounded border border-line-1 overflow-hidden text-[10px]">
+            <div className="flex items-center rounded border border-line-1 overflow-hidden text-micro">
               <span className="px-1.5 py-0.5 bg-accent/20 text-fg-1">Board</span>
               <button onClick={() => onSwitchFlow('auto')} className="px-1.5 py-0.5 bg-surface-1 text-fg-3 hover:bg-surface-2" title="Switch to markerless camera auto-align">Auto-Align</button>
             </div>
@@ -269,8 +269,8 @@ export const CalibWizard: React.FC<Props> = (props) => {
           return (
             <React.Fragment key={s.id}>
               <button onClick={() => i <= idx && setStep(s.id)} disabled={i > idx}
-                className={`flex items-center gap-1 text-[10px] ${cur ? 'text-accent' : done ? 'text-fg-2' : 'text-fg-3'}`}>
-                <span className={`w-4 h-4 rounded-full grid place-items-center text-[9px] border ${cur ? 'border-accent text-accent' : done ? 'border-ok text-ok' : 'border-line-2'}`}>
+                className={`flex items-center gap-1 text-micro ${cur ? 'text-accent' : done ? 'text-fg-2' : 'text-fg-3'}`}>
+                <span className={`w-4 h-4 rounded-full grid place-items-center text-micro border ${cur ? 'border-accent text-accent' : done ? 'border-ok text-ok' : 'border-line-2'}`}>
                   {done ? <Check size={10} /> : i + 1}
                 </span>
                 {s.label}
@@ -282,7 +282,7 @@ export const CalibWizard: React.FC<Props> = (props) => {
       </div>
 
       {/* Body */}
-      <div className="flex-1 min-h-0 overflow-auto p-3 space-y-3 text-[11px]">
+      <div className="flex-1 min-h-0 overflow-auto p-3 space-y-3 text-mini">
         {step === 'prereq' && (
           <>
             <p className="text-fg-3 leading-relaxed">This wizard recovers the projector's lens + position so the 3D scene can be projected onto the real surface. You'll need a <b>printed checkerboard</b>, a <b>camera</b>, and a <b>darkened room</b>.</p>
@@ -294,7 +294,7 @@ export const CalibWizard: React.FC<Props> = (props) => {
             </PrereqRow>
             <PrereqRow ok={cameraPresent} label="Camera detected">
               <select value={deviceId} onChange={(e) => setDeviceId(e.target.value)}
-                className="mt-1 w-full bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-[10px] focus:border-accent focus:outline-none">
+                className="mt-1 w-full bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-micro focus:border-accent focus:outline-none">
                 <option value="">Default camera</option>
                 {devices.map((d) => <option key={d.deviceId} value={d.deviceId}>{d.label}</option>)}
               </select>
@@ -308,10 +308,10 @@ export const CalibWizard: React.FC<Props> = (props) => {
 
         {(step === 'camera' || step === 'intrinsics') && (
           <>
-            <div className="text-fg-4 text-[10px] flex items-center gap-1.5"><Camera size={11} /> The live camera + board overlay are in the large left view — scroll to zoom, drag to pan.</div>
+            <div className="text-fg-4 text-micro flex items-center gap-1.5"><Camera size={11} /> The live camera + board overlay are in the large left view — scroll to zoom, drag to pan.</div>
             {/* Capture backend: browser getUserMedia (UVC webcams) or OpenCV DirectShow (cameras
                 getUserMedia can't drive — e.g. the PS3 Eye, addressed by index like vvvv). */}
-            <div className="flex items-center gap-1 text-[10px]">
+            <div className="flex items-center gap-1 text-micro">
               <span className="text-fg-3">Capture via</span>
               {(['browser', 'native'] as cam.CaptureSource[]).map((s) => (
                 <button key={s} onClick={() => { if (camOn) cam.stop(); setCamOn(false); setCamSource(s); }}
@@ -323,7 +323,7 @@ export const CalibWizard: React.FC<Props> = (props) => {
             <div className="flex items-center gap-1.5">
               <Camera size={13} className="text-fg-3 shrink-0" />
               {camSource === 'native' ? (
-                <label className="flex-1 flex items-center gap-1.5 text-[10px] text-fg-3">
+                <label className="flex-1 flex items-center gap-1.5 text-micro text-fg-3">
                   Device index
                   <input type="number" min={0} max={9} value={camIndex}
                     onChange={(e) => setCamIndex(Math.max(0, Math.min(9, parseInt(e.target.value || '0', 10))))}
@@ -332,7 +332,7 @@ export const CalibWizard: React.FC<Props> = (props) => {
                 </label>
               ) : (
                 <select value={deviceId} onChange={(e) => setDeviceId(e.target.value)}
-                  className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-[10px] focus:border-accent focus:outline-none">
+                  className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-micro focus:border-accent focus:outline-none">
                   <option value="">Default camera</option>
                   {devices.map((d) => <option key={d.deviceId} value={d.deviceId}>{d.label}</option>)}
                 </select>
@@ -340,14 +340,14 @@ export const CalibWizard: React.FC<Props> = (props) => {
               <button onClick={() => startCam()} className="px-2 py-1 rounded bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3">{camOn ? 'Restart' : 'Start'}</button>
             </div>
             <CameraParamsPanel camOn={camOn} sessionKey={camSession} width={camMode.w} height={camMode.h} fps={camMode.fps} onReopen={reopenCam} />
-            {camError && <div className="flex items-start gap-1.5 text-danger text-[10px] leading-snug"><AlertTriangle size={12} className="shrink-0 mt-0.5" /> {camError}</div>}
+            {camError && <div className="flex items-start gap-1.5 text-danger text-micro leading-snug"><AlertTriangle size={12} className="shrink-0 mt-0.5" /> {camError}</div>}
             {camBlank && !camError && (
-              <div className="flex items-start gap-1.5 text-warn text-[10px] leading-snug">
+              <div className="flex items-start gap-1.5 text-warn text-micro leading-snug">
                 <AlertTriangle size={12} className="shrink-0 mt-0.5" />
                 Camera opened but the image is black — another app (Teams · NDI Webcam · OBS) is likely holding it{camSource === 'native' ? ', or it needs a replug' : ''}. Close it{camSource === 'native' ? ' / unplug + replug the camera' : ''}, then press Restart{camSource === 'native' ? ' (or try another index)' : ''}.
               </div>
             )}
-            <div className={`text-[10px] flex items-center gap-1 ${detect.found ? 'text-ok' : 'text-fg-3'}`}>
+            <div className={`text-micro flex items-center gap-1 ${detect.found ? 'text-ok' : 'text-fg-3'}`}>
               {detect.found ? <><Check size={11} /> checkerboard detected</> : 'point the camera at the board + projection; board not detected yet'}
             </div>
 
@@ -358,7 +358,7 @@ export const CalibWizard: React.FC<Props> = (props) => {
                   <label className="flex items-center gap-1 text-fg-2">Rows<input type="number" min={3} value={cfg.rows} onChange={(e) => setCfg({ ...cfg, rows: Math.max(3, +e.target.value | 0) })} className={numCls} /></label>
                   <label className="flex items-center gap-1 text-fg-2">mm<input type="number" min={1} step={0.5} value={+(cfg.squareMeters * 1000).toFixed(1)} onChange={(e) => setCfg({ ...cfg, squareMeters: Math.max(0.001, +e.target.value / 1000) })} className={numCls} /></label>
                 </div>
-                <p className="text-fg-3 text-[10px]">Cols/Rows = <i>inner</i> corners (10×7-square board = 9×6). The projector shows white to light the board.</p>
+                <p className="text-fg-3 text-micro">Cols/Rows = <i>inner</i> corners (10×7-square board = 9×6). The projector shows white to light the board.</p>
               </>
             )}
 
@@ -403,7 +403,7 @@ export const CalibWizard: React.FC<Props> = (props) => {
             <div className="border-t border-line-1 pt-2 space-y-1">
               <div className="text-fg-2">Lens RMS: {cal?.intrinsicsRms != null ? <QualityBadge value={cal.intrinsicsRms} band={intrinsicsBand(cal.intrinsicsRms)} /> : '—'}</div>
               <div className="text-fg-2">Pose RMS: {cal?.poseRms != null ? <QualityBadge value={cal.poseRms} band={poseBand(cal.poseRms)} /> : '—'}</div>
-              {cal?.intrinsics && <div className="num text-[10px] text-fg-3">fx {cal.intrinsics[0].toFixed(1)} · fy {cal.intrinsics[4].toFixed(1)} · cx {cal.intrinsics[2].toFixed(1)} · cy {cal.intrinsics[5].toFixed(1)}</div>}
+              {cal?.intrinsics && <div className="num text-micro text-fg-3">fx {cal.intrinsics[0].toFixed(1)} · fy {cal.intrinsics[4].toFixed(1)} · cx {cal.intrinsics[2].toFixed(1)} · cy {cal.intrinsics[5].toFixed(1)}</div>}
             </div>
             <label className="flex items-center gap-1.5 cursor-pointer text-fg-2">
               <input type="checkbox" checked={testProj} onChange={(e) => setTestProj(e.target.checked)} className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0" />
@@ -414,7 +414,7 @@ export const CalibWizard: React.FC<Props> = (props) => {
 
         {busy && <div className="text-accent flex items-center gap-1.5"><Loader2 size={12} className="animate-spin" /> {busy}</div>}
         {log.length > 0 && (
-          <div className="border-t border-line-1 pt-2 space-y-0.5 text-[10px] text-fg-3 font-mono">
+          <div className="border-t border-line-1 pt-2 space-y-0.5 text-micro text-fg-3 font-mono">
             {log.map((l, i) => <div key={i} className={l.startsWith('✗') ? 'text-danger' : l.startsWith('✓') ? 'text-ok' : ''}>{l}</div>)}
           </div>
         )}
@@ -422,12 +422,12 @@ export const CalibWizard: React.FC<Props> = (props) => {
 
       {/* Footer nav */}
       <div className="h-11 px-3 flex items-center justify-between border-t border-line-1 bg-surface-2 shrink-0">
-        <button onClick={back} disabled={idx === 0} className="flex items-center gap-1 px-2 py-1 rounded text-[11px] text-fg-2 hover:text-fg-1 disabled:opacity-30"><ChevronLeft size={13} /> Back</button>
+        <button onClick={back} disabled={idx === 0} className="flex items-center gap-1 px-2 py-1 rounded text-mini text-fg-2 hover:text-fg-1 disabled:opacity-30"><ChevronLeft size={13} /> Back</button>
         {step === 'verify' ? (
-          <button onClick={finish} className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-accent text-black hover:bg-accent-hover font-medium text-[11px]"><Check size={13} /> Apply &amp; finish</button>
+          <button onClick={finish} className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-accent text-black hover:bg-accent-hover font-medium text-mini"><Check size={13} /> Apply &amp; finish</button>
         ) : (
           <button onClick={next} disabled={!canNext} title={!canNext ? gate[step].why : ''}
-            className="flex items-center gap-1 px-3 py-1.5 rounded bg-accent text-black hover:bg-accent-hover disabled:opacity-40 font-medium text-[11px]">Next <ChevronRight size={13} /></button>
+            className="flex items-center gap-1 px-3 py-1.5 rounded bg-accent text-black hover:bg-accent-hover disabled:opacity-40 font-medium text-mini">Next <ChevronRight size={13} /></button>
         )}
       </div>
     </div>
@@ -475,7 +475,7 @@ const CoverageGrid: React.FC<{ coverage: { cx: number; cy: number; areaFrac: num
       <div className="grid grid-cols-3 gap-0.5 w-16">
         {cells.hit.map((h, i) => <div key={i} className={`aspect-square rounded-[1px] ${h ? 'bg-accent' : 'bg-surface-3'}`} />)}
       </div>
-      <div className="text-[10px] space-y-0.5">
+      <div className="text-micro space-y-0.5">
         <div className={cells.near ? 'text-ok' : 'text-fg-3'}>{cells.near ? '✓' : '○'} near (large)</div>
         <div className={cells.far ? 'text-ok' : 'text-fg-3'}>{cells.far ? '✓' : '○'} far (small)</div>
       </div>

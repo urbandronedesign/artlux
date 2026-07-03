@@ -16,14 +16,14 @@ export const NdiEditor: React.FC<{ content: SurfaceContent; onChange: (patch: Pa
     <div className="pt-1 space-y-1">
       <div className="flex items-center gap-1">
         <select value={content.ndiName ?? ''} onChange={(e) => onChange({ ndiName: e.target.value })}
-          className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-[10px] focus:border-accent focus:outline-none">
+          className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-micro focus:border-accent focus:outline-none">
           <option value="">First source</option>
           {sources.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
         <button onClick={refresh} title="Refresh NDI sources" className="p-1.5 rounded border border-line-1 text-fg-2 hover:bg-surface-3"><RefreshCw size={12} /></button>
       </div>
       {!ok && (
-        <div className="text-[9px] text-warn">
+        <div className="text-micro text-warn">
           NDI runtime not found.{' '}
           <button onClick={() => window.artlux?.openExternal?.('https://ndi.video/tools/')} className="underline hover:text-fg-1">Install NDI Tools ↗</button>
         </div>

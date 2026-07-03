@@ -17,7 +17,7 @@ export const Section: React.FC<Props> = ({ title, icon, defaultOpen = true, chil
         onClick={() => setOpen(!open)}
         className="w-full px-3 py-2 bg-surface-2 hover:bg-surface-3 flex items-center justify-between transition-colors"
       >
-        <span className="flex items-center gap-2 text-[11px] font-semibold text-fg-2 uppercase tracking-wider">
+        <span className="flex items-center gap-2 text-mini font-semibold text-fg-2 uppercase tracking-wider">
           {icon && <span className="text-fg-3">{icon}</span>}
           {title}
         </span>

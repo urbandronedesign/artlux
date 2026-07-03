@@ -161,23 +161,23 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                         <PanelSection title="Effect" icon={<Sparkles size={12}/>}>
                             {/* Segments toolbar */}
                             <div className="flex items-center justify-between">
-                                <span className="text-[10px] text-fg-3 uppercase tracking-wider">
+                                <span className="text-micro text-fg-3 uppercase tracking-wider">
                                     {hasSegs ? `${segs!.length} segments` : 'Whole fixture'}
                                 </span>
                                 {hasSegs ? (
                                     <div className="flex gap-1">
-                                        <button onClick={addSegment} className="text-[10px] px-1.5 py-0.5 rounded border border-line-2 text-fg-2 hover:bg-surface-3">+ Split</button>
-                                        <button onClick={() => onUpdateFixture(selectedFixture.id, { segments: undefined })} className="text-[10px] px-1.5 py-0.5 rounded border border-line-2 text-fg-2 hover:bg-surface-3">Merge</button>
+                                        <button onClick={addSegment} className="text-micro px-1.5 py-0.5 rounded border border-line-2 text-fg-2 hover:bg-surface-3">+ Split</button>
+                                        <button onClick={() => onUpdateFixture(selectedFixture.id, { segments: undefined })} className="text-micro px-1.5 py-0.5 rounded border border-line-2 text-fg-2 hover:bg-surface-3">Merge</button>
                                     </div>
                                 ) : (
-                                    <button onClick={enableSegments} className="text-[10px] px-1.5 py-0.5 rounded border border-line-2 text-fg-2 hover:bg-surface-3">Split</button>
+                                    <button onClick={enableSegments} className="text-micro px-1.5 py-0.5 rounded border border-line-2 text-fg-2 hover:bg-surface-3">Split</button>
                                 )}
                             </div>
 
                             {hasSegs && (
                                 <div className="space-y-1">
                                     {segs!.map((s, i) => (
-                                        <div key={i} className={`flex items-center justify-between text-[10px] px-1.5 py-1 rounded border ${i === idx ? 'border-accent bg-accent/10' : 'border-line-1 bg-surface-2'}`}>
+                                        <div key={i} className={`flex items-center justify-between text-micro px-1.5 py-1 rounded border ${i === idx ? 'border-accent bg-accent/10' : 'border-line-1 bg-surface-2'}`}>
                                             <button className="flex-1 text-left text-fg-1" onClick={() => setSegSel(i)}>Seg {i + 1} · LEDs {s.start}–{s.stop}</button>
                                             <button aria-label={`Remove segment ${i + 1}`} className="text-fg-3 hover:text-danger px-1" onClick={() => removeSegment(i)}>✕</button>
                                         </div>
@@ -195,7 +195,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                                     const active = (vals.source ?? PixelSource.MEDIA) === src;
                                     return (
                                         <button key={src} onClick={() => setVals({ source: src })}
-                                            className={`text-[10px] py-1.5 rounded border transition-all ${active ? 'bg-accent/10 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3'}`}>
+                                            className={`text-micro py-1.5 rounded border transition-all ${active ? 'bg-accent/10 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3'}`}>
                                             {src === PixelSource.MEDIA ? 'Media' : 'Effect'}
                                         </button>
                                     );
@@ -237,7 +237,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                                 <button
                                     key={sh}
                                     onClick={() => onUpdateFixture(selectedFixture.id, { shape: sh })}
-                                    className={`text-[10px] py-1.5 rounded border transition-all ${active ? 'bg-accent/10 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3'}`}
+                                    className={`text-micro py-1.5 rounded border transition-all ${active ? 'bg-accent/10 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3'}`}
                                 >
                                     {sh === LedShape.LINE ? 'Line' : 'Matrix'}
                                 </button>
@@ -336,7 +336,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                             onChange={(e) => onUpdateFixture(selectedFixture.id, { output: { ...selectedFixture.output, sparse: e.target.checked } })}
                             className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0" />
                     </div>
-                    <div className="text-[9px] text-fg-3 font-mono">
+                    <div className="text-micro text-fg-3 font-mono">
                         Blank IP → global target. Each fixture can address its own controller.
                     </div>
                 </PanelSection>
@@ -353,11 +353,11 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                         onUpdateFixture(selectedFixture.id, { layout3D: { ...L, ...patch } });
                     return (
                         <PanelSection title="3D Layout" icon={<Box size={12}/>}>
-                            <div className="text-[9px] text-fg-3 uppercase tracking-wider">Position (m)</div>
+                            <div className="text-micro text-fg-3 uppercase tracking-wider">Position (m)</div>
                             <NumberInput label="X" value={+p.x.toFixed(3)} step={0.05} onChange={(v) => setPos('x', v)} />
                             <NumberInput label="Y" value={+p.y.toFixed(3)} step={0.05} onChange={(v) => setPos('y', v)} />
                             <NumberInput label="Z" value={+p.z.toFixed(3)} step={0.05} onChange={(v) => setPos('z', v)} />
-                            <div className="text-[9px] text-fg-3 uppercase tracking-wider pt-1">Rotation (°)</div>
+                            <div className="text-micro text-fg-3 uppercase tracking-wider pt-1">Rotation (°)</div>
                             <NumberInput label="Pitch" value={+rotDeg.pitch.toFixed(1)} step={1} onChange={(v) => setRot('pitch', v)} />
                             <NumberInput label="Yaw" value={+rotDeg.yaw.toFixed(1)} step={1} onChange={(v) => setRot('yaw', v)} />
                             <NumberInput label="Roll" value={+rotDeg.roll.toFixed(1)} step={1} onChange={(v) => setRot('roll', v)} />

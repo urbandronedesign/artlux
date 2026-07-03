@@ -18,18 +18,57 @@ module.exports = {
           dim: 'rgba(39,182,196,0.14)',
         },
         // Semantic surface/text tokens (layered dark).
-        surface: { 0: '#0d0d0d', 1: '#161616', 2: '#1e1e1e', 3: '#2a2a2a' },
+        surface: { 0: '#0d0d0d', 1: '#161616', 2: '#1e1e1e', 3: '#2a2a2a', 4: '#404040' },
         line: { 1: '#2a2a2a', 2: '#383838' },
         fg: { 1: '#e8e8e8', 2: '#9a9a9a', 3: '#6a6a6a' },
         danger: '#e5484d',
         ok: '#3fb950',
         warn: '#e3b341',
         sel: { surface: '#27b6c4', fixture: '#ff3b3b' },
+        state: { init: '#16e0d8', active: '#f5a623' },
       },
-      fontSize: { xxs: '0.65rem' },
+      // Named type-scale steps. NEW keys only — `xs`/`sm`/`lg` keep their Tailwind
+      // defaults so existing classes don't shift. `micro` is the 10px floor.
+      fontSize: { xxs: '0.65rem', micro: '10px', mini: '11px', md: '13px' },
       fontFamily: {
         sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'sans-serif'],
         mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
+      },
+      // Named stacking tiers — values preserve ArtLux's existing global overlay order
+      // (see the App.tsx z-[100]/z-[110] coordination comment), so migrating z-[NNN]
+      // onto these is a pure rename. Local within-panel layering keeps Tailwind z-10..z-50.
+      // Ascending: stage guides < stage overlays < calib camera < calib panel < menubar
+      // < open menu flyout < modal < toast.
+      zIndex: {
+        'stage-guide': '60',
+        'stage-overlay': '100',
+        'calib-camera': '110',
+        'calib-panel': '120',
+        menubar: '150',
+        'menu-flyout': '160',
+        modal: '200',
+        toast: '205', // sits just above modals so update notices aren't hidden by a dialog
+      },
+      // Elevation scale (additive) — see --e-* in tokens.css.
+      boxShadow: {
+        e1: 'var(--e-1)',
+        e2: 'var(--e-2)',
+        e3: 'var(--e-3)',
+      },
+      // Radius: point Tailwind's sm/md/lg at the --r-* tokens so `rounded-md` and
+      // the old `rounded-[var(--r-md)]` form resolve to the SAME value (they didn't
+      // before: Tailwind md=6px vs token 5px). Bare `rounded` (4px default) and
+      // `rounded-full` are left as Tailwind provides them.
+      borderRadius: {
+        sm: 'var(--r-sm)',
+        md: 'var(--r-md)',
+        lg: 'var(--r-lg)',
+      },
+      // Motion durations — see --dur-* in tokens.css. `transition-colors` (150ms
+      // default) is fine as-is; these name the explicit longer transitions.
+      transitionDuration: {
+        fast: '120ms',
+        med: '200ms',
       },
     },
   },

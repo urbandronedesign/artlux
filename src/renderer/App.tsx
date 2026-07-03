@@ -1430,12 +1430,12 @@ const App: React.FC = () => {
 
       <div className="flex flex-1 min-h-0">
         {/* Left: Scene ⇄ Media tabs */}
-        <div className={`h-full border-r border-line-1 bg-surface-1 transition-all duration-200 ${showLeftPanel ? 'w-72' : 'w-0 overflow-hidden border-none'}`}>
+        <div className={`h-full border-r border-line-1 bg-surface-1 transition-all duration-med ${showLeftPanel ? 'w-72' : 'w-0 overflow-hidden border-none'}`}>
             <div className="w-72 h-full flex flex-col overflow-hidden">
               <div className="flex shrink-0 border-b border-line-1 bg-surface-2">
                 {(['scene', 'media'] as const).map(t => (
                   <button key={t} onClick={() => setLeftTab(t)}
-                    className={`flex-1 h-7 text-[11px] font-medium capitalize ${leftTab === t ? 'text-fg-1 border-b-2 border-accent' : 'text-fg-3 hover:text-fg-1'}`}>{t}</button>
+                    className={`flex-1 h-7 text-mini font-medium capitalize ${leftTab === t ? 'text-fg-1 border-b-2 border-accent' : 'text-fg-3 hover:text-fg-1'}`}>{t}</button>
                 ))}
               </div>
               <div className="flex-1 min-h-0">
@@ -1515,7 +1515,7 @@ const App: React.FC = () => {
                                     title={splitView ? 'Hide 3D scene' : 'Show 3D scene (split view)'}
                                     aria-label="Toggle 3D split view"
                                     aria-pressed={splitView}
-                                    className={`p-1.5 rounded-[var(--r-sm)] border transition-colors ${splitView ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2/80 backdrop-blur-sm border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
+                                    className={`p-1.5 rounded-sm border transition-colors ${splitView ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2/80 backdrop-blur-sm border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
                                 >
                                     <Columns2 size={14} />
                                 </button>
@@ -1524,7 +1524,7 @@ const App: React.FC = () => {
                                     title={is3DMaximized ? 'Restore split' : 'Maximize 3D scene'}
                                     aria-label="Maximize 3D scene"
                                     aria-pressed={is3DMaximized}
-                                    className={`p-1.5 rounded-[var(--r-sm)] border transition-colors ${is3DMaximized ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2/80 backdrop-blur-sm border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
+                                    className={`p-1.5 rounded-sm border transition-colors ${is3DMaximized ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2/80 backdrop-blur-sm border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
                                 >
                                     {is3DMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
                                 </button>
@@ -1532,10 +1532,10 @@ const App: React.FC = () => {
                         }
                     />
                     {/* During calibration the big RGB camera viewport is portaled here, over the Stage,
-                        so the operator works camera (left) ⟷ 3D (right). z-[110] clears Stage's own
-                        z-[100] overlay layers (Stage's root is position:relative/z-auto → no stacking
+                        so the operator works camera (left) ⟷ 3D (right). z-calib-camera clears Stage's own
+                        z-stage-overlay layers (Stage's root is position:relative/z-auto → no stacking
                         context, so its children would otherwise paint over a lower-z sibling). */}
-                    {calibratingOutputId && <div ref={setCalibCameraHost} className="absolute inset-0 z-[110] bg-black" />}
+                    {calibratingOutputId && <div ref={setCalibCameraHost} className="absolute inset-0 z-calib-camera bg-black" />}
                 </div>
                 {/* Right: embedded 3D scene (or camera preview during calibration) */}
                 {splitView && (
@@ -1606,7 +1606,7 @@ const App: React.FC = () => {
                     // Render the timeline in exactly one place (dock XOR fullscreen overlay) so its
                     // keyboard hook + engine subscription aren't doubled.
                     timelineMax ? (
-                        <div className="h-full flex items-center justify-center text-fg-3 text-[11px] italic">Timeline maximized — press F or the restore button to dock it</div>
+                        <div className="h-full flex items-center justify-center text-fg-3 text-mini italic">Timeline maximized — press F or the restore button to dock it</div>
                     ) : (
                         <TimelinePanel timeline={timeline} onChange={setTimeline} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} onToggleMax={() => setTimelineMax(true)} projectPath={currentProjectPath} onRegisterAsset={handleRegisterAsset} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} />
                     )
@@ -1644,7 +1644,7 @@ const App: React.FC = () => {
         </div>
 
         {/* Right: inspector / properties */}
-        <div className={`h-full border-l border-line-1 bg-surface-1 transition-all duration-200 ${showRightPanel ? 'w-80' : 'w-0 overflow-hidden border-none'}`}>
+        <div className={`h-full border-l border-line-1 bg-surface-1 transition-all duration-med ${showRightPanel ? 'w-80' : 'w-0 overflow-hidden border-none'}`}>
             <div className="w-80 h-full overflow-y-auto">
                 <InspectorPanel
                     surfaces={surfaces}

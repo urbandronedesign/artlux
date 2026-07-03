@@ -14,7 +14,7 @@ export const SpoutEditor: React.FC<{ content: SurfaceContent; onChange: (patch: 
   return (
     <div className="flex items-center gap-1 pt-1">
       <select value={content.spoutName ?? ''} onChange={(e) => onChange({ spoutName: e.target.value })}
-        className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-[10px] focus:border-accent focus:outline-none">
+        className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-micro focus:border-accent focus:outline-none">
         <option value="">Active sender</option>
         {senders.map((s) => <option key={s} value={s}>{s}</option>)}
       </select>

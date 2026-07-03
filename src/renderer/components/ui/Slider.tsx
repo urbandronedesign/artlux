@@ -37,7 +37,7 @@ export const Slider: React.FC<Props> = ({ label, value, onChange, onInput, min =
     <div className="space-y-1">
       <div className="flex items-center justify-between text-xs">
         <label className="text-fg-2">{label}</label>
-        <span className="num text-[10px] text-fg-1">{format ? format(local) : local}</span>
+        <span className="num text-micro text-fg-1">{format ? format(local) : local}</span>
       </div>
       <input
         type="range"

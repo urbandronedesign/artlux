@@ -66,7 +66,7 @@ export const CueBankPanel: React.FC<Props> = ({
 
     if (!bank) {
         return (
-            <div className="h-full flex items-center justify-center text-fg-3 text-[12px] italic">
+            <div className="h-full flex items-center justify-center text-fg-3 text-xs italic">
                 <button onClick={() => onChangeBanks([{ id: uid(), name: 'Bank 1', rows: 8, cols: 16, cues: [], sceneCells: [] }])}
                     className="px-2 py-1 rounded bg-accent/15 text-accent hover:bg-accent/25">Create a cue bank</button>
             </div>
@@ -114,25 +114,25 @@ export const CueBankPanel: React.FC<Props> = ({
 
     const cellClick = (cue: Cue) => { if (mode === 'live') onFireCue(cue); else { setSelCueId(cue.id); setAddOpen(false); } };
 
-    const cellBase = 'relative h-12 w-24 shrink-0 rounded border text-[10px] px-1.5 py-1 flex flex-col justify-between overflow-hidden transition-colors';
+    const cellBase = 'relative h-12 w-24 shrink-0 rounded border text-micro px-1.5 py-1 flex flex-col justify-between overflow-hidden transition-colors';
 
     return (
-        <div className="h-full flex flex-col text-fg-2 text-[12px]">
+        <div className="h-full flex flex-col text-fg-2 text-xs">
             {/* Toolbar */}
             <div className="h-9 shrink-0 flex items-center gap-2 px-3 border-b border-line-1 bg-surface-2">
                 <div className="flex items-center gap-1">
                     {banks.map((b, i) => (
                         <button key={b.id} onClick={() => { setBankIdx(i); setSelCueId(null); }}
-                            className={`h-6 px-2 rounded text-[11px] ${i === bankIdx ? 'bg-accent/15 text-accent' : 'text-fg-2 hover:bg-surface-3'}`}>{b.name}</button>
+                            className={`h-6 px-2 rounded text-mini ${i === bankIdx ? 'bg-accent/15 text-accent' : 'text-fg-2 hover:bg-surface-3'}`}>{b.name}</button>
                     ))}
                     <button onClick={() => onChangeBanks([...banks, { id: uid(), name: `Bank ${banks.length + 1}`, rows: 8, cols: 16, cues: [], sceneCells: [] }])}
                         className="h-6 w-6 rounded text-fg-3 hover:text-fg-1 hover:bg-surface-3" title="Add bank"><Plus size={13} /></button>
                 </div>
                 <div className="ml-auto flex items-center gap-2">
-                    <button onClick={onCaptureScene} className="inline-flex items-center gap-1 h-6 px-2 rounded bg-surface-3 text-fg-1 hover:bg-surface-3/70 text-[11px]" title="Capture current look as a Scene (row 0)"><Camera size={12} /> Scene</button>
+                    <button onClick={onCaptureScene} className="inline-flex items-center gap-1 h-6 px-2 rounded bg-surface-3 text-fg-1 hover:bg-surface-3/70 text-mini" title="Capture current look as a Scene (row 0)"><Camera size={12} /> Scene</button>
                     <div className="flex items-center rounded bg-surface-0 border border-line-1 overflow-hidden">
-                        <button onClick={() => setMode('live')} className={`h-6 px-2 text-[11px] ${mode === 'live' ? 'bg-accent/20 text-accent' : 'text-fg-2'}`}>Live</button>
-                        <button onClick={() => setMode('edit')} className={`h-6 px-2 text-[11px] ${mode === 'edit' ? 'bg-accent/20 text-accent' : 'text-fg-2'}`}>Edit</button>
+                        <button onClick={() => setMode('live')} className={`h-6 px-2 text-mini ${mode === 'live' ? 'bg-accent/20 text-accent' : 'text-fg-2'}`}>Live</button>
+                        <button onClick={() => setMode('edit')} className={`h-6 px-2 text-mini ${mode === 'edit' ? 'bg-accent/20 text-accent' : 'text-fg-2'}`}>Edit</button>
                     </div>
                 </div>
             </div>
@@ -144,23 +144,23 @@ export const CueBankPanel: React.FC<Props> = ({
                     <div className="flex gap-1 mb-1 pl-9">
                         {cols.map(c => (
                             <button key={c} onClick={() => onFireColumn(bank.id, c)} title={`Fire column ${c + 1}`}
-                                className="h-5 w-24 shrink-0 rounded text-[10px] text-fg-3 bg-surface-2 hover:bg-accent/15 hover:text-accent">▼ {c + 1}</button>
+                                className="h-5 w-24 shrink-0 rounded text-micro text-fg-3 bg-surface-2 hover:bg-accent/15 hover:text-accent">▼ {c + 1}</button>
                         ))}
                     </div>
                     {/* Row 0 — Scenes */}
                     <div className="flex gap-1 mb-1 items-center">
-                        <div className="w-8 shrink-0 text-[9px] text-fg-3 text-right pr-1">SC</div>
+                        <div className="w-8 shrink-0 text-micro text-fg-3 text-right pr-1">SC</div>
                         {cols.map(c => {
                             const s = sceneAt(c);
                             return s ? (
                                 <div key={c} className={`${cellBase} border-sel-surface/40 bg-sel-surface/5 group`}>
                                     <div className="flex items-center gap-1">
-                                        <button onClick={() => onRecallScene(s)} className="px-1 rounded bg-accent/15 text-accent hover:bg-accent/25 text-[9px] font-semibold" title="GO">GO</button>
+                                        <button onClick={() => onRecallScene(s)} className="px-1 rounded bg-accent/15 text-accent hover:bg-accent/25 text-micro font-semibold" title="GO">GO</button>
                                         {editSceneId === s.id ? (
                                             <input autoFocus value={editSceneName} onChange={e => setEditSceneName(e.target.value)}
                                                 onBlur={() => { if (editSceneName.trim()) onRenameScene(s.id, editSceneName.trim()); setEditSceneId(null); }}
                                                 onKeyDown={e => { if (e.key === 'Enter') { if (editSceneName.trim()) onRenameScene(s.id, editSceneName.trim()); setEditSceneId(null); } if (e.key === 'Escape') setEditSceneId(null); }}
-                                                className="flex-1 min-w-0 bg-surface-1 border border-line-2 rounded px-1 text-fg-1 text-[10px]" />
+                                                className="flex-1 min-w-0 bg-surface-1 border border-line-2 rounded px-1 text-fg-1 text-micro" />
                                         ) : (
                                             <span className="truncate flex-1 text-fg-1 cursor-text" title="Double-click to rename" onDoubleClick={() => { setEditSceneId(s.id); setEditSceneName(s.name); }}>{s.name}</span>
                                         )}
@@ -186,7 +186,7 @@ export const CueBankPanel: React.FC<Props> = ({
                     {/* Cue rows */}
                     {rows.map(r => (
                         <div key={r} className="flex gap-1 mb-1 items-center">
-                            <div className="w-8 shrink-0 text-[9px] text-fg-3 text-right pr-1">{r}</div>
+                            <div className="w-8 shrink-0 text-micro text-fg-3 text-right pr-1">{r}</div>
                             {cols.map(c => {
                                 const cue = cueAt(r, c);
                                 if (!cue) return (
@@ -196,7 +196,9 @@ export const CueBankPanel: React.FC<Props> = ({
                                 );
                                 const sel = cue.id === selCueId;
                                 return (
-                                    <div key={c} onClick={() => cellClick(cue)} title={mode === 'live' ? 'Fire cue' : 'Edit cue'}
+                                    <div key={c} role="button" tabIndex={0} onClick={() => cellClick(cue)}
+                                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cellClick(cue); } }}
+                                        title={mode === 'live' ? 'Fire cue' : 'Edit cue'}
                                         className={`${cellBase} cursor-pointer group ${sel ? 'border-accent bg-accent/10' : 'border-line-2 bg-surface-2 hover:bg-surface-3'}`}
                                         style={cue.color ? { borderColor: cue.color } : undefined}>
                                         <div className="flex items-center gap-1">
@@ -219,10 +221,10 @@ export const CueBankPanel: React.FC<Props> = ({
                     <div className="w-64 shrink-0 border-l border-line-1 bg-surface-1 overflow-auto p-2 space-y-2">
                         <div className="flex items-center gap-1">
                             <input value={selCue.name} onChange={e => patchCue(selCue.id, { name: e.target.value })}
-                                className="flex-1 min-w-0 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-[11px]" />
+                                className="flex-1 min-w-0 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-mini" />
                             <button onClick={() => setSelCueId(null)} className="text-fg-3 hover:text-fg-1"><X size={14} /></button>
                         </div>
-                        <div className="flex items-center gap-2 text-[10px]">
+                        <div className="flex items-center gap-2 text-micro">
                             <label className="text-fg-3">Fade</label>
                             <input type="number" min={0} step={0.1} value={selCue.fadeSec} onChange={e => patchCue(selCue.id, { fadeSec: Math.max(0, Number(e.target.value) || 0) })}
                                 className="w-14 bg-surface-0 border border-line-1 rounded px-1 py-0.5 text-fg-1 tabular-nums" />
@@ -231,22 +233,22 @@ export const CueBankPanel: React.FC<Props> = ({
                                 {TRANSITIONS.map(t => <option key={t} value={t}>{t}</option>)}
                             </select>
                         </div>
-                        <label className="flex items-center gap-1.5 text-[10px] text-fg-2"><input type="checkbox" checked={!!selCue.restartMedia} onChange={e => patchCue(selCue.id, { restartMedia: e.target.checked })} /> Restart media on fire</label>
+                        <label className="flex items-center gap-1.5 text-micro text-fg-2"><input type="checkbox" checked={!!selCue.restartMedia} onChange={e => patchCue(selCue.id, { restartMedia: e.target.checked })} /> Restart media on fire</label>
 
                         {/* Entries */}
                         <div className="flex items-center justify-between pt-1">
-                            <span className="text-[10px] text-fg-3 uppercase tracking-wide">Parameters ({selCue.entries.length})</span>
-                            <button onClick={() => setAddOpen(o => !o)} className="text-accent text-[10px] hover:underline inline-flex items-center gap-0.5"><Plus size={11} /> capture</button>
+                            <span className="text-micro text-fg-3 uppercase tracking-wide">Parameters ({selCue.entries.length})</span>
+                            <button onClick={() => setAddOpen(o => !o)} className="text-accent text-micro hover:underline inline-flex items-center gap-0.5"><Plus size={11} /> capture</button>
                         </div>
                         <div className="space-y-1">
                             {selCue.entries.map(e => (
-                                <div key={e.path} className="flex items-center gap-1 text-[10px]">
+                                <div key={e.path} className="flex items-center gap-1 text-micro">
                                     <span className="flex-1 min-w-0 truncate text-fg-2" title={e.path}>{labelForPath(e.path)}</span>
                                     <EntryValue value={e.value} onChange={(v) => setEntryValue(e.path, v)} />
                                     <button onClick={() => removeEntry(e.path)} className="text-fg-3 hover:text-danger"><Trash2 size={10} /></button>
                                 </div>
                             ))}
-                            {selCue.entries.length === 0 && <div className="text-fg-3 italic text-[10px]">No params — use “capture” to add some.</div>}
+                            {selCue.entries.length === 0 && <div className="text-fg-3 italic text-micro">No params — use “capture” to add some.</div>}
                         </div>
 
                         {/* Capture picker */}
@@ -262,7 +264,7 @@ export const CueBankPanel: React.FC<Props> = ({
             </div>
 
             {/* Footer hint */}
-            <div className="shrink-0 px-3 py-1 border-t border-line-1 bg-surface-2 text-fg-3 text-[10px] truncate">
+            <div className="shrink-0 px-3 py-1 border-t border-line-1 bg-surface-2 text-fg-3 text-micro truncate">
                 {selCue ? <>OSC: <code>{oscPrefix}/cue/{selCue.id}/go</code></> : <>Live: click to fire · Edit: click to author · column ▼ fires the whole column</>}
             </div>
         </div>
@@ -271,13 +273,13 @@ export const CueBankPanel: React.FC<Props> = ({
 
 const CaptureGroup: React.FC<{ title: string; defs: ParamDef[]; cue: Cue; onCapture: (d: ParamDef) => void }> = ({ title, defs, cue, onCapture }) => (
     <div>
-        <div className="text-[9px] text-fg-3 uppercase tracking-wide mb-0.5">{title}</div>
+        <div className="text-micro text-fg-3 uppercase tracking-wide mb-0.5">{title}</div>
         <div className="flex flex-wrap gap-1">
             {defs.map(d => {
                 const has = cue.entries.some(e => e.path === d.path);
                 return (
                     <button key={d.path} onClick={() => onCapture(d)} title={has ? 'Update value in cue' : 'Add to cue'}
-                        className={`px-1.5 py-0.5 rounded text-[9px] border ${has ? 'border-accent/50 bg-accent/15 text-accent' : 'border-line-1 text-fg-2 hover:bg-surface-3'}`}>{d.label}</button>
+                        className={`px-1.5 py-0.5 rounded text-micro border ${has ? 'border-accent/50 bg-accent/15 text-accent' : 'border-line-1 text-fg-2 hover:bg-surface-3'}`}>{d.label}</button>
                 );
             })}
         </div>

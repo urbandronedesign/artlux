@@ -39,7 +39,7 @@ export const TimelineRuler: React.FC<Props> = ({ pxPerSec, width, height, fps, m
 
       {ticks.map((t, i) => (
         <div key={i} className="absolute top-0 bottom-0 border-l border-line-1/60 pointer-events-none" style={{ left: t * pxPerSec }}>
-          <span className="absolute top-1 left-1 num text-[9px] text-fg-3 whitespace-nowrap">{shortTc(t, fps)}</span>
+          <span className="absolute top-1 left-1 num text-micro text-fg-3 whitespace-nowrap">{shortTc(t, fps)}</span>
         </div>
       ))}
 
@@ -71,7 +71,7 @@ export const TimelineRuler: React.FC<Props> = ({ pxPerSec, width, height, fps, m
           onBlur={() => { onMarkerNote(editing.id, editing.note); setEditing(null); }}
           onKeyDown={(e) => { if (e.key === 'Enter') { onMarkerNote(editing.id, editing.note); setEditing(null); } if (e.key === 'Escape') setEditing(null); }}
           placeholder="Marker note…"
-          className="absolute top-0 z-20 w-40 bg-surface-0 border border-accent rounded px-1 text-[10px] text-fg-1 outline-none"
+          className="absolute top-0 z-20 w-40 bg-surface-0 border border-accent rounded px-1 text-micro text-fg-1 outline-none"
           style={{ left: (markers.find(m => m.id === editing.id)?.time ?? 0) * pxPerSec }}
         />
       )}

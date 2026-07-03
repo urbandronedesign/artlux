@@ -92,7 +92,7 @@ export const CameraParamsPanel: React.FC<Props> = ({ camOn, sessionKey, width, h
     const off = !isSupported(d.prop) || disabled;
     const val = vals[d.prop] ?? def.def;
     return (
-      <label className={`flex items-center gap-1.5 text-[10px] ${off ? 'opacity-40' : 'text-fg-3'}`}>
+      <label className={`flex items-center gap-1.5 text-micro ${off ? 'opacity-40' : 'text-fg-3'}`}>
         <span className="w-16 shrink-0">{d.label}</span>
         <input type="range" min={def.min} max={def.max} step={def.step} value={val} disabled={off}
           onChange={(e) => apply(d.prop, parseFloat(e.target.value))} className="flex-1" />
@@ -105,14 +105,14 @@ export const CameraParamsPanel: React.FC<Props> = ({ camOn, sessionKey, width, h
     <div className="border-t border-line-1 pt-2">
       <button onClick={() => setOpen((o) => !o)} className="flex items-center gap-1.5 w-full text-fg-2 hover:text-fg-1">
         <ChevronRight size={13} className={`transition-transform ${open ? 'rotate-90' : ''}`} />
-        <SlidersHorizontal size={12} /> <span className="text-[11px] font-medium">Camera parameters</span>
+        <SlidersHorizontal size={12} /> <span className="text-mini font-medium">Camera parameters</span>
       </button>
 
       {open && (
         <div className={`mt-2 space-y-2 ${camOn ? '' : 'opacity-50 pointer-events-none'}`}>
           {/* Exposure + gain */}
           <div className="space-y-1">
-            <label className="flex items-center gap-1.5 text-[10px] text-fg-3 cursor-pointer">
+            <label className="flex items-center gap-1.5 text-micro text-fg-3 cursor-pointer">
               <input type="checkbox" checked={autoExp} disabled={!isSupported('autoexposure')} onChange={(e) => toggleAuto('exp', e.target.checked)} />
               <span>Auto exposure</span>
             </label>
@@ -121,7 +121,7 @@ export const CameraParamsPanel: React.FC<Props> = ({ camOn, sessionKey, width, h
 
           {/* White balance */}
           <div className="space-y-1 border-t border-line-1 pt-1">
-            <label className="flex items-center gap-1.5 text-[10px] text-fg-3 cursor-pointer">
+            <label className="flex items-center gap-1.5 text-micro text-fg-3 cursor-pointer">
               <input type="checkbox" checked={autoWb} disabled={!isSupported('auto_wb')} onChange={(e) => toggleAuto('wb', e.target.checked)} />
               <span>Auto white balance</span>
             </label>
@@ -130,7 +130,7 @@ export const CameraParamsPanel: React.FC<Props> = ({ camOn, sessionKey, width, h
 
           {/* Focus */}
           <div className="space-y-1 border-t border-line-1 pt-1">
-            <label className="flex items-center gap-1.5 text-[10px] text-fg-3 cursor-pointer">
+            <label className="flex items-center gap-1.5 text-micro text-fg-3 cursor-pointer">
               <input type="checkbox" checked={autoFocus} disabled={!isSupported('autofocus')} onChange={(e) => toggleAuto('focus', e.target.checked)} />
               <span>Auto focus</span>
             </label>
@@ -144,21 +144,21 @@ export const CameraParamsPanel: React.FC<Props> = ({ camOn, sessionKey, width, h
 
           {/* Resolution + fps (re-open) */}
           <div className="space-y-1 border-t border-line-1 pt-1">
-            <div className="flex items-center gap-1.5 text-[10px] text-fg-3">
+            <div className="flex items-center gap-1.5 text-micro text-fg-3">
               <span className="w-16 shrink-0">Resolution</span>
               <select value={`${width}x${height}`} onChange={(e) => { const [w, h] = e.target.value.split('x').map(Number); onReopen(w, h, fps); }}
                 className="flex-1 bg-surface-0 border border-line-1 rounded px-1 py-0.5 text-fg-1 focus:border-accent focus:outline-none">
                 {RESOLUTIONS.map(([w, h]) => <option key={`${w}x${h}`} value={`${w}x${h}`}>{w}×{h}</option>)}
               </select>
             </div>
-            <div className="flex items-center gap-1.5 text-[10px] text-fg-3">
+            <div className="flex items-center gap-1.5 text-micro text-fg-3">
               <span className="w-16 shrink-0">FPS</span>
               <select value={fps} onChange={(e) => onReopen(width, height, parseInt(e.target.value, 10))}
                 className="flex-1 bg-surface-0 border border-line-1 rounded px-1 py-0.5 text-fg-1 focus:border-accent focus:outline-none">
                 {FPS_OPTS.map((f) => <option key={f} value={f}>{f}</option>)}
               </select>
             </div>
-            <div className="flex items-center gap-1 text-fg-4 text-[9px]"><RotateCcw size={9} /> changing resolution / fps restarts the camera</div>
+            <div className="flex items-center gap-1 text-fg-4 text-micro"><RotateCcw size={9} /> changing resolution / fps restarts the camera</div>
           </div>
         </div>
       )}

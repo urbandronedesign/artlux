@@ -21,7 +21,7 @@ const Toggle: React.FC<{ on: boolean; label: string; title: string; color?: stri
     title={title}
     onPointerDown={(e) => e.stopPropagation()}
     onClick={onClick}
-    className={`w-4 h-4 rounded-sm text-[9px] font-bold flex items-center justify-center border ${on ? 'text-black border-transparent' : 'text-fg-3 border-line-2 hover:text-fg-1'}`}
+    className={`w-4 h-4 rounded-sm text-micro font-bold flex items-center justify-center border ${on ? 'text-black border-transparent' : 'text-fg-3 border-line-2 hover:text-fg-1'}`}
     style={on ? { background: color ?? 'var(--accent)' } : undefined}
   >{label}</button>
 );
@@ -43,7 +43,7 @@ const TrackHeaderBase: React.FC<Props> = ({ layer, index, height, onPatch, onRem
           value={layer.name}
           onChange={(e) => onPatch(layer.id, { name: e.target.value })}
           onPointerDown={(e) => e.stopPropagation()}
-          className="flex-1 min-w-0 bg-transparent text-[11px] text-fg-1 focus:bg-surface-0 rounded px-1 outline-none"
+          className="flex-1 min-w-0 bg-transparent text-mini text-fg-1 focus:bg-surface-0 rounded px-1 outline-none"
         />
         <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onRemove(layer.id)} className="text-fg-3 hover:text-danger shrink-0"><Trash2 size={11} /></button>
       </div>
@@ -67,19 +67,19 @@ const TrackHeaderBase: React.FC<Props> = ({ layer, index, height, onPatch, onRem
       {fxOpen && (
         <>
           <div className="fixed inset-0 z-40" onPointerDown={(e) => { e.stopPropagation(); setFxOpen(false); }} />
-          <div className="absolute left-1.5 top-full -mt-1 z-50 w-44 bg-surface-1 border border-line-1 rounded-md p-2 shadow-xl space-y-1.5"
+          <div className="absolute left-1.5 top-full -mt-1 z-50 w-44 bg-surface-1 border border-line-1 rounded-md p-2 shadow-e2 space-y-1.5"
             onPointerDown={(e) => e.stopPropagation()}>
-            <div className="text-[9px] uppercase tracking-wider text-fg-3">Program composite</div>
+            <div className="text-micro uppercase tracking-wider text-fg-3">Program composite</div>
             <div className="flex items-center gap-1.5">
-              <span className="text-[10px] text-fg-2 w-10">Opacity</span>
+              <span className="text-micro text-fg-2 w-10">Opacity</span>
               <input type="range" min={0} max={1} step={0.01} value={layer.opacity ?? 1}
                 onChange={(e) => onPatch(layer.id, { opacity: parseFloat(e.target.value) })} className="flex-1 min-w-0 h-1 accent-accent" />
-              <span className="text-[9px] num text-fg-3 w-7 text-right">{Math.round((layer.opacity ?? 1) * 100)}%</span>
+              <span className="text-micro num text-fg-3 w-7 text-right">{Math.round((layer.opacity ?? 1) * 100)}%</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-[10px] text-fg-2 w-10">Blend</span>
+              <span className="text-micro text-fg-2 w-10">Blend</span>
               <select value={layer.blendMode ?? 'normal'} onChange={(e) => onPatch(layer.id, { blendMode: e.target.value as LayerBlendMode })}
-                className="flex-1 bg-surface-0 border border-line-1 rounded text-[10px] text-fg-1 px-1 py-0.5 outline-none focus:border-accent">
+                className="flex-1 bg-surface-0 border border-line-1 rounded text-micro text-fg-1 px-1 py-0.5 outline-none focus:border-accent">
                 {BLEND_MODES.map((m) => <option key={m} value={m}>{m}</option>)}
               </select>
             </div>

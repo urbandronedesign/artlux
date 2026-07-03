@@ -12,7 +12,7 @@ interface Props {
   onDismiss: () => void;
 }
 
-const btn = 'px-2.5 py-1 rounded-[var(--r-sm)] text-xs font-medium transition-colors';
+const btn = 'px-2.5 py-1 rounded-sm text-xs font-medium transition-colors';
 const primary = `${btn} bg-accent text-black hover:bg-accent-hover`;
 const ghost = `${btn} text-fg-2 hover:bg-surface-3 hover:text-fg-1`;
 
@@ -25,7 +25,7 @@ export const UpdateNotice: React.FC<Props> = ({ event, userInitiated, onDownload
   if ((s === 'checking' || s === 'not-available') && !userInitiated) return null;
 
   return (
-    <div className="fixed bottom-9 right-3 z-[200] w-72 bg-surface-1 border border-line-1 rounded-[var(--r-md)] shadow-2xl text-xs">
+    <div className="fixed bottom-9 right-3 z-toast w-72 bg-surface-1 border border-line-1 rounded-md shadow-e3 text-xs">
       <div className="flex items-start gap-2 p-3">
         <div className="mt-0.5 text-accent shrink-0">
           {s === 'downloaded' ? <CheckCircle2 size={15} className="text-ok" />

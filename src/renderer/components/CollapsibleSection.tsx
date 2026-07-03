@@ -41,7 +41,7 @@ export const CollapsibleSection: React.FC<Props> = ({
                         className={`text-fg-3 shrink-0 transition-transform ${open ? '' : '-rotate-90'}`}
                     />
                     {icon && <span className="text-fg-3 shrink-0">{icon}</span>}
-                    <span className="font-bold text-fg-2 uppercase tracking-wider text-[10px] truncate">{title}</span>
+                    <span className="font-bold text-fg-2 uppercase tracking-wider text-micro truncate">{title}</span>
                 </div>
                 {action && (
                     <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>

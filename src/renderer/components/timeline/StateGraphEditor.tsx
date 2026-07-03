@@ -240,15 +240,15 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
 
   return (
     <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center" onPointerDown={onClose}>
-      <div className="w-[1000px] h-[640px] bg-surface-0 border border-line-1 rounded-[var(--r-md)] shadow-xl flex flex-col overflow-hidden" onPointerDown={e => e.stopPropagation()}>
+      <div className="w-[1000px] h-[640px] bg-surface-0 border border-line-1 rounded-md shadow-e2 flex flex-col overflow-hidden" onPointerDown={e => e.stopPropagation()}>
         <div className="h-9 shrink-0 flex items-center gap-2 px-3 border-b border-line-1 bg-surface-1">
-          <span className="text-[12px] text-fg-1 font-medium">Show machine — states & scenes</span>
-          <button onClick={() => addStateAt(CW / 2, CH / 2)} className="flex items-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-[11px] text-fg-1 hover:bg-surface-3"><Plus size={12} /> State</button>
-          <button onClick={addRegion} className="flex items-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-[11px] text-fg-1 hover:bg-surface-3"><SquareDashed size={12} /> Region</button>
+          <span className="text-xs text-fg-1 font-medium">Show machine — states & scenes</span>
+          <button onClick={() => addStateAt(CW / 2, CH / 2)} className="flex items-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-mini text-fg-1 hover:bg-surface-3"><Plus size={12} /> State</button>
+          <button onClick={addRegion} className="flex items-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-mini text-fg-1 hover:bg-surface-3"><SquareDashed size={12} /> Region</button>
           <button onClick={buildFromScenes} disabled={!scenes.length} title={scenes.length ? 'Create one state per scene' : 'No scenes captured yet'}
-            className="flex items-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-[11px] text-fg-1 hover:bg-surface-3 disabled:opacity-40"><Wand2 size={12} /> Build from scenes</button>
-          {linkFrom && <span className="text-[10px] text-accent">drag onto a target state to connect…</span>}
-          <span className="ml-auto text-[9px] text-fg-3">dbl-click empty: add · dbl-click state: fire · drag nub: link · Ctrl+click edge: fire · Ctrl+wheel: zoom</span>
+            className="flex items-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-mini text-fg-1 hover:bg-surface-3 disabled:opacity-40"><Wand2 size={12} /> Build from scenes</button>
+          {linkFrom && <span className="text-micro text-accent">drag onto a target state to connect…</span>}
+          <span className="ml-auto text-micro text-fg-3">dbl-click empty: add · dbl-click state: fire · drag nub: link · Ctrl+click edge: fire · Ctrl+wheel: zoom</span>
           <button onClick={onClose} className="inline-flex items-center justify-center h-6 w-6 rounded text-fg-2 hover:text-fg-1 hover:bg-surface-2"><X size={14} /></button>
         </div>
 
@@ -265,7 +265,7 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
                   return (
                     <div key={r.id} className={`absolute rounded-lg border ${selected ? 'border-accent' : 'border-line-2'} bg-surface-1/30`} style={{ left: b.x, top: b.y, width: b.w, height: b.h }}
                       onPointerDown={(e) => { e.stopPropagation(); setSel({ kind: 'region', id: r.id }); }}>
-                      <div className="absolute -top-0.5 left-0 right-3 h-6 flex items-center px-2 cursor-grab text-[11px] text-fg-2" onPointerDown={(e) => beginRegionDrag(e, r)}>{r.name}</div>
+                      <div className="absolute -top-0.5 left-0 right-3 h-6 flex items-center px-2 cursor-grab text-mini text-fg-2" onPointerDown={(e) => beginRegionDrag(e, r)}>{r.name}</div>
                       <div className="absolute bottom-0 right-0 w-3 h-3 cursor-nwse-resize" onPointerDown={(e) => beginRegionResize(e, r)}>
                         <div className="absolute bottom-0.5 right-0.5 w-2 h-2 border-r-2 border-b-2 border-fg-3" />
                       </div>
@@ -334,12 +334,12 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
                       onDoubleClick={(e) => { e.stopPropagation(); if (!sm.enabled) patch({ enabled: true }); engine.enterSmState(s.id); }}
                       title="Double-click to fire this state"
                       className={`absolute rounded-full flex flex-col items-center justify-center text-center cursor-grab select-none border-2
-                        ${isInit ? 'bg-[#16e0d8]/85 text-black border-[#16e0d8]' : 'bg-surface-2 text-fg-1 border-line-1'}
-                        ${selected ? 'ring-2 ring-accent' : ''} ${isActive ? 'ring-4 ring-[#f5a623]' : ''}`}
+                        ${isInit ? 'bg-state-init/85 text-black border-state-init' : 'bg-surface-2 text-fg-1 border-line-1'}
+                        ${selected ? 'ring-2 ring-accent' : ''} ${isActive ? 'ring-4 ring-state-active' : ''}`}
                       style={{ left, top, width: D, height: D }}>
-                      <span className="text-[10px] font-medium leading-tight px-1 truncate max-w-[60px]">{s.name.toUpperCase()}</span>
-                      {s.lockSec != null && <span className={`text-[9px] ${isInit ? 'text-black/70' : 'text-fg-3'}`}>[{s.lockSec}]</span>}
-                      {scene && <span className={`inline-flex items-center gap-0.5 text-[8px] ${isInit ? 'text-black/70' : 'text-accent'}`}><Film size={8} /> {scene.name}</span>}
+                      <span className="text-micro font-medium leading-tight px-1 truncate max-w-[60px]">{s.name.toUpperCase()}</span>
+                      {s.lockSec != null && <span className={`text-micro ${isInit ? 'text-black/70' : 'text-fg-3'}`}>[{s.lockSec}]</span>}
+                      {scene && <span className={`inline-flex items-center gap-0.5 text-micro ${isInit ? 'text-black/70' : 'text-accent'}`}><Film size={8} /> {scene.name}</span>}
                       {/* link nub */}
                       <div title="Drag onto another state to connect" onPointerDown={(e) => beginLink(e, s.id)}
                         className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-accent border border-surface-0 cursor-crosshair" />
@@ -347,7 +347,7 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
                   );
                 })}
                 {sm.states.length === 0 && regions.length === 0 && (
-                  <div className="absolute inset-0 flex items-center justify-center text-fg-3 text-[12px] italic pointer-events-none">
+                  <div className="absolute inset-0 flex items-center justify-center text-fg-3 text-xs italic pointer-events-none">
                     Double-click to add a state, or “Build from scenes”.
                   </div>
                 )}
@@ -356,7 +356,7 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
           </div>
 
           {/* inspector */}
-          <div className="w-72 shrink-0 border-l border-line-1 bg-surface-1 overflow-auto p-3 text-[11px]">
+          <div className="w-72 shrink-0 border-l border-line-1 bg-surface-1 overflow-auto p-3 text-mini">
             {selState && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
@@ -364,7 +364,7 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
                   <button onClick={() => removeState(selState.id)} className="text-fg-3 hover:text-red-400 inline-flex items-center gap-1"><Trash2 size={12} /></button>
                 </div>
                 <label className="block">
-                  <span className="text-fg-3 text-[10px]">Name</span>
+                  <span className="text-fg-3 text-micro">Name</span>
                   <input value={selState.name} onChange={(e) => patchState(selState.id, { name: e.target.value })}
                     className="w-full mt-0.5 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent outline-none" />
                 </label>
@@ -378,7 +378,7 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
 
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-fg-3 text-[10px]">Entry actions</span>
+                    <span className="text-fg-3 text-micro">Entry actions</span>
                     <button onClick={() => patchState(selState.id, { entry: [...selState.entry, { kind: 'play' }] })} className="text-accent hover:underline inline-flex items-center gap-0.5"><Plus size={11} /> add</button>
                   </div>
                   <div className="space-y-2">
@@ -403,7 +403,7 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
                   {sm.states.find(s => s.id === selTrans.from)?.name} <ArrowRight size={10} className="inline" /> {sm.states.find(s => s.id === selTrans.to)?.name}
                 </div>
                 <label className="block">
-                  <span className="text-fg-3 text-[10px]">Trigger</span>
+                  <span className="text-fg-3 text-micro">Trigger</span>
                   <select value={selTrans.trigger.kind} onChange={(e) => patchTransition(selTrans.id, { trigger: { kind: e.target.value as SmTriggerKind } })}
                     className="w-full mt-0.5 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent outline-none">
                     {TRIGGER_KINDS.map(k => <option key={k} value={k}>{k}</option>)}
@@ -435,7 +435,7 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
                   <button onClick={() => removeRegion(selRegion.id)} className="text-fg-3 hover:text-red-400"><Trash2 size={12} /></button>
                 </div>
                 <label className="block">
-                  <span className="text-fg-3 text-[10px]">Name</span>
+                  <span className="text-fg-3 text-micro">Name</span>
                   <input value={selRegion.name} onChange={(e) => patchRegion(selRegion.id, { name: e.target.value })}
                     className="w-full mt-0.5 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent outline-none" />
                 </label>
@@ -453,7 +453,7 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
 
 const NumField: React.FC<{ label: string; value: number; onChange: (v: number) => void }> = ({ label, value, onChange }) => (
   <label className="block">
-    <span className="text-fg-3 text-[10px]">{label}</span>
+    <span className="text-fg-3 text-micro">{label}</span>
     <input type="number" step="0.1" value={value} onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
       className="w-full mt-0.5 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent outline-none" />
   </label>
@@ -461,7 +461,7 @@ const NumField: React.FC<{ label: string; value: number; onChange: (v: number) =
 
 const SelectField: React.FC<{ label: string; value: string; options: { v: string; l: string }[]; onChange: (v: string) => void }> = ({ label, value, options, onChange }) => (
   <label className="block">
-    <span className="text-fg-3 text-[10px]">{label}</span>
+    <span className="text-fg-3 text-micro">{label}</span>
     <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full mt-0.5 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent outline-none">
       <option value="">— pick —</option>
       {options.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}

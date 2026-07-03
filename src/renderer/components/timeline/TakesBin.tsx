@@ -37,7 +37,7 @@ export const TakesBin: React.FC<Props> = ({ takes, hasTrackingLane, onStartRecor
   };
 
   return (
-    <div className="flex items-center gap-2 px-2 py-1 border-b border-line-1 bg-surface-1/60 text-[11px] overflow-x-auto">
+    <div className="flex items-center gap-2 px-2 py-1 border-b border-line-1 bg-surface-1/60 text-mini overflow-x-auto">
       <button
         onClick={recording ? onStopRecord : onStartRecord}
         title={recording ? 'Stop recording' : 'Record the live LiDAR blob feed into a take'}

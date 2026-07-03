@@ -50,7 +50,7 @@ const ClipBlockBase: React.FC<Props> = ({ clip, selected, locked, tool, pxPerSec
   return (
     <div
       onPointerDown={onDown}
-      className={`absolute top-1 bottom-1 rounded-[var(--r-sm)] border overflow-hidden ${blade ? 'cursor-col-resize' : locked ? 'cursor-not-allowed' : 'cursor-grab'} ${selected ? 'border-accent bg-accent/20' : 'border-line-2 bg-surface-3'}`}
+      className={`absolute top-1 bottom-1 rounded-sm border overflow-hidden ${blade ? 'cursor-col-resize' : locked ? 'cursor-not-allowed' : 'cursor-grab'} ${selected ? 'border-accent bg-accent/20' : 'border-line-2 bg-surface-3'}`}
       style={{ left: clip.start * pxPerSec, width: widthPx, borderLeftColor: clip.color, borderLeftWidth: clip.color ? 3 : undefined }}
       title={`${clip.name} — ${fmtClock(clip.duration)}`}
     >
@@ -59,10 +59,10 @@ const ClipBlockBase: React.FC<Props> = ({ clip, selected, locked, tool, pxPerSec
         : isContentClip(clip)
           ? (clip.content!.type === SourceType.IMAGE && (clip.content!.url || clip.path)
             ? <ImageStrip path={clip.content!.url || clip.path} />
-            : <div className="absolute inset-0 flex items-center justify-center text-[9px] uppercase tracking-wider text-fg-3 bg-surface-2/40 pointer-events-none">{clip.content!.type === 'EFFECT' ? 'EFFECT' : clip.content!.type}</div>)
+            : <div className="absolute inset-0 flex items-center justify-center text-micro uppercase tracking-wider text-fg-3 bg-surface-2/40 pointer-events-none">{clip.content!.type === 'EFFECT' ? 'EFFECT' : clip.content!.type}</div>)
           : <Filmstrip path={clip.path} inPoint={clip.inPoint} clipDuration={clip.duration} widthPx={widthPx} heightPx={laneH - 8} />)}
       <div className="absolute inset-x-0 top-0 h-4 bg-gradient-to-b from-black/55 to-transparent pointer-events-none" />
-      <div className="relative px-1.5 pt-0.5 text-[10px] leading-tight truncate text-fg-1 pointer-events-none drop-shadow">{clip.name}</div>
+      <div className="relative px-1.5 pt-0.5 text-micro leading-tight truncate text-fg-1 pointer-events-none drop-shadow">{clip.name}</div>
       {conflict && <div title="Another clip/surface is using this live input — the last one under the playhead wins" className="absolute bottom-0.5 left-1 text-warn pointer-events-none"><AlertTriangle size={10} /></div>}
       {!blade && !locked && <>
         <div onPointerDown={(e) => { e.stopPropagation(); onStartDrag(e, clip, 'l'); }} className="absolute left-0 top-0 bottom-0 w-1.5 cursor-ew-resize bg-black/40 hover:bg-accent" />

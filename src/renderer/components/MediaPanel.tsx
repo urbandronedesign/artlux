@@ -54,7 +54,7 @@ export const MediaPanel: React.FC<Props> = ({ assets, timeline, surfaces, scene3
 
   const chip = (label: string, value: Filter, icon?: React.ReactNode) => (
     <button onClick={() => setFilter(value)}
-      className={`inline-flex items-center gap-1 px-1.5 h-5 rounded text-[10px] border ${filter === value ? 'bg-accent text-black border-transparent' : 'bg-surface-2 text-fg-2 border-line-1 hover:text-fg-1'}`}>
+      className={`inline-flex items-center gap-1 px-1.5 h-5 rounded text-micro border ${filter === value ? 'bg-accent text-black border-transparent' : 'bg-surface-2 text-fg-2 border-line-1 hover:text-fg-1'}`}>
       {icon}{label}
     </button>
   );
@@ -63,19 +63,19 @@ export const MediaPanel: React.FC<Props> = ({ assets, timeline, surfaces, scene3
     <div className="flex flex-col h-full min-h-0 bg-surface-1 text-xs">
       {/* header */}
       <div className="h-8 px-2 flex items-center justify-between border-b border-line-1 bg-surface-2 shrink-0">
-        <span className="text-[11px] font-semibold text-fg-1">Media Library</span>
+        <span className="text-mini font-semibold text-fg-1">Media Library</span>
         <button onClick={onOpenManager} title="Open full Asset Manager" className="text-fg-3 hover:text-fg-1"><Maximize2 size={13} /></button>
       </div>
 
       {/* import + project-folder hint */}
       <div className="px-2 py-1.5 flex items-center gap-1 border-b border-line-1">
-        <span className="text-[10px] text-fg-3 mr-1">Import</span>
+        <span className="text-micro text-fg-3 mr-1">Import</span>
         <button onClick={() => onImport('video')} disabled={!hasProjectFolder} title="Import video" className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40"><Film size={12} /></button>
         <button onClick={() => onImport('image')} disabled={!hasProjectFolder} title="Import image" className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40"><ImageIcon size={12} /></button>
         <button onClick={() => onImport('model')} disabled={!hasProjectFolder} title="Import 3D model" className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40"><Box size={12} /></button>
       </div>
       {!hasProjectFolder && (
-        <div className="px-2 py-1 text-[10px] text-warn border-b border-line-1">Create a project folder (File → New Project) to import media.</div>
+        <div className="px-2 py-1 text-micro text-warn border-b border-line-1">Create a project folder (File → New Project) to import media.</div>
       )}
 
       {/* filter + search */}
@@ -88,14 +88,14 @@ export const MediaPanel: React.FC<Props> = ({ assets, timeline, surfaces, scene3
         <div className="flex items-center gap-1 ml-auto bg-surface-2 border border-line-1 rounded px-1 h-5">
           <Search size={10} className="text-fg-3" />
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="search"
-            className="bg-transparent outline-none text-[10px] w-20 text-fg-1" />
+            className="bg-transparent outline-none text-micro w-20 text-fg-1" />
         </div>
       </div>
 
       {/* grid */}
       <div className="flex-1 min-h-0 overflow-auto p-2">
         {filtered.length === 0 ? (
-          <div className="text-fg-3 italic text-[11px] px-1 py-2">No media. Import files or record a take.</div>
+          <div className="text-fg-3 italic text-mini px-1 py-2">No media. Import files or record a take.</div>
         ) : (
           <div className="grid grid-cols-2 gap-2">
             {filtered.map(a => (
@@ -111,18 +111,18 @@ export const MediaPanel: React.FC<Props> = ({ assets, timeline, surfaces, scene3
       {/* selected asset actions */}
       {selected && (
         <div className="border-t border-line-1 p-2 space-y-1.5 bg-surface-1 shrink-0">
-          <div className="text-[10px] text-fg-2 truncate">{selected.name}</div>
+          <div className="text-micro text-fg-2 truncate">{selected.name}</div>
           <div className="flex items-center gap-1">
             {(selected.type === 'video' || selected.type === 'image') && (
               <button onClick={() => onUseOnSurface(selected)} disabled={!selectedSurfaceId} title={selectedSurfaceId ? 'Set as the selected surface’s content' : 'Select a surface first'}
-                className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40 text-[10px]"><MonitorPlay size={11} /> Use</button>
+                className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40 text-micro"><MonitorPlay size={11} /> Use</button>
             )}
             <button onClick={() => window.artlux?.showItemInFolder?.(selected.path)} title="Reveal in folder"
-              className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 text-[10px]"><FolderOpen size={11} /></button>
+              className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 text-micro"><FolderOpen size={11} /></button>
             <button onClick={() => onRelinkAsset(selected)} title="Relink (locate the file)"
-              className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 text-[10px]"><Link2 size={11} /></button>
+              className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 text-micro"><Link2 size={11} /></button>
             <button onClick={() => onRemoveAsset(selected)} title="Remove from library"
-              className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-danger/20 hover:text-danger text-[10px] ml-auto"><Trash2 size={11} /></button>
+              className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-danger/20 hover:text-danger text-micro ml-auto"><Trash2 size={11} /></button>
           </div>
         </div>
       )}

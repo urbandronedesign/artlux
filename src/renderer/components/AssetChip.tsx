@@ -59,7 +59,7 @@ export const AssetChip: React.FC<Props> = ({ asset, usageCount, missing, selecte
       onDoubleClick={onDoubleClick}
       onContextMenu={onContextMenu}
       title={`${asset.name}${missing ? ' — missing on disk' : ''} · ${usageCount ? `used ${usageCount}×` : 'unused'}`}
-      className={`group relative flex flex-col rounded-[var(--r-sm)] border overflow-hidden cursor-grab ${selected ? 'border-accent' : 'border-line-2 hover:border-line-2/80'} ${missing ? 'opacity-60 cursor-not-allowed' : ''}`}
+      className={`group relative flex flex-col rounded-sm border overflow-hidden cursor-grab ${selected ? 'border-accent' : 'border-line-2 hover:border-line-2/80'} ${missing ? 'opacity-60 cursor-not-allowed' : ''}`}
     >
       <div className="relative w-full aspect-video bg-surface-0 flex items-center justify-center">
         {asset.type === 'video' && <VideoThumb path={asset.path} />}
@@ -72,12 +72,12 @@ export const AssetChip: React.FC<Props> = ({ asset, usageCount, missing, selecte
         </span>
         {missing && <span className="absolute top-1 right-1 text-warn" title="Missing on disk"><AlertTriangle size={12} /></span>}
         {!missing && (
-          <span className={`absolute bottom-1 right-1 text-[8px] px-1 rounded ${usageCount ? 'bg-accent/80 text-black' : 'bg-surface-2 text-fg-3'}`}>
+          <span className={`absolute bottom-1 right-1 text-micro px-1 rounded ${usageCount ? 'bg-accent/80 text-black' : 'bg-surface-2 text-fg-3'}`}>
             {usageCount ? `×${usageCount}` : 'unused'}
           </span>
         )}
       </div>
-      <div className="px-1.5 py-1 text-[10px] leading-tight truncate text-fg-1 bg-surface-2">{asset.name}</div>
+      <div className="px-1.5 py-1 text-micro leading-tight truncate text-fg-1 bg-surface-2">{asset.name}</div>
     </div>
   );
 };

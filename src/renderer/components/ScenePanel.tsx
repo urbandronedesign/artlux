@@ -147,7 +147,7 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
                                 ) : (
                                     <span className="flex-1 truncate select-none" title="Double-click to rename">{s.name}</span>
                                 )}
-                                <span className="num text-[9px] text-fg-3 mr-1 uppercase">{s.content.type === 'NONE' ? '—' : s.content.type}</span>
+                                <span className="num text-micro text-fg-3 mr-1 uppercase">{s.content.type === 'NONE' ? '—' : s.content.type}</span>
                                 <div className="flex items-center text-fg-3">
                                     <button
                                         className="p-0.5 hover:text-fg-1 disabled:opacity-20 disabled:hover:text-fg-3"
@@ -194,7 +194,7 @@ export const ScenePanel: React.FC<ScenePanelProps> = ({
                     >
                          <Folder size={12} className="mr-2 text-fg-3" />
                          <span className="font-medium">Master Layer</span>
-                         {fixtures.length > 0 && <span className="ml-auto text-[9px] text-fg-3">{fixtures.length}</span>}
+                         {fixtures.length > 0 && <span className="ml-auto text-micro text-fg-3">{fixtures.length}</span>}
                     </div>
                     <div className="pl-4 border-l border-line-1 ml-2.5 mt-1 space-y-0.5">
                         {fixtures.map(f => {

@@ -55,7 +55,7 @@ const ToolBtn: React.FC<{ active: boolean; title: string; onClick: () => void; c
     onClick={onClick}
     title={title}
     aria-pressed={active}
-    className={`p-1.5 rounded-[var(--r-sm)] border transition-colors ${active ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2/80 backdrop-blur-sm border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
+    className={`p-1.5 rounded-sm border transition-colors ${active ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2/80 backdrop-blur-sm border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
   >
     {children}
   </button>
@@ -194,7 +194,7 @@ const TInput: React.FC<{ value: number; step: number; title: string; min?: numbe
       onBlur={commit}
       onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); else if (e.key === 'Escape') setTxt(null); }}
       onPointerDown={(e) => e.stopPropagation()}
-      className="w-14 bg-surface-0 border border-line-1 rounded px-1 py-0.5 text-right text-fg-1 num text-[10px] focus:border-accent focus:outline-none" />
+      className="w-14 bg-surface-0 border border-line-1 rounded px-1 py-0.5 text-right text-fg-1 num text-micro focus:border-accent focus:outline-none" />
   );
 };
 
@@ -206,14 +206,14 @@ const ModelInspector: React.FC<{ model: SceneModel; onCommit: (id: string, t: Mo
   const onScale = (i: number, v: number) => { const s = [...scl] as [number, number, number]; s[i] = Math.max(0.0001, v); onCommit(model.id, { ...base(), scaleXYZ: s }); };
   const Row = (label: string, vals: number[], step: number, on: (i: number, v: number) => void, min?: number) => (
     <div className="flex items-center gap-1">
-      <span className="text-fg-3 w-8 text-[10px]">{label}</span>
+      <span className="text-fg-3 w-8 text-micro">{label}</span>
       {vals.map((val, i) => <TInput key={i} value={val} step={step} min={min} title={AXES[i].toUpperCase()} onChange={(v) => on(i, v)} />)}
     </div>
   );
   return (
-    <div className="absolute top-2 right-2 z-10 bg-surface-1/95 border border-line-1 rounded-md p-2 space-y-1 shadow-xl backdrop-blur-sm"
+    <div className="absolute top-2 right-2 z-10 bg-surface-1/95 border border-line-1 rounded-md p-2 space-y-1 shadow-e2 backdrop-blur-sm"
       onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-      <div className="text-[10px] font-bold uppercase tracking-wider text-fg-3 truncate max-w-[190px]">{model.name}</div>
+      <div className="text-micro font-bold uppercase tracking-wider text-fg-3 truncate max-w-[190px]">{model.name}</div>
       {Row('Pos', [model.position.x, model.position.y, model.position.z], 0.1, onPR('position'))}
       {Row('Rot°', [model.rotation.x, model.rotation.y, model.rotation.z], 5, onPR('rotation'))}
       {Row('Scale', [scl[0], scl[1], scl[2]], 0.1, onScale, 0.0001)}

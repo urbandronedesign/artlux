@@ -435,7 +435,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
         <div className="relative" style={{ width: GUTTER + Math.max(width, 100) }}>
           {/* header row: timecode ruler (sticky top), corner cell (sticky left) */}
           <div className="flex sticky top-0 z-30">
-            <div className="sticky left-0 z-40 shrink-0 bg-surface-1 border-b border-r border-line-1 flex items-center px-2 text-[10px] text-fg-3" style={{ width: GUTTER, height: RULER_H }}>Tracks</div>
+            <div className="sticky left-0 z-40 shrink-0 bg-surface-1 border-b border-r border-line-1 flex items-center px-2 text-micro text-fg-3" style={{ width: GUTTER, height: RULER_H }}>Tracks</div>
             <TimelineRuler
               pxPerSec={pxPerSec} width={Math.max(width, 100)} height={RULER_H} fps={fps}
               markers={timeline.markers ?? []} inPoint={timeline.inPoint ?? null} outPoint={timeline.outPoint ?? null}
@@ -453,7 +453,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
           {layers.length === 0 && (
             <div className="flex">
               <div className="sticky left-0 z-20 shrink-0 bg-surface-1 border-r border-line-1" style={{ width: GUTTER, height: LANE_H }} />
-              <div className="text-fg-3 italic px-3 py-2 text-[11px]">Add a track, then drop a video onto its lane →</div>
+              <div className="text-fg-3 italic px-3 py-2 text-mini">Add a track, then drop a video onto its lane →</div>
             </div>
           )}
 
@@ -491,9 +491,9 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       {contentMenu && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setContentMenu(null)} onContextMenu={(e) => { e.preventDefault(); setContentMenu(null); }} />
-          <div className="fixed z-50 w-56 bg-surface-1 border border-line-1 rounded-md p-2 shadow-xl"
+          <div className="fixed z-50 w-56 bg-surface-1 border border-line-1 rounded-md p-2 shadow-e2"
             style={{ left: Math.min(contentMenu.x, window.innerWidth - 236), top: Math.min(contentMenu.y, window.innerHeight - 200) }}>
-            <div className="text-[10px] font-bold uppercase tracking-wider text-fg-3 mb-1.5 px-0.5">Add clip</div>
+            <div className="text-micro font-bold uppercase tracking-wider text-fg-3 mb-1.5 px-0.5">Add clip</div>
             <ContentEditor
               content={{ type: SourceType.NONE }}
               layers={layers}
@@ -507,10 +507,10 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
 
       {/* Inspector for a selected generalized-content clip (reuses the surface content editor). */}
       {selectedClip && isContentClip(selectedClip) && (
-        <div className="absolute top-2 right-2 z-30 w-60 bg-surface-1/95 backdrop-blur-sm border border-line-1 rounded-md p-2.5 shadow-xl space-y-2"
+        <div className="absolute top-2 right-2 z-30 w-60 bg-surface-1/95 backdrop-blur-sm border border-line-1 rounded-md p-2.5 shadow-e2 space-y-2"
           onPointerDown={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-fg-3 truncate">{selectedClip.name}</span>
+            <span className="text-micro font-bold uppercase tracking-wider text-fg-3 truncate">{selectedClip.name}</span>
             <button onClick={() => setSelected(null)} className="text-fg-3 hover:text-fg-1" title="Close"><X size={12} /></button>
           </div>
           <ContentEditor

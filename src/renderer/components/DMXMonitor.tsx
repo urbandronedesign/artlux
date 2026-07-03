@@ -62,7 +62,7 @@ const FixtureStrip: React.FC<{ fixture: Fixture; offset: number }> = ({ fixture,
     <div className="space-y-1">
       <canvas
         ref={canvasRef}
-        className="w-full h-7 bg-surface-0 rounded-[var(--r-sm)] border border-line-2"
+        className="w-full h-7 bg-surface-0 rounded-sm border border-line-2"
         style={{ imageRendering: 'pixelated' }}
       />
       <div className="h-1 w-full bg-surface-0 rounded-full overflow-hidden">
@@ -74,7 +74,7 @@ const FixtureStrip: React.FC<{ fixture: Fixture; offset: number }> = ({ fixture,
 
 const Stat: React.FC<{ label: string; value: React.ReactNode; tone?: string }> = ({ label, value, tone = 'text-fg-1' }) => (
   <div className="flex items-baseline gap-1.5">
-    <span className="text-[10px] uppercase tracking-wider text-fg-3">{label}</span>
+    <span className="text-micro uppercase tracking-wider text-fg-3">{label}</span>
     <span className={`num text-sm ${tone}`}>{value}</span>
   </div>
 );
@@ -105,7 +105,7 @@ export const DMXMonitor: React.FC<DMXMonitorProps> = ({ fixtures }) => {
         <Stat label="Fixtures" value={fixtures.length} />
         <Stat label="Channels" value={stats.channels} />
         <Stat label="Universes" value={stats.universes} />
-        <span className="ml-auto flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-fg-3">
+        <span className="ml-auto flex items-center gap-1.5 text-micro uppercase tracking-wider text-fg-3">
           <span className="w-1.5 h-1.5 rounded-full bg-ok animate-pulse" /> Live
         </span>
       </div>
@@ -122,12 +122,12 @@ export const DMXMonitor: React.FC<DMXMonitorProps> = ({ fixtures }) => {
             const endU = Math.floor(endAbs / 512);
             const uDisplay = startU === endU ? `${startU}` : `${startU}-${endU}`;
             return (
-              <div key={fixture.id} className="bg-surface-1 border border-line-1 rounded-[var(--r-md)] p-2.5 flex flex-col gap-2">
+              <div key={fixture.id} className="bg-surface-1 border border-line-1 rounded-md p-2.5 flex flex-col gap-2">
                 <div className="flex items-center justify-between gap-2 min-w-0">
                   <span className="text-xs font-medium text-fg-1 truncate">{fixture.name}</span>
                   <div className="flex items-center gap-1 shrink-0">
-                    <span className="num text-[10px] text-fg-2 bg-surface-0 px-1.5 py-0.5 rounded-[var(--r-sm)] border border-line-2">U:{uDisplay}.{fixture.startAddress}</span>
-                    <span className="num text-[10px] text-fg-2 bg-surface-0 px-1.5 py-0.5 rounded-[var(--r-sm)] border border-line-2">{fixture.ledCount}px</span>
+                    <span className="num text-micro text-fg-2 bg-surface-0 px-1.5 py-0.5 rounded-sm border border-line-2">U:{uDisplay}.{fixture.startAddress}</span>
+                    <span className="num text-micro text-fg-2 bg-surface-0 px-1.5 py-0.5 rounded-sm border border-line-2">{fixture.ledCount}px</span>
                   </div>
                 </div>
                 <FixtureStrip fixture={fixture} offset={fixtureOffsets[fixture.id]} />

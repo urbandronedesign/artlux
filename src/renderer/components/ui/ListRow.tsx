@@ -15,7 +15,7 @@ export const ListRow: React.FC<Props> = ({ selected, swatch, icon, actions, onCl
   <div
     onClick={onClick}
     onDoubleClick={onDoubleClick}
-    className={`group flex items-center gap-2 px-2 py-1.5 rounded-[var(--r-sm)] cursor-pointer transition-colors text-xs ${
+    className={`group flex items-center gap-2 px-2 py-1.5 rounded-sm cursor-pointer transition-colors text-xs ${
       selected ? 'bg-accent/10 text-fg-1' : 'text-fg-2 hover:bg-surface-2'
     }`}
   >

@@ -156,11 +156,11 @@ export const MenuBar: React.FC<Props> = ({ onMenuAction, actions }) => {
     <div
       ref={barRef}
       style={DRAG}
-      className="relative z-[150] flex h-8 shrink-0 items-stretch bg-surface-2 border-b border-line-1 select-none"
+      className="relative z-menubar flex h-8 shrink-0 items-stretch bg-surface-2 border-b border-line-1 select-none"
     >
       {/* Logo */}
       <div className="flex items-center pl-2 pr-1" style={NODRAG}>
-        <div className="w-[18px] h-[18px] rounded-[5px] bg-gradient-to-br from-sky-400 to-blue-600 flex items-center justify-center text-white font-bold text-[12px] leading-none shadow-sm">A</div>
+        <div className="w-[18px] h-[18px] rounded-md bg-gradient-to-br from-sky-400 to-blue-600 flex items-center justify-center text-white font-bold text-xs leading-none shadow-e1">A</div>
       </div>
 
       {/* Menus */}
@@ -168,7 +168,7 @@ export const MenuBar: React.FC<Props> = ({ onMenuAction, actions }) => {
         {menus.map((m) => (
           <div key={m.label} className="relative flex">
             <button
-              className={`px-2 h-full text-[13px] leading-none flex items-center transition-colors ${open === m.label ? 'bg-white/10 text-fg-1' : 'text-fg-2 hover:bg-white/5 hover:text-fg-1'}`}
+              className={`px-2 h-full text-md leading-none flex items-center transition-colors ${open === m.label ? 'bg-white/10 text-fg-1' : 'text-fg-2 hover:bg-white/5 hover:text-fg-1'}`}
               onClick={() => setOpen(open === m.label ? null : m.label)}
               onMouseEnter={() => { if (open) setOpen(m.label); }} // hover-switch once the bar is active
             >
@@ -209,7 +209,7 @@ export const MenuBar: React.FC<Props> = ({ onMenuAction, actions }) => {
 const Dropdown: React.FC<{ items: Item[]; onRun: (i: Extract<Item, { label: string }>) => void; flyout?: boolean }> = ({ items, onRun, flyout }) => {
   const [subOpen, setSubOpen] = useState<string | null>(null);
   return (
-    <div className={`absolute ${flyout ? 'left-full -top-1' : 'left-0 top-full'} min-w-[220px] py-1 bg-surface-1 border border-line-2 rounded-[var(--r-md)] shadow-2xl z-[160] animate-overlay-in`}>
+    <div className={`absolute ${flyout ? 'left-full -top-1' : 'left-0 top-full'} min-w-[220px] py-1 bg-surface-1 border border-line-2 rounded-md shadow-e3 z-menu-flyout animate-overlay-in`}>
       {items.map((it, i) => {
         if ('sep' in it) return <div key={i} className="my-1 h-px bg-line-1" />;
         const item = it;
@@ -222,7 +222,7 @@ const Dropdown: React.FC<{ items: Item[]; onRun: (i: Extract<Item, { label: stri
               className={`w-full flex items-center gap-6 px-3 h-7 text-[12.5px] text-left ${item.disabled ? 'text-fg-3 cursor-default' : 'text-fg-1 hover:bg-accent/20'}`}
             >
               <span className="flex-1 truncate">{item.label}</span>
-              {item.accel && <span className="num text-[11px] text-fg-3">{acc(item.accel)}</span>}
+              {item.accel && <span className="num text-mini text-fg-3">{acc(item.accel)}</span>}
               {hasSub && <ChevronRight size={13} className="text-fg-3 -mr-1" />}
             </button>
             {hasSub && subOpen === item.label && <Dropdown items={item.submenu!} onRun={onRun} flyout />}

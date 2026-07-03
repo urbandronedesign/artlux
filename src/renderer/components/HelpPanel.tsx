@@ -64,20 +64,20 @@ export const HelpPanel: React.FC<Props> = ({ lang, onLang, onClose, width, onRes
 
       {/* Context (live hover help) */}
       <div className="shrink-0 px-3 py-2.5 border-b border-line-1">
-        <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-fg-3 mb-1.5">
+        <div className="flex items-center gap-1.5 text-micro font-bold uppercase tracking-wider text-fg-3 mb-1.5">
           <MousePointerClick size={11} /> {UI.context[lang]}
         </div>
-        <p className={`text-[12px] leading-relaxed ${hint ? 'text-fg-1' : 'text-fg-3 italic'}`}>
+        <p className={`text-xs leading-relaxed ${hint ? 'text-fg-1' : 'text-fg-3 italic'}`}>
           {hint ? hint[lang] : UI.idle[lang]}
         </p>
       </div>
 
       {/* Topics accordion */}
       <div className="flex-1 min-h-0 overflow-y-auto">
-        <div className="px-3 pt-2.5 pb-1 text-[10px] font-bold uppercase tracking-wider text-fg-3">{UI.topics[lang]}</div>
+        <div className="px-3 pt-2.5 pb-1 text-micro font-bold uppercase tracking-wider text-fg-3">{UI.topics[lang]}</div>
         {HELP_TOPICS.map((t) => (
           <CollapsibleSection key={t.id} title={t.title[lang]} defaultOpen={false}>
-            <p className="px-3 py-2.5 text-[12px] leading-relaxed text-fg-2">{t.body[lang]}</p>
+            <p className="px-3 py-2.5 text-xs leading-relaxed text-fg-2">{t.body[lang]}</p>
           </CollapsibleSection>
         ))}
       </div>

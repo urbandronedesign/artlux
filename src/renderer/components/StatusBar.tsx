@@ -67,7 +67,7 @@ export const StatusBar: React.FC<Props> = ({ help, lang, renderFps, connected, o
         onClick={onToggleLeft}
         title="Toggle left panel"
         aria-label="Toggle left panel"
-        className={`inline-flex items-center justify-center h-5 w-5 rounded-[var(--r-sm)] hover:text-fg-1 hover:bg-surface-3 ${leftOpen ? 'text-accent' : 'text-fg-3'}`}
+        className={`inline-flex items-center justify-center h-5 w-5 rounded-sm hover:text-fg-1 hover:bg-surface-3 ${leftOpen ? 'text-accent' : 'text-fg-3'}`}
       >
         <PanelLeft size={13} />
       </button>
@@ -75,7 +75,7 @@ export const StatusBar: React.FC<Props> = ({ help, lang, renderFps, connected, o
         onClick={onToggleRight}
         title="Toggle right panel"
         aria-label="Toggle right panel"
-        className={`inline-flex items-center justify-center h-5 w-5 rounded-[var(--r-sm)] hover:text-fg-1 hover:bg-surface-3 ${rightOpen ? 'text-accent' : 'text-fg-3'}`}
+        className={`inline-flex items-center justify-center h-5 w-5 rounded-sm hover:text-fg-1 hover:bg-surface-3 ${rightOpen ? 'text-accent' : 'text-fg-3'}`}
       >
         <PanelRight size={13} />
       </button>

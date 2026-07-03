@@ -29,7 +29,7 @@ export const Dock: React.FC<Props> = ({ open, onToggle, tabs, activeTab, onTab, 
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
   };
   return (
-  <div className="shrink-0 border-t border-line-1 bg-surface-1 flex flex-col transition-[height] duration-200 ease-out relative" style={{ height: open ? height : 34 }}>
+  <div className="shrink-0 border-t border-line-1 bg-surface-1 flex flex-col transition-[height] duration-med ease-out relative" style={{ height: open ? height : 34 }}>
     {open && onResize && (
       <div onPointerDown={onResizeDown} title="Drag to resize" className="absolute -top-1 left-0 right-0 h-2 cursor-row-resize z-10 hover:bg-accent/30" />
     )}
@@ -43,7 +43,7 @@ export const Dock: React.FC<Props> = ({ open, onToggle, tabs, activeTab, onTab, 
               onClick={() => { if (!open) onToggle(); onTab(t.id); }}
               role="tab"
               aria-selected={active}
-              className={`flex items-center gap-1.5 h-6 px-2 rounded-[var(--r-sm)] text-[11px] transition-colors ${
+              className={`flex items-center gap-1.5 h-6 px-2 rounded-sm text-mini transition-colors ${
                 active ? 'bg-accent/15 text-accent' : 'text-fg-2 hover:text-fg-1 hover:bg-surface-3'
               }`}
             >
@@ -55,7 +55,7 @@ export const Dock: React.FC<Props> = ({ open, onToggle, tabs, activeTab, onTab, 
       </div>
       <button
         onClick={onToggle}
-        className="inline-flex items-center justify-center h-6 w-6 rounded-[var(--r-sm)] text-fg-2 hover:text-fg-1 hover:bg-surface-3"
+        className="inline-flex items-center justify-center h-6 w-6 rounded-sm text-fg-2 hover:text-fg-1 hover:bg-surface-3"
         title={open ? 'Collapse' : 'Expand'}
         aria-label={open ? 'Collapse dock' : 'Expand dock'}
         aria-expanded={open}
