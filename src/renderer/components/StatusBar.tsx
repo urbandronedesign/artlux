@@ -3,6 +3,35 @@ import { PanelLeft, PanelRight, Activity, Wifi, Workflow } from 'lucide-react';
 import { helpBus, type HelpText, type HelpLang } from '../services/helpBus';
 import { timeline as engine } from '../services/timeline';
 import { StateMachine } from '../types';
+import { useLayout } from '../hooks/useLayout';
+import { applyPreset, type PresetId } from '../services/layoutStore';
+
+// Workspace preset switcher (Edit / Perform / Calibrate). Reads + writes the layout store directly,
+// so no props are threaded from App. Highlights the active preset; 'custom' (after a manual tweak)
+// highlights none.
+const PRESETS: { id: PresetId; label: string; title: string }[] = [
+  { id: 'edit', label: 'Edit', title: 'Edit workspace — panels + dock' },
+  { id: 'perform', label: 'Perform', title: 'Perform workspace — maximize the stage' },
+  { id: 'calibrate', label: 'Calib', title: 'Calibrate workspace — 2D + 3D split' },
+];
+const PresetSwitch: React.FC = () => {
+  const layout = useLayout();
+  return (
+    <div className="flex items-center rounded-sm border border-line-1 overflow-hidden" role="group" aria-label="Workspace preset">
+      {PRESETS.map((p) => (
+        <button
+          key={p.id}
+          onClick={() => applyPreset(p.id)}
+          title={p.title}
+          aria-pressed={layout.activePreset === p.id}
+          className={`h-5 px-2 text-mini transition-colors ${layout.activePreset === p.id ? 'bg-accent/15 text-accent' : 'text-fg-3 hover:text-fg-1 hover:bg-surface-3'}`}
+        >
+          {p.label}
+        </button>
+      ))}
+    </div>
+  );
+};
 
 interface Props {
   help: string;
@@ -79,6 +108,7 @@ export const StatusBar: React.FC<Props> = ({ help, lang, renderFps, connected, o
       >
         <PanelRight size={13} />
       </button>
+      <PresetSwitch />
       <span className={`truncate ${hint ? 'text-fg-2' : 'text-fg-3'}`}>{hint ? hint[lang] : help}</span>
     </div>
 
