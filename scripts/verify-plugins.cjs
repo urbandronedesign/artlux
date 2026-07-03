@@ -52,6 +52,7 @@ const CONTRIBUTIONS = [
   { plugin: 'lidar-tracking', marker: 'OSC Monitor',    note: 'OSC Monitor — panel body shipped' },
   { plugin: 'mp4',            marker: 'GPU MP4 decode',  note: 'Video — SettingsSection (settingsSectionRegistry)' },
   { plugin: 'mediapipe',      marker: 'pose-monitor',    note: 'Pose Monitor — modal PanelContribution id (panelRegistry)' },
+  { plugin: 'mediapipe',      marker: 'pose-calibrate',  note: 'Pose Floor Calibration — modal PanelContribution id (panelRegistry)' },
   { plugin: 'mediapipe',      marker: 'Pose Tracking (MediaPipe)', note: 'Pose Tracking — SettingsSection (settingsSectionRegistry)' },
 ];
 

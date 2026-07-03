@@ -11,6 +11,14 @@
   (View menu), and a **Pose Tracking (MediaPipe)** Preferences section (camera / model / delegate /
   max-people / confidence). Model + WASM assets are staged offline with `npm run assets:mediapipe`;
   when absent the feature logs and no-ops (graceful degrade). See [docs/MEDIAPIPE.md](docs/MEDIAPIPE.md).
+- **New: MediaPipe floor calibration + real-world position preview.** For a camera pointed at a floor, a
+  **Pose Floor Calibration** wizard (View menu) relates the video feed to real space with a 4-point
+  homography — drag four handles onto a known floor rectangle, enter its width × depth (metres), save.
+  The 3D scene then previews each person at their mapped real-world position on the floor (foot
+  ground-contact mapped through the homography), mirroring the LiDAR floor viz. Calibration persists per
+  project in `Scene3D.mediapipeFloor`. Display-only for now (content stays image-space). Reuses the
+  projector corner-pin math (`squareToQuad`/`applyH`); no camera-intrinsics solve — a plane needs 4
+  points. See [docs/MEDIAPIPE.md](docs/MEDIAPIPE.md).
 
 ## v0.19.2
 

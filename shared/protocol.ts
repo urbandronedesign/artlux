@@ -443,6 +443,17 @@ export interface MarkerMap {
   markers: FiducialMarker[];
 }
 
+// Floor calibration for camera pose tracking (@artlux/plugin-mediapipe): a 4-point homography relating
+// the webcam image to a real floor rectangle. `imageQuad` are the four floor-rectangle corners marked in
+// the live feed — normalized [u,v] in [0..1], origin BOTTOM-LEFT (matching the pose landmark space) — in
+// {tl,tr,br,bl} logical order. width/depth are the rectangle's real size (metres). The plugin composes
+// the image→floor homography from these; a plane needs only 4 points, so no camera intrinsics are stored.
+export interface MediapipeFloor {
+  imageQuad: [[number, number], [number, number], [number, number], [number, number]]; // tl, tr, br, bl
+  width: number;                 // floor rectangle width (x), metres
+  depth: number;                 // floor rectangle depth (z), metres
+}
+
 export interface Scene3D {
   models: SceneModel[];
   lightIntensity: number;             // per-fixture venue light gain
@@ -457,6 +468,7 @@ export interface Scene3D {
   trackingMergePeople?: boolean;      // merge nearby blobs into one "person" (venue emits 2 blobs/person)
   trackingMergeRadius?: number;       // merge radius in metres (blobs within this distance = same person)
   mediapipeViz?: boolean;             // overlay the camera-pose (MediaPipe) tracked-people markers in 3D
+  mediapipeFloor?: MediapipeFloor;    // camera→floor homography for real-world pose position preview
   camMask?: CamMask;                  // markerless calibration camera exclusion mask (reflective hotspots)
   markerMap?: MarkerMap;              // registered fiducial markers for one-click recalibration
   // Legacy single-model fields (pre-multi-model); migrated into `models` on load.

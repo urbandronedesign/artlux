@@ -21,6 +21,7 @@ import * as poseProjector from './poseProjector';
 import * as poseEngine from './poseEngine';
 import PoseViz from './PoseViz';
 import { PosePanel } from './PosePanel';
+import { PoseCalibration } from './PoseCalibration';
 import { PoseSettings } from './poseSettings';
 import { PoseContentEditor } from './poseContentEditor';
 import { setHost } from './poseHost';
@@ -35,6 +36,10 @@ export const plugin: RendererPlugin = {
     // Pose Monitor: a diagnostic modal (camera preview + fps + tracked count). Toggled by the
     // 'pose-monitor' menu action; the host owns open state and mounts it from the panel registry.
     ctx.panels.register({ id: 'pose-monitor', mount: 'modal', menuAction: 'pose-monitor', title: 'Pose Monitor', Component: PosePanel });
+
+    // Pose Floor Calibration: the 4-point wizard relating the camera feed to real floor space; writes
+    // Scene3D.mediapipeFloor, which PoseViz reads to place people at real-world positions on the floor.
+    ctx.panels.register({ id: 'pose-calibrate', mount: 'modal', menuAction: 'pose-calibrate', title: 'Pose Floor Calibration', Component: PoseCalibration });
 
     // Preferences section: camera device / model / delegate / max-people / confidence.
     ctx.settings.register({ id: 'mediapipe', title: 'Pose Tracking (MediaPipe)', Component: PoseSettings });

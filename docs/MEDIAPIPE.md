@@ -42,8 +42,10 @@ starts on the first `MEDIAPIPE` surface and stops when the last one goes away.
 | `poseRenderer.ts` | Shared compute: marker instances, trails, `#id`/skeleton overlay, orientation transform. |
 | `posePass.ts` | Self-contained WebGL marker/trail/quad primitives (a copy of the LiDAR `blobPass`). |
 | `poseDrawable.ts` / `poseProjector.ts` | Stage GL canvas / projector-FBO render of `MEDIAPIPE` content. |
-| `PoseViz.tsx` | r3f scene overlay: the camera field + per-person markers (gated on `scene.mediapipeViz`). |
+| `PoseViz.tsx` | r3f scene overlay: calibrated floor + world-mapped markers, else the camera-field billboard (gated on `scene.mediapipeViz`). |
 | `PosePanel.tsx` | Pose Monitor modal — live camera preview, status, fps, tracked count. |
+| `PoseCalibration.tsx` | Pose Floor Calibration modal — 4-point wizard relating the video feed to real floor space. |
+| `poseHomography.ts` / `poseFloor.ts` | Image→floor homography (reuses `@/projector/homography` + a 3×3 inverse/multiply) and foot-point / world-rectangle helpers. |
 | `poseSettings.tsx` / `poseContentEditor.tsx` | Preferences section / per-surface inspector fragment. |
 | `poseHost.ts` | Stashes `ctx.host` for non-React settings reads + a reactive settings hook. |
 
@@ -79,9 +81,35 @@ disabled` and no-ops (never crashes) — the app-wide native-degradation contrac
 4. Open **View → Pose Monitor…** to see the live feed, fps, and tracked-people count.
 5. Toggle **Camera pose markers (MediaPipe)** in the 3D scene panel for the simulator overlay.
 
+## Floor calibration & real-world position preview
+
+When the camera points down at a **floor**, the raw image `(u,v)` is perspective-distorted — it doesn't
+say where a person actually stands. A floor is a **plane**, so a **4-point homography** maps the video
+feed to real floor metres exactly (no camera intrinsics/lens solve). This drives a real-world position
+preview on the 3D floor.
+
+- **Calibrate:** **View → Pose Floor Calibration…**. Point the camera at the floor, drag the four
+  handles onto the corners of a floor rectangle whose real size you know (tape/measure e.g. 3×2 m), enter
+  its **width × depth** in metres, and **Save**. Order is top-left, top-right, bottom-right, bottom-left,
+  with the image's top edge as the *far* side of the floor.
+- **Preview:** enable **Camera pose markers (MediaPipe)** in the 3D scene panel. With a calibration set,
+  `PoseViz` draws the real floor rectangle and a marker per person at their mapped `(x,z)` metres; without
+  one it falls back to the vertical camera-field billboard.
+- **Persistence:** the calibration lives in `Scene3D.mediapipeFloor` — saved per-project in the `.artlux`
+  file and bridged to projector windows, exactly like `camMask`/`markerMap`.
+- **How it maps:** the person's **ground-contact point** (foot — ankle/heel/foot-index midpoint from the
+  landmarks, hip fallback) is mapped through `imageToWorld(imageQuad, worldQuad)` in `poseHomography.ts`,
+  reusing the host's `squareToQuad`/`applyH` corner-pin math.
+
+**Caveats.** The mapping assumes the foot is on the floor plane, so a **standing/walking** person maps
+accurately; a **jumping** person is momentarily off-plane. Webcam lens distortion is ignored (fine for a
+quick calibration; re-mark corners if the edges look bowed). This is **display only** in this
+iteration — surface/DMX content still positions people in image space.
+
 ## Scope + roadmap
 
-v1 ships **pose positions as a tracking source**. The store/engine are modality-agnostic so these are
-additive later (not built yet): hands + gesture recognition, face mesh/blendshapes, person
-segmentation (masking/keying), gesture→cue/OSC control, camera→venue homography calibration, and
-record/replay **takes** (mirror the LiDAR `trackingRecorder`/`trackingPlayback`).
+v1 ships **pose positions as a tracking source** plus **floor calibration + real-world preview**. The
+store/engine are modality-agnostic so these are additive later (not built yet): feeding the calibrated
+world `(x,z)` into the content mapping path (world-space surfaces/effects), hands + gesture recognition,
+face mesh/blendshapes, person segmentation (masking/keying), gesture→cue/OSC control, and record/replay
+**takes** (mirror the LiDAR `trackingRecorder`/`trackingPlayback`).

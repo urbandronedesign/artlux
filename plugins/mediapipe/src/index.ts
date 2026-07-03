@@ -19,6 +19,8 @@ export * as poseDrawable from './poseDrawable';
 export * as poseProjector from './poseProjector';
 export * as poseEngine from './poseEngine';
 export * as posePass from './posePass';
+export * as poseHomography from './poseHomography';
+export * as poseFloor from './poseFloor';
 
 export type { PoseSnapshot, Detection, PoseLandmark } from './poseStore';
 export type { LiveTrack } from './poseTracking';
