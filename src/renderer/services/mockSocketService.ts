@@ -1,6 +1,7 @@
 import { AppSettings } from '../types';
 import { UniverseTarget } from '../../../shared/protocol';
 import { encodeFrame } from '../../../shared/frameCodec';
+import type { DmxDestination } from './dmxSignal';
 
 // Thin renderer-side wrapper over the Electron native Art-Net transport
 // (exposed as `window.artlux` by the preload). Packet construction + UDP send
@@ -57,13 +58,25 @@ export const configureOutput = (settings: AppSettings) => {
     }
 };
 
-// Send one frame as a set of routing targets. Throttled to ~44 FPS.
-export const sendArtNetFrame = (targets: UniverseTarget[]) => {
-    if (!window.artlux || targets.length === 0) return;
+// Reused across frames so a throttled-away frame allocates nothing; the encoder copies out of it.
+const targetScratch: UniverseTarget[] = [];
+
+// Send one frame of routing destinations. Throttled to ~44 FPS. The throttle is checked BEFORE
+// building the target list, so frames dropped by the cap (the render loop runs faster than 44 Hz)
+// cost zero allocation. Destinations come straight from the Stage packing pool (universes by ref).
+export const sendArtNetFrame = (destinations: Record<string, DmxDestination>, port: number) => {
+    if (!window.artlux) return;
 
     const now = performance.now();
-    if (now - lastSendTime < 22) return; // ~44 FPS cap
+    if (now - lastSendTime < 22) return; // ~44 FPS cap — gate first, before any work
     lastSendTime = now;
 
-    window.artlux.sendArtNet(encodeFrame(targets));
+    targetScratch.length = 0;
+    for (const k in destinations) {
+        const d = destinations[k];
+        targetScratch.push({ ip: d.ip, port, protocol: d.protocol, broadcast: d.broadcast, sparse: d.sparse, priority: d.priority, universes: d.universes });
+    }
+    if (targetScratch.length === 0) return;
+
+    window.artlux.sendArtNet(encodeFrame(targetScratch));
 };

@@ -70,16 +70,7 @@ export const HeadlessRunner: React.FC<{ projectPath: string | null }> = ({ proje
   useEffect(() => {
     const unsub = dmxSignal.subscribe((data) => {
       if (!settings.outputEnabled) return;
-      const targets = Object.values(data.destinations).map((d) => ({
-        ip: d.ip,
-        port: settings.artNetPort,
-        protocol: d.protocol,
-        broadcast: d.broadcast,
-        sparse: d.sparse,
-        priority: d.priority,
-        universes: d.universes,
-      }));
-      sendArtNetFrame(targets);
+      sendArtNetFrame(data.destinations, settings.artNetPort);
     });
     return () => unsub();
   }, [settings]);
@@ -108,6 +99,7 @@ export const HeadlessRunner: React.FC<{ projectPath: string | null }> = ({ proje
         broadcast={settings.broadcast}
         protocol={settings.protocol}
         onRecordHistory={() => { /* no-op */ }}
+        showPreview={false}
       />
     </div>
   );

@@ -8,6 +8,7 @@ import { dmxSignal } from '../services/dmxSignal';
 import { livePreview } from '../services/livePreview';
 import * as surfaceMedia from '../services/surfaceMedia';
 import * as transitions from '../services/transitions';
+import { perfMonitor } from '../services/perfMonitor';
 
 interface StageProps {
   surfaces: Surface[];
@@ -31,7 +32,16 @@ interface StageProps {
   onRecordHistory: () => void;
   /** Extra buttons rendered at the end of the stage's top-right toolbar (e.g. the 3D split toggle). */
   extraControls?: React.ReactNode;
+  /**
+   * Whether the on-screen 512² composite preview is actually visible. Editor: true. Broadcast /
+   * headless render the Stage in a hidden 1×1 host, so the composite is dead work there on the
+   * WebGPU path (fixtures sample per-surface, not the composite) — set false to skip it.
+   */
+  showPreview?: boolean;
 }
+
+// Hoisted so the composite z-sort doesn't allocate a fresh comparator every frame.
+const byZIndex = (a: Surface, b: Surface) => a.zIndex - b.zIndex;
 
 // Output channel source-index order per ColorOrder ([R=0,G=1,B=2]).
 const COLOR_ORDER: Record<ColorOrder, [number, number, number]> = {
@@ -64,6 +74,7 @@ export const Stage: React.FC<StageProps> = ({
   protocol,
   onRecordHistory,
   extraControls,
+  showPreview = true,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -83,6 +94,15 @@ export const Stage: React.FC<StageProps> = ({
 
   const controllersRef = useRef(controllers);
   useEffect(() => { controllersRef.current = controllers; }, [controllers]);
+  // Controller lookup rebuilt once per controller-list change, so the per-frame packing loop does an
+  // O(1) map.get() per fixture instead of an O(controllers) Array.find() (which ran per fixture).
+  const controllerMapRef = useRef<Map<string, Controller>>(new Map());
+  useEffect(() => { controllerMapRef.current = new Map(controllers.map(c => [c.id, c])); }, [controllers]);
+
+  // Reused per-frame scratch: the composite z-order array and the 2D canvas context. Avoids a
+  // `[...surfaces]` spread + a getContext() call every frame in the hot loop.
+  const orderedSurfacesRef = useRef<Surface[]>([]);
+  const canvasCtxRef = useRef<CanvasRenderingContext2D | null>(null);
 
   const mapper = useRef<IPixelMapper | null>(null);
   const [webglError, setWebglError] = useState(false);
@@ -212,6 +232,9 @@ export const Stage: React.FC<StageProps> = ({
   useEffect(() => { livePreview.setBrightness(globalBrightness); }, [globalBrightness]);
 
   const tick = useCallback(() => {
+    // Record the inter-frame interval (unconditional; two performance.now() reads). endFrame() below
+    // closes the work measurement once this frame's compute/pack/publish is done.
+    perfMonitor.beginFrame();
     if (!containerRef.current || !mapper.current) {
       requestRef.current = requestAnimationFrame(tick);
       return;
@@ -252,14 +275,29 @@ export const Stage: React.FC<StageProps> = ({
 
     // Composite every surface's content into the 512² canvas (z-order). Fixtures
     // sample this composite (S1); strict per-surface sampling arrives in S3.
-    if (canvasRef.current) {
-        const ctx = canvasRef.current.getContext('2d');
+    //
+    // Skip it entirely when the preview is hidden (broadcast/headless) AND the mapper samples
+    // per-surface (WebGPU) — there the composite feeds nothing (renderSurfaces uploads each surface's
+    // own drawable; rawBytes comes from the compute readback). The WebGL fallback still needs it
+    // (updateSource samples this canvas), so keep it whenever the mapper isn't per-surface.
+    const perSurface = !!(mapper.current.perSurface && mapper.current.renderSurfaces);
+    const needComposite = showPreview || !perSurface;
+    if (canvasRef.current && needComposite) {
+        // Cache the 2D context across frames (getContext on the same canvas returns the same object,
+        // but caching keeps the hot path allocation-free and obvious). Re-fetch if the canvas element
+        // itself was ever replaced, so the cache can't go stale.
+        if (canvasCtxRef.current?.canvas !== canvasRef.current) canvasCtxRef.current = canvasRef.current.getContext('2d');
+        const ctx = canvasCtxRef.current;
         if (ctx) {
             const cw = canvasRef.current.width;
             const ch = canvasRef.current.height;
             ctx.imageSmoothingEnabled = true;
             ctx.clearRect(0, 0, cw, ch);
-            const ordered = [...effSurfaces].sort((a, b) => a.zIndex - b.zIndex);
+            // Sort into a reused scratch array (no per-frame spread allocation).
+            const ordered = orderedSurfacesRef.current;
+            ordered.length = 0;
+            for (let i = 0; i < effSurfaces.length; i++) ordered.push(effSurfaces[i]);
+            ordered.sort(byZIndex);
             for (const s of ordered) {
                 const d = surfaceMedia.getDrawable(s);
                 if (!d) continue;
@@ -318,7 +356,7 @@ export const Stage: React.FC<StageProps> = ({
 
                 // Destination resolves from the fixture's controller (S5), then any
                 // per-fixture output override, then the global settings (back-compat).
-                const ctrl = controllersRef.current.find(c => c.id === f.controllerId);
+                const ctrl = f.controllerId ? controllerMapRef.current.get(f.controllerId) : undefined;
                 const proto = f.output?.protocol || ctrl?.protocol || defaultProtocol;
                 const ip = f.output?.ip || ctrl?.ip || defaultIp;
                 const bcast = f.output?.broadcast ?? ctrl?.broadcast ?? defaultBroadcast;
@@ -345,27 +383,34 @@ export const Stage: React.FC<StageProps> = ({
                 let currentChannel = f.startAddress - 1; // 0-based
 
                 const order = COLOR_ORDER[f.colorOrder ?? ColorOrder.RGB];
+                const o0 = order[0], o1 = order[1], o2 = order[2];
                 const cpp = f.channelsPerPixel ?? 4;
                 const lut = gammaLutRef.current;
+
+                // Fetch the destination universe array lazily and re-fetch only when a write spills
+                // past channel 512 — instead of the old per-channel getArr() (which rebuilt a template
+                // string key on every DMX channel) and per-LED `rgb`/`channels` array allocations. The
+                // lazy fetch preserves the original registration semantics exactly: a universe appears
+                // in `dest.universes` only if a channel is actually written into it (no trailing/empty
+                // universe when a fixture ends on a 512 boundary, none for a 0-LED fixture).
+                let arr: number[] | null = null;
+                const writeCh = (val: number) => {
+                    if (currentChannel >= 512) { currentUniverse++; currentChannel = 0; arr = null; }
+                    if (!arr) arr = getArr(currentUniverse);
+                    arr[currentChannel] = val;
+                    currentChannel++;
+                };
 
                 for (let i = 0; i < f.ledCount; i++) {
                     const idx = offset * 4;
                     if (idx + 3 >= rawBytes.length) break;
 
-                    const rgb = [rawBytes[idx], rawBytes[idx + 1], rawBytes[idx + 2]];
-                    const channels = [
-                        lut[rgb[order[0]]],
-                        lut[rgb[order[1]]],
-                        lut[rgb[order[2]]],
-                    ];
-                    if (cpp === 4) channels.push(lut[rawBytes[idx + 3]]);
-
-                    for (const val of channels) {
-                        const arr = getArr(currentUniverse);
-                        arr[currentChannel] = val;
-                        currentChannel++;
-                        if (currentChannel >= 512) { currentUniverse++; currentChannel = 0; }
-                    }
+                    // rawBytes is linear RGBW; remap RGB to the fixture's color order + gamma-correct.
+                    const r = rawBytes[idx], g = rawBytes[idx + 1], b = rawBytes[idx + 2];
+                    writeCh(lut[o0 === 0 ? r : o0 === 1 ? g : b]);
+                    writeCh(lut[o1 === 0 ? r : o1 === 1 ? g : b]);
+                    writeCh(lut[o2 === 0 ? r : o2 === 1 ? g : b]);
+                    if (cpp === 4) writeCh(lut[rawBytes[idx + 3]]);
 
                     offset++;
                 }
@@ -375,7 +420,8 @@ export const Stage: React.FC<StageProps> = ({
             dmxSignal.publish(rawBytes, destinations);
         }
     }
-    
+
+    perfMonitor.endFrame();
     requestRef.current = requestAnimationFrame(tick);
   }, [isEngineRunning]);
 

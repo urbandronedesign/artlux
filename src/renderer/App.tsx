@@ -31,8 +31,10 @@ import { Preferences } from './components/Preferences';
 import { MenuBar } from './components/MenuBar';
 import { HelpPanel } from './components/HelpPanel';
 import { StatusBar } from './components/StatusBar';
+import { PerfHud } from './components/PerfHud';
 import { sendArtNetFrame, configureOutput, addStatusListener } from './services/mockSocketService';
 import { dmxSignal } from './services/dmxSignal';
+import { perfMonitor } from './services/perfMonitor';
 import { getDrawable } from './services/surfaceMedia';
 import { timeline as timelineEngine } from './services/timeline';
 import * as oscController from './services/oscController';
@@ -57,6 +59,8 @@ const generateId = () => Math.random().toString(36).substr(2, 9);
 const QS = new URLSearchParams(window.location.search);
 const BROADCAST = QS.get('broadcast') === '1';
 const QUERY_PROJECT = QS.get('project') || '';
+// Perf HUD debug flag: `?perf=1` forces it on; otherwise it persists via localStorage (toggle: Ctrl+Alt+P).
+const PERF_FLAG = QS.get('perf') === '1';
 
 const DEFAULT_SETTINGS: AppSettings = {
   artNetIp: '127.0.0.1',
@@ -177,6 +181,9 @@ const App: React.FC = () => {
   const [fps, setFps] = useState(0);
   const frameCount = React.useRef(0);
   const lastTime = React.useRef(performance.now());
+  // Renderer frame-time HUD (editor only; debug-gated). Broadcast has no chrome and uses the console
+  // line + Prometheus gauges instead.
+  const [showPerf, setShowPerf] = useState(() => PERF_FLAG || (typeof localStorage !== 'undefined' && localStorage.getItem('artlux:perf') === '1'));
 
   useEffect(() => {
     const unsubscribe = addStatusListener((status) => {
@@ -201,16 +208,9 @@ const App: React.FC = () => {
   useEffect(() => {
       const unsubscribe = dmxSignal.subscribe((data) => {
           if (!settings.outputEnabled) return;
-          const targets = Object.values(data.destinations).map(d => ({
-              ip: d.ip,
-              port: settings.artNetPort,
-              protocol: d.protocol,
-              broadcast: d.broadcast,
-              sparse: d.sparse,
-              priority: d.priority,
-              universes: d.universes,
-          }));
-          sendArtNetFrame(targets);
+          // Pass destinations straight through; sendArtNetFrame gates on its ~44 FPS throttle before
+          // building any target list, so throttled-away frames allocate nothing.
+          sendArtNetFrame(data.destinations, settings.artNetPort);
       });
       return () => unsubscribe();
   }, [settings]);
@@ -233,6 +233,11 @@ const App: React.FC = () => {
                 e.preventDefault();
             }
         }
+        // Ctrl/Cmd+Alt+P — toggle the renderer perf HUD (and persist the choice).
+        else if ((e.ctrlKey || e.metaKey) && e.altKey && (e.key === 'p' || e.key === 'P')) {
+            setShowPerf((v) => { const n = !v; try { localStorage.setItem('artlux:perf', n ? '1' : '0'); } catch { /* ignore */ } return n; });
+            e.preventDefault();
+        }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -246,6 +251,11 @@ const App: React.FC = () => {
         setFps(frameCount.current);
         frameCount.current = 0;
         lastTime.current = time;
+        // Renderer frame-time baseline (~1 Hz): push to Prometheus (broadcast/headless have no HUD)
+        // and, in broadcast, log a line so the show machine has a visible signal in its console/logs.
+        const ps = perfMonitor.stats();
+        window.artlux?.reportRenderStats?.(ps);
+        if (BROADCAST) console.info(`[perf] fps=${ps.fps.toFixed(0)} frameP99=${ps.frameP99.toFixed(1)}ms workP99=${ps.workP99.toFixed(1)}ms long=${ps.longFrames}/${ps.samples}`);
       }
       animationFrameId = requestAnimationFrame(loop);
     };
@@ -1413,6 +1423,7 @@ const App: React.FC = () => {
           broadcast={settings.broadcast}
           protocol={settings.protocol}
           onRecordHistory={() => { /* no-op */ }}
+          showPreview={false}
         />
       </div>
     );
@@ -1810,6 +1821,7 @@ const App: React.FC = () => {
         onUseOnSurface={handleUseAssetOnSurface} onSelectSurface={handleSelectSurface}
         onConsolidate={handleCollectAssets}
       />
+      {showPerf && <PerfHud />}
     </div>
   );
 };
