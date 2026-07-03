@@ -39,7 +39,7 @@ the lidar plugin registers the `tracking` kind into `clipKindRegistry` (first en
 
 ---
 
-## Next: more video codecs (DXV, native MP4) via the `VideoCodec` contribution
+## Video codecs via the `VideoCodec` contribution
 
 The `hap` plugin established the **`VideoCodec`** contribution (`@artlux/sdk/renderer`): a decoder
 registers `canDecode`/`probe`/`openSurface`/`surfaceFrame`/`layerFrame`/`thumbnail`/`setPlaying`/… and
@@ -47,14 +47,11 @@ the three consumers (`contentSource` surfaces, timeline LAYER engine, `thumbnail
 path to the first codec whose `canDecode` matches. New codecs slot in with **no host changes** — just a
 new plugin + `videoCodecRegistry.register`.
 
-- **DXV** (Resolume's GPU codec, in `.mov`/`.avi`). Closest to HAP: all-intra, BC/GPU-decompressible.
-  1. New Rust crate `native/dxv` (demux + per-frame block extract; DXV1–3). Mirror `native/hap`.
-  2. `plugins/dxv` (cross-process): `dxvManager` (main, native) + `dxvDecode` (prefetch ring — reuse
-     HAP's shape) + `dxvGL` (BC-decompress; DXV3 = DXT5+alpha, DXV1/2 = DXT1/5) + a `VideoCodec`.
-     `canDecode` must probe the container's codec fourcc (both HAP and DXV live in `.mov`), so **codec
-     probe order matters** — the registry returns the first `canDecode` true; make `probe` authoritative
-     (open native, confirm fourcc) and have `canDecode` gate on extension only, letting `probe` decline.
-  3. Register; `.mov` now tries HAP then DXV then falls back to `<video>` (H.264).
+Shipped: **HAP** (`.mov`) and **native MP4 / WebCodecs** (`.mp4`/`.m4v`). **DXV is NOT planned** (decision
+2026-07-03) — dropped from the roadmap. Since the two shipped codecs don't share an extension, the
+`forPath` first-match dispatch is unambiguous and needs no probe-order work (that gap only mattered for a
+second `.mov` codec like DXV).
+
 - ~~**Native MP4**~~ ✅ **shipped + working** (`plugins/mp4`, renderer-only) — GPU-accelerated H.264/H.265
   via `WebCodecs VideoDecoder` (`hardwareAcceleration:'prefer-hardware'`) + `mp4box` demux, registered as
   a `VideoCodec`. **Design:** demux once → keep only the tiny *encoded* samples (decode order); decode **on
@@ -79,13 +76,7 @@ new plugin + `videoCodecRegistry.register`.
     clip gets its own seekable decoder (keyed by layerId) for frame-exact scrub, isolated from the surface's
     decoder. **Rig-confirmed working** (loop seam continuous; timeline scrub + timeline loop play cleanly on
     every pass — a loop-back freeze was fixed by detecting the playhead moving backward via lastWantUs).
-    Still deferred: HEVC on-rig verify, DXV (native crate like HAP). (Full detail in the plugin-architecture
-    memory.)
-
-**Contract gaps to close when adding the 2nd codec:** `canDecode` currently returns the first match;
-with HAP+DXV both `.mov`, make the registry try each codec's async `probe` in order and cache the winner
-per path (today `contentSource`/`timeline` call `forPath` = first `canDecode`, then rely on `probe`
-returning false to fall back — fine for one codec, needs the try-in-order loop for two).
+    Still deferred (minor): HEVC/H.265 on-rig verify. (Full detail in the plugin-architecture memory.)
 
 ---
 
