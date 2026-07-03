@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## v0.19.2
+
+- **Fix: packaged app started with no window at all.** On some packaged builds/GPU configs the
+  window's `ready-to-show` event never fired, so the editor window (created hidden) was never
+  revealed — the process ran but nothing appeared on screen (looked headless; not broadcast). Dev was
+  unaffected. The editor window is now revealed on `did-finish-load` (which always fires) plus a
+  backstop timer, in addition to `ready-to-show`, so it can never launch with no visible window.
+
 ## v0.19.1
 
 - **Fix: packaged app no longer launches hidden.** On machines that set `ELECTRON_RUN_AS_NODE=1` in the
