@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+## v0.19.0
+
+- **A performance pass across the render/output loop — steady framerate under load.** Groundwork for
+  demanding features (e.g. sound spatialization) that need frames to never drop.
+  - **Frame-time instrumentation.** A rolling-window monitor of the renderer loop — both the
+    inter-frame interval (jank / dropped frames) and in-frame work time (headroom) — surfacing fps,
+    p50/p99, and a dropped-frame count. Read it via an editor debug HUD (**Ctrl/Cmd+Alt+P** or
+    `?perf=1`) or the new **`artlux_render_*` Prometheus gauges**, so broadcast/headless shows (no
+    on-screen chrome) finally have a frame-health signal next to the native output pacer.
+  - **Leaner frame loop.** Hoisted the per-LED / per-channel allocations out of universe packing,
+    precomputed a controller→fixture map (was a linear scan per fixture per frame), cached the 2D
+    context + reused the surface sort; broadcast/headless **skip the redundant composite** (fixtures
+    sample per-surface there); Art-Net send is **throttle-first**, so frames dropped by the ~44 Hz cap
+    allocate nothing.
+  - **Surface atlas (multi-projector fix).** The WebGPU mapper now composes all surfaces into one
+    atlas texture and does a **single upload + compute pass** instead of one per surface. Per-surface
+    uploads were each stalling the main thread on the GPU process when projector output windows
+    contend for it — a heavy 12,800-LED / 12-surface / 4-projector show went from **~16 fps to a
+    locked 60**, scaling to 24 surfaces. Output is byte-identical to the previous mapper.
+
 ## v0.18.0
 
 - **Plugin architecture — features become first-party plugins.** A new in-process, contribution-based
