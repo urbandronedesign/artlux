@@ -60,6 +60,9 @@
     "appId": "com.urbandronedesign.artlux",
     "productName": "ArtLux",
     "afterPack": "./scripts/mac-adhoc-sign.cjs",
+    "electronFuses": {
+      "runAsNode": false
+    },
     "publish": {
       "provider": "github",
       "owner": "urbandronedesign",
