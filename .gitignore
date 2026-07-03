@@ -54,3 +54,11 @@ docs/user-guide/artlux-user-guide.html
 *.njsproj
 *.sln
 *.sw?
+
+# graphify knowledge-graph outputs — keep only the 3 useful artifacts, ignore
+# the regenerable vault/cache/manifest/cost and the transient .graphify_* temp files
+graphify-out/*
+!graphify-out/graph.html
+!graphify-out/GRAPH_REPORT.md
+!graphify-out/graph.json
+.graphify_*
