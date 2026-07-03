@@ -36,6 +36,12 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
         output.sendFrame(frame);
     });
 
+    // Renderer frame-time stats (~1 Hz) → Prometheus gauges. Fire-and-forget; broadcast/headless have
+    // no HUD, so this is their only frame-health signal. Cheap: four gauge writes.
+    ipcMain.on(IPC.RENDER_STATS, (_e, stats: metrics.RenderTimingStats) => {
+        metrics.updateRenderStats(stats);
+    });
+
     ipcMain.on(IPC.INPUT_CONFIGURE, (_e, cfg: InputConfig) => {
         input.configureInput(cfg, (frames) => {
             getWindow()?.webContents.send(IPC.INPUT_FRAME, frames);

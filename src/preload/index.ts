@@ -3,7 +3,7 @@ import {
     IPC, type OutputConfig, type OutputStats, type InputConfig, type InputFrame, type ArtluxApi,
     type ProjectData, type RigData, type Prefs, type UpdateEvent,
     type DisplayInfo, type OscConfig, type OscMessage,
-    type WindowCommand,
+    type WindowCommand, type RenderStats,
 } from '../../shared/protocol';
 
 const api: ArtluxApi = {
@@ -19,6 +19,7 @@ const api: ArtluxApi = {
         ipcRenderer.on(IPC.STATS, listener);
         return () => { ipcRenderer.removeListener(IPC.STATS, listener); };
     },
+    reportRenderStats: (stats: RenderStats) => ipcRenderer.send(IPC.RENDER_STATS, stats),
     configureInput: (cfg: InputConfig) => ipcRenderer.send(IPC.INPUT_CONFIGURE, cfg),
     onDmxInput: (cb: (frames: InputFrame[]) => void) => {
         const listener = (_e: unknown, frames: InputFrame[]) => cb(frames);

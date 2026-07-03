@@ -75,6 +75,46 @@ export function updateEngineStats(stats: EngineStats | null): void {
     outputUp.set(stats.fps > 0 ? 1 : 0);
 }
 
+// ---- Renderer frame-time (pushed from the renderer's perfMonitor ~1 Hz; see shared/protocol) ----
+// The renderer *frame* health is invisible to the native pacer above, and broadcast (show) mode has
+// no on-screen HUD — so we surface it here for Prometheus/Grafana (and headless/broadcast baselines).
+const renderFps = new Gauge({
+    name: 'artlux_render_fps',
+    help: 'Renderer frame loop rate (1000 / median frame interval)',
+    registers: [register],
+});
+const renderFrameP99 = new Gauge({
+    name: 'artlux_render_frame_p99_ms',
+    help: 'Renderer p99 inter-frame interval in ms (the jank tail)',
+    registers: [register],
+});
+const renderWorkP99 = new Gauge({
+    name: 'artlux_render_work_p99_ms',
+    help: 'Renderer p99 in-frame work time in ms (headroom indicator)',
+    registers: [register],
+});
+const renderLongFrames = new Gauge({
+    name: 'artlux_render_long_frames',
+    help: 'Long (dropped) frames in the last rolling window (>1.5x median interval)',
+    registers: [register],
+});
+
+export interface RenderTimingStats {
+    fps: number;
+    frameP99: number;
+    workP99: number;
+    longFrames: number;
+}
+
+/** Mirror ~1 Hz renderer frame-time stats into Prometheus gauges. Cheap; safe to call always. */
+export function updateRenderStats(stats: RenderTimingStats | null): void {
+    if (!stats) return;
+    renderFps.set(stats.fps ?? 0);
+    renderFrameP99.set(stats.frameP99 ?? 0);
+    renderWorkP99.set(stats.workP99 ?? 0);
+    renderLongFrames.set(stats.longFrames ?? 0);
+}
+
 let server: Server | null = null;
 
 /** Start the /metrics HTTP endpoint. No-op if already running or disabled via env. */

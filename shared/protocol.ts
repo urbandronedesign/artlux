@@ -10,6 +10,8 @@ export const IPC = {
   STATUS: 'dmx:status',
   /** Main → renderer: native engine throughput stats (~1 Hz). */
   STATS: 'dmx:stats',
+  /** Renderer → main: renderer frame-time stats (~1 Hz) → Prometheus (broadcast has no HUD). */
+  RENDER_STATS: 'render:stats',
   /** Renderer → main: start/stop Art-Net/sACN input capture. */
   INPUT_CONFIGURE: 'input:configure',
   /** Main → renderer: latest received input universes. */
@@ -258,6 +260,22 @@ export interface OutputStats {
   pps: number;        // packets/sec
   fps: number;        // frames/sec (incl. keep-alive)
   universes: number;  // universes in the last frame
+}
+
+// Renderer-side per-frame timing over a rolling window (services/perfMonitor). Distinct from
+// OutputStats (the native Art-Net *pacer* rate): this measures how healthily the renderer's frame
+// loop lands frames — the signal that actually tells apart smooth 60 fps from a periodic hitch, and
+// how much work-time headroom is left for future features (e.g. a spatial-audio graph). Reported to
+// main ~1 Hz so it can surface in Prometheus, since broadcast (show) mode has no on-screen HUD.
+export interface RenderStats {
+  fps: number;         // 1000 / median frame interval
+  frameP50: number;    // ms — typical interval between frames
+  frameP99: number;    // ms — worst-case interval (the jank tail)
+  frameMax: number;    // ms — single worst interval in the window
+  workP50: number;     // ms — typical work time spent inside a frame
+  workP99: number;     // ms — worst-case in-frame work time
+  longFrames: number;  // intervals in the window that overran the drop threshold (1.5× median)
+  samples: number;     // frames observed in the window
 }
 
 export type OutputProtocol = 'artnet' | 'sacn';
@@ -561,6 +579,8 @@ export interface ArtluxApi {
   sendArtNet(frame: ArrayBuffer): void;
   onStatus(cb: (connected: boolean) => void): () => void;
   onDmxStats(cb: (stats: OutputStats) => void): () => void;
+  /** Renderer → main: push ~1 Hz renderer frame-time stats for the Prometheus endpoint. */
+  reportRenderStats(stats: RenderStats): void;
   configureInput(cfg: InputConfig): void;
   onDmxInput(cb: (frames: InputFrame[]) => void): () => void;
   // Persistence
