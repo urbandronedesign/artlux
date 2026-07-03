@@ -60,6 +60,22 @@ There is no unit-test runner wired; verification is done ad-hoc with tsc + targe
   with a `dgram` listener — parse ArtDmx (`0x5000`) / ArtSync (`0x5200`) / sACN (`ASC-E1.17`), assert
   per-universe channel counts, per-IP routing, priority, etc. This is how the surfaces engine,
   multi-controller routing, sACN, ArtSync, and universe spanning were validated.
+- **Packaged window visibility — test WITHOUT the CDP port (this cost a day, v0.19.2).** The editor
+  `BrowserWindow` is created `show:false` and revealed on events; if reveal is only wired to
+  **`ready-to-show`**, some packaged builds/GPU configs never fire it and the app launches with a
+  running process but **no window at all** (looks headless — not broadcast). Two traps that hid it:
+  (1) `npm run dev` always works (the http dev-server load triggers `ready-to-show`), so dev is not a
+  valid test for this; (2) **enabling the remote-debugging port (`ARTLUX_CDP_PORT`) forces a paint,
+  which makes the window appear** — so any CDP-based check (`document.visibilityState`, geometry via
+  the DevTools protocol) *falsely passes*. To verify packaged window visibility, launch the packaged
+  `ArtLux.exe` with **no `ARTLUX_CDP_PORT`** and confirm a real top-level window via Win32
+  `EnumWindows`+`IsWindowVisible` (filter to the ArtLux PIDs) or a screenshot — never via CDP. The fix
+  is to reveal on `did-finish-load` (always fires once the page loads) + a backstop timer, not only
+  `ready-to-show` (see `createWindow` in `src/main/index.ts`).
+- **Kill test instances after each run.** There is no single-instance lock, so leftover launches
+  (especially `--broadcast`, which shows a tray icon + fullscreen projector windows) accumulate and
+  look exactly like a bug on next launch. `Get-Process ArtLux,electron | Stop-Process -Force` between
+  tests; several instances also contend over the shared `userData` GPU cache (`Access is denied`).
 
 ## Release process
 A `v*` tag drives `.github/workflows/build.yml` (matrix: windows/macos/ubuntu) → per-OS installers +
@@ -107,6 +123,10 @@ dmgs need a one-time Gatekeeper bypass: right-click → Open → "Open Anyway", 
 
 ## Environment gotchas (this dev machine)
 - The sandbox sets `ELECTRON_RUN_AS_NODE=1` → launch dev with `env -u ELECTRON_RUN_AS_NODE npm run dev`.
+  The **packaged** app is protected from this: the electron-builder `electronFuses: { runAsNode: false }`
+  (package.json `build`) makes the shipped binary ignore `ELECTRON_RUN_AS_NODE` and always start as the
+  app — don't remove it (a packaged binary that inherits the var would otherwise run as bare Node with
+  no window). Added v0.19.1.
 - `cargo` is not on PATH by default → prepend `~/.cargo/bin` before `npm run build:native`.
 - A separate **Artnetominator** app may hold UDP **6454** and intercept loopback Art-Net during output
   tests — stop it first (`Get-NetUDPEndpoint -LocalPort 6454`).
