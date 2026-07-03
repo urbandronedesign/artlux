@@ -12,10 +12,13 @@ import { buildPaletteLut } from './palettes';
 // Stateful fire2012 uses a persistent `heat` buffer updated by a separate compute
 // pass each frame (in-place; races are fine for fire), then mapped through a palette.
 
-const SOURCE_SIZE = 512;
+const SOURCE_SIZE = 512;      // per-surface cell size inside the atlas
 const WORKGROUP = 64;
 const STAGING_COUNT = 3;
 const FIRE_EFFECT = 4;
+// Half-texel inset (in cell-local units) applied when mapping a surface's UV into its atlas cell,
+// so the linear sampler never bleeds across a cell border into a neighbouring surface.
+const ATLAS_INSET = 0.5 / SOURCE_SIZE;
 
 const SHADER = /* wgsl */ `
 struct Params { brightness: f32, time: f32, count: u32, paletteCount: u32, frame: u32, p0: u32, p1: u32, p2: u32 };
@@ -96,10 +99,11 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
   let i = gid.x;
   if (i >= params.count) { return; }
 
-  // Per-surface pass: only LEDs linked to params.p0 (the active surface) are
-  // written this pass; others are left untouched (outBuf is cleared each frame).
+  // Single atlas pass: every LED samples its OWN surface's cell in the atlas grid
+  // (params.p0 cols × params.p1 rows). params.p2 = active surface count; unlinked /
+  // out-of-range LEDs go black.
   let surfIdx = u32(ledMeta[i].w + 0.5);
-  if (surfIdx != params.p0) { return; }
+  if (surfIdx >= params.p2) { outBuf[i] = 0u; return; }
 
   let d = ledData[i];
   let uv = d.xy;
@@ -113,7 +117,15 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 
   var color: vec4<f32>;
   if (mode < 0.0) {
-    color = textureSampleLevel(srcTex, samp, uv, 0.0);
+    // Map this surface's local UV into its atlas cell (col = surfIdx % cols, row = surfIdx / cols),
+    // with a half-texel inset so linear filtering can't sample a neighbouring cell.
+    let cols = params.p0;
+    let cellCol = surfIdx % cols;
+    let cellRow = surfIdx / cols;
+    let cu = clamp(uv.x, 0.0, 1.0) * (1.0 - 2.0 * ${ATLAS_INSET}) + ${ATLAS_INSET};
+    let cv = clamp(uv.y, 0.0, 1.0) * (1.0 - 2.0 * ${ATLAS_INSET}) + ${ATLAS_INSET};
+    let auv = vec2<f32>((f32(cellCol) + cu) / f32(cols), (f32(cellRow) + cv) / f32(params.p1));
+    color = textureSampleLevel(srcTex, samp, auv, 0.0);
   } else if (i32(mode + 0.5) == FIRE) {
     color = samplePalette(u32(fp0.y + 0.5), heat[i]);
   } else {
@@ -172,10 +184,16 @@ export class WebGPUMapper implements IPixelMapper {
 
   // Strict per-surface sampling (S3).
   readonly perSurface = true;
-  private surfaceOrder: string[] = []; // index → surfaceId (the active-surface id per pass)
+  private surfaceOrder: string[] = []; // index → surfaceId (also the atlas cell index, row-major)
+  private atlasCols = 1;               // atlas grid dimensions; srcTexture is (cols·CELL)×(rows·CELL)
+  private atlasRows = 1;
   private zeroBytes: Uint8Array = new Uint8Array(0);
   private scratch: HTMLCanvasElement;
   private scratchCtx: CanvasRenderingContext2D;
+  // Reused params staging (one 32-byte uniform block), so the per-surface loop doesn't allocate an
+  // ArrayBuffer + DataView per surface per frame.
+  private paramScratch = new ArrayBuffer(32);
+  private paramScratchView = new DataView(this.paramScratch);
 
   private constructor(device: GPUDevice) {
     this.device = device;
@@ -382,6 +400,25 @@ export class WebGPUMapper implements IPixelMapper {
     this.stagingCursor = 0;
     this.latest = new Uint8Array(outBytes);
 
+    // Size the atlas to a near-square grid of one CELL-sized cell per active surface, and resize the
+    // source texture + scratch canvas to match. A single upload of this atlas replaces the old
+    // per-surface uploads (the dominant stall under projector GPU contention).
+    const nSurf = this.surfaceOrder.length;
+    const cols = Math.max(1, Math.ceil(Math.sqrt(nSurf)));
+    const rows = Math.max(1, Math.ceil(nSurf / cols));
+    if (cols !== this.atlasCols || rows !== this.atlasRows) {
+      this.atlasCols = cols;
+      this.atlasRows = rows;
+      this.srcTexture.destroy();
+      this.srcTexture = this.device.createTexture({
+        size: [cols * SOURCE_SIZE, rows * SOURCE_SIZE],
+        format: 'rgba8unorm',
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
+      });
+      this.scratch.width = cols * SOURCE_SIZE;
+      this.scratch.height = rows * SOURCE_SIZE;
+    }
+
     this.mainBind = this.device.createBindGroup({
       layout: this.mainPipeline.getBindGroupLayout(0),
       entries: [
@@ -422,8 +459,10 @@ export class WebGPUMapper implements IPixelMapper {
     } catch { /* source not ready */ }
   }
 
-  // Strict per-surface render: one compute pass per surface, each binding that
-  // surface's drawable and writing only its LEDs (gated by ledMeta.w). One readback.
+  // Atlas render: compose every surface's drawable into one atlas canvas (a CELL-sized grid cell
+  // each), upload it in a SINGLE copyExternalImageToTexture, then run ONE compute pass where each
+  // LED samples its own cell. This collapses the N per-surface texture uploads — each a fixed GPU-
+  // process sync stall that dominates under projector contention — down to one upload + one submit.
   renderSurfaces(getDrawable: (surfaceId: string) => CanvasImageSource | null, getOpacity?: (surfaceId: string) => number): void {
     if (this.disposed || this.totalLeds === 0 || !this.mainBind || !this.outBuffer) return;
 
@@ -433,42 +472,52 @@ export class WebGPUMapper implements IPixelMapper {
     this.frame = (this.frame + 1) >>> 0;
     const time = (performance.now() - this.startTime) / 1000;
     const groups = Math.ceil(this.totalLeds / WORKGROUP);
+    const cols = this.atlasCols;
 
+    // Compose the atlas: black background (inactive cells + fade-to-black), then each surface's
+    // drawable stretched into its cell. Opacity blends toward black (shader samples RGB, ignores A).
+    this.scratchCtx.globalAlpha = 1;
+    this.scratchCtx.fillStyle = '#000';
+    this.scratchCtx.fillRect(0, 0, this.scratch.width, this.scratch.height);
     for (let k = 0; k < this.surfaceOrder.length; k++) {
       const d = getDrawable(this.surfaceOrder[k]);
       if (!d) continue;
       const opacity = getOpacity ? getOpacity(this.surfaceOrder[k]) : 1;
-      if (opacity <= 0) continue; // fully transparent → leave LEDs black (cleared above)
-      // Stretch the surface's drawable into the 512² source texture. Opacity blends the drawable
-      // toward black (the shader samples RGB, ignoring alpha), giving per-surface fade-to-black.
+      if (opacity <= 0) continue; // fully transparent → leave the cell black
+      const x0 = (k % cols) * SOURCE_SIZE;
+      const y0 = Math.floor(k / cols) * SOURCE_SIZE;
       try {
-        this.scratchCtx.globalAlpha = 1;
-        this.scratchCtx.fillStyle = '#000';
-        this.scratchCtx.fillRect(0, 0, SOURCE_SIZE, SOURCE_SIZE);
         this.scratchCtx.globalAlpha = opacity < 1 ? opacity : 1;
-        this.scratchCtx.drawImage(d, 0, 0, SOURCE_SIZE, SOURCE_SIZE);
-        this.scratchCtx.globalAlpha = 1;
-        this.queue.copyExternalImageToTexture({ source: this.scratch, flipY: false }, { texture: this.srcTexture }, [SOURCE_SIZE, SOURCE_SIZE]);
-      } catch { continue; }
-
-      const params = new ArrayBuffer(32);
-      const dv = new DataView(params);
-      dv.setFloat32(0, this.brightness, true);
-      dv.setFloat32(4, time, true);
-      dv.setUint32(8, this.totalLeds, true);
-      dv.setUint32(12, this.paletteCount, true);
-      dv.setUint32(16, this.frame, true);
-      dv.setUint32(20, k, true); // params.p0 = active surface
-      this.queue.writeBuffer(this.paramsBuffer, 0, params);
-
-      const enc = this.device.createCommandEncoder();
-      const mp = enc.beginComputePass();
-      mp.setPipeline(this.mainPipeline);
-      mp.setBindGroup(0, this.mainBind);
-      mp.dispatchWorkgroups(groups);
-      mp.end();
-      this.queue.submit([enc.finish()]);
+        this.scratchCtx.drawImage(d, x0, y0, SOURCE_SIZE, SOURCE_SIZE);
+      } catch { /* skip this surface's cell for this frame */ }
     }
+    this.scratchCtx.globalAlpha = 1;
+    try {
+      this.queue.copyExternalImageToTexture(
+        { source: this.scratch, flipY: false },
+        { texture: this.srcTexture },
+        [this.scratch.width, this.scratch.height]);
+    } catch { /* atlas source not ready this frame */ }
+
+    // Params written once: atlas grid (p0=cols, p1=rows) + surface count (p2, the unlinked guard).
+    const dv = this.paramScratchView;
+    dv.setFloat32(0, this.brightness, true);
+    dv.setFloat32(4, time, true);
+    dv.setUint32(8, this.totalLeds, true);
+    dv.setUint32(12, this.paletteCount, true);
+    dv.setUint32(16, this.frame, true);
+    dv.setUint32(20, this.atlasCols, true);           // p0 = atlas cols
+    dv.setUint32(24, this.atlasRows, true);           // p1 = atlas rows
+    dv.setUint32(28, this.surfaceOrder.length, true); // p2 = surface count
+    this.queue.writeBuffer(this.paramsBuffer, 0, this.paramScratch);
+
+    const enc = this.device.createCommandEncoder();
+    const mp = enc.beginComputePass();
+    mp.setPipeline(this.mainPipeline);
+    mp.setBindGroup(0, this.mainBind);
+    mp.dispatchWorkgroups(groups);
+    mp.end();
+    this.queue.submit([enc.finish()]);
 
     const idx = this.findFreeStaging();
     if (idx === -1) return;
