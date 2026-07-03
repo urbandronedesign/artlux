@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## v0.19.1
+
+- **Fix: packaged app no longer launches hidden.** On machines that set `ELECTRON_RUN_AS_NODE=1` in the
+  environment (common with Python/ML tooling), a double-clicked packaged ArtLux inherited it and the
+  Electron binary ran as plain Node — the process started but **no window was ever created**, looking
+  like a stuck headless run. The Electron **`runAsNode` fuse is now disabled** in packaging, so the
+  binary ignores that variable and always starts as the real app. (Dev was unaffected.)
+
 ## v0.19.0
 
 - **A performance pass across the render/output loop — steady framerate under load.** Groundwork for
