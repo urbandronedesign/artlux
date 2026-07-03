@@ -36,6 +36,8 @@ const api: ArtluxApi = {
     importRig: () => ipcRenderer.invoke(IPC.RIG_IMPORT),
     getPrefs: () => ipcRenderer.invoke(IPC.PREFS_GET),
     setPrefs: (patch: Partial<Prefs>) => ipcRenderer.invoke(IPC.PREFS_SET, patch),
+    setUiScale: (scale: number) => ipcRenderer.invoke(IPC.UI_SCALE_SET, scale),
+    detectUiScale: () => ipcRenderer.invoke(IPC.UI_SCALE_DETECT),
     discoverDevices: () => ipcRenderer.invoke(IPC.ARTNET_DISCOVER),
     // Spout + NDI moved to their plugins (@artlux/plugin-spout / -ndi) — they use the generic
     // pluginInvoke/Send/On bridge below.

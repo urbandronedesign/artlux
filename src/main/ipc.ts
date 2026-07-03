@@ -9,6 +9,7 @@ import * as osc from './transport/oscManager';
 import * as nvwarp from './nvwarpManager';
 import { buildMpcdi, parseMpcdi, type MpcdiRegion } from './mpcdi';
 import * as persistence from './persistence';
+import * as uiScale from './uiScale';
 import * as projectFolder from './projectFolder';
 import * as metrics from './metrics';
 import { rebuildAppMenu } from './menu';
@@ -73,6 +74,8 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     ipcMain.handle(IPC.RIG_IMPORT, () => persistence.importRig(getWindow()));
     ipcMain.handle(IPC.PREFS_GET, () => persistence.getPrefs());
     ipcMain.handle(IPC.PREFS_SET, (_e, patch: Partial<Prefs>) => { persistence.setPrefs(patch); });
+    ipcMain.handle(IPC.UI_SCALE_SET, (_e, scale: number) => { uiScale.setUiScale(getWindow(), scale); });
+    ipcMain.handle(IPC.UI_SCALE_DETECT, () => uiScale.detectDefaultUiScale());
     ipcMain.handle(IPC.ARTNET_DISCOVER, () => discovery.discover());
 
     // 3D Scene venue model: pick a GLB/glTF, and read its bytes (renderer wraps them in
@@ -129,9 +132,10 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
             case 'reload': wc.reload(); break;
             case 'devtools': wc.toggleDevTools(); break;
             case 'fullscreen': win.setFullScreen(!win.isFullScreen()); break;
-            case 'zoom-in': wc.setZoomLevel(wc.getZoomLevel() + 0.5); break;
-            case 'zoom-out': wc.setZoomLevel(wc.getZoomLevel() - 0.5); break;
-            case 'zoom-reset': wc.setZoomLevel(0); break;
+            // Keyboard zoom is one source of truth with the Preferences UI-scale slider: step + persist.
+            case 'zoom-in': uiScale.stepUiScale(win, 0.1); break;
+            case 'zoom-out': uiScale.stepUiScale(win, -0.1); break;
+            case 'zoom-reset': uiScale.resetUiScale(win); break;
             case 'cut': wc.cut(); break;
             case 'copy': wc.copy(); break;
             case 'paste': wc.paste(); break;

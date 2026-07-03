@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, Cpu, Radar, Check, Radio } from 'lucide-react';
+import { X, Cpu, Radar, Check, Radio, Monitor } from 'lucide-react';
 import { AppSettings } from '../types';
 import type { ArtNetDevice } from '../../../shared/protocol';
 import { Section, Field, NumberField, Toggle, Select, Slider, Button } from './ui';
@@ -19,10 +19,21 @@ export const Preferences: React.FC<Props> = ({ open, onClose, settings, onChange
   const [scanned, setScanned] = useState(false);
   const [devices, setDevices] = useState<ArtNetDevice[]>([]);
   const [localAddrs, setLocalAddrs] = useState<string[]>([]);
+  const [uiScaleValue, setUiScaleValue] = useState(1); // main-window zoom factor; applied in main
 
   useEffect(() => {
-    if (open) window.artlux?.listLocalAddrs?.().then((a) => setLocalAddrs(a ?? [])).catch(() => setLocalAddrs([]));
+    if (!open) return;
+    window.artlux?.listLocalAddrs?.().then((a) => setLocalAddrs(a ?? [])).catch(() => setLocalAddrs([]));
+    // Show the scale in effect: the saved value, else the auto-detected default for this display.
+    (async () => {
+      const p = await window.artlux?.getPrefs?.();
+      const s = typeof p?.uiScale === 'number' ? p.uiScale : await window.artlux?.detectUiScale?.();
+      if (typeof s === 'number') setUiScaleValue(s);
+    })();
   }, [open]);
+
+  // Apply immediately (main persists + zooms) and reflect in the slider readout.
+  const applyScale = (v: number) => { setUiScaleValue(v); window.artlux?.setUiScale?.(v); };
 
   const scan = async () => {
     setScanning(true);
@@ -58,6 +69,18 @@ export const Preferences: React.FC<Props> = ({ open, onClose, settings, onChange
           <span className="text-xs font-semibold text-fg-1 uppercase tracking-wider">Preferences</span>
           <button onClick={onClose} aria-label="Close preferences" title="Close" className="text-fg-2 hover:text-fg-1"><X size={16} /></button>
         </div>
+
+        <Section title="Appearance" icon={<Monitor size={12} />}>
+          <Slider label="UI scale" value={uiScaleValue} min={0.8} max={2} step={0.05}
+                  format={(v) => `${Math.round(v * 100)}%`} onChange={applyScale} />
+          <div className="flex items-center justify-between">
+            <span className="text-mini text-fg-3">Scales the whole editor. Also Ctrl +/− / 0.</span>
+            <Button variant="tonal" size="sm" onClick={async () => {
+              const d = await window.artlux?.detectUiScale?.();
+              if (typeof d === 'number') applyScale(d);
+            }}>Reset to detected</Button>
+          </div>
+        </Section>
 
         <Section title="DMX Output" icon={<Cpu size={12} />}>
           <Field label="Protocol">

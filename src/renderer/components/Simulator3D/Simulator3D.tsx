@@ -87,7 +87,7 @@ const Simulator3D: React.FC<Props> = ({
       })()}
 
       <Canvas
-        dpr={1}
+        dpr={[1, 2]}
         gl={{ powerPreference: 'high-performance', antialias: true }}
         camera={{ position: [0, 1.2, 3], fov: 50 }}
         onPointerMissed={() => { onSelectFixture(''); onSelectModel?.(null); }}

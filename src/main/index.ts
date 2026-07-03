@@ -4,6 +4,7 @@ import { registerIpc } from './ipc';
 import { buildAppMenu } from './menu';
 import { setupUpdater } from './updater';
 import { registerProjectorWindows, closeAllProjectors } from './projector';
+import { applyUiScale } from './uiScale';
 import { ndiManager as ndi } from '@artlux/plugin-ndi/main'; // app lifecycle (recv cap / quit) — transitional host→plugin seam
 import { spoutManager as spout } from '@artlux/plugin-spout/main'; // broadcast cap — transitional host→plugin seam
 import * as nvwarp from './nvwarpManager';
@@ -97,6 +98,9 @@ function createWindow(): void {
     const emitMaximized = () => mainWindow?.webContents.send(IPC.WINDOW_MAXIMIZE_CHANGED, !!mainWindow?.isMaximized());
     mainWindow.on('maximize', emitMaximized);
     mainWindow.on('unmaximize', emitMaximized);
+    // Apply the persisted (or auto-detected) UI scale. setZoomFactor doesn't survive a reload, so
+    // re-run on every load. Headless/broadcast have no visible chrome, so scale is a no-op there.
+    if (!HEADLESS && !BROADCAST) mainWindow.webContents.on('did-finish-load', () => applyUiScale(mainWindow));
 
     // electron-vite provides the dev server URL; fall back to the built file.
     const devUrl = process.env['ELECTRON_RENDERER_URL'];

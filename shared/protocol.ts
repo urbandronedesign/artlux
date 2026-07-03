@@ -28,6 +28,10 @@ export const IPC = {
   PREFS_GET: 'prefs:get',
   /** Renderer → main (invoke): merge + persist preferences. */
   PREFS_SET: 'prefs:set',
+  /** Renderer → main (invoke): clamp + persist + apply the main-window UI scale (zoom factor). */
+  UI_SCALE_SET: 'ui-scale:set',
+  /** Renderer → main (invoke): compute a first-run default UI scale from the primary display. */
+  UI_SCALE_DETECT: 'ui-scale:detect',
   /** Renderer → main (invoke): ArtPoll broadcast → discovered Art-Net nodes. */
   ARTNET_DISCOVER: 'artnet:discover',
   // Spout + NDI channels moved to their plugins (carried over the generic 'plugin:spout:*' /
@@ -530,6 +534,12 @@ export interface Prefs {
   /** Per-modal drag offset (px translate from centered), keyed by a stable modal id.
       Workspace ergonomics — persisted in prefs (not the project) so it survives restarts. */
   modalPositions?: Record<string, { x: number; y: number }>;
+  /** Main-window UI zoom factor (0.8–2.0). Applied via webContents.setZoomFactor; scales the whole
+      editor chrome. First-run default is auto-detected from the primary display; the user overrides it. */
+  uiScale?: number;
+  /** Serialized editor layout (panel sizes/visibility/tabs + active preset). Renderer-owned blob —
+      typed as WorkspaceLayout in the renderer; kept `unknown` here like appSettings. */
+  layoutState?: unknown;
 }
 
 export interface OpenProjectResult {
@@ -565,6 +575,10 @@ export interface ArtluxApi {
   importRig(): Promise<RigData | null>;
   getPrefs(): Promise<Prefs>;
   setPrefs(patch: Partial<Prefs>): Promise<void>;
+  /** Clamp to [0.8, 2.0], persist to Prefs.uiScale, and apply to the main window immediately. */
+  setUiScale(scale: number): Promise<void>;
+  /** First-run default UI scale computed from the primary display (physical px vs OS scale). */
+  detectUiScale(): Promise<number>;
   discoverDevices(): Promise<ArtNetDevice[]>;
   // Spout + NDI (video receive) moved to their plugins (generic pluginInvoke/Send/On bridge).
   // OSC (external control + LiDAR tracking) — receive-first; send is a scaffold.

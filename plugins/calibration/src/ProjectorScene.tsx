@@ -118,7 +118,7 @@ export const ProjectorScene: React.FC<{ scene3D: Scene3D; modelUrls: Record<stri
   const meshes = (scene3D.models ?? []).filter(m => m.kind !== 'plane' && modelUrls[m.id]);
   const hasDistortion = calibration.distortion?.some(v => v !== 0);
   return (
-    <Canvas gl={{ powerPreference: 'high-performance', antialias: true }} dpr={1} style={{ width: '100%', height: '100%' }}>
+    <Canvas gl={{ powerPreference: 'high-performance', antialias: true }} dpr={[1, 2]} style={{ width: '100%', height: '100%' }}>
       <color attach="background" args={['#000']} />
       <ambientLight intensity={1} />
       <CalibCamera calibration={calibration} />
