@@ -4,6 +4,7 @@ import { helpBus, type HelpText, type HelpLang } from '../services/helpBus';
 import { HELP_TOPICS } from '../help/helpContent';
 import { Segmented } from './ui';
 import { CollapsibleSection } from './CollapsibleSection';
+import { useResizable } from '../hooks/useResizable';
 
 // Right-side dockable Help panel (bilingual EN/FR). Two sections:
 //   • Context — live help for whatever control is hovered/focused (reuses helpBus, like StatusBar)
@@ -31,14 +32,7 @@ export const HelpPanel: React.FC<Props> = ({ lang, onLang, onClose, width, onRes
   useEffect(() => helpBus.subscribe(setHint), []);
 
   // Drag the left edge to resize (panel is on the right, so leftward drag widens it).
-  const onResizeDown = (e: React.PointerEvent) => {
-    e.preventDefault();
-    const x0 = e.clientX, w0 = width;
-    const move = (ev: PointerEvent) => onResize(Math.max(240, Math.min(560, w0 + (x0 - ev.clientX))));
-    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
-  };
+  const onResizeDown = useResizable({ axis: 'x', invert: true, value: width, min: 240, max: 560, onChange: onResize });
 
   return (
     <div className="relative h-full flex flex-col bg-surface-1">

@@ -1,5 +1,6 @@
 import React from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
+import { useResizable } from '../hooks/useResizable';
 
 export interface DockTabDef {
   id: string;
@@ -20,14 +21,12 @@ interface Props {
 
 // Bottom dock with tab header + collapse, hosting monitors/editors. Drag the top edge to resize.
 export const Dock: React.FC<Props> = ({ open, onToggle, tabs, activeTab, onTab, height = 280, onResize, children }) => {
-  const onResizeDown = (e: React.PointerEvent) => {
-    if (!open || !onResize) return;
-    e.preventDefault();
-    const y0 = e.clientY, h0 = height;
-    const move = (ev: PointerEvent) => onResize(Math.max(120, Math.min(window.innerHeight - 120, h0 - (ev.clientY - y0))));
-    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
-    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
-  };
+  // Drag the top edge to resize (grows upward). Only rendered when open && onResize (see below).
+  const onResizeDown = useResizable({
+    axis: 'y', invert: true, value: height, min: 120,
+    max: () => window.innerHeight - 120,
+    onChange: (h) => onResize?.(h),
+  });
   return (
   <div className="shrink-0 border-t border-line-1 bg-surface-1 flex flex-col transition-[height] duration-med ease-out relative" style={{ height: open ? height : 34 }}>
     {open && onResize && (

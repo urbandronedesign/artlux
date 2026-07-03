@@ -36,6 +36,9 @@ import { dmxSignal } from './services/dmxSignal';
 import { getDrawable } from './services/surfaceMedia';
 import { timeline as timelineEngine } from './services/timeline';
 import * as oscController from './services/oscController';
+import { useLayout } from './hooks/useLayout';
+import { layoutStore, type WorkspaceLayout } from './services/layoutStore';
+import { useResizable } from './hooks/useResizable';
 import { activateRendererPlugins } from './host/plugins';
 import { setEnabled as mp4SetEnabled } from '@artlux/plugin-mp4';
 import type { RendererHostServices } from '@artlux/sdk/renderer';
@@ -110,22 +113,32 @@ const App: React.FC = () => {
   const [cueBanks, setCueBanks] = useState<CueBank[]>([]);
   const [templates, setTemplates] = useState<FixtureTemplate[]>([]);
   const [controllers, setControllers] = useState<Controller[]>([]);
-  const [dockOpen, setDockOpen] = useState(true);
-  const [dockHeight, setDockHeight] = useState(280);
-  // Split view: embed the 3D scene beside the 2D stage (persisted). The calibration wizard turns it on.
-  const [splitView, setSplitView] = useState<boolean>(() => localStorage.getItem('artlux.splitView') === '1');
-  const [splitRatio, setSplitRatio] = useState<number>(() => { const v = parseFloat(localStorage.getItem('artlux.splitRatio') || ''); return v > 0.2 && v < 0.85 ? v : 0.5; });
+  // Editor layout lives in the workspace store (persisted to prefs, hydrated on boot). Destructure with
+  // the old local names + setter shims that preserve the useState API (a value OR an updater fn), so
+  // every existing call site below is unchanged. Split view is included; the calibration wizard turns it on.
+  const L = useLayout();
+  const { dockOpen, dockHeight, splitView, splitRatio, dockTab, timelineMax, showHelp, helpWidth, leftTab, showLeft: showLeftPanel, showRight: showRightPanel } = L;
+  const setLayoutField = <K extends keyof WorkspaceLayout>(k: K) =>
+    (v: WorkspaceLayout[K] | ((p: WorkspaceLayout[K]) => WorkspaceLayout[K])) =>
+      layoutStore.set({ [k]: typeof v === 'function' ? (v as (p: WorkspaceLayout[K]) => WorkspaceLayout[K])(layoutStore.get()[k]) : v } as Partial<WorkspaceLayout>);
+  const setDockOpen = setLayoutField('dockOpen');
+  const setDockHeight = setLayoutField('dockHeight');
+  const setSplitView = setLayoutField('splitView');
+  const setSplitRatio = setLayoutField('splitRatio');
+  const setDockTab = setLayoutField('dockTab');
+  const setTimelineMax = setLayoutField('timelineMax');
+  const setShowHelp = setLayoutField('showHelp');
+  const setHelpWidth = setLayoutField('helpWidth');
+  const setLeftTab = setLayoutField('leftTab');
+  const setShowLeftPanel = setLayoutField('showLeft');
+  const setShowRightPanel = setLayoutField('showRight');
   const splitHostRef = useRef<HTMLDivElement | null>(null);
   const [calibPickMode, setCalibPickMode] = useState(false);        // wizard pose step: pick on the embedded 3D
-  const [dockTab, setDockTab] = useState<DockTab>(DockTab.FIXTURE_EDITOR);
-  const [timelineMax, setTimelineMax] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [currentProjectPath, setCurrentProjectPath] = useState<string | null>(null);
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [openModals, setOpenModals] = useState<Set<string>>(new Set()); // plugin modal panels open by id
-  const [showHelp, setShowHelp] = useState(false);
-  const [helpWidth, setHelpWidth] = useState(320);
   const [update, setUpdate] = useState<UpdateEvent | null>(null);
   const [updateUserInitiated, setUpdateUserInitiated] = useState(false);
   const [scene3D, setScene3D] = useState<Scene3D>(defaultScene3D());
@@ -140,7 +153,6 @@ const App: React.FC = () => {
   // clock via the engine — see services/timeline.ts setStateMachine).
   const [stateMachine, setStateMachine] = useState<StateMachine>(defaultStateMachine());
   const [assets, setAssets] = useState<AssetEntry[]>([]); // managed media library (video/image/model)
-  const [leftTab, setLeftTab] = useState<'scene' | 'media'>('scene');
   const [assetManagerOpen, setAssetManagerOpen] = useState(false);
   const [routingOpen, setRoutingOpen] = useState(false);
   const [outputsOpen, setOutputsOpen] = useState(false);
@@ -160,9 +172,6 @@ const App: React.FC = () => {
   const surfacesRef = useRef<Surface[]>(surfaces);                        // live mirror for the frame pump
   surfacesRef.current = surfaces;
 
-  const [showLeftPanel, setShowLeftPanel] = useState(true);
-  const [showRightPanel, setShowRightPanel] = useState(true);
-  
   const [isBridgeConnected, setIsBridgeConnected] = useState(false);
   const [outputStats, setOutputStats] = useState<{ pps: number; fps: number; universes: number } | null>(null);
   const [fps, setFps] = useState(0);
@@ -271,19 +280,7 @@ const App: React.FC = () => {
   const [sceneSaved, setSceneSaved] = useState(false);
   const sceneSavedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleSceneSave = () => { handleSaveProject().then((path) => { if (path) { setSceneSaved(true); if (sceneSavedTimer.current) clearTimeout(sceneSavedTimer.current); sceneSavedTimer.current = setTimeout(() => setSceneSaved(false), 1500); } }); };
-  useEffect(() => { localStorage.setItem('artlux.splitView', splitView ? '1' : '0'); }, [splitView]);
-  useEffect(() => { localStorage.setItem('artlux.splitRatio', String(splitRatio)); }, [splitRatio]);
-  const startSplitDrag = (e: React.PointerEvent) => {
-    e.preventDefault();
-    const host = splitHostRef.current; if (!host) return;
-    const move = (ev: PointerEvent) => {
-      const r = host.getBoundingClientRect();
-      setSplitRatio(Math.min(0.85, Math.max(0.2, (ev.clientX - r.left) / r.width)));
-    };
-    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
-  };
+  const startSplitDrag = useResizable({ axis: 'x', mode: 'ratio', containerRef: splitHostRef, min: 0.2, max: 0.85, onChange: setSplitRatio });
   // Maximize the 3D pane: shrink the 2D stage to a sliver so the 3D view + panel nearly fill the
   // area (recovers the old detached-window's near-fullscreen editing). Toggles back to the prior split.
   const MAX_3D_RATIO = 0.12;
@@ -1350,6 +1347,19 @@ const App: React.FC = () => {
           if (prefs.appSettings) setSettings(s => ({ ...s, ...(prefs.appSettings as Partial<AppSettings>) }));
           if (typeof prefs.globalBrightness === 'number') setGlobalBrightness(prefs.globalBrightness);
           setRecentFiles(prefs.recentFiles ?? []);
+          // Hydrate the workspace layout (panel sizes/visibility/tabs). One-time migration: older installs
+          // kept split view in localStorage — seed from it when there's no saved layout yet, then clear it.
+          let savedLayout = prefs.layoutState as Partial<WorkspaceLayout> | undefined;
+          if (!savedLayout) {
+              const sv = localStorage.getItem('artlux.splitView');
+              const sr = parseFloat(localStorage.getItem('artlux.splitRatio') || '');
+              if (sv !== null || (sr > 0.2 && sr < 0.85)) {
+                  savedLayout = { ...(sv !== null ? { splitView: sv === '1' } : {}), ...(sr > 0.2 && sr < 0.85 ? { splitRatio: sr } : {}) };
+              }
+              localStorage.removeItem('artlux.splitView');
+              localStorage.removeItem('artlux.splitRatio');
+          }
+          layoutStore.hydrate(savedLayout);
           if (Array.isArray(prefs.fixtureTemplates)) setTemplates(prefs.fixtureTemplates as FixtureTemplate[]);
           if (prefs.lastProjectPath) {
               const data = await window.artlux?.loadProjectPath?.(prefs.lastProjectPath);
