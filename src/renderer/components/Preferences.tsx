@@ -4,6 +4,7 @@ import { AppSettings } from '../types';
 import type { ArtNetDevice } from '../../../shared/protocol';
 import { Section, Field, NumberField, Toggle, Select, Slider, Button } from './ui';
 import { settingsSectionRegistry } from '../host/registries';
+import { useDraggableModal } from '../hooks/useDraggableModal';
 
 interface Props {
   open: boolean;
@@ -40,17 +41,20 @@ export const Preferences: React.FC<Props> = ({ open, onClose, settings, onChange
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
+  const { positionerStyle, handleProps } = useDraggableModal('preferences');
+
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 animate-overlay-in" onClick={onClose}>
+    <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/60 animate-overlay-in" onClick={onClose}>
+      <div style={positionerStyle}>
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Preferences"
-        className="w-[460px] max-h-[80vh] overflow-auto bg-surface-1 border border-line-2 rounded-[var(--r-lg)] shadow-2xl animate-modal-in"
+        className="w-[460px] max-h-[80vh] overflow-auto bg-surface-1 border border-line-2 rounded-lg shadow-e3 animate-modal-in"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="h-10 px-3 flex items-center justify-between border-b border-line-1 bg-surface-2">
+        <div {...handleProps} className="h-10 px-3 flex items-center justify-between border-b border-line-1 bg-surface-2 cursor-move select-none">
           <span className="text-xs font-semibold text-fg-1 uppercase tracking-wider">Preferences</span>
           <button onClick={onClose} aria-label="Close preferences" title="Close" className="text-fg-2 hover:text-fg-1"><X size={16} /></button>
         </div>
@@ -68,7 +72,7 @@ export const Preferences: React.FC<Props> = ({ open, onClose, settings, onChange
               type="text"
               value={settings.artNetIp}
               onChange={(e) => onChange({ artNetIp: e.target.value })}
-              className="num flex-1 bg-surface-0 border border-line-1 rounded-[var(--r-sm)] px-1.5 py-1 text-right text-fg-1 focus:border-accent focus:outline-none"
+              className="num flex-1 bg-surface-0 border border-line-1 rounded-sm px-1.5 py-1 text-right text-fg-1 focus:border-accent focus:outline-none"
             />
           </Field>
           <NumberField label="Port" value={settings.artNetPort} step={1} onChange={(v) => onChange({ artNetPort: v })} />
@@ -80,7 +84,7 @@ export const Preferences: React.FC<Props> = ({ open, onClose, settings, onChange
               <Radar size={13} className={scanning ? 'animate-spin' : ''} /> {scanning ? 'Scanning…' : 'Discover devices'}
             </Button>
             {devices.length > 0 && (
-              <div className="border border-line-1 rounded-[var(--r-sm)] divide-y divide-line-1 max-h-32 overflow-auto">
+              <div className="border border-line-1 rounded-sm divide-y divide-line-1 max-h-32 overflow-auto">
                 {devices.map((d) => {
                   const active = settings.artNetIp === d.ip;
                   return (
@@ -91,8 +95,8 @@ export const Preferences: React.FC<Props> = ({ open, onClose, settings, onChange
                       className={`w-full flex items-center justify-between gap-2 px-2 py-1 text-left transition-colors hover:bg-surface-3 ${active ? 'bg-accent/10' : ''}`}
                     >
                       <span className="min-w-0">
-                        <span className="block text-[11px] text-fg-1 truncate">{d.shortName || d.longName || 'Art-Net node'}</span>
-                        <span className="block num text-[10px] text-fg-3">{d.ip}{d.mac ? ` · ${d.mac}` : ''}</span>
+                        <span className="block text-mini text-fg-1 truncate">{d.shortName || d.longName || 'Art-Net node'}</span>
+                        <span className="block num text-micro text-fg-3">{d.ip}{d.mac ? ` · ${d.mac}` : ''}</span>
                       </span>
                       {active && <Check size={12} className="text-accent shrink-0" />}
                     </button>
@@ -101,7 +105,7 @@ export const Preferences: React.FC<Props> = ({ open, onClose, settings, onChange
               </div>
             )}
             {scanned && !scanning && devices.length === 0 && (
-              <div className="text-[10px] text-fg-3 italic px-0.5">No Art-Net nodes replied.</div>
+              <div className="text-micro text-fg-3 italic px-0.5">No Art-Net nodes replied.</div>
             )}
           </div>
         </Section>
@@ -123,20 +127,20 @@ export const Preferences: React.FC<Props> = ({ open, onClose, settings, onChange
               placeholder="All interfaces"
               onChange={(e) => onChange({ oscListenAddress: e.target.value.trim() })}
               title="Bind the OSC receiver to one local network card (this machine's IP, e.g. its 192.168.61.x address). Leave blank to listen on all interfaces."
-              className="num flex-1 bg-surface-0 border border-line-1 rounded-[var(--r-sm)] px-1.5 py-1 text-right text-fg-1 focus:border-accent focus:outline-none"
+              className="num flex-1 bg-surface-0 border border-line-1 rounded-sm px-1.5 py-1 text-right text-fg-1 focus:border-accent focus:outline-none"
             />
           </Field>
           {/* Quick-pick the local NIC to bind (this machine's addresses). */}
           <div className="flex flex-wrap gap-1">
             <button
               onClick={() => onChange({ oscListenAddress: '' })}
-              className={`px-1.5 py-0.5 rounded-[var(--r-sm)] border num text-[10px] transition-colors ${settings.oscListenAddress === '' ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:text-fg-1'}`}
+              className={`px-1.5 py-0.5 rounded-sm border num text-micro transition-colors ${settings.oscListenAddress === '' ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:text-fg-1'}`}
             >All</button>
             {localAddrs.map((ip) => (
               <button
                 key={ip}
                 onClick={() => onChange({ oscListenAddress: ip })}
-                className={`px-1.5 py-0.5 rounded-[var(--r-sm)] border num text-[10px] transition-colors ${settings.oscListenAddress === ip ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:text-fg-1'}`}
+                className={`px-1.5 py-0.5 rounded-sm border num text-micro transition-colors ${settings.oscListenAddress === ip ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:text-fg-1'}`}
               >{ip}</button>
             ))}
           </div>
@@ -146,7 +150,7 @@ export const Preferences: React.FC<Props> = ({ open, onClose, settings, onChange
               value={settings.oscControlPrefix}
               onChange={(e) => onChange({ oscControlPrefix: e.target.value })}
               title="Namespace for external control (e.g. /artlux/transport/play). LiDAR blob addresses (/SOL, /MUR, /SOL_MUR) are handled separately."
-              className="num flex-1 bg-surface-0 border border-line-1 rounded-[var(--r-sm)] px-1.5 py-1 text-right text-fg-1 focus:border-accent focus:outline-none"
+              className="num flex-1 bg-surface-0 border border-line-1 rounded-sm px-1.5 py-1 text-right text-fg-1 focus:border-accent focus:outline-none"
             />
           </Field>
         </Section>
@@ -162,6 +166,7 @@ export const Preferences: React.FC<Props> = ({ open, onClose, settings, onChange
         <div className="p-3 flex justify-end">
           <Button variant="primary" onClick={onClose}>Done</Button>
         </div>
+      </div>
       </div>
     </div>
   );

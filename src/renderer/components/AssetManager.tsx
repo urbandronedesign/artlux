@@ -4,6 +4,7 @@ import { AssetEntry, AssetType, Surface, Timeline } from '../types';
 import type { Scene3D } from '../../../shared/protocol';
 import { AssetChip } from './AssetChip';
 import { libraryItems, usageForPath, normPath, typeLabel } from '../services/assetLibrary';
+import { useDraggableModal } from '../hooks/useDraggableModal';
 
 interface Props {
   open: boolean;
@@ -57,6 +58,8 @@ export const AssetManager: React.FC<Props> = (p) => {
     return () => { live = false; };
   }, [items, p.open]);
 
+  const { positionerStyle, handleProps } = useDraggableModal('assets');
+
   if (!p.open) return null;
 
   const filtered = items.filter(a =>
@@ -71,24 +74,25 @@ export const AssetManager: React.FC<Props> = (p) => {
 
   const filterBtn = (label: string, value: Filter) => (
     <button onClick={() => setFilter(value)}
-      className={`px-2 h-6 rounded text-[11px] border ${filter === value ? 'bg-accent text-black border-transparent' : 'bg-surface-2 text-fg-2 border-line-1 hover:text-fg-1'}`}>{label}</button>
+      className={`px-2 h-6 rounded text-mini border ${filter === value ? 'bg-accent text-black border-transparent' : 'bg-surface-2 text-fg-2 border-line-1 hover:text-fg-1'}`}>{label}</button>
   );
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 animate-overlay-in flex items-center justify-center" onClick={p.onClose}>
+      <div style={positionerStyle}>
       <div role="dialog" aria-modal="true" aria-label="Asset Manager"
-        className="w-[1000px] max-w-[96vw] h-[80vh] max-h-[88vh] flex flex-col bg-surface-1 border border-line-2 rounded-[var(--r-lg)] shadow-2xl animate-modal-in"
+        className="w-[1000px] max-w-[96vw] h-[80vh] max-h-[88vh] flex flex-col bg-surface-1 border border-line-2 rounded-lg shadow-e3 animate-modal-in"
         onClick={(e) => e.stopPropagation()}>
-        {/* header */}
-        <div className="h-11 px-3 flex items-center gap-2 border-b border-line-1 bg-surface-2 shrink-0">
+        {/* header — drag handle */}
+        <div {...handleProps} className="h-11 px-3 flex items-center gap-2 border-b border-line-1 bg-surface-2 shrink-0 cursor-move select-none">
           <span className="text-xs font-semibold text-fg-1 uppercase tracking-wider">Asset Manager</span>
           <div className="flex items-center gap-1 ml-3">
-            <button onClick={() => p.onImport('video')} disabled={!p.hasProjectFolder} className="inline-flex items-center gap-1 px-2 h-7 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40 text-[11px]"><Film size={12} /> Video</button>
-            <button onClick={() => p.onImport('image')} disabled={!p.hasProjectFolder} className="inline-flex items-center gap-1 px-2 h-7 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40 text-[11px]"><ImageIcon size={12} /> Image</button>
-            <button onClick={() => p.onImport('model')} disabled={!p.hasProjectFolder} className="inline-flex items-center gap-1 px-2 h-7 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40 text-[11px]"><Box size={12} /> Model</button>
+            <button onClick={() => p.onImport('video')} disabled={!p.hasProjectFolder} className="inline-flex items-center gap-1 px-2 h-7 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40 text-mini"><Film size={12} /> Video</button>
+            <button onClick={() => p.onImport('image')} disabled={!p.hasProjectFolder} className="inline-flex items-center gap-1 px-2 h-7 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40 text-mini"><ImageIcon size={12} /> Image</button>
+            <button onClick={() => p.onImport('model')} disabled={!p.hasProjectFolder} className="inline-flex items-center gap-1 px-2 h-7 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40 text-mini"><Box size={12} /> Model</button>
           </div>
           <button onClick={p.onConsolidate} disabled={!p.hasProjectFolder} title="Copy every asset into the project folder + relink"
-            className="inline-flex items-center gap-1 px-2 h-7 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40 text-[11px] ml-auto"><PackageCheck size={13} /> Consolidate</button>
+            className="inline-flex items-center gap-1 px-2 h-7 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40 text-mini ml-auto"><PackageCheck size={13} /> Consolidate</button>
           <button onClick={p.onClose} className="text-fg-3 hover:text-fg-1 ml-1"><X size={16} /></button>
         </div>
 
@@ -99,7 +103,7 @@ export const AssetManager: React.FC<Props> = (p) => {
               {filterBtn('All', 'all')}{filterBtn('Video', 'video')}{filterBtn('Image', 'image')}{filterBtn('Model', 'model')}{filterBtn('Take', 'take')}
               <div className="flex items-center gap-1 ml-auto bg-surface-2 border border-line-1 rounded px-1.5 h-6">
                 <Search size={11} className="text-fg-3" />
-                <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="search" className="bg-transparent outline-none text-[11px] w-32 text-fg-1" />
+                <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="search" className="bg-transparent outline-none text-mini w-32 text-fg-1" />
               </div>
             </div>
             <div className="flex-1 min-h-0 overflow-auto p-3">
@@ -117,11 +121,11 @@ export const AssetManager: React.FC<Props> = (p) => {
           {/* detail */}
           <div className="w-72 shrink-0 flex flex-col overflow-auto">
             {!selected ? (
-              <div className="text-fg-3 italic text-[11px] p-3">Select an asset to inspect.</div>
+              <div className="text-fg-3 italic text-mini p-3">Select an asset to inspect.</div>
             ) : (
               <div className="p-3 space-y-3">
                 <div className="text-sm text-fg-1 break-words">{selected.name}</div>
-                <div className="text-[11px] text-fg-3 space-y-0.5">
+                <div className="text-mini text-fg-3 space-y-0.5">
                   <div>{typeLabel[selected.type]}{selected.size ? ` · ${fmtBytes(selected.size)}` : ''}</div>
                   {selected.durationSec != null && <div>{selected.durationSec.toFixed(1)}s{selected.fps ? ` · ${selected.fps}fps` : ''}</div>}
                   {(selected.width && selected.height) ? <div>{selected.width}×{selected.height}</div> : null}
@@ -131,25 +135,25 @@ export const AssetManager: React.FC<Props> = (p) => {
 
                 <div className="flex flex-wrap gap-1">
                   {(selected.type === 'video' || selected.type === 'image') && (
-                    <button onClick={() => p.onUseOnSurface(selected)} disabled={!p.selectedSurfaceId} className="inline-flex items-center gap-1 px-2 h-7 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40 text-[11px]"><MonitorPlay size={12} /> Use</button>
+                    <button onClick={() => p.onUseOnSurface(selected)} disabled={!p.selectedSurfaceId} className="inline-flex items-center gap-1 px-2 h-7 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40 text-mini"><MonitorPlay size={12} /> Use</button>
                   )}
-                  <button onClick={() => window.artlux?.showItemInFolder?.(selected.path)} className="inline-flex items-center gap-1 px-2 h-7 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 text-[11px]"><FolderOpen size={12} /> Reveal</button>
-                  <button onClick={() => p.onRelinkAsset(selected)} className="inline-flex items-center gap-1 px-2 h-7 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 text-[11px]"><Link2 size={12} /> Relink</button>
-                  <button onClick={() => p.onRemoveAsset(selected)} className="inline-flex items-center gap-1 px-2 h-7 rounded border border-line-1 bg-surface-2 hover:bg-danger/20 hover:text-danger text-[11px]"><Trash2 size={12} /> Remove</button>
+                  <button onClick={() => window.artlux?.showItemInFolder?.(selected.path)} className="inline-flex items-center gap-1 px-2 h-7 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 text-mini"><FolderOpen size={12} /> Reveal</button>
+                  <button onClick={() => p.onRelinkAsset(selected)} className="inline-flex items-center gap-1 px-2 h-7 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 text-mini"><Link2 size={12} /> Relink</button>
+                  <button onClick={() => p.onRemoveAsset(selected)} className="inline-flex items-center gap-1 px-2 h-7 rounded border border-line-1 bg-surface-2 hover:bg-danger/20 hover:text-danger text-mini"><Trash2 size={12} /> Remove</button>
                 </div>
 
                 <div>
-                  <div className="text-[11px] font-semibold text-fg-2 mb-1">Usage {usage ? `(${usage.count})` : ''}</div>
-                  {usage && usage.count === 0 && <div className="text-[11px] text-fg-3 italic">Not used anywhere.</div>}
+                  <div className="text-mini font-semibold text-fg-2 mb-1">Usage {usage ? `(${usage.count})` : ''}</div>
+                  {usage && usage.count === 0 && <div className="text-mini text-fg-3 italic">Not used anywhere.</div>}
                   <div className="space-y-0.5">
                     {usage?.surfaceIds.map(id => (
-                      <button key={`s${id}`} onClick={() => { p.onSelectSurface(id); }} className="block w-full text-left text-[11px] px-1.5 py-1 rounded bg-surface-2 hover:bg-surface-3 text-fg-1 truncate">Surface · {surfName(id)}</button>
+                      <button key={`s${id}`} onClick={() => { p.onSelectSurface(id); }} className="block w-full text-left text-mini px-1.5 py-1 rounded bg-surface-2 hover:bg-surface-3 text-fg-1 truncate">Surface · {surfName(id)}</button>
                     ))}
                     {usage?.clipIds.map(id => (
-                      <div key={`c${id}`} className="text-[11px] px-1.5 py-1 rounded bg-surface-2 text-fg-2 truncate">Clip · {clipName(id)}</div>
+                      <div key={`c${id}`} className="text-mini px-1.5 py-1 rounded bg-surface-2 text-fg-2 truncate">Clip · {clipName(id)}</div>
                     ))}
                     {usage?.modelIds.map(id => (
-                      <div key={`m${id}`} className="text-[11px] px-1.5 py-1 rounded bg-surface-2 text-fg-2 truncate">Scene model · {modelName(id)}</div>
+                      <div key={`m${id}`} className="text-mini px-1.5 py-1 rounded bg-surface-2 text-fg-2 truncate">Scene model · {modelName(id)}</div>
                     ))}
                   </div>
                 </div>
@@ -157,6 +161,7 @@ export const AssetManager: React.FC<Props> = (p) => {
             )}
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

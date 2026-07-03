@@ -527,6 +527,9 @@ export interface Prefs {
   recentFiles: string[];
   lastProjectPath?: string;
   fixtureTemplates?: unknown[]; // saved fixture library (S4)
+  /** Per-modal drag offset (px translate from centered), keyed by a stable modal id.
+      Workspace ergonomics — persisted in prefs (not the project) so it survives restarts. */
+  modalPositions?: Record<string, { x: number; y: number }>;
 }
 
 export interface OpenProjectResult {

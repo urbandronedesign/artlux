@@ -65,6 +65,32 @@ contextIsolation means a plugin can't add named preload methods, so all plugin I
 forwarders — `pluginInvoke`/`pluginSend`/`pluginOn` (renderer) ↔ `ctx.ipc.{handle,on,send}` (main) —
 over channels namespaced `plugin:<ch>`. See PLUGINS.md → "The generic plugin IPC bridge".
 
+### UI helpers — `useDraggable` (the only runtime export in `/renderer`)
+
+Everything else in `@artlux/sdk/renderer` is a type contract; `useDraggable` is the exception — a small,
+**host-agnostic** React hook that makes a centered overlay (a modal) draggable by a handle. It stays
+decoupled by *injecting* persistence: you pass `load` / `onCommit`, so the SDK never touches host storage.
+
+```ts
+import { useDraggable } from '@artlux/sdk/renderer';
+
+const { positionerStyle, handleProps } = useDraggable({
+  load: () => /* DragOffset | null (sync or async) */,   // resolved once on mount; falsy = centered
+  onCommit: (pos) => /* persist pos */,                  // after a drag ends or a double-click recenter
+});
+// <div style={positionerStyle}>            {/* wrapper — carries the translate offset */}
+//   <div role="dialog" onClick={stopProp}> {/* your dialog, keeps its entrance animation */}
+//     <div {...handleProps} className="… cursor-move select-none"> {/* header = drag handle */}
+```
+
+The offset is a **translate delta from the element's normal (flex-centered) position**, so `{0,0}` is
+"centered" and it composes with `animate-modal-in`. Drags that start on a `button`/`input`/`select` are
+ignored (controls still work); **double-clicking the handle recenters** (rescues an off-screen modal).
+
+Persistence is the caller's choice: the host wraps this as `useDraggableModal(id)` → app **prefs**
+(`Prefs.modalPositions`, keyed by modal id); a plugin (which can't reach host prefs) wraps it with
+**localStorage** — see `plugins/lidar-tracking/src/OscMonitor.tsx`.
+
 ## Invariants a plugin MUST uphold
 
 These are enforced (build + typecheck + `npm run verify:plugins`), not optional:

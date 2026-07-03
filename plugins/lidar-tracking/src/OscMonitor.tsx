@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { X, Pause, Play, Trash2, Radio, Search } from 'lucide-react';
 import type { OscMessage } from '../../../shared/protocol';
 import type { PanelProps } from '@artlux/sdk/renderer';
+import { useDraggable } from '@artlux/sdk/renderer';
 import { Button } from '@/components/ui'; // host UI primitive (pure presentational — no singleton)
 import { useHostSettings } from './trackingHost';
 
@@ -160,17 +161,25 @@ export const OscMonitor: React.FC<PanelProps> = ({ onClose }) => {
   const where = settings.oscListenAddress ? `${settings.oscListenAddress}:${settings.oscListenPort}` : `*:${settings.oscListenPort}`;
   const totalActive = surfRows.reduce((n, s) => n + s.active, 0);
 
+  // Draggable + remembered position via the SDK hook. This is a plugin, so it can't reach host
+  // prefs — it persists to localStorage (renderer-global, survives restart) instead.
+  const { positionerStyle, handleProps } = useDraggable({
+    load: () => { try { const s = localStorage.getItem('artlux.modalPos.osc'); return s ? JSON.parse(s) as { x: number; y: number } : null; } catch { return null; } },
+    onCommit: (pos) => { try { localStorage.setItem('artlux.modalPos.osc', JSON.stringify(pos)); } catch { /* storage full/blocked — non-fatal */ } },
+  });
+
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 animate-overlay-in" onClick={close}>
+    <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/60 animate-overlay-in" onClick={close}>
+      <div style={positionerStyle}>
       <div
         role="dialog"
         aria-modal="true"
         aria-label="OSC Monitor"
-        className="w-[760px] max-h-[86vh] flex flex-col bg-surface-1 border border-line-2 rounded-[var(--r-lg)] shadow-2xl animate-modal-in overflow-hidden"
+        className="w-[760px] max-h-[86vh] flex flex-col bg-surface-1 border border-line-2 rounded-lg shadow-e3 animate-modal-in overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="h-10 px-3 flex items-center justify-between border-b border-line-1 bg-surface-2 shrink-0">
+        {/* Header — drag handle */}
+        <div {...handleProps} className="h-10 px-3 flex items-center justify-between border-b border-line-1 bg-surface-2 shrink-0 cursor-move select-none">
           <div className="flex items-center gap-2 text-fg-1 text-sm font-semibold">
             <Radio size={15} className="text-accent" /> OSC Monitor
           </div>
@@ -178,7 +187,7 @@ export const OscMonitor: React.FC<PanelProps> = ({ onClose }) => {
         </div>
 
         {/* Status strip */}
-        <div className="px-3 py-2 flex items-center gap-4 border-b border-line-1 text-[11px] shrink-0">
+        <div className="px-3 py-2 flex items-center gap-4 border-b border-line-1 text-mini shrink-0">
           <span className="inline-flex items-center gap-1.5">
             <span className={`w-2 h-2 rounded-full ${settings.oscEnabled ? (totalHz > 0 ? 'bg-emerald-400' : 'bg-amber-400') : 'bg-fg-3'}`} />
             <span className="text-fg-2">{settings.oscEnabled ? `listening ${where}` : 'OSC receive disabled'}</span>
@@ -189,7 +198,7 @@ export const OscMonitor: React.FC<PanelProps> = ({ onClose }) => {
         </div>
 
         {!settings.oscEnabled && (
-          <div className="px-3 py-1.5 text-[11px] text-amber-300 bg-amber-500/10 border-b border-line-1 shrink-0">
+          <div className="px-3 py-1.5 text-mini text-amber-300 bg-amber-500/10 border-b border-line-1 shrink-0">
             OSC receive is off — enable it in Preferences ▸ OSC / Tracking, on port {settings.oscListenPort}, to see incoming data.
           </div>
         )}
@@ -197,13 +206,13 @@ export const OscMonitor: React.FC<PanelProps> = ({ onClose }) => {
         {/* Blob summary */}
         <div className="px-3 py-2 flex gap-2 flex-wrap border-b border-line-1 shrink-0">
           {surfRows.length === 0 && (
-            <div className="text-[11px] text-fg-3 py-1">No tracking surfaces seen yet{seenAny ? ' (OSC arriving, but no /…/blobs/… addresses)' : '…'}</div>
+            <div className="text-mini text-fg-3 py-1">No tracking surfaces seen yet{seenAny ? ' (OSC arriving, but no /…/blobs/… addresses)' : '…'}</div>
           )}
           {surfRows.map((s) => (
-            <div key={s.surface} className={`px-2.5 py-1.5 rounded-[var(--r-md)] border ${s.active > 0 ? 'border-emerald-500/40 bg-emerald-500/10' : 'border-line-1 bg-surface-2'}`}>
-              <div className="text-[11px] font-semibold text-fg-1">{s.surface}</div>
-              <div className="num text-[10px] text-fg-2">{s.active}<span className="text-fg-3">/{s.slots} blobs</span></div>
-              <div className="num text-[10px] text-fg-3">{s.scaleX.toFixed(2)}×{s.scaleY.toFixed(2)} m</div>
+            <div key={s.surface} className={`px-2.5 py-1.5 rounded-md border ${s.active > 0 ? 'border-emerald-500/40 bg-emerald-500/10' : 'border-line-1 bg-surface-2'}`}>
+              <div className="text-mini font-semibold text-fg-1">{s.surface}</div>
+              <div className="num text-micro text-fg-2">{s.active}<span className="text-fg-3">/{s.slots} blobs</span></div>
+              <div className="num text-micro text-fg-3">{s.scaleX.toFixed(2)}×{s.scaleY.toFixed(2)} m</div>
             </div>
           ))}
         </div>
@@ -214,7 +223,7 @@ export const OscMonitor: React.FC<PanelProps> = ({ onClose }) => {
             {paused ? <><Play size={13} /> Resume</> : <><Pause size={13} /> Pause</>}
           </Button>
           <Button variant="tonal" size="sm" onClick={clear}><Trash2 size={13} /> Clear</Button>
-          <label className="flex items-center gap-1.5 text-[11px] text-fg-2 cursor-pointer select-none">
+          <label className="flex items-center gap-1.5 text-mini text-fg-2 cursor-pointer select-none">
             <input type="checkbox" checked={logging} onChange={(e) => setLogging(e.target.checked)} /> Raw log
           </label>
           <div className="ml-auto relative">
@@ -223,14 +232,14 @@ export const OscMonitor: React.FC<PanelProps> = ({ onClose }) => {
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               placeholder="filter address…"
-              className="num text-[11px] pl-6 pr-2 py-1 w-48 bg-surface-2 border border-line-1 rounded-[var(--r-sm)] text-fg-1 placeholder:text-fg-3 focus:border-accent outline-none"
+              className="num text-mini pl-6 pr-2 py-1 w-48 bg-surface-2 border border-line-1 rounded-sm text-fg-1 placeholder:text-fg-3 focus:border-accent outline-none"
             />
           </div>
         </div>
 
         {/* Address table */}
         <div className="flex-1 min-h-[120px] overflow-auto">
-          <table className="w-full text-[11px] num">
+          <table className="w-full text-mini num">
             <thead className="sticky top-0 bg-surface-2 text-fg-3 text-left">
               <tr>
                 <th className="px-3 py-1 font-medium">Address</th>
@@ -257,11 +266,12 @@ export const OscMonitor: React.FC<PanelProps> = ({ onClose }) => {
 
         {/* Raw log */}
         {logging && (
-          <div className="h-40 shrink-0 border-t border-line-1 overflow-auto bg-black/30 px-3 py-2 num text-[10px] leading-snug text-fg-2">
+          <div className="h-40 shrink-0 border-t border-line-1 overflow-auto bg-black/30 px-3 py-2 num text-micro leading-snug text-fg-2">
             {logLines.length === 0 ? <div className="text-fg-3">Logging… raw messages will stream here.</div> :
               logLines.map((l, i) => <div key={i} className="whitespace-pre truncate">{l}</div>)}
           </div>
         )}
+      </div>
       </div>
     </div>
   );

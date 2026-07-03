@@ -9,7 +9,8 @@
 // real types (full host-side type safety); an in-tree plugin parameterizes the generics with the
 // host types it imports type-only. Moving the domain model into the SDK is a later-phase decision.
 
-import type { ComponentType, ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { ComponentType, ReactNode, CSSProperties, PointerEvent as ReactPointerEvent } from 'react';
 import type { OscMessage, OscConfig } from './index.ts';
 
 export type { OscMessage, OscConfig, PluginManifest } from './index.ts';
@@ -296,4 +297,56 @@ export interface RendererPlugin {
   manifest: import('./index.ts').PluginManifest;
   activate(ctx: RendererPluginContext): void;
   deactivate?(): void;
+}
+
+// ─── useDraggable (the one runtime helper in this entry) ──────────────────────────────────────
+// Makes a centered overlay (a modal) draggable by a handle and reports where it was left. Kept
+// host-agnostic: PERSISTENCE is injected via load/onCommit, so the SDK never reaches into any host
+// storage — the host wires app prefs, a plugin can wire its own (localStorage, plugin IPC, …).
+// The offset is a translate DELTA from the element's normal (flex-centered) position, so {0,0} is
+// "centered" and it composes with an entrance animation. Put `style={positionerStyle}` on a wrapper
+// around the dialog and spread `{...handleProps}` on the header (add `cursor-move select-none`).
+// Dragging that starts on a real control (button/input/select) is ignored; double-click recenters.
+export type DragOffset = { x: number; y: number };
+
+export function useDraggable(opts?: {
+  /** Resolve the saved offset once on mount (async allowed). Falsy → stay centered. */
+  load?: () => Promise<DragOffset | null | undefined> | DragOffset | null | undefined;
+  /** Called with the new offset after a drag ends or a double-click recenters. */
+  onCommit?: (pos: DragOffset) => void;
+}): {
+  positionerStyle: CSSProperties;
+  handleProps: { onPointerDown: (e: ReactPointerEvent) => void; onDoubleClick: () => void };
+} {
+  const [pos, setPos] = useState<DragOffset>({ x: 0, y: 0 });
+  const posRef = useRef(pos); posRef.current = pos;
+  const loadRef = useRef(opts?.load); loadRef.current = opts?.load;
+  const commitRef = useRef(opts?.onCommit); commitRef.current = opts?.onCommit;
+
+  useEffect(() => {
+    let alive = true;
+    Promise.resolve(loadRef.current?.()).then((saved) => { if (alive && saved) setPos(saved); }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  const onPointerDown = (e: ReactPointerEvent) => {
+    if ((e.target as HTMLElement).closest('button,input,select,textarea,a')) return; // let controls work
+    e.preventDefault();
+    const sx = e.clientX, sy = e.clientY, base = posRef.current;
+    const move = (ev: globalThis.PointerEvent) => setPos({ x: base.x + (ev.clientX - sx), y: base.y + (ev.clientY - sy) });
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      commitRef.current?.(posRef.current);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+
+  const onDoubleClick = () => { setPos({ x: 0, y: 0 }); commitRef.current?.({ x: 0, y: 0 }); };
+
+  return {
+    positionerStyle: { transform: `translate(${pos.x}px, ${pos.y}px)` },
+    handleProps: { onPointerDown, onDoubleClick },
+  };
 }

@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { X, Plus, Trash2, Lock, Unlock, Hash } from 'lucide-react';
 import { Fixture, Surface, Controller, AppSettings } from '../types';
 import { Button } from './ui';
+import { useDraggableModal } from '../hooks/useDraggableModal';
 
 interface Props {
   open: boolean;
@@ -17,7 +18,7 @@ interface Props {
   onAutoPatch: () => void;
 }
 
-const cell = 'w-full bg-surface-0 border border-line-1 rounded-[var(--r-sm)] px-1 py-0.5 text-fg-1 text-[11px] focus:border-accent focus:outline-none disabled:opacity-40';
+const cell = 'w-full bg-surface-0 border border-line-1 rounded-sm px-1 py-0.5 text-fg-1 text-mini focus:border-accent focus:outline-none disabled:opacity-40';
 
 // Routing spreadsheet: manage controllers + patch every fixture (surface link,
 // controller, universe/address, channels) in one grid.
@@ -32,6 +33,8 @@ export const RoutingModal: React.FC<Props> = ({
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
+  const { positionerStyle, handleProps } = useDraggableModal('routing');
+
   if (!open) return null;
 
   const span = (f: Fixture) => {
@@ -45,13 +48,14 @@ export const RoutingModal: React.FC<Props> = ({
   const COLS = 'grid-cols-[1.4fr_1fr_1fr_52px_52px_84px_52px_84px_32px]';
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 animate-overlay-in" onClick={onClose}>
+    <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/60 animate-overlay-in" onClick={onClose}>
+      <div style={positionerStyle}>
       <div
         role="dialog" aria-modal="true" aria-label="Routing"
-        className="w-[920px] max-w-[95vw] max-h-[85vh] flex flex-col bg-surface-1 border border-line-2 rounded-[var(--r-lg)] shadow-2xl animate-modal-in"
+        className="w-[920px] max-w-[95vw] max-h-[85vh] flex flex-col bg-surface-1 border border-line-2 rounded-lg shadow-e3 animate-modal-in"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="h-10 px-3 flex items-center justify-between border-b border-line-1 bg-surface-2 shrink-0">
+        <div {...handleProps} className="h-10 px-3 flex items-center justify-between border-b border-line-1 bg-surface-2 shrink-0 cursor-move select-none">
           <span className="text-xs font-semibold text-fg-1 uppercase tracking-wider">Routing</span>
           <div className="flex items-center gap-2">
             <Button variant="primary" size="sm" onClick={onAutoPatch}><Hash size={13} /> Auto-patch</Button>
@@ -63,14 +67,14 @@ export const RoutingModal: React.FC<Props> = ({
           {/* Controllers */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[11px] font-semibold text-fg-2 uppercase tracking-wider">Controllers</span>
+              <span className="text-mini font-semibold text-fg-2 uppercase tracking-wider">Controllers</span>
               <Button variant="tonal" size="sm" onClick={onAddController}><Plus size={13} /> Controller</Button>
             </div>
-            <div className="border border-line-1 rounded-[var(--r-md)] divide-y divide-line-1">
-              <div className="grid grid-cols-[1.2fr_0.8fr_1.2fr_64px_72px_64px_32px] gap-1 px-2 py-1 text-[9px] uppercase tracking-wider text-fg-3">
+            <div className="border border-line-1 rounded-md divide-y divide-line-1">
+              <div className="grid grid-cols-[1.2fr_0.8fr_1.2fr_64px_72px_64px_32px] gap-1 px-2 py-1 text-micro uppercase tracking-wider text-fg-3">
                 <span>Name</span><span>Protocol</span><span>IP</span><span>Bcast</span><span>Start U</span><span>Prio</span><span></span>
               </div>
-              {controllers.length === 0 && <div className="px-2 py-2 text-[11px] text-fg-3 italic">No controllers — fixtures use the global Preferences target.</div>}
+              {controllers.length === 0 && <div className="px-2 py-2 text-mini text-fg-3 italic">No controllers — fixtures use the global Preferences target.</div>}
               {controllers.map((c) => (
                 <div key={c.id} className="grid grid-cols-[1.2fr_0.8fr_1.2fr_64px_72px_64px_32px] gap-1 px-2 py-1 items-center">
                   <input className={cell} value={c.name} onChange={(e) => onUpdateController(c.id, { name: e.target.value })} />
@@ -89,12 +93,12 @@ export const RoutingModal: React.FC<Props> = ({
 
           {/* Fixtures patch grid */}
           <div>
-            <span className="text-[11px] font-semibold text-fg-2 uppercase tracking-wider">Fixtures</span>
-            <div className="mt-1.5 border border-line-1 rounded-[var(--r-md)] divide-y divide-line-1">
-              <div className={`grid ${COLS} gap-1 px-2 py-1 text-[9px] uppercase tracking-wider text-fg-3`}>
+            <span className="text-mini font-semibold text-fg-2 uppercase tracking-wider">Fixtures</span>
+            <div className="mt-1.5 border border-line-1 rounded-md divide-y divide-line-1">
+              <div className={`grid ${COLS} gap-1 px-2 py-1 text-micro uppercase tracking-wider text-fg-3`}>
                 <span>Name</span><span>Surface</span><span>Controller</span><span>Univ</span><span>Start</span><span>Channels</span><span>LEDs</span><span>Span</span><span></span>
               </div>
-              {fixtures.length === 0 && <div className="px-2 py-2 text-[11px] text-fg-3 italic">No fixtures.</div>}
+              {fixtures.length === 0 && <div className="px-2 py-2 text-mini text-fg-3 italic">No fixtures.</div>}
               {fixtures.map((f) => {
                 const locked = !!f.patchLocked;
                 return (
@@ -114,7 +118,7 @@ export const RoutingModal: React.FC<Props> = ({
                       <option value={3}>RGB (3)</option><option value={4}>RGBW (4)</option>
                     </select>
                     <input type="number" className={`${cell} num text-right`} value={f.ledCount} onChange={(e) => onUpdateFixture(f.id, { ledCount: Math.max(1, Math.round(+e.target.value)) })} />
-                    <span className="num text-[10px] text-fg-3 truncate">{span(f)}</span>
+                    <span className="num text-micro text-fg-3 truncate">{span(f)}</span>
                     <button onClick={() => onUpdateFixture(f.id, { patchLocked: !locked })} title={locked ? 'Locked (manual address)' : 'Auto (click to lock)'} className={`justify-self-center ${locked ? 'text-accent' : 'text-fg-3 hover:text-fg-1'}`}>
                       {locked ? <Lock size={12} /> : <Unlock size={12} />}
                     </button>
@@ -122,9 +126,10 @@ export const RoutingModal: React.FC<Props> = ({
                 );
               })}
             </div>
-            <div className="text-[10px] text-fg-3 mt-1.5">Universe/Start are auto-assigned per controller; lock a row to edit them manually. Default target: {settings.artNetIp} ({settings.protocol}).</div>
+            <div className="text-micro text-fg-3 mt-1.5">Universe/Start are auto-assigned per controller; lock a row to edit them manually. Default target: {settings.artNetIp} ({settings.protocol}).</div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );
