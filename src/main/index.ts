@@ -80,8 +80,18 @@ function createWindow(): void {
         },
     });
 
-    // GUI mode shows when ready.
-    if (!HEADLESS && !BROADCAST) mainWindow.on('ready-to-show', () => mainWindow?.show());
+    // GUI mode: reveal the editor window once its content is ready. We DON'T rely on ready-to-show
+    // alone — on some packaged builds/GPU configs that event never fires, which left the app running
+    // with no window at all (process alive, nothing on screen). So reveal on ready-to-show, again on
+    // did-finish-load (which always fires — see below), and a backstop timer. show()+focus is
+    // idempotent, guarded by isVisible so we only bring it up once.
+    const revealEditor = () => {
+        if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) { mainWindow.show(); mainWindow.focus(); }
+    };
+    if (!HEADLESS && !BROADCAST) {
+        mainWindow.on('ready-to-show', revealEditor);
+        setTimeout(revealEditor, 4000); // backstop: never leave the editor with no visible window
+    }
     // Broadcast: the editor window stays invisible to the operator but must keep running at
     // full speed — it decodes the video and pushes frames to the fullscreen projector outputs.
     // A never-shown window throttles its rAF/WebGL (starving the projector → laggy output), so
@@ -100,7 +110,7 @@ function createWindow(): void {
     mainWindow.on('unmaximize', emitMaximized);
     // Apply the persisted (or auto-detected) UI scale. setZoomFactor doesn't survive a reload, so
     // re-run on every load. Headless/broadcast have no visible chrome, so scale is a no-op there.
-    if (!HEADLESS && !BROADCAST) mainWindow.webContents.on('did-finish-load', () => applyUiScale(mainWindow));
+    if (!HEADLESS && !BROADCAST) mainWindow.webContents.on('did-finish-load', () => { applyUiScale(mainWindow); revealEditor(); });
 
     // electron-vite provides the dev server URL; fall back to the built file.
     const devUrl = process.env['ELECTRON_RENDERER_URL'];
