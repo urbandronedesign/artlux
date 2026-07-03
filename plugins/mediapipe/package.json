@@ -1,0 +1,13 @@
+{
+  "name": "@artlux/plugin-mediapipe",
+  "version": "0.0.0",
+  "private": true,
+  "description": "First-party ArtLux plugin: camera-based pose tracking source (MediaPipe BlazePose in-renderer via WASM; content source, projector bridge, 3D + settings viz).",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./src/index.ts",
+  "dependencies": {
+    "@artlux/sdk": "*",
+    "@mediapipe/tasks-vision": "^0.10.22"
+  }
+}

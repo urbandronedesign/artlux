@@ -456,6 +456,7 @@ export interface Scene3D {
   trackingLabels?: boolean;           // show each blob's tracking id
   trackingMergePeople?: boolean;      // merge nearby blobs into one "person" (venue emits 2 blobs/person)
   trackingMergeRadius?: number;       // merge radius in metres (blobs within this distance = same person)
+  mediapipeViz?: boolean;             // overlay the camera-pose (MediaPipe) tracked-people markers in 3D
   camMask?: CamMask;                  // markerless calibration camera exclusion mask (reflective hotspots)
   markerMap?: MarkerMap;              // registered fiducial markers for one-click recalibration
   // Legacy single-model fields (pre-multi-model); migrated into `models` on load.

@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **New: camera pose tracking (`plugins/mediapipe`).** A webcam + Google MediaPipe **BlazePose** as a
+  *tracking source* — each detected person becomes a normalized position that maps onto a surface like
+  a LiDAR blob, so body-driven interactive mapping works with no specialized sensors. Standalone
+  renderer-only plugin (own store + `SourceType.MEDIAPIPE`), inference runs **in-renderer via WASM +
+  WebGL GPU delegate** (no native crate). Adds a MediaPipe content source (GPU markers / skeleton /
+  trails), a projector snapshot+render channel, a 3D scene overlay, a **Pose Monitor** debug modal
+  (View menu), and a **Pose Tracking (MediaPipe)** Preferences section (camera / model / delegate /
+  max-people / confidence). Model + WASM assets are staged offline with `npm run assets:mediapipe`;
+  when absent the feature logs and no-ops (graceful degrade). See [docs/MEDIAPIPE.md](docs/MEDIAPIPE.md).
+
 ## v0.19.2
 
 - **Fix: packaged app started with no window at all.** On some packaged builds/GPU configs the

@@ -64,6 +64,9 @@
       ],
       "@artlux/plugin-mp4": [
         "./plugins/mp4/src/index.ts"
+      ],
+      "@artlux/plugin-mediapipe": [
+        "./plugins/mediapipe/src/index.ts"
       ]
     },
     "allowImportingTsExtensions": true,

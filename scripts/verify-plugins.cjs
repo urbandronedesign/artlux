@@ -39,6 +39,7 @@ const CHECKS = [
   { plugin: 'hap',            where: 'renderer', marker: 'hap:decode',           note: 'hapDecode plugin-IPC channel' },
   { plugin: 'hap',            where: 'main',     marker: 'hap] native decoder loaded', note: 'hapManager native-load log' },
   { plugin: 'mp4',            where: 'renderer', marker: 'mp4-webcodecs',        note: 'mp4Codec id (renderer-only)' },
+  { plugin: 'mediapipe',      where: 'renderer', marker: 'mediapipe] subscriber', note: 'poseStore subscriber log (renderer-only)' },
 ];
 
 // Contribution-coverage: distinctive strings proving a plugin still REGISTERS a given contribution into
@@ -50,6 +51,8 @@ const CONTRIBUTIONS = [
   { plugin: 'lidar-tracking', marker: 'osc-monitor',    note: 'OSC Monitor — modal PanelContribution id (panelRegistry)' },
   { plugin: 'lidar-tracking', marker: 'OSC Monitor',    note: 'OSC Monitor — panel body shipped' },
   { plugin: 'mp4',            marker: 'GPU MP4 decode',  note: 'Video — SettingsSection (settingsSectionRegistry)' },
+  { plugin: 'mediapipe',      marker: 'pose-monitor',    note: 'Pose Monitor — modal PanelContribution id (panelRegistry)' },
+  { plugin: 'mediapipe',      marker: 'Pose Tracking (MediaPipe)', note: 'Pose Tracking — SettingsSection (settingsSectionRegistry)' },
 ];
 
 function fail(msg) { console.error(`\x1b[31m✗\x1b[0m ${msg}`); }

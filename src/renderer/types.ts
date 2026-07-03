@@ -151,6 +151,7 @@ export enum SourceType {
   LAYER = 'LAYER',       // a single timeline track (by layerId)
   PROGRAM = 'PROGRAM',   // the whole timeline composited (all contributing layers, z-ordered)
   TRACKING = 'TRACKING', // LiDAR blob positions (by trackingSource)
+  MEDIAPIPE = 'MEDIAPIPE', // camera-based pose positions (BlazePose; @artlux/plugin-mediapipe)
   NONE = 'NONE'
 }
 
@@ -185,6 +186,10 @@ export interface SurfaceContent {
   calibration?: boolean;     // overlay zone border + grid + corner labels for alignment
   trail?: boolean;           // comet trail behind each blob (default on)
   trailSeconds?: number;     // trail length, seconds
+  // MEDIAPIPE params (camera pose tracking — @artlux/plugin-mediapipe). Reuses the TRACKING fields
+  // above (blobSize, showIds, flipH/flipV, rotate, trail, trailSeconds, bgLayerId, opacity) since the
+  // viz is the same normalized-position marker set; only the extra pose-skeleton toggle is new.
+  poseSkeleton?: boolean;    // draw the BlazePose bone connections between landmarks (default off)
 }
 
 // --- Video-layer timeline (NLE) ---

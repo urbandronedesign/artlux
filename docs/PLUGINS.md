@@ -13,9 +13,11 @@ backlog (and the calibration extraction) see [ROADMAP.md](ROADMAP.md); for the b
 Features were wired by direct import across `App.tsx`, `contentSource.ts`, `ipc.ts`, the preload, etc.
 The plugin architecture makes a feature a **self-contained package** that *registers contributions*
 into the host instead of the host reaching into it — VS-Code style. Shipped so far:
-`plugins/lidar-tracking`, `plugins/ndi`, and `plugins/calibration` (Stage 1 — engine + logic; its
-wizard UI is still host-side). Two goals: shrink the core, and let features own their main + renderer
-+ IPC in one place.
+`plugins/lidar-tracking`, `plugins/ndi`, `plugins/calibration` (Stage 1 — engine + logic; its
+wizard UI is still host-side), `plugins/spout`, `plugins/hap`, `plugins/mp4`, and
+`plugins/mediapipe` (camera BlazePose pose tracking — a renderer-only tracking source, WASM
+in-renderer; see [MEDIAPIPE.md](MEDIAPIPE.md)). Two goals: shrink the core, and let features own their
+main + renderer + IPC in one place.
 
 ## Layout
 

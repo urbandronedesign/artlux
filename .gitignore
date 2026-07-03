@@ -35,6 +35,12 @@ native/**/target
 # it: run build:calib on a host with OpenCV, or copy from C:\opencv\build\x64\vc16\bin\.
 native/calib/*.dll
 
+# MediaPipe offline assets (WASM runtime + BlazePose .task models) — large binaries fetched with
+# `npm run assets:mediapipe` (copies the WASM from node_modules + downloads the models). Kept out of
+# git like the .node addons; Vite serves them from the renderer public dir in dev and copies them into
+# out/renderer for packaged builds.
+src/renderer/public/mediapipe/
+
 # Generated documentation bundle (rebuild with `npm run docs:html`)
 docs/user-guide/artlux-user-guide.html
 

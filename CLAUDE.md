@@ -33,6 +33,7 @@ a project-level state machine, scenes/cues, OSC control, and a 3D simulator.
 | NVIDIA hardware warp/blend | [docs/NVWARP.md](docs/NVWARP.md) |
 | NDI network video | [docs/NDI.md](docs/NDI.md) |
 | OSC control + LiDAR tracking protocol | [docs/OSC.md](docs/OSC.md), [docs/TRACKING_SYNC.md](docs/TRACKING_SYNC.md), [docs/TRACKING_TAKES.md](docs/TRACKING_TAKES.md) |
+| Camera pose tracking (MediaPipe BlazePose) | [docs/MEDIAPIPE.md](docs/MEDIAPIPE.md) |
 | Assets / portable projects | [docs/ASSETS.md](docs/ASSETS.md) |
 | Metrics / monitoring | [docs/MONITORING.md](docs/MONITORING.md) |
 | Feature overview / user guide | [docs/FEATURES.md](docs/FEATURES.md), [docs/USER_GUIDE.md](docs/USER_GUIDE.md), `docs/user-guide/` |
@@ -130,7 +131,9 @@ style), so features become self-contained first-party plugins. Shipped: `plugins
 `plugins/ndi`, `plugins/calibration` (fully inverted through Stage 3 — engine, host-services,
 back-channel, wizards, pose orchestration, projector-panel rendering; App/ProjectorApp import zero
 calibration code), `plugins/spout` (Windows Spout receive), `plugins/hap` (HAP video codec — the first
-`VideoCodec` contribution), and `plugins/mp4` (GPU WebCodecs MP4 decode, opt-in via `mp4WebCodecs`).
+`VideoCodec` contribution), `plugins/mp4` (GPU WebCodecs MP4 decode, opt-in via `mp4WebCodecs`), and `plugins/mediapipe`
+(camera-based BlazePose tracking — a webcam pose *tracking source*, WASM in-renderer; see
+[docs/MEDIAPIPE.md](docs/MEDIAPIPE.md)).
 `.mov`/`.mp4` decode dispatches through `videoCodecRegistry` from surfaces, the timeline, and thumbnails.
 The SDK spans content-source, clip-kind, projector (data + GPU + panel), scene-viz, host-services, and
 video-codec contributions. `npm run verify:plugins` guards single-identity. Next codec: DXV — see ROADMAP.

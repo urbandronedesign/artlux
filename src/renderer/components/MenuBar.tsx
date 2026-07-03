@@ -76,6 +76,7 @@ function buildMenus(recents: string[]): Menu[] {
         { label: 'Toggle Developer Tools', accel: 'Ctrl+Shift+I', cmd: 'devtools' },
         { sep: true },
         { label: 'OSC Monitor…', accel: 'Ctrl+Shift+M', action: 'osc-monitor' },
+        { label: 'Pose Monitor…', action: 'pose-monitor' },
         { sep: true },
         { label: 'Reset Zoom', accel: 'Ctrl+0', cmd: 'zoom-reset' },
         { label: 'Zoom In', accel: 'Ctrl++', cmd: 'zoom-in' },
