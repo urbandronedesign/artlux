@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.20.0
 
 - **New: per-scene timelines + per-state authoring loop.** Each **Scene** may now own its own
   **Timeline** (its own tracks/clips/playhead). Recalling a scene **warm-swaps** the playback engine to
