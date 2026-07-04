@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- **New: per-scene timelines + per-state authoring loop.** Each **Scene** may now own its own
+  **Timeline** (its own tracks/clips/playhead). Recalling a scene **warm-swaps** the playback engine to
+  that timeline; scenes without one fall back to the shared global timeline (additive, **zero project
+  migration**). The engine holds **pool-keyed per-layer decoders per scene** (one active at a time —
+  `warmPool`/`swap`/`releasePool`) with a **clean first-frame restart** on every trigger, and a tiered
+  **preloader** (`services/timelinePreloader.ts`: ACTIVE / ≤`MAX_WARM` WARM / COLD, LRU + FSM
+  look-ahead) keeps swaps hitless — steady-state load stays that of a single-timeline app, and only the
+  active scene holds live NDI/camera/Spout receivers (one transport at a time). The timeline **editor
+  binds to the current scene** (initial-state scene on load, and follows GO/cueBus/FSM), so "just
+  editing" attaches to a real scene instead of Global; `buildSceneSnapshot` is now **look-only** so
+  "Update Scene" never clobbers a scene's timeline; projector windows receive the current scene's
+  timeline. UX: a Timeline **scene/state pill** + author strip (Prev/Save/Next), empty-timeline CTA,
+  per-state **accent** identity, state-graph build-status badges + "Edit timeline", and a Scenes/Cues
+  cell **Edit** + hover-preload. Verified end-to-end via `scripts/test-scene-timelines.cjs` (CDP,
+  10/10). See [docs/SCENE-TIMELINES.md](docs/SCENE-TIMELINES.md).
 - **New: camera pose tracking (`plugins/mediapipe`).** A webcam + Google MediaPipe **BlazePose** as a
   *tracking source* — each detected person becomes a normalized position that maps onto a surface like
   a LiDAR blob, so body-driven interactive mapping works with no specialized sensors. Standalone

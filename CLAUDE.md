@@ -29,6 +29,7 @@ a project-level state machine, scenes/cues, OSC control, and a 3D simulator.
 | LED map / fixture geometry | [docs/LEDMAP.md](docs/LEDMAP.md) |
 | Timeline NLE | [docs/TIMELINE.md](docs/TIMELINE.md) |
 | Scenes & cues | [docs/SCENES.md](docs/SCENES.md) |
+| **Per-scene timelines + per-state authoring loop** | [docs/SCENE-TIMELINES.md](docs/SCENE-TIMELINES.md) |
 | Projector calibration (structured light + pose) | [docs/CALIBRATION.md](docs/CALIBRATION.md), [docs/AUTO-ALIGN.md](docs/AUTO-ALIGN.md), [docs/CALIB-OPTIMIZATIONS.md](docs/CALIB-OPTIMIZATIONS.md) |
 | NVIDIA hardware warp/blend | [docs/NVWARP.md](docs/NVWARP.md) |
 | NDI network video | [docs/NDI.md](docs/NDI.md) |

@@ -61,19 +61,28 @@ state," column Cues to assemble a state from independent parts without pre-bakin
 
 ## What a Scene captures
 
-A Scene stores the visible state, **not** the playing transport or rig wiring:
+A Scene stores the visible state (and, optionally, its **own timeline**), **not** the media library or
+rig wiring:
 
 | Captured | Not captured |
 |----------|--------------|
-| `surfaces` (placement + content) | `timeline` (playhead / clips) |
-| `fixtures` (patch, effects, segments — live `colorData` stripped) | `assets` (media library) |
-| `globalBrightness` | `controllers` (output devices) |
-| `groups` | `settings` (Art-Net/OSC/output config) |
+| `surfaces` (placement + content) | `assets` (media library) |
+| `fixtures` (patch, effects, segments — live `colorData` stripped) | `controllers` (output devices) |
+| `globalBrightness` | `settings` (Art-Net/OSC/output config) |
+| `groups` | |
 | `scene3D` | |
 | `projectorOutputs` (corner-pin / warp / soft-edge) | |
+| `timeline` *(optional — per-state decoupled NLE)* | |
 
 Every field beyond `fixtures`/`globalBrightness` is optional, so projects saved with the older
 minimal Scene shape still load and recall (fixtures + brightness).
+
+> **Per-scene timelines.** A Scene *may* now own its own `timeline`; recalling it **warm-swaps** the
+> playback engine to that timeline (scenes without one fall back to the shared global timeline). This is
+> the seam that turns Scenes into fully decoupled *states* you author one at a time. Full design —
+> engine pools, the current-scene binding, the preloader, and the authoring-loop UX — is in
+> [SCENE-TIMELINES.md](SCENE-TIMELINES.md). (`buildSceneSnapshot` stays look-only, so **Update Scene**
+> never overwrites a scene's timeline.)
 
 `fadeSec` is the per-scene **crossfade** time. On recall, fadeable numeric params (global brightness,
 surface/fixture geometry, surface **opacity**, and effect speed/intensity) animate from their current
@@ -94,11 +103,14 @@ already rides in `buildProjectData`/`applyProjectData` and `ProjectData.scenes`.
 ## Creating & managing scenes
 
 In the bottom dock → **Scenes & Cues** tab (next to Timeline,
-[components/ScenesCuesPanel.tsx](../src/renderer/components/ScenesCuesPanel.tsx)):
+[components/CueBankPanel.tsx](../src/renderer/components/CueBankPanel.tsx)):
 
 - **Capture scene** (toolbar) — capture the current look as a new scene.
-- **GO** — recall the scene (snaps the look back).
-- **↻ Update** — re-capture the current look into the existing scene (keeps id/name/fade).
+- **GO** — recall the scene (snaps the look back, and makes it the current edit target — see
+  [SCENE-TIMELINES.md](SCENE-TIMELINES.md)).
+- **🎬 Edit** — enter *author mode* on that scene's own timeline (binds the Timeline editor to it).
+- **↻ Update** — re-capture the current **look** into the existing scene (keeps id/name/fade — and the
+  scene's own timeline, which `buildSceneSnapshot` never touches).
 - **double-click name** — rename.
 - **fade field** — store a fade time (inactive in this version).
 - **OSC trigger** column — shows the ready-to-copy OSC address for each scene.

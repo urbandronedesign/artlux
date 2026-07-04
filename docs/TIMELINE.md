@@ -39,13 +39,18 @@ src/renderer/components/timeline/
   hooks/useTimelineKeys.ts  keyboard shortcuts scoped to the panel
 
 src/renderer/services/
-  timeline.ts          the playback engine (unbounded clock + per-track decode + transport intents)
+  timeline.ts          the playback engine (unbounded clock + per-track decode + transport intents + per-scene pools)
+  timelinePreloader.ts tiered residency (ACTIVE/WARM/COLD) so per-scene timeline swaps stay hitless — see SCENE-TIMELINES.md
   stateMachine.ts      PURE-ish FSM runtime: tick/triggerManual/subscribeState, emits TransportIntents
   thumbnailCache.ts    async LRU thumbnail extraction, isolated from playback
   hapDecode.ts         + decodeFrameRaw(): one-shot HAP decode that bypasses the playback ring
 ```
 
-State lives in `App.tsx` (`timeline: Timeline`) and persists to `ProjectData.timeline`.
+State lives in `App.tsx` (`timeline: Timeline`) and persists to `ProjectData.timeline`. That is the
+**shared global** timeline; each **Scene** may also own its own `timeline`, and the editor/engine bind
+to whichever is *current* — see [SCENE-TIMELINES.md](SCENE-TIMELINES.md). The engine now holds a
+**pool of per-layer decoders per scene** (one active at a time) with `warmPool`/`swap`/`releasePool`;
+a tiered `services/timelinePreloader.ts` keeps scene swaps hitless.
 
 ## Data model (`src/renderer/types.ts`)
 
