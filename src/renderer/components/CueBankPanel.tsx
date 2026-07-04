@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Scene, Cue, CueBank, CueEntry, CueTransition, Surface, Fixture } from '../types';
-import { Plus, Trash2, Play, RefreshCw, Camera, Zap, X } from 'lucide-react';
+import { Plus, Trash2, Play, RefreshCw, Camera, Zap, X, Film } from 'lucide-react';
 import { getByPath, globalParams, surfaceParams, fixtureParams, type StateView, type ParamDef } from '../services/paramPath';
 
 interface Props {
@@ -21,6 +21,11 @@ interface Props {
     // Cue firing
     onFireCue: (cue: Cue) => void;
     onFireColumn: (bankId: string, col: number) => void;
+    // Per-state timelines: enter author mode on a scene's own timeline; warm its media on hover; which
+    // scene is currently being authored (accent dot). All optional (feature-gated in App).
+    onEditScene?: (sceneId: string) => void;
+    onPreloadScene?: (scene: Scene) => void;
+    activeSceneId?: string | null;
 }
 
 const TRANSITIONS: CueTransition[] = ['smooth', 'linear', 'damper', 'none'];
@@ -32,6 +37,7 @@ const uid = () => crypto.randomUUID();
 export const CueBankPanel: React.FC<Props> = ({
     banks, onChangeBanks, scenes, surfaces, fixtures, getCurrentState, oscPrefix,
     onCaptureScene, onRecallScene, onUpdateScene, onRemoveScene, onRenameScene, onUpdateSceneFade, onFireCue, onFireColumn,
+    onEditScene, onPreloadScene, activeSceneId,
 }) => {
     const [editSceneId, setEditSceneId] = useState<string | null>(null);
     const [editSceneName, setEditSceneName] = useState('');
@@ -153,8 +159,11 @@ export const CueBankPanel: React.FC<Props> = ({
                         {cols.map(c => {
                             const s = sceneAt(c);
                             return s ? (
-                                <div key={c} className={`${cellBase} border-sel-surface/40 bg-sel-surface/5 group`}>
+                                <div key={c} onMouseEnter={() => onPreloadScene?.(s)}
+                                    className={`${cellBase} bg-sel-surface/5 group ${activeSceneId === s.id ? 'border-sel-surface' : 'border-sel-surface/40'}`}
+                                    style={activeSceneId === s.id && s.accent ? { borderColor: s.accent } : undefined}>
                                     <div className="flex items-center gap-1">
+                                        {s.accent && <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ background: s.accent }} />}
                                         <button onClick={() => onRecallScene(s)} className="px-1 rounded bg-accent/15 text-accent hover:bg-accent/25 text-micro font-semibold" title="GO">GO</button>
                                         {editSceneId === s.id ? (
                                             <input autoFocus value={editSceneName} onChange={e => setEditSceneName(e.target.value)}
@@ -169,6 +178,7 @@ export const CueBankPanel: React.FC<Props> = ({
                                         <input type="number" min={0} step={0.1} value={s.fadeSec ?? 0} onChange={e => onUpdateSceneFade(s.id, Math.max(0, Number(e.target.value) || 0))}
                                             title="Crossfade (s)" className="w-9 bg-transparent hover:bg-surface-1 border border-transparent hover:border-line-1 rounded px-0.5 text-fg-3 tabular-nums" />
                                         <span className="opacity-0 group-hover:opacity-100 flex gap-1">
+                                            {onEditScene && <button onClick={() => onEditScene(s.id)} title="Edit this state's timeline" className="hover:text-fg-1"><Film size={10} /></button>}
                                             <button onClick={() => onUpdateScene(s.id)} title="Update from current look" className="hover:text-fg-1"><RefreshCw size={10} /></button>
                                             <button onClick={() => onRemoveScene(s.id)} title="Delete scene" className="hover:text-danger"><Trash2 size={10} /></button>
                                         </span>

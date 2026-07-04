@@ -30,7 +30,17 @@ type LayerVid = {
 
 const layerKey = (layerId: string): string => `layer:${layerId}`;
 
-const layerVideos = new Map<string, LayerVid>();
+// Per-scene decoupled timelines: each scene owns its own timeline, so each needs its own pool of
+// per-layer <video> elements. `pools` is keyed by poolKey (scene.id, or '__global__' for the shared
+// fallback timeline). Exactly ONE pool is ACTIVE (playing) at a time — `layerVideos` always points at
+// pools.get(activeKey), so the frame loop / syncLayer / drawable readers are unchanged; a warm-swap
+// just repoints `layerVideos` at an already-decoded standby pool. WARM standby pools hold paused
+// <video>s (a decoder, ~0 CPU) pre-rolled to the timeline's first frame so promotion is hitless.
+export const GLOBAL_POOL = '__global__';
+type LayerPool = Map<string, LayerVid>;
+const pools = new Map<string, LayerPool>([[GLOBAL_POOL, new Map()]]);
+let activeKey = GLOBAL_POOL;
+let layerVideos: LayerPool = pools.get(GLOBAL_POOL)!;
 // External mirror windows (Scene / projector) don't decode: the main window decodes once
 // and streams each layer's frame here as a transferable ImageBitmap (keeps concurrent
 // hardware-decode sessions to one — see App.tsx scene/projector frame pumps).
@@ -87,13 +97,13 @@ const smContext = (): SmContext => ({ markers: data.markers ?? [], clipActive, e
 
 const ensureBlob = (path: string): void => { void ensureBlobUrl(path, 'video/mp4'); };
 
-function getLayerVideo(layerId: string): LayerVid {
-  let lv = layerVideos.get(layerId);
+function getLayerVideo(layerId: string, pool: LayerPool = layerVideos): LayerVid {
+  let lv = pool.get(layerId);
   if (!lv) {
     const el = document.createElement('video');
     el.muted = true; el.playsInline = true; el.loop = false; el.crossOrigin = 'anonymous';
     lv = { el, clipId: null, srcPath: null, mode: null, codec: null };
-    layerVideos.set(layerId, lv);
+    pool.set(layerId, lv);
   }
   return lv;
 }
@@ -196,6 +206,71 @@ function syncContentLayer(layerId: string, lv: LayerVid, clip: VideoClip, t: num
   lv.contentLocalTime = t - clip.start + clip.inPoint;
 }
 
+// --- Per-scene timeline swap helpers (main window only) ------------------------------------------
+
+// Warm shared, path-keyed media for a timeline's clips (blob URLs + codec sessions). Idempotent and
+// cheap — mediaCache and codec preWarm both dedupe by path. Shared by setData (cold) and warmPool.
+function warmMedia(t: Timeline): void {
+  for (const c of t.clips) {
+    if ((c.kind && clipKindRegistry.has(c.kind)) || isContentClip(c)) continue; // non-video / lazy content
+    const codec = videoCodecRegistry.forPath(c.path);
+    if (codec) codec.preWarm(c.path);
+    else ensureBlob(c.path);
+  }
+}
+
+// The clip visible at a timeline's start (inPoint ?? 0) on a given layer — the frame a clean restart shows.
+function startClip(t: Timeline, layerId: string): { clip: VideoClip; startT: number } | null {
+  const startT = t.inPoint ?? 0;
+  let found: VideoClip | null = null;
+  for (const c of t.clips) if (c.layerId === layerId && startT >= c.start && startT < c.start + c.duration) found = c;
+  return found ? { clip: found, startT } : null;
+}
+
+// Pre-roll a standby pool: for each layer, create a paused <video> seeked to the exact first frame the
+// timeline shows at its start, so readyState climbs to >=2 BEFORE the swap (no black/partial first
+// frame). Video/codec only — content/live clips are lazy and only ever acquired by the ACTIVE pool.
+function warmPoolVideos(pool: LayerPool, t: Timeline): void {
+  for (const l of t.layers) {
+    if (clipKindRegistry.get(l.kind ?? '')?.skipVideoSync) continue;
+    const sc = startClip(t, l.id);
+    if (!sc || isContentClip(sc.clip)) continue;
+    const codec = videoCodecRegistry.forPath(sc.clip.path);
+    if (codec) { codec.preWarm(sc.clip.path); continue; } // codec frames are pulled on demand; preWarm suffices
+    const url = getBlobUrl(sc.clip.path);
+    if (!url) { ensureBlob(sc.clip.path); continue; } // not loaded yet — pre-roll on a later warm() pass
+    const lv = getLayerVideo(l.id, pool);
+    if (lv.srcPath !== sc.clip.path) { lv.el.src = url; lv.srcPath = sc.clip.path; }
+    lv.el.pause();
+    const target = sc.startT - sc.clip.start + sc.clip.inPoint;
+    try { lv.el.currentTime = Math.max(0, target); } catch { /* seek once metadata lands */ }
+  }
+}
+
+// Tear down per-layer <video>s in a pool that its timeline no longer references. Codec/content release
+// is keyed by layerId GLOBALLY, so only release for a layerId the ACTIVE timeline doesn't also use.
+function pruneStaleLayers(pool: LayerPool, t: Timeline): void {
+  for (const id of [...pool.keys()]) {
+    if (t.layers.find(l => l.id === id)) continue;
+    const lv = pool.get(id)!;
+    lv.el.pause(); lv.el.removeAttribute('src');
+    pool.delete(id);
+    if (!data.layers.find(l => l.id === id)) { // not held by the active timeline → safe to free shared state
+      for (const c of videoCodecRegistry.all()) c.releaseLayer(id);
+      contentSource.release(layerKey(id));
+    }
+  }
+}
+
+// Main-window seek (mirror-window phase-lock lives in the seek() method). Re-anchors the monotonic
+// clock and suppresses FSM crossings across the jump — the clean first-frame start on every trigger.
+function mainSeek(sec: number): void {
+  const clamped = Math.max(0, sec);
+  playhead = clamped;
+  originMs = performance.now() - clamped * 1000;
+  prevPlayhead = clamped;
+}
+
 function frame(now: number): void {
   raf = requestAnimationFrame(frame); // reschedule first so a throw below can never kill the loop
   try {
@@ -277,21 +352,61 @@ function buildProgram(): void {
 }
 
 export const timeline = {
+  // Feed the ACTIVE timeline document (initial load, editing the active timeline, projector bridge).
+  // Per-scene recall does NOT go through here — it uses swap() to promote a warm standby pool. Keeps
+  // `data` and the active pool in sync: pre-warm the incoming media and prune the active pool's stale
+  // layers. Tracking-take clips (.lblob) aren't video — trackingPlayback handles them.
   setData(t: Timeline): void {
     data = t;
     if (external) return; // mirror windows don't decode — no blobs / video elements to manage
-    // Pre-warm: open HAP clips natively; preload blob URLs for normal clips. Tracking-take
-    // clips (.lblob) aren't video — they're handled by trackingPlayback, so skip them here.
-    for (const c of t.clips) {
-      if ((c.kind && clipKindRegistry.has(c.kind)) || isContentClip(c)) continue; // non-video kinds (takes → trackingPlayback); content → lazy on acquire
-      const codec = videoCodecRegistry.forPath(c.path);
-      if (codec) codec.preWarm(c.path);
-      else ensureBlob(c.path);
-    }
-    for (const id of [...layerVideos.keys()]) {
-      if (!t.layers.find(l => l.id === id)) { const lv = layerVideos.get(id)!; lv.el.pause(); lv.el.removeAttribute('src'); layerVideos.delete(id); for (const c of videoCodecRegistry.all()) c.releaseLayer(id); contentSource.release(layerKey(id)); }
-    }
+    warmMedia(t);
+    pruneStaleLayers(layerVideos, t);
   },
+  // Pre-warm a scene's timeline into a standby pool WITHOUT going live (WARM tier): shared media by
+  // path + a paused, first-frame-seeked <video> per layer, so a later swap() is hitless. Idempotent.
+  warmPool(poolKey: string, t: Timeline): void {
+    if (external) return;
+    let pool = pools.get(poolKey);
+    if (!pool) { pool = new Map(); pools.set(poolKey, pool); }
+    warmMedia(t);
+    warmPoolVideos(pool, t);
+  },
+  // Promote a (warm, ideally) pool to ACTIVE — the seamless per-scene timeline swap. Only ONE pool is
+  // ever live: the outgoing one is paused (kept warm for the preloader to evict), orphaned content
+  // sources are released, and by default the incoming timeline restarts at its first frame.
+  swap(poolKey: string, t: Timeline, opts?: { transport?: 'restart' | 'preserve'; holdMs?: number }): void {
+    if (external) { data = t; return; } // mirror windows just track the doc; App bridges it separately
+    const prevData = data;
+    const prevKey = activeKey;
+    data = t;
+    let pool = pools.get(poolKey);
+    if (!pool) { pool = new Map(); pools.set(poolKey, pool); warmMedia(t); warmPoolVideos(pool, t); } // cold fallback
+    activeKey = poolKey;
+    layerVideos = pool;
+    // One transport at a time: pause the outgoing pool's videos (kept warm; preloader evicts later).
+    if (prevKey !== poolKey) { const prev = pools.get(prevKey); if (prev) for (const lv of prev.values()) { if (!lv.el.paused) lv.el.pause(); } }
+    // Only ACTIVE holds live receivers — release generalized-content the swap orphaned (layers the old
+    // timeline had but the new one doesn't).
+    for (const l of prevData.layers) { if (!t.layers.find(nl => nl.id === l.id)) contentSource.release(layerKey(l.id)); }
+    pruneStaleLayers(pool, t);
+    warmMedia(t);
+    if ((opts?.transport ?? 'restart') === 'restart') mainSeek(t.inPoint ?? 0); // clean first-frame start
+  },
+  // Demote a standby pool to COLD: tear down its <video>s (decoders) and free codec/content it uniquely
+  // holds. Never drops the global fallback or the currently-active pool. Driven by the preloader.
+  releasePool(poolKey: string): void {
+    if (poolKey === GLOBAL_POOL || poolKey === activeKey) return;
+    const pool = pools.get(poolKey);
+    if (!pool) return;
+    for (const [id, lv] of pool) {
+      lv.el.pause(); lv.el.removeAttribute('src');
+      if (!data.layers.find(l => l.id === id)) { for (const c of videoCodecRegistry.all()) c.releaseLayer(id); contentSource.release(layerKey(id)); }
+    }
+    pools.delete(poolKey);
+  },
+  // Which pool keys currently hold decoders (active + warm standby) — for the preloader's LRU budget.
+  warmPoolKeys(): string[] { return [...pools.keys()]; },
+  activePoolKey(): string { return activeKey; },
   setPlaying(p: boolean): void {
     if (p === playing) return;
     playing = p;
@@ -310,9 +425,7 @@ export const timeline = {
       else originMs -= err * 1000 * SLEW;
       return;
     }
-    playhead = clamped;
-    originMs = performance.now() - clamped * 1000;
-    prevPlayhead = clamped; // don't fire FSM crossings across a deliberate jump
+    mainSeek(clamped); // don't fire FSM crossings across a deliberate jump
   },
   getPlayhead(): number { return playhead; },
   getDuration(): number { return data.duration; },

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, defaultStateMachine, normalizeStateMachine, type AssetEntry, type AssetType } from './types';
+import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, type AssetEntry, type AssetType } from './types';
 import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge, WINDOWED_DISPLAY } from '../../shared/protocol';
 import type { ProjectorCalibration } from '../../shared/protocol';
 import { CalibWizard, AutoAlignWizard, calibCapture as cam, measureGamma, calibWorkspace } from '@artlux/plugin-calibration/renderer';
@@ -36,7 +36,9 @@ import { sendArtNetFrame, configureOutput, addStatusListener } from './services/
 import { dmxSignal } from './services/dmxSignal';
 import { perfMonitor } from './services/perfMonitor';
 import { getDrawable } from './services/surfaceMedia';
-import { timeline as timelineEngine } from './services/timeline';
+import { timeline as timelineEngine, GLOBAL_POOL } from './services/timeline';
+import * as timelinePreloader from './services/timelinePreloader';
+import { nextAccent, GLOBAL_ACCENT } from './sceneAccent';
 import * as oscController from './services/oscController';
 import { useLayout } from './hooks/useLayout';
 import { layoutStore, type WorkspaceLayout } from './services/layoutStore';
@@ -153,6 +155,9 @@ const App: React.FC = () => {
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [modelNaturalSizes, setModelNaturalSizes] = useState<Record<string, number>>({});
   const [timeline, setTimeline] = useState<Timeline>(defaultTimeline());
+  // Per-scene decoupled timelines: the editor binds to ONE timeline at a time — the scene currently
+  // being authored (its own `scene.timeline`) or the shared global `timeline` when none is (null).
+  const [activeSceneId, setActiveSceneId] = useState<string | null>(null);
   // Project-level "Show" state machine over scenes (lives outside the timeline; runs on a standalone
   // clock via the engine — see services/timeline.ts setStateMachine).
   const [stateMachine, setStateMachine] = useState<StateMachine>(defaultStateMachine());
@@ -161,6 +166,15 @@ const App: React.FC = () => {
   const [routingOpen, setRoutingOpen] = useState(false);
   const [outputsOpen, setOutputsOpen] = useState(false);
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
+
+  // The scene currently being authored and the timeline the editor is bound to. `activeTimeline` is
+  // the scene's own timeline when authoring, else the shared global one — the single doc the timeline
+  // panel shows/edits and the engine plays for the active pool.
+  const activeScene = activeSceneId ? scenes.find(s => s.id === activeSceneId) ?? null : null;
+  const activeTimeline: Timeline = activeScene?.timeline ?? timeline;
+  // Live mirrors for []-deps engine subscriptions (FSM look-ahead preload) — see below.
+  const scenesRef = useRef(scenes); scenesRef.current = scenes;
+  const stateMachineRef = useRef(stateMachine); stateMachineRef.current = stateMachine;
 
   // Projector outputs: per-surface fullscreen on a physical display.
   const [projectorOutputs, setProjectorOutputs] = useState<ProjectorOutput[]>([]);
@@ -535,9 +549,13 @@ const App: React.FC = () => {
     projectorOutputs,
   });
   const handleCaptureScene = () => {
-    setScenes([...scenes, { id: generateId(), name: `Scene ${scenes.length + 1}`, fadeSec: 0, ...buildSceneSnapshot() }]);
+    const id = generateId();
+    // A fresh capture takes the currently-bound timeline as its own (deep-cloned so later edits to
+    // other timelines don't mutate it); the snapshot itself is look-only so Update never clobbers it.
+    setScenes([...scenes, { id, name: `Scene ${scenes.length + 1}`, fadeSec: 0, ...buildSceneSnapshot(), timeline: structuredClone(activeTimeline), accent: nextAccent(scenes.map(s => s.accent), id) }]);
   };
-  // Re-capture current state into an existing scene (keeps id/name/fadeSec) — MadMapper "Update Scene".
+  // Re-capture current LOOK into an existing scene (keeps id/name/fadeSec/timeline) — MadMapper
+  // "Update Scene". buildSceneSnapshot is look-only, so a scene's own timeline is never clobbered.
   const handleUpdateScene = (id: string) => {
     setScenes(scenes.map(s => s.id === id ? { ...s, ...buildSceneSnapshot() } : s));
   };
@@ -566,8 +584,95 @@ const App: React.FC = () => {
     } else {
       transitions.cancel();
     }
+    // Per-scene decoupled timelines: warm-swap the engine to this scene's own timeline (or global
+    // content) and make this the CURRENT edit target — so "just editing" the timeline attaches here
+    // and the editor binding never diverges from the engine's active pool. Manual GO, cueBus and the
+    // FSM all reach here, so they inherit both for free.
+    swapTimelineForScene(scene);
+    setActiveSceneId(scene.id);
   };
-  const handleRemoveScene = (id: string) => setScenes(scenes.filter(s => s.id !== id));
+  // Warm-swap the playback engine to a scene's timeline, preloading its media first (hitless), and
+  // bridge the new timeline to the projector windows. Keyed by scene.id (a per-scene pool) even when
+  // the scene has no timeline yet (plays global content) so activePoolKey stays == activeSceneId.
+  const swapTimelineForScene = (scene: Scene) => {
+    const tl = scene.timeline ? normalizeTimeline(scene.timeline) : timeline;
+    timelinePreloader.warm(scene.id, tl);
+    timelineEngine.swap(scene.id, tl, { transport: 'restart', holdMs: (scene.fadeSec ?? 0) * 1000 });
+    for (const port of projectorPortsRef.current.values()) port.postMessage({ t: 'timeline', timeline: tl });
+  };
+  const handleRemoveScene = (id: string) => {
+    setScenes(scenes.filter(s => s.id !== id));
+    // If it was the current scene, fall back to global first (releasePool won't drop the active pool).
+    if (activeSceneId === id) {
+      setActiveSceneId(null);
+      timelineEngine.swap(GLOBAL_POOL, timeline, { transport: 'preserve' });
+    }
+    timelineEngine.releasePool(id); // free its warm pool if any
+  };
+
+  // --- Per-state authoring loop (trigger → build → save → continue) ---
+  // Enter author mode for a scene: bind the editor to its own timeline and recall its look live so you
+  // build against real output. The state-machine control layer is left as-is (author with it off).
+  const enterAuthor = (sceneId: string) => {
+    const scene = scenes.find(s => s.id === sceneId);
+    if (!scene) return;
+    // Recall already makes this the current edit target + swaps its pool; the scene's own timeline is
+    // materialized lazily on first edit (handleTimelineChange), seeded from what was shown.
+    handleRecallScene(scene);
+  };
+  // Leave author mode → edit the shared global timeline again (no look recall; just rebind + swap).
+  const exitToGlobal = () => {
+    setActiveSceneId(null);
+    timelineEngine.swap(GLOBAL_POOL, timeline, { transport: 'preserve' });
+    for (const port of projectorPortsRef.current.values()) port.postMessage({ t: 'timeline', timeline });
+  };
+  // Create a new state: a Scene (current look + EMPTY timeline + stable accent) + a bound SmState node,
+  // then drop straight into author mode on its empty timeline — the "new state → empty timeline" flow.
+  const handleCreateState = () => {
+    recordHistory();
+    const id = generateId();
+    const accent = nextAccent(scenes.map(s => s.accent), id);
+    const scene: Scene = { id, name: `State ${scenes.length + 1}`, fadeSec: 0, ...buildSceneSnapshot(), timeline: defaultTimeline(), accent };
+    setScenes(prev => [...prev, scene]);
+    setStateMachine(prev => {
+      const n = prev.states.length;
+      const st: SmState = { id: generateId(), name: scene.name, x: 140 + (n % 5) * 150, y: 110 + Math.floor(n / 5) * 130, entry: [], sceneId: id };
+      return { ...prev, states: [...prev.states, st], initialStateId: prev.initialStateId ?? st.id };
+    });
+    setActiveSceneId(id);
+    timelinePreloader.warm(id, scene.timeline!);
+    timelineEngine.swap(id, scene.timeline!, { transport: 'restart' });
+    for (const port of projectorPortsRef.current.values()) port.postMessage({ t: 'timeline', timeline: scene.timeline });
+  };
+  // Save the state: re-capture look tweaks (the timeline already lives in the scene via onChange).
+  const handleSaveState = () => { if (activeSceneId) handleUpdateScene(activeSceneId); };
+  // Step to the adjacent state (scene order), recalling + rebinding — the "continue" step.
+  const authorStep = (dir: 1 | -1) => {
+    if (!scenes.length) return;
+    const idx = activeSceneId ? scenes.findIndex(s => s.id === activeSceneId) : -1;
+    const next = scenes[(idx + dir + scenes.length) % scenes.length];
+    if (next) enterAuthor(next.id);
+  };
+  // Timeline edits write back to the OWNER: the active scene's own timeline, else the shared global one.
+  const handleTimelineChange = (next: Timeline) => {
+    if (activeSceneId) setScenes(prev => prev.map(s => s.id === activeSceneId ? { ...s, timeline: next } : s));
+    else setTimeline(next);
+  };
+  // The author-context bundle handed to the timeline panel (scene pill + author strip). One object so
+  // the panel's Props stay tidy; both panel mounts (dock + fullscreen) share it.
+  const timelineAuthor = {
+    activeSceneId,
+    activeName: activeScene ? activeScene.name : 'Global',
+    activeAccent: activeScene?.accent ?? GLOBAL_ACCENT,
+    index: activeScene ? scenes.findIndex(s => s.id === activeScene.id) : -1,
+    total: scenes.length,
+    scenes: scenes.map(s => ({ id: s.id, name: s.name, accent: s.accent, hasTimeline: !!s.timeline, clipCount: s.timeline?.clips.length ?? 0 })),
+    onSelect: (sid: string | null) => { if (sid) enterAuthor(sid); else exitToGlobal(); },
+    onSave: handleSaveState,
+    onPrev: () => authorStep(-1),
+    onNext: () => authorStep(1),
+    onNew: handleCreateState,
+  };
   // Resolve a cueBus recall request (id then name) against current scenes. Held in a ref so the
   // once-subscribed cueBus listener always sees the latest scenes/handler closure.
   const recallByRefRef = useRef<(ref: string, fadeSec?: number) => void>(() => {});
@@ -690,7 +795,15 @@ const App: React.FC = () => {
       if (typeof data?.globalBrightness === 'number') setGlobalBrightness(data.globalBrightness);
       setControllers(Array.isArray(data?.controllers) ? data.controllers : []);
       setGroups(Array.isArray(data?.groups) ? data.groups : []);
-      const loadedScenes: Scene[] = Array.isArray(data?.scenes) ? data.scenes : [];
+      // Scenes: normalize any per-scene timeline and assign a stable accent to scenes missing one
+      // (older projects / scenes captured before accents). The current edit target is bound below.
+      const rawScenes: Scene[] = Array.isArray(data?.scenes) ? data.scenes : [];
+      const usedAccents: (string | undefined)[] = [];
+      const loadedScenes: Scene[] = rawScenes.map(s => {
+        const accent = s.accent ?? nextAccent(usedAccents, s.id);
+        usedAccents.push(accent);
+        return { ...s, accent, timeline: s.timeline ? normalizeTimeline(s.timeline) : undefined };
+      });
       setScenes(loadedScenes);
       // Cue banks: use saved banks, else synthesize Bank 1 and place existing scenes in row 0 so
       // older (pre-cues) projects open with their scenes already on the grid.
@@ -705,7 +818,22 @@ const App: React.FC = () => {
       setTimeline(tl);
       // State machine: project-level field, else migrate a legacy machine nested in the timeline.
       const legacySm = (data?.timeline as any)?.stateMachine;
-      setStateMachine(normalizeStateMachine(data?.stateMachine ?? legacySm));
+      const smLoaded = normalizeStateMachine(data?.stateMachine ?? legacySm);
+      setStateMachine(smLoaded);
+      // Bind the editor to the CURRENT scene on open (the initial-state scene, else the first) and swap
+      // the engine to its pool — so "just editing" the timeline attaches to a real scene, not the shared
+      // global one. The loaded project surfaces are already the startup look, so we don't re-recall it
+      // here (interactive GO/select does). Local loaded vars avoid stale-state closures. No scenes →
+      // stay on the global timeline.
+      const initialSceneId = smLoaded.initialStateId
+        ? smLoaded.states.find(s => s.id === smLoaded.initialStateId)?.sceneId
+        : undefined;
+      const currentScene = loadedScenes.find(s => s.id === initialSceneId) ?? loadedScenes[0] ?? null;
+      setActiveSceneId(currentScene?.id ?? null);
+      const curKey = currentScene ? currentScene.id : GLOBAL_POOL;
+      const curTl = currentScene?.timeline ? normalizeTimeline(currentScene.timeline) : tl;
+      timelinePreloader.warm(curKey, curTl);
+      timelineEngine.swap(curKey, curTl, { transport: 'restart' });
       // Asset library: use saved assets; migrate a legacy take-only project (trackingTakes but no
       // assets) so recorded takes still appear in the library. Takes stay owned by the timeline.
       setAssets(Array.isArray(data?.assets) ? data.assets as AssetEntry[] : []);
@@ -955,10 +1083,29 @@ const App: React.FC = () => {
 
   // --- Timeline: feed the playback engine + bridge transport/data to the projector windows ---
   useEffect(() => {
-      timelineEngine.setData(timeline);
-      trackingPlayback.setData(timeline); // replay recorded blob takes when the playhead crosses them
-      for (const port of projectorPortsRef.current.values()) port.postMessage({ t: 'timeline', timeline });
-  }, [timeline]);
+      // Feed the editor-bound timeline to the engine ONLY when it is the pool currently playing live —
+      // i.e. the editor binding matches the engine's active pool. A live GO can make a scene's pool
+      // active while the editor is still bound elsewhere; in that case pushing here would clobber the
+      // live pool with the wrong doc. The swap() at recall already fed + bridged the live timeline;
+      // edits to a non-live pool are applied on its next swap (warmPool/normalizeTimeline).
+      if (timelineEngine.activePoolKey() !== (activeSceneId ?? GLOBAL_POOL)) return;
+      timelineEngine.setData(activeTimeline);
+      trackingPlayback.setData(activeTimeline); // replay recorded blob takes when the playhead crosses them
+      for (const port of projectorPortsRef.current.values()) port.postMessage({ t: 'timeline', timeline: activeTimeline });
+  }, [activeTimeline, activeSceneId]);
+  // FSM look-ahead preloading: when the machine enters a state, warm the timelines of every reachable
+  // next state so a transition into one is hitless. The warm window follows the show's path (§tiers).
+  useEffect(() => timelineEngine.subscribeSmState((stateId) => {
+      if (!stateId) return;
+      const sm = stateMachineRef.current;
+      const nextSceneIds = sm.transitions.filter(t => t.from === stateId)
+        .map(t => sm.states.find(s => s.id === t.to)?.sceneId)
+        .filter((v): v is string => !!v);
+      const entries = nextSceneIds
+        .map(sid => ({ key: sid, tl: scenesRef.current.find(s => s.id === sid)?.timeline }))
+        .filter(e => !!e.tl);
+      if (entries.length) timelinePreloader.predict(entries);
+  }), []);
   // Start the tracking-take replay loop once (main window only).
   useEffect(() => { trackingPlayback.start(); }, []);
   useEffect(() => { timelineEngine.setPlaying(isVideoPlaying); }, [isVideoPlaying]);
@@ -1186,7 +1333,7 @@ const App: React.FC = () => {
               trackingPredictMs: scene3D.trackingPredictMs ?? 50,
           },
       });
-      port.postMessage({ t: 'timeline', timeline });
+      port.postMessage({ t: 'timeline', timeline: activeTimeline }); // the current scene's timeline, not global
       port.postMessage({ t: 'edit', on: editingOutputId === surfaceId });
       // Render-from-projector: while the calibration panel is open it owns the projector's calib mode;
       // otherwise drive it here — render the 3D venue scene when this output opts in and has a full pose.
@@ -1231,7 +1378,7 @@ const App: React.FC = () => {
   // Re-push config (incl. the edit toggle) whenever anything a projector renders changes.
   useEffect(() => {
       for (const surfaceId of projectorPortsRef.current.keys()) pushProjectorStateRef.current(surfaceId);
-  }, [surfaces, projectorOutputs, timeline, isVideoPlaying, editingOutputId, projectorFpsCap, projectorBrightness, scene3D, calibratingOutputId, nvAvailable]);
+  }, [surfaces, projectorOutputs, activeTimeline, isVideoPlaying, editingOutputId, projectorFpsCap, projectorBrightness, scene3D, calibratingOutputId, nvAvailable]);
   // Live projector-brightness push (no full config re-send) — drives slider drag render-free.
   const pushProjectorBrightnessRef = useRef<(v: number) => void>(() => {});
   pushProjectorBrightnessRef.current = (v: number) => {
@@ -1629,7 +1776,7 @@ const App: React.FC = () => {
                     timelineMax ? (
                         <div className="h-full flex items-center justify-center text-fg-3 text-mini italic">Timeline maximized — press F or the restore button to dock it</div>
                     ) : (
-                        <TimelinePanel timeline={timeline} onChange={setTimeline} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} onToggleMax={() => setTimelineMax(true)} projectPath={currentProjectPath} onRegisterAsset={handleRegisterAsset} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} />
+                        <TimelinePanel timeline={activeTimeline} onChange={handleTimelineChange} author={timelineAuthor} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} onToggleMax={() => setTimelineMax(true)} projectPath={currentProjectPath} onRegisterAsset={handleRegisterAsset} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} />
                     )
                 ) : dockTab === DockTab.SCENES ? (
                     <CueBankPanel
@@ -1648,6 +1795,9 @@ const App: React.FC = () => {
                         onUpdateSceneFade={handleUpdateSceneFade}
                         onFireCue={(cue) => applyCues([cue])}
                         onFireColumn={fireColumn}
+                        onEditScene={enterAuthor}
+                        onPreloadScene={(s) => timelinePreloader.warm(s.id, s.timeline)}
+                        activeSceneId={activeSceneId}
                     />
                 ) : (
                     <FixtureEditor
@@ -1809,7 +1959,7 @@ const App: React.FC = () => {
 
       {timelineMax && (
         <div className="fixed inset-0 z-50 bg-surface-0 flex flex-col">
-          <TimelinePanel timeline={timeline} onChange={setTimeline} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} maximized onToggleMax={() => setTimelineMax(false)} projectPath={currentProjectPath} onRegisterAsset={handleRegisterAsset} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} />
+          <TimelinePanel timeline={activeTimeline} onChange={handleTimelineChange} author={timelineAuthor} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} maximized onToggleMax={() => setTimelineMax(false)} projectPath={currentProjectPath} onRegisterAsset={handleRegisterAsset} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} />
         </div>
       )}
 

@@ -446,10 +446,11 @@ export interface FixtureGroup {
 }
 
 // A named snapshot of the look (instant recall). Captures the visible state — surfaces,
-// fixtures, brightness, groups, 3D scene and projector outputs — but NOT the timeline/assets
-// (the playing transport + media library) or rig wiring (controllers/settings). Recall snaps
-// instantly in v1; `fadeSec` is stored for a future crossfade engine. Every field beyond
-// fixtures/globalBrightness is optional so older minimal scenes still load.
+// fixtures, brightness, groups, 3D scene and projector outputs — and MAY now own its own
+// `timeline` (per-state decoupled NLE): when present, recalling the scene warm-swaps the
+// playback engine to it; when absent the scene falls back to the shared ProjectData.timeline.
+// Recall snaps instantly in v1; `fadeSec` is stored for a future crossfade engine. Every field
+// beyond fixtures/globalBrightness is optional so older minimal scenes still load.
 export interface Scene {
   id: string;
   name: string;
@@ -460,6 +461,8 @@ export interface Scene {
   groups?: FixtureGroup[];
   scene3D?: Scene3D;
   projectorOutputs?: ProjectorOutput[];
+  timeline?: Timeline;         // per-state timeline; absent → uses the shared global timeline
+  accent?: string;             // stable identity colour (node/pill/border/strip/cell) — see accentPalette
 }
 
 // --- Granular cues (MadMapper-style cue banks) ---

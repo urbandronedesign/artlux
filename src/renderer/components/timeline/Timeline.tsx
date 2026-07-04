@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { X } from 'lucide-react';
+import { X, ChevronDown, Film, Plus, Save, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Timeline as TL, VideoClip, VideoLayer, SurfaceContent, SourceType, StateMachine, defaultStateMachine, isContentClip, type AssetEntry } from '../../types';
 import { timeline as engine } from '../../services/timeline';
 import { ContentEditor } from '../ContentEditor';
@@ -31,14 +31,32 @@ interface Props {
   onRegisterAsset?: (entry: AssetEntry) => void; // a file dropped onto a lane is imported + added to the library
   scenes?: { id: string; name: string }[]; // for the FSM 'recallScene' action picker
   cues?: { id: string; name: string }[];   // for the FSM 'fireCue' action picker
+  // Per-state authoring context: which scene's timeline is bound to the editor, the scene list for the
+  // pill, and the trigger→build→save→continue handlers. Absent → plain global-timeline editing.
+  author?: AuthorContext;
+}
+
+export interface AuthorContext {
+  activeSceneId: string | null;                 // null = editing the shared global timeline
+  activeName: string;                           // 'Global' or the scene name
+  activeAccent: string;                         // identity colour of the active context
+  index: number;                                // 0-based position of the active scene (−1 for global)
+  total: number;                                // number of scenes (for "State N of M")
+  scenes: { id: string; name: string; accent?: string; hasTimeline: boolean; clipCount?: number }[];
+  onSelect: (sceneId: string | null) => void;   // enter author for a scene, or null → global
+  onSave: () => void;                           // Save to State (re-capture look)
+  onPrev: () => void;                           // ◂ Prev state
+  onNext: () => void;                           // Next ▸ state
+  onNew: () => void;                            // ＋ New state (empty timeline)
 }
 
 // DaVinci-style NLE timeline. Tracks (layers) hold clips placed by time; the unified transport
 // (top-bar play) drives the engine — the playback clock. Edits commit to project state via
 // onChange; the live playhead/time are read from the engine render-free. Layout is a single
 // vertical scroller with a sticky track-header gutter and a sticky timecode ruler.
-export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, onStateMachineChange, playing, onTogglePlay, maximized = false, onToggleMax, projectPath, onRegisterAsset, scenes = [], cues = [] }) => {
+export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, onStateMachineChange, playing, onTogglePlay, maximized = false, onToggleMax, projectPath, onRegisterAsset, scenes = [], cues = [], author }) => {
   const [pxPerSec, setPxPerSec] = useState(40);
+  const [pillOpen, setPillOpen] = useState(false); // scene/state selector dropdown
   const [selected, setSelected] = useState<string | null>(null);
   const [tool, setTool] = useState<'select' | 'blade'>('select');
   const [snapEnabled, setSnapEnabled] = useState(true);
@@ -410,9 +428,65 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
 
   const laneHeightOf = (l: VideoLayer) => (resizeDraft && resizeDraft.id === l.id ? resizeDraft.height : laneHeight(l));
 
+  const authoring = !!author?.activeSceneId;
   return (
     <div ref={panelRef} tabIndex={0} onMouseEnter={() => { hoverRef.current = true; }} onMouseLeave={() => { hoverRef.current = false; }}
-      className="relative h-full flex flex-col bg-surface-0 text-fg-1 text-xs select-none outline-none">
+      className="relative h-full flex flex-col bg-surface-0 text-fg-1 text-xs select-none outline-none"
+      style={{ borderTop: authoring ? `2px solid ${author!.activeAccent}` : undefined }}>
+      {author && (
+        <div className="shrink-0 flex items-center gap-2 px-3 h-8 border-b border-line-1 bg-surface-1 relative">
+          {/* Scene/state selector pill — the always-visible "which timeline am I editing" indicator. */}
+          <button onClick={() => setPillOpen(o => !o)} title="Choose which timeline to edit"
+            className="flex items-center gap-1.5 pl-1.5 pr-2 py-1 rounded-sm bg-surface-2 border border-line-1 hover:bg-surface-3 text-mini">
+            <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: author.activeAccent }} />
+            <span className="text-fg-3">Editing:</span>
+            <span className="text-fg-1 font-medium max-w-[160px] truncate">{author.activeName}</span>
+            <ChevronDown size={12} className="text-fg-3" />
+          </button>
+          {authoring
+            ? <span className="text-micro text-fg-3">its own timeline · {timeline.clips.length} clip{timeline.clips.length === 1 ? '' : 's'}</span>
+            : <span className="text-micro text-fg-3">shared default — used by states without their own</span>}
+
+          {/* Author strip — the trigger→build→save→continue loop (only while authoring a state). */}
+          {authoring && (
+            <div className="ml-auto flex items-center gap-1.5">
+              <button onClick={author.onPrev} title="Previous state" className="p-1 rounded text-fg-2 hover:text-fg-1 hover:bg-surface-2"><ChevronLeft size={14} /></button>
+              <span className="text-micro text-fg-3 tabular-nums">State {author.index + 1} of {author.total}</span>
+              <button onClick={author.onSave} title="Save to State (re-capture look)"
+                className="flex items-center gap-1 px-2 py-1 rounded-sm bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3 text-mini"><Save size={12} /> Save</button>
+              <button onClick={author.onNext} title="Next state" className="p-1 rounded text-fg-2 hover:text-fg-1 hover:bg-surface-2"><ChevronRight size={14} /></button>
+            </div>
+          )}
+
+          {pillOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setPillOpen(false)} />
+              <div className="absolute z-50 top-full left-3 mt-1 w-64 bg-surface-1 border border-line-1 rounded-md p-1 shadow-e2 max-h-80 overflow-auto">
+                <button onClick={() => { author.onSelect(null); setPillOpen(false); }}
+                  className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-mini text-left hover:bg-surface-2 ${!author.activeSceneId ? 'bg-surface-2' : ''}`}>
+                  <span className="inline-block w-2.5 h-2.5 rounded-full border border-line-2" />
+                  <span className="flex-1 text-fg-1">Global timeline</span>
+                  <span className="text-micro text-fg-3">shared</span>
+                </button>
+                <div className="h-px bg-line-1 my-1" />
+                {author.scenes.map(s => (
+                  <button key={s.id} onClick={() => { author.onSelect(s.id); setPillOpen(false); }}
+                    className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-mini text-left hover:bg-surface-2 ${author.activeSceneId === s.id ? 'bg-surface-2' : ''}`}>
+                    <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: s.accent ?? '#8b94a3' }} />
+                    <span className="flex-1 text-fg-1 truncate">{s.name}</span>
+                    {s.hasTimeline
+                      ? <Film size={11} className="text-fg-3" />
+                      : <span className="text-micro text-fg-3 italic">global</span>}
+                  </button>
+                ))}
+                <div className="h-px bg-line-1 my-1" />
+                <button onClick={() => { author.onNew(); setPillOpen(false); }}
+                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-mini text-left text-fg-1 hover:bg-surface-2"><Plus size={12} /> New state…</button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
       <TimelineToolbar
         playing={playing} onTogglePlay={onTogglePlay} timeRef={timeRef}
         duration={dur} onChangeDuration={(d) => onChange({ ...timeline, duration: d })}
@@ -480,11 +554,31 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
             <div className="absolute top-0 -left-[3px] w-[7px] h-[7px] bg-sel-fixture rotate-45" />
           </div>
         </div>
+
+        {/* Empty-timeline drop target: a first-class, inviting state (not a blank/broken lane) so the
+            user knows a fresh state is theirs to populate. Shown whenever the bound timeline has no clips. */}
+        {author && timeline.clips.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ paddingLeft: GUTTER }}>
+            <div className="pointer-events-auto text-center max-w-sm px-6 py-5 rounded-lg border border-dashed border-line-2 bg-surface-1/70">
+              <Film size={22} className="mx-auto text-fg-3 mb-2" />
+              <div className="text-fg-1 text-mini font-medium mb-1">
+                {authoring ? `“${author!.activeName}” timeline is empty` : 'This timeline is empty'}
+              </div>
+              <div className="text-micro text-fg-3 mb-3">
+                Drag video, images or effects onto a lane{layers.length === 0 ? ' — add a track first' : ''} to build {authoring ? `“${author!.activeName}”` : 'it'}.
+              </div>
+              <button onClick={addLayer} className="inline-flex items-center gap-1 px-2 py-1 rounded-sm bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3 text-mini"><Plus size={12} /> Track</button>
+            </div>
+          </div>
+        )}
       </div>
 
       {smEditorOpen && (
-        <StateGraphEditor sm={sm} markers={timeline.markers ?? []} layers={layers} scenes={scenes} cues={cues}
-          onChange={setStateMachine} onClose={() => setSmEditorOpen(false)} />
+        <StateGraphEditor sm={sm} markers={timeline.markers ?? []} layers={layers}
+          scenes={author ? author.scenes.map(s => ({ id: s.id, name: s.name, hasTimeline: s.hasTimeline, clipCount: s.clipCount })) : scenes}
+          cues={cues}
+          onChange={setStateMachine} onClose={() => setSmEditorOpen(false)}
+          onEditTimeline={author ? author.onSelect : undefined} />
       )}
 
       {/* Right-click an empty lane → source-type picker → places a default-length content clip. */}

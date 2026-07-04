@@ -3,7 +3,7 @@ import { StateMachine, SmState, SmTransition, SmRegion, SmAction, SmActionKind, 
 import { timeline as engine } from '../../services/timeline';
 import { X, Plus, Star, Trash2, ArrowRight, Wand2, SquareDashed, Film } from 'lucide-react';
 
-export interface SceneRef { id: string; name: string }
+export interface SceneRef { id: string; name: string; hasTimeline?: boolean; clipCount?: number }
 export interface CueRef { id: string; name: string }
 
 interface Props {
@@ -14,6 +14,7 @@ interface Props {
   cues: CueRef[];
   onChange: (sm: StateMachine) => void;
   onClose: () => void;
+  onEditTimeline?: (sceneId: string) => void; // enter author mode on a state's timeline (closes the graph)
 }
 
 // AutomataUI-style node-graph editor for the project-level "Show" machine over scenes. States are
@@ -53,7 +54,7 @@ type Drag =
   | { kind: 'handle'; id: string; which: 'c1' | 'c2' }
   | { kind: 'pan' };
 
-export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes, cues, onChange, onClose }) => {
+export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes, cues, onChange, onClose, onEditTimeline }) => {
   const [sel, setSel] = useState<{ kind: 'state' | 'transition' | 'region'; id: string } | null>(null);
   const [linkFrom, setLinkFrom] = useState<string | null>(null);     // source state while drawing a transition
   const [linkTo, setLinkTo] = useState<Vec | null>(null);            // live cursor (canvas coords) while linking
@@ -340,6 +341,10 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
                       <span className="text-micro font-medium leading-tight px-1 truncate max-w-[60px]">{s.name.toUpperCase()}</span>
                       {s.lockSec != null && <span className={`text-micro ${isInit ? 'text-black/70' : 'text-fg-3'}`}>[{s.lockSec}]</span>}
                       {scene && <span className={`inline-flex items-center gap-0.5 text-micro ${isInit ? 'text-black/70' : 'text-accent'}`}><Film size={8} /> {scene.name}</span>}
+                      {/* Per-state timeline build status: empty vs populated vs using the shared global. */}
+                      {scene && (scene.hasTimeline
+                        ? <span className={`text-micro ${isInit ? 'text-black/60' : 'text-fg-3'}`}>{scene.clipCount ? `${scene.clipCount} clip${scene.clipCount === 1 ? '' : 's'}` : 'empty'}</span>
+                        : <span className={`text-micro italic ${isInit ? 'text-black/50' : 'text-fg-4'}`}>↩ global</span>)}
                       {/* link nub */}
                       <div title="Drag onto another state to connect" onPointerDown={(e) => beginLink(e, s.id)}
                         className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-accent border border-surface-0 cursor-crosshair" />
@@ -374,6 +379,11 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
                 </button>
                 <SelectField label="Scene (recalled on entry)" value={selState.sceneId ?? ''} options={scenes.map(s => ({ v: s.id, l: s.name }))}
                   onChange={(v) => patchState(selState.id, { sceneId: v || undefined })} />
+                {/* Author this state's own timeline: recalls its look live and binds the editor to it. */}
+                {selState.sceneId && onEditTimeline && (
+                  <button onClick={() => { onEditTimeline(selState.sceneId!); onClose(); }}
+                    className="w-full inline-flex items-center justify-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3"><Film size={12} /> Edit timeline</button>
+                )}
                 <NumField label="Lock time (s) — dwell before auto transitions" value={selState.lockSec ?? 0} onChange={(v) => patchState(selState.id, { lockSec: v || undefined })} />
 
                 <div>
