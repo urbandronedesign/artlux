@@ -61,4 +61,11 @@ graphify-out/*
 !graphify-out/graph.html
 !graphify-out/GRAPH_REPORT.md
 !graphify-out/graph.json
+# graphify-plugins: the plugins-scoped knowledge graph (same 3-artifact policy)
+graphify-plugins/*
+!graphify-plugins/graph.html
+!graphify-plugins/GRAPH_REPORT.md
+!graphify-plugins/graph.json
+# stray graphify cache dumped under plugins/ by a scoped run — regenerable, never commit
+plugins/graphify-out/
 .graphify_*
