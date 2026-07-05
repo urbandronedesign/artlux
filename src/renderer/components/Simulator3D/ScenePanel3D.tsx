@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Fixture, Timeline } from '../../types';
 import { PROGRAM_LAYER_ID } from '../../services/timeline';
 import { Scene3D, SceneModel, modelScaleXYZ } from '../../../../shared/protocol';
-import { Plus, Trash2, Eye, EyeOff, Box, Lightbulb, Save, Check, MonitorPlay, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Trash2, Eye, EyeOff, Box, Lightbulb, Save, Check, MonitorPlay, ChevronLeft, ChevronRight } from 'lucide-react';
 
 // The 3D scene outliner — OBJECTS / FIXTURES / selected-model transform / LIGHTING, plus a Save
 // button. Floats over the embedded Simulator3D in the main window's split view. Purely presentational:
@@ -40,12 +40,22 @@ const ScenePanel3DBase: React.FC<ScenePanel3DProps> = ({
 
   return (
     <div
-      className="absolute top-2 right-2 z-10 w-60 bg-surface-1/95 backdrop-blur-sm border border-line-1 rounded-md text-xs flex flex-col max-h-[calc(100%-1rem)]"
+      className={`shrink-0 h-full bg-surface-1 border-l border-line-1 text-xs flex flex-col ${collapsed ? 'w-9' : 'w-60'}`}
       onPointerDown={(e) => e.stopPropagation()}
     >
+      {collapsed ? (
+        // Collapsed to a slim rail so the 3D canvas reclaims the width; the chevron reopens it.
+        <button
+          onClick={() => setCollapsed(false)}
+          title="Expand 3D Scene panel"
+          className="h-9 shrink-0 flex items-center justify-center text-fg-2 hover:text-accent border-b border-line-1"
+        >
+          <ChevronLeft size={14} />
+        </button>
+      ) : (
       <div className="flex items-center justify-between px-3 h-9 border-b border-line-1">
-        <button onClick={() => setCollapsed(c => !c)} title={collapsed ? 'Expand' : 'Collapse'} className="flex items-center gap-1.5 text-mini font-bold text-fg-1 hover:text-accent">
-          {collapsed ? <ChevronDown size={13} /> : <ChevronUp size={13} />} 3D Scene
+        <button onClick={() => setCollapsed(true)} title="Collapse" className="flex items-center gap-1.5 text-mini font-bold text-fg-1 hover:text-accent">
+          <ChevronRight size={13} /> 3D Scene
         </button>
         <button
           onClick={onSave}
@@ -55,9 +65,10 @@ const ScenePanel3DBase: React.FC<ScenePanel3DProps> = ({
           {saved ? <Check size={13} /> : <Save size={13} />} {saved ? 'Saved' : 'Save'}
         </button>
       </div>
+      )}
 
       {!collapsed && (
-        <div className="flex flex-col min-h-0 overflow-y-auto">
+        <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">
           <div className="flex items-center justify-between px-3 h-8 border-b border-line-1">
             <span className="text-micro font-bold uppercase tracking-wider text-fg-3 flex items-center gap-1.5"><Box size={12} /> Objects</span>
             <div className="flex items-center gap-2">

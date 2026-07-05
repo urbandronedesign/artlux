@@ -31,7 +31,7 @@ import { Preferences } from './components/Preferences';
 import { MenuBar } from './components/MenuBar';
 import { HelpPanel } from './components/HelpPanel';
 import { StatusBar } from './components/StatusBar';
-import { PerfHud } from './components/PerfHud';
+import { PerfPanel } from './components/PerfPanel';
 import { sendArtNetFrame, configureOutput, addStatusListener } from './services/mockSocketService';
 import { dmxSignal } from './services/dmxSignal';
 import { perfMonitor } from './services/perfMonitor';
@@ -51,7 +51,7 @@ import * as cueBus from './services/cueBus';
 import * as transitions from './services/transitions';
 import { collectFadeableTargets, getByPath, setByPath, isFadeablePath, type StateView } from './services/paramPath';
 import { trackingPlayback, trackingDrawable, resetPeopleTracking } from '@artlux/plugin-lidar-tracking';
-import { Activity, SlidersHorizontal, Film, Clapperboard, Columns2, Maximize2, Minimize2 } from 'lucide-react';
+import { Activity, SlidersHorizontal, Film, Clapperboard, Columns2, Maximize2, Minimize2, Gauge } from 'lucide-react';
 import { useHistory } from './hooks/useHistory';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -195,9 +195,9 @@ const App: React.FC = () => {
   const [fps, setFps] = useState(0);
   const frameCount = React.useRef(0);
   const lastTime = React.useRef(performance.now());
-  // Renderer frame-time HUD (editor only; debug-gated). Broadcast has no chrome and uses the console
-  // line + Prometheus gauges instead.
-  const [showPerf, setShowPerf] = useState(() => PERF_FLAG || (typeof localStorage !== 'undefined' && localStorage.getItem('artlux:perf') === '1'));
+  // Renderer frame-time metrics live in the Performance dock tab (editor only). Broadcast has no chrome
+  // and uses the console line + Prometheus gauges instead. `?perf=1` opens that tab on launch.
+  useEffect(() => { if (PERF_FLAG) { setDockOpen(true); setDockTab(DockTab.PERF); } }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const unsubscribe = addStatusListener((status) => {
@@ -247,9 +247,10 @@ const App: React.FC = () => {
                 e.preventDefault();
             }
         }
-        // Ctrl/Cmd+Alt+P — toggle the renderer perf HUD (and persist the choice).
+        // Ctrl/Cmd+Alt+P — open the Performance dock tab (renderer frame-time metrics).
         else if ((e.ctrlKey || e.metaKey) && e.altKey && (e.key === 'p' || e.key === 'P')) {
-            setShowPerf((v) => { const n = !v; try { localStorage.setItem('artlux:perf', n ? '1' : '0'); } catch { /* ignore */ } return n; });
+            setDockOpen(true);
+            setDockTab(DockTab.PERF);
             e.preventDefault();
         }
     };
@@ -1544,6 +1545,7 @@ const App: React.FC = () => {
     { id: DockTab.FIXTURE_EDITOR, label: 'Fixture Editor', icon: <SlidersHorizontal size={13} /> },
     { id: DockTab.TIMELINE, label: 'Timeline', icon: <Film size={13} /> },
     { id: DockTab.SCENES, label: 'Scenes & Cues', icon: <Clapperboard size={13} /> },
+    { id: DockTab.PERF, label: 'Performance', icon: <Gauge size={13} /> },
   ];
 
   // Broadcast (show) mode: no editor chrome — render only the offscreen Stage engine. All the
@@ -1683,7 +1685,7 @@ const App: React.FC = () => {
                                     title={splitView ? 'Hide 3D scene' : 'Show 3D scene (split view)'}
                                     aria-label="Toggle 3D split view"
                                     aria-pressed={splitView}
-                                    className={`p-1.5 rounded-sm border transition-colors ${splitView ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2/80 backdrop-blur-sm border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
+                                    className={`p-1.5 rounded-sm border transition-colors ${splitView ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
                                 >
                                     <Columns2 size={14} />
                                 </button>
@@ -1692,7 +1694,7 @@ const App: React.FC = () => {
                                     title={is3DMaximized ? 'Restore split' : 'Maximize 3D scene'}
                                     aria-label="Maximize 3D scene"
                                     aria-pressed={is3DMaximized}
-                                    className={`p-1.5 rounded-sm border transition-colors ${is3DMaximized ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2/80 backdrop-blur-sm border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
+                                    className={`p-1.5 rounded-sm border transition-colors ${is3DMaximized ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
                                 >
                                     {is3DMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
                                 </button>
@@ -1709,7 +1711,9 @@ const App: React.FC = () => {
                 {splitView && (
                     <>
                         <div onPointerDown={startSplitDrag} className="w-1 shrink-0 bg-line-1 hover:bg-accent cursor-col-resize" />
-                        <div className="flex-1 min-w-0 min-h-0 relative">
+                        <div className="flex-1 min-w-0 min-h-0 flex">
+                            {/* 3D canvas flexes; the Scene outliner docks as a reserved column beside it. */}
+                            <div className="flex-1 min-w-0 min-h-0 relative">
                             <Simulator3D
                                 fixtures={fixtures}
                                 selectedFixtureId={selectedFixtureId}
@@ -1733,8 +1737,10 @@ const App: React.FC = () => {
                                 onSelectPick={calibFlow === 'auto' ? ((i: number) => calibWorkspace.selectPick(i)) : undefined}
                                 hideInspector
                             />
+                            </div>
                             {/* Full scene outliner (OBJECTS / FIXTURES / transform / LIGHTING + Save).
-                                Hidden during a projector calibration session so it doesn't block the pick markers. */}
+                                Docked as a reserved column on the pane's right edge; hidden during a projector
+                                calibration session so it doesn't block the pick markers. */}
                             {!calibratingOutputId && (
                                 <ScenePanel3D
                                     scene3D={scene3D}
@@ -1770,6 +1776,8 @@ const App: React.FC = () => {
             >
                 {dockTab === DockTab.MONITOR ? (
                     <DMXMonitor fixtures={fixtures} />
+                ) : dockTab === DockTab.PERF ? (
+                    <PerfPanel />
                 ) : dockTab === DockTab.TIMELINE ? (
                     // Render the timeline in exactly one place (dock XOR fullscreen overlay) so its
                     // keyboard hook + engine subscription aren't doubled.
@@ -1971,7 +1979,6 @@ const App: React.FC = () => {
         onUseOnSurface={handleUseAssetOnSurface} onSelectSurface={handleSelectSurface}
         onConsolidate={handleCollectAssets}
       />
-      {showPerf && <PerfHud />}
     </div>
   );
 };

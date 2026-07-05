@@ -55,7 +55,7 @@ const ToolBtn: React.FC<{ active: boolean; title: string; onClick: () => void; c
     onClick={onClick}
     title={title}
     aria-pressed={active}
-    className={`p-1.5 rounded-sm border transition-colors ${active ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2/80 backdrop-blur-sm border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
+    className={`p-1.5 rounded-sm border transition-colors ${active ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
   >
     {children}
   </button>
@@ -73,13 +73,17 @@ const Simulator3D: React.FC<Props> = ({
   const models: SceneModel[] = scene3D.models ?? [];
 
   return (
-    <div className="relative w-full h-full bg-surface-0">
-      <div className="absolute top-2 left-2 z-10 flex gap-1">
+    <div className="flex flex-col w-full h-full bg-surface-0">
+      {/* Docked viewport header — transform-mode tools live in reserved chrome, not over the canvas
+          (Houdini-style). The 3D view below renders clean with nothing painted on top. */}
+      <div className="h-9 shrink-0 flex items-center gap-1 px-2 bg-surface-1 border-b border-line-1">
         <ToolBtn active={mode === 'translate'} title="Move (W)" onClick={() => setMode('translate')}><Move3d size={14} /></ToolBtn>
         <ToolBtn active={mode === 'rotate'} title="Rotate (E)" onClick={() => setMode('rotate')}><Rotate3d size={14} /></ToolBtn>
         <ToolBtn active={mode === 'scale'} title="Scale (R)" onClick={() => setMode('scale')}><Maximize size={14} /></ToolBtn>
       </div>
 
+      {/* Canvas region — fills the pane below the header. The inspector overlays only this area. */}
+      <div className="flex-1 relative">
       {/* Numeric transform inspector for the selected model — position, rotation, and per-axis scale. */}
       {!hideInspector && (() => {
         const m = models.find((mm) => mm.id === selectedModelId);
@@ -169,6 +173,7 @@ const Simulator3D: React.FC<Props> = ({
           <Bloom luminanceThreshold={0.1} intensity={0.6} mipmapBlur />
         </EffectComposer>
       </Canvas>
+      </div>
     </div>
   );
 };

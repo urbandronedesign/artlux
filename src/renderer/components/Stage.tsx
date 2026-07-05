@@ -756,38 +756,85 @@ export const Stage: React.FC<StageProps> = ({
   const stageH = contentAspect >= 1 ? 512 / contentAspect : 512;
 
   return (
-    <div
-      ref={viewportRef}
-      className="relative w-full h-full bg-surface-0 overflow-hidden select-none cursor-default"
-      onWheel={handleWheel}
-      onDragOver={(e) => { if (onDropAsset && e.dataTransfer.types.includes('application/artlux-asset')) e.preventDefault(); }}
-      onDrop={(e) => {
-        if (!onDropAsset) return;
-        const raw = e.dataTransfer.getData('application/artlux-asset');
-        if (!raw || !containerRef.current) return;
-        e.preventDefault();
-        let asset: { id: string; type: string; path: string };
-        try { asset = JSON.parse(raw); } catch { return; }
-        if (asset.type !== 'video' && asset.type !== 'image') return; // only video/image fill a surface
-        const r = containerRef.current.getBoundingClientRect();
-        const nx = (e.clientX - r.left) / r.width, ny = (e.clientY - r.top) / r.height;
-        // Topmost surface (highest zIndex; later in array wins ties) whose rect contains the drop.
-        let hit: Surface | null = null;
-        for (const s of surfaces) {
-          if (nx >= s.x && nx <= s.x + s.width && ny >= s.y && ny <= s.y + s.height) {
-            if (!hit || (s.zIndex ?? 0) >= (hit.zIndex ?? 0)) hit = s;
+    <div className="flex flex-col w-full h-full bg-surface-0 select-none">
+      {/* Docked viewport header — tools live in reserved chrome, not floating over the canvas
+          (Houdini-style). The canvas below renders edge-to-edge with nothing painted on top. */}
+      <div className="h-9 shrink-0 flex items-center gap-1 px-2 bg-surface-1 border-b border-line-1">
+        <button
+          onClick={resetView}
+          className="p-1.5 rounded-sm border bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1 transition-colors"
+          title="Reset View"
+          aria-label="Reset view"
+        >
+          <ZoomIn size={14} />
+        </button>
+        <div className="w-px h-5 bg-line-2 mx-1"></div>
+        <button
+          onClick={() => setShowGrid(!showGrid)}
+          className={`p-1.5 rounded-sm border transition-colors ${showGrid ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
+          title="Toggle Grid"
+          aria-label="Toggle grid"
+          aria-pressed={showGrid}
+        >
+          <Grid3X3 size={14} />
+        </button>
+        {showGrid && (
+          <input
+            type="number"
+            min={1}
+            max={64}
+            value={gridDivisions}
+            onChange={(e) => setGridDivisions(Math.max(1, Math.min(64, Math.round(parseFloat(e.target.value) || 1))))}
+            title="Grid divisions"
+            aria-label="Grid divisions"
+            className="w-11 px-1.5 py-1 text-center num text-mini rounded-sm border border-line-1 bg-surface-2 text-fg-1 focus:border-accent focus:outline-none"
+          />
+        )}
+        <button
+          onClick={() => setSnapEnabled(!snapEnabled)}
+          className={`p-1.5 rounded-sm border transition-colors ${snapEnabled ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
+          title="Toggle Snapping"
+          aria-label="Toggle snapping"
+          aria-pressed={snapEnabled}
+        >
+          <Magnet size={14} />
+        </button>
+        {extraControls && <div className="ml-auto flex items-center gap-1">{extraControls}</div>}
+      </div>
+      {/* Pannable/zoomable canvas region. viewportRef tracks THIS element (not the header+canvas
+          combined) so zoom-to-cursor / pan bounding-rect math stays correct. */}
+      <div
+        ref={viewportRef}
+        className="flex-1 relative overflow-hidden cursor-default"
+        onWheel={handleWheel}
+        onDragOver={(e) => { if (onDropAsset && e.dataTransfer.types.includes('application/artlux-asset')) e.preventDefault(); }}
+        onDrop={(e) => {
+          if (!onDropAsset) return;
+          const raw = e.dataTransfer.getData('application/artlux-asset');
+          if (!raw || !containerRef.current) return;
+          e.preventDefault();
+          let asset: { id: string; type: string; path: string };
+          try { asset = JSON.parse(raw); } catch { return; }
+          if (asset.type !== 'video' && asset.type !== 'image') return; // only video/image fill a surface
+          const r = containerRef.current.getBoundingClientRect();
+          const nx = (e.clientX - r.left) / r.width, ny = (e.clientY - r.top) / r.height;
+          // Topmost surface (highest zIndex; later in array wins ties) whose rect contains the drop.
+          let hit: Surface | null = null;
+          for (const s of surfaces) {
+            if (nx >= s.x && nx <= s.x + s.width && ny >= s.y && ny <= s.y + s.height) {
+              if (!hit || (s.zIndex ?? 0) >= (hit.zIndex ?? 0)) hit = s;
+            }
           }
-        }
-        if (hit) { onSelectSurface(hit.id); onDropAsset(hit.id, asset); }
-      }}
-      onMouseDown={(e) => {
-         if (e.button === 1 || (e.button === 0 && e.shiftKey === false)) {
-             startDrag(e, 'pan');
-         } else {
-             onSelectFixture('');
-         }
-      }}
-    >
+          if (hit) { onSelectSurface(hit.id); onDropAsset(hit.id, asset); }
+        }}
+        onMouseDown={(e) => {
+           if (e.button === 1 || (e.button === 0 && e.shiftKey === false)) {
+               startDrag(e, 'pan');
+           } else {
+               onSelectFixture('');
+           }
+        }}
+      >
       <div
         style={{
             transform: `translate(${viewState.x}px, ${viewState.y}px) scale(${viewState.scale})`,
@@ -952,51 +999,7 @@ export const Stage: React.FC<StageProps> = ({
         </div>
       </div>
         
-        <div
-            className="absolute top-2 right-2 flex items-center gap-1 z-stage-overlay"
-            onMouseDown={(e) => e.stopPropagation()}
-        >
-            <button
-                onClick={resetView}
-                className="p-1.5 rounded-sm border bg-surface-2/80 backdrop-blur-sm border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1 transition-colors"
-                title="Reset View"
-                aria-label="Reset view"
-            >
-                <ZoomIn size={14} />
-            </button>
-            <div className="w-px h-5 bg-line-2 mx-1"></div>
-            <button
-                onClick={() => setShowGrid(!showGrid)}
-                className={`p-1.5 rounded-sm border transition-colors ${showGrid ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2/80 backdrop-blur-sm border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
-                title="Toggle Grid"
-                aria-label="Toggle grid"
-                aria-pressed={showGrid}
-            >
-                <Grid3X3 size={14} />
-            </button>
-            {showGrid && (
-                <input
-                    type="number"
-                    min={1}
-                    max={64}
-                    value={gridDivisions}
-                    onChange={(e) => setGridDivisions(Math.max(1, Math.min(64, Math.round(parseFloat(e.target.value) || 1))))}
-                    title="Grid divisions"
-                    aria-label="Grid divisions"
-                    className="w-11 px-1.5 py-1 text-center num text-mini rounded-sm border border-line-1 bg-surface-2/80 backdrop-blur-sm text-fg-1 focus:border-accent focus:outline-none"
-                />
-            )}
-            <button
-                onClick={() => setSnapEnabled(!snapEnabled)}
-                className={`p-1.5 rounded-sm border transition-colors ${snapEnabled ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2/80 backdrop-blur-sm border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
-                title="Toggle Snapping"
-                aria-label="Toggle snapping"
-                aria-pressed={snapEnabled}
-            >
-                <Magnet size={14} />
-            </button>
-            {extraControls && <><div className="w-px h-5 bg-line-2 mx-1"></div>{extraControls}</>}
-        </div>
+      </div>
     </div>
   );
 };
