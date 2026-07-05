@@ -79,6 +79,7 @@ function buildMenus(recents: string[]): Menu[] {
         { label: 'Pose Monitor…', action: 'pose-monitor' },
         { label: 'Pose Floor Calibration…', action: 'pose-calibrate' },
         { label: 'Augmenta Monitor…', action: 'augmenta-monitor' },
+        { label: 'Show Control…', action: 'show-control' },
         { sep: true },
         { label: 'Reset Zoom', accel: 'Ctrl+0', cmd: 'zoom-reset' },
         { label: 'Zoom In', accel: 'Ctrl++', cmd: 'zoom-in' },

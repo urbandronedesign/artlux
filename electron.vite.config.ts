@@ -25,6 +25,9 @@ const sdkAliases = [
   { find: '@artlux/plugin-mp4', replacement: resolve(__dirname, 'plugins/mp4/src') }, // renderer-only, single barrel
   { find: '@artlux/plugin-mediapipe', replacement: resolve(__dirname, 'plugins/mediapipe/src') }, // renderer-only, single barrel
   { find: '@artlux/plugin-augmenta', replacement: resolve(__dirname, 'plugins/augmenta/src') }, // renderer-only, single barrel
+  // Show-control spans both processes (HTTP/SSE server in main + UI in renderer) → explicit subpaths.
+  { find: '@artlux/plugin-show-control/main', replacement: resolve(__dirname, 'plugins/show-control/src/main.ts') },
+  { find: '@artlux/plugin-show-control/renderer', replacement: resolve(__dirname, 'plugins/show-control/src/renderer.ts') },
 ];
 
 export default defineConfig({

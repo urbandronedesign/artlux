@@ -11,6 +11,7 @@ import {
   videoCodecRegistry,
 } from './registries';
 import { timeline } from '../services/timeline';
+import { perfMonitor } from '../services/perfMonitor';
 import type { RendererPlugin, RendererPluginContext, PluginIpc, RendererHostServices } from '@artlux/sdk/renderer';
 import { plugin as lidarTracking } from '@artlux/plugin-lidar-tracking';
 import { plugin as ndi } from '@artlux/plugin-ndi/renderer';
@@ -20,8 +21,9 @@ import { plugin as hap } from '@artlux/plugin-hap/renderer';
 import { plugin as mp4 } from '@artlux/plugin-mp4';
 import { plugin as mediapipe } from '@artlux/plugin-mediapipe';
 import { plugin as augmenta } from '@artlux/plugin-augmenta';
+import { plugin as showControl } from '@artlux/plugin-show-control/renderer';
 
-const FIRST_PARTY: RendererPlugin[] = [lidarTracking, ndi, calibration, spout, hap, mp4, mediapipe, augmenta];
+const FIRST_PARTY: RendererPlugin[] = [lidarTracking, ndi, calibration, spout, hap, mp4, mediapipe, augmenta, showControl];
 
 let activated = false;
 
@@ -33,6 +35,13 @@ const NOOP_HOST: RendererHostServices = {
   scene3D: { get: () => ({}), patch: () => {}, subscribe: () => () => {} },
   projectors: { send: () => {}, onMessage: () => () => {} },
   settings: { get: () => ({}), subscribe: () => () => {} },
+  show: {
+    getStateMachine: () => ({}), getScenes: () => [], getCueBanks: () => [], getSchedule: () => [],
+    setFsmEnabled: () => {}, setSchedule: () => {}, subscribe: () => () => {},
+    getStatus: () => ({ playing: false, playhead: 0, duration: 0, currentStateId: null, stateElapsedSec: 0, activeSceneId: null, lastFiredTransitionId: null }),
+    recallScene: () => {}, fireCue: () => {}, fireColumn: () => {}, transport: () => {},
+    triggerTransition: () => {}, enterState: () => {},
+  },
 };
 
 function makeContext(win: 'main' | 'projector', host: RendererHostServices): RendererPluginContext {
@@ -55,6 +64,11 @@ function makeContext(win: 'main' | 'projector', host: RendererHostServices): Ren
     videoCodecs: videoCodecRegistry,
     ipc,
     onPlayhead: (cb) => timeline.subscribe(cb),
+    // ~1 Hz poll adapter over perfMonitor (which is polled, not observable) — mirrors onPlayhead.
+    onRenderStats: (cb: (s: { fps: number; frameP99: number; workP99: number; longFrames: number }) => void) => {
+      const t = setInterval(() => { const s = perfMonitor.stats(); cb({ fps: s.fps, frameP99: s.frameP99, workP99: s.workP99, longFrames: s.longFrames }); }, 1000);
+      return () => clearInterval(t);
+    },
     host,
   } as unknown as RendererPluginContext;
 }

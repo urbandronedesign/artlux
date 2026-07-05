@@ -1,0 +1,15 @@
+{
+  "name": "@artlux/plugin-show-control",
+  "version": "0.0.0",
+  "private": true,
+  "description": "First-party ArtLux plugin: tablet show-control remote (served PWA over HTTP+SSE), wall-clock scheduler, state-machine control, live metrics, and an unattended multi-project broadcast playlist.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./main": "./src/main.ts",
+    "./renderer": "./src/renderer.ts"
+  },
+  "dependencies": {
+    "@artlux/sdk": "*"
+  }
+}

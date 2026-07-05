@@ -41,6 +41,8 @@ const CHECKS = [
   { plugin: 'mp4',            where: 'renderer', marker: 'mp4-webcodecs',        note: 'mp4Codec id (renderer-only)' },
   { plugin: 'mediapipe',      where: 'renderer', marker: 'mediapipe] subscriber', note: 'poseStore subscriber log (renderer-only)' },
   { plugin: 'augmenta',       where: 'renderer', marker: 'augmenta] subscriber', note: 'augmentaStore subscriber log (renderer-only)' },
+  { plugin: 'show-control',   where: 'renderer', marker: 'showctl:command',      note: 'command intake channel (plugin.renderer)' },
+  { plugin: 'show-control',   where: 'main',     marker: '[show-control] tablet server at', note: 'server listen log (main)' },
 ];
 
 // Contribution-coverage: distinctive strings proving a plugin still REGISTERS a given contribution into
@@ -57,6 +59,7 @@ const CONTRIBUTIONS = [
   { plugin: 'mediapipe',      marker: 'Pose Tracking (MediaPipe)', note: 'Pose Tracking — SettingsSection (settingsSectionRegistry)' },
   { plugin: 'augmenta',       marker: 'augmenta-monitor',   note: 'Augmenta Monitor — modal PanelContribution id (panelRegistry)' },
   { plugin: 'augmenta',       marker: 'Augmenta Tracking',  note: 'Augmenta Tracking — SettingsSection (settingsSectionRegistry)' },
+  { plugin: 'show-control',   marker: 'Show Control',       note: 'Show Control — SettingsSection + operator panel (renderer)' },
 ];
 
 function fail(msg) { console.error(`\x1b[31m✗\x1b[0m ${msg}`); }

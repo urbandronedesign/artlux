@@ -264,11 +264,41 @@ export interface ProjectorsService<Out = unknown, In = unknown> {
   onMessage(cb: (surfaceId: string, msg: In) => void): () => void;
 }
 
+// Read-mostly view of the project "show model" (state machine + scenes + cue banks + schedule) for a
+// feature plugin that presents/controls it out-of-band (e.g. a tablet remote). Reads return the live
+// host state; `setFsmEnabled`/`setSchedule` write back through App (the source of truth). `subscribe`
+// fires whenever any of these change so the plugin can re-push a snapshot. Generic over the host
+// domain types (opaque here). No-op reads/writes in windows without editor state (projector).
+export interface ShowService<SM = unknown, Scene = unknown, Bank = unknown, Entry = unknown> {
+  getStateMachine(): SM;
+  getScenes(): Scene[];
+  getCueBanks(): Bank[];
+  getSchedule(): Entry[];
+  setFsmEnabled(on: boolean): void;
+  setSchedule(entries: Entry[]): void;
+  subscribe(cb: () => void): () => void;
+  // Live transport + FSM status for a remote's status display (polled by the plugin).
+  getStatus(): {
+    playing: boolean; playhead: number; duration: number;
+    currentStateId: string | null; stateElapsedSec: number;
+    activeSceneId: string | null; lastFiredTransitionId: string | null;
+  };
+  // Command surface — the host wires these to the same cueBus/timeline singletons OSC uses, so a
+  // remote drives the show through the identical path (App stays the single writer of `playing`).
+  recallScene(ref: string): void;                 // scene id or name
+  fireCue(ref: string): void;                     // cue id or name
+  fireColumn(bank: string, col: number): void;    // 0-based column
+  transport(intent: { kind: 'play' | 'pause' | 'stop' | 'seek' | 'loop'; sec?: number; loopOn?: boolean }): void;
+  triggerTransition(id: string): void;            // manual FSM transition by id
+  enterState(id: string): void;                   // jump directly to a state by id
+}
+
 export interface RendererHostServices {
   projectorOutputs: ProjectorOutputsService;
   scene3D: Scene3DService;
   projectors: ProjectorsService;
   settings: SettingsService;
+  show: ShowService;
 }
 
 // ─── Renderer plugin context ────────────────────────────────────────────────────────────────
@@ -287,6 +317,9 @@ export interface RendererPluginContext<C = unknown, SurfaceT = unknown, Clip = u
   ipc: PluginIpc;
   // Subscribe to the timeline engine's coalesced per-frame playhead (seconds). Returns unsub.
   onPlayhead(cb: (playheadSec: number) => void): () => void;
+  // Subscribe to renderer frame-time stats (~1 Hz poll of perfMonitor) — fps + p99 frame/work interval
+  // + long (dropped) frames. For a plugin surfacing render health (e.g. a metrics remote). Returns unsub.
+  onRenderStats(cb: (stats: { fps: number; frameP99: number; workP99: number; longFrames: number }) => void): () => void;
   // Host capabilities for feature plugins (read/patch outputs + scene, projector I/O). In projector
   // windows the read/patch services are no-ops (no editor state there); `projectors.onMessage` only
   // fires in the main window (it owns the bridge ports). Replaces the former `getScene3D()`.

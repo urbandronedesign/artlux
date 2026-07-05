@@ -36,6 +36,7 @@ a project-level state machine, scenes/cues, OSC control, and a 3D simulator.
 | OSC control + LiDAR tracking protocol | [docs/OSC.md](docs/OSC.md), [docs/TRACKING_SYNC.md](docs/TRACKING_SYNC.md), [docs/TRACKING_TAKES.md](docs/TRACKING_TAKES.md) |
 | Camera pose tracking (MediaPipe BlazePose) | [docs/MEDIAPIPE.md](docs/MEDIAPIPE.md) |
 | Augmenta optical tracking (OSC v2) | [docs/AUGMENTA.md](docs/AUGMENTA.md) |
+| **Tablet show-control remote + scheduler + project playlist** | [docs/SHOW-CONTROL.md](docs/SHOW-CONTROL.md) |
 | Assets / portable projects | [docs/ASSETS.md](docs/ASSETS.md) |
 | Metrics / monitoring | [docs/MONITORING.md](docs/MONITORING.md) |
 | Feature overview / user guide | [docs/FEATURES.md](docs/FEATURES.md), [docs/USER_GUIDE.md](docs/USER_GUIDE.md), `docs/user-guide/` |
@@ -136,7 +137,11 @@ calibration code), `plugins/spout` (Windows Spout receive), `plugins/hap` (HAP v
 `VideoCodec` contribution), `plugins/mp4` (GPU WebCodecs MP4 decode, opt-in via `mp4WebCodecs`), `plugins/mediapipe`
 (camera-based BlazePose tracking — a webcam pose *tracking source*, WASM in-renderer; see
 [docs/MEDIAPIPE.md](docs/MEDIAPIPE.md)), and `plugins/augmenta` (Augmenta box optical tracking — an OSC v2
-*tracking source* sharing the host OSC listener, renderer-only; see [docs/AUGMENTA.md](docs/AUGMENTA.md)).
+*tracking source* sharing the host OSC listener, renderer-only; see [docs/AUGMENTA.md](docs/AUGMENTA.md)),
+and `plugins/show-control` (cross-process — an embedded HTTP+SSE server serving a tablet PWA for scene/cue/
+transport/state-machine control, a wall-clock scheduler, live Grafana-style metrics, and an unattended
+time-of-day multi-project broadcast playlist; adds a `host.show` SDK service + `ProjectData.schedule`; see
+[docs/SHOW-CONTROL.md](docs/SHOW-CONTROL.md)).
 `.mov`/`.mp4` decode dispatches through `videoCodecRegistry` from surfaces, the timeline, and thumbnails.
 The SDK spans content-source, clip-kind, projector (data + GPU + panel), scene-viz, host-services, and
 video-codec contributions. `npm run verify:plugins` guards single-identity. Next codec: DXV — see ROADMAP.

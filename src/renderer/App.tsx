@@ -117,6 +117,9 @@ const App: React.FC = () => {
   const [groups, setGroups] = useState<FixtureGroup[]>([]);
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [cueBanks, setCueBanks] = useState<CueBank[]>([]);
+  // In-project wall-clock schedule (show-control plugin owns the entry shape; opaque here). Persisted
+  // in ProjectData.schedule and exposed to the plugin read/write via the host `show` service below.
+  const [schedule, setSchedule] = useState<unknown[]>([]);
   const [templates, setTemplates] = useState<FixtureTemplate[]>([]);
   const [controllers, setControllers] = useState<Controller[]>([]);
   // Editor layout lives in the workspace store (persisted to prefs, hydrated on boot). Destructure with
@@ -174,7 +177,13 @@ const App: React.FC = () => {
   const activeTimeline: Timeline = activeScene?.timeline ?? timeline;
   // Live mirrors for []-deps engine subscriptions (FSM look-ahead preload) — see below.
   const scenesRef = useRef(scenes); scenesRef.current = scenes;
+  const cueBanksRef = useRef(cueBanks); cueBanksRef.current = cueBanks;
+  const scheduleRef = useRef(schedule); scheduleRef.current = schedule;
   const stateMachineRef = useRef(stateMachine); stateMachineRef.current = stateMachine;
+  const activeSceneIdRef = useRef(activeSceneId); activeSceneIdRef.current = activeSceneId;
+  // Live FSM readback for the host `show` service (the show-control tablet polls getStatus()).
+  const currentSmStateRef = useRef<string | null>(null);
+  const lastFiredTransitionRef = useRef<string | null>(null);
 
   // Projector outputs: per-surface fullscreen on a physical display.
   const [projectorOutputs, setProjectorOutputs] = useState<ProjectorOutput[]>([]);
@@ -775,6 +784,7 @@ const App: React.FC = () => {
       scene3D,
       timeline,
       stateMachine,
+      schedule, // in-project wall-clock schedule (show-control plugin owns the shape)
       assets,
       projectorOutputs,
       projectorFpsCap,
@@ -821,6 +831,9 @@ const App: React.FC = () => {
       const legacySm = (data?.timeline as any)?.stateMachine;
       const smLoaded = normalizeStateMachine(data?.stateMachine ?? legacySm);
       setStateMachine(smLoaded);
+      // In-project wall-clock schedule (show-control plugin). Opaque array at App scope; the plugin
+      // owns/normalizes the entry shape. Flows through buildProjectData → the .artlux file.
+      setSchedule(Array.isArray(data?.schedule) ? data.schedule : []);
       // Bind the editor to the CURRENT scene on open (the initial-state scene, else the first) and swap
       // the engine to its pool — so "just editing" the timeline attaches to a real scene, not the shared
       // global one. The loaded project surfaces are already the startup look, so we don't re-recall it
@@ -1135,6 +1148,7 @@ const App: React.FC = () => {
   const outputSubs = useRef(new Set<() => void>());
   const sceneSubs = useRef(new Set<() => void>());
   const settingsSubs = useRef(new Set<() => void>());
+  const showSubs = useRef(new Set<() => void>()); // host `show` service: scenes/cueBanks/FSM/schedule changed
   const projMsgSubs = useRef(new Set<(surfaceId: string, msg: unknown) => void>());
   const pluginHost = useMemo<RendererHostServices>(() => ({
     projectorOutputs: {
@@ -1156,10 +1170,50 @@ const App: React.FC = () => {
       get: () => settingsRef.current,
       subscribe: (cb) => { settingsSubs.current.add(cb); return () => { settingsSubs.current.delete(cb); }; },
     },
+    // Read-mostly show model for the show-control plugin (tablet remote). Reads hit live refs; writes
+    // go through App state (the source of truth). setFsmEnabled flips only the enabled flag so the
+    // engine picks it up via the setStateMachine effect; setSchedule replaces the opaque entry array.
+    show: {
+      getStateMachine: () => stateMachineRef.current,
+      getScenes: () => scenesRef.current,
+      getCueBanks: () => cueBanksRef.current,
+      getSchedule: () => scheduleRef.current,
+      setFsmEnabled: (on) => setStateMachine(prev => (prev.enabled === on ? prev : { ...prev, enabled: on })),
+      setSchedule: (entries) => setSchedule(entries as unknown[]),
+      subscribe: (cb) => { showSubs.current.add(cb); return () => { showSubs.current.delete(cb); }; },
+      getStatus: () => ({
+        playing: timelineEngine.isPlaying(),
+        playhead: timelineEngine.getPlayhead(),
+        duration: timelineEngine.getDuration(),
+        currentStateId: currentSmStateRef.current,
+        stateElapsedSec: timelineEngine.getSmElapsedSec(),
+        activeSceneId: activeSceneIdRef.current,
+        lastFiredTransitionId: lastFiredTransitionRef.current,
+      }),
+      // Command surface — same singletons the OSC controller uses (App's own subscriptions resolve
+      // recalls/cues; App stays the single writer of `playing` via dispatchTransportIntent).
+      recallScene: (ref) => cueBus.requestRecall(ref),
+      fireCue: (ref) => cueBus.requestFireCue(ref),
+      fireColumn: (bank, col) => cueBus.requestFireColumn(bank, col),
+      transport: (i) => {
+        if (i.kind === 'seek') timelineEngine.dispatchTransportIntent({ kind: 'seek', sec: i.sec ?? 0 });
+        else if (i.kind === 'loop') timelineEngine.dispatchTransportIntent({ kind: 'loop', loopOn: !!i.loopOn });
+        else timelineEngine.dispatchTransportIntent({ kind: i.kind });
+      },
+      triggerTransition: (id) => timelineEngine.triggerSmTransition(id),
+      enterState: (id) => timelineEngine.enterSmState(id),
+    },
   }), []);
   useEffect(() => { outputSubs.current.forEach(cb => cb()); }, [projectorOutputs]);
   useEffect(() => { sceneSubs.current.forEach(cb => cb()); }, [scene3D]);
   useEffect(() => { settingsSubs.current.forEach(cb => cb()); }, [settings]);
+  useEffect(() => { showSubs.current.forEach(cb => cb()); }, [scenes, cueBanks, stateMachine, schedule]);
+  // Track the live FSM state id + last-fired transition for the host `show.getStatus()` readback.
+  useEffect(() => {
+    const u1 = timelineEngine.subscribeSmState((id) => { currentSmStateRef.current = id; });
+    const u2 = timelineEngine.subscribeSmFired((tid) => { lastFiredTransitionRef.current = tid; });
+    return () => { u1(); u2(); };
+  }, []);
   // Activate first-party plugins (main window) before any compositing/OSC: this registers the LiDAR
   // plugin's TRACKING content source + blob ingestion and the calibration back-channel tap.
   useEffect(() => { activateRendererPlugins('main', pluginHost); }, [pluginHost]);
