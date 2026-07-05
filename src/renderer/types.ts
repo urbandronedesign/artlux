@@ -152,6 +152,7 @@ export enum SourceType {
   PROGRAM = 'PROGRAM',   // the whole timeline composited (all contributing layers, z-ordered)
   TRACKING = 'TRACKING', // LiDAR blob positions (by trackingSource)
   MEDIAPIPE = 'MEDIAPIPE', // camera-based pose positions (BlazePose; @artlux/plugin-mediapipe)
+  AUGMENTA = 'AUGMENTA', // Augmenta box optical tracking (OSC; @artlux/plugin-augmenta)
   NONE = 'NONE'
 }
 

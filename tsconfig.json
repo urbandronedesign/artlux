@@ -67,6 +67,12 @@
       ],
       "@artlux/plugin-mediapipe": [
         "./plugins/mediapipe/src/index.ts"
+      ],
+      "@artlux/plugin-augmenta": [
+        "./plugins/augmenta/src/index.ts"
+      ],
+      "@artlux/plugin-augmenta/*": [
+        "./plugins/augmenta/src/*"
       ]
     },
     "allowImportingTsExtensions": true,

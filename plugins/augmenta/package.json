@@ -1,0 +1,12 @@
+{
+  "name": "@artlux/plugin-augmenta",
+  "version": "0.0.0",
+  "private": true,
+  "description": "First-party ArtLux plugin: Augmenta optical tracking source (Augmenta box + camera; OSC v2/Fusion ingest, content source, projector bridge, 3D + settings viz).",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./src/index.ts",
+  "dependencies": {
+    "@artlux/sdk": "*"
+  }
+}

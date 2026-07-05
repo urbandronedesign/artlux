@@ -19,8 +19,9 @@ import { plugin as spout } from '@artlux/plugin-spout/renderer';
 import { plugin as hap } from '@artlux/plugin-hap/renderer';
 import { plugin as mp4 } from '@artlux/plugin-mp4';
 import { plugin as mediapipe } from '@artlux/plugin-mediapipe';
+import { plugin as augmenta } from '@artlux/plugin-augmenta';
 
-const FIRST_PARTY: RendererPlugin[] = [lidarTracking, ndi, calibration, spout, hap, mp4, mediapipe];
+const FIRST_PARTY: RendererPlugin[] = [lidarTracking, ndi, calibration, spout, hap, mp4, mediapipe, augmenta];
 
 let activated = false;
 

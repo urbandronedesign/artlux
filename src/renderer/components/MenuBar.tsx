@@ -78,6 +78,7 @@ function buildMenus(recents: string[]): Menu[] {
         { label: 'OSC Monitor…', accel: 'Ctrl+Shift+M', action: 'osc-monitor' },
         { label: 'Pose Monitor…', action: 'pose-monitor' },
         { label: 'Pose Floor Calibration…', action: 'pose-calibrate' },
+        { label: 'Augmenta Monitor…', action: 'augmenta-monitor' },
         { sep: true },
         { label: 'Reset Zoom', accel: 'Ctrl+0', cmd: 'zoom-reset' },
         { label: 'Zoom In', accel: 'Ctrl++', cmd: 'zoom-in' },

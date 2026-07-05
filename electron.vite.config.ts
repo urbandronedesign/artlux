@@ -24,6 +24,7 @@ const sdkAliases = [
   { find: '@artlux/plugin-hap/renderer', replacement: resolve(__dirname, 'plugins/hap/src/renderer.ts') },
   { find: '@artlux/plugin-mp4', replacement: resolve(__dirname, 'plugins/mp4/src') }, // renderer-only, single barrel
   { find: '@artlux/plugin-mediapipe', replacement: resolve(__dirname, 'plugins/mediapipe/src') }, // renderer-only, single barrel
+  { find: '@artlux/plugin-augmenta', replacement: resolve(__dirname, 'plugins/augmenta/src') }, // renderer-only, single barrel
 ];
 
 export default defineConfig({

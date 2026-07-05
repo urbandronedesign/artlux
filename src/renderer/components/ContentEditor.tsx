@@ -1,6 +1,6 @@
 import React from 'react';
 import { SurfaceContent, SourceType, VideoLayer } from '../types';
-import { Monitor, Image as ImageIcon, Video, Sparkles, Network, Cast, Radio, Slash, Film, Clapperboard, Crosshair, PersonStanding } from 'lucide-react';
+import { Monitor, Image as ImageIcon, Video, Sparkles, Network, Cast, Radio, Slash, Film, Clapperboard, Crosshair, PersonStanding, Radar } from 'lucide-react';
 import { Slider } from './ui';
 import { EFFECT_NAMES } from '../gpu/effects';
 import { PALETTE_NAMES } from '../gpu/palettes';
@@ -78,6 +78,9 @@ export const ContentEditor: React.FC<ContentEditorProps> = ({ content: c, onChan
         </button>
         <button onClick={() => pickType(SourceType.MEDIAPIPE)} className={btnCls(c.type === SourceType.MEDIAPIPE)} title="Camera pose tracking (MediaPipe BlazePose)">
           <PersonStanding size={16} className="mb-1" /><span className="text-micro">MediaPipe</span>
+        </button>
+        <button onClick={() => pickType(SourceType.AUGMENTA)} className={btnCls(c.type === SourceType.AUGMENTA)} title="Augmenta box optical tracking (OSC)">
+          <Radar size={16} className="mb-1" /><span className="text-micro">Augmenta</span>
         </button>
       </div>
 

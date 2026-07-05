@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+- **New: Augmenta optical tracking (`plugins/augmenta`).** An [Augmenta](https://augmenta.tech) box +
+  camera as a *tracking source* — each tracked object streamed over **OSC v2 / Fusion** becomes a
+  normalized position that maps onto a surface like a LiDAR blob, from a self-contained pre-calibrated
+  sensor. Standalone **renderer-only** plugin (own store + `SourceType.AUGMENTA`) that **shares the
+  host's single OSC listener** — no main-process half, no native crate, no transport changes: point the
+  box at the app's OSC port and the `/au/…` messages fall through the control router to the plugin. Adds
+  an Augmenta content source (GPU markers / heading / trails, the LiDAR look), a projector
+  snapshot+render channel, a 3D field-and-objects scene overlay, an **Augmenta Monitor** debug modal
+  (View menu) for validating the wire on hardware, and an **Augmenta Tracking** Preferences section. The
+  3D viz places objects at their real-world field position directly (the box reports field size in
+  metres), so there is no floor-calibration wizard. `scripts/augmenta-emitter.cjs` drives the whole
+  pipeline in dev without the box; parser + emitter→`oscManager`→store verified end-to-end. The exact
+  `/au/` address/arg schema is finalized on hardware via the Monitor. See [docs/AUGMENTA.md](docs/AUGMENTA.md).
+
 ## v0.20.0
 
 - **New: per-scene timelines + per-state authoring loop.** Each **Scene** may now own its own

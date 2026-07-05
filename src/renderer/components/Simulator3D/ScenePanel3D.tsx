@@ -158,6 +158,7 @@ const ScenePanel3DBase: React.FC<ScenePanel3DProps> = ({
               </div>
             )}
             <Toggle label="Camera pose markers (MediaPipe)" checked={scene3D.mediapipeViz ?? false} onChange={(v) => onSceneConfig({ mediapipeViz: v })} />
+            <Toggle label="Augmenta field + objects" checked={scene3D.augmentaViz ?? false} onChange={(v) => onSceneConfig({ augmentaViz: v })} />
             <Toggle label="Merge people (2 blobs → 1)" checked={scene3D.trackingMergePeople ?? false} onChange={(v) => onSceneConfig({ trackingMergePeople: v })} />
             {scene3D.trackingMergePeople && (
               <div className="pl-2 border-l border-line-1 space-y-2">

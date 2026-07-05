@@ -469,6 +469,7 @@ export interface Scene3D {
   trackingMergeRadius?: number;       // merge radius in metres (blobs within this distance = same person)
   mediapipeViz?: boolean;             // overlay the camera-pose (MediaPipe) tracked-people markers in 3D
   mediapipeFloor?: MediapipeFloor;    // camera→floor homography for real-world pose position preview
+  augmentaViz?: boolean;              // overlay the Augmenta field + tracked-object markers in 3D (@artlux/plugin-augmenta)
   camMask?: CamMask;                  // markerless calibration camera exclusion mask (reflective hotspots)
   markerMap?: MarkerMap;              // registered fiducial markers for one-click recalibration
   // Legacy single-model fields (pre-multi-model); migrated into `models` on load.
@@ -486,6 +487,7 @@ export const defaultScene3D = (): Scene3D => ({
   gridVisible: true,
   reflectiveFloor: false,
   trackingViz: false,
+  augmentaViz: false,
   trackingSmoothing: 0.6,
   trackingPredictMs: 50,
   trackingLabels: true,

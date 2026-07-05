@@ -40,6 +40,7 @@ const CHECKS = [
   { plugin: 'hap',            where: 'main',     marker: 'hap] native decoder loaded', note: 'hapManager native-load log' },
   { plugin: 'mp4',            where: 'renderer', marker: 'mp4-webcodecs',        note: 'mp4Codec id (renderer-only)' },
   { plugin: 'mediapipe',      where: 'renderer', marker: 'mediapipe] subscriber', note: 'poseStore subscriber log (renderer-only)' },
+  { plugin: 'augmenta',       where: 'renderer', marker: 'augmenta] subscriber', note: 'augmentaStore subscriber log (renderer-only)' },
 ];
 
 // Contribution-coverage: distinctive strings proving a plugin still REGISTERS a given contribution into
@@ -54,6 +55,8 @@ const CONTRIBUTIONS = [
   { plugin: 'mediapipe',      marker: 'pose-monitor',    note: 'Pose Monitor — modal PanelContribution id (panelRegistry)' },
   { plugin: 'mediapipe',      marker: 'pose-calibrate',  note: 'Pose Floor Calibration — modal PanelContribution id (panelRegistry)' },
   { plugin: 'mediapipe',      marker: 'Pose Tracking (MediaPipe)', note: 'Pose Tracking — SettingsSection (settingsSectionRegistry)' },
+  { plugin: 'augmenta',       marker: 'augmenta-monitor',   note: 'Augmenta Monitor — modal PanelContribution id (panelRegistry)' },
+  { plugin: 'augmenta',       marker: 'Augmenta Tracking',  note: 'Augmenta Tracking — SettingsSection (settingsSectionRegistry)' },
 ];
 
 function fail(msg) { console.error(`\x1b[31m✗\x1b[0m ${msg}`); }
