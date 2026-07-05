@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- **New: Show Control — tablet remote + scheduler + project playlist (`plugins/show-control`).** A
+  cross-process first-party plugin: an embedded **HTTP + Server-Sent-Events** server (main) serves a
+  self-contained tablet **PWA** (any phone/tablet browser, zero install) with tabs for **Control**
+  (scenes / cue columns / transport), **States** (drive the state machine — enable, fire manual
+  transitions, jump to any state; works in **broadcast** mode where the tablet is the only UI),
+  **Schedule** (in-project time-of-day triggers), **Projects** (scan a folder, build a time-of-day
+  playlist), and **Metrics** (the Grafana series — output fps/pps/universes, **renderer** fps/frame-p99/
+  work-p99/long-frames, and system CPU/RSS/heap/event-loop-lag — live with sparklines, no Grafana
+  needed). Secured by **PIN pairing** + per-device tokens with an operator **Lock**/kick; a **QR code**
+  on the operator panel (View ▸ Show Control) encodes a `?pin=` URL so scanning opens the PWA and
+  **auto-pairs**. Commands reuse the existing `cueBus`/`timeline` buses via a new **`host.show`** SDK
+  service (no show-model coupling, **zero project migration** for triggers); adds `ProjectData.schedule`
+  and a `ctx.onRenderStats` context hook. Two scheduler layers: in-project `ScheduleEntry` (renderer
+  tick — this app disables renderer timer throttling, so it runs in broadcast) and a machine-global
+  **project playlist** that switches whole projects unattended by **relaunch-per-project** (a fresh
+  process each switch — no media/GPU leaks over days; stateless across relaunch, loop-guarded). Transport
+  is SSE (zero deps, native `EventSource` reconnect — a tablet self-heals across a broadcast relaunch);
+  the PWA + QR encoder are embedded (no second build, no CDN). `tsc` + `npm run build` +
+  `verify:plugins` clean; server/pairing/command/SSE/scan + a live 3-series metrics frame verified
+  end-to-end against the dev app, and the QR Reed–Solomon core asserted against the QR-spec test vector.
+  On-hardware validation (physical tablet + a real broadcast project switch) pending. See
+  [docs/SHOW-CONTROL.md](docs/SHOW-CONTROL.md).
 - **New: Augmenta optical tracking (`plugins/augmenta`).** An [Augmenta](https://augmenta.tech) box +
   camera as a *tracking source* — each tracked object streamed over **OSC v2 / Fusion** becomes a
   normalized position that maps onto a surface like a LiDAR blob, from a self-contained pre-calibrated
