@@ -33,6 +33,7 @@ export function relaunchBroadcast(projectPath: string): void {
   args.push('--broadcast');
   if (projectPath) args.push(`--project=${projectPath}`);
   console.log('[show-control] relaunch → broadcast', projectPath);
+  try { app.releaseSingleInstanceLock(); } catch { /* ignore */ } // let the fresh process reclaim the single-instance lock
   app.relaunch({ args });
   app.exit(0);
 }

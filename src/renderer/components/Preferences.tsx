@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { X, Cpu, Radar, Check, Radio, Monitor } from 'lucide-react';
+import { X, Cpu, Radar, Check, Radio, Monitor, ShieldAlert } from 'lucide-react';
 import { AppSettings } from '../types';
-import type { ArtNetDevice } from '../../../shared/protocol';
+import type { ArtNetDevice, UnattendedPrefs, WatchdogStatus } from '../../../shared/protocol';
 import { Section, Field, NumberField, Toggle, Select, Slider, Button } from './ui';
 import { settingsSectionRegistry } from '../host/registries';
 import { useDraggableModal } from '../hooks/useDraggableModal';
@@ -12,6 +12,98 @@ interface Props {
   settings: AppSettings;
   onChange: (patch: Partial<AppSettings>) => void;
 }
+
+const WATCHDOG_UI_DEFAULTS: UnattendedPrefs = {
+  enabled: false, crashRecovery: true, outputDownSec: 15, renderStallSec: 10,
+  minRelaunchGapSec: 30, maxRelaunchesPerHour: 6, always: false,
+};
+
+// Unattended self-healing config. Lives on Prefs.unattended (not AppSettings), so this section reads
+// and writes it directly through getPrefs/setPrefs and shows live status from the main-side watchdog.
+// Changes take effect on the next launch/relaunch (the watchdog arms + attaches its detectors at
+// process start), so we make that explicit in the UI.
+const WatchdogSection: React.FC<{ open: boolean }> = ({ open }) => {
+  const [cfg, setCfg] = useState<UnattendedPrefs>(WATCHDOG_UI_DEFAULTS);
+  const [status, setStatus] = useState<WatchdogStatus | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  const refreshStatus = () => { window.artlux?.getWatchdogStatus?.().then(setStatus).catch(() => {}); };
+  useEffect(() => {
+    if (!open) return;
+    window.artlux?.getPrefs?.().then((p) => {
+      if (p?.unattended) setCfg({ ...WATCHDOG_UI_DEFAULTS, ...p.unattended });
+    }).catch(() => {});
+    refreshStatus();
+  }, [open]);
+
+  // Persist a patch to Prefs.unattended. Applies on the next launch/relaunch.
+  const update = (patch: Partial<UnattendedPrefs>) => {
+    const next = { ...cfg, ...patch };
+    setCfg(next);
+    window.artlux?.setPrefs?.({ unattended: next });
+  };
+
+  const runTask = async (fn?: () => Promise<{ ok: boolean; message: string }>) => {
+    if (!fn) return;
+    setBusy(true); setMsg('');
+    try { const r = await fn(); setMsg(r?.message ?? ''); }
+    catch (e) { setMsg(String((e as Error)?.message ?? e)); }
+    finally { setBusy(false); setTimeout(refreshStatus, 1500); }
+  };
+
+  return (
+    <Section title="Unattended / Watchdog" icon={<ShieldAlert size={12} />}>
+      <Toggle label="Self-heal (watchdog)" checked={cfg.enabled} onChange={(v) => update({ enabled: v })}
+              title="Auto-relaunch the show if the renderer/GPU crashes, the window hangs, the render loop freezes, or Art-Net output dies. Armed in broadcast mode." />
+      <Toggle label="Crash + hang recovery" checked={cfg.crashRecovery} onChange={(v) => update({ crashRecovery: v })}
+              title="Tier-1: relaunch on render-process-gone / GPU crash / unresponsive window / frozen render loop" />
+      <Toggle label="Arm outside broadcast" checked={!!cfg.always} onChange={(v) => update({ always: v })}
+              title="By default the watchdog only arms in --broadcast (so it never surprises you in the editor). Enable to arm everywhere." />
+      <NumberField label="Output-down (s)" value={cfg.outputDownSec} step={1} min={2} max={600}
+                   onChange={(v) => update({ outputDownSec: Math.max(2, Math.round(v)) })} />
+      <NumberField label="Render-stall (s)" value={cfg.renderStallSec} step={1} min={2} max={600}
+                   onChange={(v) => update({ renderStallSec: Math.max(2, Math.round(v)) })} />
+      <NumberField label="Max relaunches / hour" value={cfg.maxRelaunchesPerHour} step={1} min={1} max={60}
+                   onChange={(v) => update({ maxRelaunchesPerHour: Math.max(1, Math.round(v)) })} />
+
+      {/* Live status from the main-side watchdog */}
+      <div className="flex flex-wrap gap-1.5 pt-1 text-micro">
+        <span className={`px-1.5 py-0.5 rounded-sm border num ${status?.enabled ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-3'}`}>
+          {status?.enabled ? 'armed' : 'idle'}
+        </span>
+        {status?.tripped && <span className="px-1.5 py-0.5 rounded-sm border num bg-danger/15 border-danger text-danger">breaker tripped</span>}
+        <span className="px-1.5 py-0.5 rounded-sm border num bg-surface-2 border-line-1 text-fg-3">{status?.relaunchesLastHour ?? 0} relaunch/h</span>
+        <span className="px-1.5 py-0.5 rounded-sm border num bg-surface-2 border-line-1 text-fg-3">task {status?.taskInstalled ? 'installed' : 'off'}</span>
+      </div>
+
+      {/* Tier-2 OS supervisor (Windows Scheduled Task) — needs elevation */}
+      <div className="flex gap-1.5 pt-1">
+        <Button variant="tonal" size="sm" disabled={busy} className="flex-1"
+                onClick={() => runTask(window.artlux?.installWatchdogTask)}>Install OS task</Button>
+        <Button variant="tonal" size="sm" disabled={busy} className="flex-1"
+                onClick={() => runTask(window.artlux?.uninstallWatchdogTask)}>Remove OS task</Button>
+      </div>
+      {msg && <div className="text-micro text-fg-3 italic px-0.5">{msg}</div>}
+      <div className="text-micro text-fg-3 px-0.5">Applies on next launch/relaunch. The OS task relaunches the app after a full crash or reboot (Windows only).</div>
+
+      {/* Recent self-heal events (tail of the persistent log; survives relaunches) */}
+      {status && status.recent.length > 0 && (
+        <div className="border border-line-1 rounded-sm divide-y divide-line-1 max-h-32 overflow-auto mt-1">
+          {status.recent.slice(0, 12).map((e, i) => (
+            <div key={i} className="flex items-center justify-between gap-2 px-2 py-1 text-micro">
+              <span className="min-w-0">
+                <span className="block text-fg-1 truncate">{e.trigger} · <span className="text-fg-3">{e.action}</span></span>
+                <span className="block num text-micro text-fg-3 truncate">{e.detail}</span>
+              </span>
+              <span className="num text-micro text-fg-3 shrink-0">{new Date(e.ts).toLocaleTimeString()}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Section>
+  );
+};
 
 // Tabbed-modal-style Preferences (output + engine), replacing inline settings.
 export const Preferences: React.FC<Props> = ({ open, onClose, settings, onChange }) => {
@@ -177,6 +269,8 @@ export const Preferences: React.FC<Props> = ({ open, onClose, settings, onChange
             />
           </Field>
         </Section>
+
+        <WatchdogSection open={open} />
 
         {/* Plugin-contributed settings sections (e.g. the mp4 plugin's "Video"). Each owns its fields;
             the host passes the shared settings + onChange. Keeps plugin settings out of core. */}

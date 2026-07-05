@@ -12,6 +12,7 @@ import * as persistence from './persistence';
 import * as uiScale from './uiScale';
 import * as projectFolder from './projectFolder';
 import * as metrics from './metrics';
+import * as watchdog from './watchdog';
 import { rebuildAppMenu } from './menu';
 import { activateMainPlugins } from './host/plugins';
 
@@ -40,7 +41,13 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     // no HUD, so this is their only frame-health signal. Cheap: four gauge writes.
     ipcMain.on(IPC.RENDER_STATS, (_e, stats: metrics.RenderTimingStats) => {
         metrics.updateRenderStats(stats);
+        watchdog.noteRenderStats(stats); // heartbeat: renderer frame loop alive (render-stall detector)
     });
+
+    // ---- Unattended watchdog (self-healing; Tier-1 lives in ./watchdog, armed in index.ts) ----
+    ipcMain.handle(IPC.WATCHDOG_STATUS, () => watchdog.status());
+    ipcMain.handle(IPC.WATCHDOG_INSTALL_TASK, () => watchdog.installTask());
+    ipcMain.handle(IPC.WATCHDOG_UNINSTALL_TASK, () => watchdog.uninstallTask());
 
     ipcMain.on(IPC.INPUT_CONFIGURE, (_e, cfg: InputConfig) => {
         input.configureInput(cfg, (frames) => {
@@ -206,5 +213,6 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
         const stats = output.getStats();
         if (stats) getWindow()?.webContents.send(IPC.STATS, stats);
         metrics.updateEngineStats(stats);
+        watchdog.noteEngineStats(stats); // output-down detector (only acts after the wire was live)
     }, 1000);
 }

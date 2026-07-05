@@ -109,6 +109,18 @@
         {
           "from": "native/nvwarp/nvwarp.node",
           "to": "nvwarp.node"
+        },
+        {
+          "from": "scripts/install-watchdog-task.ps1",
+          "to": "scripts/install-watchdog-task.ps1"
+        },
+        {
+          "from": "scripts/uninstall-watchdog-task.ps1",
+          "to": "scripts/uninstall-watchdog-task.ps1"
+        },
+        {
+          "from": "scripts/watchdog-check.ps1",
+          "to": "scripts/watchdog-check.ps1"
         }
       ]
     },

@@ -93,6 +93,16 @@ export const plugin: RendererPlugin = {
     // Forward renderer frame-time (perfMonitor via the host context, ~1 Hz) → the metrics snapshot.
     unsubs.push(ctx.onRenderStats((r) => ctx.ipc.send('showctl:render-metrics', r)));
 
+    // Forward unattended-watchdog self-heal events (core main, via the public API) → main → the tablet
+    // Metrics tab, so an operator can see WHY the show restarted overnight. Seed from the persistent
+    // log tail (survives relaunches), then append live events.
+    let wdRecent: { ts: number; trigger: string; action: string; detail: string; outcome: string }[] = [];
+    const mapWd = (e: any) => ({ ts: e.ts, trigger: e.trigger, action: e.action, detail: e.detail, outcome: e.outcome });
+    const pushWatchdog = () => ctx.ipc.send('showctl:watchdog', wdRecent);
+    window.artlux?.getWatchdogStatus?.().then((st: any) => { wdRecent = (st?.recent ?? []).slice(0, 20).map(mapWd); pushWatchdog(); }).catch(() => {});
+    const offWd = window.artlux?.onWatchdogEvent?.((e: any) => { wdRecent = [mapWd(e), ...wdRecent].slice(0, 20); pushWatchdog(); });
+    if (offWd) unsubs.push(offWd);
+
     // In-project schedule tick. Evaluated every 15s; fires each entry once per matching minute.
     const lastFired = new Map<string, string>();
     timers.push(setInterval(() => {

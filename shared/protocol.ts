@@ -68,6 +68,14 @@ export const IPC = {
   OPEN_EXTERNAL: 'app:open-external',
   /** Renderer → main: relaunch the app in broadcast mode with the given project path. */
   APP_RELAUNCH_BROADCAST: 'app:relaunch-broadcast',
+  /** Renderer → main (invoke): current watchdog status + recent self-heal events. */
+  WATCHDOG_STATUS: 'watchdog:status',
+  /** Renderer → main (invoke): install the Tier-2 OS supervisor (Windows Scheduled Task). */
+  WATCHDOG_INSTALL_TASK: 'watchdog:install-task',
+  /** Renderer → main (invoke): remove the Tier-2 OS supervisor task. */
+  WATCHDOG_UNINSTALL_TASK: 'watchdog:uninstall-task',
+  /** Main → renderer: a watchdog detection/recovery event (live push for the audit UI). */
+  WATCHDOG_EVENT: 'watchdog:event',
   /** Renderer → main: a window/role command from the custom title bar (minimize, close, reload, …). */
   WINDOW_COMMAND: 'window:command',
   /** Renderer → main (invoke): is the main window currently maximized? */
@@ -574,6 +582,43 @@ export interface Prefs {
   /** Serialized editor layout (panel sizes/visibility/tabs + active preset). Renderer-owned blob —
       typed as WorkspaceLayout in the renderer; kept `unknown` here like appSettings. */
   layoutState?: unknown;
+  /** Unattended self-healing watchdog config (broadcast/show installs). Absent = defaults, disabled. */
+  unattended?: UnattendedPrefs;
+}
+
+// ─── Unattended watchdog (self-healing for broadcast/show installs) ────────────────────────────
+// Tier-1 (in-app) detects renderer/GPU crash, hang, render-loop stall, and sustained output-down and
+// does a full leak-safe process relaunch into the current --broadcast --project=…. A circuit breaker
+// caps relaunches so a crash-on-launch can't storm. Tier-2 (a Windows Scheduled Task) relaunches the
+// whole app if the process dies entirely. See docs/WATCHDOG.md.
+export interface UnattendedPrefs {
+  enabled: boolean;              // master watchdog on/off
+  crashRecovery: boolean;        // Tier-1 crash/hang/GPU recovery (webContents listeners)
+  outputDownSec: number;         // relaunch if Art-Net output has been down this long (fps==0)
+  renderStallSec: number;        // relaunch if no renderer heartbeat for this long (frozen tick)
+  minRelaunchGapSec: number;     // never relaunch more often than this (debounce)
+  maxRelaunchesPerHour: number;  // circuit breaker: after N in a rolling hour, give up + mark tripped
+  always?: boolean;              // arm the watchdog even outside --broadcast (default: broadcast only)
+}
+
+// A single watchdog detection/recovery record; appended to the userData event log and shown on the
+// tablet Metrics tab so an unattended run can be audited after the fact.
+export interface WatchdogEvent {
+  ts: number;      // epoch ms
+  mode: string;    // editor | broadcast | headless (process launch mode)
+  project: string; // loaded project path at the time (or '')
+  trigger: string; // startup | render-process-gone | gpu-gone | unresponsive | render-stall | output-down | tripped
+  detail: string;  // human-readable specifics (crash reason, seconds down, …)
+  action: string;  // relaunch | skipped-debounce | tripped | none
+  outcome: string; // ok | an error string
+}
+
+export interface WatchdogStatus {
+  enabled: boolean;           // watchdog armed this session (pref on AND mode gate satisfied)
+  tripped: boolean;           // circuit breaker engaged — no more auto-relaunches until reset
+  relaunchesLastHour: number; // rolling count feeding the breaker
+  taskInstalled: boolean;     // Tier-2 Scheduled Task present (Windows; false elsewhere)
+  recent: WatchdogEvent[];    // most-recent-first, tail of the persistent log
 }
 
 export interface OpenProjectResult {
@@ -641,6 +686,15 @@ export interface ArtluxApi {
   openExternal(url: string): void;
   /** Save-then-relaunch into broadcast mode (no editor UI; outputs + Art-Net only). */
   relaunchBroadcast(projectPath: string): void;
+  // Unattended watchdog (self-healing for broadcast/show installs — see docs/WATCHDOG.md)
+  /** Current watchdog arming state + circuit-breaker status + tail of the self-heal event log. */
+  getWatchdogStatus(): Promise<WatchdogStatus>;
+  /** Install the Tier-2 OS supervisor (Windows Scheduled Task). Needs elevation; returns a result. */
+  installWatchdogTask(): Promise<{ ok: boolean; message: string }>;
+  /** Remove the Tier-2 OS supervisor task. */
+  uninstallWatchdogTask(): Promise<{ ok: boolean; message: string }>;
+  /** Live push of each watchdog detection/recovery event (for the audit UI). */
+  onWatchdogEvent(cb: (e: WatchdogEvent) => void): () => void;
   // Custom title bar (frameless window): window controls + menu roles.
   windowCommand(cmd: WindowCommand): void;
   isWindowMaximized(): Promise<boolean>;

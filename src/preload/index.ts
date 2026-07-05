@@ -3,7 +3,7 @@ import {
     IPC, type OutputConfig, type OutputStats, type InputConfig, type InputFrame, type ArtluxApi,
     type ProjectData, type RigData, type Prefs, type UpdateEvent,
     type DisplayInfo, type OscConfig, type OscMessage,
-    type WindowCommand, type RenderStats,
+    type WindowCommand, type RenderStats, type WatchdogEvent,
 } from '../../shared/protocol';
 
 const api: ArtluxApi = {
@@ -72,6 +72,15 @@ const api: ArtluxApi = {
     getAppInfo: () => ipcRenderer.invoke(IPC.APP_INFO),
     openExternal: (url: string) => ipcRenderer.send(IPC.OPEN_EXTERNAL, url),
     relaunchBroadcast: (projectPath: string) => ipcRenderer.send(IPC.APP_RELAUNCH_BROADCAST, projectPath),
+    // Unattended watchdog (self-healing for broadcast/show installs)
+    getWatchdogStatus: () => ipcRenderer.invoke(IPC.WATCHDOG_STATUS),
+    installWatchdogTask: () => ipcRenderer.invoke(IPC.WATCHDOG_INSTALL_TASK),
+    uninstallWatchdogTask: () => ipcRenderer.invoke(IPC.WATCHDOG_UNINSTALL_TASK),
+    onWatchdogEvent: (cb: (e: WatchdogEvent) => void) => {
+        const listener = (_e: unknown, evt: WatchdogEvent) => cb(evt);
+        ipcRenderer.on(IPC.WATCHDOG_EVENT, listener);
+        return () => { ipcRenderer.removeListener(IPC.WATCHDOG_EVENT, listener); };
+    },
     // Custom title bar (frameless window)
     windowCommand: (cmd: WindowCommand) => ipcRenderer.send(IPC.WINDOW_COMMAND, cmd),
     isWindowMaximized: () => ipcRenderer.invoke(IPC.WINDOW_IS_MAXIMIZED),

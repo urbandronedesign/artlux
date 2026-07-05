@@ -319,7 +319,19 @@ export const CLIENT_HTML = `<!doctype html>
     h+=tile('RSS', sy?sy.rssMB:'&mdash;','MB');
     h+=tile('Heap', sy?sy.heapMB:'&mdash;','MB',hist.heapMB);
     h+=tile('Loop lag p99', sy?fmt(sy.eventLoopLagP99Ms):'&mdash;','ms',hist.lagP99, sy&&sy.eventLoopLagP99Ms>50?'var(--warn)':'var(--fg)');
-    h+='</div><div class="hint" style="margin-top:12px">'+(m?('mode '+esc(m.mode)+' &middot; v'+esc(m.version)):'Waiting for metrics&hellip;')+'</div>';
+    h+='</div>';
+    // Unattended self-heal audit: why (and when) the show auto-restarted. Empty in a stable run.
+    var wd=m&&m.watchdog;
+    if(wd&&wd.length){
+      h+='<h3>Watchdog</h3><div>';
+      for(var wi=0;wi<Math.min(wd.length,12);wi++){ var ev=wd[wi];
+        var col=(ev.action==='relaunch')?'var(--warn)':(ev.action==='tripped'?'var(--bad)':'var(--fg)');
+        var when=new Date(ev.ts).toLocaleTimeString();
+        h+='<div class="list-item" style="padding:8px 12px"><div class="grow"><div style="color:'+col+'">'+esc(ev.trigger)+' &middot; '+esc(ev.action)+'</div><div class="meta" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(ev.detail||'')+'</div></div><div class="meta" style="flex:none">'+esc(when)+'</div></div>';
+      }
+      h+='</div>';
+    }
+    h+='<div class="hint" style="margin-top:12px">'+(m?('mode '+esc(m.mode)+' &middot; v'+esc(m.version)):'Waiting for metrics&hellip;')+'</div>';
     shell(h);
   }
   function sparkSvg(a){ if(!a||a.length<2) return ''; var max=1; for(var i=0;i<a.length;i++){ if(a[i]>max) max=a[i]; }

@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- **New: Unattended self-healing watchdog (`src/main/watchdog.ts`).** Keeps a broadcast/show install
+  alive without a human. **Two tiers:** Tier-1 (in-app, main process) detects renderer crash
+  (`render-process-gone`), GPU crash (`child-process-gone` type GPU), an unresponsive window, a **frozen
+  render loop** (no `render:stats` heartbeat), and **sustained Art-Net output loss** (`fps==0` after the
+  wire was live), and recovers with a **full leak-safe relaunch** into `--broadcast --project=…` (the same
+  clean-process pattern the playlist scheduler uses — no media/GPU/undo leaks). Tier-2 is a **Windows
+  Scheduled Task** (logon + every-minute; `scripts/{install,uninstall}-watchdog-task.ps1` +
+  `watchdog-check.ps1`) that relaunches the app if the whole process is gone (hard crash / reboot). A
+  **crash-loop circuit breaker** (`maxRelaunchesPerHour`, persisted across relaunches) writes a tripped
+  marker and stops rather than storming — **both tiers honor it**. A new **single-instance lock**
+  guarantees the two tiers never run two copies. Every detection/recovery is written to a persistent,
+  **tail-on-boot** JSONL event log (`userData/artlux-watchdog.log`) surfaced in **Preferences → Unattended
+  / Watchdog** and the tablet **Metrics** tab, so an overnight run is auditable. **Off by default; arms
+  only in `--broadcast`** (or `unattended.always`) so it never surprises a developer in the editor. Config
+  lives on `Prefs.unattended`. `tsc` + `npm run build` clean; on-hardware unattended validation pending.
+  See [docs/WATCHDOG.md](docs/WATCHDOG.md).
 - **New: Show Control — tablet remote + scheduler + project playlist (`plugins/show-control`).** A
   cross-process first-party plugin: an embedded **HTTP + Server-Sent-Events** server (main) serves a
   self-contained tablet **PWA** (any phone/tablet browser, zero install) with tabs for **Control**

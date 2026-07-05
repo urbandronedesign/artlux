@@ -9,6 +9,8 @@ import { ndiManager as ndi } from '@artlux/plugin-ndi/main'; // app lifecycle (r
 import { spoutManager as spout } from '@artlux/plugin-spout/main'; // broadcast cap — transitional host→plugin seam
 import * as nvwarp from './nvwarpManager';
 import * as metrics from './metrics';
+import * as watchdog from './watchdog';
+import * as persistence from './persistence';
 import { IPC } from '../../shared/protocol';
 
 const APP_ICON = join(__dirname, '../../build/icon.png');
@@ -25,6 +27,23 @@ const HEADLESS = argv.includes('--headless');
 const BROADCAST = argv.includes('--broadcast');
 const projectArg = argv.find((a) => a.startsWith('--project='));
 const PROJECT_PATH = projectArg ? projectArg.slice('--project='.length) : '';
+const RUN_MODE = HEADLESS ? 'headless' : BROADCAST ? 'broadcast' : 'editor';
+
+// Single instance: a watchdog / OS-supervisor respawn (or a stray double-launch) must never run two
+// copies fighting over the same Art-Net universes and displays. The primary holds the lock; a second
+// launch just focuses the existing window and exits. Every relaunch site releases the lock first (see
+// releaseLockForRelaunch) so a fresh process reclaims it without racing this guard.
+const isPrimaryInstance = app.requestSingleInstanceLock();
+app.on('second-instance', () => {
+    if (mainWindow) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.show();
+        mainWindow.focus();
+    }
+});
+// Drop the single-instance lock immediately before an intentional relaunch so the incoming process can
+// acquire it even if this one lingers a moment during teardown.
+const releaseLockForRelaunch = () => { try { app.releaseSingleInstanceLock(); } catch { /* ignore */ } };
 
 // Keep renderers full-speed even when unfocused/occluded — this is a live tool with two
 // windows (main mapping + 3D Scene), so the compositing loop, video playback, and DMX
@@ -104,6 +123,9 @@ function createWindow(): void {
         mainWindow?.showInactive();
     });
     mainWindow.on('closed', () => { closeAllProjectors(); mainWindow = null; });
+    // Unattended self-heal: wire the crash/hang detectors to this window. No-op unless the watchdog
+    // armed itself in whenReady (unattended.enabled + broadcast/always).
+    watchdog.attach(mainWindow);
     // Custom title bar: tell the renderer when maximized state flips so it swaps the maximize/restore icon.
     const emitMaximized = () => mainWindow?.webContents.send(IPC.WINDOW_MAXIMIZE_CHANGED, !!mainWindow?.isMaximized());
     mainWindow.on('maximize', emitMaximized);
@@ -173,6 +195,8 @@ function setupBroadcastControls(): void {
 }
 
 app.whenReady().then(() => {
+    // Lost the single-instance race → a copy is already running. Focus it (via 'second-instance') and bail.
+    if (!isPrimaryInstance) { app.quit(); return; }
     // Force dark UI so the native Windows menu bar (File/Edit/View/…) and other OS-drawn
     // chrome render dark instead of following the system light theme.
     nativeTheme.themeSource = 'dark';
@@ -189,9 +213,20 @@ app.whenReady().then(() => {
         const args = app.isPackaged ? [] : [app.getAppPath()];
         args.push('--broadcast');
         if (projectPath) args.push(`--project=${projectPath}`);
+        releaseLockForRelaunch();
         app.relaunch({ args });
         app.exit(0);
     });
+    // Unattended self-healing watchdog. Armed only when the pref is on AND we're in broadcast (or
+    // unattended.always), so it never surprises a developer in the editor. Feeds off the existing 1 Hz
+    // stat plumbing (see ipc.ts). Project it recovers into: the launched project, else the last opened.
+    const prefs = persistence.getPrefs();
+    watchdog.start({
+        mode: RUN_MODE,
+        project: PROJECT_PATH || prefs.lastProjectPath || '',
+        cfg: prefs.unattended,
+    });
+    watchdog.setEventListener((e) => mainWindow?.webContents.send(IPC.WATCHDOG_EVENT, e));
     if (!HEADLESS) registerProjectorWindows(() => mainWindow);
     // One consistent, always-available quit for both editor and broadcast modes — works even
     // when a frameless fullscreen projector window is focused (no reachable menu there).
@@ -205,6 +240,7 @@ app.whenReady().then(() => {
 });
 
 app.on('before-quit', () => {
+    watchdog.stop();
     metrics.stop();
     globalShortcut.unregisterAll();
     broadcastTray?.destroy();

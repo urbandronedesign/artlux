@@ -12,10 +12,11 @@ import * as server from './server';
 import * as scheduler from './scheduler';
 import * as metricsSampler from './metricsSampler';
 import * as auth from './auth';
-import type { EngineMetrics, RenderMetrics, ShowCommand, ShowSnapshot, ShowStatus } from './types';
+import type { EngineMetrics, RenderMetrics, ShowCommand, ShowSnapshot, ShowStatus, WatchdogEventLite } from './types';
 
 let lastEngine: EngineMetrics | null = null;
 let lastRender: RenderMetrics | null = null;
+let lastWatchdog: WatchdogEventLite[] = [];
 let metricsTimer: ReturnType<typeof setInterval> | null = null;
 
 export const plugin: MainPlugin = {
@@ -48,6 +49,7 @@ export const plugin: MainPlugin = {
     ipc.on('showctl:status', (st) => server.pushStatus(st as ShowStatus));
     ipc.on('showctl:engine-metrics', (e) => { lastEngine = (e ?? null) as EngineMetrics | null; });
     ipc.on('showctl:render-metrics', (r) => { lastRender = (r ?? null) as RenderMetrics | null; });
+    ipc.on('showctl:watchdog', (w) => { lastWatchdog = (w ?? []) as WatchdogEventLite[]; });
 
     // Operator controls (from the app-side panel).
     ipc.on('showctl:set-lock', (v) => server.setLocked(!!v));
@@ -66,6 +68,7 @@ export const plugin: MainPlugin = {
         engine: lastEngine,
         render: lastRender,
         system: metricsSampler.sample(),
+        watchdog: lastWatchdog,
         mode: metricsSampler.appMode(),
         version: metricsSampler.appVersion(),
         ts: Date.now(),

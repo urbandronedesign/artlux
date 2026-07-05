@@ -95,10 +95,14 @@ export interface SystemMetrics {
   eventLoopLagP50Ms: number;
   eventLoopLagP99Ms: number;
 }
+// A trimmed watchdog self-heal record (core main owns the full WatchdogEvent; we carry only what the
+// tablet audit strip shows). Most-recent-first.
+export interface WatchdogEventLite { ts: number; trigger: string; action: string; detail: string; outcome: string }
 export interface MetricsSnapshot {
   engine: EngineMetrics | null;
   render: RenderMetrics | null; // renderer frame-time (from perfMonitor via the main window)
   system: SystemMetrics;
+  watchdog?: WatchdogEventLite[]; // recent unattended self-heal events (audit surface)
   mode: string;     // editor | broadcast | headless
   version: string;
   ts: number;
