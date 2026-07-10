@@ -30,6 +30,7 @@ import { Timeline as TimelinePanel } from './components/timeline/Timeline';
 import { Preferences } from './components/Preferences';
 import { MenuBar } from './components/MenuBar';
 import { HelpPanel } from './components/HelpPanel';
+import { DocsBrowser } from './components/DocsBrowser';
 import { StatusBar } from './components/StatusBar';
 import { PerfPanel } from './components/PerfPanel';
 import { sendArtNetFrame, configureOutput, addStatusListener } from './services/mockSocketService';
@@ -138,6 +139,9 @@ const App: React.FC = () => {
   const setTimelineMax = setLayoutField('timelineMax');
   const setShowHelp = setLayoutField('showHelp');
   const setHelpWidth = setLayoutField('helpWidth');
+  // Docs Browser panel (local UI state — not persisted in the layout yet).
+  const [docsOpen, setDocsOpen] = useState(false);
+  const [docsWidth, setDocsWidth] = useState(480);
   const setLeftTab = setLayoutField('leftTab');
   const setShowLeftPanel = setLayoutField('showLeft');
   const setShowRightPanel = setLayoutField('showRight');
@@ -1067,6 +1071,7 @@ const App: React.FC = () => {
           case 'routing': setRoutingOpen(true); break;
           case 'about': setAboutOpen(true); break;
           case 'help-panel': setShowHelp((v) => !v); break;
+          case 'docs-browser': setDocsOpen((v) => !v); break;
           case 'check-updates': setUpdateUserInitiated(true); window.artlux?.checkForUpdates?.(); break;
           case 'undo': undo(); break;
           case 'redo': redo(); break;
@@ -1889,6 +1894,23 @@ const App: React.FC = () => {
                     layers={timeline.layers}
                 />
             </div>
+        </div>
+
+        {/* Docs & Tutorials browser (dockable; detach + images are follow-ups) */}
+        <div
+          className={`h-full border-l border-line-1 bg-surface-1 ${docsOpen ? '' : 'w-0 overflow-hidden border-none'}`}
+          style={{ width: docsOpen ? docsWidth : 0 }}
+        >
+          {docsOpen && (
+            <div className="h-full" style={{ width: docsWidth }}>
+              <DocsBrowser
+                onClose={() => setDocsOpen(false)}
+                width={docsWidth}
+                onResize={setDocsWidth}
+                onOpenExample={(p) => { handleOpenRecent(p); setDocsOpen(false); }}
+              />
+            </div>
+          )}
         </div>
 
         {/* Far right: dockable bilingual Help panel */}

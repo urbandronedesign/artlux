@@ -11,6 +11,7 @@ import { buildMpcdi, parseMpcdi, type MpcdiRegion } from './mpcdi';
 import * as persistence from './persistence';
 import * as uiScale from './uiScale';
 import * as projectFolder from './projectFolder';
+import * as docs from './docs';
 import * as metrics from './metrics';
 import * as watchdog from './watchdog';
 import { rebuildAppMenu } from './menu';
@@ -112,6 +113,11 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
         try { return new Uint8Array(await readFile(path)); }
         catch (err) { console.error('[ipc] read file failed', err); return null; }
     });
+
+    // In-app Docs Browser: enumerate the example/tutorial + user-guide tree, and read one doc by id.
+    ipcMain.handle(IPC.DOCS_LIST, () => docs.listDocs());
+    ipcMain.handle(IPC.DOCS_READ, (_e, id: string) => docs.readDoc(id));
+    ipcMain.handle(IPC.DOCS_READ_ASSET, (_e, absPath: string) => docs.readDocAsset(absPath));
     ipcMain.handle(IPC.SAVE_TRACKING_TAKE, (_e, id: string, json: string) => persistence.saveTrackingTake(id, json));
 
     // ---- Asset library: import (copy-in), reveal, existence checks ----

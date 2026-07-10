@@ -99,6 +99,7 @@ function buildMenus(recents: string[]): Menu[] {
       label: 'Help',
       items: [
         { label: 'Help Panel', accel: 'F1', action: 'help-panel' },
+        { label: 'Docs & Tutorials', action: 'docs-browser' },
         { sep: true },
         { label: 'Check for Updates…', action: 'check-updates' },
         { sep: true },

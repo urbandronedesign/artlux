@@ -102,6 +102,12 @@ const api: ArtluxApi = {
     pickModel: () => ipcRenderer.invoke(IPC.SCENE_PICK_MODEL),
     readModel: (path: string) => ipcRenderer.invoke(IPC.SCENE_READ_MODEL, path),
     readFile: (path: string) => ipcRenderer.invoke(IPC.READ_FILE, path),
+    // In-app Docs Browser (examples/tutorials + user guide)
+    docsList: () => ipcRenderer.invoke(IPC.DOCS_LIST),
+    docsRead: (id: string) => ipcRenderer.invoke(IPC.DOCS_READ, id),
+    docsReadAsset: (absPath: string) => ipcRenderer.invoke(IPC.DOCS_READ_ASSET, absPath),
+    openDocsWindow: (id?: string) => ipcRenderer.send(IPC.DOCS_OPEN_WINDOW, id),
+    docsOpenExample: (absPath: string) => ipcRenderer.send(IPC.DOCS_OPEN_EXAMPLE, absPath),
     pickVideo: () => ipcRenderer.invoke(IPC.PICK_VIDEO),
     saveTrackingTake: (id: string, json: string) => ipcRenderer.invoke(IPC.SAVE_TRACKING_TAKE, id, json),
     // Asset library

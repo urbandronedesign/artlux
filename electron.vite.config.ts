@@ -58,6 +58,7 @@ export default defineConfig({
           index: resolve(__dirname, 'src/renderer/index.html'),
           headless: resolve(__dirname, 'src/renderer/headless.html'),
           projector: resolve(__dirname, 'src/renderer/projector.html'),
+          docs: resolve(__dirname, 'src/renderer/docs.html'),
         },
       },
     },

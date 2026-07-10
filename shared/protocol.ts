@@ -96,6 +96,16 @@ export const IPC = {
   SCENE_READ_MODEL: 'scene:read-model',
   /** Renderer → main (invoke): read any file's bytes by path (e.g. timeline MP4s). */
   READ_FILE: 'app:read-file',
+  /** Renderer → main (invoke): list the in-app docs tree (example sets + tutorials + user guide). */
+  DOCS_LIST: 'docs:list',
+  /** Renderer → main (invoke): read one doc's markdown by tree id → { markdown, dir }. */
+  DOCS_READ: 'docs:read',
+  /** Renderer → main (invoke): read a sibling image referenced by a doc (validated) → { mime, data }. */
+  DOCS_READ_ASSET: 'docs:read-asset',
+  /** Renderer → main: open (or focus) the detached Docs window, optionally at a doc id. */
+  DOCS_OPEN_WINDOW: 'docs:open-window',
+  /** Renderer (docs window) → main: load an example project into the MAIN editor window. */
+  DOCS_OPEN_EXAMPLE: 'docs:open-example',
   /** Renderer → main (invoke): write a recorded LiDAR-blob take to a sidecar file → absolute path. */
   SAVE_TRACKING_TAKE: 'tracking:save-take',
   /** Renderer → main (invoke): pick + copy media into the project's assets/<cat>/ → AssetEntry[]. */
@@ -634,6 +644,14 @@ export type WindowCommand =
   | 'cut' | 'copy' | 'paste' | 'select-all';
 
 /** API surface exposed on `window.artlux` by the preload via contextBridge. */
+/** In-app Docs Browser tree. One section per example set (+ the user guide); each entry is one page. */
+export interface DocEntry { id: string; title: string; }
+export interface DocSection { id: string; title: string; entries: DocEntry[]; }
+/** One doc's rendered source + its absolute directory (for resolving sibling images / .artlux links). */
+export interface DocContent { markdown: string; dir: string; }
+/** Raw bytes + MIME of a doc-referenced image, read from disk in main (renderer wraps it in a Blob). */
+export interface DocAsset { mime: string; data: Uint8Array; }
+
 export interface ArtluxApi {
   configureOutput(cfg: OutputConfig): void;
   /** One frame, encoded by shared/frameCodec.encodeFrame (binary handoff). */
@@ -709,6 +727,15 @@ export interface ArtluxApi {
   readModel(path: string): Promise<Uint8Array | null>;
   // Generic file access (timeline video clips)
   readFile(path: string): Promise<Uint8Array | null>;
+  // In-app Docs Browser (examples/tutorials + user guide)
+  docsList(): Promise<DocSection[]>;
+  docsRead(id: string): Promise<DocContent | null>;
+  /** Read a sibling image referenced by a doc (absolute path, validated under the docs roots). */
+  docsReadAsset(absPath: string): Promise<DocAsset | null>;
+  /** Open (or focus) the detached Docs & Tutorials window, optionally at a doc id. */
+  openDocsWindow(id?: string): void;
+  /** From the detached Docs window: load an example project into the main editor window. */
+  docsOpenExample(absPath: string): void;
   pickVideo(): Promise<string | null>;
   /** Write a recorded LiDAR-blob take (JSON) to a sidecar `.lblob` file → absolute path. */
   saveTrackingTake(id: string, json: string): Promise<string | null>;

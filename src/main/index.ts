@@ -4,6 +4,7 @@ import { registerIpc } from './ipc';
 import { buildAppMenu } from './menu';
 import { setupUpdater } from './updater';
 import { registerProjectorWindows, closeAllProjectors } from './projector';
+import { registerDocsWindow } from './docsWindow';
 import { applyUiScale } from './uiScale';
 import { ndiManager as ndi } from '@artlux/plugin-ndi/main'; // app lifecycle (recv cap / quit) — transitional host→plugin seam
 import { spoutManager as spout } from '@artlux/plugin-spout/main'; // broadcast cap — transitional host→plugin seam
@@ -228,6 +229,7 @@ app.whenReady().then(() => {
     });
     watchdog.setEventListener((e) => mainWindow?.webContents.send(IPC.WATCHDOG_EVENT, e));
     if (!HEADLESS) registerProjectorWindows(() => mainWindow);
+    if (!HEADLESS) registerDocsWindow(() => mainWindow);
     // One consistent, always-available quit for both editor and broadcast modes — works even
     // when a frameless fullscreen projector window is focused (no reachable menu there).
     if (!HEADLESS) globalShortcut.register('CommandOrControl+Shift+Q', () => app.quit());
