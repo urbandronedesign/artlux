@@ -69,6 +69,16 @@ guide. It touches **no wave subsystem** (build config, a new window entry, a mar
 menu/IPC), so it can be built on its own branch `feat-docs-browser` **in parallel with any wave** and
 merged whenever tested. Recommended alongside Wave 0/1 so the tutorials become viewable in-app early.
 
+## Independent track — MIDI control (parallel-safe)
+
+[midi-control](midi-control.md) — a renderer-only `plugins/midi` (MIDI-learn + remappable bindings) that
+drives scenes / cues / states / transport and continuous params through the **same buses OSC uses**. It
+touches **no wave subsystem**: two tiny core touches (a Web-MIDI permission grant in `src/main/index.ts`,
+and an additive `ProjectData.midiBindings?`), otherwise plugin-local — so it builds on its own branch
+`feat-midi-control` **in parallel with any wave**. Pairs naturally with **show-control** (Wave 0), both
+being external-control front-ends; its continuous-CC → param path also gains audio targets once Wave 3's
+`audio.*` `paramPath` namespace lands (a synergy, not a dependency).
+
 ## Tutorials & docs (interleaved with the waves)
 
 The example/tutorial sets mostly **shadow a wave** — each documents a subsystem a wave changes, so it is
@@ -80,6 +90,7 @@ test). Only the wave-independent ones are written ahead.
 | **LiDAR blobs without a LiDAR** | **now** (wave-independent) | touches OSC/tracking/takes — no plan modifies these |
 | Media-Free Motion Graphics (core) | now / after Wave 2 | video story stable; add an audio+automation chapter after Wave 3 |
 | Operator Remote · Ship It (watchdog) | Wave 0 | show-control tablet parity · watchdog throttle |
+| MIDI control (map a controller) | after the MIDI plugin | learn + remap a pad/fader to scenes/params — wave-independent |
 | Cue Deck · Patch & Prove (DMX) · Pack & Hand Off · Composite Stage · Ship It (headless) | Wave 1 | cue-authoring · dmx-io · asset-ops · webgl-strict · headless-plugin-host |
 | Wiring Rescue · Hello Projector · Patch & Prove (autopatch) | Wave 2 | fixture-segments · content-source + projector-blend · autopatch |
 | Audio tutorial · Motion-Graphics audio chapter | Wave 3 | the audio subsystem |
@@ -118,7 +129,8 @@ Keep `main` buildable + `tsc`-clean at all times. Never push to a remote or skip
 | 2 | `wave-2-render-output` | fixture-segments, content-source-region, projector-blend, autopatch | ☐ not started |
 | 3 | `wave-3-audio` | audio-engine (P0→P6) | ☐ not started |
 | — | `feat-docs-browser` | docs-browser (independent, parallel-safe) | ☑ **shipped v0.21.0** — reader + detachable window + inline user-guide images + tutorial SVG diagrams; bundled into packaged builds via `extraResources` (23/23 image refs validated, tsc+build clean, in-app visual test confirmed). Getting-started fold-in still pending. |
+| — | `feat-midi-control` | midi-control (independent, parallel-safe) | ☐ not started (Draft — plan written) |
 | — | (content, no branch gate) | LiDAR + state-machine tutorial sets | ☑ drafted; **SVG diagrams added** (state-graph, hub-and-spoke, tracking-zones, merge-people) — all 23 doc image refs resolve + read, 4/4 SVGs valid; needs in-app open test |
 
-*Update the Status cell to `☐ in progress (branch cut)` → `☑ merged <date>` as each wave lands. All 12
-plans are currently **Draft** — nothing implemented yet.*
+*Update the Status cell to `☐ in progress (branch cut)` → `☑ merged <date>` as each wave lands. Every plan
+is **Draft** (nothing implemented) **except docs-browser**, shipped in v0.21.0.*
