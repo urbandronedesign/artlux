@@ -1,0 +1,89 @@
+{
+  "version": "1.1",
+  "timestamp": "2026-07-10T00:00:00.000Z",
+  "surfaces": [
+    {
+      "id": "srf_sol",
+      "name": "Floor (SOL)",
+      "x": 0,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "rotation": 0,
+      "zIndex": 0,
+      "content": {
+        "type": "TRACKING",
+        "trackingSource": "SOL",
+        "bgLayerId": null,
+        "blobSize": 0.06,
+        "showIds": true,
+        "flipH": false,
+        "flipV": false,
+        "rotate": 0,
+        "calibration": false,
+        "trail": true,
+        "trailSeconds": 0.6,
+        "opacity": 1
+      }
+    }
+  ],
+  "fixtures": [],
+  "controllers": [],
+  "settings": {
+    "artNetIp": "127.0.0.1",
+    "artNetPort": 6454,
+    "outputEnabled": true,
+    "broadcast": false,
+    "gamma": 1,
+    "protocol": "artnet",
+    "fps": 44,
+    "keepAlive": true,
+    "artNetSync": false,
+    "oscEnabled": true,
+    "oscListenPort": 10000,
+    "oscListenAddress": "",
+    "oscControlPrefix": "/artlux",
+    "helpLang": "en"
+  },
+  "globalBrightness": 1,
+  "groups": [],
+  "scenes": [],
+  "cueBanks": [],
+  "scene3D": {
+    "models": [],
+    "lightIntensity": 1,
+    "environment": true,
+    "exposure": 1,
+    "gridVisible": true,
+    "reflectiveFloor": false,
+    "trackingViz": false,
+    "augmentaViz": false,
+    "trackingSmoothing": 0.6,
+    "trackingPredictMs": 50,
+    "trackingMergePeople": false,
+    "trackingMergeRadius": 0.8
+  },
+  "timeline": {
+    "layers": [],
+    "clips": [],
+    "duration": 60,
+    "fps": 30,
+    "markers": [],
+    "inPoint": null,
+    "outPoint": null,
+    "loop": false,
+    "trackingTakes": []
+  },
+  "stateMachine": {
+    "enabled": false,
+    "initialStateId": null,
+    "regions": [],
+    "states": [],
+    "transitions": []
+  },
+  "schedule": [],
+  "assets": [],
+  "projectorOutputs": [],
+  "projectorFpsCap": 0,
+  "projectorBrightness": 1
+}

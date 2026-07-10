@@ -1,0 +1,331 @@
+{
+  "version": "1.1",
+  "timestamp": "2026-07-09T00:00:00.000Z",
+  "surfaces": [
+    {
+      "id": "srf_main",
+      "name": "Main wall",
+      "x": 0,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "rotation": 0,
+      "zIndex": 0,
+      "content": {
+        "type": "EFFECT",
+        "effectId": 3,
+        "paletteId": 2,
+        "speed": 0.3,
+        "intensity": 0.7,
+        "opacity": 1
+      }
+    }
+  ],
+  "fixtures": [
+    {
+      "id": "fx_strip",
+      "name": "LED strip",
+      "x": 0.08,
+      "y": 0.45,
+      "width": 0.84,
+      "height": 0.1,
+      "rotation": 0,
+      "universe": 0,
+      "startAddress": 1,
+      "ledCount": 60,
+      "reverse": false,
+      "colorData": [],
+      "source": "MEDIA",
+      "surfaceId": "srf_main",
+      "shape": "LINE",
+      "colorOrder": "GRB",
+      "rgbwMode": "NONE",
+      "channelsPerPixel": 3
+    }
+  ],
+  "controllers": [],
+  "settings": {
+    "artNetIp": "127.0.0.1",
+    "artNetPort": 6454,
+    "outputEnabled": true,
+    "broadcast": false,
+    "gamma": 1,
+    "protocol": "artnet",
+    "fps": 44,
+    "keepAlive": true,
+    "artNetSync": false,
+    "oscEnabled": false,
+    "oscListenPort": 10000,
+    "oscListenAddress": "",
+    "oscControlPrefix": "/artlux",
+    "helpLang": "en"
+  },
+  "globalBrightness": 0.55,
+  "groups": [],
+  "scenes": [
+    {
+      "id": "sc_calm",
+      "name": "Calm",
+      "accent": "#38bdf8",
+      "fadeSec": 0,
+      "globalBrightness": 0.55,
+      "groups": [],
+      "surfaces": [
+        {
+          "id": "srf_main",
+          "name": "Main wall",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "rotation": 0,
+          "zIndex": 0,
+          "content": {
+            "type": "EFFECT",
+            "effectId": 3,
+            "paletteId": 2,
+            "speed": 0.3,
+            "intensity": 0.7,
+            "opacity": 1
+          }
+        }
+      ],
+      "fixtures": [
+        {
+          "id": "fx_strip",
+          "name": "LED strip",
+          "x": 0.08,
+          "y": 0.45,
+          "width": 0.84,
+          "height": 0.1,
+          "rotation": 0,
+          "universe": 0,
+          "startAddress": 1,
+          "ledCount": 60,
+          "reverse": false,
+          "colorData": [],
+          "source": "MEDIA",
+          "surfaceId": "srf_main",
+          "shape": "LINE",
+          "colorOrder": "GRB",
+          "rgbwMode": "NONE",
+          "channelsPerPixel": 3
+        }
+      ]
+    },
+    {
+      "id": "sc_rise",
+      "name": "Rise",
+      "accent": "#a78bfa",
+      "fadeSec": 0,
+      "globalBrightness": 0.85,
+      "groups": [],
+      "surfaces": [
+        {
+          "id": "srf_main",
+          "name": "Main wall",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "rotation": 0,
+          "zIndex": 0,
+          "content": {
+            "type": "EFFECT",
+            "effectId": 1,
+            "paletteId": 0,
+            "speed": 0.55,
+            "intensity": 1,
+            "opacity": 1
+          }
+        }
+      ],
+      "fixtures": [
+        {
+          "id": "fx_strip",
+          "name": "LED strip",
+          "x": 0.08,
+          "y": 0.45,
+          "width": 0.84,
+          "height": 0.1,
+          "rotation": 0,
+          "universe": 0,
+          "startAddress": 1,
+          "ledCount": 60,
+          "reverse": false,
+          "colorData": [],
+          "source": "MEDIA",
+          "surfaceId": "srf_main",
+          "shape": "LINE",
+          "colorOrder": "GRB",
+          "rgbwMode": "NONE",
+          "channelsPerPixel": 3
+        }
+      ]
+    },
+    {
+      "id": "sc_burn",
+      "name": "Burn",
+      "accent": "#fb7185",
+      "fadeSec": 0,
+      "globalBrightness": 1,
+      "groups": [],
+      "surfaces": [
+        {
+          "id": "srf_main",
+          "name": "Main wall",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "rotation": 0,
+          "zIndex": 0,
+          "content": {
+            "type": "EFFECT",
+            "effectId": 4,
+            "paletteId": 4,
+            "speed": 0.75,
+            "intensity": 1,
+            "opacity": 1
+          }
+        }
+      ],
+      "fixtures": [
+        {
+          "id": "fx_strip",
+          "name": "LED strip",
+          "x": 0.08,
+          "y": 0.45,
+          "width": 0.84,
+          "height": 0.1,
+          "rotation": 0,
+          "universe": 0,
+          "startAddress": 1,
+          "ledCount": 60,
+          "reverse": false,
+          "colorData": [],
+          "source": "MEDIA",
+          "surfaceId": "srf_main",
+          "shape": "LINE",
+          "colorOrder": "GRB",
+          "rgbwMode": "NONE",
+          "channelsPerPixel": 3
+        }
+      ]
+    }
+  ],
+  "cueBanks": [
+    {
+      "id": "bank1",
+      "name": "Bank 1",
+      "rows": 8,
+      "cols": 16,
+      "cues": [],
+      "sceneCells": [
+        {
+          "col": 0,
+          "sceneId": "sc_calm"
+        },
+        {
+          "col": 1,
+          "sceneId": "sc_rise"
+        },
+        {
+          "col": 2,
+          "sceneId": "sc_burn"
+        }
+      ]
+    }
+  ],
+  "scene3D": {
+    "models": [],
+    "lightIntensity": 1,
+    "environment": true,
+    "exposure": 1,
+    "gridVisible": true,
+    "reflectiveFloor": false,
+    "trackingViz": false,
+    "augmentaViz": false,
+    "trackingSmoothing": 0.6,
+    "trackingPredictMs": 50
+  },
+  "timeline": {
+    "layers": [],
+    "clips": [],
+    "duration": 60,
+    "fps": 30,
+    "markers": [],
+    "inPoint": null,
+    "outPoint": null,
+    "loop": false,
+    "trackingTakes": []
+  },
+  "stateMachine": {
+    "enabled": true,
+    "initialStateId": "st_calm",
+    "regions": [],
+    "states": [
+      {
+        "id": "st_calm",
+        "name": "Calm",
+        "sceneId": "sc_calm",
+        "x": 120,
+        "y": 300,
+        "entry": []
+      },
+      {
+        "id": "st_rise",
+        "name": "Rise",
+        "sceneId": "sc_rise",
+        "x": 380,
+        "y": 300,
+        "entry": []
+      },
+      {
+        "id": "st_burn",
+        "name": "Burn",
+        "sceneId": "sc_burn",
+        "x": 640,
+        "y": 300,
+        "entry": []
+      }
+    ],
+    "transitions": [
+      {
+        "id": "t_calm_rise",
+        "from": "st_calm",
+        "to": "st_rise",
+        "trigger": {
+          "kind": "afterDelay",
+          "seconds": 6
+        },
+        "fadeSec": 2
+      },
+      {
+        "id": "t_rise_burn",
+        "from": "st_rise",
+        "to": "st_burn",
+        "trigger": {
+          "kind": "afterDelay",
+          "seconds": 6
+        },
+        "fadeSec": 2
+      },
+      {
+        "id": "t_burn_calm",
+        "from": "st_burn",
+        "to": "st_calm",
+        "trigger": {
+          "kind": "afterDelay",
+          "seconds": 8
+        },
+        "fadeSec": 3
+      }
+    ]
+  },
+  "schedule": [],
+  "assets": [],
+  "projectorOutputs": [],
+  "projectorFpsCap": 0,
+  "projectorBrightness": 1
+}

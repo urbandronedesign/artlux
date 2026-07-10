@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 420" width="780" height="420" font-family="ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif">
+  <defs>
+    <radialGradient id="mp-blob" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="30%" stop-color="#fbbf24"/>
+      <stop offset="100%" stop-color="#f59e0b" stop-opacity="0"/>
+    </radialGradient>
+    <marker id="mp-arrow" markerWidth="13" markerHeight="13" refX="9" refY="6" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M1,1 L11,6 L1,11 Z" fill="#7dd3fc"/>
+    </marker>
+    <style>
+      .title { fill: #e8ebf0; font-size: 19px; font-weight: 600; }
+      .sub   { fill: #93a0b3; font-size: 13px; }
+      .pcap  { fill: #cdd6e3; font-size: 13.5px; font-weight: 600; }
+      .psub  { fill: #93a0b3; font-size: 12px; }
+      .bid   { fill: #fde68a; font-size: 11px; font-family: ui-monospace, 'Consolas', monospace; }
+      .albl  { fill: #7dd3fc; font-size: 13px; font-weight: 600; }
+      .asub  { fill: #93a0b3; font-size: 11.5px; font-family: ui-monospace, monospace; }
+      .rad   { fill: #6ee7b7; font-size: 11px; font-family: ui-monospace, monospace; }
+      .note  { fill: #aeb8c6; font-size: 12px; }
+      .notek { fill: #93a0b3; font-size: 12px; font-family: ui-monospace, 'Consolas', monospace; }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="780" height="420" rx="12" fill="#14171d" stroke="#2b3140" stroke-width="1"/>
+  <text x="34" y="40" class="title">Merge People — two blobs (one person) become one marker</text>
+  <text x="34" y="64" class="sub">On a real LiDAR floor one person reads as two blobs (two legs) with different ids. Merge collapses them by distance.</text>
+
+  <!-- Panel A: raw feed, one person -> two blobs -->
+  <text x="180" y="100" text-anchor="middle" class="pcap">Raw feed — one person</text>
+  <circle cx="180" cy="144" r="13" fill="#cbd5e1"/>
+  <rect x="165" y="160" width="30" height="52" rx="9" fill="#94a3b8"/>
+  <line x1="173" y1="210" x2="162" y2="250" stroke="#94a3b8" stroke-width="6" stroke-linecap="round"/>
+  <line x1="187" y1="210" x2="198" y2="250" stroke="#94a3b8" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="180" cy="256" r="46" fill="none" stroke="#34d399" stroke-opacity=".7" stroke-width="1.6" stroke-dasharray="5 4"/>
+  <circle cx="162" cy="256" r="17" fill="url(#mp-blob)"/><circle cx="162" cy="256" r="3.2" fill="#fffbeb"/>
+  <circle cx="198" cy="256" r="17" fill="url(#mp-blob)"/><circle cx="198" cy="256" r="3.2" fill="#fffbeb"/>
+  <text x="122" y="246" text-anchor="middle" class="bid">id 7</text>
+  <text x="238" y="246" text-anchor="middle" class="bid">id 12</text>
+  <text x="238" y="292" text-anchor="start" class="rad">0.8 m</text>
+  <text x="180" y="322" text-anchor="middle" class="psub">2 blobs · different ids (7, 12)</text>
+
+  <!-- Arrow -->
+  <line x1="300" y1="205" x2="452" y2="205" stroke="#7dd3fc" stroke-width="3" marker-end="url(#mp-arrow)"/>
+  <text x="378" y="186" text-anchor="middle" class="albl">Merge People</text>
+  <text x="378" y="228" text-anchor="middle" class="asub">within 0.8 m → 1</text>
+
+  <!-- Panel B: merged, one marker -->
+  <text x="580" y="100" text-anchor="middle" class="pcap">3D Scene / projector</text>
+  <circle cx="580" cy="144" r="13" fill="#cbd5e1"/>
+  <rect x="565" y="160" width="30" height="52" rx="9" fill="#94a3b8"/>
+  <line x1="573" y1="210" x2="562" y2="250" stroke="#94a3b8" stroke-width="6" stroke-linecap="round"/>
+  <line x1="587" y1="210" x2="598" y2="250" stroke="#94a3b8" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="580" cy="256" r="20" fill="url(#mp-blob)"/><circle cx="580" cy="256" r="3.6" fill="#fffbeb"/>
+  <text x="580" y="322" text-anchor="middle" class="psub">1 person → 1 marker</text>
+
+  <!-- bottom callout -->
+  <rect x="34" y="348" width="712" height="56" rx="8" fill="#171b22" stroke="#2b3140"/>
+  <text x="52" y="372" class="note">The 2D editor Stage always shows the raw 2 markers — the ground truth. Merge applies only in the 3D viz &amp; projector output.</text>
+  <text x="52" y="392" class="notek">Scene3D ▸ trackingMergePeople + trackingMergeRadius (0.8 m) — blobs pair by distance, not by id.</text>
+</svg>

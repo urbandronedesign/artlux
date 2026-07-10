@@ -1,0 +1,750 @@
+{
+  "version": "1.1",
+  "timestamp": "2026-07-09T00:00:00.000Z",
+  "surfaces": [
+    {
+      "id": "srf_wall",
+      "name": "Wall",
+      "x": 0,
+      "y": 0,
+      "width": 1,
+      "height": 0.5,
+      "rotation": 0,
+      "zIndex": 1,
+      "content": {
+        "type": "EFFECT",
+        "effectId": 1,
+        "paletteId": 0,
+        "speed": 0.45,
+        "intensity": 0.9,
+        "opacity": 1
+      }
+    },
+    {
+      "id": "srf_floor",
+      "name": "Floor",
+      "x": 0,
+      "y": 0.5,
+      "width": 1,
+      "height": 0.5,
+      "rotation": 0,
+      "zIndex": 0,
+      "content": {
+        "type": "EFFECT",
+        "effectId": 1,
+        "paletteId": 6,
+        "speed": 0.35,
+        "intensity": 0.9,
+        "opacity": 1
+      }
+    }
+  ],
+  "fixtures": [
+    {
+      "id": "fx_wall",
+      "name": "Wall strip",
+      "x": 0.08,
+      "y": 0.22,
+      "width": 0.84,
+      "height": 0.08,
+      "rotation": 0,
+      "universe": 0,
+      "startAddress": 1,
+      "ledCount": 60,
+      "reverse": false,
+      "colorData": [],
+      "source": "MEDIA",
+      "surfaceId": "srf_wall",
+      "shape": "LINE",
+      "colorOrder": "GRB",
+      "rgbwMode": "NONE",
+      "channelsPerPixel": 3
+    },
+    {
+      "id": "fx_floor",
+      "name": "Floor strip",
+      "x": 0.08,
+      "y": 0.72,
+      "width": 0.84,
+      "height": 0.08,
+      "rotation": 0,
+      "universe": 1,
+      "startAddress": 181,
+      "ledCount": 60,
+      "reverse": false,
+      "colorData": [],
+      "source": "MEDIA",
+      "surfaceId": "srf_floor",
+      "shape": "LINE",
+      "colorOrder": "GRB",
+      "rgbwMode": "NONE",
+      "channelsPerPixel": 3
+    }
+  ],
+  "controllers": [],
+  "settings": {
+    "artNetIp": "127.0.0.1",
+    "artNetPort": 6454,
+    "outputEnabled": true,
+    "broadcast": false,
+    "gamma": 1,
+    "protocol": "artnet",
+    "fps": 44,
+    "keepAlive": true,
+    "artNetSync": false,
+    "oscEnabled": true,
+    "oscListenPort": 10000,
+    "oscListenAddress": "",
+    "oscControlPrefix": "/artlux",
+    "helpLang": "en"
+  },
+  "globalBrightness": 0.8,
+  "groups": [],
+  "scenes": [
+    {
+      "id": "sc_attract",
+      "name": "Attract",
+      "accent": "#e879f9",
+      "fadeSec": 0,
+      "globalBrightness": 0.8,
+      "groups": [],
+      "surfaces": [
+        {
+          "id": "srf_wall",
+          "name": "Wall",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 0.5,
+          "rotation": 0,
+          "zIndex": 1,
+          "content": {
+            "type": "EFFECT",
+            "effectId": 1,
+            "paletteId": 0,
+            "speed": 0.45,
+            "intensity": 0.9,
+            "opacity": 1
+          }
+        },
+        {
+          "id": "srf_floor",
+          "name": "Floor",
+          "x": 0,
+          "y": 0.5,
+          "width": 1,
+          "height": 0.5,
+          "rotation": 0,
+          "zIndex": 0,
+          "content": {
+            "type": "EFFECT",
+            "effectId": 1,
+            "paletteId": 6,
+            "speed": 0.35,
+            "intensity": 0.9,
+            "opacity": 1
+          }
+        }
+      ],
+      "fixtures": [
+        {
+          "id": "fx_wall",
+          "name": "Wall strip",
+          "x": 0.08,
+          "y": 0.22,
+          "width": 0.84,
+          "height": 0.08,
+          "rotation": 0,
+          "universe": 0,
+          "startAddress": 1,
+          "ledCount": 60,
+          "reverse": false,
+          "colorData": [],
+          "source": "MEDIA",
+          "surfaceId": "srf_wall",
+          "shape": "LINE",
+          "colorOrder": "GRB",
+          "rgbwMode": "NONE",
+          "channelsPerPixel": 3
+        },
+        {
+          "id": "fx_floor",
+          "name": "Floor strip",
+          "x": 0.08,
+          "y": 0.72,
+          "width": 0.84,
+          "height": 0.08,
+          "rotation": 0,
+          "universe": 1,
+          "startAddress": 181,
+          "ledCount": 60,
+          "reverse": false,
+          "colorData": [],
+          "source": "MEDIA",
+          "surfaceId": "srf_floor",
+          "shape": "LINE",
+          "colorOrder": "GRB",
+          "rgbwMode": "NONE",
+          "channelsPerPixel": 3
+        }
+      ]
+    },
+    {
+      "id": "sc_ember",
+      "name": "Ember",
+      "accent": "#fb7185",
+      "fadeSec": 0,
+      "globalBrightness": 1,
+      "groups": [],
+      "surfaces": [
+        {
+          "id": "srf_wall",
+          "name": "Wall",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 0.5,
+          "rotation": 0,
+          "zIndex": 1,
+          "content": {
+            "type": "EFFECT",
+            "effectId": 4,
+            "paletteId": 4,
+            "speed": 0.8,
+            "intensity": 1,
+            "opacity": 1
+          }
+        },
+        {
+          "id": "srf_floor",
+          "name": "Floor",
+          "x": 0,
+          "y": 0.5,
+          "width": 1,
+          "height": 0.5,
+          "rotation": 0,
+          "zIndex": 0,
+          "content": {
+            "type": "EFFECT",
+            "effectId": 0,
+            "paletteId": 1,
+            "speed": 0.1,
+            "intensity": 0.6,
+            "opacity": 1
+          }
+        }
+      ],
+      "fixtures": [
+        {
+          "id": "fx_wall",
+          "name": "Wall strip",
+          "x": 0.08,
+          "y": 0.22,
+          "width": 0.84,
+          "height": 0.08,
+          "rotation": 0,
+          "universe": 0,
+          "startAddress": 1,
+          "ledCount": 60,
+          "reverse": false,
+          "colorData": [],
+          "source": "MEDIA",
+          "surfaceId": "srf_wall",
+          "shape": "LINE",
+          "colorOrder": "GRB",
+          "rgbwMode": "NONE",
+          "channelsPerPixel": 3
+        },
+        {
+          "id": "fx_floor",
+          "name": "Floor strip",
+          "x": 0.08,
+          "y": 0.72,
+          "width": 0.84,
+          "height": 0.08,
+          "rotation": 0,
+          "universe": 1,
+          "startAddress": 181,
+          "ledCount": 60,
+          "reverse": false,
+          "colorData": [],
+          "source": "MEDIA",
+          "surfaceId": "srf_floor",
+          "shape": "LINE",
+          "colorOrder": "GRB",
+          "rgbwMode": "NONE",
+          "channelsPerPixel": 3
+        }
+      ]
+    },
+    {
+      "id": "sc_tide",
+      "name": "Tide",
+      "accent": "#38bdf8",
+      "fadeSec": 0,
+      "globalBrightness": 0.9,
+      "groups": [],
+      "surfaces": [
+        {
+          "id": "srf_wall",
+          "name": "Wall",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 0.5,
+          "rotation": 0,
+          "zIndex": 1,
+          "content": {
+            "type": "EFFECT",
+            "effectId": 3,
+            "paletteId": 2,
+            "speed": 0.5,
+            "intensity": 0.9,
+            "opacity": 1
+          }
+        },
+        {
+          "id": "srf_floor",
+          "name": "Floor",
+          "x": 0,
+          "y": 0.5,
+          "width": 1,
+          "height": 0.5,
+          "rotation": 0,
+          "zIndex": 0,
+          "content": {
+            "type": "EFFECT",
+            "effectId": 2,
+            "paletteId": 2,
+            "speed": 0.4,
+            "intensity": 0.9,
+            "opacity": 1
+          }
+        }
+      ],
+      "fixtures": [
+        {
+          "id": "fx_wall",
+          "name": "Wall strip",
+          "x": 0.08,
+          "y": 0.22,
+          "width": 0.84,
+          "height": 0.08,
+          "rotation": 0,
+          "universe": 0,
+          "startAddress": 1,
+          "ledCount": 60,
+          "reverse": false,
+          "colorData": [],
+          "source": "MEDIA",
+          "surfaceId": "srf_wall",
+          "shape": "LINE",
+          "colorOrder": "GRB",
+          "rgbwMode": "NONE",
+          "channelsPerPixel": 3
+        },
+        {
+          "id": "fx_floor",
+          "name": "Floor strip",
+          "x": 0.08,
+          "y": 0.72,
+          "width": 0.84,
+          "height": 0.08,
+          "rotation": 0,
+          "universe": 1,
+          "startAddress": 181,
+          "ledCount": 60,
+          "reverse": false,
+          "colorData": [],
+          "source": "MEDIA",
+          "surfaceId": "srf_floor",
+          "shape": "LINE",
+          "colorOrder": "GRB",
+          "rgbwMode": "NONE",
+          "channelsPerPixel": 3
+        }
+      ]
+    },
+    {
+      "id": "sc_grove",
+      "name": "Grove",
+      "accent": "#4ade80",
+      "fadeSec": 0,
+      "globalBrightness": 0.85,
+      "groups": [],
+      "surfaces": [
+        {
+          "id": "srf_wall",
+          "name": "Wall",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 0.5,
+          "rotation": 0,
+          "zIndex": 1,
+          "content": {
+            "type": "EFFECT",
+            "effectId": 2,
+            "paletteId": 3,
+            "speed": 0.45,
+            "intensity": 0.9,
+            "opacity": 1
+          }
+        },
+        {
+          "id": "srf_floor",
+          "name": "Floor",
+          "x": 0,
+          "y": 0.5,
+          "width": 1,
+          "height": 0.5,
+          "rotation": 0,
+          "zIndex": 0,
+          "content": {
+            "type": "EFFECT",
+            "effectId": 0,
+            "paletteId": 3,
+            "speed": 0.1,
+            "intensity": 0.7,
+            "opacity": 1
+          }
+        }
+      ],
+      "fixtures": [
+        {
+          "id": "fx_wall",
+          "name": "Wall strip",
+          "x": 0.08,
+          "y": 0.22,
+          "width": 0.84,
+          "height": 0.08,
+          "rotation": 0,
+          "universe": 0,
+          "startAddress": 1,
+          "ledCount": 60,
+          "reverse": false,
+          "colorData": [],
+          "source": "MEDIA",
+          "surfaceId": "srf_wall",
+          "shape": "LINE",
+          "colorOrder": "GRB",
+          "rgbwMode": "NONE",
+          "channelsPerPixel": 3
+        },
+        {
+          "id": "fx_floor",
+          "name": "Floor strip",
+          "x": 0.08,
+          "y": 0.72,
+          "width": 0.84,
+          "height": 0.08,
+          "rotation": 0,
+          "universe": 1,
+          "startAddress": 181,
+          "ledCount": 60,
+          "reverse": false,
+          "colorData": [],
+          "source": "MEDIA",
+          "surfaceId": "srf_floor",
+          "shape": "LINE",
+          "colorOrder": "GRB",
+          "rgbwMode": "NONE",
+          "channelsPerPixel": 3
+        }
+      ]
+    },
+    {
+      "id": "sc_black",
+      "name": "Blackout",
+      "accent": "#475569",
+      "fadeSec": 0,
+      "globalBrightness": 0,
+      "groups": [],
+      "surfaces": [
+        {
+          "id": "srf_wall",
+          "name": "Wall",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 0.5,
+          "rotation": 0,
+          "zIndex": 1,
+          "content": {
+            "type": "EFFECT",
+            "effectId": 0,
+            "paletteId": 1,
+            "speed": 0,
+            "intensity": 0,
+            "opacity": 1
+          }
+        },
+        {
+          "id": "srf_floor",
+          "name": "Floor",
+          "x": 0,
+          "y": 0.5,
+          "width": 1,
+          "height": 0.5,
+          "rotation": 0,
+          "zIndex": 0,
+          "content": {
+            "type": "EFFECT",
+            "effectId": 0,
+            "paletteId": 1,
+            "speed": 0,
+            "intensity": 0,
+            "opacity": 1
+          }
+        }
+      ],
+      "fixtures": [
+        {
+          "id": "fx_wall",
+          "name": "Wall strip",
+          "x": 0.08,
+          "y": 0.22,
+          "width": 0.84,
+          "height": 0.08,
+          "rotation": 0,
+          "universe": 0,
+          "startAddress": 1,
+          "ledCount": 60,
+          "reverse": false,
+          "colorData": [],
+          "source": "MEDIA",
+          "surfaceId": "srf_wall",
+          "shape": "LINE",
+          "colorOrder": "GRB",
+          "rgbwMode": "NONE",
+          "channelsPerPixel": 3
+        },
+        {
+          "id": "fx_floor",
+          "name": "Floor strip",
+          "x": 0.08,
+          "y": 0.72,
+          "width": 0.84,
+          "height": 0.08,
+          "rotation": 0,
+          "universe": 1,
+          "startAddress": 181,
+          "ledCount": 60,
+          "reverse": false,
+          "colorData": [],
+          "source": "MEDIA",
+          "surfaceId": "srf_floor",
+          "shape": "LINE",
+          "colorOrder": "GRB",
+          "rgbwMode": "NONE",
+          "channelsPerPixel": 3
+        }
+      ]
+    }
+  ],
+  "cueBanks": [
+    {
+      "id": "bank1",
+      "name": "Bank 1",
+      "rows": 8,
+      "cols": 16,
+      "cues": [],
+      "sceneCells": [
+        {
+          "col": 0,
+          "sceneId": "sc_attract"
+        },
+        {
+          "col": 1,
+          "sceneId": "sc_ember"
+        },
+        {
+          "col": 2,
+          "sceneId": "sc_tide"
+        },
+        {
+          "col": 3,
+          "sceneId": "sc_grove"
+        },
+        {
+          "col": 4,
+          "sceneId": "sc_black"
+        }
+      ]
+    }
+  ],
+  "scene3D": {
+    "models": [],
+    "lightIntensity": 1,
+    "environment": true,
+    "exposure": 1,
+    "gridVisible": true,
+    "reflectiveFloor": false,
+    "trackingViz": false,
+    "augmentaViz": false,
+    "trackingSmoothing": 0.6,
+    "trackingPredictMs": 50
+  },
+  "timeline": {
+    "layers": [],
+    "clips": [],
+    "duration": 60,
+    "fps": 30,
+    "markers": [],
+    "inPoint": null,
+    "outPoint": null,
+    "loop": false,
+    "trackingTakes": []
+  },
+  "stateMachine": {
+    "enabled": true,
+    "initialStateId": "st_attract",
+    "regions": [
+      {
+        "id": "rg_attract",
+        "name": "Attract loop (unattended)",
+        "x": 60,
+        "y": 40,
+        "w": 260,
+        "h": 220,
+        "color": "#4c1d95"
+      },
+      {
+        "id": "rg_show",
+        "name": "Performances (triggered)",
+        "x": 420,
+        "y": 40,
+        "w": 520,
+        "h": 360,
+        "color": "#0f766e"
+      }
+    ],
+    "states": [
+      {
+        "id": "st_attract",
+        "name": "Attract",
+        "sceneId": "sc_attract",
+        "x": 140,
+        "y": 130,
+        "entry": []
+      },
+      {
+        "id": "st_ember",
+        "name": "Ember",
+        "sceneId": "sc_ember",
+        "x": 500,
+        "y": 90,
+        "entry": [],
+        "lockSec": 3
+      },
+      {
+        "id": "st_tide",
+        "name": "Tide",
+        "sceneId": "sc_tide",
+        "x": 720,
+        "y": 90,
+        "entry": [],
+        "lockSec": 3
+      },
+      {
+        "id": "st_grove",
+        "name": "Grove",
+        "sceneId": "sc_grove",
+        "x": 500,
+        "y": 300,
+        "entry": [],
+        "lockSec": 3
+      },
+      {
+        "id": "st_black",
+        "name": "Blackout",
+        "sceneId": "sc_black",
+        "x": 760,
+        "y": 300,
+        "entry": []
+      }
+    ],
+    "transitions": [
+      {
+        "id": "to_ember",
+        "from": "st_attract",
+        "to": "st_ember",
+        "trigger": {
+          "kind": "manual"
+        },
+        "fadeSec": 1.5
+      },
+      {
+        "id": "to_tide",
+        "from": "st_attract",
+        "to": "st_tide",
+        "trigger": {
+          "kind": "manual"
+        },
+        "fadeSec": 1.5
+      },
+      {
+        "id": "to_grove",
+        "from": "st_attract",
+        "to": "st_grove",
+        "trigger": {
+          "kind": "manual"
+        },
+        "fadeSec": 1.5
+      },
+      {
+        "id": "to_black",
+        "from": "st_attract",
+        "to": "st_black",
+        "trigger": {
+          "kind": "manual"
+        },
+        "fadeSec": 0.5
+      },
+      {
+        "id": "ember_return",
+        "from": "st_ember",
+        "to": "st_attract",
+        "trigger": {
+          "kind": "afterDelay",
+          "seconds": 10
+        },
+        "fadeSec": 2
+      },
+      {
+        "id": "tide_return",
+        "from": "st_tide",
+        "to": "st_attract",
+        "trigger": {
+          "kind": "afterDelay",
+          "seconds": 10
+        },
+        "fadeSec": 2
+      },
+      {
+        "id": "grove_return",
+        "from": "st_grove",
+        "to": "st_attract",
+        "trigger": {
+          "kind": "afterDelay",
+          "seconds": 10
+        },
+        "fadeSec": 2
+      },
+      {
+        "id": "black_return",
+        "from": "st_black",
+        "to": "st_attract",
+        "trigger": {
+          "kind": "manual"
+        },
+        "fadeSec": 1
+      }
+    ]
+  },
+  "schedule": [],
+  "assets": [],
+  "projectorOutputs": [],
+  "projectorFpsCap": 0,
+  "projectorBrightness": 1
+}

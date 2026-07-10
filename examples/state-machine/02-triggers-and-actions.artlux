@@ -1,0 +1,604 @@
+{
+  "version": "1.1",
+  "timestamp": "2026-07-09T00:00:00.000Z",
+  "surfaces": [
+    {
+      "id": "srf_main",
+      "name": "Main wall",
+      "x": 0,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "rotation": 0,
+      "zIndex": 0,
+      "content": {
+        "type": "EFFECT",
+        "effectId": 0,
+        "paletteId": 6,
+        "speed": 0.1,
+        "intensity": 0.3,
+        "opacity": 1
+      }
+    }
+  ],
+  "fixtures": [
+    {
+      "id": "fx_strip",
+      "name": "LED strip",
+      "x": 0.08,
+      "y": 0.45,
+      "width": 0.84,
+      "height": 0.1,
+      "rotation": 0,
+      "universe": 0,
+      "startAddress": 1,
+      "ledCount": 60,
+      "reverse": false,
+      "colorData": [],
+      "source": "MEDIA",
+      "surfaceId": "srf_main",
+      "shape": "LINE",
+      "colorOrder": "GRB",
+      "rgbwMode": "NONE",
+      "channelsPerPixel": 3
+    }
+  ],
+  "controllers": [],
+  "settings": {
+    "artNetIp": "127.0.0.1",
+    "artNetPort": 6454,
+    "outputEnabled": true,
+    "broadcast": false,
+    "gamma": 1,
+    "protocol": "artnet",
+    "fps": 44,
+    "keepAlive": true,
+    "artNetSync": false,
+    "oscEnabled": false,
+    "oscListenPort": 10000,
+    "oscListenAddress": "",
+    "oscControlPrefix": "/artlux",
+    "helpLang": "en"
+  },
+  "globalBrightness": 0.45,
+  "groups": [],
+  "scenes": [
+    {
+      "id": "sc_idle",
+      "name": "Idle",
+      "accent": "#64748b",
+      "fadeSec": 0,
+      "globalBrightness": 0.45,
+      "groups": [],
+      "surfaces": [
+        {
+          "id": "srf_main",
+          "name": "Main wall",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "rotation": 0,
+          "zIndex": 0,
+          "content": {
+            "type": "EFFECT",
+            "effectId": 0,
+            "paletteId": 6,
+            "speed": 0.1,
+            "intensity": 0.3,
+            "opacity": 1
+          }
+        }
+      ],
+      "fixtures": [
+        {
+          "id": "fx_strip",
+          "name": "LED strip",
+          "x": 0.08,
+          "y": 0.45,
+          "width": 0.84,
+          "height": 0.1,
+          "rotation": 0,
+          "universe": 0,
+          "startAddress": 1,
+          "ledCount": 60,
+          "reverse": false,
+          "colorData": [],
+          "source": "MEDIA",
+          "surfaceId": "srf_main",
+          "shape": "LINE",
+          "colorOrder": "GRB",
+          "rgbwMode": "NONE",
+          "channelsPerPixel": 3
+        }
+      ]
+    },
+    {
+      "id": "sc_run",
+      "name": "Run",
+      "accent": "#f59e0b",
+      "fadeSec": 0,
+      "globalBrightness": 0.9,
+      "groups": [],
+      "surfaces": [
+        {
+          "id": "srf_main",
+          "name": "Main wall",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "rotation": 0,
+          "zIndex": 0,
+          "content": {
+            "type": "EFFECT",
+            "effectId": 1,
+            "paletteId": 0,
+            "speed": 0.6,
+            "intensity": 1,
+            "opacity": 1
+          }
+        }
+      ],
+      "fixtures": [
+        {
+          "id": "fx_strip",
+          "name": "LED strip",
+          "x": 0.08,
+          "y": 0.45,
+          "width": 0.84,
+          "height": 0.1,
+          "rotation": 0,
+          "universe": 0,
+          "startAddress": 1,
+          "ledCount": 60,
+          "reverse": false,
+          "colorData": [],
+          "source": "MEDIA",
+          "surfaceId": "srf_main",
+          "shape": "LINE",
+          "colorOrder": "GRB",
+          "rgbwMode": "NONE",
+          "channelsPerPixel": 3
+        }
+      ]
+    },
+    {
+      "id": "sc_timed",
+      "name": "At time 3s",
+      "accent": "#f97316",
+      "fadeSec": 0,
+      "globalBrightness": 0.9,
+      "groups": [],
+      "surfaces": [
+        {
+          "id": "srf_main",
+          "name": "Main wall",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "rotation": 0,
+          "zIndex": 0,
+          "content": {
+            "type": "EFFECT",
+            "effectId": 2,
+            "paletteId": 5,
+            "speed": 0.5,
+            "intensity": 0.9,
+            "opacity": 1
+          }
+        }
+      ],
+      "fixtures": [
+        {
+          "id": "fx_strip",
+          "name": "LED strip",
+          "x": 0.08,
+          "y": 0.45,
+          "width": 0.84,
+          "height": 0.1,
+          "rotation": 0,
+          "universe": 0,
+          "startAddress": 1,
+          "ledCount": 60,
+          "reverse": false,
+          "colorData": [],
+          "source": "MEDIA",
+          "surfaceId": "srf_main",
+          "shape": "LINE",
+          "colorOrder": "GRB",
+          "rgbwMode": "NONE",
+          "channelsPerPixel": 3
+        }
+      ]
+    },
+    {
+      "id": "sc_marker",
+      "name": "On marker",
+      "accent": "#22d3ee",
+      "fadeSec": 0,
+      "globalBrightness": 0.95,
+      "groups": [],
+      "surfaces": [
+        {
+          "id": "srf_main",
+          "name": "Main wall",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "rotation": 0,
+          "zIndex": 0,
+          "content": {
+            "type": "EFFECT",
+            "effectId": 3,
+            "paletteId": 2,
+            "speed": 0.55,
+            "intensity": 1,
+            "opacity": 1
+          }
+        }
+      ],
+      "fixtures": [
+        {
+          "id": "fx_strip",
+          "name": "LED strip",
+          "x": 0.08,
+          "y": 0.45,
+          "width": 0.84,
+          "height": 0.1,
+          "rotation": 0,
+          "universe": 0,
+          "startAddress": 1,
+          "ledCount": 60,
+          "reverse": false,
+          "colorData": [],
+          "source": "MEDIA",
+          "surfaceId": "srf_main",
+          "shape": "LINE",
+          "colorOrder": "GRB",
+          "rgbwMode": "NONE",
+          "channelsPerPixel": 3
+        }
+      ]
+    },
+    {
+      "id": "sc_clip",
+      "name": "On clip end",
+      "accent": "#ef4444",
+      "fadeSec": 0,
+      "globalBrightness": 1,
+      "groups": [],
+      "surfaces": [
+        {
+          "id": "srf_main",
+          "name": "Main wall",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "rotation": 0,
+          "zIndex": 0,
+          "content": {
+            "type": "EFFECT",
+            "effectId": 4,
+            "paletteId": 4,
+            "speed": 0.8,
+            "intensity": 1,
+            "opacity": 1
+          }
+        }
+      ],
+      "fixtures": [
+        {
+          "id": "fx_strip",
+          "name": "LED strip",
+          "x": 0.08,
+          "y": 0.45,
+          "width": 0.84,
+          "height": 0.1,
+          "rotation": 0,
+          "universe": 0,
+          "startAddress": 1,
+          "ledCount": 60,
+          "reverse": false,
+          "colorData": [],
+          "source": "MEDIA",
+          "surfaceId": "srf_main",
+          "shape": "LINE",
+          "colorOrder": "GRB",
+          "rgbwMode": "NONE",
+          "channelsPerPixel": 3
+        }
+      ]
+    },
+    {
+      "id": "sc_final",
+      "name": "Finale",
+      "accent": "#4ade80",
+      "fadeSec": 0,
+      "globalBrightness": 0.7,
+      "groups": [],
+      "surfaces": [
+        {
+          "id": "srf_main",
+          "name": "Main wall",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "rotation": 0,
+          "zIndex": 0,
+          "content": {
+            "type": "EFFECT",
+            "effectId": 0,
+            "paletteId": 3,
+            "speed": 0.05,
+            "intensity": 0.55,
+            "opacity": 1
+          }
+        }
+      ],
+      "fixtures": [
+        {
+          "id": "fx_strip",
+          "name": "LED strip",
+          "x": 0.08,
+          "y": 0.45,
+          "width": 0.84,
+          "height": 0.1,
+          "rotation": 0,
+          "universe": 0,
+          "startAddress": 1,
+          "ledCount": 60,
+          "reverse": false,
+          "colorData": [],
+          "source": "MEDIA",
+          "surfaceId": "srf_main",
+          "shape": "LINE",
+          "colorOrder": "GRB",
+          "rgbwMode": "NONE",
+          "channelsPerPixel": 3
+        }
+      ]
+    }
+  ],
+  "cueBanks": [
+    {
+      "id": "bank1",
+      "name": "Bank 1",
+      "rows": 8,
+      "cols": 16,
+      "cues": [],
+      "sceneCells": [
+        {
+          "col": 0,
+          "sceneId": "sc_idle"
+        },
+        {
+          "col": 1,
+          "sceneId": "sc_run"
+        },
+        {
+          "col": 2,
+          "sceneId": "sc_timed"
+        },
+        {
+          "col": 3,
+          "sceneId": "sc_marker"
+        },
+        {
+          "col": 4,
+          "sceneId": "sc_clip"
+        },
+        {
+          "col": 5,
+          "sceneId": "sc_final"
+        }
+      ]
+    }
+  ],
+  "scene3D": {
+    "models": [],
+    "lightIntensity": 1,
+    "environment": true,
+    "exposure": 1,
+    "gridVisible": true,
+    "reflectiveFloor": false,
+    "trackingViz": false,
+    "augmentaViz": false,
+    "trackingSmoothing": 0.6,
+    "trackingPredictMs": 50
+  },
+  "timeline": {
+    "layers": [
+      {
+        "id": "ly_a",
+        "name": "Track A",
+        "kind": "video",
+        "enabled": true
+      }
+    ],
+    "clips": [
+      {
+        "id": "clip_a",
+        "layerId": "ly_a",
+        "name": "Ember (effect clip)",
+        "path": "",
+        "kind": "video",
+        "content": {
+          "type": "EFFECT",
+          "effectId": 4,
+          "paletteId": 4,
+          "speed": 0.8,
+          "intensity": 1,
+          "opacity": 1
+        },
+        "start": 1,
+        "duration": 8,
+        "inPoint": 0,
+        "sourceDuration": 8,
+        "color": "#ef4444"
+      }
+    ],
+    "duration": 20,
+    "fps": 30,
+    "markers": [
+      {
+        "id": "mk_hit",
+        "time": 5,
+        "color": "#22d3ee",
+        "note": "Hit"
+      }
+    ],
+    "inPoint": null,
+    "outPoint": null,
+    "loop": false,
+    "trackingTakes": []
+  },
+  "stateMachine": {
+    "enabled": true,
+    "initialStateId": "st_idle",
+    "regions": [
+      {
+        "id": "rg_timed",
+        "name": "Playhead-driven (timeline must be playing)",
+        "x": 300,
+        "y": 60,
+        "w": 620,
+        "h": 240,
+        "color": "#334155"
+      }
+    ],
+    "states": [
+      {
+        "id": "st_idle",
+        "name": "Idle",
+        "sceneId": "sc_idle",
+        "x": 120,
+        "y": 160,
+        "entry": [],
+        "lockSec": 1
+      },
+      {
+        "id": "st_run",
+        "name": "Run",
+        "sceneId": "sc_run",
+        "x": 120,
+        "y": 380,
+        "entry": [
+          {
+            "kind": "seek",
+            "seekTo": 0
+          },
+          {
+            "kind": "play"
+          }
+        ]
+      },
+      {
+        "id": "st_timed",
+        "name": "Timed",
+        "sceneId": "sc_timed",
+        "x": 360,
+        "y": 130,
+        "entry": []
+      },
+      {
+        "id": "st_marker",
+        "name": "Marker",
+        "sceneId": "sc_marker",
+        "x": 560,
+        "y": 130,
+        "entry": []
+      },
+      {
+        "id": "st_clip",
+        "name": "Clip",
+        "sceneId": "sc_clip",
+        "x": 760,
+        "y": 130,
+        "entry": []
+      },
+      {
+        "id": "st_final",
+        "name": "Finale",
+        "sceneId": "sc_final",
+        "x": 760,
+        "y": 380,
+        "entry": [
+          {
+            "kind": "stop"
+          }
+        ]
+      }
+    ],
+    "transitions": [
+      {
+        "id": "t_go",
+        "from": "st_idle",
+        "to": "st_run",
+        "trigger": {
+          "kind": "manual"
+        },
+        "fadeSec": 1
+      },
+      {
+        "id": "t_delay",
+        "from": "st_run",
+        "to": "st_timed",
+        "trigger": {
+          "kind": "afterDelay",
+          "seconds": 1.5
+        },
+        "fadeSec": 1
+      },
+      {
+        "id": "t_attime",
+        "from": "st_timed",
+        "to": "st_marker",
+        "trigger": {
+          "kind": "atTime",
+          "time": 3
+        },
+        "fadeSec": 0.5
+      },
+      {
+        "id": "t_marker",
+        "from": "st_marker",
+        "to": "st_clip",
+        "trigger": {
+          "kind": "onMarker",
+          "markerId": "mk_hit"
+        },
+        "fadeSec": 0.5
+      },
+      {
+        "id": "t_clipend",
+        "from": "st_clip",
+        "to": "st_final",
+        "trigger": {
+          "kind": "onClipEnd",
+          "layerId": "ly_a"
+        },
+        "fadeSec": 1
+      },
+      {
+        "id": "t_loop",
+        "from": "st_final",
+        "to": "st_idle",
+        "trigger": {
+          "kind": "afterDelay",
+          "seconds": 4
+        },
+        "fadeSec": 2
+      }
+    ]
+  },
+  "schedule": [],
+  "assets": [],
+  "projectorOutputs": [],
+  "projectorFpsCap": 0,
+  "projectorBrightness": 1
+}
