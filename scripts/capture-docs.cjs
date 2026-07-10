@@ -356,6 +356,12 @@ async function main() {
         //     black over CDP, so we document it via this editor-side view + the panel.
         await safeShoot(page, '11b-outputs-windowed.png');
 
+        // 11c. Expanded output row — soft-edge (L/R/T/B + blend gamma), output gamma, and the
+        //      Bézier-warp toggle, revealed by the row's "Warp / soft-edge / gamma" expander.
+        await safeShoot(page, '11c-outputs-expanded.png', async () => {
+            await clickTitle(page, 'Warp / soft-edge / gamma', { optional: true });
+        });
+
         // 13. Calibration wizard (structured light). Open it, then close the Outputs
         //     overlay so the wizard is shown on its own.
         await safeShoot(page, '13-calibration.png', async () => {
@@ -383,6 +389,28 @@ async function main() {
         // 17. About (Help ▸ About ArtLux)
         await safeShoot(page, '17-about.png', async () => { await menuAction(page, 'Help', 'About ArtLux'); });
         await escClose(page);
+
+        // 18. Dedicated 3D-scene shot for the user guide (§8, which otherwise reuses 00-main-editor).
+        //     Select a fixture so the W/E/R transform gizmo shows in 3D, then clip to the in-window r3f
+        //     pane (the right-most large canvas). Unlike the projector BrowserWindow, the embedded 3D
+        //     canvas captures fine over CDP. Falls back to a full-window shot if the pane isn't found.
+        try {
+            await clickTitle(page, 'Show 3D scene (split view)', { optional: true }); // no-op if 3D already shown
+            await click(page, { text: 'Matrix 16x16', region: { maxLeft: 300 } }, { optional: true });
+            await sleep(700);
+            const box = await page.evaluate(() => {
+                const rects = [...document.querySelectorAll('canvas')]
+                    .map((c) => c.getBoundingClientRect())
+                    .filter((r) => r.width > 140 && r.height > 140);
+                if (!rects.length) return null;
+                rects.sort((a, b) => (b.left + b.width / 2) - (a.left + a.width / 2)); // right-most large canvas = 3D viewport
+                const r = rects[0];
+                return { x: Math.round(r.left), y: Math.round(r.top), width: Math.round(r.width), height: Math.round(r.height) };
+            });
+            const file = path.join(OUT_DIR, '12-3d-scene.png');
+            await page.screenshot(box ? { path: file, clip: box } : { path: file });
+            console.log(`[capture]   ✓ 12-3d-scene.png${box ? ' (3D pane)' : ' (full window)'}`);
+        } catch (e) { console.warn(`[capture]   ✗ 12-3d-scene.png — ${e.message}`); }
 
         console.log('[capture] done.');
     } finally {
