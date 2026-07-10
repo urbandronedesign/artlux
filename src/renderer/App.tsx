@@ -61,6 +61,13 @@ const generateId = () => Math.random().toString(36).substr(2, 9);
 // the Stage engine + the projector outputs from the loaded project — no editor chrome.
 const QS = new URLSearchParams(window.location.search);
 const BROADCAST = QS.get('broadcast') === '1';
+// Headless (`--headless`) now boots this same App entry (see main/index.ts), not the retired
+// headless.tsx fork — so the plugin host + show engine + schedule tick + media playback all run.
+// It behaves exactly like BROADCAST except it suppresses projector/NDI output (see the reconciler
+// gates below): headless = hidden compute + Art-Net only, the historical headless contract.
+const HEADLESS = QS.get('headless') === '1';
+// True for both hidden run modes — used to share the offscreen-Stage render branch + project loader.
+const SHOW_ENGINE = BROADCAST || HEADLESS;
 const QUERY_PROJECT = QS.get('project') || '';
 // Perf HUD debug flag: `?perf=1` forces it on; otherwise it persists via localStorage (toggle: Ctrl+Alt+P).
 const PERF_FLAG = QS.get('perf') === '1';
@@ -1481,6 +1488,7 @@ const App: React.FC = () => {
 
   // Reconcile desired outputs (enabled + valid display + surface exists) with open windows.
   useEffect(() => {
+      if (HEADLESS) return; // headless suppresses projector windows — DMX/Art-Net only, no display output
       const desired = new Map<string, number>();
       for (const o of projectorOutputs) {
           if (o.enabled && o.displayId != null
@@ -1507,6 +1515,7 @@ const App: React.FC = () => {
   // Reconcile per-output NDI senders: create one for each live output with ndiSend on (named
   // after the surface), destroy it otherwise. The projector window captures + streams frames.
   useEffect(() => {
+      if (HEADLESS) return; // no projector windows in headless → nothing to capture; NDI-per-output is off too
       const desired = new Map<string, string>(); // surfaceId -> NDI source name
       for (const o of projectorOutputs) {
           const surface = surfaces.find(s => s.id === o.surfaceId);
@@ -1532,6 +1541,7 @@ const App: React.FC = () => {
   // state settles on mount → re-applies saved outputs on relaunch (NVAPI sticky persistence is unreliable).
   // Keyed by Electron display.id; nvwarpManager maps that to the NVAPI displayId by desktop rect.
   useEffect(() => {
+      if (HEADLESS) return; // headless drives NO display scanout — a physical warp/blend would be unclearable here
       if (!nvAvailable) return;
       const desired = new Map<string, number>(); // surfaceId -> Electron displayId
       for (const o of projectorOutputs) {
@@ -1568,24 +1578,27 @@ const App: React.FC = () => {
       return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('beforeunload', clearAllNvwarp); };
   }, [nvAvailable, clearAllNvwarp]);
 
-  // Broadcast mode: load the project (--project= or last-opened) and let the projector
-  // reconciler open the saved enabled outputs; Art-Net starts via the normal output effects.
+  // Broadcast/headless: load the project (--project= or last-opened) and let the show engine run.
+  // Broadcast then opens the saved projector outputs; headless suppresses them (gated above).
+  // Art-Net starts via the normal output effects in both. The in-project schedule tick fires because
+  // both modes mount the full App + activate the show-control plugin.
   useEffect(() => {
-      if (!BROADCAST) return;
+      if (!SHOW_ENGINE) return;
+      const mode = HEADLESS ? 'headless' : 'broadcast';
       (async () => {
           const prefs = await window.artlux?.getPrefs?.();
           const path = QUERY_PROJECT || prefs?.lastProjectPath;
-          if (!path) { console.warn('[broadcast] no project to load'); return; }
+          if (!path) { console.warn(`[${mode}] no project to load`); return; }
           const data = await window.artlux?.loadProjectPath?.(path);
           if (data) { applyProjectData(data); setCurrentProjectPath(path); }
-          console.log(`[broadcast] loaded project: ${path}`);
+          console.log(`[${mode}] loaded project: ${path}`);
       })();
       // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Restore persisted prefs (settings + master brightness + recents + last project) on launch.
   useEffect(() => {
-      if (BROADCAST) return; // broadcast owns project loading (above)
+      if (SHOW_ENGINE) return; // broadcast/headless own project loading (above); no editor prefs/layout to restore
       (async () => {
           const prefs = await window.artlux?.getPrefs?.();
           if (!prefs) return;
@@ -1635,9 +1648,11 @@ const App: React.FC = () => {
     { id: DockTab.PERF, label: 'Performance', icon: <Gauge size={13} /> },
   ];
 
-  // Broadcast (show) mode: no editor chrome — render only the offscreen Stage engine. All the
-  // output/projector effects above still run, so Art-Net flows and the saved outputs open.
-  if (BROADCAST) {
+  // Broadcast/headless (show) modes: no editor chrome — render only the offscreen Stage engine.
+  // All the output effects above still run, so Art-Net flows; broadcast additionally opens the saved
+  // projector outputs while headless suppresses them (reconcilers gated on HEADLESS above).
+  // isVideoPlaying defaults true, so media-source fixtures play (not black) in both.
+  if (SHOW_ENGINE) {
     return (
       <div style={{ position: 'fixed', width: 1, height: 1, overflow: 'hidden', opacity: 0, pointerEvents: 'none' }}>
         <Stage
