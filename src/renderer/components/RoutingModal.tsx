@@ -1,8 +1,9 @@
-import React, { useEffect } from 'react';
-import { X, Plus, Trash2, Lock, Unlock, Hash } from 'lucide-react';
+import React, { useEffect, useMemo } from 'react';
+import { X, Plus, Trash2, Lock, Unlock, Hash, AlertTriangle } from 'lucide-react';
 import { Fixture, Surface, Controller, AppSettings } from '../types';
 import { Button } from './ui';
 import { useDraggableModal } from '../hooks/useDraggableModal';
+import { fixtureSpans, findCollisions } from '../services/addressing';
 
 interface Props {
   open: boolean;
@@ -16,6 +17,7 @@ interface Props {
   onUpdateController: (id: string, patch: Partial<Controller>) => void;
   onRemoveController: (id: string) => void;
   onAutoPatch: () => void;
+  onUpdateSettings: (patch: Partial<AppSettings>) => void;
 }
 
 const cell = 'w-full bg-surface-0 border border-line-1 rounded-sm px-1 py-0.5 text-fg-1 text-mini focus:border-accent focus:outline-none disabled:opacity-40';
@@ -24,7 +26,7 @@ const cell = 'w-full bg-surface-0 border border-line-1 rounded-sm px-1 py-0.5 te
 // controller, universe/address, channels) in one grid.
 export const RoutingModal: React.FC<Props> = ({
   open, onClose, fixtures, surfaces, controllers, settings,
-  onUpdateFixture, onAddController, onUpdateController, onRemoveController, onAutoPatch,
+  onUpdateFixture, onAddController, onUpdateController, onRemoveController, onAutoPatch, onUpdateSettings,
 }) => {
   useEffect(() => {
     if (!open) return;
@@ -34,6 +36,22 @@ export const RoutingModal: React.FC<Props> = ({
   }, [open, onClose]);
 
   const { positionerStyle, handleProps } = useDraggableModal('routing');
+
+  // Address-overlap detector: flag any two fixtures whose channel ranges intersect on the same
+  // resolved destination (protocol|ip|broadcast). MUST sit above the early return (Rules of Hooks).
+  const collisions = useMemo(() => {
+    const def = { protocol: settings.protocol, ip: settings.artNetIp, broadcast: settings.broadcast };
+    const pairs = findCollisions(fixtureSpans(fixtures, controllers, def));
+    const nameById = new Map(fixtures.map((f) => [f.id, f.name]));
+    const partners = new Map<string, Set<string>>();
+    const add = (a: string, b: string) => {
+      let set = partners.get(a);
+      if (!set) { set = new Set(); partners.set(a, set); }
+      set.add(nameById.get(b) ?? b);
+    };
+    for (const [a, b] of pairs) { add(a, b); add(b, a); }
+    return { count: pairs.length, partners };
+  }, [fixtures, controllers, settings]);
 
   if (!open) return null;
 
@@ -58,6 +76,15 @@ export const RoutingModal: React.FC<Props> = ({
         <div {...handleProps} className="h-10 px-3 flex items-center justify-between border-b border-line-1 bg-surface-2 shrink-0 cursor-move select-none">
           <span className="text-xs font-semibold text-fg-1 uppercase tracking-wider">Routing</span>
           <div className="flex items-center gap-2">
+            {collisions.count > 0 && (
+              <span className="flex items-center gap-1 text-mini font-semibold text-danger" title="Two or more fixtures share DMX channels on the same destination — see the red Span cells below">
+                <AlertTriangle size={12} /> {collisions.count} {collisions.count === 1 ? 'conflict' : 'conflicts'}
+              </span>
+            )}
+            <label className="flex items-center gap-1 text-mini text-fg-2 cursor-pointer select-none" title="Auto-patch packs auto fixtures AROUND locked ranges instead of through them. Turning this on re-addresses auto fixtures on the next patch — re-upload to hardware after.">
+              <input type="checkbox" checked={settings.reserveLockedRanges ?? false} onChange={(e) => onUpdateSettings({ reserveLockedRanges: e.target.checked })} className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0" />
+              Reserve locked
+            </label>
             <Button variant="primary" size="sm" onClick={onAutoPatch}><Hash size={13} /> Auto-patch</Button>
             <button onClick={onClose} aria-label="Close routing" title="Close" className="text-fg-2 hover:text-fg-1"><X size={16} /></button>
           </div>
@@ -101,6 +128,7 @@ export const RoutingModal: React.FC<Props> = ({
               {fixtures.length === 0 && <div className="px-2 py-2 text-mini text-fg-3 italic">No fixtures.</div>}
               {fixtures.map((f) => {
                 const locked = !!f.patchLocked;
+                const clash = collisions.partners.get(f.id);
                 return (
                   <div key={f.id} className={`grid ${COLS} gap-1 px-2 py-1 items-center`}>
                     <input className={cell} value={f.name} onChange={(e) => onUpdateFixture(f.id, { name: e.target.value })} />
@@ -118,7 +146,7 @@ export const RoutingModal: React.FC<Props> = ({
                       <option value={3}>RGB (3)</option><option value={4}>RGBW (4)</option>
                     </select>
                     <input type="number" className={`${cell} num text-right`} value={f.ledCount} onChange={(e) => onUpdateFixture(f.id, { ledCount: Math.max(1, Math.round(+e.target.value)) })} />
-                    <span className="num text-micro text-fg-3 truncate">{span(f)}</span>
+                    <span className={`num text-micro truncate ${clash ? 'text-danger font-semibold' : 'text-fg-3'}`} title={clash ? `Overlaps ${[...clash].join(', ')}` : undefined}>{span(f)}</span>
                     <button onClick={() => onUpdateFixture(f.id, { patchLocked: !locked })} title={locked ? 'Locked (manual address)' : 'Auto (click to lock)'} className={`justify-self-center ${locked ? 'text-accent' : 'text-fg-3 hover:text-fg-1'}`}>
                       {locked ? <Lock size={12} /> : <Unlock size={12} />}
                     </button>

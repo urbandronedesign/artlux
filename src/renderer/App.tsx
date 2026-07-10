@@ -483,13 +483,13 @@ const App: React.FC = () => {
       colorData: [],
       surfaceId: selectedSurfaceId ?? surfaces[0]?.id,
     };
-    setFixtures(autoPatch([...fixtures, fx], controllers));
+    setFixtures(autoPatch([...fixtures, fx], controllers, settings));
     handleSelectFixture(newId);
   };
 
   const handleRemoveFixture = (id: string) => {
     recordHistory();
-    setFixtures(autoPatch(fixtures.filter(f => f.id !== id), controllers));
+    setFixtures(autoPatch(fixtures.filter(f => f.id !== id), controllers, settings));
     setSelectedFixtureIds(prev => prev.filter(x => x !== id));
     if (selectedFixtureId === id) setSelectedFixtureId(null);
   };
@@ -500,10 +500,10 @@ const App: React.FC = () => {
     recordHistory();
     const mapped = fixtures.map(f => f.id === id ? { ...f, ...updates } : f);
     const repatch = REPATCH_KEYS.some(k => k in updates);
-    setFixtures(repatch ? autoPatch(mapped, controllers) : mapped);
+    setFixtures(repatch ? autoPatch(mapped, controllers, settings) : mapped);
   };
 
-  const handleAutoPatch = () => setFixtures(autoPatch(fixtures, controllers));
+  const handleAutoPatch = () => setFixtures(autoPatch(fixtures, controllers, settings));
 
   // --- Controllers (output devices) ---
   const handleAddController = () => {
@@ -515,12 +515,12 @@ const App: React.FC = () => {
   const handleUpdateController = (id: string, patch: Partial<Controller>) => {
     const next = controllers.map(c => c.id === id ? { ...c, ...patch } : c);
     setControllers(next);
-    if ('startUniverse' in patch) setFixtures(autoPatch(fixtures, next));
+    if ('startUniverse' in patch) setFixtures(autoPatch(fixtures, next, settings));
   };
   const handleRemoveController = (id: string) => {
     const next = controllers.filter(c => c.id !== id);
     setControllers(next);
-    setFixtures(autoPatch(fixtures.map(f => f.controllerId === id ? { ...f, controllerId: undefined } : f), next));
+    setFixtures(autoPatch(fixtures.map(f => f.controllerId === id ? { ...f, controllerId: undefined } : f), next, settings));
   };
 
   const handleRenameFixture = (id: string, newName: string) => {
@@ -2082,6 +2082,7 @@ const App: React.FC = () => {
           onUpdateController={handleUpdateController}
           onRemoveController={handleRemoveController}
           onAutoPatch={handleAutoPatch}
+          onUpdateSettings={updateSettings}
       />
 
       {timelineMax && (

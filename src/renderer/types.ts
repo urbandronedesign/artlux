@@ -417,6 +417,10 @@ export interface AppSettings {
   // Video decode
   mp4WebCodecs?: boolean; // decode .mp4/.m4v via the WebCodecs plugin (frame-accurate; no HW-session cap)
                           // instead of the default <video> element. Off by default → unchanged behaviour.
+  // Patch policy
+  reserveLockedRanges?: boolean; // auto-patch packs auto fixtures AROUND locked ranges instead of
+                                 // through them. Off by default → today's addresses are byte-stable;
+                                 // turning it on re-addresses auto fixtures on the next patch (opt-in).
   // Namespace for plugin-private settings that don't warrant a core field. A plugin keys by its id
   // (`settings.plugins?.['my-plugin']`) and owns the shape. Cross-app persisted settings that the host
   // also reads (like mp4WebCodecs) stay top-level core fields; this is for genuinely plugin-local prefs.

@@ -9,6 +9,7 @@ import { livePreview } from '../services/livePreview';
 import * as surfaceMedia from '../services/surfaceMedia';
 import * as contentSource from '../services/contentSource';
 import * as transitions from '../services/transitions';
+import { resolveDest, destKey } from '../services/addressing';
 import { perfMonitor } from '../services/perfMonitor';
 
 interface StageProps {
@@ -370,25 +371,27 @@ export const Stage: React.FC<StageProps> = ({
             for (let fIdx = 0; fIdx < currentFixtures.length; fIdx++) {
                 const f = currentFixtures[fIdx];
 
-                // Destination resolves from the fixture's controller (S5), then any
-                // per-fixture output override, then the global settings (back-compat).
+                // Destination resolves from the per-fixture output override → controller (S5) →
+                // global settings (back-compat). Shared with the Routing collision detector via
+                // resolveDest/destKey so the UI's overlap check and this real output never drift.
                 const ctrl = f.controllerId ? controllerMapRef.current.get(f.controllerId) : undefined;
-                const proto = f.output?.protocol || ctrl?.protocol || defaultProtocol;
-                const ip = f.output?.ip || ctrl?.ip || defaultIp;
-                const bcast = f.output?.broadcast ?? ctrl?.broadcast ?? defaultBroadcast;
+                const wire = resolveDest(f, ctrl, { protocol: defaultProtocol, ip: defaultIp, broadcast: defaultBroadcast });
+                const proto = wire.protocol;
+                const ip = wire.ip;
+                const bcast = wire.broadcast;
                 const priority = f.output?.priority ?? ctrl?.priority;
                 const sparse = f.output?.sparse ?? false;
-                const destKey = `${proto}|${ip}|${bcast ? 1 : 0}`;
-                let dest = destinations[destKey];
+                const dk = destKey(wire);
+                let dest = destinations[dk];
                 if (!dest) {
                     dest = { ip, protocol: proto, broadcast: bcast, sparse: false, priority, universes: {} };
-                    destinations[destKey] = dest;
+                    destinations[dk] = dest;
                 }
                 dest.sparse = dest.sparse || sparse;
 
                 // Fetch (or lazily create) a pooled 512-array for a universe in this dest.
                 const getArr = (u: number): number[] => {
-                    const pk = `${destKey}#${u}`;
+                    const pk = `${dk}#${u}`;
                     let arr = pool[pk];
                     if (!arr) { arr = new Array(512).fill(0); pool[pk] = arr; }
                     if (!dest!.universes[u]) dest!.universes[u] = arr;
