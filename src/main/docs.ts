@@ -39,11 +39,24 @@ async function mdFiles(dir: string): Promise<string[]> {
   catch { return []; }
 }
 
-// Build the tree: one section per example set (Overview + tutorial chapters), then the user guide.
+// Build the tree: the user guide first (its first page is what the browser opens by default), then one
+// section per example set (Overview + tutorial chapters).
 export async function listDocs(): Promise<DocSection[]> {
   const root = docsRoot();
   const sections: DocSection[] = [];
 
+  // User guide first: README first, then the numbered pages; skip PLAN.md and the images/ folder.
+  const ugDir = join(root, USER_GUIDE);
+  if (existsSync(ugDir)) {
+    const ordered = (await mdFiles(ugDir))
+      .filter((f) => f.toLowerCase() !== 'plan.md')
+      .sort((a, b) => (a.toLowerCase() === 'readme.md' ? -1 : b.toLowerCase() === 'readme.md' ? 1 : a.localeCompare(b)));
+    const entries: DocEntry[] = [];
+    for (const f of ordered) entries.push({ id: `${USER_GUIDE_ID}/${f}`, title: await titleOf(join(ugDir, f), pretty(f)) });
+    if (entries.length) sections.push({ id: 'user-guide', title: 'User guide', entries });
+  }
+
+  // Then one section per example set (Overview + tutorial chapters).
   const exDir = join(root, EXAMPLES);
   if (existsSync(exDir)) {
     let sets: string[] = [];
@@ -68,17 +81,6 @@ export async function listDocs(): Promise<DocSection[]> {
       }
       if (entries.length) sections.push({ id: `ex:${set}`, title: await titleOf(readme, pretty(set)), entries });
     }
-  }
-
-  // User guide: README first, then the numbered pages; skip PLAN.md and the images/ folder.
-  const ugDir = join(root, USER_GUIDE);
-  if (existsSync(ugDir)) {
-    const ordered = (await mdFiles(ugDir))
-      .filter((f) => f.toLowerCase() !== 'plan.md')
-      .sort((a, b) => (a.toLowerCase() === 'readme.md' ? -1 : b.toLowerCase() === 'readme.md' ? 1 : a.localeCompare(b)));
-    const entries: DocEntry[] = [];
-    for (const f of ordered) entries.push({ id: `${USER_GUIDE_ID}/${f}`, title: await titleOf(join(ugDir, f), pretty(f)) });
-    if (entries.length) sections.push({ id: 'user-guide', title: 'User guide', entries });
   }
 
   return sections;
