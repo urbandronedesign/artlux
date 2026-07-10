@@ -1,11 +1,8 @@
 import React, { useState } from 'react';
 import { Fixture, Surface, SurfaceContent, SourceType, AppSettings, PixelSource, LedShape, ColorOrder, RGBWMode, Layout3DType, VideoLayer } from '../types';
-import { Monitor, Image as ImageIcon, Video, Map, Sparkles, Grid3x3, Network, Box, Cast, Radio, RefreshCw, Layers, Slash, Film, Crosshair } from 'lucide-react';
+import { Monitor, Image as ImageIcon, Video, Map, Scissors, Grid3x3, Network, Box, Cast, Radio, RefreshCw, Layers, Slash, Film, Crosshair } from 'lucide-react';
 import { CollapsibleSection } from './CollapsibleSection';
-import { Slider } from './ui';
 import { ContentEditor } from './ContentEditor';
-import { EFFECT_NAMES } from '../gpu/effects';
-import { PALETTE_NAMES } from '../gpu/palettes';
 import { effectivePosObj, effectiveRotObj, effectiveLayout } from '../services/led3dDefaults';
 
 interface InspectorPanelProps {
@@ -156,29 +153,54 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                         onUpdateFixture(selectedFixture.id, { segments: segs.filter((_, k) => k !== i) });
                         setSegSel(0);
                     };
+                    // Punch a dead span: split the current segment (or the whole fixture) into thirds and
+                    // mark the middle third off. An off segment outputs black (WebGPU mode -2) and stays a
+                    // real, editable, visible object in the list rather than an implicit uncovered hole.
+                    const legacySeed = { source: vals.source, effectId: vals.effectId, paletteId: vals.paletteId, speed: vals.speed, intensity: vals.intensity };
+                    const insertGap = () => {
+                        const cur = hasSegs ? segs![idx] : { ...legacySeed, start: 0, stop: selectedFixture.ledCount };
+                        const len = cur.stop - cur.start;
+                        if (len < 3) return; // too short to carve a visible middle third
+                        const a = cur.start + Math.floor(len / 3);
+                        const b = cur.start + Math.floor((2 * len) / 3);
+                        const three = [
+                            { ...cur, start: cur.start, stop: a, off: false },
+                            { ...cur, start: a, stop: b, off: true },
+                            { ...cur, start: b, stop: cur.stop, off: false },
+                        ];
+                        const next = hasSegs ? segs!.flatMap((s, i) => (i === idx ? three : [s])) : three;
+                        onUpdateFixture(selectedFixture.id, { segments: next });
+                        setSegSel(hasSegs ? idx + 1 : 1);
+                    };
 
                     return (
-                        <PanelSection title="Effect" icon={<Sparkles size={12}/>}>
-                            {/* Segments toolbar */}
+                        <PanelSection title="Segments" icon={<Scissors size={12}/>}>
+                            {/* Segments toolbar. Per-segment effects were retired at S3 (effects live on
+                                surfaces now); this section only authors the layout + gap/off dead spans. */}
                             <div className="flex items-center justify-between">
                                 <span className="text-micro text-fg-3 uppercase tracking-wider">
                                     {hasSegs ? `${segs!.length} segments` : 'Whole fixture'}
                                 </span>
-                                {hasSegs ? (
-                                    <div className="flex gap-1">
-                                        <button onClick={addSegment} className="text-micro px-1.5 py-0.5 rounded border border-line-2 text-fg-2 hover:bg-surface-3">+ Split</button>
-                                        <button onClick={() => onUpdateFixture(selectedFixture.id, { segments: undefined })} className="text-micro px-1.5 py-0.5 rounded border border-line-2 text-fg-2 hover:bg-surface-3">Merge</button>
-                                    </div>
-                                ) : (
-                                    <button onClick={enableSegments} className="text-micro px-1.5 py-0.5 rounded border border-line-2 text-fg-2 hover:bg-surface-3">Split</button>
-                                )}
+                                <div className="flex gap-1">
+                                    <button onClick={insertGap} title="Split into thirds and mark the middle as an off/dead span" className="text-micro px-1.5 py-0.5 rounded border border-line-2 text-fg-2 hover:bg-surface-3">Insert gap</button>
+                                    {hasSegs ? (
+                                        <>
+                                            <button onClick={addSegment} className="text-micro px-1.5 py-0.5 rounded border border-line-2 text-fg-2 hover:bg-surface-3">+ Split</button>
+                                            <button onClick={() => onUpdateFixture(selectedFixture.id, { segments: undefined })} className="text-micro px-1.5 py-0.5 rounded border border-line-2 text-fg-2 hover:bg-surface-3">Merge</button>
+                                        </>
+                                    ) : (
+                                        <button onClick={enableSegments} className="text-micro px-1.5 py-0.5 rounded border border-line-2 text-fg-2 hover:bg-surface-3">Split</button>
+                                    )}
+                                </div>
                             </div>
 
                             {hasSegs && (
                                 <div className="space-y-1">
                                     {segs!.map((s, i) => (
                                         <div key={i} className={`flex items-center justify-between text-micro px-1.5 py-1 rounded border ${i === idx ? 'border-accent bg-accent/10' : 'border-line-1 bg-surface-2'}`}>
-                                            <button className="flex-1 text-left text-fg-1" onClick={() => setSegSel(i)}>Seg {i + 1} · LEDs {s.start}–{s.stop}</button>
+                                            <button className={`flex-1 text-left ${s.off ? 'text-fg-3 line-through' : 'text-fg-1'}`} onClick={() => setSegSel(i)}>
+                                                Seg {i + 1} · LEDs {s.start}–{s.stop}{s.off ? ' · OFF' : ''}
+                                            </button>
                                             <button aria-label={`Remove segment ${i + 1}`} className="text-fg-3 hover:text-danger px-1" onClick={() => removeSegment(i)}>✕</button>
                                         </div>
                                     ))}
@@ -186,42 +208,11 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                                         <NumberInput label="Start" value={vals && 'start' in vals ? (vals as any).start : 0} step={1} onChange={(v) => setVals({ start: Math.max(0, Math.round(v)) } as any)} />
                                         <NumberInput label="Stop" value={vals && 'stop' in vals ? (vals as any).stop : 0} step={1} onChange={(v) => setVals({ stop: Math.round(v) } as any)} />
                                     </div>
-                                </div>
-                            )}
-
-                            {/* Content source: media vs effect (targets fixture or selected segment) */}
-                            <div className="grid grid-cols-2 gap-1 pt-1">
-                                {([PixelSource.MEDIA, PixelSource.EFFECT] as const).map((src) => {
-                                    const active = (vals.source ?? PixelSource.MEDIA) === src;
-                                    return (
-                                        <button key={src} onClick={() => setVals({ source: src })}
-                                            className={`text-micro py-1.5 rounded border transition-all ${active ? 'bg-accent/10 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3'}`}>
-                                            {src === PixelSource.MEDIA ? 'Media' : 'Effect'}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-
-                            {(vals.source ?? PixelSource.MEDIA) === PixelSource.EFFECT && (
-                                <div className="space-y-3 pt-1">
-                                    <div className="flex items-center justify-between text-xs gap-2">
-                                        <label className="text-fg-2 w-16 truncate">Effect</label>
-                                        <select value={vals.effectId ?? 0} onChange={(e) => setVals({ effectId: parseInt(e.target.value) })}
-                                            className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent focus:outline-none">
-                                            {EFFECT_NAMES.map((name, i) => <option key={i} value={i}>{name}</option>)}
-                                        </select>
-                                    </div>
-                                    <div className="flex items-center justify-between text-xs gap-2">
-                                        <label className="text-fg-2 w-16 truncate">Palette</label>
-                                        <select value={vals.paletteId ?? 0} onChange={(e) => setVals({ paletteId: parseInt(e.target.value) })}
-                                            className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent focus:outline-none">
-                                            {PALETTE_NAMES.map((name, i) => <option key={i} value={i}>{name}</option>)}
-                                        </select>
-                                    </div>
-                                    <Slider label="Speed" value={vals.speed ?? 0.5} min={0} max={1} step={0.01}
-                                        format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => setVals({ speed: v })} />
-                                    <Slider label="Intensity" value={vals.intensity ?? 0.5} min={0} max={1} step={0.01}
-                                        format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => setVals({ intensity: v })} />
+                                    <label className="flex items-center gap-1.5 text-micro text-fg-2 cursor-pointer pt-1 select-none">
+                                        <input type="checkbox" checked={!!(vals as any).off} onChange={(e) => setVals({ off: e.target.checked } as any)}
+                                            className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0" />
+                                        Off — dead span (LEDs output black)
+                                    </label>
                                 </div>
                             )}
                         </PanelSection>

@@ -144,7 +144,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 }
 `;
 
-interface SegLike { start: number; stop: number; source?: PixelSource; effectId?: number; paletteId?: number; speed?: number; intensity?: number; }
+interface SegLike { start: number; stop: number; off?: boolean; source?: PixelSource; effectId?: number; paletteId?: number; speed?: number; intensity?: number; }
 
 function fixtureSegments(f: Fixture): SegLike[] {
   if (f.segments && f.segments.length) return f.segments;
@@ -255,9 +255,9 @@ export class WebGPUMapper implements IPixelMapper {
     segs.forEach(({ s, f }, k) => {
       const base = k * 8;
       // S3: every fixture samples its linked surface's texture (media). Per-fixture
-      // effects are retired — effects live on surfaces now.
-      void s;
-      out[base + 0] = -1; // media
+      // effects are retired — effects live on surfaces now. An off segment outputs black:
+      // mode -2 is already the WGSL "off" path (mode < -1.5), same as the trailing gap entry.
+      out[base + 0] = s.off ? -2 : -1; // -2 off (gap) / -1 media
       out[base + 4] = f.rgbwMode === RGBWMode.NONE ? 1 : 0;
     });
     // trailing off-segment for gap LEDs

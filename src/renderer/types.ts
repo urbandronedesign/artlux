@@ -30,11 +30,17 @@ export enum LedShape {
   MATRIX = 'MATRIX'
 }
 
-// A contiguous LED sub-range of a fixture with its own effect/palette. When a
-// fixture has no segments, the whole fixture acts as one implicit segment.
+// A contiguous LED sub-range of a fixture. When a fixture has no segments, the
+// whole fixture acts as one implicit segment.
 export interface Segment {
   start: number;   // first LED index within the fixture (inclusive)
   stop: number;    // last LED index (exclusive)
+  off?: boolean;   // true => this segment's LEDs output black (an authored "gap"/dead span)
+  // The fields below are retired legacy: since S3 every segment samples its linked surface's
+  // texture (effects live on surfaces now, see gpu/surfaceFx.ts). They are kept ONLY so old
+  // projects round-trip and so cue/fade paths (fixtures.<id>.segments.<n>.speed|intensity in
+  // services/paramPath.ts) don't strand. Do NOT wire UI back to them — the Inspector no longer
+  // authors them. @deprecated
   source: PixelSource;
   effectId: number;
   paletteId: number;

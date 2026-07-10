@@ -233,7 +233,9 @@ export const Stage: React.FC<StageProps> = ({
   const fixtureParamSignature = useMemo(() => {
      return JSON.stringify(fixtures.map(f => ({
          s: f.source, e: f.effectId, p: f.paletteId, sp: f.speed, it: f.intensity, rw: f.rgbwMode,
-         segp: f.segments ? f.segments.map(s => `${s.source},${s.effectId},${s.paletteId},${s.speed},${s.intensity}`).join('|') : ''
+         // s.off drives the segment's GPU mode (-2 off / -1 media) — must be in the param signature
+         // so toggling Off re-uploads segParams via the cheap updateParams path (no full remap).
+         segp: f.segments ? f.segments.map(s => `${s.off ? 1 : 0},${s.source},${s.effectId},${s.paletteId},${s.speed},${s.intensity}`).join('|') : ''
      })));
   }, [fixtures]);
 
