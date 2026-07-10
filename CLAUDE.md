@@ -30,10 +30,15 @@ a project-level state machine, scenes/cues, OSC control, and a 3D simulator.
 | LED map / fixture geometry | [docs/LEDMAP.md](docs/LEDMAP.md) |
 | Timeline NLE | [docs/TIMELINE.md](docs/TIMELINE.md) |
 | Scenes & cues | [docs/SCENES.md](docs/SCENES.md) |
+| **Project state machine (the "Show" graph over scenes)** | [docs/STATE-MACHINE.md](docs/STATE-MACHINE.md) |
 | **Per-scene timelines + per-state authoring loop** | [docs/SCENE-TIMELINES.md](docs/SCENE-TIMELINES.md) |
+| Effects & palettes (generative content) | [docs/EFFECTS.md](docs/EFFECTS.md) |
+| **Example projects + written tutorials (state machine)** | [examples/README.md](examples/README.md) |
 | Projector calibration (structured light + pose) | [docs/CALIBRATION.md](docs/CALIBRATION.md), [docs/AUTO-ALIGN.md](docs/AUTO-ALIGN.md), [docs/CALIB-OPTIMIZATIONS.md](docs/CALIB-OPTIMIZATIONS.md) |
 | NVIDIA hardware warp/blend | [docs/NVWARP.md](docs/NVWARP.md) |
 | NDI network video | [docs/NDI.md](docs/NDI.md) |
+| Spout (Windows GPU video receive) | [docs/SPOUT.md](docs/SPOUT.md) |
+| Video codecs (HAP, MP4/WebCodecs) | [docs/CODECS.md](docs/CODECS.md) |
 | OSC control + LiDAR tracking protocol | [docs/OSC.md](docs/OSC.md), [docs/TRACKING_SYNC.md](docs/TRACKING_SYNC.md), [docs/TRACKING_TAKES.md](docs/TRACKING_TAKES.md) |
 | Camera pose tracking (MediaPipe BlazePose) | [docs/MEDIAPIPE.md](docs/MEDIAPIPE.md) |
 | Augmenta optical tracking (OSC v2) | [docs/AUGMENTA.md](docs/AUGMENTA.md) |

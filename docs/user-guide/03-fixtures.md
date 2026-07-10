@@ -5,7 +5,7 @@ uses. You build and edit the *structure* in the **Fixture Editor** dock tab, and
 mapping and 3D layout* in the right **Inspector**.
 
 ![The Fixture Editor with a matrix fixture selected](images/04-fixture-editor.png)
-*The Fixture Editor dock: Create, Library (templates), Patch, and the Pixel Type / Geometry / Wiring cards. A 16×16 serpentine matrix is selected; the Inspector mirrors its geometry on the right.*
+*The Fixture Editor dock: Create, Library (templates) and Patch up top, with the Pixel Type, Geometry and Wiring cards below (scroll the dock to reach them). A 16×16 serpentine matrix is selected; the Inspector mirrors its geometry on the right.*
 
 ---
 
