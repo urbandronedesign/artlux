@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Scene, Cue, CueBank, CueEntry, CueTransition, Surface, Fixture } from '../types';
 import { Plus, Trash2, Play, RefreshCw, Camera, Zap, X, Film } from 'lucide-react';
-import { getByPath, globalParams, surfaceParams, fixtureParams, type StateView, type ParamDef } from '../services/paramPath';
+import { getByPath, globalParams, surfaceParams, fixtureParams, isFadeablePath, type StateView, type ParamDef } from '../services/paramPath';
 
 interface Props {
     banks: CueBank[];
@@ -117,6 +117,24 @@ export const CueBankPanel: React.FC<Props> = ({
     };
     const removeEntry = (path: string) => selCue && patchCue(selCue.id, { entries: selCue.entries.filter(e => e.path !== path) });
     const setEntryValue = (path: string, value: CueEntry['value']) => selCue && patchCue(selCue.id, { entries: selCue.entries.map(e => e.path === path ? { ...e, value } : e) });
+    // Per-entry Fade/Transition overrides. undefined removes the key (= inherit the cue's value); note a
+    // fadeSec of 0 is a real override (snap), which must stay distinct from "inherit".
+    const setEntryFade = (path: string, fadeSec: number | undefined) => selCue && patchCue(selCue.id, {
+        entries: selCue.entries.map(e => {
+            if (e.path !== path) return e;
+            const next: CueEntry = { ...e };
+            if (fadeSec === undefined) delete next.fadeSec; else next.fadeSec = fadeSec;
+            return next;
+        }),
+    });
+    const setEntryTransition = (path: string, transition: CueTransition | undefined) => selCue && patchCue(selCue.id, {
+        entries: selCue.entries.map(e => {
+            if (e.path !== path) return e;
+            const next: CueEntry = { ...e };
+            if (transition === undefined) delete next.transition; else next.transition = transition;
+            return next;
+        }),
+    });
 
     const cellClick = (cue: Cue) => { if (mode === 'live') onFireCue(cue); else { setSelCueId(cue.id); setAddOpen(false); } };
 
@@ -252,10 +270,28 @@ export const CueBankPanel: React.FC<Props> = ({
                         </div>
                         <div className="space-y-1">
                             {selCue.entries.map(e => (
-                                <div key={e.path} className="flex items-center gap-1 text-micro">
-                                    <span className="flex-1 min-w-0 truncate text-fg-2" title={e.path}>{labelForPath(e.path)}</span>
-                                    <EntryValue value={e.value} onChange={(v) => setEntryValue(e.path, v)} />
-                                    <button onClick={() => removeEntry(e.path)} className="text-fg-3 hover:text-danger"><Trash2 size={10} /></button>
+                                <div key={e.path} className="rounded bg-surface-0/40 px-1 py-1 space-y-1">
+                                    <div className="flex items-center gap-1 text-micro">
+                                        <span className="flex-1 min-w-0 truncate text-fg-2" title={e.path}>{labelForPath(e.path)}</span>
+                                        <EntryValue value={e.value} onChange={(v) => setEntryValue(e.path, v)} />
+                                        <button onClick={() => removeEntry(e.path)} className="text-fg-3 hover:text-danger"><Trash2 size={10} /></button>
+                                    </div>
+                                    {isFadeablePath(e.path) && (
+                                        <div className="flex items-center gap-1 text-micro pl-1 text-fg-3">
+                                            <span className="opacity-70">fade</span>
+                                            <input type="number" min={0} step={0.1} value={e.fadeSec ?? ''} placeholder="cue"
+                                                onChange={(ev) => setEntryFade(e.path, ev.target.value === '' ? undefined : Math.max(0, Number(ev.target.value) || 0))}
+                                                title="Per-entry fade (s) — blank inherits the cue's fade"
+                                                className="w-10 bg-surface-0 border border-line-1 rounded px-0.5 text-fg-1 tabular-nums" />
+                                            <select value={e.transition ?? ''}
+                                                onChange={(ev) => setEntryTransition(e.path, ev.target.value === '' ? undefined : ev.target.value as CueTransition)}
+                                                title="Per-entry transition — 'cue' inherits the cue's"
+                                                className="flex-1 min-w-0 bg-surface-0 border border-line-1 rounded px-0.5 py-0.5 text-fg-1">
+                                                <option value="">cue</option>
+                                                {TRANSITIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                                            </select>
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                             {selCue.entries.length === 0 && <div className="text-fg-3 italic text-micro">No params — use “capture” to add some.</div>}

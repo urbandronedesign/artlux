@@ -80,19 +80,28 @@ export function setByPath(view: StateView, path: string, value: number | string 
   return view;
 }
 
-// Copy-on-write set into a nested object, handling numeric array indices (e.g. segments.0.speed).
+// Copy-on-write set into a nested object. Cues *patch existing* leaves — they never *create* structure:
+// a numeric key into a non-array, or an out-of-range index, is a safe no-op (skip), not a fabricated
+// `{"0":…}` object / sparse array. (Coercing a missing container to `[]` would be worse — a partial
+// Segment then reaches the mapper with undefined ranges → NaN LED output. Skip matches the read side,
+// where getByPath returns undefined and captureEntry bails.)
+const isIndex = (k: string) => /^(0|[1-9]\d*)$/.test(k);
+
 function setIn(obj: Record<string, unknown>, keys: string[], value: unknown): Record<string, unknown> {
   if (keys.length === 0) return obj;
   const [k, ...rest] = keys;
-  const asIdx = Number(k);
   if (Array.isArray(obj)) {
+    const idx = Number(k);
+    if (!isIndex(k) || idx >= obj.length) return obj;            // never extend/append/index-garbage via a cue
     const arr = (obj as unknown[]).slice();
-    arr[asIdx] = rest.length === 0 ? value : setIn((arr[asIdx] ?? {}) as Record<string, unknown>, rest, value);
+    arr[idx] = rest.length === 0 ? value : setIn((arr[idx] ?? {}) as Record<string, unknown>, rest, value);
     return arr as unknown as Record<string, unknown>;
   }
-  const copy = { ...obj };
-  copy[k] = rest.length === 0 ? value : setIn((copy[k] ?? {}) as Record<string, unknown>, rest, value);
-  return copy;
+  if (isIndex(k)) return obj;                                     // numeric key into a non-array ⇒ skip (was the corruption)
+  if (rest.length === 0) return { ...obj, [k]: value };
+  const child = obj[k];
+  if (child == null || typeof child !== 'object') return obj;     // don't fabricate a missing nested container
+  return { ...obj, [k]: setIn(child as Record<string, unknown>, rest, value) };
 }
 
 // --- Cuable parameter catalog (for authoring cues by capturing current values) ---

@@ -803,8 +803,10 @@ const App: React.FC = () => {
       setSurfaces(surf);
       if (data?.fixtures && Array.isArray(data.fixtures)) {
           recordHistory();
-          // Default-link any unlinked fixture to the first surface (strict per-surface).
-          setFixtures(data.fixtures.map((f: any) => ({ ...f, colorData: [], surfaceId: f.surfaceId ?? surf[0]?.id })));
+          // Default-link any unlinked fixture to the first surface (strict per-surface). Repair legacy
+          // corruption: a non-array `segments` (e.g. `{"0":…}` from a pre-fix cue write) is always
+          // garbage — coerce it back to undefined so Stage's `segments.map` can't throw on load.
+          setFixtures(data.fixtures.map((f: any) => ({ ...f, colorData: [], surfaceId: f.surfaceId ?? surf[0]?.id, segments: Array.isArray(f.segments) ? f.segments : undefined })));
       }
       if (data?.settings) setSettings(prev => ({ ...prev, ...data.settings }));
       if (typeof data?.globalBrightness === 'number') setGlobalBrightness(data.globalBrightness);
