@@ -45,6 +45,7 @@ function buildMenus(recents: string[]): Menu[] {
         { label: 'Save', accel: 'Ctrl+S', action: 'save' },
         { label: 'Save As…', accel: 'Ctrl+Shift+S', action: 'save-as' },
         { label: 'Collect Assets…', action: 'collect-assets' },
+        { label: 'Collect a Copy to Folder…', action: 'collect-copy' },
         { sep: true },
         { label: 'Export Rig…', action: 'export-rig' },
         { label: 'Import Rig…', action: 'import-rig' },

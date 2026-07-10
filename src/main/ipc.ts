@@ -84,6 +84,8 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     });
     ipcMain.handle(IPC.PROJECT_COLLECT_ASSETS, (_e, projectFile: string, data: ProjectData) =>
         projectFolder.collectAssets(projectFile, data));
+    ipcMain.handle(IPC.PROJECT_COLLECT_TO, (_e, data: ProjectData) =>
+        projectFolder.collectAssetsToFolder(getWindow(), data));
     ipcMain.handle(IPC.RIG_EXPORT, (_e, rig: RigData) => persistence.exportRig(getWindow(), rig));
     ipcMain.handle(IPC.RIG_IMPORT, () => persistence.importRig(getWindow()));
     ipcMain.handle(IPC.PREFS_GET, () => persistence.getPrefs());

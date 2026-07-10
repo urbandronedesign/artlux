@@ -124,6 +124,8 @@ export const IPC = {
   PROJECT_OPEN_FOLDER: 'project:open-folder',
   /** Renderer → main (invoke): copy external assets into the project's assets/ → CollectResult. */
   PROJECT_COLLECT_ASSETS: 'project:collect-assets',
+  /** Renderer → main (invoke): pick a fresh folder and collect a self-contained copy there (non-destructive). */
+  PROJECT_COLLECT_TO: 'project:collect-to',
   /** Renderer → main (invoke): enumerate connected displays → DisplayInfo[]. */
   PROJECTOR_LIST_DISPLAYS: 'projector:list-displays',
   /** Renderer → main: open (or move) a surface's fullscreen output on a display. */
@@ -670,6 +672,8 @@ export interface ArtluxApi {
   newProjectFolder(): Promise<NewProjectFolder | null>;
   openProjectFolder(): Promise<OpenProjectResult | null>;
   collectAssets(projectFile: string, data: ProjectData): Promise<CollectResult | null>;
+  /** Pick a fresh folder and collect a self-contained copy there (leaves the current project untouched). */
+  collectAssetsTo(data: ProjectData): Promise<(CollectResult & { projectFile: string }) | null>;
   exportRig(rig: RigData): Promise<string | null>;
   importRig(): Promise<RigData | null>;
   getPrefs(): Promise<Prefs>;

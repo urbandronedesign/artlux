@@ -45,3 +45,15 @@ const svg = `<?xml version="1.0" encoding="UTF-8"?>
 const out = path.join(__dirname, '..', 'docs', 'checkerboard-9x6-25mm.svg');
 fs.writeFileSync(out, svg);
 console.log(`[gen-checkerboard] wrote ${path.relative(process.cwd(), out)} — ${W}×${H} mm, ${COLS}×${ROWS} squares (9×6 inner), ${SQ} mm`);
+
+// Also emit a PNG raster (~8 px/mm ≈ 200 DPI) beside the SVG for contexts that can't print SVG.
+// Uses the resvg native dev-dependency; degrade gracefully if it isn't installed.
+try {
+  const { Resvg } = require('@resvg/resvg-js');
+  const pngOut = out.replace(/\.svg$/, '.png');
+  const png = new Resvg(svg, { fitTo: { mode: 'width', value: Math.round(W * 8) } }).render().asPng();
+  fs.writeFileSync(pngOut, png);
+  console.log(`[gen-checkerboard] wrote ${path.relative(process.cwd(), pngOut)} (PNG raster)`);
+} catch (e) {
+  console.warn('[gen-checkerboard] PNG raster skipped (@resvg/resvg-js unavailable):', e.message);
+}

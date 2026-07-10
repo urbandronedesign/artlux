@@ -198,8 +198,7 @@ export function importAssetFile(projectFile: string, srcPath: string, type: Asse
 
 // Copy every external asset into <root>/assets/<category>/ and remap references to point there.
 // Returns remapped data with *absolute* paths (the renderer applies it, then a save relativizes).
-export function collectAssets(projectFile: string, data: ProjectData): CollectResult {
-  const root = dirname(projectFile);
+function collectInto(root: string, data: ProjectData): CollectResult {
   scaffold(root);
   const assetsDir = join(root, 'assets');
 
@@ -253,4 +252,26 @@ export function collectAssets(projectFile: string, data: ProjectData): CollectRe
   if (added.length) out.assets = [...(out.assets ?? []), ...added];
 
   return { data: out, copied, skipped, missing };
+}
+
+// In-place: collect into the project's own folder (the destructive path — the renderer confirms first).
+export function collectAssets(projectFile: string, data: ProjectData): CollectResult {
+  return collectInto(dirname(projectFile), data);
+}
+
+// Non-destructive: pick a fresh folder and collect a self-contained copy there, leaving the current
+// project + working directory untouched. Returns the CollectResult plus the copy's project-file path;
+// null if the user cancels (or declines to overwrite an existing project in the chosen folder).
+export async function collectAssetsToFolder(win: BrowserWindow | null, data: ProjectData): Promise<(CollectResult & { projectFile: string }) | null> {
+  const opts = { title: 'Collect a Copy to Folder', buttonLabel: 'Collect Here', properties: ['openDirectory' as const, 'createDirectory' as const] };
+  const res = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
+  if (res.canceled || !res.filePaths[0]) return null;
+  const root = res.filePaths[0];
+  const projectFile = join(root, PROJECT_FILENAME);
+  if (existsSync(projectFile)) {
+    const warn = { type: 'warning' as const, buttons: ['Cancel', 'Overwrite'], defaultId: 0, cancelId: 0, message: 'This folder already contains a project.', detail: `${projectFile} will be overwritten.` };
+    const c = win ? await dialog.showMessageBox(win, warn) : await dialog.showMessageBox(warn);
+    if (c.response !== 1) return null;
+  }
+  return { ...collectInto(root, data), projectFile };
 }

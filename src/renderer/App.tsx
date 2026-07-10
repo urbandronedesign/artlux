@@ -971,6 +971,8 @@ const App: React.FC = () => {
           window.alert('Create a project folder first (File → New Project), then collect assets.');
           return;
       }
+      const folder = currentProjectPath.replace(/\\/g, '/').split('/').slice(0, -1).join('/');
+      if (!window.confirm(`Collect Assets copies every external file into\n  ${folder}/assets/\nand overwrites\n  ${currentProjectPath}\n\nThis modifies your project in place and can't be undone. Continue?`)) return;
       const res = await window.artlux?.collectAssets?.(currentProjectPath, buildProjectData());
       if (!res) return;
       applyProjectData(res.data);
@@ -980,6 +982,21 @@ const App: React.FC = () => {
       if (res.skipped) lines.push(`${res.skipped} already collected or not collectable.`);
       if (res.missing.length) lines.push(`Missing (not found on disk):\n${res.missing.join('\n')}`);
       window.alert(lines.join('\n'));
+  };
+
+  // Non-destructive: collect a self-contained copy into a fresh folder, leaving the current file and
+  // working directory untouched (pick target → collect → save the copy; no applyProjectData). Offers
+  // to open the copy afterwards.
+  const handleCollectCopyToFolder = async () => {
+      const res = await window.artlux?.collectAssetsTo?.(buildProjectData());
+      if (!res) return;
+      await window.artlux?.saveProject?.(res.data, res.projectFile);
+      refreshRecents();
+      const lines = [`Collected a copy to\n  ${res.projectFile}`, ``, `${res.copied} asset${res.copied === 1 ? '' : 's'} copied.`];
+      if (res.skipped) lines.push(`${res.skipped} already collected or not collectable.`);
+      if (res.missing.length) lines.push(`Missing (not found on disk):\n${res.missing.join('\n')}`);
+      lines.push(``, 'Your current project was not modified. Open the copy now?');
+      if (window.confirm(lines.join('\n'))) handleOpenRecent(res.projectFile);
   };
 
   // ---- Asset library ----
@@ -1017,6 +1034,13 @@ const App: React.FC = () => {
       const next = picked && picked[0];
       if (!next) return;
       const oldPath = asset.path, newPath = next.path;
+      const fileName = (p: string) => p.replace(/\\/g, '/').split('/').pop();
+      const refCount = asset.type === 'take'
+          ? timeline.clips.filter(c => c.path === oldPath || c.takeId === asset.id).length
+          : surfaces.filter(s => (s.content as { url?: string })?.url === oldPath).length
+              + timeline.clips.filter(c => c.path === oldPath).length
+              + (scene3D.models ?? []).filter(m => m.path === oldPath).length;
+      if (!window.confirm(`Relink "${asset.name}"\n\nfrom:  ${fileName(oldPath)}\nto:    ${fileName(newPath)}\n\nThis updates ${refCount} reference${refCount === 1 ? '' : 's'} and can't be undone. Continue?`)) return;
       if (asset.type === 'take') {
           setTimeline(t => ({
               ...t,
@@ -1029,6 +1053,7 @@ const App: React.FC = () => {
           setTimeline(t => ({ ...t, clips: t.clips.map(c => c.path === oldPath ? { ...c, path: newPath } : c) }));
           setScene3D(s => ({ ...s, models: (s.models ?? []).map(m => m.path === oldPath ? { ...m, path: newPath } : m) }));
       }
+      window.alert(`Relinked "${asset.name}" — ${refCount} reference${refCount === 1 ? '' : 's'} updated.`);
   };
   // Set the selected surface's content to a video/image asset.
   const handleUseAssetOnSurface = (asset: AssetEntry) => {
@@ -1066,6 +1091,7 @@ const App: React.FC = () => {
           case 'save': handleSaveProject(); break;
           case 'save-as': handleSaveAs(); break;
           case 'collect-assets': handleCollectAssets(); break;
+          case 'collect-copy': handleCollectCopyToFolder(); break;
           case 'broadcast': handleLaunchBroadcast(); break;
           case 'export-rig': handleExportRig(); break;
           case 'import-rig': handleImportRig(); break;

@@ -33,6 +33,7 @@ const api: ArtluxApi = {
     newProjectFolder: () => ipcRenderer.invoke(IPC.PROJECT_NEW_FOLDER),
     openProjectFolder: () => ipcRenderer.invoke(IPC.PROJECT_OPEN_FOLDER),
     collectAssets: (projectFile: string, data: ProjectData) => ipcRenderer.invoke(IPC.PROJECT_COLLECT_ASSETS, projectFile, data),
+    collectAssetsTo: (data: ProjectData) => ipcRenderer.invoke(IPC.PROJECT_COLLECT_TO, data),
     exportRig: (rig: RigData) => ipcRenderer.invoke(IPC.RIG_EXPORT, rig),
     importRig: () => ipcRenderer.invoke(IPC.RIG_IMPORT),
     getPrefs: () => ipcRenderer.invoke(IPC.PREFS_GET),

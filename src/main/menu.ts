@@ -39,6 +39,7 @@ function template(): MenuItemConstructorOptions[] {
         { label: 'Save', accelerator: 'CmdOrCtrl+S', click: () => send('save') },
         { label: 'Save As…', accelerator: 'CmdOrCtrl+Shift+S', click: () => send('save-as') },
         { label: 'Collect Assets…', click: () => send('collect-assets') },
+        { label: 'Collect a Copy to Folder…', click: () => send('collect-copy') },
         { type: 'separator' },
         { label: 'Export Rig…', click: () => send('export-rig') },
         { label: 'Import Rig…', click: () => send('import-rig') },
