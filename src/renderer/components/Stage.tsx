@@ -7,6 +7,7 @@ import { IPixelMapper } from '../services/PixelMapper';
 import { dmxSignal } from '../services/dmxSignal';
 import { livePreview } from '../services/livePreview';
 import * as surfaceMedia from '../services/surfaceMedia';
+import * as contentSource from '../services/contentSource';
 import * as transitions from '../services/transitions';
 import { perfMonitor } from '../services/perfMonitor';
 
@@ -84,6 +85,19 @@ export const Stage: React.FC<StageProps> = ({
   const fixtureRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const fixturesRef = useRef(fixtures);
   useEffect(() => { fixturesRef.current = fixtures; }, [fixtures]);
+
+  // Loopback DMX-in listens on the universes our patched fixtures touch (∪ the legacy 0-7), so a back
+  // rig on sACN universe 8+ is mirrored. cpp-aware span; the setter re-fires configureInput only when
+  // the derived set actually changes (and only while a DMX-in surface is active).
+  useEffect(() => {
+    const touched = new Set<number>();
+    for (const f of fixtures) {
+      const startAbs = f.universe * 512 + (f.startAddress - 1);
+      const endAbs = startAbs + f.ledCount * (f.channelsPerPixel ?? 4) - 1;
+      for (let u = Math.floor(startAbs / 512); u <= Math.floor(endAbs / 512); u++) touched.add(u);
+    }
+    contentSource.setDmxInputUniverses([...touched]);
+  }, [fixtures]);
 
   // Surfaces composited each frame; the media service owns element lifecycle.
   const surfacesRef = useRef(surfaces);

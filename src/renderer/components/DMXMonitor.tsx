@@ -6,6 +6,11 @@ interface DMXMonitorProps {
   fixtures: Fixture[];
 }
 
+// Wire footprint = DMX channels a fixture occupies (channelsPerPixel-aware, matching RoutingModal's
+// Span + addressing.ts). NB: the live pixel *canvas* in FixtureStrip indexes the canonical RGBW buffer
+// and intentionally stays *4 — do NOT swap those to this.
+const wireChannels = (f: Fixture) => f.ledCount * (f.channelsPerPixel ?? 4);
+
 // Live pixel strip + intensity-shaded value readout, fed off the dmxSignal bus.
 const FixtureStrip: React.FC<{ fixture: Fixture; offset: number }> = ({ fixture, offset }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -81,11 +86,11 @@ const Stat: React.FC<{ label: string; value: React.ReactNode; tone?: string }> =
 
 export const DMXMonitor: React.FC<DMXMonitorProps> = ({ fixtures }) => {
   const stats = useMemo(() => {
-    const channels = fixtures.reduce((acc, f) => acc + f.ledCount * 4, 0);
+    const channels = fixtures.reduce((acc, f) => acc + wireChannels(f), 0);
     const touchedUniverses = new Set<number>();
     fixtures.forEach((f) => {
       const startAbs = f.universe * 512 + (f.startAddress - 1);
-      const endAbs = startAbs + f.ledCount * 4 - 1;
+      const endAbs = startAbs + wireChannels(f) - 1;
       for (let u = Math.floor(startAbs / 512); u <= Math.floor(endAbs / 512); u++) touchedUniverses.add(u);
     });
     return { channels, universes: touchedUniverses.size };
@@ -117,7 +122,7 @@ export const DMXMonitor: React.FC<DMXMonitorProps> = ({ fixtures }) => {
         <div className="flex-1 overflow-y-auto p-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 content-start">
           {fixtures.map((fixture) => {
             const startAbs = fixture.universe * 512 + (fixture.startAddress - 1);
-            const endAbs = startAbs + fixture.ledCount * 4 - 1;
+            const endAbs = startAbs + wireChannels(fixture) - 1;
             const startU = Math.floor(startAbs / 512);
             const endU = Math.floor(endAbs / 512);
             const uDisplay = startU === endU ? `${startU}` : `${startU}-${endU}`;

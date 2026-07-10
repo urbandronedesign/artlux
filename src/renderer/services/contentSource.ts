@@ -118,11 +118,24 @@ function reconcileCamera(): void {
   if (want && !cameraEl && !cameraStarting) void startCamera();
   else if (!want && (cameraEl || cameraStream)) stopCamera();
 }
+// Loopback DMX-in universes: the legacy 0-7 range (casual/external senders) PLUS every universe a
+// patched fixture touches (so a back rig on sACN universe 8+ is mirrored). Derived from fixtures by
+// Stage; strictly additive to the old fixed [0..7] set → non-regressing. This only widens sACN's joined
+// multicast groups (Art-Net binds one UDP port and was never per-universe-limited).
+const DEFAULT_DMX_UNIVERSES = [0, 1, 2, 3, 4, 5, 6, 7];
+let dmxUniverses: number[] = DEFAULT_DMX_UNIVERSES;
+export function setDmxInputUniverses(universes: number[]): void {
+  const next = Array.from(new Set([...DEFAULT_DMX_UNIVERSES, ...universes])).sort((a, b) => a - b);
+  if (next.length === dmxUniverses.length && next.every((u, i) => u === dmxUniverses[i])) return;
+  dmxUniverses = next;
+  if (dmxActive) window.artlux?.configureInput?.({ enabled: true, protocol: 'both', universes: dmxUniverses }); // re-join live
+}
+
 function reconcileDmx(): void {
   const want = dmxConsumers.size > 0;
   if (want === dmxActive) return;
   dmxActive = want;
-  if (want) { window.artlux?.configureInput?.({ enabled: true, protocol: 'both', universes: [0, 1, 2, 3, 4, 5, 6, 7] }); startInput(); }
+  if (want) { window.artlux?.configureInput?.({ enabled: true, protocol: 'both', universes: dmxUniverses }); startInput(); }
   else { window.artlux?.configureInput?.({ enabled: false, protocol: 'both', universes: [] }); stopInput(); }
 }
 
