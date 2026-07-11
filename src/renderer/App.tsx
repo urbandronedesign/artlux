@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, type AssetEntry, type AssetType } from './types';
+import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, type AssetEntry, type AssetType } from './types';
 import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge, WINDOWED_DISPLAY } from '../../shared/protocol';
 import type { ProjectorCalibration } from '../../shared/protocol';
 import { CalibWizard, AutoAlignWizard, calibCapture as cam, measureGamma, calibWorkspace } from '@artlux/plugin-calibration/renderer';
@@ -128,6 +128,9 @@ const App: React.FC = () => {
   // In-project wall-clock schedule (show-control plugin owns the entry shape; opaque here). Persisted
   // in ProjectData.schedule and exposed to the plugin read/write via the host `show` service below.
   const [schedule, setSchedule] = useState<unknown[]>([]);
+  // Global audio bed (ProjectData.audio → AudioMix): tracks/clips/buses that ride the main transport
+  // playhead, played by the native engine (plugins/audio). Survives scene swaps.
+  const [audioMix, setAudioMix] = useState<AudioMix>(defaultAudioMix());
   const [templates, setTemplates] = useState<FixtureTemplate[]>([]);
   const [controllers, setControllers] = useState<Controller[]>([]);
   // Editor layout lives in the workspace store (persisted to prefs, hydrated on boot). Destructure with
@@ -191,6 +194,7 @@ const App: React.FC = () => {
   const cueBanksRef = useRef(cueBanks); cueBanksRef.current = cueBanks;
   const scheduleRef = useRef(schedule); scheduleRef.current = schedule;
   const stateMachineRef = useRef(stateMachine); stateMachineRef.current = stateMachine;
+  const audioMixRef = useRef(audioMix); audioMixRef.current = audioMix; // live mirror for host.audio (memo has [] deps)
   const activeSceneIdRef = useRef(activeSceneId); activeSceneIdRef.current = activeSceneId;
   // Live FSM readback for the host `show` service (the show-control tablet polls getStatus()).
   const currentSmStateRef = useRef<string | null>(null);
@@ -796,6 +800,7 @@ const App: React.FC = () => {
       timeline,
       stateMachine,
       schedule, // in-project wall-clock schedule (show-control plugin owns the shape)
+      audio: audioMix, // global audio bed (plugins/audio); AudioMix — normalizeAudioMix() on load
       assets,
       projectorOutputs,
       projectorFpsCap,
@@ -847,6 +852,8 @@ const App: React.FC = () => {
       // In-project wall-clock schedule (show-control plugin). Opaque array at App scope; the plugin
       // owns/normalizes the entry shape. Flows through buildProjectData → the .artlux file.
       setSchedule(Array.isArray(data?.schedule) ? data.schedule : []);
+      // Global audio bed. normalizeAudioMix defaults a missing/old field → empty bed (back-compat).
+      setAudioMix(normalizeAudioMix(data?.audio));
       // Bind the editor to the CURRENT scene on open (the initial-state scene, else the first) and swap
       // the engine to its pool — so "just editing" the timeline attaches to a real scene, not the shared
       // global one. The loaded project surfaces are already the startup look, so we don't re-recall it
@@ -1189,6 +1196,7 @@ const App: React.FC = () => {
   const sceneSubs = useRef(new Set<() => void>());
   const settingsSubs = useRef(new Set<() => void>());
   const showSubs = useRef(new Set<() => void>()); // host `show` service: scenes/cueBanks/FSM/schedule changed
+  const audioSubs = useRef(new Set<() => void>()); // host `audio` service: the global bed changed
   const projMsgSubs = useRef(new Set<(surfaceId: string, msg: unknown) => void>());
   const pluginHost = useMemo<RendererHostServices>(() => ({
     projectorOutputs: {
@@ -1243,11 +1251,17 @@ const App: React.FC = () => {
       triggerTransition: (id) => timelineEngine.triggerSmTransition(id),
       enterState: (id) => timelineEngine.enterSmState(id),
     },
+    // Read-only global audio bed for the plugins/audio bed player (reads the live ref; fires on change).
+    audio: {
+      getMix: () => audioMixRef.current,
+      subscribe: (cb) => { audioSubs.current.add(cb); return () => { audioSubs.current.delete(cb); }; },
+    },
   }), []);
   useEffect(() => { outputSubs.current.forEach(cb => cb()); }, [projectorOutputs]);
   useEffect(() => { sceneSubs.current.forEach(cb => cb()); }, [scene3D]);
   useEffect(() => { settingsSubs.current.forEach(cb => cb()); }, [settings]);
   useEffect(() => { showSubs.current.forEach(cb => cb()); }, [scenes, cueBanks, stateMachine, schedule]);
+  useEffect(() => { audioSubs.current.forEach(cb => cb()); }, [audioMix]);
   // Track the live FSM state id + last-fired transition for the host `show.getStatus()` readback.
   useEffect(() => {
     const u1 = timelineEngine.subscribeSmState((id) => { currentSmStateRef.current = id; });

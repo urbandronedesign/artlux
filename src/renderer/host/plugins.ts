@@ -43,6 +43,7 @@ const NOOP_HOST: RendererHostServices = {
     recallScene: () => {}, fireCue: () => {}, fireColumn: () => {}, transport: () => {},
     triggerTransition: () => {}, enterState: () => {},
   },
+  audio: { getMix: () => ({ tracks: [], clips: [], buses: [] }), subscribe: () => () => {} },
 };
 
 function makeContext(win: 'main' | 'projector', host: RendererHostServices): RendererPluginContext {

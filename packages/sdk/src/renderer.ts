@@ -293,12 +293,22 @@ export interface ShowService<SM = unknown, Scene = unknown, Bank = unknown, Entr
   enterState(id: string): void;                   // jump directly to a state by id
 }
 
+// Read-only view of the persisted global audio bed (ProjectData.audio → AudioMix). The playhead-driven
+// bed player (plugins/audio) subscribes here and re-reads getMix() on change. Generic over the host
+// domain type (opaque here — the SDK never imports src/renderer/types.ts); App satisfies it structurally
+// with the real AudioMix.
+export interface AudioService<Mix = unknown> {
+  getMix(): Mix;
+  subscribe(cb: () => void): () => void; // fires when the audio bed changes
+}
+
 export interface RendererHostServices {
   projectorOutputs: ProjectorOutputsService;
   scene3D: Scene3DService;
   projectors: ProjectorsService;
   settings: SettingsService;
   show: ShowService;
+  audio: AudioService;
 }
 
 // ─── Renderer plugin context ────────────────────────────────────────────────────────────────
