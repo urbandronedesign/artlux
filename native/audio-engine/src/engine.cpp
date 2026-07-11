@@ -18,6 +18,13 @@
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <vector>
+
+// libspatialaudio — ambisonic encode (per source position) → B-format → binaural decode (built-in MIT
+// HRTF, no SOFA file needed) or speaker-layout decode. Namespace `spaudio`.
+#include <AmbisonicEncoder.h>
+#include <AmbisonicBinauralizer.h>
+#include <BFormat.h>
 
 namespace {
 
@@ -262,6 +269,52 @@ static Napi::Value Close(const Napi::CallbackInfo& info) {
   return info.Env().Undefined();
 }
 
+// P2a gate — prove libspatialaudio links and its full chain runs inside the addon: configure a 1st-order
+// 3D encoder, place a source, encode a block into a B-format buffer, then binaurally decode it to stereo
+// using the BUILT-IN MIT HRTF (empty HRTF path). Returns the config results + the HRTF tail length.
+static Napi::Value SpatialProbe(const Napi::CallbackInfo& info) {
+  auto env = info.Env();
+  const unsigned order = 1;      // 1st-order: 4-channel B-format, ample for <= 8 speakers
+  const unsigned sampleRate = 48000;
+  const unsigned block = 512;
+
+  spaudio::AmbisonicEncoder enc;
+  const bool encOk = enc.Configure(order, true, sampleRate, 0.0f);
+  enc.SetPosition(spaudio::PolarPosition<float>{ 1.5708f, 0.0f, 1.0f }); // 90° to the left
+  enc.Refresh();
+
+  spaudio::BFormat bf;
+  const bool bfOk = bf.Configure(order, true, block);
+
+  spaudio::AmbisonicBinauralizer bin;
+  unsigned tailLength = 0;
+  const bool binOk = bin.Configure(order, true, sampleRate, block, tailLength);
+
+  // Push one block end-to-end (mono source → B-format → binaural stereo).
+  std::vector<float> mono(block, 0.25f);
+  std::vector<float> left(block, 0.0f), right(block, 0.0f);
+  float* out[2] = { left.data(), right.data() };
+  bool ran = false;
+  if (encOk && bfOk && binOk) {
+    bf.Reset();
+    enc.Process(mono.data(), block, &bf);
+    bin.Process(&bf, out, block);
+    ran = true;
+  }
+  // Did any signal actually reach the ears? (a positioned source must produce non-zero output)
+  float peak = 0.0f;
+  for (unsigned i = 0; i < block; ++i) peak = juce::jmax(peak, std::abs(left[i]), std::abs(right[i]));
+
+  auto obj = Napi::Object::New(env);
+  obj.Set("encoder", Napi::Boolean::New(env, encOk));
+  obj.Set("bformat", Napi::Boolean::New(env, bfOk));
+  obj.Set("binauralizer", Napi::Boolean::New(env, binOk));
+  obj.Set("ran", Napi::Boolean::New(env, ran));
+  obj.Set("tailLength", Napi::Number::New(env, tailLength));
+  obj.Set("outPeak", Napi::Number::New(env, peak));
+  return obj;
+}
+
 static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   juce::MessageManager::getInstance(); // Windows device backends expect a message manager to exist
   exports.Set("juceVersion", Napi::Function::New(env, JuceVersion));
@@ -275,6 +328,7 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("stopAll", Napi::Function::New(env, StopAll));
   exports.Set("getMeters", Napi::Function::New(env, GetMeters));
   exports.Set("close", Napi::Function::New(env, Close));
+  exports.Set("spatialProbe", Napi::Function::New(env, SpatialProbe));
   return exports;
 }
 
