@@ -231,6 +231,10 @@ export class WebGPUMapper implements IPixelMapper {
 
   static async create(): Promise<WebGPUMapper | null> {
     if (typeof navigator === 'undefined' || !navigator.gpu) return null;
+    // Dev/diagnostic force-fallback: return null so Stage takes the WebGL path, to test reduced-mode
+    // rendering on machines that DO have WebGPU. Per-machine localStorage flag (Settings ▸ GPU rendering
+    // ▸ "Force WebGL fallback") — deliberately NOT a project/prefs field, so it never travels with a show.
+    try { if (typeof localStorage !== 'undefined' && localStorage.getItem('artlux.forceWebGL') === '1') return null; } catch { /* ignore */ }
     try {
       const adapter = await navigator.gpu.requestAdapter();
       if (!adapter) return null;

@@ -121,6 +121,13 @@ export const Stage: React.FC<StageProps> = ({
 
   const mapper = useRef<IPixelMapper | null>(null);
   const [webglError, setWebglError] = useState(false);
+  // Reduced rendering mode: WebGPU compute unavailable → the WebGL fallback ran, which does NOT do
+  // strict per-surface sampling (a back-linked fixture can pick up an overlapping front surface). We
+  // surface this honestly (banner below) instead of silently degrading. Records the active backend to
+  // localStorage so Settings ▸ GPU rendering can show it.
+  const [reducedMode, setReducedMode] = useState(false);
+  const [reducedDismissed, setReducedDismissed] = useState(false);
+  const recordBackend = (b: 'webgpu' | 'webgl') => { try { localStorage.setItem('artlux.activeBackend', b); } catch { /* ignore */ } };
   const brightnessRef = useRef(globalBrightness);
   useEffect(() => { brightnessRef.current = globalBrightness; }, [globalBrightness]);
 
@@ -180,7 +187,7 @@ export const Stage: React.FC<StageProps> = ({
         let m: IPixelMapper | null = null;
         try {
             m = await WebGPUMapper.create();
-            if (m) console.log('[Stage] Using WebGPU compute mapper');
+            if (m) { console.log('[Stage] Using WebGPU compute mapper'); setReducedMode(false); recordBackend('webgpu'); }
         } catch (e) {
             m = null;
         }
@@ -188,6 +195,7 @@ export const Stage: React.FC<StageProps> = ({
             try {
                 m = new GPUMapper(512, 512);
                 console.log('[Stage] Using WebGL mapper (fallback)');
+                setReducedMode(true); recordBackend('webgl');
             } catch (e) {
                 console.error('Failed to initialize GPU Mapper:', e);
                 setWebglError(true);
@@ -896,6 +904,17 @@ export const Stage: React.FC<StageProps> = ({
                 <AlertCircle className="w-8 h-8 mb-2" />
                 <p>WebGL Initialization Failed</p>
                 <p className="opacity-50 mt-1">Check browser hardware acceleration settings</p>
+            </div>
+            )}
+
+            {/* Non-blocking honesty banner: distinct from the full-screen webglError overlay above. Shows
+                when the WebGPU compute path is unavailable and the WebGL fallback (approximate per-surface
+                sampling) is running. Dismissable; re-shows on the next fallback (remount). */}
+            {reducedMode && !reducedDismissed && (
+            <div className="absolute top-0 left-0 right-0 z-stage-overlay flex items-center gap-2 px-3 py-1.5 text-mini font-medium pointer-events-none" style={{ background: '#e3b341', color: '#151515' }}>
+                <AlertCircle size={13} className="shrink-0" />
+                <span className="flex-1">Reduced rendering mode — GPU compute (WebGPU) unavailable. Per-surface sampling is approximate; fixtures may sample overlapping surfaces.</span>
+                <button onClick={() => setReducedDismissed(true)} className="shrink-0 hover:opacity-70 pointer-events-auto" aria-label="Dismiss reduced-mode notice" title="Dismiss">✕</button>
             </div>
             )}
 

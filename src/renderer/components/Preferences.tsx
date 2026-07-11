@@ -105,6 +105,61 @@ const WatchdogSection: React.FC<{ open: boolean }> = ({ open }) => {
   );
 };
 
+// GPU rendering diagnostics. WebGPU (compute) is primary; the WebGL fallback does NOT do strict
+// per-surface sampling. This section reports which backend is live (recorded to localStorage by Stage),
+// probes WebGPU on demand, and lets a tester force the WebGL fallback on this machine to compare — a
+// per-machine localStorage flag (`artlux.forceWebGL`), deliberately not a project/prefs field.
+const GpuSection: React.FC<{ open: boolean }> = ({ open }) => {
+  const [forced, setForced] = useState(false);
+  const [active, setActive] = useState('');
+  const [probe, setProbe] = useState('');
+  const [probing, setProbing] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    try { setForced(localStorage.getItem('artlux.forceWebGL') === '1'); } catch { /* ignore */ }
+    try { setActive(localStorage.getItem('artlux.activeBackend') || ''); } catch { /* ignore */ }
+  }, [open]);
+
+  const toggleForce = (v: boolean) => {
+    setForced(v);
+    try { if (v) localStorage.setItem('artlux.forceWebGL', '1'); else localStorage.removeItem('artlux.forceWebGL'); } catch { /* ignore */ }
+  };
+
+  const testWebGPU = async () => {
+    setProbing(true); setProbe('');
+    try {
+      const gpu = (navigator as unknown as { gpu?: { requestAdapter: () => Promise<unknown> } }).gpu;
+      if (!gpu) { setProbe('navigator.gpu unavailable — this machine can only run the WebGL fallback.'); return; }
+      const adapter = await gpu.requestAdapter() as { info?: { vendor?: string; architecture?: string; description?: string } } | null;
+      if (!adapter) { setProbe('requestAdapter() returned null — no usable WebGPU adapter (fallback path).'); return; }
+      const info = adapter.info;
+      const name = info ? [info.vendor, info.architecture, info.description].filter(Boolean).join(' ').trim() : '';
+      setProbe(`WebGPU OK${name ? ' — ' + name : ' — adapter available'}.`);
+    } catch (e) {
+      setProbe('WebGPU probe threw: ' + String((e as Error)?.message ?? e));
+    } finally { setProbing(false); }
+  };
+
+  return (
+    <Section title="GPU rendering" icon={<Cpu size={12} />}>
+      <div className="flex items-center justify-between text-mini">
+        <span className="text-fg-3">Active backend</span>
+        <span className={`px-1.5 py-0.5 rounded-sm border num ${active === 'webgpu' ? 'bg-accent/15 border-accent text-accent' : active === 'webgl' ? 'bg-warn/15 border-warn text-warn' : 'bg-surface-2 border-line-1 text-fg-3'}`}>
+          {active === 'webgpu' ? 'WebGPU (compute)' : active === 'webgl' ? 'WebGL (fallback)' : 'unknown'}
+        </span>
+      </div>
+      <Button variant="tonal" size="sm" className="w-full" disabled={probing} onClick={testWebGPU}>
+        {probing ? 'Testing…' : 'Test WebGPU support'}
+      </Button>
+      {probe && <div className="text-micro text-fg-3 px-0.5 break-words">{probe}</div>}
+      <Toggle label="Force WebGL fallback" checked={forced} onChange={toggleForce}
+              title="Force the WebGL fallback to test reduced-mode rendering on a machine that has WebGPU. Per-machine only (localStorage) — never travels with the project. Reload to apply." />
+      <div className="text-micro text-fg-3 px-0.5">Force-WebGL applies on the next reload (Ctrl+R). The Stage shows a banner while the fallback is active.</div>
+    </Section>
+  );
+};
+
 // Tabbed-modal-style Preferences (output + engine), replacing inline settings.
 export const Preferences: React.FC<Props> = ({ open, onClose, settings, onChange }) => {
   const [scanning, setScanning] = useState(false);
@@ -231,6 +286,8 @@ export const Preferences: React.FC<Props> = ({ open, onClose, settings, onChange
           <Toggle label="Synchronous output (ArtSync)" checked={settings.artNetSync} onChange={(v) => onChange({ artNetSync: v })} title="Send ArtSync (0x5200) after each frame so nodes latch + output simultaneously (tear-free multi-universe)" />
           <Slider label="Gamma" value={settings.gamma} min={1} max={3} step={0.05} format={(v) => v.toFixed(2)} onChange={(v) => onChange({ gamma: v })} />
         </Section>
+
+        <GpuSection open={open} />
 
         <Section title="OSC / Tracking" icon={<Radio size={12} />}>
           <Toggle label="OSC receive" checked={settings.oscEnabled} onChange={(v) => onChange({ oscEnabled: v })} title="Bind a UDP listener for external control + LiDAR blob tracking" />
