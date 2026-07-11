@@ -17,6 +17,10 @@ import { AudioSettings } from './AudioSettings';
 import { AudioBedPanel } from './AudioBedPanel';
 import type { AudioEffectSpec, ClipMeta, OutputMode, SpeakerLayout } from './audioManager';
 import { MASTER_BUS_ID } from './effectDefs';
+import {
+  audioAutomationProvider, autoGain, autoTrackGain, autoMasterGain,
+  applyClipOverrides, applyBusOverrides, hasOverride, takeDirty,
+} from './automationTargets';
 
 interface AudioPluginCfg { outputChannels?: number; outputMode?: OutputMode; speakerLayout?: SpeakerLayout }
 
@@ -59,6 +63,7 @@ export const plugin: RendererPlugin = {
 
     const host = ctx.host as RendererHostServices;
     setAudioHost(host); // let the Audio Bed panel reach host.audio/host.show
+    ctx.automationTargets.register(audioAutomationProvider); // the 'audio.*' namespace: bed gain/position/effect params
 
     // Open the device once on startup (default device, persisted channel count). Idempotent engine-side.
     const s0 = host.settings.get() as { plugins?: Record<string, unknown> };
@@ -85,7 +90,14 @@ export const plugin: RendererPlugin = {
     let prevWallMs = 0;
 
     const trackOf = (clip: BedClip) => bed.tracks.find((t) => t.id === clip.trackId);
-    const effGain = (clip: BedClip) => (clip.gain ?? 1) * (trackOf(clip)?.gain ?? 1);
+    // AUTOMATION READS THROUGH HERE. An automation lane writes to an override layer, not to the bed and
+    // not to the engine — because reconcile() below re-reads the clip from the bed every frame, so a
+    // value pushed straight to the engine would be overwritten with the AUTHORED one on the same frame,
+    // 60 times a second. Every driver read of an automatable leaf therefore goes through `eff`/`effGain`.
+    const effGain = (clip: BedClip) =>
+      (autoGain(clip.id) ?? clip.gain ?? 1) * (autoTrackGain(clip.trackId) ?? trackOf(clip)?.gain ?? 1);
+    /** The clip as it should SOUND: authored, with any automated leaves laid over it. */
+    const eff = (clip: BedClip): BedClip => (hasOverride(clip.id) ? applyClipOverrides(clip) : clip);
     const audible = (clip: BedClip) => !clip.mute && !trackOf(clip)?.mute && loaded.has(clip.id);
 
     const startClip = (clip: BedClip, srcOffset: number, nowMs: number) => {
@@ -171,15 +183,16 @@ export const plugin: RendererPlugin = {
     const pushClipParams = (clip: BedClip) => { pushSpatial(clip); pushEffects(clip); };
 
     const syncMaster = () => {
-      const master = bed.buses.find((b) => b.id === MASTER_BUS_ID);
+      const authored = bed.buses.find((b) => b.id === MASTER_BUS_ID);
+      const master = authored ? applyBusOverrides(authored) : undefined;
       const mfx = master?.effects ?? [];
       const mkey = JSON.stringify(mfx);
       if (sentMaster !== mkey) { audioClient.setMasterEffects(mfx); sentMaster = mkey; }
-      const mgain = master?.gain ?? 1;
+      const mgain = autoMasterGain() ?? master?.gain ?? 1;
       if (sentMasterGain !== mgain) { audioClient.setMasterGain(mgain); sentMasterGain = mgain; }
     };
     const syncClips = () => {
-      for (const clip of bed.clips) if (loaded.has(clip.id)) pushClipParams(clip);
+      for (const clip of bed.clips) if (loaded.has(clip.id)) pushClipParams(eff(clip));
       syncMaster();
     };
 
@@ -209,6 +222,16 @@ export const plugin: RendererPlugin = {
     };
 
     const tick = (playhead: number) => {
+      // The automation sampler ran moments ago, in the same frame (timeline.ts calls it just before it
+      // notifies its subscribers, of which this is one — so a curve's value reaches the engine on the
+      // frame it was sampled, not the next). Push whatever it moved. Only the owners it actually touched:
+      // an unchanged value never gets here, because the sampler gates on a half-step epsilon and every
+      // push costs an acquisition of the engine's audio lock.
+      const moved = takeDirty();
+      if (moved.size > 0) {
+        for (const clip of bed.clips) if (moved.has(clip.id) && loaded.has(clip.id)) pushClipParams(eff(clip));
+        if (moved.has(MASTER_BUS_ID)) syncMaster();
+      }
       const nowMs = performance.now();
       const playing = host.show.getStatus().playing;
       const expectedDelta = prevPlaying ? (nowMs - prevWallMs) / 1000 : 0;
