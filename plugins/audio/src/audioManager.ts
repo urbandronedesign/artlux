@@ -8,7 +8,22 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 export interface ClipMeta { durationSec: number; channels: number; sampleRate: number }
-export interface Meters { peak: number; rms: number; peakL: number; peakR: number; peaks: number[]; speakers: number }
+export interface Meters {
+  peak: number; rms: number; peakL: number; peakR: number; peaks: number[]; speakers: number;
+  // An effect chain built for a different channel count than the audio thread sees passes DRY — it looks
+  // wired and meters normally. These two make that measurable instead of invisible.
+  masterFxChannels: number; deviceChannels: number;
+}
+
+// One effect node, as the engine wants it. Mirrors AudioEffect in src/renderer/types.ts — `params` are
+// continuous (automatable), `opts` are discrete choices (filter mode) and never fadeable.
+export interface AudioEffectSpec {
+  id: string;
+  type: string;
+  bypass?: boolean;
+  params?: Record<string, number>;
+  opts?: Record<string, string>;
+}
 
 // How the ambisonic field is rendered: binaural HRTF (headphones) or a decode to a real speaker layout.
 export type OutputMode = 'binaural' | 'speakers';
@@ -26,6 +41,12 @@ interface NativeAudio {
   // Ambisonic position — listener at origin, metres: +x right, +y up, +z forward.
   setClipSpatial(id: string, x: number, y: number, z: number): void;
   clearClipSpatial(id: string): void;
+  // Insert chain on one source, applied BEFORE it is spatialised. Replaces the whole chain; the engine
+  // diffs it and updates params in place when only values changed (no rebuild, no click).
+  setClipEffects(id: string, effects: AudioEffectSpec[]): void;
+  // Insert chain on the decoded output. 'reverb' nodes are dropped by the engine (see AudioEffectType).
+  setMasterEffects(effects: AudioEffectSpec[]): void;
+  setMasterGain(gain: number): void;
   stopAll(): void;
   getMeters(): Meters;
   close(): void;
@@ -69,8 +90,13 @@ export function stopClip(id: string): void { native?.stopClip(id); }
 export function setClipGain(id: string, gain: number): void { native?.setClipGain(id, gain); }
 export function setClipSpatial(id: string, x: number, y: number, z: number): void { native?.setClipSpatial(id, x, y, z); }
 export function clearClipSpatial(id: string): void { native?.clearClipSpatial(id); }
+export function setClipEffects(id: string, effects: AudioEffectSpec[]): void { native?.setClipEffects(id, effects); }
+export function setMasterEffects(effects: AudioEffectSpec[]): void { native?.setMasterEffects(effects); }
+export function setMasterGain(gain: number): void { native?.setMasterGain(gain); }
 export function stopAll(): void { native?.stopAll(); }
 export function getMeters(): Meters {
-  return native ? native.getMeters() : { peak: 0, rms: 0, peakL: 0, peakR: 0, peaks: [], speakers: 0 };
+  return native
+    ? native.getMeters()
+    : { peak: 0, rms: 0, peakL: 0, peakR: 0, peaks: [], speakers: 0, masterFxChannels: 0, deviceChannels: 0 };
 }
 export function close(): void { native?.close(); }

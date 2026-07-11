@@ -4,15 +4,18 @@
 // (its duration comes from decoding the file). Reads/writes the bed through host.audio (getMix/setMix/
 // subscribe). Per-scene audio (stingers/cues) is a later phase and rides the scene timeline instead.
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Plus, Music, Trash2, Volume2, VolumeX, AlertTriangle, Play, Pause, SkipBack, Orbit } from 'lucide-react';
+import { X, Plus, Music, Trash2, Volume2, VolumeX, AlertTriangle, Play, Pause, SkipBack, Orbit, Sliders } from 'lucide-react';
 import { useDraggable, type PanelProps } from '@artlux/sdk/renderer';
 import { getAudioHost } from './audioHost';
 import { audioClient } from './audioClient';
+import { EffectChain, type Effect } from './EffectChain';
+import { MASTER_BUS_ID } from './effectDefs';
 
 interface Spatial { x: number; y: number; z: number }
-interface Clip { id: string; trackId: string; name: string; path: string; start: number; duration: number; inPoint: number; gain?: number; mute?: boolean; spatial?: Spatial }
+interface Clip { id: string; trackId: string; name: string; path: string; start: number; duration: number; inPoint: number; gain?: number; mute?: boolean; spatial?: Spatial; effects?: Effect[] }
 interface Track { id: string; name: string; gain?: number; mute?: boolean }
-interface Mix { tracks: Track[]; clips: Clip[]; buses: unknown[] }
+interface Bus { id: string; name: string; gain?: number; effects?: Effect[] }
+interface Mix { tracks: Track[]; clips: Clip[]; buses: Bus[] }
 
 // Metres shown across the positioner pad (listener at the centre).
 const RANGE = 3;
@@ -58,9 +61,13 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   const host = getAudioHost();
   const [mix, setMixState] = useState<Mix>(() => (host?.audio.getMix() as Mix) ?? emptyMix());
   const [meter, setMeter] = useState({ peak: 0, rms: 0, peakL: 0, peakR: 0 });
+  const [clipping, setClipping] = useState(false);
+  const clipUntil = useRef(0); // hold the warning ~1.5 s — a transient overshoot would otherwise flash past
   const [transport, setTransport] = useState({ playing: false, playhead: 0, duration: 0 });
   const [error, setError] = useState<string | null>(null);
   const [openSpatial, setOpenSpatial] = useState<string | null>(null); // clip id whose positioner is open
+  const [openFx, setOpenFx] = useState<string | null>(null);           // clip id whose effect chain is open
+  const [openMaster, setOpenMaster] = useState(false);
   const peakHold = useRef(0);
   const holdL = useRef(0);
   const holdR = useRef(0);
@@ -90,6 +97,8 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
         holdL.current = Math.max(holdL.current * 0.9, m.peakL ?? 0);
         holdR.current = Math.max(holdR.current * 0.9, m.peakR ?? 0);
         setMeter({ peak: peakHold.current, rms: m.rms, peakL: holdL.current, peakR: holdR.current });
+        if (m.peak >= 0.999) clipUntil.current = Date.now() + 1500;
+        setClipping(Date.now() < clipUntil.current);
       }).catch(() => {});
       const st = host.show.getStatus(); // the bed rides the MAIN transport — mirror it here
       setTransport({ playing: st.playing, playhead: st.playhead, duration: st.duration });
@@ -108,6 +117,16 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   const patchTrack = (id: string, p: Partial<Track>) => commit({ ...mix, tracks: mix.tracks.map((t) => (t.id === id ? { ...t, ...p } : t)) });
   const removeClip = (id: string) => commit({ ...mix, clips: mix.clips.filter((c) => c.id !== id) });
   const patchClip = (id: string, p: Partial<Clip>) => commit({ ...mix, clips: mix.clips.map((c) => (c.id === id ? { ...c, ...p } : c)) });
+
+  // The master bus is materialised on FIRST EDIT, not by default — a project that never touches master
+  // keeps `buses: []`, so an untouched bed persists exactly as it did before P3.
+  const master: Bus = mix.buses.find((b) => b.id === MASTER_BUS_ID) ?? { id: MASTER_BUS_ID, name: 'Master', gain: 1, effects: [] };
+  const patchMaster = (p: Partial<Bus>) => {
+    const cur = mixRef.current;
+    const has = cur.buses.some((b) => b.id === MASTER_BUS_ID);
+    const next: Bus = { ...master, ...p };
+    commit({ ...cur, buses: has ? cur.buses.map((b) => (b.id === MASTER_BUS_ID ? next : b)) : [...cur.buses, next] });
+  };
 
   const addClip = async (trackId: string, asset: { type?: string; path?: string }) => {
     if (asset?.type !== 'audio' || !asset.path) return;
@@ -232,8 +251,18 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
                       <input type="range" min={0} max={1.5} step={0.01} value={c.gain ?? 1} onChange={(e) => patchClip(c.id, { gain: Number(e.target.value) })} title={`gain ${(c.gain ?? 1).toFixed(2)}`} className="w-20 accent-accent" />
                       <button onClick={() => setOpenSpatial(openSpatial === c.id ? null : c.id)} title="Spatial position (3D)"
                         className={`inline-flex items-center justify-center w-5 h-5 rounded ${c.spatial ? 'text-accent' : 'text-fg-3 hover:text-fg-1'}`}><Orbit size={12} /></button>
+                      <button onClick={() => setOpenFx(openFx === c.id ? null : c.id)} title="Effects (insert chain)"
+                        className={`inline-flex items-center justify-center w-5 h-5 rounded ${c.effects?.length ? 'text-accent' : 'text-fg-3 hover:text-fg-1'}`}><Sliders size={12} /></button>
                       <button onClick={() => removeClip(c.id)} title="Remove clip" className="ml-auto text-fg-3 hover:text-danger"><Trash2 size={12} /></button>
                     </div>
+
+                    {/* Insert chain on this source. It runs BEFORE spatialisation, so a reverb here puts
+                        the source in a room and then the room is placed with it — which is what you want. */}
+                    {openFx === c.id && (
+                      <div className="mt-1 px-2 py-2 rounded bg-surface-1 border border-line-1">
+                        <EffectChain scope="clip" effects={c.effects ?? []} onChange={(fx) => patchClip(c.id, { effects: fx })} />
+                      </div>
+                    )}
 
                     {/* Spatial positioner — ambisonic encode + binaural HRTF decode. Drag the pad to move
                         the source around the listener; you'll hear it move and see the L/R meters shift. */}
@@ -269,8 +298,35 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
             </div>
           ))}
         </div>
-        <div className="px-3 py-1.5 border-t border-line-1 text-micro text-fg-3 shrink-0">
-          Clips play when the transport playhead is over them. Drag audio in from the Media library (Music icon).
+        {/* Master strip — the fader + insert chain on the DECODED output (after the ambisonic field has
+            been rendered to headphones or speakers). This is where a limiter to protect the rig goes. */}
+        <div className="border-t border-line-1 shrink-0">
+          <div className="h-9 px-3 flex items-center gap-2">
+            <span className="text-mini font-semibold text-fg-2 shrink-0">Master</span>
+            <button onClick={() => setOpenMaster(!openMaster)} title="Master effects"
+              className={`inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 text-micro ${master.effects?.length ? 'text-accent' : 'text-fg-3 hover:text-fg-1'}`}>
+              <Sliders size={11} /> FX{master.effects?.length ? ` (${master.effects.length})` : ''}
+            </button>
+            <input type="range" min={0} max={1.5} step={0.01} value={master.gain ?? 1}
+              onChange={(e) => patchMaster({ gain: Number(e.target.value) })}
+              title={`master gain ${(master.gain ?? 1).toFixed(2)}`} className="w-28 accent-accent" />
+            <span className="text-micro text-fg-3 w-8 tabular-nums">{(master.gain ?? 1).toFixed(2)}</span>
+            {/* A reverb with a big room and a hot wet level really can push past full scale — that clips
+                the output. Better to see it here than to hear it on the amp. */}
+            {clipping && (
+              <span className="inline-flex items-center gap-1 px-1.5 h-5 rounded bg-danger/15 text-danger text-micro">
+                <AlertTriangle size={10} /> clipping
+              </span>
+            )}
+            <span className="ml-auto text-micro text-fg-3">
+              Clips play when the playhead is over them. Drag audio in from the Media library.
+            </span>
+          </div>
+          {openMaster && (
+            <div className="px-3 pb-2">
+              <EffectChain scope="master" effects={master.effects ?? []} onChange={(fx) => patchMaster({ effects: fx })} />
+            </div>
+          )}
         </div>
       </div>
       </div>

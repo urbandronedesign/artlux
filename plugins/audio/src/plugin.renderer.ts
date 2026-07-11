@@ -15,15 +15,17 @@ import { setIpc, audioClient } from './audioClient';
 import { setAudioHost } from './audioHost';
 import { AudioSettings } from './AudioSettings';
 import { AudioBedPanel } from './AudioBedPanel';
-import type { ClipMeta, OutputMode, SpeakerLayout } from './audioManager';
+import type { AudioEffectSpec, ClipMeta, OutputMode, SpeakerLayout } from './audioManager';
+import { MASTER_BUS_ID } from './effectDefs';
 
 interface AudioPluginCfg { outputChannels?: number; outputMode?: OutputMode; speakerLayout?: SpeakerLayout }
 
 // Minimal structural view of the persisted bed the driver reads (host.audio.getMix()). The concrete
 // AudioMix lives in the host types; we only read these fields, so a local shape avoids a cross-package import.
-interface BedClip { id: string; trackId: string; path: string; start: number; duration: number; inPoint: number; gain?: number; mute?: boolean; spatial?: { x: number; y: number; z: number } }
+interface BedClip { id: string; trackId: string; path: string; start: number; duration: number; inPoint: number; gain?: number; mute?: boolean; spatial?: { x: number; y: number; z: number }; effects?: AudioEffectSpec[] }
 interface BedTrack { id: string; gain?: number; mute?: boolean }
-interface Bed { tracks: BedTrack[]; clips: BedClip[] }
+interface BedBus { id: string; gain?: number; effects?: AudioEffectSpec[] }
+interface Bed { tracks: BedTrack[]; clips: BedClip[]; buses: BedBus[] }
 
 const SEEK_THRESHOLD = 0.2;  // s — tick-level playhead jump beyond wall-clock expectation ⇒ hard resync
 const SYNC_THRESHOLD = 0.05; // s — per-clip source-offset drift (retime / missed small seek) ⇒ re-seek
@@ -33,7 +35,11 @@ let unsubMix: (() => void) | null = null;
 
 function readBed(host: RendererHostServices): Bed {
   const mix = (host.audio.getMix() as Partial<Bed>) ?? {};
-  return { tracks: Array.isArray(mix.tracks) ? mix.tracks : [], clips: Array.isArray(mix.clips) ? mix.clips : [] };
+  return {
+    tracks: Array.isArray(mix.tracks) ? mix.tracks : [],
+    clips: Array.isArray(mix.clips) ? mix.clips : [],
+    buses: Array.isArray(mix.buses) ? mix.buses : [],
+  };
 }
 
 export const plugin: RendererPlugin = {
@@ -71,6 +77,9 @@ export const plugin: RendererPlugin = {
     const sentOffset = new Map<string, number>(); // last source offset seeked, per sounding clip
     const sentWallMs = new Map<string, number>(); // wall-clock (ms) at that seek — to estimate engine drift
     const sentSpatial = new Map<string, string>(); // last ambisonic position pushed ('' = non-spatial)
+    const sentEffects = new Map<string, string>(); // last effect chain pushed, per clip (JSON)
+    let sentMaster = '';                           // last master chain pushed (JSON)
+    let sentMasterGain = NaN;                      // NaN ⇒ never pushed, so the first sync always lands
     let prevPlaying = false;
     let prevPlayhead = 0;
     let prevWallMs = 0;
@@ -100,7 +109,15 @@ export const plugin: RendererPlugin = {
     const syncLoaded = async () => {
       const wanted = new Set(bed.clips.map((c) => c.id));
       for (const id of [...loaded.keys()]) {
-        if (!wanted.has(id)) { if (sounding.has(id)) stopSounding(id); audioClient.unloadClip(id); loaded.delete(id); sentSpatial.delete(id); }
+        if (!wanted.has(id)) {
+          if (sounding.has(id)) stopSounding(id);
+          audioClient.unloadClip(id);
+          loaded.delete(id);
+          // The engine dropped the source AND its chain — forget what we pushed, so a clip that comes
+          // back (undo, re-add) gets its position and effects re-sent rather than assumed still applied.
+          sentSpatial.delete(id);
+          sentEffects.delete(id);
+        }
       }
       for (const id of [...failed]) if (!wanted.has(id)) failed.delete(id); // a re-added clip gets another try
       for (const clip of bed.clips) {
@@ -134,6 +151,33 @@ export const plugin: RendererPlugin = {
         sentSpatial.set(clip.id, key);
       }
     };
+
+    // Push each loaded clip's insert chain, and the master chain + fader. Change-detected on purpose:
+    // an effect edit is an authoring action, but this runs off the same bed subscription as everything
+    // else, and every setClipEffects takes the audio lock — re-sending an unchanged chain would tax the
+    // audio thread for nothing. Only loaded clips are pushed: the engine attaches a chain to a source it
+    // holds, so setClipEffects on an unknown id is silently dropped (hence syncLoaded() must resolve first).
+    const syncEffects = () => {
+      for (const clip of bed.clips) {
+        if (!loaded.has(clip.id)) continue;
+        const fx = clip.effects ?? [];
+        const key = JSON.stringify(fx);
+        if (sentEffects.get(clip.id) === key) continue;
+        audioClient.setClipEffects(clip.id, fx);
+        sentEffects.set(clip.id, key);
+      }
+      const master = bed.buses.find((b) => b.id === MASTER_BUS_ID);
+      const mfx = master?.effects ?? [];
+      const mkey = JSON.stringify(mfx);
+      if (sentMaster !== mkey) { audioClient.setMasterEffects(mfx); sentMaster = mkey; }
+      const mgain = master?.gain ?? 1;
+      if (sentMasterGain !== mgain) { audioClient.setMasterGain(mgain); sentMasterGain = mgain; }
+    };
+
+    // Order matters: spatial first. Flipping a clip spatial changes its chain's channel count (the engine
+    // runs a spatial source's chain in mono), which forces a rebuild — doing effects first would just
+    // throw that build away.
+    const syncClips = () => { syncSpatial(); syncEffects(); };
 
     const reconcile = (playhead: number, nowMs: number) => {
       for (const clip of bed.clips) {
@@ -176,8 +220,8 @@ export const plugin: RendererPlugin = {
       prevPlaying = playing; prevPlayhead = playhead; prevWallMs = nowMs;
     };
 
-    void syncLoaded().then(syncSpatial);
-    unsubMix = host.audio.subscribe(() => { bed = readBed(host); void syncLoaded().then(syncSpatial); });
+    void syncLoaded().then(syncClips);
+    unsubMix = host.audio.subscribe(() => { bed = readBed(host); void syncLoaded().then(syncClips); });
     unsubTick = ctx.onPlayhead(tick);
   },
 

@@ -30,6 +30,11 @@ export const plugin: MainPlugin = {
     ipc.on('audio:setClipGain', (id, gain) => engine.setClipGain(String(id), gain == null ? 1 : Number(gain)));
     ipc.on('audio:setClipSpatial', (id, x, y, z) => engine.setClipSpatial(String(id), Number(x) || 0, Number(y) || 0, Number(z) || 0));
     ipc.on('audio:clearClipSpatial', (id) => engine.clearClipSpatial(String(id)));
+    // Effect chains. The addon parses the specs defensively (an unknown type or a malformed param is
+    // skipped, never thrown) — these arrive fire-and-forget, so there is nobody to reject to.
+    ipc.on('audio:setClipEffects', (id, fx) => engine.setClipEffects(String(id), Array.isArray(fx) ? (fx as engine.AudioEffectSpec[]) : []));
+    ipc.on('audio:setMasterEffects', (fx) => engine.setMasterEffects(Array.isArray(fx) ? (fx as engine.AudioEffectSpec[]) : []));
+    ipc.on('audio:setMasterGain', (g) => engine.setMasterGain(g == null ? 1 : Number(g)));
     ipc.on('audio:stopAll', () => engine.stopAll());
   },
 
