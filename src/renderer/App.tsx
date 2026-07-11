@@ -223,6 +223,11 @@ const App: React.FC = () => {
   // The GLOBAL timeline's lanes run as a BASE under every scene: the audio bed is global and survives
   // scene swaps, so its curves must too. A scene's own lane on the same targetPath shadows the base one.
   useEffect(() => { timelineEngine.setBaseAutomation(timeline.automation ?? []); }, [timeline.automation]);
+  // A lane is only evaluated while its TARGET exists — and the audio bed is not the timeline, so editing
+  // it (adding a clip, deleting an effect) fires none of the engine's compile hooks. Recompile here, or a
+  // lane whose target just vanished would keep sampling a dead path, and one whose target just appeared
+  // would never wake up.
+  useEffect(() => { timelineEngine.recompileAutomation(); }, [audioMix]);
 
   const [isBridgeConnected, setIsBridgeConnected] = useState(false);
   const [outputStats, setOutputStats] = useState<{ pps: number; fps: number; universes: number } | null>(null);
@@ -1282,7 +1287,10 @@ const App: React.FC = () => {
   }, []);
   // Activate first-party plugins (main window) before any compositing/OSC: this registers the LiDAR
   // plugin's TRACKING content source + blob ingestion and the calibration back-channel tap.
-  useEffect(() => { activateRendererPlugins('main', pluginHost); }, [pluginHost]);
+  useEffect(() => {
+    activateRendererPlugins('main', pluginHost);
+    timelineEngine.recompileAutomation(); // providers only exist now — anything compiled before this saw no namespaces
+  }, [pluginHost]);
   // Tell the calibration plugin which output its board-pose pairing targets (the one being calibrated).
   useEffect(() => { calibWorkspace.setTarget(calibratingOutputId); }, [calibratingOutputId]);
   // Gate the WebCodecs MP4 decoder on its setting (off → .mp4 keeps using the default <video>).

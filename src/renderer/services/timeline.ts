@@ -297,6 +297,7 @@ interface LaneRT {
 let lanesRT: LaneRT[] = [];
 let ownedPaths = new Set<string>();
 let baseAutomation: AutomationLane[] = [];   // the GLOBAL timeline's lanes (the base layer)
+let frameEndProviders: AutomationTargetProvider[] = []; // cached at compile — registry.all() allocates
 
 function compileAutomation(): void {
   if (external) return; // the projector's playhead is slew-corrected, so re-sampling there would differ
@@ -316,7 +317,13 @@ function compileAutomation(): void {
     if (!provider) continue; // unknown namespace (a plugin is disabled) — the lane persists, but is inert
     const def = provider.enumerate().find(d => d.path === lane.targetPath);
     if (!def) continue;      // dangling target (the clip was deleted) — kept in the file, not evaluated
-    const kfs = lane.keyframes.slice().sort((a, b) => a.t - b.t); // trust nothing: the cursor needs sorted keys
+    // Trust nothing: the cursor needs sorted keys, and the value must sit inside the target's range.
+    // A hand-edited project could carry cutoff: 0 on a LOG target — Math.log(0) is -Infinity, which would
+    // propagate a NaN into the lane's SVG path and into setClipEffects. Clamp it here, where the range is
+    // known (normalizeAutomation can't clamp: it has no idea what the target is).
+    const kfs = lane.keyframes
+      .map(k => ({ ...k, v: Math.min(def.max, Math.max(def.min, k.v)) }))
+      .sort((a, b) => a.t - b.t);
     next.push({
       kfs,
       path: lane.targetPath,
@@ -338,6 +345,7 @@ function compileAutomation(): void {
   }
   lanesRT = next;
   ownedPaths = nextPaths;
+  frameEndProviders = automationTargetRegistry.all().filter(p => !!p.frameEnd);
 }
 
 function sampleAutomation(t: number): void {
@@ -352,7 +360,7 @@ function sampleAutomation(t: number): void {
     rt.provider.write(rt.path, v);
     wrote = true;
   }
-  if (wrote) for (const p of automationTargetRegistry.all()) p.frameEnd?.();
+  if (wrote) for (let i = 0; i < frameEndProviders.length; i++) frameEndProviders[i].frameEnd!();
 }
 
 function frame(now: number): void {
@@ -492,6 +500,13 @@ export const timeline = {
     baseAutomation = lanes;
     compileAutomation();
   },
+  // The set of AUTOMATABLE TARGETS changed, though the timeline didn't. Compiling resolves each lane
+  // against its provider's enumerate(), so a lane can only be evaluated while its target exists — and the
+  // audio bed is NOT the timeline. Delete the clip or the effect a lane drives, or add the one it wants,
+  // and nothing above fires. Without this the stale lane would keep sampling a dead path forever, and a
+  // lane waiting on a target that just appeared would never wake up. App calls it when the bed changes,
+  // and once after the plugins have registered their providers.
+  recompileAutomation(): void { compileAutomation(); },
   // Demote a standby pool to COLD: tear down its <video>s (decoders) and free codec/content it uniquely
   // holds. Never drops the global fallback or the currently-active pool. Driven by the preloader.
   releasePool(poolKey: string): void {
