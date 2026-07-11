@@ -11,6 +11,11 @@ import { TimelineRuler } from './TimelineRuler';
 import { TrackHeader } from './TrackHeader';
 import { Lane } from './Lane';
 import { StateLane } from './StateLane';
+import { AutomationLane, AUTO_LANE_H } from './AutomationLane';
+import { AutomationTargetPicker } from './AutomationTargetPicker';
+import { automationTargetRegistry } from '../../host/registries';
+import type { AutomationLane as AutoLane } from '../../types';
+import type { AutomationTargetDef } from '@artlux/sdk/renderer';
 import { TakesBin } from './TakesBin';
 import { trackingRecorder, trackingTake } from '@artlux/plugin-lidar-tracking';
 import { ensureBlobUrl, mimeForPath } from '../../services/mediaCache';
@@ -58,6 +63,8 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   const [pxPerSec, setPxPerSec] = useState(40);
   const [pillOpen, setPillOpen] = useState(false); // scene/state selector dropdown
   const [selected, setSelected] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);   // automation target picker
+  const [autoPlayhead, setAutoPlayhead] = useState(0);   // ~10 Hz playhead for the lanes' live readouts
   const [tool, setTool] = useState<'select' | 'blade'>('select');
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [draft, setDraft] = useState<VideoClip | null>(null);
@@ -106,6 +113,42 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     if (timeRef.current) timeRef.current.textContent = `${fmtTimecode(ph, fpsRef.current)} / ${fmtTimecode(contentEndRef.current, fpsRef.current)}`;
     if (ph + PAGE_SECS > viewEndRef.current) setPages(p => Math.max(p, Math.ceil((ph + PAGE_SECS) / PAGE_SECS)));
   }), []);
+
+  // --- automation lanes ---
+  const lanes: AutoLane[] = timeline.automation ?? [];
+  // Resolve each lane's target definition (label / range / units / log axis) from whichever provider
+  // owns its path head. A lane whose target has vanished resolves to undefined and renders as such —
+  // it is never dropped, because that would silently discard the user's work.
+  const laneDefs = useMemo(() => {
+    const defs = new Map<string, AutomationTargetDef>();
+    for (const p of automationTargetRegistry.all()) {
+      try { for (const d of p.enumerate()) defs.set(d.path, d); } catch { /* a provider in a bad state must not break the timeline */ }
+    }
+    return defs;
+  }, [timeline, autoPlayhead]); // re-enumerated as the bed/scene changes; cheap (a few dozen entries)
+
+  const setLanes = (next: AutoLane[]) => onChangeRef.current({ ...timelineRef.current, automation: next });
+  const addLane = (d: AutomationTargetDef) => {
+    setPickerOpen(false);
+    // Seed with ONE keyframe at the playhead holding the target's CURRENT authored value, so creating a
+    // lane never changes the sound. A single-keyframe lane is a constant — safe, and it immediately takes
+    // ownership of the path (the authoring slider goes read-only, visibly).
+    const cur = automationTargetRegistry.get(d.path.split('.')[0])?.get(d.path) ?? d.def;
+    setLanes([...lanes, {
+      id: `au-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
+      targetPath: d.path,
+      enabled: true,
+      keyframes: [{ t: Math.max(0, engine.getPlayhead()), v: cur, curve: 'linear' }],
+    }]);
+  };
+
+  // The lanes show a live value readout at the playhead. The 60 Hz playhead above is deliberately
+  // render-free (it writes styles directly), so sample it at ~10 Hz here rather than re-rendering the
+  // whole timeline every frame.
+  useEffect(() => {
+    const iv = setInterval(() => setAutoPlayhead(engine.getPlayhead()), 100);
+    return () => clearInterval(iv);
+  }, []);
 
   // --- coordinate helpers (stable) ---
   const clientXToTime = useCallback((clientX: number) => {
@@ -547,6 +590,41 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
               </div>
             );
           })}
+
+          {/* Automation lanes — keyframe curves over the same time axis. Like StateLane they are not
+              VideoLayers (they hold keyframes, not clips), so they mount here rather than in layers.map. */}
+          {lanes.map((lane, i) => (
+            <AutomationLane
+              key={lane.id}
+              lane={lane}
+              def={laneDefs.get(lane.targetPath)}
+              pxPerSec={pxPerSec}
+              width={Math.max(width, 100)}
+              playhead={autoPlayhead}
+              onSnap={(t) => snap(t, collectSnapPoints(timelineRef.current, engine.getPlayhead()), 8 / pxRef.current).t}
+              onSeek={seekTo}
+              onChange={(next) => setLanes(lanes.map((l, j) => (j === i ? next : l)))}
+              onRemove={() => setLanes(lanes.filter((_, j) => j !== i))}
+            />
+          ))}
+
+          {/* add an automation lane */}
+          <div className="flex border-b border-line-1">
+            <div className="sticky left-0 z-20 shrink-0 bg-surface-1 border-r border-line-1 flex items-center px-2 relative" style={{ width: GUTTER, height: 26 }}>
+              <button onClick={() => setPickerOpen(true)}
+                className="text-micro text-fg-3 hover:text-fg-1 inline-flex items-center gap-1">
+                <Plus size={11} /> Automation
+              </button>
+              {pickerOpen && (
+                <AutomationTargetPicker
+                  taken={new Set(lanes.map(l => l.targetPath))}
+                  onPick={addLane}
+                  onClose={() => setPickerOpen(false)}
+                />
+              )}
+            </div>
+            <div style={{ width: Math.max(width, 100), height: 26 }} />
+          </div>
 
           {/* snap guide + playhead overlay (content coords; scroll with the tracks) */}
           <div ref={snapGuideRef} className="absolute w-px bg-accent z-10 pointer-events-none" style={{ left: GUTTER, top: RULER_H, bottom: 0, display: 'none' }} />
