@@ -551,7 +551,8 @@ export interface ProjectData {
   timeline?: unknown; // Timeline (renderer type) — video-layer NLE
   stateMachine?: unknown; // StateMachine (renderer type) — project-level show graph over scenes
   schedule?: unknown[]; // ScheduleEntry[] (@artlux/plugin-show-control) — in-project wall-clock triggers
-  assets?: AssetEntry[]; // managed media library (video/image/model/take)
+  audio?: unknown; // AudioMix (renderer type) — global audio bed (Wave 3); normalizeAudioMix() on read
+  assets?: AssetEntry[]; // managed media library (video/image/model/take/audio)
   projectorOutputs?: ProjectorOutput[]; // per-surface fullscreen projector mappings
   projectorFpsCap?: number; // performance mode: cap projector output fps (0 = uncapped/vsync)
   projectorBrightness?: number; // master brightness of projected content (1 = full)

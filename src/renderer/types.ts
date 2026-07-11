@@ -372,6 +372,83 @@ export const normalizeTimeline = (t: Partial<Timeline> | null | undefined): Time
   };
 };
 
+// --- Audio subsystem (Wave 3) ---
+// The native JUCE engine (plugins/audio + native/audio-engine) renders these; per doctrine the
+// PERSISTED types stay core while behaviour lives in the plugin. The GLOBAL audio bed
+// (ProjectData.audio) survives scene swaps and rides the main transport playhead; per-scene
+// one-shots and scene/state binding arrive later. Everything here is additive + normalize-defaulted,
+// so old projects (no `audio`) load unchanged.
+
+// A source position in listener-relative metres (listener at origin, +z forward). Encoded to
+// B-format by the ambisonic bus; absent ⇒ the clip routes straight to its bus (non-spatial).
+export interface AudioSpatial {
+  x: number;
+  y: number;
+  z: number;
+  order?: number;        // ambisonic-order override for this source (default: project/device setting)
+}
+export type AudioEffectType = 'gain' | 'filter' | 'reverb' | 'delay' | 'compressor';
+// One node in a bus effect chain. `params` is effect-specific (e.g. filter.cutoff, reverb.mix) and
+// each leaf is individually automatable/fadeable via the dot-path grammar (audio.<busId>.effects.<i>.<param>).
+export interface AudioEffect {
+  id: string;
+  type: AudioEffectType;
+  bypass?: boolean;
+  params: Record<string, number>;
+}
+// A placed audio clip. All times are seconds on the timeline (start/duration) or into the source (inPoint).
+export interface AudioClip {
+  id: string;
+  trackId: string;         // owning AudioTrack
+  name: string;
+  path: string;            // audio file (absolute in memory, relative on disk — like every asset path)
+  start: number;           // timeline position where the clip begins
+  duration: number;        // clip length on the timeline
+  inPoint: number;         // offset into the source where playback starts (trim)
+  sourceDuration?: number; // full length of the source (for trim limits)
+  gain?: number;           // linear gain, default 1
+  mute?: boolean;
+  fadeIn?: number;         // fade-in length (s)
+  fadeOut?: number;        // fade-out length (s)
+  spatial?: AudioSpatial;  // absent ⇒ non-spatial
+}
+// A logical audio track (a lane of clips) routed to an output bus.
+export interface AudioTrack {
+  id: string;
+  name: string;
+  busId?: string;          // output bus (default: master)
+  gain?: number;           // track gain, default 1
+  mute?: boolean;
+  solo?: boolean;
+  color?: string;          // hex label color
+}
+// A mix bus: gain + an effect chain, optionally sent to a parent bus. The implicit 'master' bus
+// decodes the ambisonic field to the output (binaural or speaker layout).
+export interface AudioBus {
+  id: string;
+  name: string;
+  gain?: number;           // default 1
+  effects?: AudioEffect[]; // per-bus effect chain
+  sendTo?: string;         // parent bus id for a send (default: master)
+}
+// The global audio bed, persisted opaquely on ProjectData.audio.
+export interface AudioMix {
+  tracks: AudioTrack[];
+  clips: AudioClip[];
+  buses: AudioBus[];
+}
+export const defaultAudioMix = (): AudioMix => ({ tracks: [], clips: [], buses: [] });
+// Fill defaults for old/partial project data (mirrors normalizeTimeline). Never throws; a missing
+// or malformed `audio` yields an empty bed.
+export const normalizeAudioMix = (a: Partial<AudioMix> | null | undefined): AudioMix => {
+  if (!a || typeof a !== 'object') return defaultAudioMix();
+  return {
+    tracks: Array.isArray(a.tracks) ? a.tracks : [],
+    clips: Array.isArray(a.clips) ? a.clips : [],
+    buses: Array.isArray(a.buses) ? a.buses : [],
+  };
+};
+
 // Normalize a persisted/partial state machine into a complete one (fills new fields on old saves).
 export const normalizeStateMachine = (sm: Partial<StateMachine> | null | undefined): StateMachine => {
   if (!sm || !Array.isArray(sm.states)) return defaultStateMachine();
