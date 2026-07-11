@@ -55,10 +55,10 @@ export function libraryItems(assets: AssetEntry[] | undefined, timeline: Timelin
   return [...imported, ...takes.filter(t => !seen.has(normPath(t.path)))];
 }
 
-export const ASSET_TYPES: AssetType[] = ['video', 'image', 'model', 'take'];
+export const ASSET_TYPES: AssetType[] = ['video', 'image', 'model', 'take', 'audio'];
 
 export const typeLabel: Record<AssetType, string> = {
-  video: 'Video', image: 'Image', model: '3D Model', take: 'Take',
+  video: 'Video', image: 'Image', model: '3D Model', take: 'Take', audio: 'Audio',
 };
 
 // Map a library asset to the SurfaceContent type it can fill (video/image only).

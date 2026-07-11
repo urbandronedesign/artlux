@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Film, Image as ImageIcon, Box, FolderOpen, Link2, Trash2, Maximize2, MonitorPlay, Search } from 'lucide-react';
+import { Film, Image as ImageIcon, Box, Music, FolderOpen, Link2, Trash2, Maximize2, MonitorPlay, Search } from 'lucide-react';
 import { AssetEntry, AssetType, Surface, Timeline } from '../types';
 import type { Scene3D } from '../../../shared/protocol';
 import { AssetChip } from './AssetChip';
@@ -73,6 +73,7 @@ export const MediaPanel: React.FC<Props> = ({ assets, timeline, surfaces, scene3
         <button onClick={() => onImport('video')} disabled={!hasProjectFolder} title="Import video" className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40"><Film size={12} /></button>
         <button onClick={() => onImport('image')} disabled={!hasProjectFolder} title="Import image" className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40"><ImageIcon size={12} /></button>
         <button onClick={() => onImport('model')} disabled={!hasProjectFolder} title="Import 3D model" className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40"><Box size={12} /></button>
+        <button onClick={() => onImport('audio')} disabled={!hasProjectFolder} title="Import audio" className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40"><Music size={12} /></button>
       </div>
       {!hasProjectFolder && (
         <div className="px-2 py-1 text-micro text-warn border-b border-line-1">Create a project folder (File → New Project) to import media.</div>
@@ -85,6 +86,7 @@ export const MediaPanel: React.FC<Props> = ({ assets, timeline, surfaces, scene3
         {chip('Image', 'image', <ImageIcon size={10} />)}
         {chip('Model', 'model', <Box size={10} />)}
         {chip('Take', 'take')}
+        {chip('Audio', 'audio', <Music size={10} />)}
         <div className="flex items-center gap-1 ml-auto bg-surface-2 border border-line-1 rounded px-1 h-5">
           <Search size={10} className="text-fg-3" />
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="search"

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { X, Film, Image as ImageIcon, Box, FolderOpen, Link2, Trash2, MonitorPlay, PackageCheck, Search } from 'lucide-react';
+import { X, Film, Image as ImageIcon, Box, Music, FolderOpen, Link2, Trash2, MonitorPlay, PackageCheck, Search } from 'lucide-react';
 import { AssetEntry, AssetType, Surface, Timeline } from '../types';
 import type { Scene3D } from '../../../shared/protocol';
 import { AssetChip } from './AssetChip';
@@ -90,6 +90,7 @@ export const AssetManager: React.FC<Props> = (p) => {
             <button onClick={() => p.onImport('video')} disabled={!p.hasProjectFolder} className="inline-flex items-center gap-1 px-2 h-7 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40 text-mini"><Film size={12} /> Video</button>
             <button onClick={() => p.onImport('image')} disabled={!p.hasProjectFolder} className="inline-flex items-center gap-1 px-2 h-7 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40 text-mini"><ImageIcon size={12} /> Image</button>
             <button onClick={() => p.onImport('model')} disabled={!p.hasProjectFolder} className="inline-flex items-center gap-1 px-2 h-7 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40 text-mini"><Box size={12} /> Model</button>
+            <button onClick={() => p.onImport('audio')} disabled={!p.hasProjectFolder} className="inline-flex items-center gap-1 px-2 h-7 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40 text-mini"><Music size={12} /> Audio</button>
           </div>
           <button onClick={p.onConsolidate} disabled={!p.hasProjectFolder} title="Copy every asset into the project folder + relink"
             className="inline-flex items-center gap-1 px-2 h-7 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40 text-mini ml-auto"><PackageCheck size={13} /> Consolidate</button>
@@ -100,7 +101,7 @@ export const AssetManager: React.FC<Props> = (p) => {
           {/* grid */}
           <div className="flex-1 min-w-0 flex flex-col border-r border-line-1">
             <div className="px-3 py-2 flex items-center gap-1 border-b border-line-1">
-              {filterBtn('All', 'all')}{filterBtn('Video', 'video')}{filterBtn('Image', 'image')}{filterBtn('Model', 'model')}{filterBtn('Take', 'take')}
+              {filterBtn('All', 'all')}{filterBtn('Video', 'video')}{filterBtn('Image', 'image')}{filterBtn('Model', 'model')}{filterBtn('Take', 'take')}{filterBtn('Audio', 'audio')}
               <div className="flex items-center gap-1 ml-auto bg-surface-2 border border-line-1 rounded px-1.5 h-6">
                 <Search size={11} className="text-fg-3" />
                 <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="search" className="bg-transparent outline-none text-mini w-32 text-fg-1" />

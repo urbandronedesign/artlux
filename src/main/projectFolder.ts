@@ -16,12 +16,13 @@ const ASSET_CATEGORIES: Record<string, string[]> = {
   video: ['mp4', 'webm', 'mov', 'mkv'],
   models: ['glb', 'gltf'],
   images: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'],
+  audio: ['wav', 'aiff', 'aif', 'flac', 'ogg'], // native JUCE decode (mp3/aac gated on extra codecs)
   tracking: ['lblob'], // recorded LiDAR-blob takes
 };
 
 // Library asset type → assets/ sub-folder (category).
 const TYPE_CATEGORY: Record<AssetType, string> = {
-  video: 'video', image: 'images', model: 'models', take: 'tracking',
+  video: 'video', image: 'images', model: 'models', take: 'tracking', audio: 'audio',
 };
 
 function categoryFor(path: string): string | null {
@@ -233,7 +234,7 @@ function collectInto(root: string, data: ProjectData): CollectResult {
   // Ensure every collected media file has a library entry, so it shows in the Media tab. Clips and
   // surfaces can reference files that were never imported (e.g. dragged straight onto the timeline);
   // without this they play but stay invisible in the library. Takes live in trackingTakes, not here.
-  const CAT_TYPE: Record<string, AssetType> = { video: 'video', images: 'image', models: 'model' };
+  const CAT_TYPE: Record<string, AssetType> = { video: 'video', images: 'image', models: 'model', audio: 'audio' };
   const norm = (p: string) => (p || '').replace(/\\/g, '/').toLowerCase();
   const have = new Set<string>((out.assets ?? []).map((a) => norm(a?.path)));
   const added: AssetEntry[] = [];
