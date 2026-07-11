@@ -57,7 +57,8 @@ Seven plans have landed on `main` and moved to [`archive/`](archive/). Full per-
 | [Projector blend preview + phase-lock](projector-blend-preview.md) | #5 Hello Projector | **Hybrid** | 🟡 Med | held (loosely gated on webgl-strict) |
 | [WebGL strict per-surface sampling](webgl-strict-per-surface-sampling.md) | #1 Composite Stage | **Core** | 🟡 Med | **Phase 1 shipped** (banner + force-WebGL + GPU settings); **Phase 2 deferred — open GitHub decision issue** |
 | [MIDI controller support](midi-control.md) | (net-new) | **Plugin** | 🟡 Med | not started (Draft) |
-| [Native audio engine](audio-engine.md) | (net-new, Wave 3) | **Hybrid** | 🔴 High | not started (Draft) |
+| [Native audio engine](audio-engine.md) | (net-new, Wave 3) | **Hybrid** | 🔴 High | **P0–P4 shipped** on `wave-3-audio` (bed, spatial, FX, automation); **P5 superseded** by the plan below |
+| [Timeline transport + global/scene scoping + audio scene binding](timeline-transport-and-audio-scoping.md) | (net-new, Wave 3) | **Hybrid** | 🟠 Med-High | Approved — Wave A, checkpoint, Wave B |
 
 ## Net-new subsystems (beyond limitation-lifts)
 
