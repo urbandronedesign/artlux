@@ -63,7 +63,8 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   const [pxPerSec, setPxPerSec] = useState(40);
   const [pillOpen, setPillOpen] = useState(false); // scene/state selector dropdown
   const [selected, setSelected] = useState<string | null>(null);
-  const [pickerOpen, setPickerOpen] = useState(false);   // automation target picker
+  const [pickerAt, setPickerAt] = useState<{ x: number; y: number } | null>(null); // automation picker anchor
+  const [defsTick, setDefsTick] = useState(0);           // forces a target re-enumeration (~1 Hz)
   const [autoPlayhead, setAutoPlayhead] = useState(0);   // ~10 Hz playhead for the lanes' live readouts
   const [tool, setTool] = useState<'select' | 'blade'>('select');
   const [snapEnabled, setSnapEnabled] = useState(true);
@@ -125,11 +126,13 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       try { for (const d of p.enumerate()) defs.set(d.path, d); } catch { /* a provider in a bad state must not break the timeline */ }
     }
     return defs;
-  }, [timeline, autoPlayhead]); // re-enumerated as the bed/scene changes; cheap (a few dozen entries)
+    // defsTick, not autoPlayhead: a stopped transport returns an identical playhead, so the memo would
+    // never invalidate and a lane whose target was just deleted would keep rendering as if still bound.
+  }, [timeline, defsTick]);
 
   const setLanes = (next: AutoLane[]) => onChangeRef.current({ ...timelineRef.current, automation: next });
   const addLane = (d: AutomationTargetDef) => {
-    setPickerOpen(false);
+    setPickerAt(null);
     // Seed with ONE keyframe at the playhead holding the target's CURRENT authored value, so creating a
     // lane never changes the sound. A single-keyframe lane is a constant — safe, and it immediately takes
     // ownership of the path (the authoring slider goes read-only, visibly).
@@ -147,7 +150,8 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   // whole timeline every frame.
   useEffect(() => {
     const iv = setInterval(() => setAutoPlayhead(engine.getPlayhead()), 100);
-    return () => clearInterval(iv);
+    const dv = setInterval(() => setDefsTick(t => t + 1), 1000); // re-enumerate targets (the bed can change)
+    return () => { clearInterval(iv); clearInterval(dv); };
   }, []);
 
   // --- coordinate helpers (stable) ---
@@ -611,15 +615,16 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
           {/* add an automation lane */}
           <div className="flex border-b border-line-1">
             <div className="sticky left-0 z-20 shrink-0 bg-surface-1 border-r border-line-1 flex items-center px-2 relative" style={{ width: GUTTER, height: 26 }}>
-              <button onClick={() => setPickerOpen(true)}
+              <button onClick={(e) => { const r = (e.target as HTMLElement).getBoundingClientRect(); setPickerAt({ x: r.left, y: r.bottom }); }}
                 className="text-micro text-fg-3 hover:text-fg-1 inline-flex items-center gap-1">
                 <Plus size={11} /> Automation
               </button>
-              {pickerOpen && (
+              {pickerAt && (
                 <AutomationTargetPicker
                   taken={new Set(lanes.map(l => l.targetPath))}
+                  anchor={pickerAt}
                   onPick={addLane}
-                  onClose={() => setPickerOpen(false)}
+                  onClose={() => setPickerAt(null)}
                 />
               )}
             </div>

@@ -7,7 +7,7 @@
 // Editing follows the clip conventions: drag with a local `draft` and commit ONCE on pointerup, never
 // per pointermove (a commit re-enters App → setScenes → timelineEngine.setData → recompile + a full bed
 // re-sync; doing that 60×/s while dragging would be brutal).
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import type { AutomationLane as Lane, Keyframe } from '../../types';
 import type { AutomationTargetDef } from '@artlux/sdk/renderer';
 import { sampleLane, normValue, denormValue, BEZ_DEFAULT } from '../../services/automation';
@@ -32,6 +32,8 @@ interface Props {
 export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, playhead, onChange, onRemove, onSnap, onSeek }) => {
   const bodyRef = useRef<HTMLDivElement>(null);
   const [draft, setDraft] = useState<Keyframe[] | null>(null);
+  const draftRef = useRef<Keyframe[] | null>(null);
+  draftRef.current = draft;
   const [sel, setSel] = useState<number | null>(null);
 
   const h = lane.height ?? AUTO_LANE_H;
@@ -63,17 +65,22 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, pl
     return s > 0 ? Math.round(v / s) * s : v;
   };
 
-  // Sample the curve across the visible width — the engine's own function, one x per 2px.
-  const path = (() => {
+  // Sample the curve across the lane — the engine's own function, so the drawing cannot drift from the
+  // sound. Memoized, and the point count is CAPPED: the timeline is unbounded (its width grows as the
+  // playhead advances), so a fixed 2px step would keep adding points forever, and this runs on every
+  // render — including every pointermove of a keyframe drag.
+  const path = useMemo(() => {
     if (kfs.length === 0) return '';
+    const step = Math.max(2, width / 1200);
     const cur = { i: -1 };
     const pts: string[] = [];
-    for (let x = 0; x <= width; x += 2) {
+    for (let x = 0; x <= width; x += step) {
       const v = sampleLane(kfs, x / pxPerSec, cur, log);
-      pts.push(`${x},${valueToY(v).toFixed(1)}`);
+      pts.push(`${x.toFixed(1)},${valueToY(v).toFixed(1)}`);
     }
     return `M${pts.join(' L')}`;
-  })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kfs, width, pxPerSec, log, min, max, h]);
 
   const commit = (next: Keyframe[]) => onChange({ ...lane, keyframes: next.slice().sort((a, b) => a.t - b.t) });
 
@@ -99,7 +106,11 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, pl
     const up = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
-      setDraft(d => { if (d) commit(d); return null; }); // ONE commit, on release
+      // ONE commit, on release — and OUTSIDE the state updater. Committing inside setDraft(d => ...)
+      // would issue a render-phase update to App, which React 19 StrictMode double-invokes.
+      const d = draftRef.current;
+      setDraft(null);
+      if (d) commit(d);
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);

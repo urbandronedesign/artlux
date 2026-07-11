@@ -144,7 +144,7 @@ export const plugin: RendererPlugin = {
               // moment it lands in `loaded` it becomes audible() — and the playhead tick is rAF-driven,
               // so reconcile() can start it on the very next frame. Deferring the push to the end of the
               // pass would let it begin life dry and dead-centre while the rest of the bed decodes.
-              pushClipParams(clip);
+              pushClipParams(eff(clip)); // eff(), not the raw clip — a lane may already own some of its leaves
             } else {
               audioClient.unloadClip(clip.id); // removed while loading → don't leave it resident
             }

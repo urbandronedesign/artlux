@@ -131,6 +131,7 @@ export const Stage: React.FC<StageProps> = ({
   const recordBackend = (b: 'webgpu' | 'webgl') => { try { localStorage.setItem('artlux.activeBackend', b); } catch { /* ignore */ } };
   const brightnessRef = useRef(globalBrightness);
   useEffect(() => { brightnessRef.current = globalBrightness; }, [globalBrightness]);
+  const lastPreviewBrightness = useRef(-1); // so the CSS var is written only when it actually moves
 
   // Output gamma LUT (applied during universe packing). Identity when gamma=1.
   const gammaLut = useMemo(() => {
@@ -296,14 +297,15 @@ export const Stage: React.FC<StageProps> = ({
     let effSurfaces = surfacesRef.current;
     let effFixtures = fixturesRef.current;
     let effBrightness = livePreview.brightness;
-    let geomDirty = false;
-    let paramsDirty = false;
+    // Read the dirty flags BEFORE the isActive() check, not inside it: releasing the last lane empties
+    // the overlay, so isActive() is already false on the frame the authored value must be re-uploaded.
+    // Guarding the read on it would leave the GPU holding the last automated value for good.
+    let geomDirty = automationOverlay.geometryAnimating();
+    let paramsDirty = automationOverlay.paramsAnimating();
+    automationOverlay.consumeDirty();
     if (automationOverlay.isActive()) {
         const v = automationOverlay.apply({ surfaces: effSurfaces, fixtures: effFixtures, globalBrightness: effBrightness });
         effSurfaces = v.surfaces; effFixtures = v.fixtures; effBrightness = v.globalBrightness;
-        geomDirty = automationOverlay.geometryAnimating();
-        paramsDirty = automationOverlay.paramsAnimating();
-        automationOverlay.consumeDirty();
     }
     const fade = transitions.sample(performance.now());
     if (fade) {
@@ -366,6 +368,13 @@ export const Stage: React.FC<StageProps> = ({
         // Pull brightness from the live channel each frame so slider drags affect output
         // immediately without committing React state (which would re-render the whole app).
         mapper.current.setBrightness(effBrightness);
+        // The preview canvas dims through a CSS var that livePreview owns — and a render-free override
+        // never goes through livePreview. Without this the LEDs would dim while the preview stayed bright,
+        // so the preview would lie about what is actually leaving the machine.
+        if (effBrightness !== lastPreviewBrightness.current) {
+          lastPreviewBrightness.current = effBrightness;
+          document.documentElement.style.setProperty('--preview-brightness', String(effBrightness));
+        }
         // WebGPU samples each fixture strictly from its linked surface; the WebGL
         // fallback samples the composite preview canvas.
         if (mapper.current.perSurface && mapper.current.renderSurfaces) {

@@ -11,11 +11,12 @@ import { Search, X } from 'lucide-react';
 
 interface Props {
   taken: Set<string>;
+  anchor: { x: number; y: number };  // viewport coords of the button that opened it
   onPick: (def: AutomationTargetDef) => void;
   onClose: () => void;
 }
 
-export const AutomationTargetPicker: React.FC<Props> = ({ taken, onPick, onClose }) => {
+export const AutomationTargetPicker: React.FC<Props> = ({ taken, anchor, onPick, onClose }) => {
   const [q, setQ] = useState('');
 
   const groups = useMemo(() => {
@@ -38,7 +39,10 @@ export const AutomationTargetPicker: React.FC<Props> = ({ taken, onPick, onClose
   return (
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
-      <div className="absolute z-50 mt-1 w-80 max-h-96 flex flex-col rounded-lg border border-line-2 bg-surface-1 shadow-e3">
+      {/* FIXED, not absolute: the timeline gutter lives inside an overflow-auto scroller, which would
+          clip an absolutely-positioned popover to a 26px-tall row — the list would be invisible. */}
+      <div className="fixed z-50 w-80 max-h-96 flex flex-col rounded-lg border border-line-2 bg-surface-1 shadow-e3"
+        style={{ left: Math.min(anchor.x, window.innerWidth - 336), top: Math.max(8, anchor.y - 400) }}>
         <div className="h-8 px-2 flex items-center gap-1.5 border-b border-line-1 shrink-0">
           <Search size={12} className="text-fg-3 shrink-0" />
           <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Automate…"

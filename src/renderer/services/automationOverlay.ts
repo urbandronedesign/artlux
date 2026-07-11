@@ -19,8 +19,20 @@ export function set(path: string, v: number): void {
   if (isGeometryPath(path)) geomDirty = true;
   else paramDirty = true;
 }
-export function release(path: string): void { values.delete(path); }
-export function clear(): void { values.clear(); }
+// A release must ALSO mark dirty. Dropping a lane empties the overlay, so isActive() is already false on
+// the very frame the authored value has to be restored — without this the consumer never re-uploads it
+// and the LEDs stay stranded at the last automated value, forever.
+export function release(path: string): void {
+  if (!values.delete(path)) return;
+  if (isGeometryPath(path)) geomDirty = true;
+  else paramDirty = true;
+}
+export function clear(): void {
+  if (values.size === 0) return;
+  values.clear();
+  geomDirty = true;
+  paramDirty = true;
+}
 
 /** Does a lane currently own this path? transitions.ts asks, so a fade can LAND on a curve, not fight it. */
 export function owns(path: string): boolean { return values.has(path); }

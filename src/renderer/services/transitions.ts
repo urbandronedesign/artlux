@@ -19,10 +19,7 @@ const EASES: Record<CueTransition, (t: number) => number> = {
 // One animated parameter. Extends FadeTarget {path, from, to} with optional per-leg timing.
 export interface FadeLeg extends FadeTarget { transition?: CueTransition; fadeSec?: number }
 
-// `toDynamic`: this leg's path is owned by an automation lane, so its destination is a MOVING TARGET —
-// re-read from the automated base every frame instead of the value captured when the fade started.
-// See the precedence rule below.
-interface ActiveLeg { path: string; from: number; to: number; durMs: number; ease: (t: number) => number; geom: boolean; toDynamic: boolean }
+interface ActiveLeg { path: string; from: number; to: number; durMs: number; ease: (t: number) => number; geom: boolean }
 interface ActiveFade { legs: ActiveLeg[]; startMs: number; onComplete?: () => void }
 
 let active: ActiveFade | null = null;
@@ -51,7 +48,6 @@ export function start(targets: FadeLeg[], opts: { fadeSec: number; transition?: 
       durMs: trans === 'none' ? 0 : Math.max(0, sec) * 1000,
       ease: EASES[trans] ?? EASES.smooth,
       geom: isGeometryPath(t.path),
-      toDynamic: automationOverlay.owns(t.path),
     };
   });
   const willAnimate = legs.some((l) => l.durMs > 0);
@@ -94,7 +90,13 @@ export function sample(nowMs: number): SampleResult | null {
     let v = base;
     for (const leg of a.legs) {
       const raw = leg.durMs <= 0 ? 1 : (nowMs - a.startMs) / leg.durMs;
-      const to = leg.toDynamic ? ((getByPath(base, leg.path) as number | undefined) ?? leg.to) : leg.to;
+      // Whether a lane owns this path is asked EVERY FRAME, not captured at start(). Two things would
+      // break a snapshot: a scene recall starts the fade BEFORE it swaps the timeline (so the lane set
+      // at start() is the OUTGOING scene's), and a lane can be enabled or disabled mid-fade. It's a
+      // Map.has — cheaper than being wrong.
+      const to = automationOverlay.owns(leg.path)
+        ? ((getByPath(base, leg.path) as number | undefined) ?? leg.to)
+        : leg.to;
       const val = raw >= 1 ? to : leg.from + (to - leg.from) * leg.ease(clamp01(raw));
       v = setByPath(v, leg.path, val);
     }

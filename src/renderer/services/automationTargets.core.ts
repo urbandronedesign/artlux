@@ -13,14 +13,21 @@ import * as overlay from './automationOverlay';
 let viewRef: () => StateView = () => ({ surfaces: [], fixtures: [], globalBrightness: 1 });
 export function setCoreStateView(get: () => StateView): void { viewRef = get; }
 
-// Sensible ranges for the fadeable numeric leaves. A lane needs a min/max to draw an axis against; cues
-// don't, which is why this table is new rather than reused.
+// The ranges a lane draws its axis against (and, via `step`, quantizes and change-detects with). Cues
+// need no range, which is why this table is new rather than reused from paramPath.
+//
+// GEOMETRY (x / y / width / height / rotation) IS DELIBERATELY ABSENT, for two reasons, both hard:
+//   · A geometry leaf changes the LED↔surface UV mapping, so every frame it moves the GPU mapper must
+//     rebuild — and on the WebGPU path that rebuild reallocates the readback cache, which would blank
+//     the DMX output while the curve ran. Animating geometry needs the mapper to support an incremental
+//     update; that is its own piece of work, not a range table.
+//   · These values are NORMALIZED 0..1 (Surface/Fixture x,y,width,height are fractions of the stage,
+//     not pixels), so a lane over them also needs the projector bridge to carry the animated value —
+//     the projector windows self-render from the last COMMITTED config and never see a render-free
+//     override.
+// What is left below is exactly what is correct end-to-end today: the non-geometry leaves, which reach
+// the output through mapper.updateParams + the composite, with no mapping rebuild.
 const RANGE: Record<string, { min: number; max: number; step: number; unit?: string }> = {
-  x: { min: -2000, max: 4000, step: 1, unit: 'px' },
-  y: { min: -2000, max: 4000, step: 1, unit: 'px' },
-  width: { min: 1, max: 4000, step: 1, unit: 'px' },
-  height: { min: 1, max: 4000, step: 1, unit: 'px' },
-  rotation: { min: -360, max: 360, step: 0.1, unit: '°' },
   intensity: { min: 0, max: 1, step: 0.01 },
   speed: { min: 0, max: 4, step: 0.01, unit: '×' },
   'content.opacity': { min: 0, max: 1, step: 0.01 },
