@@ -1,0 +1,10 @@
+{
+  "name": "@artlux/audio-engine",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Native audio engine (JUCE + libspatialaudio) — Wave 3 P0 spike",
+  "devDependencies": {
+    "cmake-js": "^8.0.0",
+    "node-addon-api": "^8.3.0"
+  }
+}

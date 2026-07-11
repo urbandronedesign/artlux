@@ -1,0 +1,8 @@
+node_modules/
+build/
+*.node
+# vendored deps (fetched by CMake / git submodule during build)
+third_party/
+# generated spike artifacts
+test.wav
+*.log
