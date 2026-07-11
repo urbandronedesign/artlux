@@ -8,11 +8,15 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 export interface ClipMeta { durationSec: number; channels: number; sampleRate: number }
-export interface Meters { peak: number; rms: number; peakL: number; peakR: number }
+export interface Meters { peak: number; rms: number; peakL: number; peakR: number; peaks: number[]; speakers: number }
+
+// How the ambisonic field is rendered: binaural HRTF (headphones) or a decode to a real speaker layout.
+export type OutputMode = 'binaural' | 'speakers';
+export type SpeakerLayout = 'stereo' | 'quad' | '5.0' | '5.1' | '7.0' | '7.1' | 'hexagon' | 'octagon' | 'cube';
 
 interface NativeAudio {
   juceVersion(): string;
-  configure(outputChannels: number): string;   // returns opened device name; throws on failure
+  configure(outputChannels: number, mode: string, layout: string): string; // → opened device name; throws on failure
   getDevices(): string[];
   loadClip(id: string, path: string): ClipMeta; // throws if no decoder / file missing
   unloadClip(id: string): void;
@@ -54,7 +58,9 @@ console.log(
 );
 
 // Thin, null-safe wrappers. Every call is a no-op (sensible default) when the engine is absent.
-export function configure(outputChannels: number): string { return native ? native.configure(outputChannels) : ''; }
+export function configure(outputChannels: number, mode: OutputMode = 'binaural', layout: SpeakerLayout = 'stereo'): string {
+  return native ? native.configure(outputChannels, mode, layout) : '';
+}
 export function getDevices(): string[] { return native ? native.getDevices() : []; }
 export function loadClip(id: string, path: string): ClipMeta | null { return native ? native.loadClip(id, path) : null; }
 export function unloadClip(id: string): void { native?.unloadClip(id); }
@@ -64,5 +70,7 @@ export function setClipGain(id: string, gain: number): void { native?.setClipGai
 export function setClipSpatial(id: string, x: number, y: number, z: number): void { native?.setClipSpatial(id, x, y, z); }
 export function clearClipSpatial(id: string): void { native?.clearClipSpatial(id); }
 export function stopAll(): void { native?.stopAll(); }
-export function getMeters(): Meters { return native ? native.getMeters() : { peak: 0, rms: 0, peakL: 0, peakR: 0 }; }
+export function getMeters(): Meters {
+  return native ? native.getMeters() : { peak: 0, rms: 0, peakL: 0, peakR: 0, peaks: [], speakers: 0 };
+}
 export function close(): void { native?.close(); }

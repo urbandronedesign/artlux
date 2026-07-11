@@ -18,6 +18,7 @@
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cmath>
 #include <memory>
@@ -29,6 +30,7 @@
 // HRTF, no SOFA file needed). Namespace `spaudio`.
 #include <AmbisonicEncoder.h>
 #include <AmbisonicBinauralizer.h>
+#include <AmbisonicDecoder.h>
 #include <BFormat.h>
 
 namespace {
@@ -55,6 +57,24 @@ spaudio::PolarPosition<float> toPolar(float x, float y, float z) {
   p.elevation = dist > 1.0e-6f ? std::asin(juce::jlimit(-1.0f, 1.0f, y / dist)) : 0.0f;
   p.azimuth = std::atan2(-x, z);
   return p;
+}
+
+// How the ambisonic B-format is rendered to the device.
+enum class OutMode { Binaural, Speakers };
+
+// The speaker layouts we expose (name → libspatialaudio preset). Binaural is headphones-only, so a
+// multichannel install decodes the SAME B-format to a real speaker ring/cube instead.
+spaudio::Amblib_SpeakerSetUps layoutFromName(const juce::String& n) {
+  using S = spaudio::Amblib_SpeakerSetUps;
+  if (n == "quad")    return S::kAmblib_Quad;
+  if (n == "5.0")     return S::kAmblib_50;
+  if (n == "5.1")     return S::kAmblib_51;
+  if (n == "7.0")     return S::kAmblib_70;
+  if (n == "7.1")     return S::kAmblib_71;
+  if (n == "hexagon") return S::kAmblib_Hexagon;
+  if (n == "octagon") return S::kAmblib_Octagon;
+  if (n == "cube")    return S::kAmblib_Cube;      // 3D, 8 speakers
+  return S::kAmblib_Stereo;
 }
 
 struct Clip {
@@ -89,11 +109,22 @@ public:
     bformat.Configure(kAmbiOrder, true, (unsigned) blockSize);
     unsigned tail = 0;
     binauralOk = binaural.Configure(kAmbiOrder, true, (unsigned) sr, (unsigned) blockSize, tail);
+    configureDecoder();
     for (auto& kv : clips) {
       kv.second->transport->prepareToPlay(blockSize, sr);
       if (kv.second->spatial) configureEncoder(*kv.second);
     }
   }
+
+  // Switch how the B-format is rendered (binaural HRTF ↔ speaker-layout decode). Live: only the decoder
+  // is reconfigured, so changing it never reopens the device or interrupts playback.
+  void setMode(OutMode m, const juce::String& layoutName) {
+    const juce::ScopedLock sl(lock);
+    mode = m;
+    layout = layoutName;
+    if (prepared) configureDecoder();
+  }
+  int speakerCount() { const juce::ScopedLock sl(lock); return nSpeakers; }
 
   void releaseResources() override {
     const juce::ScopedLock sl(lock);
@@ -132,13 +163,22 @@ public:
       }
     }
 
-    if (anySpatial && binauralOk) {
+    if (!anySpatial) return;
+
+    if (mode == OutMode::Binaural && binauralOk) {
       std::fill(decodeL.begin(), decodeL.begin() + n, 0.0f);
       std::fill(decodeR.begin(), decodeR.begin() + n, 0.0f);
       float* out[2] = { decodeL.data(), decodeR.data() };
       binaural.Process(&bformat, out, (unsigned) n);
       if (outCh > 0) info.buffer->addFrom(0, info.startSample, decodeL.data(), n);
       if (outCh > 1) info.buffer->addFrom(1, info.startSample, decodeR.data(), n);
+    } else if (mode == OutMode::Speakers && decoderOk && nSpeakers > 0) {
+      for (int s = 0; s < nSpeakers; ++s)
+        std::fill(speakerBuf[(size_t) s].begin(), speakerBuf[(size_t) s].begin() + n, 0.0f);
+      decoder.Process(&bformat, (unsigned) n, speakerPtrs.data());
+      const int m = juce::jmin(nSpeakers, outCh); // never write past the device's channels
+      for (int s = 0; s < m; ++s)
+        info.buffer->addFrom(s, info.startSample, speakerBuf[(size_t) s].data(), n);
     }
   }
 
@@ -197,6 +237,14 @@ private:
     c.encoder->Refresh();
   }
 
+  void configureDecoder() { // caller holds the lock
+    decoderOk = decoder.Configure(kAmbiOrder, true, (unsigned) maxBlock, (unsigned) sampleRate, layoutFromName(layout));
+    nSpeakers = decoderOk ? (int) decoder.GetSpeakerCount() : 0;
+    speakerBuf.assign((size_t) juce::jmax(0, nSpeakers), std::vector<float>((size_t) maxBlock, 0.0f));
+    speakerPtrs.assign((size_t) juce::jmax(0, nSpeakers), nullptr);
+    for (int i = 0; i < nSpeakers; ++i) speakerPtrs[(size_t) i] = speakerBuf[(size_t) i].data();
+  }
+
   bool prepared = false;
   int maxBlock = 512;
   juce::AudioBuffer<float> scratch;
@@ -204,55 +252,65 @@ private:
   spaudio::BFormat bformat;
   spaudio::AmbisonicBinauralizer binaural;
   bool binauralOk = false;
+  OutMode mode = OutMode::Binaural;
+  juce::String layout { "stereo" };
+  spaudio::AmbisonicDecoder decoder;
+  bool decoderOk = false;
+  int nSpeakers = 0;
+  std::vector<std::vector<float>> speakerBuf;
+  std::vector<float*> speakerPtrs;
 };
 
-// Taps the mixed output for the UI meters. Per-channel peaks are what prove spatialisation is doing
-// something (a hard-left source must give peakL >> peakR — a flipped azimuth shows up here immediately).
+constexpr int kMaxMeterCh = 8;
+
+// Taps the mixed output for the UI meters. PER-CHANNEL peaks are what make spatialisation verifiable
+// rather than assumed: a hard-left source must give ch0 >> ch1 (a flipped azimuth shows up instantly),
+// and under speaker decode the energy must land on the speakers nearest the source.
 class MeteringAudioSource : public juce::AudioSource {
 public:
   MeteringAudioSource(juce::AudioSource& s, std::atomic<float>& peak, std::atomic<float>& rms,
-                      std::atomic<float>& pL, std::atomic<float>& pR)
-    : src(s), peakOut(peak), rmsOut(rms), peakLOut(pL), peakROut(pR) {}
+                      std::array<std::atomic<float>, kMaxMeterCh>& chPeaks)
+    : src(s), peakOut(peak), rmsOut(rms), chOut(chPeaks) {}
   void prepareToPlay(int n, double sr) override { src.prepareToPlay(n, sr); }
   void releaseResources() override { src.releaseResources(); }
   void getNextAudioBlock(const juce::AudioSourceChannelInfo& info) override {
     src.getNextAudioBlock(info);
-    float peak = 0.0f, sumSq = 0.0f, pL = 0.0f, pR = 0.0f;
+    float peak = 0.0f, sumSq = 0.0f;
     int count = 0;
+    std::array<float, kMaxMeterCh> ch {};
     if (info.buffer != nullptr) {
-      for (int ch = 0; ch < info.buffer->getNumChannels(); ++ch) {
-        const float* d = info.buffer->getReadPointer(ch, info.startSample);
-        float chPeak = 0.0f;
+      for (int c = 0; c < info.buffer->getNumChannels(); ++c) {
+        const float* d = info.buffer->getReadPointer(c, info.startSample);
+        float cp = 0.0f;
         for (int i = 0; i < info.numSamples; ++i) {
           const float a = std::abs(d[i]);
-          chPeak = juce::jmax(chPeak, a);
+          cp = juce::jmax(cp, a);
           sumSq += d[i] * d[i];
           ++count;
         }
-        peak = juce::jmax(peak, chPeak);
-        if (ch == 0) pL = chPeak;
-        if (ch == 1) pR = chPeak;
+        peak = juce::jmax(peak, cp);
+        if (c < kMaxMeterCh) ch[(size_t) c] = cp;
       }
     }
     peakOut.store(peak);
     rmsOut.store(count > 0 ? std::sqrt(sumSq / (float) count) : 0.0f);
-    peakLOut.store(pL);
-    peakROut.store(pR);
+    for (int c = 0; c < kMaxMeterCh; ++c) chOut[(size_t) c].store(ch[(size_t) c]);
   }
 private:
   juce::AudioSource& src;
   std::atomic<float>& peakOut;
   std::atomic<float>& rmsOut;
-  std::atomic<float>& peakLOut;
-  std::atomic<float>& peakROut;
+  std::array<std::atomic<float>, kMaxMeterCh>& chOut;
 };
 
 class Engine {
 public:
-  Engine() : metering(bus, meterPeak, meterRms, meterPeakL, meterPeakR) {}
+  Engine() : metering(bus, meterPeak, meterRms, meterCh) {}
   ~Engine() { closeDevice(); }
 
-  juce::String configure(int outputChannels) {
+  juce::String configure(int outputChannels, OutMode mode, const juce::String& layout) {
+    // Decode mode/layout is applied live (decoder-only) — changing it never reopens the device.
+    bus.setMode(mode, layout);
     const int ch = juce::jlimit(1, 64, outputChannels);
     if (opened && ch == openedChannels) return {}; // already open on this config — don't interrupt playback
     if (opened) { deviceManager.removeAudioCallback(&player); player.setSource(nullptr); deviceManager.closeAudioDevice(); opened = false; }
@@ -322,8 +380,8 @@ public:
 
   float peak() const { return meterPeak.load(); }
   float rms() const { return meterRms.load(); }
-  float peakL() const { return meterPeakL.load(); }
-  float peakR() const { return meterPeakR.load(); }
+  float chPeak(int i) const { return (i >= 0 && i < kMaxMeterCh) ? meterCh[(size_t) i].load() : 0.0f; }
+  int speakerCount() { return bus.speakerCount(); }
 
   void closeDevice() {
     if (opened) { deviceManager.removeAudioCallback(&player); player.setSource(nullptr); deviceManager.closeAudioDevice(); opened = false; }
@@ -337,8 +395,7 @@ private:
   SpatialBus bus;
   std::atomic<float> meterPeak { 0.0f };
   std::atomic<float> meterRms { 0.0f };
-  std::atomic<float> meterPeakL { 0.0f };
-  std::atomic<float> meterPeakR { 0.0f };
+  std::array<std::atomic<float>, kMaxMeterCh> meterCh {};
   MeteringAudioSource metering;                 // declared after bus + meters
   juce::TimeSliceThread readThread { "artlux-audio-read" };
   bool opened = false;
@@ -355,10 +412,15 @@ static Napi::String JuceVersion(const Napi::CallbackInfo& info) {
   return Napi::String::New(info.Env(), juce::SystemStats::getJUCEVersion().toStdString());
 }
 
+// configure(outputChannels, mode?, layout?) — mode: 'binaural' (default, headphones) | 'speakers'.
+// layout (speakers mode): stereo | quad | 5.0 | 5.1 | 7.0 | 7.1 | hexagon | octagon | cube.
 static Napi::Value Configure(const Napi::CallbackInfo& info) {
   auto env = info.Env();
   const int outCh = info.Length() > 0 && info[0].IsNumber() ? info[0].As<Napi::Number>().Int32Value() : 2;
-  juce::String err = ensureEngine().configure(outCh);
+  const std::string modeStr = info.Length() > 1 && info[1].IsString() ? info[1].As<Napi::String>().Utf8Value() : "binaural";
+  const std::string layout = info.Length() > 2 && info[2].IsString() ? info[2].As<Napi::String>().Utf8Value() : "stereo";
+  const OutMode mode = (modeStr == "speakers") ? OutMode::Speakers : OutMode::Binaural;
+  juce::String err = ensureEngine().configure(outCh, mode, juce::String(layout));
   if (err.isNotEmpty()) { Napi::Error::New(env, ("audio configure failed: " + err).toStdString()).ThrowAsJavaScriptException(); return env.Null(); }
   return Napi::String::New(env, ensureEngine().currentDeviceName().toStdString());
 }
@@ -440,8 +502,12 @@ static Napi::Value GetMeters(const Napi::CallbackInfo& info) {
   auto obj = Napi::Object::New(env);
   obj.Set("peak", Napi::Number::New(env, e.peak()));
   obj.Set("rms", Napi::Number::New(env, e.rms()));
-  obj.Set("peakL", Napi::Number::New(env, e.peakL()));
-  obj.Set("peakR", Napi::Number::New(env, e.peakR()));
+  obj.Set("peakL", Napi::Number::New(env, e.chPeak(0)));
+  obj.Set("peakR", Napi::Number::New(env, e.chPeak(1)));
+  auto arr = Napi::Array::New(env, (size_t) kMaxMeterCh);
+  for (int i = 0; i < kMaxMeterCh; ++i) arr.Set((uint32_t) i, Napi::Number::New(env, e.chPeak(i)));
+  obj.Set("peaks", arr);                                              // per-channel (speaker) peaks
+  obj.Set("speakers", Napi::Number::New(env, e.speakerCount()));      // 0 unless decoding to speakers
   return obj;
 }
 

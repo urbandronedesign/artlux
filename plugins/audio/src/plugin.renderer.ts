@@ -15,9 +15,9 @@ import { setIpc, audioClient } from './audioClient';
 import { setAudioHost } from './audioHost';
 import { AudioSettings } from './AudioSettings';
 import { AudioBedPanel } from './AudioBedPanel';
-import type { ClipMeta } from './audioManager';
+import type { ClipMeta, OutputMode, SpeakerLayout } from './audioManager';
 
-interface AudioPluginCfg { outputChannels?: number }
+interface AudioPluginCfg { outputChannels?: number; outputMode?: OutputMode; speakerLayout?: SpeakerLayout }
 
 // Minimal structural view of the persisted bed the driver reads (host.audio.getMix()). The concrete
 // AudioMix lives in the host types; we only read these fields, so a local shape avoids a cross-package import.
@@ -57,7 +57,9 @@ export const plugin: RendererPlugin = {
     // Open the device once on startup (default device, persisted channel count). Idempotent engine-side.
     const s0 = host.settings.get() as { plugins?: Record<string, unknown> };
     const cfg = (s0.plugins?.['audio'] as AudioPluginCfg) ?? {};
-    void audioClient.configure(cfg.outputChannels ?? 2).catch(() => { /* engine absent → no-op */ });
+    void audioClient
+      .configure(cfg.outputChannels ?? 2, cfg.outputMode ?? 'binaural', cfg.speakerLayout ?? 'stereo')
+      .catch(() => { /* engine absent → no-op */ });
 
     // ── Global audio bed scheduler ────────────────────────────────────────────────────────────
     let bed: Bed = readBed(host);

@@ -3,18 +3,18 @@
 // touches the native addon directly (sandboxed); it drives the main-process engine through here.
 
 import type { PluginIpc } from '@artlux/sdk/renderer';
-import type { ClipMeta, Meters } from './audioManager';
+import type { ClipMeta, Meters, OutputMode, SpeakerLayout } from './audioManager';
 
 let ipc: PluginIpc | null = null;
 export function setIpc(i: PluginIpc): void { ipc = i; }
 
 export const audioClient = {
-  configure: (outputChannels: number): Promise<string> =>
-    (ipc?.invoke('audio:configure', outputChannels) as Promise<string>) ?? Promise.resolve(''),
+  configure: (outputChannels: number, mode: OutputMode = 'binaural', layout: SpeakerLayout = 'stereo'): Promise<string> =>
+    (ipc?.invoke('audio:configure', outputChannels, mode, layout) as Promise<string>) ?? Promise.resolve(''),
   getDevices: (): Promise<string[]> =>
     (ipc?.invoke('audio:getDevices') as Promise<string[]>) ?? Promise.resolve([]),
   getMeters: (): Promise<Meters> =>
-    (ipc?.invoke('audio:getMeters') as Promise<Meters>) ?? Promise.resolve({ peak: 0, rms: 0, peakL: 0, peakR: 0 }),
+    (ipc?.invoke('audio:getMeters') as Promise<Meters>) ?? Promise.resolve({ peak: 0, rms: 0, peakL: 0, peakR: 0, peaks: [], speakers: 0 }),
   loadClip: (id: string, path: string): Promise<ClipMeta | null> =>
     (ipc?.invoke('audio:loadClip', id, path) as Promise<ClipMeta | null>) ?? Promise.resolve(null),
   unloadClip: (id: string): void => { ipc?.send('audio:unloadClip', id); },
