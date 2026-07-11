@@ -476,6 +476,9 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   const laneHeightOf = (l: VideoLayer) => (resizeDraft && resizeDraft.id === l.id ? resizeDraft.height : laneHeight(l));
 
   const authoring = !!author?.activeSceneId;
+  // "Empty" means nothing on the canvas at all — no tracks, no clips, AND no automation lanes.
+  // Counting clips alone left the hint card sitting over a timeline full of audio curves.
+  const isEmpty = layers.length === 0 && timeline.clips.length === 0 && (timeline.automation?.length ?? 0) === 0;
   return (
     <div ref={panelRef} tabIndex={0} onMouseEnter={() => { hoverRef.current = true; }} onMouseLeave={() => { hoverRef.current = false; }}
       className="relative h-full flex flex-col bg-surface-0 text-fg-1 text-xs select-none outline-none"
@@ -638,19 +641,22 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
           </div>
         </div>
 
-        {/* Empty-timeline drop target: a first-class, inviting state (not a blank/broken lane) so the
-            user knows a fresh state is theirs to populate. Shown whenever the bound timeline has no clips. */}
-        {author && timeline.clips.length === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ paddingLeft: GUTTER }}>
-            <div className="pointer-events-auto text-center max-w-sm px-6 py-5 rounded-lg border border-dashed border-line-2 bg-surface-1/70">
-              <Film size={22} className="mx-auto text-fg-3 mb-2" />
-              <div className="text-fg-1 text-mini font-medium mb-1">
-                {authoring ? `“${author!.activeName}” timeline is empty` : 'This timeline is empty'}
+        {/* Empty-timeline hint. STRICTLY pointer-events-none, all the way down: this used to be a
+            pointer-events-auto card with no onDrop, sitting dead-centre over the lane area — so the
+            card that said "drag a video onto a lane" physically SWALLOWED the drop inside its own
+            rectangle, and ate click-to-seek with it.
+            The condition counts LANES, not just clips: a timeline holding tracks and automation
+            curves (the audio case) is plainly not empty, but `clips.length === 0` said it was and
+            kept the card up forever. */}
+        {author && isEmpty && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0" style={{ paddingLeft: GUTTER }}>
+            <div className="text-center px-6 py-4 rounded-lg border border-dashed border-line-2 bg-surface-1/50">
+              <Film size={20} className="mx-auto text-fg-3 mb-1.5" />
+              <div className="text-fg-2 text-mini">
+                {layers.length === 0
+                  ? <>Add a track, then drag media onto its lane{authoring ? <> to build “{author!.activeName}”</> : null}.</>
+                  : <>Drag video, images or effects onto a lane{authoring ? <> to build “{author!.activeName}”</> : null}.</>}
               </div>
-              <div className="text-micro text-fg-3 mb-3">
-                Drag video, images or effects onto a lane{layers.length === 0 ? ' — add a track first' : ''} to build {authoring ? `“${author!.activeName}”` : 'it'}.
-              </div>
-              <button onClick={addLayer} className="inline-flex items-center gap-1 px-2 py-1 rounded-sm bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3 text-mini"><Plus size={12} /> Track</button>
             </div>
           </div>
         )}

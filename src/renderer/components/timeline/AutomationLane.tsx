@@ -157,8 +157,8 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, pl
           </button>
           <button onClick={onRemove} title="Remove lane" className="text-fg-3 hover:text-danger"><Trash2 size={11} /></button>
         </div>
-        <div className="text-[9px] leading-none text-fg-3 truncate" title={def.group}>{def.group}</div>
-        <div className="text-[9px] leading-none text-fg-2 tabular-nums">{fmt(live)}</div>
+        <div className="text-micro leading-none text-fg-3 truncate" title={def.group}>{def.group}</div>
+        <div className="text-micro leading-none text-fg-2 tabular-nums">{fmt(live)}</div>
       </div>
 
       {/* body */}
