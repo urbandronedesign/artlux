@@ -1,32 +1,41 @@
-// ArtLux native audio engine (Wave 3, P1). JUCE-backed stereo playback for the global audio bed.
+// ArtLux native audio engine (Wave 3). JUCE playback + libspatialaudio ambisonic spatialisation.
 //
-// Signal chain:  clips (AudioTransportSource → AudioFormatReaderSource) → MixerAudioSource
-//                → MeteringAudioSource → AudioSourcePlayer → AudioDeviceManager (device out).
+// Signal chain:
+//   spatial clips → downmix → AmbisonicEncoder(position) → ProcessAccumul ↘
+//                                                                     B-format → Binauralizer(HRTF) ↘
+//   non-spatial clips ────────────────────────────────────────────────────────────────────────────→ (+)
+//                                                        → MeteringAudioSource → AudioSourcePlayer → device
 //
-// The engine is "dumb": JS (the plugins/audio playhead-driver) decides which bed clips are active
-// for the current transport playhead and calls playClip/stopClip/seek/gain. Each clip owns a
-// transport added to the mixer, so several play at once. Disk reads happen on a shared read-ahead
-// thread (never the audio callback). Ambisonics / effects / spatialisation arrive in later phases.
+// A plain MixerAudioSource can't be used for the spatial path: ambisonic encoding needs each source's
+// signal SEPARATELY (a mixer has already summed them), so SpatialBus pulls every clip itself.
+//
+// The engine is "dumb": JS (the plugins/audio playhead-driver) decides which bed clips are active for
+// the current transport playhead and calls playClip/stopClip/gain/spatial. Disk reads happen on a shared
+// read-ahead thread, never on the audio callback.
 #include <napi.h>
 #include <juce_core/juce_core.h>
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_audio_formats/juce_audio_formats.h>
+#include <algorithm>
 #include <atomic>
 #include <cmath>
 #include <memory>
-#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 // libspatialaudio — ambisonic encode (per source position) → B-format → binaural decode (built-in MIT
-// HRTF, no SOFA file needed) or speaker-layout decode. Namespace `spaudio`.
+// HRTF, no SOFA file needed). Namespace `spaudio`.
 #include <AmbisonicEncoder.h>
 #include <AmbisonicBinauralizer.h>
 #include <BFormat.h>
 
 namespace {
+
+// 1st-order: a 4-channel B-format. Cheap, and ample for <= 8 speakers / headphone binaural.
+constexpr unsigned kAmbiOrder = 1;
+constexpr float    kPosFadeMs = 20.0f; // encoder crossfades coefficients over a move (no zipper noise)
 
 juce::AudioFormatManager& formats() {
   static juce::AudioFormatManager fm;
@@ -35,30 +44,18 @@ juce::AudioFormatManager& formats() {
   return fm;
 }
 
-// Taps the mixed output to publish master peak/RMS for the UI meters. Pass-through otherwise.
-class MeteringAudioSource : public juce::AudioSource {
-public:
-  MeteringAudioSource(juce::AudioSource& s, std::atomic<float>& peak, std::atomic<float>& rms)
-    : src(s), peakOut(peak), rmsOut(rms) {}
-  void prepareToPlay(int n, double sr) override { src.prepareToPlay(n, sr); }
-  void releaseResources() override { src.releaseResources(); }
-  void getNextAudioBlock(const juce::AudioSourceChannelInfo& info) override {
-    src.getNextAudioBlock(info);
-    float peak = 0.0f, sumSq = 0.0f; int count = 0;
-    if (info.buffer != nullptr) {
-      for (int ch = 0; ch < info.buffer->getNumChannels(); ++ch) {
-        const float* d = info.buffer->getReadPointer(ch, info.startSample);
-        for (int i = 0; i < info.numSamples; ++i) { const float a = std::abs(d[i]); peak = juce::jmax(peak, a); sumSq += d[i] * d[i]; ++count; }
-      }
-    }
-    peakOut.store(peak);
-    rmsOut.store(count > 0 ? std::sqrt(sumSq / (float) count) : 0.0f);
-  }
-private:
-  juce::AudioSource& src;
-  std::atomic<float>& peakOut;
-  std::atomic<float>& rmsOut;
-};
+// Our Cartesian convention (listener at origin: +x right, +y up, +z forward) → the ambisonic polar
+// convention verified from libspatialaudio's own coefficients (W=1, Y=sin(az)cos(el)=LEFT,
+// Z=sin(el)=UP, X=cos(az)cos(el)=FRONT): azimuth is anticlockwise from front, POSITIVE = LEFT.
+// Hence atan2(-x, z) — our +x is right, so it must map to a negative azimuth.
+spaudio::PolarPosition<float> toPolar(float x, float y, float z) {
+  const float dist = std::sqrt(x * x + y * y + z * z);
+  spaudio::PolarPosition<float> p;
+  p.distance = dist;
+  p.elevation = dist > 1.0e-6f ? std::asin(juce::jlimit(-1.0f, 1.0f, y / dist)) : 0.0f;
+  p.azimuth = std::atan2(-x, z);
+  return p;
+}
 
 struct Clip {
   std::unique_ptr<juce::AudioFormatReaderSource> reader;
@@ -66,16 +63,198 @@ struct Clip {
   double sampleRate = 0.0;
   double lengthSec = 0.0;
   int channels = 0;
+  bool spatial = false;
+  std::unique_ptr<spaudio::AmbisonicEncoder> encoder;   // only when spatial
+  spaudio::PolarPosition<float> pos {};
+};
+
+// Pulls every clip, encodes the spatial ones into one shared B-format, binaurally decodes that, and
+// sums the non-spatial ones straight through. `lock` is held by the AUDIO thread for the whole block
+// (the same discipline JUCE's own MixerAudioSource uses), so control calls that mutate clips/encoders
+// are safe as long as they take it too.
+class SpatialBus : public juce::AudioSource {
+public:
+  juce::CriticalSection lock;
+  std::unordered_map<std::string, std::unique_ptr<Clip>> clips;
+
+  void prepareToPlay(int blockSize, double sr) override {
+    const juce::ScopedLock sl(lock);
+    sampleRate = sr;
+    maxBlock = blockSize;
+    prepared = true;
+    scratch.setSize(2, blockSize);
+    mono.assign((size_t) blockSize, 0.0f);
+    decodeL.assign((size_t) blockSize, 0.0f);
+    decodeR.assign((size_t) blockSize, 0.0f);
+    bformat.Configure(kAmbiOrder, true, (unsigned) blockSize);
+    unsigned tail = 0;
+    binauralOk = binaural.Configure(kAmbiOrder, true, (unsigned) sr, (unsigned) blockSize, tail);
+    for (auto& kv : clips) {
+      kv.second->transport->prepareToPlay(blockSize, sr);
+      if (kv.second->spatial) configureEncoder(*kv.second);
+    }
+  }
+
+  void releaseResources() override {
+    const juce::ScopedLock sl(lock);
+    prepared = false;
+    for (auto& kv : clips) kv.second->transport->releaseResources();
+  }
+
+  void getNextAudioBlock(const juce::AudioSourceChannelInfo& info) override {
+    info.clearActiveBufferRegion();
+    const int n = info.numSamples;
+    if (n <= 0 || info.buffer == nullptr) return;
+
+    const juce::ScopedLock sl(lock);
+    const int outCh = info.buffer->getNumChannels();
+    bool anySpatial = false;
+    bformat.Reset();
+
+    for (auto& kv : clips) {
+      Clip& c = *kv.second;
+      scratch.clear();
+      juce::AudioSourceChannelInfo si(&scratch, 0, n);
+      c.transport->getNextAudioBlock(si); // silent while stopped — cheap
+
+      if (c.spatial && c.encoder != nullptr) {
+        // Ambisonic encoding is inherently mono-per-source: fold the clip down, then place it.
+        const float* l = scratch.getReadPointer(0);
+        const float* r = scratch.getNumChannels() > 1 ? scratch.getReadPointer(1) : l;
+        for (int i = 0; i < n; ++i) mono[(size_t) i] = 0.5f * (l[i] + r[i]);
+        c.encoder->ProcessAccumul(mono.data(), (unsigned) n, &bformat, 0, 1.0f);
+        anySpatial = true;
+      } else {
+        for (int ch = 0; ch < outCh; ++ch) {
+          const int src = juce::jmin(ch, scratch.getNumChannels() - 1);
+          info.buffer->addFrom(ch, info.startSample, scratch, src, 0, n);
+        }
+      }
+    }
+
+    if (anySpatial && binauralOk) {
+      std::fill(decodeL.begin(), decodeL.begin() + n, 0.0f);
+      std::fill(decodeR.begin(), decodeR.begin() + n, 0.0f);
+      float* out[2] = { decodeL.data(), decodeR.data() };
+      binaural.Process(&bformat, out, (unsigned) n);
+      if (outCh > 0) info.buffer->addFrom(0, info.startSample, decodeL.data(), n);
+      if (outCh > 1) info.buffer->addFrom(1, info.startSample, decodeR.data(), n);
+    }
+  }
+
+  // ── Control (all take the lock, so they can't race the audio thread) ──────────────────────────
+  void addClip(const std::string& id, std::unique_ptr<Clip> clip) {
+    const juce::ScopedLock sl(lock);
+    if (prepared) clip->transport->prepareToPlay(maxBlock, sampleRate);
+    clips[id] = std::move(clip);
+  }
+  void removeClip(const std::string& id) {
+    const juce::ScopedLock sl(lock);
+    auto it = clips.find(id);
+    if (it == clips.end()) return;
+    it->second->transport->stop();
+    it->second->transport->setSource(nullptr);
+    clips.erase(it);
+  }
+  Clip* find(const std::string& id) { // caller must hold the lock
+    auto it = clips.find(id);
+    return it == clips.end() ? nullptr : it->second.get();
+  }
+  void setSpatial(const std::string& id, float x, float y, float z) {
+    const juce::ScopedLock sl(lock);
+    Clip* c = find(id);
+    if (c == nullptr) return;
+    c->pos = toPolar(x, y, z);
+    if (!c->spatial || c->encoder == nullptr) {
+      c->spatial = true;
+      configureEncoder(*c);              // first enable: allocate + configure
+    } else {
+      c->encoder->SetPosition(c->pos);   // a move: just re-aim (the fade smooths it)
+      c->encoder->Refresh();
+    }
+  }
+  void clearSpatial(const std::string& id) {
+    const juce::ScopedLock sl(lock);
+    if (Clip* c = find(id)) c->spatial = false;
+  }
+  void stopAll() {
+    const juce::ScopedLock sl(lock);
+    for (auto& kv : clips) kv.second->transport->stop();
+  }
+  void clear() {
+    const juce::ScopedLock sl(lock);
+    for (auto& kv : clips) { kv.second->transport->stop(); kv.second->transport->setSource(nullptr); }
+    clips.clear();
+  }
+
+  double sampleRate = 48000.0;
+
+private:
+  void configureEncoder(Clip& c) { // caller holds the lock
+    if (c.encoder == nullptr) c.encoder = std::make_unique<spaudio::AmbisonicEncoder>();
+    c.encoder->Configure(kAmbiOrder, true, (unsigned) juce::jmax(8000.0, sampleRate), kPosFadeMs);
+    c.encoder->SetPosition(c.pos);
+    c.encoder->Refresh();
+  }
+
+  bool prepared = false;
+  int maxBlock = 512;
+  juce::AudioBuffer<float> scratch;
+  std::vector<float> mono, decodeL, decodeR;
+  spaudio::BFormat bformat;
+  spaudio::AmbisonicBinauralizer binaural;
+  bool binauralOk = false;
+};
+
+// Taps the mixed output for the UI meters. Per-channel peaks are what prove spatialisation is doing
+// something (a hard-left source must give peakL >> peakR — a flipped azimuth shows up here immediately).
+class MeteringAudioSource : public juce::AudioSource {
+public:
+  MeteringAudioSource(juce::AudioSource& s, std::atomic<float>& peak, std::atomic<float>& rms,
+                      std::atomic<float>& pL, std::atomic<float>& pR)
+    : src(s), peakOut(peak), rmsOut(rms), peakLOut(pL), peakROut(pR) {}
+  void prepareToPlay(int n, double sr) override { src.prepareToPlay(n, sr); }
+  void releaseResources() override { src.releaseResources(); }
+  void getNextAudioBlock(const juce::AudioSourceChannelInfo& info) override {
+    src.getNextAudioBlock(info);
+    float peak = 0.0f, sumSq = 0.0f, pL = 0.0f, pR = 0.0f;
+    int count = 0;
+    if (info.buffer != nullptr) {
+      for (int ch = 0; ch < info.buffer->getNumChannels(); ++ch) {
+        const float* d = info.buffer->getReadPointer(ch, info.startSample);
+        float chPeak = 0.0f;
+        for (int i = 0; i < info.numSamples; ++i) {
+          const float a = std::abs(d[i]);
+          chPeak = juce::jmax(chPeak, a);
+          sumSq += d[i] * d[i];
+          ++count;
+        }
+        peak = juce::jmax(peak, chPeak);
+        if (ch == 0) pL = chPeak;
+        if (ch == 1) pR = chPeak;
+      }
+    }
+    peakOut.store(peak);
+    rmsOut.store(count > 0 ? std::sqrt(sumSq / (float) count) : 0.0f);
+    peakLOut.store(pL);
+    peakROut.store(pR);
+  }
+private:
+  juce::AudioSource& src;
+  std::atomic<float>& peakOut;
+  std::atomic<float>& rmsOut;
+  std::atomic<float>& peakLOut;
+  std::atomic<float>& peakROut;
 };
 
 class Engine {
 public:
-  Engine() : metering(mixer, meterPeak, meterRms) {}
+  Engine() : metering(bus, meterPeak, meterRms, meterPeakL, meterPeakR) {}
   ~Engine() { closeDevice(); }
 
   juce::String configure(int outputChannels) {
     const int ch = juce::jlimit(1, 64, outputChannels);
-    if (opened && ch == openedChannels) return {}; // already open on this config — no-op, don't interrupt playback
+    if (opened && ch == openedChannels) return {}; // already open on this config — don't interrupt playback
     if (opened) { deviceManager.removeAudioCallback(&player); player.setSource(nullptr); deviceManager.closeAudioDevice(); opened = false; }
     juce::String err = deviceManager.initialiseWithDefaultDevices(0, ch);
     if (err.isNotEmpty()) return err;
@@ -113,73 +292,55 @@ public:
     clip->reader = std::make_unique<juce::AudioFormatReaderSource>(rawReader, true);
     clip->transport = std::make_unique<juce::AudioTransportSource>();
     clip->transport->setSource(clip->reader.get(), 32768, &readThread, rawReader->sampleRate);
-
-    std::lock_guard<std::mutex> lock(mutex);
-    if (auto it = clips.find(id); it != clips.end()) {
-      mixer.removeInputSource(it->second->transport.get());
-      it->second->transport->setSource(nullptr);
-    }
-    mixer.addInputSource(clip->transport.get(), false);
     out = clip.get();
-    clips[id] = std::move(clip);
+    bus.removeClip(id); // replace any existing source under this id
+    bus.addClip(id, std::move(clip));
     return true;
   }
 
-  void unloadClip(const std::string& id) {
-    std::lock_guard<std::mutex> lock(mutex);
-    auto it = clips.find(id); if (it == clips.end()) return;
-    it->second->transport->stop();
-    mixer.removeInputSource(it->second->transport.get());
-    it->second->transport->setSource(nullptr);
-    clips.erase(it);
-  }
+  void unloadClip(const std::string& id) { bus.removeClip(id); }
 
   void playClip(const std::string& id, double seekSec, float gain) {
-    std::lock_guard<std::mutex> lock(mutex);
-    auto it = clips.find(id); if (it == clips.end()) return;
-    it->second->transport->setGain(gain);
-    it->second->transport->setPosition(juce::jmax(0.0, seekSec));
-    it->second->transport->start();
+    const juce::ScopedLock sl(bus.lock);
+    if (Clip* c = bus.find(id)) {
+      c->transport->setGain(gain);
+      c->transport->setPosition(juce::jmax(0.0, seekSec));
+      c->transport->start();
+    }
   }
-
   void stopClip(const std::string& id) {
-    std::lock_guard<std::mutex> lock(mutex);
-    auto it = clips.find(id); if (it == clips.end()) return;
-    it->second->transport->stop();
+    const juce::ScopedLock sl(bus.lock);
+    if (Clip* c = bus.find(id)) c->transport->stop();
   }
-
   void setClipGain(const std::string& id, float gain) {
-    std::lock_guard<std::mutex> lock(mutex);
-    auto it = clips.find(id); if (it == clips.end()) return;
-    it->second->transport->setGain(gain);
+    const juce::ScopedLock sl(bus.lock);
+    if (Clip* c = bus.find(id)) c->transport->setGain(gain);
   }
-
-  void stopAll() {
-    std::lock_guard<std::mutex> lock(mutex);
-    for (auto& kv : clips) kv.second->transport->stop();
-  }
+  void setClipSpatial(const std::string& id, float x, float y, float z) { bus.setSpatial(id, x, y, z); }
+  void clearClipSpatial(const std::string& id) { bus.clearSpatial(id); }
+  void stopAll() { bus.stopAll(); }
 
   float peak() const { return meterPeak.load(); }
   float rms() const { return meterRms.load(); }
+  float peakL() const { return meterPeakL.load(); }
+  float peakR() const { return meterPeakR.load(); }
 
   void closeDevice() {
     if (opened) { deviceManager.removeAudioCallback(&player); player.setSource(nullptr); deviceManager.closeAudioDevice(); opened = false; }
-    { std::lock_guard<std::mutex> lock(mutex);
-      for (auto& kv : clips) { kv.second->transport->stop(); mixer.removeInputSource(kv.second->transport.get()); kv.second->transport->setSource(nullptr); }
-      clips.clear(); }
+    bus.clear();
     if (readThread.isThreadRunning()) readThread.stopThread(2000);
   }
 
 private:
   juce::AudioDeviceManager deviceManager;
   juce::AudioSourcePlayer player;
-  juce::MixerAudioSource mixer;
+  SpatialBus bus;
   std::atomic<float> meterPeak { 0.0f };
   std::atomic<float> meterRms { 0.0f };
-  MeteringAudioSource metering;                 // must be declared after mixer + meters
+  std::atomic<float> meterPeakL { 0.0f };
+  std::atomic<float> meterPeakR { 0.0f };
+  MeteringAudioSource metering;                 // declared after bus + meters
   juce::TimeSliceThread readThread { "artlux-audio-read" };
-  std::unordered_map<std::string, std::unique_ptr<Clip>> clips;
-  std::mutex mutex;
   bool opened = false;
   int openedChannels = 0;
 };
@@ -254,13 +415,33 @@ static Napi::Value SetClipGain(const Napi::CallbackInfo& info) {
   return info.Env().Undefined();
 }
 
+// setClipSpatial(id, x, y, z) — listener at origin, +x right, +y up, +z forward (metres).
+static Napi::Value SetClipSpatial(const Napi::CallbackInfo& info) {
+  if (info.Length() > 3 && info[0].IsString() && info[1].IsNumber() && info[2].IsNumber() && info[3].IsNumber()) {
+    ensureEngine().setClipSpatial(
+      info[0].As<Napi::String>().Utf8Value(),
+      (float) info[1].As<Napi::Number>().DoubleValue(),
+      (float) info[2].As<Napi::Number>().DoubleValue(),
+      (float) info[3].As<Napi::Number>().DoubleValue());
+  }
+  return info.Env().Undefined();
+}
+
+static Napi::Value ClearClipSpatial(const Napi::CallbackInfo& info) {
+  if (info.Length() > 0 && info[0].IsString()) ensureEngine().clearClipSpatial(info[0].As<Napi::String>().Utf8Value());
+  return info.Env().Undefined();
+}
+
 static Napi::Value StopAll(const Napi::CallbackInfo& info) { ensureEngine().stopAll(); return info.Env().Undefined(); }
 
 static Napi::Value GetMeters(const Napi::CallbackInfo& info) {
   auto env = info.Env();
+  auto& e = ensureEngine();
   auto obj = Napi::Object::New(env);
-  obj.Set("peak", Napi::Number::New(env, ensureEngine().peak()));
-  obj.Set("rms", Napi::Number::New(env, ensureEngine().rms()));
+  obj.Set("peak", Napi::Number::New(env, e.peak()));
+  obj.Set("rms", Napi::Number::New(env, e.rms()));
+  obj.Set("peakL", Napi::Number::New(env, e.peakL()));
+  obj.Set("peakR", Napi::Number::New(env, e.peakR()));
   return obj;
 }
 
@@ -269,30 +450,21 @@ static Napi::Value Close(const Napi::CallbackInfo& info) {
   return info.Env().Undefined();
 }
 
-// P2a gate — prove libspatialaudio links and its full chain runs inside the addon: configure a 1st-order
-// 3D encoder, place a source, encode a block into a B-format buffer, then binaurally decode it to stereo
-// using the BUILT-IN MIT HRTF (empty HRTF path). Returns the config results + the HRTF tail length.
+// Diagnostic: libspatialaudio links and its chain runs (encode → B-format → binaural, MIT HRTF).
 static Napi::Value SpatialProbe(const Napi::CallbackInfo& info) {
   auto env = info.Env();
-  const unsigned order = 1;      // 1st-order: 4-channel B-format, ample for <= 8 speakers
-  const unsigned sampleRate = 48000;
-  const unsigned block = 512;
-
+  const unsigned sampleRate = 48000, block = 512;
   spaudio::AmbisonicEncoder enc;
-  const bool encOk = enc.Configure(order, true, sampleRate, 0.0f);
-  enc.SetPosition(spaudio::PolarPosition<float>{ 1.5708f, 0.0f, 1.0f }); // 90° to the left
+  const bool encOk = enc.Configure(kAmbiOrder, true, sampleRate, 0.0f);
+  enc.SetPosition(spaudio::PolarPosition<float>{ 1.5708f, 0.0f, 1.0f }); // 90 deg left
   enc.Refresh();
-
   spaudio::BFormat bf;
-  const bool bfOk = bf.Configure(order, true, block);
-
+  const bool bfOk = bf.Configure(kAmbiOrder, true, block);
   spaudio::AmbisonicBinauralizer bin;
   unsigned tailLength = 0;
-  const bool binOk = bin.Configure(order, true, sampleRate, block, tailLength);
+  const bool binOk = bin.Configure(kAmbiOrder, true, sampleRate, block, tailLength);
 
-  // Push one block end-to-end (mono source → B-format → binaural stereo).
-  std::vector<float> mono(block, 0.25f);
-  std::vector<float> left(block, 0.0f), right(block, 0.0f);
+  std::vector<float> mono(block, 0.25f), left(block, 0.0f), right(block, 0.0f);
   float* out[2] = { left.data(), right.data() };
   bool ran = false;
   if (encOk && bfOk && binOk) {
@@ -301,7 +473,6 @@ static Napi::Value SpatialProbe(const Napi::CallbackInfo& info) {
     bin.Process(&bf, out, block);
     ran = true;
   }
-  // Did any signal actually reach the ears? (a positioned source must produce non-zero output)
   float peak = 0.0f;
   for (unsigned i = 0; i < block; ++i) peak = juce::jmax(peak, std::abs(left[i]), std::abs(right[i]));
 
@@ -325,6 +496,8 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("playClip", Napi::Function::New(env, PlayClip));
   exports.Set("stopClip", Napi::Function::New(env, StopClip));
   exports.Set("setClipGain", Napi::Function::New(env, SetClipGain));
+  exports.Set("setClipSpatial", Napi::Function::New(env, SetClipSpatial));
+  exports.Set("clearClipSpatial", Napi::Function::New(env, ClearClipSpatial));
   exports.Set("stopAll", Napi::Function::New(env, StopAll));
   exports.Set("getMeters", Napi::Function::New(env, GetMeters));
   exports.Set("close", Napi::Function::New(env, Close));
