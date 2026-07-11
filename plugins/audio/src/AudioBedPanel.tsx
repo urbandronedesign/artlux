@@ -4,14 +4,50 @@
 // (its duration comes from decoding the file). Reads/writes the bed through host.audio (getMix/setMix/
 // subscribe). Per-scene audio (stingers/cues) is a later phase and rides the scene timeline instead.
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Plus, Music, Trash2, Volume2, VolumeX, AlertTriangle, Play, Pause, SkipBack } from 'lucide-react';
+import { X, Plus, Music, Trash2, Volume2, VolumeX, AlertTriangle, Play, Pause, SkipBack, Orbit } from 'lucide-react';
 import { useDraggable, type PanelProps } from '@artlux/sdk/renderer';
 import { getAudioHost } from './audioHost';
 import { audioClient } from './audioClient';
 
-interface Clip { id: string; trackId: string; name: string; path: string; start: number; duration: number; inPoint: number; gain?: number; mute?: boolean }
+interface Spatial { x: number; y: number; z: number }
+interface Clip { id: string; trackId: string; name: string; path: string; start: number; duration: number; inPoint: number; gain?: number; mute?: boolean; spatial?: Spatial }
 interface Track { id: string; name: string; gain?: number; mute?: boolean }
 interface Mix { tracks: Track[]; clips: Clip[]; buses: unknown[] }
+
+// Metres shown across the positioner pad (listener at the centre).
+const RANGE = 3;
+
+// Top-down positioner: horizontal = x (left/right), vertical = z (up = IN FRONT of the listener).
+// Ambisonic encoding places the source from this; height (y) is a separate slider.
+const SpatialPad: React.FC<{ x: number; z: number; onChange: (x: number, z: number) => void }> = ({ x, z, onChange }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const set = (clientX: number, clientY: number) => {
+    const el = ref.current; if (!el) return;
+    const r = el.getBoundingClientRect();
+    const px = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+    const py = Math.min(1, Math.max(0, (clientY - r.top) / r.height));
+    onChange(Number(((px - 0.5) * 2 * RANGE).toFixed(2)), Number(((0.5 - py) * 2 * RANGE).toFixed(2)));
+  };
+  const onDown = (e: React.PointerEvent) => {
+    e.preventDefault();
+    set(e.clientX, e.clientY);
+    const move = (ev: PointerEvent) => set(ev.clientX, ev.clientY);
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+  return (
+    <div ref={ref} onPointerDown={onDown} title="Drag to place the source (top-down; up = in front of the listener)"
+      className="relative w-24 h-24 rounded border border-line-1 bg-surface-0 cursor-crosshair shrink-0">
+      <div className="absolute left-1/2 top-0 bottom-0 w-px bg-line-1/60" />
+      <div className="absolute top-1/2 left-0 right-0 h-px bg-line-1/60" />
+      <div className="absolute left-1/2 top-1/2 w-1.5 h-1.5 -ml-[3px] -mt-[3px] rounded-full bg-fg-3" title="listener" />
+      <span className="absolute top-0.5 left-1/2 -translate-x-1/2 text-[9px] leading-none text-fg-3/70">front</span>
+      <div className="absolute w-2.5 h-2.5 -ml-[5px] -mt-[5px] rounded-full bg-accent"
+        style={{ left: `${((x / RANGE) * 0.5 + 0.5) * 100}%`, top: `${(0.5 - (z / RANGE) * 0.5) * 100}%` }} />
+    </div>
+  );
+};
 
 const uid = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `a-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
 const emptyMix = (): Mix => ({ tracks: [], clips: [], buses: [] });
@@ -21,10 +57,13 @@ const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).p
 export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   const host = getAudioHost();
   const [mix, setMixState] = useState<Mix>(() => (host?.audio.getMix() as Mix) ?? emptyMix());
-  const [meter, setMeter] = useState({ peak: 0, rms: 0 });
+  const [meter, setMeter] = useState({ peak: 0, rms: 0, peakL: 0, peakR: 0 });
   const [transport, setTransport] = useState({ playing: false, playhead: 0, duration: 0 });
   const [error, setError] = useState<string | null>(null);
+  const [openSpatial, setOpenSpatial] = useState<string | null>(null); // clip id whose positioner is open
   const peakHold = useRef(0);
+  const holdL = useRef(0);
+  const holdR = useRef(0);
   // Synchronously-fresh mirror of the bed. `host.audio.getMix()` reads App's audioMixRef, which only
   // refreshes on a React render — so two drops resolving in the same turn would both read the pre-edit
   // bed and the second would clobber the first. Every write path updates this ref immediately instead.
@@ -46,7 +85,12 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   useEffect(() => {
     if (!host) return;
     const iv = setInterval(() => {
-      audioClient.getMeters().then((m) => { peakHold.current = Math.max(peakHold.current * 0.9, m.peak); setMeter({ peak: peakHold.current, rms: m.rms }); }).catch(() => {});
+      audioClient.getMeters().then((m) => {
+        peakHold.current = Math.max(peakHold.current * 0.9, m.peak);
+        holdL.current = Math.max(holdL.current * 0.9, m.peakL ?? 0);
+        holdR.current = Math.max(holdR.current * 0.9, m.peakR ?? 0);
+        setMeter({ peak: peakHold.current, rms: m.rms, peakL: holdL.current, peakR: holdR.current });
+      }).catch(() => {});
       const st = host.show.getStatus(); // the bed rides the MAIN transport — mirror it here
       setTransport({ playing: st.playing, playhead: st.playhead, duration: st.duration });
     }, 100);
@@ -130,8 +174,10 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
             onChange={(e) => host.show.transport({ kind: 'seek', sec: Number(e.target.value) })}
             title="Scrub the playhead" className="flex-1 min-w-[80px] accent-accent" />
 
-          <div className="w-20 h-2 rounded bg-surface-3 overflow-hidden shrink-0" title={`peak ${meter.peak.toFixed(3)}`}>
-            <div className="h-full bg-accent transition-[width] duration-75" style={{ width: pct(meter.peak) }} />
+          {/* L / R meters — the stereo image visibly shifts as you drag a source around the pad. */}
+          <div className="w-20 shrink-0 space-y-0.5" title={`L ${meter.peakL.toFixed(3)} · R ${meter.peakR.toFixed(3)}`}>
+            <div className="h-1.5 rounded bg-surface-3 overflow-hidden"><div className="h-full bg-accent transition-[width] duration-75" style={{ width: pct(meter.peakL) }} /></div>
+            <div className="h-1.5 rounded bg-surface-3 overflow-hidden"><div className="h-full bg-accent transition-[width] duration-75" style={{ width: pct(meter.peakR) }} /></div>
           </div>
           <button onClick={addTrack} className="shrink-0 inline-flex items-center gap-1 px-2 h-7 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 text-mini"><Plus size={12} /> Track</button>
           <button onClick={onClose} className="text-fg-3 hover:text-fg-1 ml-1"><X size={16} /></button>
@@ -171,19 +217,52 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
                 {clipsOf(t.id).length === 0 ? (
                   <div className="text-micro text-fg-3/70 italic px-1 py-1.5">Drag an audio asset here…</div>
                 ) : clipsOf(t.id).map((c) => (
-                  <div key={c.id} className="flex items-center gap-2 px-2 h-8 rounded bg-surface-2 border border-line-1">
-                    <Music size={11} className="text-fg-3 shrink-0" />
-                    <span className="text-micro text-fg-1 truncate w-32" title={c.name}>{c.name}</span>
-                    <label className="text-micro text-fg-3 flex items-center gap-1">@
-                      <input type="number" min={0} step={0.1} value={Number(c.start.toFixed(2))}
-                        onChange={(e) => { const v = e.target.value; if (v === '') return; const n = Number(v); if (Number.isFinite(n)) patchClip(c.id, { start: Math.max(0, n) }); }}
-                        className="w-14 bg-surface-1 border border-line-1 rounded px-1 text-fg-1 outline-none" />s
-                    </label>
-                    <span className="text-micro text-fg-3/80">{fmt(c.duration)}</span>
-                    <button onClick={() => patchClip(c.id, { mute: !c.mute })} title={c.mute ? 'Unmute' : 'Mute'}
-                      className={`inline-flex items-center justify-center w-5 h-5 rounded ${c.mute ? 'text-danger' : 'text-fg-3 hover:text-fg-1'}`}>{c.mute ? <VolumeX size={11} /> : <Volume2 size={11} />}</button>
-                    <input type="range" min={0} max={1.5} step={0.01} value={c.gain ?? 1} onChange={(e) => patchClip(c.id, { gain: Number(e.target.value) })} title={`gain ${(c.gain ?? 1).toFixed(2)}`} className="w-20 accent-accent" />
-                    <button onClick={() => removeClip(c.id)} title="Remove clip" className="ml-auto text-fg-3 hover:text-danger"><Trash2 size={12} /></button>
+                  <div key={c.id}>
+                    <div className="flex items-center gap-2 px-2 h-8 rounded bg-surface-2 border border-line-1">
+                      <Music size={11} className="text-fg-3 shrink-0" />
+                      <span className="text-micro text-fg-1 truncate w-32" title={c.name}>{c.name}</span>
+                      <label className="text-micro text-fg-3 flex items-center gap-1">@
+                        <input type="number" min={0} step={0.1} value={Number(c.start.toFixed(2))}
+                          onChange={(e) => { const v = e.target.value; if (v === '') return; const n = Number(v); if (Number.isFinite(n)) patchClip(c.id, { start: Math.max(0, n) }); }}
+                          className="w-14 bg-surface-1 border border-line-1 rounded px-1 text-fg-1 outline-none" />s
+                      </label>
+                      <span className="text-micro text-fg-3/80">{fmt(c.duration)}</span>
+                      <button onClick={() => patchClip(c.id, { mute: !c.mute })} title={c.mute ? 'Unmute' : 'Mute'}
+                        className={`inline-flex items-center justify-center w-5 h-5 rounded ${c.mute ? 'text-danger' : 'text-fg-3 hover:text-fg-1'}`}>{c.mute ? <VolumeX size={11} /> : <Volume2 size={11} />}</button>
+                      <input type="range" min={0} max={1.5} step={0.01} value={c.gain ?? 1} onChange={(e) => patchClip(c.id, { gain: Number(e.target.value) })} title={`gain ${(c.gain ?? 1).toFixed(2)}`} className="w-20 accent-accent" />
+                      <button onClick={() => setOpenSpatial(openSpatial === c.id ? null : c.id)} title="Spatial position (3D)"
+                        className={`inline-flex items-center justify-center w-5 h-5 rounded ${c.spatial ? 'text-accent' : 'text-fg-3 hover:text-fg-1'}`}><Orbit size={12} /></button>
+                      <button onClick={() => removeClip(c.id)} title="Remove clip" className="ml-auto text-fg-3 hover:text-danger"><Trash2 size={12} /></button>
+                    </div>
+
+                    {/* Spatial positioner — ambisonic encode + binaural HRTF decode. Drag the pad to move
+                        the source around the listener; you'll hear it move and see the L/R meters shift. */}
+                    {openSpatial === c.id && (
+                      <div className="mt-1 px-2 py-2 rounded bg-surface-1 border border-line-1 flex items-center gap-3">
+                        <label className="flex items-center gap-1.5 text-micro text-fg-2 shrink-0">
+                          <input type="checkbox" checked={!!c.spatial} className="accent-accent"
+                            onChange={(e) => patchClip(c.id, { spatial: e.target.checked ? { x: 0, y: 0, z: 1 } : undefined })} />
+                          Spatial
+                        </label>
+                        {c.spatial ? (
+                          <>
+                            <SpatialPad x={c.spatial.x} z={c.spatial.z}
+                              onChange={(x, z) => patchClip(c.id, { spatial: { ...(c.spatial as Spatial), x, z } })} />
+                            <div className="flex flex-col items-center gap-1 shrink-0">
+                              <span className="text-[9px] leading-none text-fg-3">height</span>
+                              <input type="range" min={-2} max={2} step={0.1} value={c.spatial.y}
+                                onChange={(e) => patchClip(c.id, { spatial: { ...(c.spatial as Spatial), y: Number(e.target.value) } })}
+                                className="w-20 accent-accent" />
+                            </div>
+                            <span className="text-micro text-fg-3 tabular-nums">
+                              x {c.spatial.x.toFixed(1)} · y {c.spatial.y.toFixed(1)} · z {c.spatial.z.toFixed(1)} m
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-micro text-fg-3 italic">Off — the clip plays flat (unspatialised) into the mix.</span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

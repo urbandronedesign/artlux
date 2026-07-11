@@ -8,7 +8,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 export interface ClipMeta { durationSec: number; channels: number; sampleRate: number }
-export interface Meters { peak: number; rms: number }
+export interface Meters { peak: number; rms: number; peakL: number; peakR: number }
 
 interface NativeAudio {
   juceVersion(): string;
@@ -19,6 +19,9 @@ interface NativeAudio {
   playClip(id: string, seekSec: number, gain: number): void;
   stopClip(id: string): void;
   setClipGain(id: string, gain: number): void;
+  // Ambisonic position — listener at origin, metres: +x right, +y up, +z forward.
+  setClipSpatial(id: string, x: number, y: number, z: number): void;
+  clearClipSpatial(id: string): void;
   stopAll(): void;
   getMeters(): Meters;
   close(): void;
@@ -58,6 +61,8 @@ export function unloadClip(id: string): void { native?.unloadClip(id); }
 export function playClip(id: string, seekSec: number, gain: number): void { native?.playClip(id, seekSec, gain); }
 export function stopClip(id: string): void { native?.stopClip(id); }
 export function setClipGain(id: string, gain: number): void { native?.setClipGain(id, gain); }
+export function setClipSpatial(id: string, x: number, y: number, z: number): void { native?.setClipSpatial(id, x, y, z); }
+export function clearClipSpatial(id: string): void { native?.clearClipSpatial(id); }
 export function stopAll(): void { native?.stopAll(); }
-export function getMeters(): Meters { return native ? native.getMeters() : { peak: 0, rms: 0 }; }
+export function getMeters(): Meters { return native ? native.getMeters() : { peak: 0, rms: 0, peakL: 0, peakR: 0 }; }
 export function close(): void { native?.close(); }

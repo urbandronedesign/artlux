@@ -24,6 +24,8 @@ export const plugin: MainPlugin = {
     ipc.on('audio:playClip', (id, seek, gain) => engine.playClip(String(id), Number(seek) || 0, gain == null ? 1 : Number(gain)));
     ipc.on('audio:stopClip', (id) => engine.stopClip(String(id)));
     ipc.on('audio:setClipGain', (id, gain) => engine.setClipGain(String(id), gain == null ? 1 : Number(gain)));
+    ipc.on('audio:setClipSpatial', (id, x, y, z) => engine.setClipSpatial(String(id), Number(x) || 0, Number(y) || 0, Number(z) || 0));
+    ipc.on('audio:clearClipSpatial', (id) => engine.clearClipSpatial(String(id)));
     ipc.on('audio:stopAll', () => engine.stopAll());
   },
 

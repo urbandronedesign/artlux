@@ -14,12 +14,15 @@ export const audioClient = {
   getDevices: (): Promise<string[]> =>
     (ipc?.invoke('audio:getDevices') as Promise<string[]>) ?? Promise.resolve([]),
   getMeters: (): Promise<Meters> =>
-    (ipc?.invoke('audio:getMeters') as Promise<Meters>) ?? Promise.resolve({ peak: 0, rms: 0 }),
+    (ipc?.invoke('audio:getMeters') as Promise<Meters>) ?? Promise.resolve({ peak: 0, rms: 0, peakL: 0, peakR: 0 }),
   loadClip: (id: string, path: string): Promise<ClipMeta | null> =>
     (ipc?.invoke('audio:loadClip', id, path) as Promise<ClipMeta | null>) ?? Promise.resolve(null),
   unloadClip: (id: string): void => { ipc?.send('audio:unloadClip', id); },
   playClip: (id: string, seekSec: number, gain: number): void => { ipc?.send('audio:playClip', id, seekSec, gain); },
   stopClip: (id: string): void => { ipc?.send('audio:stopClip', id); },
   setClipGain: (id: string, gain: number): void => { ipc?.send('audio:setClipGain', id, gain); },
+  // Ambisonic position — listener at origin, metres: +x right, +y up, +z forward.
+  setClipSpatial: (id: string, x: number, y: number, z: number): void => { ipc?.send('audio:setClipSpatial', id, x, y, z); },
+  clearClipSpatial: (id: string): void => { ipc?.send('audio:clearClipSpatial', id); },
   stopAll: (): void => { ipc?.send('audio:stopAll'); },
 };

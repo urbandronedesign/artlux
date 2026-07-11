@@ -21,7 +21,7 @@ interface AudioPluginCfg { outputChannels?: number }
 
 // Minimal structural view of the persisted bed the driver reads (host.audio.getMix()). The concrete
 // AudioMix lives in the host types; we only read these fields, so a local shape avoids a cross-package import.
-interface BedClip { id: string; trackId: string; path: string; start: number; duration: number; inPoint: number; gain?: number; mute?: boolean }
+interface BedClip { id: string; trackId: string; path: string; start: number; duration: number; inPoint: number; gain?: number; mute?: boolean; spatial?: { x: number; y: number; z: number } }
 interface BedTrack { id: string; gain?: number; mute?: boolean }
 interface Bed { tracks: BedTrack[]; clips: BedClip[] }
 
@@ -68,6 +68,7 @@ export const plugin: RendererPlugin = {
     const sentGain = new Map<string, number>();   // last gain pushed, per sounding clip
     const sentOffset = new Map<string, number>(); // last source offset seeked, per sounding clip
     const sentWallMs = new Map<string, number>(); // wall-clock (ms) at that seek — to estimate engine drift
+    const sentSpatial = new Map<string, string>(); // last ambisonic position pushed ('' = non-spatial)
     let prevPlaying = false;
     let prevPlayhead = 0;
     let prevWallMs = 0;
@@ -97,7 +98,7 @@ export const plugin: RendererPlugin = {
     const syncLoaded = async () => {
       const wanted = new Set(bed.clips.map((c) => c.id));
       for (const id of [...loaded.keys()]) {
-        if (!wanted.has(id)) { if (sounding.has(id)) stopSounding(id); audioClient.unloadClip(id); loaded.delete(id); }
+        if (!wanted.has(id)) { if (sounding.has(id)) stopSounding(id); audioClient.unloadClip(id); loaded.delete(id); sentSpatial.delete(id); }
       }
       for (const id of [...failed]) if (!wanted.has(id)) failed.delete(id); // a re-added clip gets another try
       for (const clip of bed.clips) {
@@ -115,6 +116,20 @@ export const plugin: RendererPlugin = {
           failed.add(clip.id);
           console.warn('[audio] clip failed to load:', clip.path);
         } finally { loading.delete(clip.id); }
+      }
+    };
+
+    // Push each loaded clip's ambisonic position (or clear it back to non-spatial). Change-detected, so
+    // dragging a source around doesn't spam IPC; the engine's 20ms encoder fade smooths each move.
+    const syncSpatial = () => {
+      for (const clip of bed.clips) {
+        if (!loaded.has(clip.id)) continue;
+        const s = clip.spatial;
+        const key = s ? `${s.x},${s.y},${s.z}` : '';
+        if (sentSpatial.get(clip.id) === key) continue;
+        if (s) audioClient.setClipSpatial(clip.id, s.x, s.y, s.z);
+        else audioClient.clearClipSpatial(clip.id);
+        sentSpatial.set(clip.id, key);
       }
     };
 
@@ -159,8 +174,8 @@ export const plugin: RendererPlugin = {
       prevPlaying = playing; prevPlayhead = playhead; prevWallMs = nowMs;
     };
 
-    void syncLoaded();
-    unsubMix = host.audio.subscribe(() => { bed = readBed(host); void syncLoaded(); });
+    void syncLoaded().then(syncSpatial);
+    unsubMix = host.audio.subscribe(() => { bed = readBed(host); void syncLoaded().then(syncSpatial); });
     unsubTick = ctx.onPlayhead(tick);
   },
 
