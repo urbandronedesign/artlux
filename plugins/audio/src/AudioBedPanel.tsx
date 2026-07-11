@@ -5,7 +5,7 @@
 // subscribe). Per-scene audio (stingers/cues) is a later phase and rides the scene timeline instead.
 import React, { useEffect, useRef, useState } from 'react';
 import { X, Plus, Music, Trash2, Volume2, VolumeX, AlertTriangle } from 'lucide-react';
-import type { PanelProps } from '@artlux/sdk/renderer';
+import { useDraggable, type PanelProps } from '@artlux/sdk/renderer';
 import { getAudioHost } from './audioHost';
 import { audioClient } from './audioClient';
 
@@ -28,6 +28,8 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   // refreshes on a React render — so two drops resolving in the same turn would both read the pre-edit
   // bed and the second would clobber the first. Every write path updates this ref immediately instead.
   const mixRef = useRef<Mix>(mix);
+  // Floating (non-blocking) window — draggable by its header so it can be moved clear of the Media library.
+  const { positionerStyle, handleProps } = useDraggable();
 
   // Sync from host (external edits / project load) → repaint.
   useEffect(() => {
@@ -94,12 +96,15 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   const pct = (v: number) => `${Math.min(100, Math.round(v * 100))}%`;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 animate-overlay-in flex items-center justify-center" onClick={onClose}>
-      <div role="dialog" aria-modal="true" aria-label="Audio Bed"
-        className="w-[720px] max-w-[94vw] h-[70vh] max-h-[84vh] flex flex-col bg-surface-1 border border-line-2 rounded-lg shadow-e3 animate-modal-in"
-        onClick={(e) => e.stopPropagation()}>
-        {/* header */}
-        <div className="h-11 px-3 flex items-center gap-2 border-b border-line-1 bg-surface-2 shrink-0">
+    // NOT a blocking modal: authoring the bed means dragging audio assets IN from the Media library, so the
+    // full-screen container is pointer-events-none (the library + the rest of the editor stay live) and only
+    // the window itself takes pointer events. Drag the header to move it clear of whatever it covers.
+    <div className="fixed inset-0 z-50 pointer-events-none flex items-center justify-center">
+      <div style={positionerStyle} className="pointer-events-auto">
+      <div role="dialog" aria-label="Audio Bed"
+        className="w-[720px] max-w-[94vw] h-[70vh] max-h-[84vh] flex flex-col bg-surface-1 border border-line-2 rounded-lg shadow-e3 animate-modal-in">
+        {/* header — drag handle */}
+        <div {...handleProps} className="h-11 px-3 flex items-center gap-2 border-b border-line-1 bg-surface-2 shrink-0 cursor-move select-none">
           <Music size={14} className="text-fg-2" />
           <span className="text-xs font-semibold text-fg-1 uppercase tracking-wider">Audio Bed</span>
           <span className="text-micro text-fg-3">global · survives scene changes</span>
@@ -164,8 +169,9 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
           ))}
         </div>
         <div className="px-3 py-1.5 border-t border-line-1 text-micro text-fg-3 shrink-0">
-          Clips play when the transport playhead is over them. Import audio via the Media panel (Music icon).
+          Clips play when the transport playhead is over them. Drag audio in from the Media library (Music icon).
         </div>
+      </div>
       </div>
     </div>
   );
