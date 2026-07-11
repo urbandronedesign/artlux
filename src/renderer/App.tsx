@@ -1320,8 +1320,10 @@ const App: React.FC = () => {
   }, []);
 
   // --- Projector output windows (per-surface fullscreen on a display) ---
-  // Enumerate displays + track hot-plug.
+  // Enumerate displays + track hot-plug. Skipped in headless: it drives no displays/projectors and the
+  // projector IPC (which owns list-displays) isn't registered there, so the invoke would just reject.
   useEffect(() => {
+      if (HEADLESS) return;
       window.artlux?.listDisplays?.().then(d => setDisplays(d ?? []));
       const unsub = window.artlux?.onDisplaysChanged?.((d) => setDisplays(d ?? []));
       return () => unsub?.();
