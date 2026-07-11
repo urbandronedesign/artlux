@@ -125,12 +125,13 @@ Keep `main` buildable + `tsc`-clean at all times. Never push to a remote or skip
 | Wave | Branch | Plans | Status |
 |---|---|---|---|
 | 0 | `wave-0-quick-wins` | watchdog, show-control-tablet-parity | ☐ not started |
-| 1 | `wave-1-foundation` | webgl-strict, dmx-io, cue-authoring, asset-ops, headless-plugin-host | ☐ not started |
-| 2 | `wave-2-render-output` | fixture-segments, content-source-region, projector-blend, autopatch | ☐ not started |
+| 1 | `wave-1-foundation` (merged, deleted) | webgl-strict, dmx-io, cue-authoring, asset-ops, headless-plugin-host | ☑ **merged to main 2026-07-11** (local, unpushed) — cue-authoring, dmx-io, asset-ops, headless-plugin-host landed + adversarially reviewed (headless NVAPI-gate finding fixed). **webgl-strict = Phase 1 only** (reduced-mode banner + `forceWebGL` localStorage flag + GPU settings section); **Phase 2 (GPUMapper per-surface parity) DEFERRED** pending multi-machine testing. |
+| 2 | `wave-2-render-output` (merged, deleted) | fixture-segments, content-source-region, projector-blend, autopatch | ◑ **partially merged to main 2026-07-11** (local) — **fixture-segments** (segment gap/off; **verified live on-wire** — middle third → 0) + **autopatch** (collision detector always-on + opt-in locked-range reservation) landed. **content-source-region + projector-blend HELD behind webgl-strict Phase 2**; autopatch **Phase C (split-brain write-back) deferred**. |
 | 3 | `wave-3-audio` | audio-engine (P0→P6) | ☐ not started |
 | — | `feat-docs-browser` | docs-browser (independent, parallel-safe) | ☑ **shipped v0.21.0** — reader + detachable window + inline user-guide images + tutorial SVG diagrams; bundled into packaged builds via `extraResources` (23/23 image refs validated, tsc+build clean, in-app visual test confirmed). Getting-started fold-in still pending. |
 | — | `feat-midi-control` | midi-control (independent, parallel-safe) | ☐ not started (Draft — plan written) |
 | — | (content, no branch gate) | LiDAR + state-machine tutorial sets | ☑ drafted; **SVG diagrams added** (state-graph, hub-and-spoke, tracking-zones, merge-people) — all 23 doc image refs resolve + read, 4/4 SVGs valid; needs in-app open test |
 
-*Update the Status cell to `☐ in progress (branch cut)` → `☑ merged <date>` as each wave lands. Every plan
-is **Draft** (nothing implemented) **except docs-browser**, shipped in v0.21.0.*
+*Update the Status cell to `☐ in progress (branch cut)` → `☑ merged <date>` as each wave lands. As of
+2026-07-11, Waves 1 + 2 are merged to `main` **locally (unpushed)**; still Draft: Wave 0, Wave 3 (audio),
+midi-control, and the webgl-strict / content-source-region / projector-blend Phase-2 render work.*
