@@ -271,6 +271,14 @@ function pruneStaleLayers(pool: LayerPool, t: Timeline): void {
   }
 }
 
+// One frame in the document's own timebase — the distance from `end` back to the LAST FRAME, where a
+// non-looping show parks. A corrupt/absent fps must never poison the clock (a NaN here would make the
+// parked playhead NaN), so anything non-finite or sub-1 falls back to defaultTimeline()'s 30.
+function frameSec(t: Timeline): number {
+  const fps = t.fps;
+  return 1 / (typeof fps === 'number' && Number.isFinite(fps) && fps >= 1 ? fps : 30);
+}
+
 // Main-window seek (mirror-window phase-lock lives in the seek() method). Re-anchors the monotonic
 // clock and suppresses FSM crossings across the jump — the clean first-frame start on every trigger.
 function mainSeek(sec: number): void {
@@ -382,16 +390,71 @@ function frame(now: number): void {
         // Bounded timeline: `Length` (duration), or an explicit out-point, IS the end.
         //   loop ON  → wrap over [start, end), re-anchoring originMs so cadence stays uniform
         //   loop OFF → hold on the last frame and ask App to pause (the engine never writes `playing`)
+        //
+        // EVERY branch below that MOVES the playhead somewhere it did not travel to must also
+        // re-baseline `prevPlayhead` — the FSM is ticked with (playhead, prevPlayhead) and reads that
+        // pair as a window the playhead TRAVERSED. A jump left in it is a window of triggers that
+        // never played, and firing one recalls its bound scene: the wrong scene goes on stage.
+        // (This is what mainSeek() does for a deliberate seek; the clock has to do the same.)
         let t = (now - originMs) / 1000;
         const a = timelineStart(data), b = timelineEnd(data);
-        if (t < a) { t = a; originMs = now - t * 1000; }
+        if (t < a) {
+          // Below the in-point (press Play at 0 on a region starting at 5s; or the in-point was
+          // dragged past the playhead mid-show). This is a JUMP to the region start, NOT playback of
+          // (playhead, a] — so re-baseline prev, or fsm.tick() takes its FORWARD branch over that
+          // whole window and fires every atTime/onMarker in it, plus onClipEnd for every layer whose
+          // clip was live at 0 and isn't at 5. Pressing Play would put the wrong scene on stage.
+          t = a;
+          originMs = now - t * 1000;
+          prevPlayhead = t;
+        }
         if (t >= b) {
           if (data.loop) {
             t = a + ((t - a) % (b - a));
             originMs = now - t * 1000;
+            // The wrap is a BACKWARD jump, and crossed()'s backward branch is an OR (`T > prev ||
+            // T <= cur`) — deliberately, but written assuming the wrap spans the WHOLE timeline
+            // (end → 0). Over a partial region (in-point > 0), or with triggers authored past `end`,
+            // that OR matches everything outside the region and re-fires it on EVERY pass, forever
+            // (region [2,6) + an atTime at 1.0: prev=5.98, cur=2.02 → `1.0 <= 2.02` → fires, each lap).
+            // Baselining prev at the region start turns the wrap frame into the small, real FORWARD
+            // window (a, t] that was actually played.
+            // KNOWN LIMITATION: a trigger authored in the region's final frame-time — between the last
+            // sampled playhead and `end` — is missed on the wrap frame (a ~1-frame, ~33ms window).
+            // That is vastly preferable to firing every out-of-region trigger on every lap. Do NOT
+            // "fix" it by ticking the FSM twice: it evaluates at most ONE transition per frame by
+            // design, and a double tick could fire two.
+            prevPlayhead = a;
           } else {
-            t = b;
-            originMs = now - t * 1000;
+            // Park on the LAST FRAME, not on `end` itself. activeClip() is half-open
+            // (`t >= c.start && t < c.start + c.duration`), so a playhead sitting exactly ON the end
+            // has NO clip under it: syncLayer nulls the layer, layerDrawable returns null and
+            // buildProgram clears to black — every non-looping show would end with the projectors and
+            // the LED output going black. One frame back, in the document's own timebase: the last
+            // frame of a 10s/30fps timeline genuinely IS at 9.9667s (standard NLE semantics).
+            const eps = frameSec(data);
+            // Hold the RAW clock at the end boundary rather than at the parked playhead. If we
+            // re-anchored to `t` (a frame BEFORE `b`), the next frame's raw time would be < b, the
+            // clock would sail past the end again, and the playhead would sawtooth over the last frame
+            // until App's pause round-trips — and each sawtooth step BACKWARD is exactly what
+            // crossed() reads as a loop wrap. Anchoring at `b` re-parks deterministically instead.
+            originMs = now - b * 1000;
+            t = Math.max(a, b - eps);
+            // Crossings are NOT suppressed here: reaching the end is real forward PLAYBACK, not a jump,
+            // so an atTime at 9.95 must still fire on the frame that parks at 9.9667 — hence a clamp
+            // and not a mainSeek-style `prevPlayhead = t`.
+            //
+            // But the park can still be a step BACKWARD, and that has to be caught. The last sampled
+            // playhead before the clock passed `end` lands somewhere in [b - dt, b) (dt = one rAF, ~16ms)
+            // — which is AHEAD of the parked b - eps (eps = one source frame, ~33ms). At 60Hz on a 30fps
+            // document that is true on essentially every run: prev=9.9833 > cur=9.9667. crossed() would
+            // then take its backward/wrap branch (`T > prev || T <= cur`) and fire the first trigger at
+            // or below the parked time — an atTime at 3s would recall its scene as the show ends.
+            // Clamping prev to the parked time makes that window empty instead. Nothing is lost: any
+            // trigger in (t, prev] ALREADY fired on the frame that sampled prev. Only a trigger in the
+            // never-sampled sub-frame window (prev, end) is missed — the same accepted ~1-frame gap as
+            // the loop wrap above.
+            prevPlayhead = Math.min(prevPlayhead, t);
             // Latch: emit ONCE, not every frame until App's state round-trips back to us.
             if (!endLatched) {
               endLatched = true;
@@ -547,9 +610,22 @@ export const timeline = {
     if (p === playing) return;
     playing = p;
     if (p) {
-      // Pressing play while parked on the end restarts from the top — otherwise we would hit the end
-      // on the very next frame and pause again, and the button would look dead.
-      if (!external && !data.loop && playhead >= timelineEnd(data) - 1e-3) mainSeek(timelineStart(data));
+      // Pressing play while parked at the end restarts from the top — otherwise we would reach the end
+      // again within a frame or two, pause straight back, and the button would look dead.
+      //
+      // This can NO LONGER be detected by comparing the playhead to `timelineEnd`: the end-stop now
+      // parks a whole frame SHORT of the end (parking exactly ON it leaves no clip under the
+      // playhead — activeClip is half-open — and the show would end on black). A `- 1e-3` slop test
+      // never matches a playhead a frame back, so Play would replay the last 33ms and stop again.
+      // Gate on `endLatched` instead: it is true if and ONLY IF the clock actually stopped at the end,
+      // and every seek (mainSeek) clears it — so a user who parked at the end and then scrubbed
+      // elsewhere resumes from where they scrubbed to, not from the top.
+      //
+      // The latch cannot cover being past the end by other means (scrub to 30s on a 10s timeline, then
+      // Play — no latch was ever set), so keep an explicit past-the-end test as well. It is only needed
+      // when loop is OFF: a looping clock wraps an out-of-range playhead back into the region by itself.
+      const atEnd = endLatched || (!data.loop && playhead >= timelineEnd(data));
+      if (!external && atEnd) mainSeek(timelineStart(data));
       endLatched = false;
       originMs = performance.now() - playhead * 1000; // re-anchor the monotonic clock on resume
     }
@@ -557,7 +633,10 @@ export const timeline = {
   setExternal(e: boolean): void { external = e; },
   setHapLocal(v: boolean): void { hapLocal = v; },
   seek(sec: number): void {
-    const clamped = Math.max(0, sec); // unbounded — the timeline has no fixed end
+    // PLAYBACK is bounded by [timelineStart, timelineEnd); SEEKING is not. Only the floor is enforced
+    // here: the canvas still renders clips that overrun `Length`, so scrubbing past the end has to keep
+    // working — it is how you find them. Pressing play from out there restarts from the top (setPlaying).
+    const clamped = Math.max(0, sec); // time never goes negative — that is the only bound a seek gets
     if (external && hapLocal) {
       // The projector free-runs its own monotonic clock; the bridged transport is the authority.
       // Phase-lock to it with a gentle slew (continuous, invisible) instead of a hard resync snap —

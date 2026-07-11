@@ -381,14 +381,24 @@ export const defaultTimeline = (): Timeline => ({
 // The timeline's playable range. `duration` (the "Length" field) IS the end — as of Wave A it once
 // again bounds playback, reverting the v0.12.0 unbounded clock deliberately (see docs/TIMELINE.md).
 // An explicit out-point overrides it; an explicit in-point moves the start.
-export const timelineStart = (t: Timeline): number => Math.max(0, t.inPoint ?? 0);
+//
+// TRUST NOTHING. These two are the ONLY bound the engine clock has: it takes `a = timelineStart`,
+// `b = timelineEnd` and tests `t < a` / `t >= b`. A non-finite bound makes BOTH tests false, so a
+// project carrying `duration: NaN` (or `null`, or the string `"10"`, or `outPoint: Infinity` — a
+// hand-edit, a bad import, a future migration) would silently restore the unbounded clock and
+// silently stop Loop from doing anything, with no error anywhere. Coerce instead: a junk duration
+// falls back to defaultTimeline()'s 60, and a junk in/out-point is treated as ABSENT.
+const finiteNum = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+const FALLBACK_DURATION = 60; // == defaultTimeline().duration
+
+export const timelineStart = (t: Timeline): number => Math.max(0, finiteNum(t.inPoint) ?? 0);
 export const timelineEnd = (t: Timeline): number => {
   const start = timelineStart(t);
-  const out = t.outPoint;
+  const out = finiteNum(t.outPoint);
   // A degenerate region (out <= in) is ignored rather than obeyed — obeying it would wedge the
   // transport at a single instant with no way to escape from the UI.
   if (out != null && out > start) return out;
-  return Math.max(start + 0.1, t.duration);
+  return Math.max(start + 0.1, finiteNum(t.duration) ?? FALLBACK_DURATION);
 };
 
 // Coerce a persisted automation array: drop junk, default the curve, and SORT — the sampler's cursor
