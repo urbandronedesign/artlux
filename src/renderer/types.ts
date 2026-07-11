@@ -284,7 +284,8 @@ export type SmTriggerKind =
   | 'afterDelay'         // `seconds` after the state was entered
   | 'atTime'             // when the playhead crosses absolute `time`
   | 'onMarker'           // when the playhead crosses marker `markerId`
-  | 'onClipEnd';         // when the active clip on `layerId` ends (a gap appears)
+  | 'onClipEnd'          // when the active clip on `layerId` ends (a gap appears)
+  | 'onTimelineEnd';     // when the bound timeline reaches its end (not looping) — auto-advance
 export interface SmTrigger {
   kind: SmTriggerKind;
   seconds?: number;      // afterDelay
@@ -392,13 +393,16 @@ const finiteNum = (v: unknown): number | null => (typeof v === 'number' && Numbe
 const FALLBACK_DURATION = 60; // == defaultTimeline().duration
 
 export const timelineStart = (t: Timeline): number => Math.max(0, finiteNum(t.inPoint) ?? 0);
+// The "Length" field, coerced. NOT the playable end — an out-point overrides Length (use timelineEnd).
+// This is the guarded reader for anything that genuinely wants the document's Length (status readouts).
+export const timelineDuration = (t: Timeline): number => finiteNum(t.duration) ?? FALLBACK_DURATION;
 export const timelineEnd = (t: Timeline): number => {
   const start = timelineStart(t);
   const out = finiteNum(t.outPoint);
   // A degenerate region (out <= in) is ignored rather than obeyed — obeying it would wedge the
   // transport at a single instant with no way to escape from the UI.
   if (out != null && out > start) return out;
-  return Math.max(start + 0.1, finiteNum(t.duration) ?? FALLBACK_DURATION);
+  return Math.max(start + 0.1, timelineDuration(t));
 };
 
 // Coerce a persisted automation array: drop junk, default the curve, and SORT — the sampler's cursor

@@ -1,4 +1,4 @@
-import { Timeline, VideoClip, SurfaceContent, LayerBlendMode, StateMachine, isContentClip, defaultTimeline, timelineEnd, timelineStart } from '../types';
+import { Timeline, VideoClip, SurfaceContent, LayerBlendMode, StateMachine, isContentClip, defaultTimeline, timelineEnd, timelineStart, timelineDuration } from '../types';
 import { getBlobUrl, ensureBlobUrl } from './mediaCache';
 import * as contentSource from './contentSource';
 import { clipKindRegistry, videoCodecRegistry } from '../host/registries';
@@ -101,8 +101,9 @@ let frameNowSec = 0; // wall clock (seconds) sampled each frame — the FSM's st
 
 // Is a clip live under the playhead on this layer? (for the FSM 'onClipEnd' trigger)
 const clipActive = (layerId: string, t: number): boolean => activeClip(layerId, t) != null;
-// Per-frame context handed to the FSM runtime.
-const smContext = (): SmContext => ({ markers: data.markers ?? [], clipActive, emit: emitIntent, recallScene: (id, fadeSec) => cueBus.requestRecall(id, fadeSec), fireCue: (id) => cueBus.requestFireCue(id), nowSec: frameNowSec });
+// Per-frame context handed to the FSM runtime. `atEnd` is the one-frame end-of-timeline pulse (hitEnd,
+// reset at the top of every frame) — the FSM's 'onTimelineEnd' trigger, and hitEnd's only reader.
+const smContext = (): SmContext => ({ markers: data.markers ?? [], clipActive, emit: emitIntent, recallScene: (id, fadeSec) => cueBus.requestRecall(id, fadeSec), fireCue: (id) => cueBus.requestFireCue(id), nowSec: frameNowSec, atEnd: hitEnd });
 
 const ensureBlob = (path: string): void => { void ensureBlobUrl(path, 'video/mp4'); };
 
@@ -228,9 +229,11 @@ function warmMedia(t: Timeline): void {
   }
 }
 
-// The clip visible at a timeline's start (inPoint ?? 0) on a given layer — the frame a clean restart shows.
+// The clip visible at a timeline's start on a given layer — the frame a clean restart shows. Uses the
+// GUARDED start (timelineStart), not the raw in-point: a junk `inPoint` would make startT NaN, match no
+// clip, and silently skip the pre-roll — the standby pool would then promote on a black first frame.
 function startClip(t: Timeline, layerId: string): { clip: VideoClip; startT: number } | null {
-  const startT = t.inPoint ?? 0;
+  const startT = timelineStart(t);
   let found: VideoClip | null = null;
   for (const c of t.clips) if (c.layerId === layerId && startT >= c.start && startT < c.start + c.duration) found = c;
   return found ? { clip: found, startT } : null;
@@ -575,7 +578,12 @@ export const timeline = {
     for (const l of prevData.layers) { if (!t.layers.find(nl => nl.id === l.id)) contentSource.release(layerKey(l.id)); }
     pruneStaleLayers(pool, t);
     warmMedia(t);
-    if ((opts?.transport ?? 'restart') === 'restart') mainSeek(t.inPoint ?? 0); // clean first-frame start
+    // Clean first-frame start — via the GUARDED start, never the raw in-point. mainSeek() feeds `playhead`,
+    // `originMs` and `prevPlayhead` from this one number, so a scene whose timeline carries a junk inPoint
+    // (hand-edit, bad import, plugin-written project — normalizeTimeline does not coerce it) would NaN the
+    // whole clock: every activeClip(NaN) matches nothing, so the projectors and the LED output go black and
+    // the transport stays dead until someone seeks.
+    if ((opts?.transport ?? 'restart') === 'restart') mainSeek(timelineStart(t));
     compileAutomation(); // AFTER the seek, so the first post-recall sample is taken at the new playhead
   },
   // The GLOBAL timeline's lanes, which run as a BASE under every scene (the global audio bed is global,
@@ -610,22 +618,31 @@ export const timeline = {
     if (p === playing) return;
     playing = p;
     if (p) {
-      // Pressing play while parked at the end restarts from the top — otherwise we would reach the end
-      // again within a frame or two, pause straight back, and the button would look dead.
+      // Pressing play while parked at (or past) the end restarts from the top — otherwise we would reach
+      // the end again within a frame or two, pause straight back, and the button would look dead.
       //
-      // This can NO LONGER be detected by comparing the playhead to `timelineEnd`: the end-stop now
-      // parks a whole frame SHORT of the end (parking exactly ON it leaves no clip under the
-      // playhead — activeClip is half-open — and the show would end on black). A `- 1e-3` slop test
-      // never matches a playhead a frame back, so Play would replay the last 33ms and stop again.
-      // Gate on `endLatched` instead: it is true if and ONLY IF the clock actually stopped at the end,
-      // and every seek (mainSeek) clears it — so a user who parked at the end and then scrubbed
-      // elsewhere resumes from where they scrubbed to, not from the top.
+      // The test is POSITION-based, and deliberately NOT the `endLatched` flag. The latch says "the clock
+      // stopped at the end" — but it says nothing about WHERE the end is NOW, and the end is a document
+      // value the user can move while parked: play a 10s show out, then set Length to 20 (or drag the
+      // out-point later). setData touches neither the playhead nor the latch, so a latch-gated test would
+      // still read "at the end" and restart from 0 instead of playing on into the new 10–20s region.
       //
-      // The latch cannot cover being past the end by other means (scrub to 30s on a 10s timeline, then
-      // Play — no latch was ever set), so keep an explicit past-the-end test as well. It is only needed
-      // when loop is OFF: a looping clock wraps an out-of-range playhead back into the region by itself.
-      const atEnd = endLatched || (!data.loop && playhead >= timelineEnd(data));
+      // A plain `playhead >= timelineEnd(data)` doesn't work either: the end-stop parks a whole frame
+      // SHORT of the end (parking exactly ON it leaves no clip under the playhead — activeClip is
+      // half-open — and the show would end on black), so a slop-sized test never matches and Play would
+      // replay the last frame and stop again. The park lands at EXACTLY `end - frameSec`, in the
+      // document's own timebase, so a frame-aware bound is exact rather than slop-dependent.
+      //   • parked at the end            → playhead == end - frameSec  → restarts ✓
+      //   • Length moved out from under it → the bound moved with it, playhead is now short of it → resumes ✓
+      //   • scrubbed to 30s on a 10s show → way past the bound          → restarts ✓ (no latch was ever set)
+      //   • paused mid-show at 4s        → well short of the bound      → resumes ✓
+      // Only needed when loop is OFF: a looping clock wraps an out-of-range playhead into the region itself.
+      const atEnd = !data.loop && playhead >= timelineEnd(data) - frameSec(data) - 1e-6;
       if (!external && atEnd) mainSeek(timelineStart(data));
+      // Re-arm the end regardless: the latch's ONLY job is to keep the end-stop from re-emitting a `pause`
+      // intent every frame while App's state round-trips. Leave it set on a resume that did NOT restart
+      // (the Length-moved case above) and the next end-stop would park silently, never emitting `pause` and
+      // never pulsing hitEnd — the show would run past its new end with the FSM's onTimelineEnd dead.
       endLatched = false;
       originMs = performance.now() - playhead * 1000; // re-anchor the monotonic clock on resume
     }
@@ -649,7 +666,9 @@ export const timeline = {
     mainSeek(clamped); // don't fire FSM crossings across a deliberate jump
   },
   getPlayhead(): number { return playhead; },
-  getDuration(): number { return data.duration; },
+  // The document's "Length" — guarded, so junk (NaN / "10" / null) can't leak out to a plugin status
+  // readout. NOT the playable end: an out-point overrides Length — that's getEnd().
+  getDuration(): number { return timelineDuration(data); },
   getEnd(): number { return timelineEnd(data); },
   getStart(): number { return timelineStart(data); },
   isPlaying(): boolean { return playing; },

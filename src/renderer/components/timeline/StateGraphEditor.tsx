@@ -28,7 +28,7 @@ const R = 34;                 // state node radius
 const D = R * 2;
 const CW = 2600, CH = 1700;   // canvas coordinate space
 const ACTION_KINDS: SmActionKind[] = ['play', 'pause', 'stop', 'seek', 'setLoop', 'jumpMarker', 'recallScene', 'fireCue'];
-const TRIGGER_KINDS: SmTriggerKind[] = ['manual', 'afterDelay', 'atTime', 'onMarker', 'onClipEnd'];
+const TRIGGER_KINDS: SmTriggerKind[] = ['manual', 'afterDelay', 'atTime', 'onMarker', 'onClipEnd', 'onTimelineEnd'];
 const uid = () => crypto.randomUUID();
 
 type Vec = { x: number; y: number };
@@ -433,6 +433,8 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
                   <SelectField label="Track" value={selTrans.trigger.layerId ?? ''} options={layers.map(l => ({ v: l.id, l: l.name }))}
                     onChange={(v) => patchTransition(selTrans.id, { trigger: { ...selTrans.trigger, layerId: v } })} />
                 )}
+                {/* onTimelineEnd takes no parameter — it fires on the frame the timeline ends. */}
+                {selTrans.trigger.kind === 'onTimelineEnd' && <div className="text-fg-3 italic">Fires when the timeline reaches its end with Loop OFF. A loop wrap is not an end.</div>}
                 {selTrans.trigger.kind === 'manual' && <div className="text-fg-3 italic">Fires from the state-lane button, Ctrl+click on the edge, or OSC.</div>}
                 <NumField label="Transition time (s) — scene crossfade on arrival" value={selTrans.fadeSec ?? 0} onChange={(v) => patchTransition(selTrans.id, { fadeSec: v || undefined })} />
               </div>
