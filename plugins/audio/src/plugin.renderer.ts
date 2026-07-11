@@ -126,8 +126,16 @@ export const plugin: RendererPlugin = {
         try {
           const meta = await audioClient.loadClip(clip.id, clip.path);
           if (meta) {
-            if (bed.clips.some((c) => c.id === clip.id)) loaded.set(clip.id, meta);
-            else audioClient.unloadClip(clip.id); // removed while loading → don't leave it resident
+            if (bed.clips.some((c) => c.id === clip.id)) {
+              loaded.set(clip.id, meta);
+              // Push THIS clip's position + effects immediately, before awaiting the next load. The
+              // moment it lands in `loaded` it becomes audible() — and the playhead tick is rAF-driven,
+              // so reconcile() can start it on the very next frame. Deferring the push to the end of the
+              // pass would let it begin life dry and dead-centre while the rest of the bed decodes.
+              pushClipParams(clip);
+            } else {
+              audioClient.unloadClip(clip.id); // removed while loading → don't leave it resident
+            }
           }
         } catch {
           // Undecodable / missing source (loadClip rejects). Skip it and remember: one bad clip must never
@@ -138,34 +146,31 @@ export const plugin: RendererPlugin = {
       }
     };
 
-    // Push each loaded clip's ambisonic position (or clear it back to non-spatial). Change-detected, so
-    // dragging a source around doesn't spam IPC; the engine's 20ms encoder fade smooths each move.
-    const syncSpatial = () => {
-      for (const clip of bed.clips) {
-        if (!loaded.has(clip.id)) continue;
-        const s = clip.spatial;
-        const key = s ? `${s.x},${s.y},${s.z}` : '';
-        if (sentSpatial.get(clip.id) === key) continue;
-        if (s) audioClient.setClipSpatial(clip.id, s.x, s.y, s.z);
-        else audioClient.clearClipSpatial(clip.id);
-        sentSpatial.set(clip.id, key);
-      }
+    // Push one clip's ambisonic position (or clear it back to non-spatial), and its insert chain. Both
+    // are change-detected: dragging a source around the pad must not spam IPC, and EVERY setClipEffects
+    // takes the audio lock, so re-sending an unchanged chain would tax the audio thread for nothing.
+    // Only a LOADED clip can be pushed — the engine attaches these to a source it holds, so a push for an
+    // id it hasn't loaded is silently dropped.
+    const pushSpatial = (clip: BedClip) => {
+      const s = clip.spatial;
+      const key = s ? `${s.x},${s.y},${s.z}` : '';
+      if (sentSpatial.get(clip.id) === key) return;
+      if (s) audioClient.setClipSpatial(clip.id, s.x, s.y, s.z);
+      else audioClient.clearClipSpatial(clip.id);
+      sentSpatial.set(clip.id, key);
     };
+    const pushEffects = (clip: BedClip) => {
+      const fx = clip.effects ?? [];
+      const key = JSON.stringify(fx);
+      if (sentEffects.get(clip.id) === key) return;
+      audioClient.setClipEffects(clip.id, fx);
+      sentEffects.set(clip.id, key);
+    };
+    // Spatial BEFORE effects: flipping a clip spatial changes its chain's channel count (the engine runs
+    // a spatial source's chain in mono), which forces a rebuild — effects-first would just throw it away.
+    const pushClipParams = (clip: BedClip) => { pushSpatial(clip); pushEffects(clip); };
 
-    // Push each loaded clip's insert chain, and the master chain + fader. Change-detected on purpose:
-    // an effect edit is an authoring action, but this runs off the same bed subscription as everything
-    // else, and every setClipEffects takes the audio lock — re-sending an unchanged chain would tax the
-    // audio thread for nothing. Only loaded clips are pushed: the engine attaches a chain to a source it
-    // holds, so setClipEffects on an unknown id is silently dropped (hence syncLoaded() must resolve first).
-    const syncEffects = () => {
-      for (const clip of bed.clips) {
-        if (!loaded.has(clip.id)) continue;
-        const fx = clip.effects ?? [];
-        const key = JSON.stringify(fx);
-        if (sentEffects.get(clip.id) === key) continue;
-        audioClient.setClipEffects(clip.id, fx);
-        sentEffects.set(clip.id, key);
-      }
+    const syncMaster = () => {
       const master = bed.buses.find((b) => b.id === MASTER_BUS_ID);
       const mfx = master?.effects ?? [];
       const mkey = JSON.stringify(mfx);
@@ -173,11 +178,10 @@ export const plugin: RendererPlugin = {
       const mgain = master?.gain ?? 1;
       if (sentMasterGain !== mgain) { audioClient.setMasterGain(mgain); sentMasterGain = mgain; }
     };
-
-    // Order matters: spatial first. Flipping a clip spatial changes its chain's channel count (the engine
-    // runs a spatial source's chain in mono), which forces a rebuild — doing effects first would just
-    // throw that build away.
-    const syncClips = () => { syncSpatial(); syncEffects(); };
+    const syncClips = () => {
+      for (const clip of bed.clips) if (loaded.has(clip.id)) pushClipParams(clip);
+      syncMaster();
+    };
 
     const reconcile = (playhead: number, nowMs: number) => {
       for (const clip of bed.clips) {

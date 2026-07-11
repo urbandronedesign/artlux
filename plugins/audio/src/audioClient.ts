@@ -17,7 +17,7 @@ export const audioClient = {
     (ipc?.invoke('audio:getDevices') as Promise<string[]>) ?? Promise.resolve([]),
   getMeters: (): Promise<Meters> =>
     (ipc?.invoke('audio:getMeters') as Promise<Meters>) ??
-    Promise.resolve({ peak: 0, rms: 0, peakL: 0, peakR: 0, peaks: [], speakers: 0, masterFxChannels: 0, deviceChannels: 0 }),
+    Promise.resolve({ peak: 0, rms: 0, peakL: 0, peakR: 0, peaks: [], speakers: 0, masterFxChannels: 0, deviceChannels: 0, clipped: false }),
   loadClip: (id: string, path: string): Promise<ClipMeta | null> =>
     (ipc?.invoke('audio:loadClip', id, path) as Promise<ClipMeta | null>) ?? Promise.resolve(null),
   unloadClip: (id: string): void => { ipc?.send('audio:unloadClip', id); },

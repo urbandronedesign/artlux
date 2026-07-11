@@ -134,6 +134,8 @@ public:
     masterGain.prepare(mspec);
     masterGain.setRampDurationSeconds(0.02); // ONCE — setRampDurationSeconds() resets + snaps the value
     masterGain.setGainLinear(masterGainTarget);
+    masterGain.reset(); // snap to it: a prepared dsp::Gain sits at ZERO, so without this the whole output
+                        // would fade in from silence every time the device opens (see GainFx::setParams)
     masterChain = EffectChain::build(masterSpecs, sr, blockSize, juce::jmax(1, outChannels), false);
     for (auto& kv : clips) {
       kv.second->transport->prepareToPlay(blockSize, sr);
@@ -244,13 +246,34 @@ public:
     if (prepared) clip->transport->prepareToPlay(maxBlock, sampleRate);
     clips[id] = std::move(clip);
   }
+  // ── Stopping: NEVER under the lock ────────────────────────────────────────────────────────────
+  // AudioTransportSource::stop() BLOCKS. It sets playing=false and then spins — up to 500 × 2 ms —
+  // waiting for the audio thread to acknowledge by setting `stopped`, which it can only do from inside
+  // AudioTransportSource::getNextAudioBlock. Our audio thread reaches that only by taking `lock`. So
+  // calling stop() while holding `lock` is a deadlock that resolves by TIMEOUT: the audio callback is
+  // starved for the full second. Measured on the real device: 1250 ms per stopped clip, 3750 ms for
+  // three. The driver calls stopAll() on every pause, so this was a >1 s dropout every time.
+  //
+  // Every stop() therefore happens OUTSIDE the lock. That is safe because the clip map is mutated only
+  // from the single N-API thread, so a Clip* obtained under the lock cannot be freed underneath us by
+  // another control call — and with the lock released the audio thread runs, acknowledges, and stop()
+  // returns within one block.
   void removeClip(const std::string& id) {
-    const juce::ScopedLock sl(lock);
-    auto it = clips.find(id);
-    if (it == clips.end()) return;
-    it->second->transport->stop();
-    it->second->transport->setSource(nullptr);
-    clips.erase(it);
+    std::unique_ptr<Clip> dead; // destroyed when this scope ends — outside the lock
+    {
+      const juce::ScopedLock sl(lock);
+      auto it = clips.find(id);
+      if (it == clips.end()) return;
+      dead = std::move(it->second);
+      clips.erase(it); // the audio thread can no longer reach it, so the rest needs no lock
+    }
+    dead->transport->stop();
+    dead->transport->setSource(nullptr);
+  }
+  void stopClip(const std::string& id) {
+    Clip* c = nullptr;
+    { const juce::ScopedLock sl(lock); c = find(id); }
+    if (c != nullptr) c->transport->stop();
   }
   Clip* find(const std::string& id) { // caller must hold the lock
     auto it = clips.find(id);
@@ -348,13 +371,18 @@ public:
   int observedChannels() const noexcept { return observedCh.load(); }
 
   void stopAll() {
-    const juce::ScopedLock sl(lock);
-    for (auto& kv : clips) kv.second->transport->stop();
+    std::vector<Clip*> cs;
+    {
+      const juce::ScopedLock sl(lock);
+      cs.reserve(clips.size());
+      for (auto& kv : clips) cs.push_back(kv.second.get());
+    }
+    for (Clip* c : cs) c->transport->stop(); // outside the lock — see removeClip
   }
   void clear() {
-    const juce::ScopedLock sl(lock);
-    for (auto& kv : clips) { kv.second->transport->stop(); kv.second->transport->setSource(nullptr); }
-    clips.clear();
+    std::unordered_map<std::string, std::unique_ptr<Clip>> dead;
+    { const juce::ScopedLock sl(lock); dead.swap(clips); }
+    for (auto& kv : dead) { kv.second->transport->stop(); kv.second->transport->setSource(nullptr); }
   }
 
   double sampleRate = 48000.0;
@@ -411,8 +439,8 @@ constexpr int kMaxMeterCh = 8;
 class MeteringAudioSource : public juce::AudioSource {
 public:
   MeteringAudioSource(juce::AudioSource& s, std::atomic<float>& peak, std::atomic<float>& rms,
-                      std::array<std::atomic<float>, kMaxMeterCh>& chPeaks)
-    : src(s), peakOut(peak), rmsOut(rms), chOut(chPeaks) {}
+                      std::array<std::atomic<float>, kMaxMeterCh>& chPeaks, std::atomic<bool>& clipped)
+    : src(s), peakOut(peak), rmsOut(rms), chOut(chPeaks), clipOut(clipped) {}
   void prepareToPlay(int n, double sr) override { src.prepareToPlay(n, sr); }
   void releaseResources() override { src.releaseResources(); }
   void getNextAudioBlock(const juce::AudioSourceChannelInfo& info) override {
@@ -437,17 +465,22 @@ public:
     peakOut.store(peak);
     rmsOut.store(count > 0 ? std::sqrt(sumSq / (float) count) : 0.0f);
     for (int c = 0; c < kMaxMeterCh; ++c) chOut[(size_t) c].store(ch[(size_t) c]);
+    // Clipping is LATCHED, not sampled. `peak` is one block's peak and the UI polls at ~10 Hz, so nine
+    // blocks in ten are never seen — a clip indicator built on that would miss most of what it exists to
+    // catch, which is worse than not having one. This sticks until getMeters() reads and clears it.
+    if (peak >= 1.0f) clipOut.store(true);
   }
 private:
   juce::AudioSource& src;
   std::atomic<float>& peakOut;
   std::atomic<float>& rmsOut;
   std::array<std::atomic<float>, kMaxMeterCh>& chOut;
+  std::atomic<bool>& clipOut;
 };
 
 class Engine {
 public:
-  Engine() : metering(bus, meterPeak, meterRms, meterCh) {}
+  Engine() : metering(bus, meterPeak, meterRms, meterCh, meterClipped) {}
   ~Engine() { closeDevice(); }
 
   juce::String configure(int outputChannels, OutMode mode, const juce::String& layout) {
@@ -515,10 +548,7 @@ public:
       c->transport->start();
     }
   }
-  void stopClip(const std::string& id) {
-    const juce::ScopedLock sl(bus.lock);
-    if (Clip* c = bus.find(id)) c->transport->stop();
-  }
+  void stopClip(const std::string& id) { bus.stopClip(id); } // stops OUTSIDE the lock — see SpatialBus::removeClip
   void setClipGain(const std::string& id, float gain) {
     const juce::ScopedLock sl(bus.lock);
     if (Clip* c = bus.find(id)) c->transport->setGain(gain);
@@ -544,6 +574,7 @@ public:
   int speakerCount() { return bus.speakerCount(); }
   int masterFxChannels() { return bus.masterChainChannels(); }
   int deviceChannels() const { return bus.observedChannels(); }
+  bool takeClipped() { return meterClipped.exchange(false); } // read-and-clear: "has it clipped since you last asked"
 
   void closeDevice() {
     if (opened) { deviceManager.removeAudioCallback(&player); player.setSource(nullptr); deviceManager.closeAudioDevice(); opened = false; }
@@ -558,6 +589,7 @@ private:
   std::atomic<float> meterPeak { 0.0f };
   std::atomic<float> meterRms { 0.0f };
   std::array<std::atomic<float>, kMaxMeterCh> meterCh {};
+  std::atomic<bool> meterClipped { false };
   MeteringAudioSource metering;                 // declared after bus + meters
   juce::TimeSliceThread readThread { "artlux-audio-read" };
   bool opened = false;
@@ -741,6 +773,7 @@ static Napi::Value GetMeters(const Napi::CallbackInfo& info) {
   // so a mismatch is measurable (masterFxChannels is 0 when there is no master chain).
   obj.Set("masterFxChannels", Napi::Number::New(env, e.masterFxChannels()));
   obj.Set("deviceChannels", Napi::Number::New(env, e.deviceChannels()));
+  obj.Set("clipped", Napi::Boolean::New(env, e.takeClipped())); // latched since the last poll, then cleared
   return obj;
 }
 

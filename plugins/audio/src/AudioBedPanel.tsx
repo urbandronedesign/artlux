@@ -97,7 +97,7 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
         holdL.current = Math.max(holdL.current * 0.9, m.peakL ?? 0);
         holdR.current = Math.max(holdR.current * 0.9, m.peakR ?? 0);
         setMeter({ peak: peakHold.current, rms: m.rms, peakL: holdL.current, peakR: holdR.current });
-        if (m.peak >= 0.999) clipUntil.current = Date.now() + 1500;
+        if (m.clipped) clipUntil.current = Date.now() + 1500; // engine-latched: catches every block, not 1 in 10
         setClipping(Date.now() < clipUntil.current);
       }).catch(() => {});
       const st = host.show.getStatus(); // the bed rides the MAIN transport — mirror it here
@@ -120,11 +120,16 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
 
   // The master bus is materialised on FIRST EDIT, not by default — a project that never touches master
   // keeps `buses: []`, so an untouched bed persists exactly as it did before P3.
-  const master: Bus = mix.buses.find((b) => b.id === MASTER_BUS_ID) ?? { id: MASTER_BUS_ID, name: 'Master', gain: 1, effects: [] };
+  const DEFAULT_MASTER: Bus = { id: MASTER_BUS_ID, name: 'Master', gain: 1, effects: [] };
+  const master: Bus = mix.buses.find((b) => b.id === MASTER_BUS_ID) ?? DEFAULT_MASTER; // for RENDER only
   const patchMaster = (p: Partial<Bus>) => {
+    // Base the patch on mixRef (synchronously fresh), NOT on `master` above, which derives from React
+    // state and is a render behind. Spreading the stale one would drop a sibling field edited earlier in
+    // the same turn — patch the gain then the effects and the gain would snap back. Same reason addClip
+    // reads mixRef.
     const cur = mixRef.current;
     const has = cur.buses.some((b) => b.id === MASTER_BUS_ID);
-    const next: Bus = { ...master, ...p };
+    const next: Bus = { ...(cur.buses.find((b) => b.id === MASTER_BUS_ID) ?? DEFAULT_MASTER), ...p };
     commit({ ...cur, buses: has ? cur.buses.map((b) => (b.id === MASTER_BUS_ID ? next : b)) : [...cur.buses, next] });
   };
 

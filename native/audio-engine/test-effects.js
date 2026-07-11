@@ -145,6 +145,23 @@ function check(name, ok, detail) {
   check('master gain 0.5 → 0.5x', m4r > 0.42 && m4r < 0.58, `ratio=${m4r.toFixed(3)}`);
   a.setMasterGain(1.0);
 
+  // ── stop() must not stall the audio thread ──────────────────────────────────────────────────
+  // JUCE's AudioTransportSource::stop() blocks until the audio thread acknowledges. Called while holding
+  // the bus lock — which the audio thread needs to acknowledge — it deadlocks until a 1 s timeout, so the
+  // audio callback is starved on every pause. Nothing else here would catch it: every other assertion
+  // measures LEVEL, and a starved callback still produces correct levels either side of the gap.
+  console.log('\n[stop latency]  (the driver calls stopAll on every pause)');
+  a.loadClip('s1', wav('tone-loud.wav'));
+  a.loadClip('s2', wav('tone-loud.wav'));
+  a.loadClip('s3', wav('tone-loud.wav'));
+  for (const id of ['s1', 's2', 's3']) a.playClip(id, 0, 0.3);
+  await sleep(400);
+  const tStop = Date.now();
+  a.stopAll();
+  const stopMs = Date.now() - tStop;
+  check('stopAll(3 playing) is prompt', stopMs < 150, `${stopMs}ms (was ~3750ms — a 1s stall per clip)`);
+  for (const id of ['s1', 's2', 's3']) a.unloadClip(id);
+
   a.close();
   const failed = results.filter((r) => !r.ok);
   console.log('');

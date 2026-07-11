@@ -77,9 +77,16 @@ public:
     // ONCE, here. setRampDurationSeconds() calls reset() and SNAPS the current value — calling it from
     // setParams would click on every edit.
     g.setRampDurationSeconds(0.02);
+    first = true;
   }
   void setParams(const EffectSpec& s) override {
     g.setGainDecibels(juce::jlimit(-60.0f, 12.0f, pnum(s, "gainDb", 0.0f)));
+    // A freshly prepared dsp::Gain's smoothed value sits at ZERO, and build() always prepares before it
+    // sets params — so without this snap the node would ramp up from digital silence over the 20 ms ramp
+    // on every REBUILD (add/remove/reorder/spatial-flip). On a clip that's a dropout; on the master chain
+    // it's the entire output. reset() re-snaps current to the target we just set. Only on the first set:
+    // afterwards a gain edit SHOULD ramp.
+    if (first) { g.reset(); first = false; }
   }
   void process(juce::dsp::AudioBlock<float>& b) noexcept override {
     juce::dsp::ProcessContextReplacing<float> c(b); // needs a NAMED lvalue block — it can't bind a temporary
@@ -87,6 +94,7 @@ public:
   }
 private:
   juce::dsp::Gain<float> g;
+  bool first = true;
 };
 
 // ── filter ──────────────────────────────────────────────────────────────────────────────────────
@@ -157,6 +165,7 @@ public:
   void prepare(const juce::dsp::ProcessSpec& s) override {
     sr = s.sampleRate;
     nch = s.numChannels;
+    ptrs.assign(nch, nullptr); // sized HERE, off the audio thread — see the note in process()
     maxSamples = (float) std::ceil(kMaxSec * s.sampleRate);
     line.setMaximumDelayInSamples((int) maxSamples + 4); // allocates — before prepare(), off the audio thread
     line.prepare(s);
@@ -171,28 +180,31 @@ public:
     fb  = juce::jlimit(0.0f, 0.95f, pnum(s, "feedback", 0.35f)); // hard cap — 1.0 is an unbounded runaway
     mix = juce::jlimit(0.0f, 1.0f, pnum(s, "mix", 0.3f));
   }
+  // The channel-pointer array is a member sized in prepare(), NOT a fixed float*[8] on the stack. A
+  // fixed cap wouldn't overrun (jmin would clamp it), which is exactly what makes it dangerous: on a
+  // 16-channel rig it would quietly process channels 0–7 and leave 8–15 DRY. configure() accepts up to
+  // 64 channels, so that is reachable the moment the channel picker grows past 8.
   void process(juce::dsp::AudioBlock<float>& b) noexcept override {
     const size_t n = b.getNumSamples();
-    const size_t c = juce::jmin<size_t>(nch, b.getNumChannels(), kMaxCh);
-    float* p[kMaxCh];
-    for (size_t ch = 0; ch < c; ++ch) p[ch] = b.getChannelPointer(ch);
+    const size_t c = juce::jmin<size_t>(nch, b.getNumChannels(), ptrs.size());
+    for (size_t ch = 0; ch < c; ++ch) ptrs[ch] = b.getChannelPointer(ch);
     for (size_t i = 0; i < n; ++i) {
       // The delay length is shared across channels, so set it ONCE per sample (outside the channel
       // loop) — every channel must read the same tap or they'd drift apart.
       line.setDelay(timeSamples.getNextValue());
       for (size_t ch = 0; ch < c; ++ch) {
-        const float in = p[ch][i];
+        const float in = ptrs[ch][i];
         const float wet = line.popSample((int) ch, -1.0f, true);
         line.pushSample((int) ch, in + fb * wet);
-        p[ch][i] = in * (1.0f - mix) + wet * mix;
+        ptrs[ch][i] = in * (1.0f - mix) + wet * mix;
       }
     }
   }
 private:
   static constexpr float kMaxSec = 2.0f;
-  static constexpr size_t kMaxCh = 8;
   juce::dsp::DelayLine<float, juce::dsp::DelayLineInterpolationTypes::Linear> line;
   juce::SmoothedValue<float> timeSamples;
+  std::vector<float*> ptrs;
   double sr = 48000.0;
   size_t nch = 0;
   float maxSamples = 0.0f, fb = 0.35f, mix = 0.3f;
@@ -209,6 +221,7 @@ private:
 class CompFx final : public Effect {
 public:
   void prepare(const juce::dsp::ProcessSpec& s) override {
+    ptrs.assign(s.numChannels, nullptr); // sized off the audio thread; see process()
     auto mono = s;
     mono.numChannels = 1; // the detector is a single-channel side-chain
     det.prepare(mono);
@@ -221,30 +234,41 @@ public:
     det.setAttackTime(juce::jlimit(0.1f, 200.0f, pnum(s, "attackMs", 10.0f)));
     det.setReleaseTime(juce::jlimit(5.0f, 2000.0f, pnum(s, "releaseMs", 100.0f)));
   }
+  // Same reason as DelayFx: a fixed float*[8] would not overrun, it would silently leave channels 8+
+  // UNcompressed — which breaks the channel-linking guarantee that is the whole point of this class.
   void process(juce::dsp::AudioBlock<float>& b) noexcept override {
     const size_t n = b.getNumSamples();
-    const size_t c = juce::jmin<size_t>(b.getNumChannels(), kMaxCh);
-    float* p[kMaxCh];
-    for (size_t ch = 0; ch < c; ++ch) p[ch] = b.getChannelPointer(ch);
+    const size_t c = juce::jmin<size_t>(b.getNumChannels(), ptrs.size());
+    for (size_t ch = 0; ch < c; ++ch) ptrs[ch] = b.getChannelPointer(ch);
     const float slope = 1.0f - 1.0f / ratio;
     for (size_t i = 0; i < n; ++i) {
       float m = 0.0f;
-      for (size_t ch = 0; ch < c; ++ch) m = juce::jmax(m, std::abs(p[ch][i]));
+      for (size_t ch = 0; ch < c; ++ch) m = juce::jmax(m, std::abs(ptrs[ch][i]));
       const float envDb = juce::Decibels::gainToDecibels(det.processSample(0, m), -100.0f);
       const float over = envDb - thr;
       const float g = juce::Decibels::decibelsToGain((over > 0.0f ? -over * slope : 0.0f) + makeup, -100.0f);
-      for (size_t ch = 0; ch < c; ++ch) p[ch][i] *= g; // one gain, every channel — no image shift
+      for (size_t ch = 0; ch < c; ++ch) ptrs[ch][i] *= g; // one gain, every channel — no image shift
     }
   }
 private:
-  static constexpr size_t kMaxCh = 8;
   juce::dsp::BallisticsFilter<float> det;
+  std::vector<float*> ptrs;
   float thr = -18.0f, ratio = 4.0f, makeup = 0.0f;
 };
 
 // ── the chain ───────────────────────────────────────────────────────────────────────────────────
 class EffectChain {
 public:
+  // THE one predicate deciding whether a spec becomes a node. build() and updateParams() MUST agree: if
+  // they disagree by even one spec, updateParams walks the specs and the nodes out of step and writes
+  // spec[i]'s params into some other effect's node. (They used to disagree — build() dropped unknown
+  // types, updateParams didn't skip them — so a project carrying an effect type this build doesn't know,
+  // e.g. one saved by a newer ArtLux, would silently misapply every later effect's params.)
+  static bool buildable(const std::string& type, bool allowReverb) {
+    if (type == "gain" || type == "filter" || type == "delay" || type == "compressor") return true;
+    return type == "reverb" && allowReverb; // reverb is refused on the master — see ReverbFx
+  }
+
   // JS THREAD ONLY — allocates (nodes, the delay buffer, the reverb's HeapBlocks).
   static std::unique_ptr<EffectChain> build(const std::vector<EffectSpec>& specs,
                                             double sr, int maxBlock, int numCh, bool allowReverb) {
@@ -255,13 +279,14 @@ public:
       sr, (juce::uint32) juce::jmax(1, maxBlock), (juce::uint32) juce::jmax(1, numCh)
     };
     for (const auto& s : specs) {
+      if (!buildable(s.type, allowReverb)) continue;
       std::unique_ptr<Effect> fx;
       if      (s.type == "gain")       fx = std::make_unique<GainFx>();
       else if (s.type == "filter")     fx = std::make_unique<FilterFx>();
       else if (s.type == "delay")      fx = std::make_unique<DelayFx>();
       else if (s.type == "compressor") fx = std::make_unique<CompFx>();
-      else if (s.type == "reverb" && allowReverb) fx = std::make_unique<ReverbFx>();
-      else continue; // unknown type, or reverb on the master → the node simply doesn't exist
+      else if (s.type == "reverb")     fx = std::make_unique<ReverbFx>();
+      else continue;
       fx->prepare(spec);
       fx->setParams(s);
       fx->bypass = s.bypass;
@@ -270,12 +295,12 @@ public:
     return chain;
   }
 
-  // UNDER THE LOCK. Allocation-free: setters only, no reset, no click. Reached only when
-  // sameStructure() held, so the specs map 1:1 onto the nodes — except for entries build() skipped.
+  // UNDER THE LOCK. Allocation-free: setters only, no reset, no click. Reached only when sameStructure()
+  // held, so the BUILDABLE specs map 1:1 onto the nodes.
   void updateParams(const std::vector<EffectSpec>& specs) {
     size_t i = 0;
     for (const auto& s : specs) {
-      if (s.type == "reverb" && !allowReverb) continue; // never got a node
+      if (!buildable(s.type, allowReverb)) continue; // never got a node — skip it here too, or we desync
       if (i >= nodes.size()) break;
       nodes[i]->setParams(s);
       nodes[i]->bypass = s.bypass;

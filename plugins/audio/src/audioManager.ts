@@ -13,6 +13,9 @@ export interface Meters {
   // An effect chain built for a different channel count than the audio thread sees passes DRY — it looks
   // wired and meters normally. These two make that measurable instead of invisible.
   masterFxChannels: number; deviceChannels: number;
+  // LATCHED in the engine and cleared on read: true if ANY block clipped since the last poll. `peak` is
+  // one block's peak and we poll at ~10 Hz, so a clip indicator derived from it would miss most clipping.
+  clipped: boolean;
 }
 
 // One effect node, as the engine wants it. Mirrors AudioEffect in src/renderer/types.ts — `params` are
@@ -97,6 +100,6 @@ export function stopAll(): void { native?.stopAll(); }
 export function getMeters(): Meters {
   return native
     ? native.getMeters()
-    : { peak: 0, rms: 0, peakL: 0, peakR: 0, peaks: [], speakers: 0, masterFxChannels: 0, deviceChannels: 0 };
+    : { peak: 0, rms: 0, peakL: 0, peakR: 0, peaks: [], speakers: 0, masterFxChannels: 0, deviceChannels: 0, clipped: false };
 }
 export function close(): void { native?.close(); }
