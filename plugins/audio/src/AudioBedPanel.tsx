@@ -4,7 +4,7 @@
 // (its duration comes from decoding the file). Reads/writes the bed through host.audio (getMix/setMix/
 // subscribe). Per-scene audio (stingers/cues) is a later phase and rides the scene timeline instead.
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Plus, Music, Trash2, Volume2, VolumeX, AlertTriangle } from 'lucide-react';
+import { X, Plus, Music, Trash2, Volume2, VolumeX, AlertTriangle, Play, Pause, SkipBack } from 'lucide-react';
 import { useDraggable, type PanelProps } from '@artlux/sdk/renderer';
 import { getAudioHost } from './audioHost';
 import { audioClient } from './audioClient';
@@ -22,6 +22,7 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   const host = getAudioHost();
   const [mix, setMixState] = useState<Mix>(() => (host?.audio.getMix() as Mix) ?? emptyMix());
   const [meter, setMeter] = useState({ peak: 0, rms: 0 });
+  const [transport, setTransport] = useState({ playing: false, playhead: 0, duration: 0 });
   const [error, setError] = useState<string | null>(null);
   const peakHold = useRef(0);
   // Synchronously-fresh mirror of the bed. `host.audio.getMix()` reads App's audioMixRef, which only
@@ -46,6 +47,8 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
     if (!host) return;
     const iv = setInterval(() => {
       audioClient.getMeters().then((m) => { peakHold.current = Math.max(peakHold.current * 0.9, m.peak); setMeter({ peak: peakHold.current, rms: m.rms }); }).catch(() => {});
+      const st = host.show.getStatus(); // the bed rides the MAIN transport — mirror it here
+      setTransport({ playing: st.playing, playhead: st.playhead, duration: st.duration });
     }, 100);
     return () => clearInterval(iv);
   }, [host]);
@@ -94,6 +97,8 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   if (!host) return null;
   const clipsOf = (tid: string) => mix.clips.filter((c) => c.trackId === tid).sort((a, b) => a.start - b.start);
   const pct = (v: number) => `${Math.min(100, Math.round(v * 100))}%`;
+  // Scrub range: at least the timeline's length, but always far enough to reach the last bed clip.
+  const scrubMax = Math.max(10, transport.duration, ...mix.clips.map((c) => c.start + c.duration));
 
   return (
     // NOT a blocking modal: authoring the bed means dragging audio assets IN from the Media library, so the
@@ -105,13 +110,30 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
         className="w-[720px] max-w-[94vw] h-[70vh] max-h-[84vh] flex flex-col bg-surface-1 border border-line-2 rounded-lg shadow-e3 animate-modal-in">
         {/* header — drag handle */}
         <div {...handleProps} className="h-11 px-3 flex items-center gap-2 border-b border-line-1 bg-surface-2 shrink-0 cursor-move select-none">
-          <Music size={14} className="text-fg-2" />
-          <span className="text-xs font-semibold text-fg-1 uppercase tracking-wider">Audio Bed</span>
-          <span className="text-micro text-fg-3">global · survives scene changes</span>
-          <div className="ml-3 w-40 h-2 rounded bg-surface-3 overflow-hidden" title={`peak ${meter.peak.toFixed(3)}`}>
+          <Music size={14} className="text-fg-2 shrink-0" />
+          <span className="text-xs font-semibold text-fg-1 uppercase tracking-wider shrink-0">Audio Bed</span>
+
+          {/* Transport. The bed has NO clock of its own — it rides the MAIN timeline transport (same
+              controls as the Timeline panel / Space). These drive that transport via host.show. */}
+          <div className="flex items-center gap-1 ml-2 shrink-0">
+            <button onClick={() => host.show.transport({ kind: 'seek', sec: 0 })} title="Return to start"
+              className="p-1 rounded-sm bg-surface-3 text-fg-2 hover:text-fg-1"><SkipBack size={12} /></button>
+            <button onClick={() => host.show.transport({ kind: transport.playing ? 'pause' : 'play' })}
+              title={transport.playing ? 'Pause (Space)' : 'Play (Space)'}
+              className={`p-1 rounded-sm ${transport.playing ? 'bg-accent text-black' : 'bg-surface-3 text-fg-2 hover:text-fg-1'}`}>
+              {transport.playing ? <Pause size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
+            </button>
+            <span className="text-micro text-fg-2 tabular-nums w-9">{fmt(transport.playhead)}</span>
+          </div>
+          {/* Scrub the main playhead (seek) — the bed re-syncs to it. */}
+          <input type="range" min={0} max={scrubMax} step={0.05} value={Math.min(transport.playhead, scrubMax)}
+            onChange={(e) => host.show.transport({ kind: 'seek', sec: Number(e.target.value) })}
+            title="Scrub the playhead" className="flex-1 min-w-[80px] accent-accent" />
+
+          <div className="w-20 h-2 rounded bg-surface-3 overflow-hidden shrink-0" title={`peak ${meter.peak.toFixed(3)}`}>
             <div className="h-full bg-accent transition-[width] duration-75" style={{ width: pct(meter.peak) }} />
           </div>
-          <button onClick={addTrack} className="ml-auto inline-flex items-center gap-1 px-2 h-7 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 text-mini"><Plus size={12} /> Track</button>
+          <button onClick={addTrack} className="shrink-0 inline-flex items-center gap-1 px-2 h-7 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 text-mini"><Plus size={12} /> Track</button>
           <button onClick={onClose} className="text-fg-3 hover:text-fg-1 ml-1"><X size={16} /></button>
         </div>
 
