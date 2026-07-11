@@ -1,4 +1,4 @@
-import { Timeline, VideoClip, SurfaceContent, LayerBlendMode, StateMachine, isContentClip, defaultTimeline } from '../types';
+import { Timeline, VideoClip, SurfaceContent, LayerBlendMode, StateMachine, isContentClip, defaultTimeline, timelineEnd, timelineStart } from '../types';
 import { getBlobUrl, ensureBlobUrl } from './mediaCache';
 import * as contentSource from './contentSource';
 import { clipKindRegistry, videoCodecRegistry } from '../host/registries';
@@ -87,6 +87,11 @@ let playhead = 0;
 let originMs = 0;
 let raf = 0;
 let prevPlayhead = 0; // previous frame's playhead — for FSM crossing detection
+// End-of-timeline latch. The engine cannot write `playing` (App owns it), so it emits a 'pause'
+// intent — which takes a React round-trip to come back. Without this latch we would emit one intent
+// per frame for the whole trip. Cleared by any seek and by pressing play again.
+let endLatched = false;
+let hitEnd = false; // true for exactly the frame the playhead reached the end — feeds the FSM trigger
 const SLEW = 0.1; // fraction of residual drift a mirror window corrects per transport update
 
 // The project-level state machine (set by App via setStateMachine). Lives here — not in `data` — so
@@ -273,6 +278,7 @@ function mainSeek(sec: number): void {
   playhead = clamped;
   originMs = performance.now() - clamped * 1000;
   prevPlayhead = clamped;
+  endLatched = false; // a deliberate jump re-arms the end
 }
 
 
@@ -366,19 +372,34 @@ function sampleAutomation(t: number): void {
 function frame(now: number): void {
   raf = requestAnimationFrame(frame); // reschedule first so a throw below can never kill the loop
   try {
+    hitEnd = false; // one frame only: set below when the playhead lands on the end, read by the FSM tick
     // The main window owns the clock; a hapLocal mirror (the fullscreen projector) runs the same
     // monotonic clock so it plays at full speed while the hidden main window's bridged transport is
     // throttled. Deriving the playhead from a fixed origin (not += dt) keeps cadence uniform against
     // the display refresh and never drifts; seek() phase-locks mirror windows to the authority.
     if (!external || hapLocal) {
       if (playing) {
-        // Infinite timeline: advance unbounded (never modulo by duration). Wrap ONLY when looping
-        // is on with a valid [inPoint, outPoint) region — re-anchoring originMs keeps cadence uniform.
+        // Bounded timeline: `Length` (duration), or an explicit out-point, IS the end.
+        //   loop ON  → wrap over [start, end), re-anchoring originMs so cadence stays uniform
+        //   loop OFF → hold on the last frame and ask App to pause (the engine never writes `playing`)
         let t = (now - originMs) / 1000;
-        const a = data.inPoint, b = data.outPoint;
-        const loopOn = !!data.loop && a != null && b != null && b > a;
-        if (loopOn && t >= (b as number)) { t = (a as number) + ((t - (a as number)) % ((b as number) - (a as number))); originMs = now - t * 1000; }
-        else if (loopOn && t < (a as number)) { t = a as number; originMs = now - t * 1000; }
+        const a = timelineStart(data), b = timelineEnd(data);
+        if (t < a) { t = a; originMs = now - t * 1000; }
+        if (t >= b) {
+          if (data.loop) {
+            t = a + ((t - a) % (b - a));
+            originMs = now - t * 1000;
+          } else {
+            t = b;
+            originMs = now - t * 1000;
+            // Latch: emit ONCE, not every frame until App's state round-trips back to us.
+            if (!endLatched) {
+              endLatched = true;
+              hitEnd = true;                 // consumed by the FSM tick below, this frame only
+              if (!external) emitIntent({ kind: 'pause' });
+            }
+          }
+        }
         playhead = Math.max(0, t);
       } else {
         originMs = now - playhead * 1000; // keep the anchor live while paused so resume is seamless
@@ -525,7 +546,13 @@ export const timeline = {
   setPlaying(p: boolean): void {
     if (p === playing) return;
     playing = p;
-    if (p) originMs = performance.now() - playhead * 1000; // re-anchor the monotonic clock on resume
+    if (p) {
+      // Pressing play while parked on the end restarts from the top — otherwise we would hit the end
+      // on the very next frame and pause again, and the button would look dead.
+      if (!external && !data.loop && playhead >= timelineEnd(data) - 1e-3) mainSeek(timelineStart(data));
+      endLatched = false;
+      originMs = performance.now() - playhead * 1000; // re-anchor the monotonic clock on resume
+    }
   },
   setExternal(e: boolean): void { external = e; },
   setHapLocal(v: boolean): void { hapLocal = v; },
@@ -544,6 +571,8 @@ export const timeline = {
   },
   getPlayhead(): number { return playhead; },
   getDuration(): number { return data.duration; },
+  getEnd(): number { return timelineEnd(data); },
+  getStart(): number { return timelineStart(data); },
   isPlaying(): boolean { return playing; },
   // FSM control layer (main window). App subscribes to intents and turns them into transport state.
   subscribeIntent(cb: (i: TransportIntent) => void): () => void { intentSubs.add(cb); return () => { intentSubs.delete(cb); }; },

@@ -362,12 +362,12 @@ export interface AutomationLane {
 export interface Timeline {
   layers: VideoLayer[];
   clips: VideoClip[];
-  duration: number;      // length hint (zoom-to-fit / Length field) — NOT a playback wrap point
+  duration: number;      // the "Length" field — the timeline's END (see timelineEnd); an outPoint overrides it
   fps?: number;          // frame rate for HH:MM:SS:FF timecode (default 30)
   markers?: Marker[];    // ruler markers
   inPoint?: number | null;  // timeline range start (export/loop region) — NOT clip trim
   outPoint?: number | null; // timeline range end
-  loop?: boolean;        // when true, playback wraps over [inPoint, outPoint); else unbounded
+  loop?: boolean;        // when true, playback wraps over [timelineStart, timelineEnd); else it pauses at the end
   trackingTakes?: TrackingTakeRef[]; // recorded LiDAR-blob take library (drag onto a tracking lane)
   automation?: AutomationLane[];     // keyframe curves over the playhead (P4)
   /** @deprecated moved to project scope (ProjectData.stateMachine); kept read-only for migration. */
@@ -377,6 +377,19 @@ export const defaultTimeline = (): Timeline => ({
   layers: [], clips: [], duration: 60, fps: 30, markers: [], inPoint: null, outPoint: null,
   loop: false, trackingTakes: [], automation: [],
 });
+
+// The timeline's playable range. `duration` (the "Length" field) IS the end — as of Wave A it once
+// again bounds playback, reverting the v0.12.0 unbounded clock deliberately (see docs/TIMELINE.md).
+// An explicit out-point overrides it; an explicit in-point moves the start.
+export const timelineStart = (t: Timeline): number => Math.max(0, t.inPoint ?? 0);
+export const timelineEnd = (t: Timeline): number => {
+  const start = timelineStart(t);
+  const out = t.outPoint;
+  // A degenerate region (out <= in) is ignored rather than obeyed — obeying it would wedge the
+  // transport at a single instant with no way to escape from the UI.
+  if (out != null && out > start) return out;
+  return Math.max(start + 0.1, t.duration);
+};
 
 // Coerce a persisted automation array: drop junk, default the curve, and SORT — the sampler's cursor
 // assumes ascending `t`, and a hand-edited file must not be able to corrupt it.
