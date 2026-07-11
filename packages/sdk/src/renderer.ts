@@ -299,7 +299,8 @@ export interface ShowService<SM = unknown, Scene = unknown, Bank = unknown, Entr
 // with the real AudioMix.
 export interface AudioService<Mix = unknown> {
   getMix(): Mix;
-  subscribe(cb: () => void): () => void; // fires when the audio bed changes
+  setMix(mix: Mix): void;                 // replace the bed (host normalizes) — the bed-authoring UI writes here
+  subscribe(cb: () => void): () => void;  // fires when the audio bed changes
 }
 
 export interface RendererHostServices {

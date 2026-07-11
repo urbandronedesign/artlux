@@ -12,7 +12,9 @@
 
 import type { RendererPlugin, RendererPluginContext, RendererHostServices } from '@artlux/sdk/renderer';
 import { setIpc, audioClient } from './audioClient';
+import { setAudioHost } from './audioHost';
 import { AudioSettings } from './AudioSettings';
+import { AudioBedPanel } from './AudioBedPanel';
 import type { ClipMeta } from './audioManager';
 
 interface AudioPluginCfg { outputChannels?: number }
@@ -43,11 +45,14 @@ export const plugin: RendererPlugin = {
     // Audio clips carry no visual — keep them off the video-sync path and out of the PROGRAM composite.
     // MUST register in every window (main + projector), like tracking/mediapipe/augmenta.
     ctx.clipKinds.register({ kind: 'audio', excludeFromProgram: true, skipVideoSync: true });
+    // Audio Bed authoring panel (global bed → ProjectData.audio). Modal, toggled from View ▸ Audio Bed.
+    ctx.panels.register({ id: 'audio-bed', mount: 'modal', menuAction: 'audio-bed', title: 'Audio Bed', Component: AudioBedPanel });
 
     // Only the main editor/broadcast window drives the engine + bed playback.
     if (ctx.window !== 'main') return;
 
     const host = ctx.host as RendererHostServices;
+    setAudioHost(host); // let the Audio Bed panel reach host.audio/host.show
 
     // Open the device once on startup (default device, persisted channel count). Idempotent engine-side.
     const s0 = host.settings.get() as { plugins?: Record<string, unknown> };
@@ -58,6 +63,7 @@ export const plugin: RendererPlugin = {
     let bed: Bed = readBed(host);
     const loaded = new Map<string, ClipMeta>();   // clip source loaded in the engine
     const loading = new Set<string>();            // loads in flight (dedupe overlapping syncLoaded runs)
+    const failed = new Set<string>();             // sources that failed to decode (don't retry every bed edit)
     const sounding = new Set<string>();           // clips the engine is currently playing
     const sentGain = new Map<string, number>();   // last gain pushed, per sounding clip
     const sentOffset = new Map<string, number>(); // last source offset seeked, per sounding clip
@@ -93,8 +99,9 @@ export const plugin: RendererPlugin = {
       for (const id of [...loaded.keys()]) {
         if (!wanted.has(id)) { if (sounding.has(id)) stopSounding(id); audioClient.unloadClip(id); loaded.delete(id); }
       }
+      for (const id of [...failed]) if (!wanted.has(id)) failed.delete(id); // a re-added clip gets another try
       for (const clip of bed.clips) {
-        if (loaded.has(clip.id) || loading.has(clip.id) || !clip.path) continue;
+        if (loaded.has(clip.id) || loading.has(clip.id) || failed.has(clip.id) || !clip.path) continue;
         loading.add(clip.id);
         try {
           const meta = await audioClient.loadClip(clip.id, clip.path);
@@ -102,6 +109,11 @@ export const plugin: RendererPlugin = {
             if (bed.clips.some((c) => c.id === clip.id)) loaded.set(clip.id, meta);
             else audioClient.unloadClip(clip.id); // removed while loading → don't leave it resident
           }
+        } catch {
+          // Undecodable / missing source (loadClip rejects). Skip it and remember: one bad clip must never
+          // abort the pass (that would silence every clip after it) nor retry-storm on every bed edit.
+          failed.add(clip.id);
+          console.warn('[audio] clip failed to load:', clip.path);
         } finally { loading.delete(clip.id); }
       }
     };

@@ -1251,9 +1251,11 @@ const App: React.FC = () => {
       triggerTransition: (id) => timelineEngine.triggerSmTransition(id),
       enterState: (id) => timelineEngine.enterSmState(id),
     },
-    // Read-only global audio bed for the plugins/audio bed player (reads the live ref; fires on change).
+    // Global audio bed for the plugins/audio bed player (reads the live ref; fires on change) and its
+    // authoring UI (setMix replaces the bed; normalized on write like the load path).
     audio: {
       getMix: () => audioMixRef.current,
+      setMix: (mix) => setAudioMix(normalizeAudioMix(mix as Partial<AudioMix>)),
       subscribe: (cb) => { audioSubs.current.add(cb); return () => { audioSubs.current.delete(cb); }; },
     },
   }), []);
