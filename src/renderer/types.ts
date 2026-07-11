@@ -430,7 +430,17 @@ export const normalizeTimeline = (t: Partial<Timeline> | null | undefined): Time
   // A missing `layers` is defaulted below like every other array instead.
   if (!t) return base;
   const { stateMachine: _legacySm, ...rest } = t; // legacy field migrated to project scope in App's loader
-  const clips = t.clips ?? [];
+  // Coerce `clips` the same way normalizeAutomation coerces lanes: a present-but-wrong-shaped
+  // value (e.g. `{}` from a corrupt save — App.tsx's `segments` coercion documents this exact
+  // corruption class actually occurring, from a pre-fix cue write) must not reach the `.map()`
+  // in the duration computation below, and a null/undefined slot inside an otherwise-valid array
+  // (a hand edit, a partially-written save) must not either.
+  // The filtered array is also what gets RETURNED as Timeline.clips — downstream code (services/
+  // timeline.ts, components/timeline/Timeline.tsx, services/assetLibrary.ts, ...) iterates clips
+  // and reads their fields unguarded, so junk entries must be dropped here, once, not chased later.
+  const clips: VideoClip[] = (Array.isArray(t.clips) ? t.clips : []).filter(
+    (c): c is VideoClip => !!c && typeof c === 'object',
+  );
   return {
     ...base,
     ...rest,
@@ -451,7 +461,10 @@ export const normalizeTimeline = (t: Partial<Timeline> | null | undefined): Time
     // on a hand-edited or malformed project — finiteNum keeps one bad value from poisoning the max().
     duration: Math.max(
       finiteNum(t.duration) ?? base.duration,
-      ...clips.map(c => (finiteNum(c.start) ?? 0) + (finiteNum(c.duration) ?? 0)),
+      // `c?.` is defense in depth: `clips` is already filtered to objects above, but a bad
+      // element shape (e.g. `start`/`duration` themselves missing or non-finite) must still
+      // resolve to 0 rather than throw or poison the max() with NaN.
+      ...clips.map(c => (finiteNum(c?.start) ?? 0) + (finiteNum(c?.duration) ?? 0)),
       finiteNum(t.outPoint) ?? 0,
     ),
   };
