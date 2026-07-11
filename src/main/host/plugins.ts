@@ -10,8 +10,9 @@ import { plugin as calibration } from '@artlux/plugin-calibration/main';
 import { plugin as spout } from '@artlux/plugin-spout/main';
 import { plugin as hap } from '@artlux/plugin-hap/main';
 import { plugin as showControl } from '@artlux/plugin-show-control/main';
+import { plugin as audio } from '@artlux/plugin-audio/main';
 
-const FIRST_PARTY: MainPlugin[] = [ndi, calibration, spout, hap, showControl];
+const FIRST_PARTY: MainPlugin[] = [ndi, calibration, spout, hap, showControl, audio];
 
 let activated = false;
 

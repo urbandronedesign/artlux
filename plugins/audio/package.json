@@ -1,0 +1,15 @@
+{
+  "name": "@artlux/plugin-audio",
+  "version": "0.0.0",
+  "private": true,
+  "description": "First-party ArtLux plugin: native JUCE audio engine — stereo/multichannel playback of the global audio bed, device settings + meters. Ambisonic spatialisation, effects, and timeline automation arrive in later phases.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./main": "./src/main.ts",
+    "./renderer": "./src/renderer.ts"
+  },
+  "dependencies": {
+    "@artlux/sdk": "*"
+  }
+}

@@ -79,6 +79,12 @@
       ],
       "@artlux/plugin-show-control/renderer": [
         "./plugins/show-control/src/renderer.ts"
+      ],
+      "@artlux/plugin-audio/main": [
+        "./plugins/audio/src/main.ts"
+      ],
+      "@artlux/plugin-audio/renderer": [
+        "./plugins/audio/src/renderer.ts"
       ]
     },
     "allowImportingTsExtensions": true,
