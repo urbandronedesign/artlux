@@ -53,7 +53,7 @@ export const plugin: MainPlugin = {
 
     // Operator controls (from the app-side panel).
     ipc.on('showctl:set-lock', (v) => server.setLocked(!!v));
-    ipc.on('showctl:revoke', (tok) => { auth.revoke(typeof tok === 'string' ? tok : undefined); server.pushDevices(); });
+    ipc.on('showctl:revoke', (tok) => { auth.revoke(typeof tok === 'string' ? tok : undefined); server.disconnectRevoked(); server.pushDevices(); });
 
     ipc.handle('showctl:lan-info', () => server.lanInfo());
     ipc.handle('showctl:regen-pin', () => { auth.regeneratePin(); return server.lanInfo(); });

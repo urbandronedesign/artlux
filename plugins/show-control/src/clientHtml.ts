@@ -183,13 +183,27 @@ export const CLIENT_HTML = `<!doctype html>
          '<div class="accentbar" style="background:'+esc(sc.accent||'#5b8cff')+'"></div>'+
          '<span>'+esc(sc.name||'Scene')+'</span></button>'; }
     h+='</div>';
-    var bank=s.banks&&s.banks[0];
-    if(bank){
-      h+='<h3>Cue columns &mdash; '+esc(bank.name)+'</h3><div class="grid">';
-      for(var c=0;c<bank.cols;c++){ var has=bank.sceneCells.some(function(x){return x.col===c;})||bank.cues.some(function(q){return q.col===c;});
-        if(!has) continue;
-        h+='<button class="tile" data-act="col" data-bank="'+esc(bank.id)+'" data-col="'+c+'"><span>Column '+(c+1)+'</span><span class="sub">fire</span></button>'; }
-      h+='</div>';
+    // Every bank (was banks[0] only): per-cue fire tiles + the Column convenience row. Empty banks skipped.
+    var banks=s.banks||[];
+    for(var b=0;b<banks.length;b++){ var bank=banks[b];
+      var cues=bank.cues||[];
+      var cols=[]; for(var c=0;c<bank.cols;c++){ if(bank.sceneCells.some(function(x){return x.col===c;})||cues.some(function(q){return q.col===c;})) cols.push(c); }
+      if(!cues.length&&!cols.length) continue;
+      h+='<h3>'+esc(bank.name||'Bank')+'</h3>';
+      if(cues.length){
+        h+='<div class="grid">';
+        for(var k=0;k<cues.length;k++){ var cue=cues[k];
+          h+='<button class="tile" data-act="cue" data-ref="'+esc(cue.id)+'">'+
+             '<div class="accentbar" style="background:'+esc(cue.color||'#5b8cff')+'"></div>'+
+             '<span>'+esc(cue.name||'Cue')+'</span><span class="sub">fire</span></button>'; }
+        h+='</div>';
+      }
+      if(cols.length){
+        h+='<div class="grid">';
+        for(var ci=0;ci<cols.length;ci++){ var col=cols[ci];
+          h+='<button class="tile" data-act="col" data-bank="'+esc(bank.id)+'" data-col="'+col+'"><span>Column '+(col+1)+'</span><span class="sub">fire</span></button>'; }
+        h+='</div>';
+      }
     }
     shell(h);
   }
@@ -368,6 +382,7 @@ export const CLIENT_HTML = `<!doctype html>
     else if(a==='tp') cmd({kind:'transport',action:t.getAttribute('data-a')});
     else if(a==='scene') cmd({kind:'recallScene',ref:t.getAttribute('data-ref')});
     else if(a==='col') cmd({kind:'fireColumn',bank:t.getAttribute('data-bank'),col:parseInt(t.getAttribute('data-col'),10)});
+    else if(a==='cue') cmd({kind:'fireCue',ref:t.getAttribute('data-ref')});
     else if(a==='fsm') cmd({kind:'setFsmEnabled',on:t.getAttribute('data-on')==='1'});
     else if(a==='trans') cmd({kind:'triggerTransition',id:t.getAttribute('data-id')});
     else if(a==='enter') cmd({kind:'enterState',id:t.getAttribute('data-id')});

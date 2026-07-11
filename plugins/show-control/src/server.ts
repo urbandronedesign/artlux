@@ -24,7 +24,7 @@ export interface ServerHandlers {
   onSchedule(entries: unknown[]): void;     // tablet edited the in-project schedule (→ renderer host.show)
 }
 
-interface Client { res: ServerResponse; id: number }
+interface Client { res: ServerResponse; id: number; token: string }
 
 let server: Server | null = null;
 let port = 0;
@@ -82,7 +82,7 @@ function openStream(req: IncomingMessage, res: ServerResponse, token: string | u
     'X-Accel-Buffering': 'no',
   });
   res.write('retry: 3000\n\n'); // hint EventSource to reconnect quickly
-  const client: Client = { res, id: ++clientSeq };
+  const client: Client = { res, id: ++clientSeq, token: token || '' }; // token verified above; retained so a kick can cut this stream
   clients.add(client);
 
   // Replay current state so the tablet paints immediately on (re)connect.
@@ -201,6 +201,19 @@ export function close(): void {
 }
 
 export function hasClients(): boolean { return clients.size > 0; }
+
+// Close any SSE stream whose token no longer verifies — called right after auth.revoke so a kicked
+// device's live view is cut immediately, not "eventually, when it reconnects". The req 'close' handler
+// also deletes from clients (and clears the heartbeat), so the delete here is idempotent; Set deletion
+// mid-iteration only skips the removed entry.
+export function disconnectRevoked(): void {
+  for (const c of clients) {
+    if (!auth.verifyToken(c.token)) {
+      try { c.res.end(); } catch { /* */ }
+      clients.delete(c);
+    }
+  }
+}
 
 export function pushSnapshot(s: ShowSnapshot): void { lastSnapshot = s; emit({ t: 'snapshot', snapshot: s }); }
 export function pushStatus(s: ShowStatus): void { lastStatus = s; emit({ t: 'status', status: s }); }
