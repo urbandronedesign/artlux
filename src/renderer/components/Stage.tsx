@@ -9,6 +9,7 @@ import { livePreview } from '../services/livePreview';
 import * as surfaceMedia from '../services/surfaceMedia';
 import * as contentSource from '../services/contentSource';
 import * as transitions from '../services/transitions';
+import * as automationOverlay from '../services/automationOverlay';
 import { resolveDest, destKey } from '../services/addressing';
 import { perfMonitor } from '../services/perfMonitor';
 
@@ -285,18 +286,37 @@ export const Stage: React.FC<StageProps> = ({
       if (fitUpdate) { surfacesRef.current = fitUpdate; onUpdateSurfaces(fitUpdate); }
     }
 
-    // Render-free fade overrides: an active scene/cue transition lays interpolated values over the
-    // committed state each frame so the fade animates without a React re-render (idle ⇒ pass-through).
-    const fade = transitions.sample(performance.now());
+    // Render-free overrides, laid over the committed state each frame so they animate at display rate
+    // without a React re-render (idle ⇒ pass-through). ORDER MATTERS:
+    //   ① automation — a keyframe lane owns its path outright, so it is the BASE.
+    //   ② the scene/cue fade — it runs ON TOP, and for an automated path it re-reads its destination
+    //      from ① (transitions.toDynamic), so a recall glides onto the curve instead of snapping to a
+    //      stale value. Get this order backwards and every automated param jumps the instant a scene
+    //      is recalled. See the precedence note in transitions.ts.
     let effSurfaces = surfacesRef.current;
     let effFixtures = fixturesRef.current;
     let effBrightness = livePreview.brightness;
+    let geomDirty = false;
+    let paramsDirty = false;
+    if (automationOverlay.isActive()) {
+        const v = automationOverlay.apply({ surfaces: effSurfaces, fixtures: effFixtures, globalBrightness: effBrightness });
+        effSurfaces = v.surfaces; effFixtures = v.fixtures; effBrightness = v.globalBrightness;
+        geomDirty = automationOverlay.geometryAnimating();
+        paramsDirty = automationOverlay.paramsAnimating();
+        automationOverlay.consumeDirty();
+    }
+    const fade = transitions.sample(performance.now());
     if (fade) {
         const v = fade.apply({ surfaces: effSurfaces, fixtures: effFixtures, globalBrightness: effBrightness });
         effSurfaces = v.surfaces; effFixtures = v.fixtures; effBrightness = v.globalBrightness;
-        // Geometry fades change LED↔surface UV mapping → rebuild the GPU LED buffers this frame.
-        if (fade.geometryAnimating) mapper.current.updateMapping?.(effFixtures, effSurfaces);
+        if (fade.geometryAnimating) geomDirty = true;
     }
+    // Geometry moves change the LED↔surface UV mapping → rebuild the GPU LED buffers this frame.
+    if (geomDirty) mapper.current.updateMapping?.(effFixtures, effSurfaces);
+    // Non-geometry fixture params (intensity/speed) otherwise reach the GPU only through a React effect
+    // keyed on committed state — which a render-free override never touches. Without this, an automated
+    // intensity would animate everywhere EXCEPT the LEDs.
+    else if (paramsDirty) mapper.current.updateParams?.(effFixtures);
 
     // Composite every surface's content into the 512² canvas (z-order). Fixtures
     // sample this composite (S1); strict per-surface sampling arrives in S3.

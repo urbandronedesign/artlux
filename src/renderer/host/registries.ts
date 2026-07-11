@@ -18,6 +18,7 @@ import type {
   SceneVizContribution, SceneVizRegistry,
   ProjectorPanelContribution, ProjectorPanelRegistry,
   VideoCodecContribution, VideoCodecRegistry,
+  AutomationTargetProvider, AutomationTargetRegistry,
 } from '@artlux/sdk/renderer';
 import type { SurfaceContent, Surface, VideoClip, AppSettings } from '../types';
 import type { Scene3D } from '../../../shared/protocol';
@@ -44,6 +45,16 @@ export const projectorChannelRegistry: ProjectorChannelRegistry<Surface> = {
   register(c) { projectorChannels.set(c.channel, c); },
   all() { return [...projectorChannels.values()]; },
   get(channel) { return projectorChannels.get(channel); },
+};
+
+// ── Automation targets ────────────────────────────────────────────────────────────────────
+// One provider per PATH NAMESPACE (the head of a lane's targetPath). The automation sampler resolves a
+// lane by its head and hands the value to the owner; core never parses the rest of the path.
+const automationProviders = new Map<string, AutomationTargetProvider>();
+export const automationTargetRegistry: AutomationTargetRegistry = {
+  register(p) { for (const ns of p.namespaces) automationProviders.set(ns, p); },
+  get(namespace) { return automationProviders.get(namespace); },
+  all() { return [...new Set(automationProviders.values())]; }, // a provider owning N heads appears once
 };
 
 // ── Settings sections ─────────────────────────────────────────────────────────────────────

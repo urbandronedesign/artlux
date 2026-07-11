@@ -57,6 +57,51 @@ export interface ClipKindRegistry<Clip = unknown> {
   get(kind: string): ClipKindContribution<Clip> | undefined;
 }
 
+// ─── Automation target contribution ───────────────────────────────────────────────────────
+// A NAMESPACE of automatable parameters. An automation lane addresses one parameter by dot-path; the
+// host resolves the path by its HEAD (the first segment) and hands it to the provider that owns that
+// namespace. Everything after the head is the PROVIDER'S OWN GRAMMAR — core never parses it. That is
+// what lets the audio plugin expose `audio.clip.<id>.fx.<effectId>.cutoff` without core knowing what a
+// filter is, and what keeps the core automation engine generic enough for fixtures/surfaces to use too.
+export interface AutomationTargetDef {
+  path: string;    // full dot-path, e.g. 'audio.clip.c7.fx.e2.cutoff'
+  label: string;   // 'Cutoff'
+  group: string;   // section heading in the picker, e.g. 'Bed ▸ Rain ▸ Filter'
+  min: number;
+  max: number;
+  def: number;
+  step?: number;   // smallest meaningful change — ALSO the sampler's change-detect epsilon
+  unit?: string;
+  log?: boolean;   // log response: the lane's Y AXIS and its interpolation both run in log space
+}
+export interface AutomationTargetProvider {
+  /**
+   * The path HEADS this provider owns — e.g. ['audio'], or core's ['surfaces','fixtures','globalBrightness'].
+   * One owner per head; a provider may own several (paramPath's grammar already spans three).
+   */
+  namespaces: string[];
+  /** Everything automatable right now (the bed changes as clips are added) — drives the target picker. */
+  enumerate(): AutomationTargetDef[];
+  /** The AUTHORED value (what the slider last wrote), used to seed a new lane. */
+  get(path: string): number | undefined;
+  /**
+   * Push a sampled value. CALLED FROM INSIDE THE rAF FRAME LOOP, so the contract is strict:
+   * it MUST NOT touch React state, MUST NOT write the persisted document, and MUST NOT allocate.
+   * Write to a LIVE OVERRIDE layer you own — the authored value in the project stays untouched, which
+   * is what lets a lane be disabled and the fader snap straight back to what the user actually set.
+   */
+  write(path: string, value: number): void;
+  /** A lane stopped owning this path (disabled, deleted, or dropped by a scene swap) — return it to manual. */
+  release(path: string): void;
+  /** Optional: called once per frame AFTER all writes, so a provider can flush coalesced changes. */
+  frameEnd?(): void;
+}
+export interface AutomationTargetRegistry {
+  register(p: AutomationTargetProvider): void;
+  get(namespace: string): AutomationTargetProvider | undefined;
+  all(): AutomationTargetProvider[];
+}
+
 // ─── Video codec contribution ─────────────────────────────────────────────────────────────
 // A pluggable video decoder for file content the browser `<video>` can't play (HAP; later DXV, or a
 // native-decode MP4). The host dispatches a matching file path to the first codec whose `canDecode`
@@ -325,6 +370,7 @@ export interface RendererPluginContext<C = unknown, SurfaceT = unknown, Clip = u
   sceneViz: SceneVizRegistry;
   projectorPanels: ProjectorPanelRegistry;
   videoCodecs: VideoCodecRegistry;
+  automationTargets: AutomationTargetRegistry;
   ipc: PluginIpc;
   // Subscribe to the timeline engine's coalesced per-frame playhead (seconds). Returns unsub.
   onPlayhead(cb: (playheadSec: number) => void): () => void;

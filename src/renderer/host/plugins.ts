@@ -8,9 +8,10 @@
 import {
   contentSourceRegistry, clipKindRegistry, projectorChannelRegistry,
   settingsSectionRegistry, panelRegistry, sceneVizRegistry, projectorPanelRegistry,
-  videoCodecRegistry,
+  videoCodecRegistry, automationTargetRegistry,
 } from './registries';
 import { timeline } from '../services/timeline';
+import { coreAutomationProvider } from '../services/automationTargets.core';
 import { perfMonitor } from '../services/perfMonitor';
 import type { RendererPlugin, RendererPluginContext, PluginIpc, RendererHostServices } from '@artlux/sdk/renderer';
 import { plugin as lidarTracking } from '@artlux/plugin-lidar-tracking';
@@ -64,6 +65,7 @@ function makeContext(win: 'main' | 'projector', host: RendererHostServices): Ren
     sceneViz: sceneVizRegistry,
     projectorPanels: projectorPanelRegistry,
     videoCodecs: videoCodecRegistry,
+    automationTargets: automationTargetRegistry,
     ipc,
     onPlayhead: (cb) => timeline.subscribe(cb),
     // ~1 Hz poll adapter over perfMonitor (which is polled, not observable) — mirrors onPlayhead.
@@ -78,6 +80,9 @@ function makeContext(win: 'main' | 'projector', host: RendererHostServices): Ren
 export function activateRendererPlugins(win: 'main' | 'projector', host: RendererHostServices = NOOP_HOST): void {
   if (activated) return;
   activated = true;
+  // Core's own automation namespaces (surfaces / fixtures / globalBrightness) register alongside the
+  // plugins' — the automation engine doesn't privilege core, it just resolves a path's head to an owner.
+  automationTargetRegistry.register(coreAutomationProvider);
   const ctx = makeContext(win, host);
   for (const p of FIRST_PARTY) {
     try { p.activate(ctx); } catch (e) { console.error(`[plugins] ${p.manifest.id} activate failed`, e); }

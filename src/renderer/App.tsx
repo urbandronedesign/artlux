@@ -38,6 +38,7 @@ import { dmxSignal } from './services/dmxSignal';
 import { perfMonitor } from './services/perfMonitor';
 import { getDrawable } from './services/surfaceMedia';
 import { timeline as timelineEngine, GLOBAL_POOL } from './services/timeline';
+import { setCoreStateView } from './services/automationTargets.core';
 import * as timelinePreloader from './services/timelinePreloader';
 import { nextAccent, GLOBAL_ACCENT } from './sceneAccent';
 import * as oscController from './services/oscController';
@@ -213,6 +214,15 @@ const App: React.FC = () => {
   const nvAppliedRef = useRef<Map<string, number>>(new Map());           // surfaceId -> displayId with a live NVAPI warp/blend
   const surfacesRef = useRef<Surface[]>(surfaces);                        // live mirror for the frame pump
   surfacesRef.current = surfaces;
+  // The automation engine samples curves inside the frame loop and lays them over committed state
+  // WITHOUT re-rendering React, so its view of the world has to be a live ref, not a captured value.
+  const brightnessRef = useRef(globalBrightness); brightnessRef.current = globalBrightness;
+  useEffect(() => {
+    setCoreStateView(() => ({ surfaces: surfacesRef.current, fixtures: fixturesRef.current, globalBrightness: brightnessRef.current }));
+  }, []);
+  // The GLOBAL timeline's lanes run as a BASE under every scene: the audio bed is global and survives
+  // scene swaps, so its curves must too. A scene's own lane on the same targetPath shadows the base one.
+  useEffect(() => { timelineEngine.setBaseAutomation(timeline.automation ?? []); }, [timeline.automation]);
 
   const [isBridgeConnected, setIsBridgeConnected] = useState(false);
   const [outputStats, setOutputStats] = useState<{ pps: number; fps: number; universes: number } | null>(null);

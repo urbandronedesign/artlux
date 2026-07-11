@@ -1,5 +1,6 @@
 import type { CueTransition } from '../types';
-import { StateView, FadeTarget, setByPath, isGeometryPath } from './paramPath';
+import { StateView, FadeTarget, setByPath, getByPath, isGeometryPath } from './paramPath';
+import * as automationOverlay from './automationOverlay';
 
 // Render-free fade/crossfade engine for Scenes & Cues. Modeled on livePreview/dmxSignal: an
 // imperative singleton the Stage frame pump samples each frame to lay interpolated values over the
@@ -18,7 +19,10 @@ const EASES: Record<CueTransition, (t: number) => number> = {
 // One animated parameter. Extends FadeTarget {path, from, to} with optional per-leg timing.
 export interface FadeLeg extends FadeTarget { transition?: CueTransition; fadeSec?: number }
 
-interface ActiveLeg { path: string; from: number; to: number; durMs: number; ease: (t: number) => number; geom: boolean }
+// `toDynamic`: this leg's path is owned by an automation lane, so its destination is a MOVING TARGET —
+// re-read from the automated base every frame instead of the value captured when the fade started.
+// See the precedence rule below.
+interface ActiveLeg { path: string; from: number; to: number; durMs: number; ease: (t: number) => number; geom: boolean; toDynamic: boolean }
 interface ActiveFade { legs: ActiveLeg[]; startMs: number; onComplete?: () => void }
 
 let active: ActiveFade | null = null;
@@ -47,6 +51,7 @@ export function start(targets: FadeLeg[], opts: { fadeSec: number; transition?: 
       durMs: trans === 'none' ? 0 : Math.max(0, sec) * 1000,
       ease: EASES[trans] ?? EASES.smooth,
       geom: isGeometryPath(t.path),
+      toDynamic: automationOverlay.owns(t.path),
     };
   });
   const willAnimate = legs.some((l) => l.durMs > 0);
@@ -74,11 +79,23 @@ export function sample(nowMs: number): SampleResult | null {
     const raw = leg.durMs <= 0 ? 1 : (nowMs - a.startMs) / leg.durMs;
     if (raw < 1) { allDone = false; if (leg.geom) geomAnimating = true; }
   }
+  // PRECEDENCE — the one rule: THE LANE OWNS THE PATH, AND A FADE LANDS ON IT.
+  //
+  // `base` here has already had the automation overlay applied (Stage lays it down first), so for an
+  // automated path `getByPath(base, ...)` IS the live curve value. Re-reading `to` from it each frame
+  // means the fade glides onto the moving curve and, at progress 1, its value already equals the curve's.
+  //
+  // The alternatives are both visibly wrong on a real desk: sampling automation AFTER the fade would make
+  // every automated param SNAP the instant a scene is recalled (a 5s crossfade becomes an instant jump on
+  // exactly the params the operator cares most about), while freezing `to` at recall would hold the param
+  // static for the fade and then STEP onto the curve the frame the leg completes. Neither is shippable.
+  // For a path with no lane, toDynamic is false and this is byte-identical to what it always did.
   const apply = (base: StateView): StateView => {
     let v = base;
     for (const leg of a.legs) {
       const raw = leg.durMs <= 0 ? 1 : (nowMs - a.startMs) / leg.durMs;
-      const val = raw >= 1 ? leg.to : leg.from + (leg.to - leg.from) * leg.ease(clamp01(raw));
+      const to = leg.toDynamic ? ((getByPath(base, leg.path) as number | undefined) ?? leg.to) : leg.to;
+      const val = raw >= 1 ? to : leg.from + (to - leg.from) * leg.ease(clamp01(raw));
       v = setByPath(v, leg.path, val);
     }
     return v;

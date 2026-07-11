@@ -333,6 +333,32 @@ export const defaultStateMachine = (): StateMachine => ({
   enabled: false, states: [], transitions: [], initialStateId: null, regions: [],
 });
 
+// --- Automation (Wave 3, P4) ---
+// A keyframe curve over the PLAYHEAD. Lanes ride the Timeline exactly as clips do — which means they
+// come along for free wherever a Timeline goes: the shared global timeline (ProjectData.timeline) and
+// each scene's own (scene.timeline). The engine evaluates the GLOBAL timeline's lanes as a BASE LAYER
+// underneath the active scene's, shadowed per targetPath, so a scene can override one curve without
+// disturbing the rest of the show's automation.
+export type CurveKind = 'linear' | 'hold' | 'bezier';
+// One breakpoint. `t` is TIMELINE seconds (never clip-relative, and never clamped to `duration` — the
+// timeline is unbounded). `v` is in the TARGET'S NATIVE UNITS: Hz, dB, linear gain, metres — the very
+// number the authoring slider writes, so a keyframe means exactly what the fader meant. `curve` shapes
+// the segment STARTING at this keyframe.
+export interface Keyframe {
+  t: number;
+  v: number;
+  curve?: CurveKind;                                      // default 'linear'
+  cx1?: number; cy1?: number; cx2?: number; cy2?: number; // bezier handles, normalised into the segment's unit box
+}
+export interface AutomationLane {
+  id: string;
+  targetPath: string;     // dot-path; the HEAD names the namespace, and only its owner parses the rest
+  enabled?: boolean;      // default true. false ⇒ authored but inert, and the path returns to manual control
+  keyframes: Keyframe[];  // INVARIANT: sorted ascending by t (normalizeTimeline enforces it)
+  height?: number;        // lane height in px
+  color?: string;
+}
+
 export interface Timeline {
   layers: VideoLayer[];
   clips: VideoClip[];
@@ -343,25 +369,44 @@ export interface Timeline {
   outPoint?: number | null; // timeline range end
   loop?: boolean;        // when true, playback wraps over [inPoint, outPoint); else unbounded
   trackingTakes?: TrackingTakeRef[]; // recorded LiDAR-blob take library (drag onto a tracking lane)
+  automation?: AutomationLane[];     // keyframe curves over the playhead (P4)
   /** @deprecated moved to project scope (ProjectData.stateMachine); kept read-only for migration. */
   stateMachine?: StateMachine;
 }
 export const defaultTimeline = (): Timeline => ({
   layers: [], clips: [], duration: 60, fps: 30, markers: [], inPoint: null, outPoint: null,
-  loop: false, trackingTakes: [],
+  loop: false, trackingTakes: [], automation: [],
 });
+
+// Coerce a persisted automation array: drop junk, default the curve, and SORT — the sampler's cursor
+// assumes ascending `t`, and a hand-edited file must not be able to corrupt it.
+const normalizeAutomation = (a: unknown): AutomationLane[] => {
+  if (!Array.isArray(a)) return [];
+  return (a as Partial<AutomationLane>[]).flatMap(l => {
+    if (!l || typeof l.id !== 'string' || typeof l.targetPath !== 'string') return [];
+    const keyframes = (Array.isArray(l.keyframes) ? l.keyframes : [])
+      .filter((k): k is Keyframe => !!k && Number.isFinite(k.t) && Number.isFinite(k.v))
+      .map(k => ({ ...k, curve: k.curve ?? 'linear' as CurveKind }))
+      .sort((x, y) => x.t - y.t);
+    return [{ ...l, enabled: l.enabled ?? true, keyframes } as AutomationLane];
+  });
+};
 
 // Fill defaults for fields added after a project was saved, so old projects load cleanly.
 // Top-level fields would migrate via the spread in App's loader, but per-array fields
 // (layer/clip) need explicit defaulting — done here in one place.
 export const normalizeTimeline = (t: Partial<Timeline> | null | undefined): Timeline => {
   const base = defaultTimeline();
-  if (!t || !Array.isArray(t.layers)) return base;
+  // NB: this used to bail on `!Array.isArray(t.layers)` and return an EMPTY timeline — which silently
+  // discarded everything else on it. An audio-only scene (automation curves, zero video layers) is a
+  // perfectly ordinary thing to author, and it would have lost all its lanes on load, once, for good.
+  // A missing `layers` is defaulted below like every other array instead.
+  if (!t) return base;
   const { stateMachine: _legacySm, ...rest } = t; // legacy field migrated to project scope in App's loader
   return {
     ...base,
     ...rest,
-    layers: (t.layers ?? []).map(l => ({ enabled: true, ...l })),
+    layers: Array.isArray(t.layers) ? t.layers.map(l => ({ enabled: true, ...l })) : [],
     clips: t.clips ?? [],
     trackingTakes: t.trackingTakes ?? [],
     markers: t.markers ?? [],
@@ -369,6 +414,7 @@ export const normalizeTimeline = (t: Partial<Timeline> | null | undefined): Time
     outPoint: t.outPoint ?? null,
     fps: t.fps ?? base.fps,
     loop: t.loop ?? false,
+    automation: normalizeAutomation(t.automation),
   };
 };
 

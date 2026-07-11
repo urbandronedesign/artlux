@@ -2,6 +2,10 @@ import { Timeline, VideoClip, SurfaceContent, LayerBlendMode, StateMachine, isCo
 import { getBlobUrl, ensureBlobUrl } from './mediaCache';
 import * as contentSource from './contentSource';
 import { clipKindRegistry, videoCodecRegistry } from '../host/registries';
+import { automationTargetRegistry } from '../host/registries';
+import { sampleLane, type Cursor } from './automation';
+import type { AutomationLane, Keyframe } from '../types';
+import type { AutomationTargetProvider } from '@artlux/sdk/renderer';
 import type { VideoCodecContribution } from '@artlux/sdk/renderer';
 import * as fsm from './stateMachine';
 import type { TransportIntent, SmContext } from './stateMachine';
@@ -271,6 +275,86 @@ function mainSeek(sec: number): void {
   prevPlayhead = clamped;
 }
 
+
+// ── Automation ──────────────────────────────────────────────────────────────────────────────────
+// Lanes ride the Timeline, so they arrive with `data` for free — the ACTIVE timeline's lanes, layered
+// over the GLOBAL timeline's as a BASE (shadowed per targetPath, so a scene can override one curve
+// without disturbing the rest of the show's automation).
+//
+// The lane set is COMPILED (resolve the provider, cache the range/epsilon, preallocate the cursor) on
+// setData/swap/setBaseAutomation — never per frame. Per frame we only sample and, if the value actually
+// moved, push it. Nothing here allocates: the audio provider's write() ends in an audio-lock acquisition,
+// so a value that hasn't changed must never be pushed.
+interface LaneRT {
+  kfs: Keyframe[];
+  path: string;
+  provider: AutomationTargetProvider;
+  log: boolean;
+  eps: number;          // change-detect epsilon: half a UI step — below it, nothing can represent the difference
+  cursor: Cursor;       // preallocated; carries last frame's segment index
+  last: number;         // last value pushed; NaN ⇒ never ⇒ the first sample always lands
+}
+let lanesRT: LaneRT[] = [];
+let ownedPaths = new Set<string>();
+let baseAutomation: AutomationLane[] = [];   // the GLOBAL timeline's lanes (the base layer)
+
+function compileAutomation(): void {
+  if (external) return; // the projector's playhead is slew-corrected, so re-sampling there would differ
+  // Active lanes shadow base lanes by targetPath. The global timeline IS the base, so it must not also
+  // stack on itself when it happens to be the active one.
+  const active = data.automation ?? [];
+  const activePaths = new Set(active.map(l => l.targetPath));
+  const base = activeKey === GLOBAL_POOL ? [] : baseAutomation.filter(l => !activePaths.has(l.targetPath));
+  const lanes = [...base, ...active];
+
+  const next: LaneRT[] = [];
+  const nextPaths = new Set<string>();
+  for (const lane of lanes) {
+    if (lane.enabled === false || !lane.keyframes?.length) continue;
+    const head = lane.targetPath.split('.')[0];
+    const provider = automationTargetRegistry.get(head);
+    if (!provider) continue; // unknown namespace (a plugin is disabled) — the lane persists, but is inert
+    const def = provider.enumerate().find(d => d.path === lane.targetPath);
+    if (!def) continue;      // dangling target (the clip was deleted) — kept in the file, not evaluated
+    const kfs = lane.keyframes.slice().sort((a, b) => a.t - b.t); // trust nothing: the cursor needs sorted keys
+    next.push({
+      kfs,
+      path: lane.targetPath,
+      provider,
+      log: !!def.log,
+      eps: (def.step ?? (def.max - def.min) / 1000) * 0.5,
+      cursor: { i: -1 },
+      last: NaN,
+    });
+    nextPaths.add(lane.targetPath);
+  }
+  // RELEASE-ON-DROP. A path we owned last compile but not now — the lane was deleted, disabled, or
+  // dropped by a scene swap — must be handed back to manual control, or the target would be STRANDED at
+  // the outgoing curve's last value forever (a bed clip stuck at whatever gain the curve happened to be
+  // holding when the scene changed).
+  for (const p of ownedPaths) {
+    if (nextPaths.has(p)) continue;
+    automationTargetRegistry.get(p.split('.')[0])?.release(p);
+  }
+  lanesRT = next;
+  ownedPaths = nextPaths;
+}
+
+function sampleAutomation(t: number): void {
+  const n = lanesRT.length;
+  if (n === 0) return; // the no-automation cost is one compare
+  let wrote = false;
+  for (let i = 0; i < n; i++) {
+    const rt = lanesRT[i];
+    const v = sampleLane(rt.kfs, t, rt.cursor, rt.log);
+    if (Math.abs(v - rt.last) < rt.eps) continue; // unchanged — do NOT push (every audio push takes the audio lock)
+    rt.last = v;
+    rt.provider.write(rt.path, v);
+    wrote = true;
+  }
+  if (wrote) for (const p of automationTargetRegistry.all()) p.frameEnd?.();
+}
+
 function frame(now: number): void {
   raf = requestAnimationFrame(frame); // reschedule first so a throw below can never kill the loop
   try {
@@ -291,6 +375,14 @@ function frame(now: number): void {
       } else {
         originMs = now - playhead * 1000; // keep the anchor live while paused so resume is seamless
       }
+    }
+    // Automation: sample the lanes and push what moved. Deliberately NOT a subscribe() callback — `subs`
+    // is insertion-ordered and the audio driver is one of them, so a late subscriber's values would land
+    // AFTER reconcile() had already run this frame, costing a permanent frame of latency. It also sits
+    // OUTSIDE the `playing` gate above, so scrubbing while paused still moves the curve (which is what
+    // makes the bed sound right the instant you hit play).
+    if (!external) {
+      try { sampleAutomation(playhead); } catch (e) { console.error('[timeline] automation error', e); }
     }
     // FSM control layer (main window only — mirrors receive the resulting transport via the bridge).
     // Ticks every frame regardless of `playing` so the standalone wall clock advances while stopped.
@@ -361,6 +453,7 @@ export const timeline = {
     if (external) return; // mirror windows don't decode — no blobs / video elements to manage
     warmMedia(t);
     pruneStaleLayers(layerVideos, t);
+    compileAutomation();
   },
   // Pre-warm a scene's timeline into a standby pool WITHOUT going live (WARM tier): shared media by
   // path + a paused, first-frame-seeked <video> per layer, so a later swap() is hitless. Idempotent.
@@ -391,6 +484,13 @@ export const timeline = {
     pruneStaleLayers(pool, t);
     warmMedia(t);
     if ((opts?.transport ?? 'restart') === 'restart') mainSeek(t.inPoint ?? 0); // clean first-frame start
+    compileAutomation(); // AFTER the seek, so the first post-recall sample is taken at the new playhead
+  },
+  // The GLOBAL timeline's lanes, which run as a BASE under every scene (the global audio bed is global,
+  // so its curves must outlive a scene swap). Pushed by App whenever the global timeline changes.
+  setBaseAutomation(lanes: AutomationLane[]): void {
+    baseAutomation = lanes;
+    compileAutomation();
   },
   // Demote a standby pool to COLD: tear down its <video>s (decoders) and free codec/content it uniquely
   // holds. Never drops the global fallback or the currently-active pool. Driven by the preloader.
