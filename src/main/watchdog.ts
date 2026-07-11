@@ -42,6 +42,7 @@ let mode = 'editor';
 let project = '';
 let armed = false; // enabled && (broadcast || always) — set once at start()
 let relaunching = false; // in-process guard: once we decide to relaunch, ignore further triggers
+let deferTimer: ReturnType<typeof setTimeout> | null = null; // pending paced relaunch (minRelaunchGapSec)
 let healthTimer: ReturnType<typeof setInterval> | null = null;
 let lastRenderAt = 0; // epoch ms of the last renderer heartbeat (0 until the first one)
 let everUp = false; // output was live at least once (so "down" means it died, not never-configured)
@@ -113,6 +114,7 @@ export function attach(win: BrowserWindow): void {
 
 export function stop(): void {
   if (healthTimer) { clearInterval(healthTimer); healthTimer = null; }
+  if (deferTimer) { clearTimeout(deferTimer); deferTimer = null; } // never fire a paced relaunch after a clean quit
 }
 
 // ─── Health feeds (called from the existing 1 Hz stat plumbing in ipc.ts) ─────────────────────────
@@ -163,6 +165,23 @@ function maybeRelaunch(trigger: string, detail: string): void {
       try { writeFileSync(trippedFlag(), new Date().toISOString(), 'utf-8'); } catch { /* ignore */ }
       logEvent(trigger, `${detail}; ${recent.length} relaunches/h`, 'tripped', 'circuit breaker — giving up');
       return;
+    }
+    // Pace back-to-back relaunches by minRelaunchGapSec. The FIRST relaunch after a stable run has no
+    // recent timestamp → gap check passes → instant recovery. Only a 2nd+ relaunch inside the gap is
+    // paced, and we DEFER (not drop) so a one-shot crash trigger still recovers once the gap elapses.
+    // Persisted relaunch times mean the gap is honored across processes (the crash-loop case), and the
+    // `if (deferTimer) return` guard logs the pacing decision exactly ONCE per window (healthTick re-fires
+    // render-stall every second — logging on each would flood the audit log + tablet view).
+    const gapMs = Math.max(0, (cfg.minRelaunchGapSec ?? 0) * 1000);
+    if (gapMs > 0 && recent.length > 0) {
+      const last = Math.max(...recent);
+      const wait = last + gapMs - Date.now();
+      if (wait > 0) {
+        if (deferTimer) return; // already pacing — do not stack a timer or re-log
+        logEvent(trigger, detail, 'skipped-debounce', `pacing ${Math.round(wait / 1000)}s (gap ${cfg.minRelaunchGapSec}s)`);
+        deferTimer = setTimeout(() => { deferTimer = null; maybeRelaunch(trigger, `${detail} (deferred)`); }, wait + 50);
+        return;
+      }
     }
     relaunching = true;
     recent.push(Date.now());

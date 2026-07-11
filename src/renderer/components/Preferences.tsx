@@ -64,6 +64,8 @@ const WatchdogSection: React.FC<{ open: boolean }> = ({ open }) => {
                    onChange={(v) => update({ outputDownSec: Math.max(2, Math.round(v)) })} />
       <NumberField label="Render-stall (s)" value={cfg.renderStallSec} step={1} min={2} max={600}
                    onChange={(v) => update({ renderStallSec: Math.max(2, Math.round(v)) })} />
+      <NumberField label="Min relaunch gap (s)" value={cfg.minRelaunchGapSec} step={1} min={0} max={600}
+                   onChange={(v) => update({ minRelaunchGapSec: Math.max(0, Math.round(v)) })} />
       <NumberField label="Max relaunches / hour" value={cfg.maxRelaunchesPerHour} step={1} min={1} max={60}
                    onChange={(v) => update({ maxRelaunchesPerHour: Math.max(1, Math.round(v)) })} />
 

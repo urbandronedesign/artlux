@@ -75,7 +75,7 @@ arms + attaches its detectors at process start).
 | `crashRecovery` | `true` | Tier-1 crash/hang/GPU recovery |
 | `outputDownSec` | `15` | relaunch after output down this long (post-live) |
 | `renderStallSec` | `10` | relaunch after no render heartbeat / unresponsive this long |
-| `minRelaunchGapSec` | `30` | debounce between relaunch decisions |
+| `minRelaunchGapSec` | `30` | minimum gap between successive relaunches. The **first** relaunch after a stable run is never delayed; a 2nd+ relaunch inside the gap is **deferred** (not dropped) until the gap elapses, logging a `skipped-debounce` audit event. `0` disables pacing. |
 | `maxRelaunchesPerHour` | `6` | circuit breaker |
 | `always` | `false` | arm outside `--broadcast` too |
 
