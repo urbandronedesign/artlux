@@ -67,13 +67,16 @@ public:
   ~Engine() { closeDevice(); }
 
   juce::String configure(int outputChannels) {
+    const int ch = juce::jlimit(1, 64, outputChannels);
+    if (opened && ch == openedChannels) return {}; // already open on this config — no-op, don't interrupt playback
     if (opened) { deviceManager.removeAudioCallback(&player); player.setSource(nullptr); deviceManager.closeAudioDevice(); opened = false; }
-    juce::String err = deviceManager.initialiseWithDefaultDevices(0, juce::jlimit(1, 64, outputChannels));
+    juce::String err = deviceManager.initialiseWithDefaultDevices(0, ch);
     if (err.isNotEmpty()) return err;
     if (!readThread.isThreadRunning()) readThread.startThread();
     player.setSource(&metering);
     deviceManager.addAudioCallback(&player);
     opened = true;
+    openedChannels = ch;
     return {};
   }
 
@@ -171,6 +174,7 @@ private:
   std::unordered_map<std::string, std::unique_ptr<Clip>> clips;
   std::mutex mutex;
   bool opened = false;
+  int openedChannels = 0;
 };
 
 std::unique_ptr<Engine> gEngine;
