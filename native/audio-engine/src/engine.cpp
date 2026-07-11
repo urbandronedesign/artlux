@@ -1,22 +1,25 @@
 // ArtLux native audio engine (Wave 3). JUCE playback + libspatialaudio ambisonic spatialisation.
 //
 // Signal chain:
-//   spatial clips → downmix → AmbisonicEncoder(position) → ProcessAccumul ↘
+//   spatial clips → downmix → CLIP FX (1ch) → AmbisonicEncoder(position) → ProcessAccumul ↘
 //                                                                     B-format → Binauralizer(HRTF) ↘
-//   non-spatial clips ────────────────────────────────────────────────────────────────────────────→ (+)
-//                                                        → MeteringAudioSource → AudioSourcePlayer → device
+//   non-spatial clips → CLIP FX (2ch) ────────────────────────────────────────────────────────────→ (+)
+//                                        → MASTER FX (Nch) → master gain → MeteringAudioSource → device
 //
 // A plain MixerAudioSource can't be used for the spatial path: ambisonic encoding needs each source's
-// signal SEPARATELY (a mixer has already summed them), so SpatialBus pulls every clip itself.
+// signal SEPARATELY (a mixer has already summed them), so SpatialBus pulls every clip itself. That same
+// constraint is why effects live on the CLIP (pre-encode) and on the MASTER (post-decode), and nowhere
+// else — see effects.h.
 //
 // The engine is "dumb": JS (the plugins/audio playhead-driver) decides which bed clips are active for
-// the current transport playhead and calls playClip/stopClip/gain/spatial. Disk reads happen on a shared
-// read-ahead thread, never on the audio callback.
+// the current transport playhead and calls playClip/stopClip/gain/spatial/effects. Disk reads happen on
+// a shared read-ahead thread, never on the audio callback.
 #include <napi.h>
 #include <juce_core/juce_core.h>
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_audio_formats/juce_audio_formats.h>
+#include <juce_dsp/juce_dsp.h>
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -25,6 +28,8 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+#include "effects.h"
 
 // libspatialaudio — ambisonic encode (per source position) → B-format → binaural decode (built-in MIT
 // HRTF, no SOFA file needed). Namespace `spaudio`.
@@ -77,6 +82,9 @@ spaudio::Amblib_SpeakerSetUps layoutFromName(const juce::String& n) {
   return S::kAmblib_Stereo;
 }
 
+using artlux::EffectSpec;
+using artlux::EffectChain;
+
 struct Clip {
   std::unique_ptr<juce::AudioFormatReaderSource> reader;
   std::unique_ptr<juce::AudioTransportSource> transport;
@@ -86,6 +94,11 @@ struct Clip {
   bool spatial = false;
   std::unique_ptr<spaudio::AmbisonicEncoder> encoder;   // only when spatial
   spaudio::PolarPosition<float> pos {};
+  // The authored chain (the truth — it outlives a device re-open and a spatial flip) and the prepared
+  // DSP built from it (nullptr ⇒ dry). A spatial clip's chain is MONO, a flat one's is stereo, so
+  // flipping `spatial` invalidates the chain and forces a rebuild.
+  std::vector<EffectSpec> specs;
+  std::unique_ptr<EffectChain> chain;
 };
 
 // Pulls every clip, encodes the spatial ones into one shared B-format, binaurally decodes that, and
@@ -97,6 +110,8 @@ public:
   juce::CriticalSection lock;
   std::unordered_map<std::string, std::unique_ptr<Clip>> clips;
 
+  // Called from Engine::configure's stack (the JS thread), with our audio callback NOT yet registered —
+  // so allocating here is safe, and it already does (bformat/binaural/scratch).
   void prepareToPlay(int blockSize, double sr) override {
     const juce::ScopedLock sl(lock);
     sampleRate = sr;
@@ -110,9 +125,20 @@ public:
     unsigned tail = 0;
     binauralOk = binaural.Configure(kAmbiOrder, true, (unsigned) sr, (unsigned) blockSize, tail);
     configureDecoder();
+
+    // Every chain is rebuilt from its specs: sample rate and block size may both have changed, and the
+    // filter/delay/reverb states are sized from them.
+    const juce::dsp::ProcessSpec mspec {
+      sr, (juce::uint32) juce::jmax(1, blockSize), (juce::uint32) juce::jmax(1, outChannels)
+    };
+    masterGain.prepare(mspec);
+    masterGain.setRampDurationSeconds(0.02); // ONCE — setRampDurationSeconds() resets + snaps the value
+    masterGain.setGainLinear(masterGainTarget);
+    masterChain = EffectChain::build(masterSpecs, sr, blockSize, juce::jmax(1, outChannels), false);
     for (auto& kv : clips) {
       kv.second->transport->prepareToPlay(blockSize, sr);
       if (kv.second->spatial) configureEncoder(*kv.second);
+      kv.second->chain = EffectChain::build(kv.second->specs, sr, blockSize, chanFor(*kv.second), true);
     }
   }
 
@@ -133,12 +159,17 @@ public:
   }
 
   void getNextAudioBlock(const juce::AudioSourceChannelInfo& info) override {
+    // Reverb tails, delay feedback and filter states all decay towards zero and WILL denormal. Left
+    // alone, the audio thread's cost climbs 10–100× minutes into a show, then drops out, with no code
+    // change to blame. This must be the first line.
+    const juce::ScopedNoDenormals noDenormals;
     info.clearActiveBufferRegion();
     const int n = info.numSamples;
     if (n <= 0 || info.buffer == nullptr) return;
 
     const juce::ScopedLock sl(lock);
     const int outCh = info.buffer->getNumChannels();
+    observedCh.store(outCh); // so a chain built for the wrong channel count can't hide (see getMeters)
     bool anySpatial = false;
     bformat.Reset();
 
@@ -146,16 +177,31 @@ public:
       Clip& c = *kv.second;
       scratch.clear();
       juce::AudioSourceChannelInfo si(&scratch, 0, n);
-      c.transport->getNextAudioBlock(si); // silent while stopped — cheap
+      // The transport applies the clip's gain, so the chain below is POST-FADER: riding a clip's gain
+      // moves the signal through its own compressor's threshold. Correct for a bed player, but worth
+      // knowing before you automate both at once.
+      c.transport->getNextAudioBlock(si); // silent while stopped — but the chain still runs, so tails ring out
 
       if (c.spatial && c.encoder != nullptr) {
-        // Ambisonic encoding is inherently mono-per-source: fold the clip down, then place it.
+        // Ambisonic encoding is inherently mono-per-source. Fold the clip down FIRST, then run its
+        // chain on the mono signal, then place it: a 2-channel reverb here would decorrelate L/R only
+        // for this downmix to comb them back together. See effects.h.
         const float* l = scratch.getReadPointer(0);
         const float* r = scratch.getNumChannels() > 1 ? scratch.getReadPointer(1) : l;
         for (int i = 0; i < n; ++i) mono[(size_t) i] = 0.5f * (l[i] + r[i]);
+        if (c.chain != nullptr) {
+          float* mp[1] = { mono.data() };
+          juce::dsp::AudioBlock<float> mb(mp, 1, (size_t) n); // named lvalue: ProcessContextReplacing can't bind a temporary
+          c.chain->process(mb);
+        }
         c.encoder->ProcessAccumul(mono.data(), (unsigned) n, &bformat, 0, 1.0f);
         anySpatial = true;
       } else {
+        if (c.chain != nullptr) {
+          juce::dsp::AudioBlock<float> sb(scratch);
+          auto b = sb.getSubBlock(0, (size_t) n);
+          c.chain->process(b);
+        }
         for (int ch = 0; ch < outCh; ++ch) {
           const int src = juce::jmin(ch, scratch.getNumChannels() - 1);
           info.buffer->addFrom(ch, info.startSample, scratch, src, 0, n);
@@ -163,23 +209,33 @@ public:
       }
     }
 
-    if (!anySpatial) return;
-
-    if (mode == OutMode::Binaural && binauralOk) {
-      std::fill(decodeL.begin(), decodeL.begin() + n, 0.0f);
-      std::fill(decodeR.begin(), decodeR.begin() + n, 0.0f);
-      float* out[2] = { decodeL.data(), decodeR.data() };
-      binaural.Process(&bformat, out, (unsigned) n);
-      if (outCh > 0) info.buffer->addFrom(0, info.startSample, decodeL.data(), n);
-      if (outCh > 1) info.buffer->addFrom(1, info.startSample, decodeR.data(), n);
-    } else if (mode == OutMode::Speakers && decoderOk && nSpeakers > 0) {
-      for (int s = 0; s < nSpeakers; ++s)
-        std::fill(speakerBuf[(size_t) s].begin(), speakerBuf[(size_t) s].begin() + n, 0.0f);
-      decoder.Process(&bformat, (unsigned) n, speakerPtrs.data());
-      const int m = juce::jmin(nSpeakers, outCh); // never write past the device's channels
-      for (int s = 0; s < m; ++s)
-        info.buffer->addFrom(s, info.startSample, speakerBuf[(size_t) s].data(), n);
+    // NB: this used to be `if (!anySpatial) return;` — which would have skipped the master stage below
+    // entirely whenever the bed had no spatial clip (i.e. the common case). Master effects would have
+    // been wired, metered, and silently inert.
+    if (anySpatial) {
+      if (mode == OutMode::Binaural && binauralOk) {
+        std::fill(decodeL.begin(), decodeL.begin() + n, 0.0f);
+        std::fill(decodeR.begin(), decodeR.begin() + n, 0.0f);
+        float* out[2] = { decodeL.data(), decodeR.data() };
+        binaural.Process(&bformat, out, (unsigned) n);
+        if (outCh > 0) info.buffer->addFrom(0, info.startSample, decodeL.data(), n);
+        if (outCh > 1) info.buffer->addFrom(1, info.startSample, decodeR.data(), n);
+      } else if (mode == OutMode::Speakers && decoderOk && nSpeakers > 0) {
+        for (int s = 0; s < nSpeakers; ++s)
+          std::fill(speakerBuf[(size_t) s].begin(), speakerBuf[(size_t) s].begin() + n, 0.0f);
+        decoder.Process(&bformat, (unsigned) n, speakerPtrs.data());
+        const int m = juce::jmin(nSpeakers, outCh); // never write past the device's channels
+        for (int s = 0; s < m; ++s)
+          info.buffer->addFrom(s, info.startSample, speakerBuf[(size_t) s].data(), n);
+      }
     }
+
+    // ── Master: post-decode, PRE-metering (so the meters show what actually leaves the machine) ──
+    juce::dsp::AudioBlock<float> full(*info.buffer);
+    auto mblock = full.getSubBlock((size_t) info.startSample, (size_t) n);
+    if (masterChain != nullptr) masterChain->process(mblock);
+    juce::dsp::ProcessContextReplacing<float> mctx(mblock);
+    masterGain.process(mctx); // post-insert fader, SmoothedValue-ramped ⇒ click-free
   }
 
   // ── Control (all take the lock, so they can't race the audio thread) ──────────────────────────
@@ -217,6 +273,80 @@ public:
     const juce::ScopedLock sl(lock);
     if (Clip* c = find(id)) c->spatial = false;
   }
+
+  // ── Effect chains ─────────────────────────────────────────────────────────────────────────────
+  int chanFor(const Clip& c) const noexcept { return c.spatial ? 1 : 2; } // spatial ⇒ mono-first
+
+  void setOutputChannels(int ch) {
+    const juce::ScopedLock sl(lock);
+    outChannels = juce::jmax(1, ch);
+  }
+  void setMasterGain(float g) {
+    const juce::ScopedLock sl(lock);
+    masterGainTarget = juce::jlimit(0.0f, 4.0f, g);
+    masterGain.setGainLinear(masterGainTarget); // NEVER setRampDurationSeconds here — it resets + snaps
+  }
+
+  // Replace an effect chain (empty clipId ⇒ the master chain).
+  //
+  // Three phases, and the order IS the design: decide under the lock, BUILD OUTSIDE it, swap under it.
+  // build() allocates (a reverb's HeapBlocks, a 2 s delay line) and the audio thread holds this lock for
+  // the whole block — so building under it would steal an audio block and click on every effect edit.
+  // `old` is declared before the lock scope so the discarded chain's destructor (a free()) also lands
+  // outside. When nothing structural changed, the params update in place: no malloc, no reset, no click.
+  void applyEffects(const std::string& clipId, std::vector<EffectSpec> specs) {
+    const bool isMaster = clipId.empty();
+    std::unique_ptr<EffectChain> old; // FIRST → destroyed LAST, outside the lock
+    double sr = 48000.0;
+    int mb = 512, nch = 2;
+    bool ready = false;
+    {
+      const juce::ScopedLock sl(lock);
+      Clip* c = isMaster ? nullptr : find(clipId);
+      if (!isMaster && c == nullptr) return; // clip already gone
+      sr = sampleRate;
+      mb = maxBlock;
+      ready = prepared;
+      nch = isMaster ? juce::jmax(1, outChannels) : chanFor(*c);
+      std::vector<EffectSpec>* curSpecs = isMaster ? &masterSpecs : &c->specs;
+      std::unique_ptr<EffectChain>* curChain = isMaster ? &masterChain : &c->chain;
+      if (ready && *curChain != nullptr && (*curChain)->channels() == nch && sameStructure(*curSpecs, specs)) {
+        (*curChain)->updateParams(specs);
+        *curSpecs = std::move(specs);
+        return;
+      }
+      *curSpecs = specs; // remembered: prepareToPlay rebuilds every chain from its specs
+    }
+    if (!ready) return; // no device yet — prepareToPlay will build it from the specs we just stored
+    auto next = EffectChain::build(specs, sr, mb, nch, !isMaster); // ← the expensive part, OUTSIDE the lock
+    {
+      const juce::ScopedLock sl(lock);
+      if (isMaster) { old = std::move(masterChain); masterChain = std::move(next); }
+      else if (Clip* c = find(clipId)) { old = std::move(c->chain); c->chain = std::move(next); }
+    }
+  }
+
+  // A spatial flip changes the chain's channel count (2 ⇔ 1), which invalidates it — an un-rebuilt chain
+  // would hit EffectChain::process's guard and go silently dry. Rebuild only when the shape really moved
+  // (so dragging a source around the pad, which calls setSpatial every frame, costs nothing).
+  void refreshClipChain(const std::string& id) {
+    std::vector<EffectSpec> specs;
+    {
+      const juce::ScopedLock sl(lock);
+      Clip* c = find(id);
+      if (c == nullptr || c->specs.empty()) return;
+      if (c->chain != nullptr && c->chain->channels() == chanFor(*c)) return; // shape unchanged
+      specs = c->specs;
+    }
+    applyEffects(id, std::move(specs));
+  }
+
+  int masterChainChannels() {
+    const juce::ScopedLock sl(lock);
+    return masterChain != nullptr ? masterChain->channels() : 0;
+  }
+  int observedChannels() const noexcept { return observedCh.load(); }
+
   void stopAll() {
     const juce::ScopedLock sl(lock);
     for (auto& kv : clips) kv.second->transport->stop();
@@ -259,6 +389,18 @@ private:
   int nSpeakers = 0;
   std::vector<std::vector<float>> speakerBuf;
   std::vector<float*> speakerPtrs;
+
+  // Master insert chain + fader, applied post-decode. `outChannels` is what the device ACTUALLY opened
+  // with (Engine::configure reads it back from the device — asking for 8 on a stereo card gives 2), and
+  // the master chain is built for exactly that. `observedCh` is what the audio thread really sees: if it
+  // ever disagrees with the chain's channel count, the chain has gone silently dry and getMeters() will
+  // say so rather than letting it hide.
+  int outChannels = 2;
+  std::vector<EffectSpec> masterSpecs;
+  std::unique_ptr<EffectChain> masterChain;
+  juce::dsp::Gain<float> masterGain;
+  float masterGainTarget = 1.0f;
+  std::atomic<int> observedCh { 0 };
 };
 
 constexpr int kMaxMeterCh = 8;
@@ -316,6 +458,13 @@ public:
     if (opened) { deviceManager.removeAudioCallback(&player); player.setSource(nullptr); deviceManager.closeAudioDevice(); opened = false; }
     juce::String err = deviceManager.initialiseWithDefaultDevices(0, ch);
     if (err.isNotEmpty()) return err;
+    // The device can open with FEWER channels than we asked for (8 on a stereo card gives 2). The master
+    // chain must be built for what we actually got, or it would see a channel-count mismatch every block
+    // and pass dry. Push it BEFORE addAudioCallback — that's what triggers prepareToPlay, which builds it.
+    int actual = ch;
+    if (auto* dev = deviceManager.getCurrentAudioDevice())
+      actual = juce::jmax(1, dev->getActiveOutputChannels().countNumberOfSetBits());
+    bus.setOutputChannels(actual);
     if (!readThread.isThreadRunning()) readThread.startThread();
     player.setSource(&metering);
     deviceManager.addAudioCallback(&player);
@@ -374,14 +523,27 @@ public:
     const juce::ScopedLock sl(bus.lock);
     if (Clip* c = bus.find(id)) c->transport->setGain(gain);
   }
-  void setClipSpatial(const std::string& id, float x, float y, float z) { bus.setSpatial(id, x, y, z); }
-  void clearClipSpatial(const std::string& id) { bus.clearSpatial(id); }
+  // Flipping `spatial` changes the clip chain's channel count (2 ⇔ 1), so the chain is rebuilt after —
+  // refreshClipChain is a no-op when the shape didn't actually move, so dragging the positioner is free.
+  void setClipSpatial(const std::string& id, float x, float y, float z) {
+    bus.setSpatial(id, x, y, z);
+    bus.refreshClipChain(id);
+  }
+  void clearClipSpatial(const std::string& id) {
+    bus.clearSpatial(id);
+    bus.refreshClipChain(id);
+  }
+  void setClipEffects(const std::string& id, std::vector<EffectSpec> specs) { bus.applyEffects(id, std::move(specs)); }
+  void setMasterEffects(std::vector<EffectSpec> specs) { bus.applyEffects({}, std::move(specs)); } // {} ⇒ master
+  void setMasterGain(float g) { bus.setMasterGain(g); }
   void stopAll() { bus.stopAll(); }
 
   float peak() const { return meterPeak.load(); }
   float rms() const { return meterRms.load(); }
   float chPeak(int i) const { return (i >= 0 && i < kMaxMeterCh) ? meterCh[(size_t) i].load() : 0.0f; }
   int speakerCount() { return bus.speakerCount(); }
+  int masterFxChannels() { return bus.masterChainChannels(); }
+  int deviceChannels() const { return bus.observedChannels(); }
 
   void closeDevice() {
     if (opened) { deviceManager.removeAudioCallback(&player); player.setSource(nullptr); deviceManager.closeAudioDevice(); opened = false; }
@@ -494,6 +656,72 @@ static Napi::Value ClearClipSpatial(const Napi::CallbackInfo& info) {
   return info.Env().Undefined();
 }
 
+// [{ id, type, bypass?, params?: {k: number}, opts?: {k: string} }] → std::vector<EffectSpec>.
+// Runs on the JS thread, so allocating is fine. Deliberately TOLERANT: these arrive over a
+// fire-and-forget IPC send, which has nobody to reject to — a malformed node is skipped, a malformed
+// param is dropped, and the effect's own setParams() clamps whatever survives. Throwing here would
+// take down an audio edit; being lenient just means a bad effect does nothing.
+static std::vector<EffectSpec> parseEffects(const Napi::Value& v) {
+  std::vector<EffectSpec> out;
+  if (!v.IsArray()) return out;
+  auto arr = v.As<Napi::Array>();
+  for (uint32_t i = 0; i < arr.Length(); ++i) {
+    Napi::Value ev = arr.Get(i);
+    if (!ev.IsObject()) continue;
+    auto obj = ev.As<Napi::Object>();
+    Napi::Value tv = obj.Get("type");
+    if (!tv.IsString()) continue;
+    EffectSpec s;
+    s.type = tv.As<Napi::String>().Utf8Value();
+    Napi::Value idv = obj.Get("id");
+    s.id = idv.IsString() ? idv.As<Napi::String>().Utf8Value() : s.type;
+    Napi::Value bv = obj.Get("bypass");
+    s.bypass = bv.IsBoolean() && bv.As<Napi::Boolean>().Value();
+    Napi::Value pv = obj.Get("params");
+    if (pv.IsObject()) {
+      auto po = pv.As<Napi::Object>();
+      auto keys = po.GetPropertyNames();
+      for (uint32_t k = 0; k < keys.Length(); ++k) {
+        auto key = keys.Get(k).As<Napi::String>().Utf8Value();
+        Napi::Value val = po.Get(key);
+        if (val.IsNumber()) s.params[key] = (float) val.As<Napi::Number>().DoubleValue();
+      }
+    }
+    Napi::Value ov = obj.Get("opts");
+    if (ov.IsObject()) {
+      auto oo = ov.As<Napi::Object>();
+      auto keys = oo.GetPropertyNames();
+      for (uint32_t k = 0; k < keys.Length(); ++k) {
+        auto key = keys.Get(k).As<Napi::String>().Utf8Value();
+        Napi::Value val = oo.Get(key);
+        if (val.IsString()) s.opts[key] = val.As<Napi::String>().Utf8Value();
+      }
+    }
+    out.push_back(std::move(s));
+  }
+  return out;
+}
+
+// setClipEffects(id, effects[]) — the insert chain on one source, applied before it is spatialised.
+static Napi::Value SetClipEffects(const Napi::CallbackInfo& info) {
+  if (info.Length() > 1 && info[0].IsString())
+    ensureEngine().setClipEffects(info[0].As<Napi::String>().Utf8Value(), parseEffects(info[1]));
+  return info.Env().Undefined();
+}
+
+// setMasterEffects(effects[]) — on the decoded N-channel output. 'reverb' nodes are DROPPED here:
+// juce::dsp::Reverb is a <=2 channel processor and would silently pass dry on a multichannel decode.
+static Napi::Value SetMasterEffects(const Napi::CallbackInfo& info) {
+  if (info.Length() > 0) ensureEngine().setMasterEffects(parseEffects(info[0]));
+  return info.Env().Undefined();
+}
+
+static Napi::Value SetMasterGain(const Napi::CallbackInfo& info) {
+  if (info.Length() > 0 && info[0].IsNumber())
+    ensureEngine().setMasterGain((float) info[0].As<Napi::Number>().DoubleValue());
+  return info.Env().Undefined();
+}
+
 static Napi::Value StopAll(const Napi::CallbackInfo& info) { ensureEngine().stopAll(); return info.Env().Undefined(); }
 
 static Napi::Value GetMeters(const Napi::CallbackInfo& info) {
@@ -508,6 +736,11 @@ static Napi::Value GetMeters(const Napi::CallbackInfo& info) {
   for (int i = 0; i < kMaxMeterCh; ++i) arr.Set((uint32_t) i, Napi::Number::New(env, e.chPeak(i)));
   obj.Set("peaks", arr);                                              // per-channel (speaker) peaks
   obj.Set("speakers", Napi::Number::New(env, e.speakerCount()));      // 0 unless decoding to speakers
+  // Diagnostics: an effect chain built for a different channel count than the audio thread actually sees
+  // passes DRY — the worst kind of failure, since it looks wired and meters normally. Expose both numbers
+  // so a mismatch is measurable (masterFxChannels is 0 when there is no master chain).
+  obj.Set("masterFxChannels", Napi::Number::New(env, e.masterFxChannels()));
+  obj.Set("deviceChannels", Napi::Number::New(env, e.deviceChannels()));
   return obj;
 }
 
@@ -564,6 +797,9 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("setClipGain", Napi::Function::New(env, SetClipGain));
   exports.Set("setClipSpatial", Napi::Function::New(env, SetClipSpatial));
   exports.Set("clearClipSpatial", Napi::Function::New(env, ClearClipSpatial));
+  exports.Set("setClipEffects", Napi::Function::New(env, SetClipEffects));
+  exports.Set("setMasterEffects", Napi::Function::New(env, SetMasterEffects));
+  exports.Set("setMasterGain", Napi::Function::New(env, SetMasterGain));
   exports.Set("stopAll", Napi::Function::New(env, StopAll));
   exports.Set("getMeters", Napi::Function::New(env, GetMeters));
   exports.Set("close", Napi::Function::New(env, Close));

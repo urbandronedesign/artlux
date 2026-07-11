@@ -388,13 +388,21 @@ export interface AudioSpatial {
   order?: number;        // ambisonic-order override for this source (default: project/device setting)
 }
 export type AudioEffectType = 'gain' | 'filter' | 'reverb' | 'delay' | 'compressor';
-// One node in a bus effect chain. `params` is effect-specific (e.g. filter.cutoff, reverb.mix) and
-// each leaf is individually automatable/fadeable via the dot-path grammar (audio.<busId>.effects.<i>.<param>).
+// One node in an effect chain.
+//
+// The two maps are split by AUTOMATABILITY, not by convenience:
+//   · params — CONTINUOUS values (filter.cutoff, reverb.wet). Each is a fadeable/automatable leaf,
+//     addressed by the dot-path grammar (audio.<busId>.effects.<i>.<param>) in P4/P5.
+//   · opts   — DISCRETE choices (filter.mode = 'lowpass'|'highpass'|'bandpass'). Strings ON PURPOSE:
+//     the fade engine interpolates `number` from→to, so a mode living in `params` would eventually be
+//     handed 0.37 by a scene transition. Typing it as a string makes that unrepresentable rather than
+//     merely discouraged.
 export interface AudioEffect {
   id: string;
   type: AudioEffectType;
   bypass?: boolean;
   params: Record<string, number>;
+  opts?: Record<string, string>;
 }
 // A placed audio clip. All times are seconds on the timeline (start/duration) or into the source (inPoint).
 export interface AudioClip {
@@ -411,6 +419,7 @@ export interface AudioClip {
   fadeIn?: number;         // fade-in length (s)
   fadeOut?: number;        // fade-out length (s)
   spatial?: AudioSpatial;  // absent ⇒ non-spatial
+  effects?: AudioEffect[]; // insert chain on this source, applied BEFORE spatialisation (see AudioBus)
 }
 // A logical audio track (a lane of clips) routed to an output bus.
 export interface AudioTrack {
@@ -422,8 +431,17 @@ export interface AudioTrack {
   solo?: boolean;
   color?: string;          // hex label color
 }
-// A mix bus: gain + an effect chain, optionally sent to a parent bus. The implicit 'master' bus
-// decodes the ambisonic field to the output (binaural or speaker layout).
+// A mix bus: gain + an effect chain, optionally sent to a parent bus.
+//
+// WHERE EFFECTS SIT. A spatial source is a point in an ambisonic field, so it cannot be summed into a
+// bus before it is placed — the encoder needs each source's signal on its own. Effects therefore live
+// at two scopes, and only two:
+//   · AudioClip.effects — an INSERT on the source, applied before it is encoded ("this voice is in a
+//     small room"). This is the object-audio convention: inserts belong to the object.
+//   · AudioBus.effects on MASTER_BUS_ID — applied to the finished N-channel output, after the field has
+//     been decoded to headphones or speakers ("protect the rig, tame the room"). Master is the only bus
+//     that exists today; per-bus summing buses arrive with sends.
+export const MASTER_BUS_ID = 'master';
 export interface AudioBus {
   id: string;
   name: string;
@@ -431,6 +449,10 @@ export interface AudioBus {
   effects?: AudioEffect[]; // per-bus effect chain
   sendTo?: string;         // parent bus id for a send (default: master)
 }
+// The master bus, or a default if the project has never had one (buses start empty — a project only
+// materialises master once you touch its gain or add an effect).
+export const masterBus = (mix: AudioMix): AudioBus =>
+  mix.buses.find((b) => b.id === MASTER_BUS_ID) ?? { id: MASTER_BUS_ID, name: 'Master', gain: 1, effects: [] };
 // The global audio bed, persisted opaquely on ProjectData.audio.
 export interface AudioMix {
   tracks: AudioTrack[];

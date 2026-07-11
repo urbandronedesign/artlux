@@ -78,6 +78,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
   juce::juce_audio_devices
   juce::juce_audio_formats
   juce::juce_audio_basics
+  juce::juce_dsp          # effect chains (P3). Depends only on juce_audio_formats — adds no new module.
   juce::juce_core
   juce::juce_events
   juce::juce_recommended_config_flags
