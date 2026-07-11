@@ -32,52 +32,48 @@ block with decisions a human must make before building.
 
 ---
 
-## The plans
+## Shipped & merged (archived)
 
-| # | Plan | Lifts (tutorial set) | Placement | Risk | Breaking | Effort |
-|---|------|----------------------|-----------|------|----------|--------|
-| 1 | [Cue-authoring robustness](cue-authoring-robustness.md) | #4 Cue Deck | **Core** | 🟢 Low | None | S |
-| 2 | [DMX I/O fidelity](dmx-io-fidelity.md) | #6 Patch & Prove | **Core** | 🟢 Low | None | S |
-| 3 | [Asset-ops safety](asset-ops-safety.md) | #9 Pack & Hand Off | **Core** | 🟢 Low | None | S–M |
-| 4 | [Watchdog relaunch throttle](watchdog-relaunch-throttle.md) | #10 Ship It | **Core** | 🟢 Low | Behavior + UI | S |
-| 5 | [Finish fixture segments](fixture-segments-finish.md) | #3 Wiring Rescue | **Core** | 🟡 Med | Project-file (additive `Segment.off`) | M |
-| 6 | [Content source-region (crop)](content-source-region.md) | #5 Hello Projector | **Core** | 🟡 Med | None (additive field) | M |
-| 7 | [Auto-patch collision detection](autopatch-collision-detection.md) | #6 Patch & Prove | **Core** | 🟡 Med | Project-file (reservation re-addresses) | M |
-| 8 | [WebGL strict per-surface sampling](webgl-strict-per-surface-sampling.md) | #1 Composite Stage | **Core** | 🟡 Med | None | L |
-| 9 | [Show-control tablet parity](show-control-tablet-parity.md) | #7 Operator Remote | **Plugin** | 🟡 Med | Behavior (Kick hard-cuts SSE) | M |
-| 10 | [Projector blend preview + phase-lock](projector-blend-preview.md) | #5 Hello Projector | **Hybrid** | 🟡 Med | IPC (additive transport field) | M–L |
-| 11 | [Schedule/show engine under `--headless`](headless-plugin-host.md) | #10 Ship It | **Core** | 🟡 Med | Build-tooling / operational | M |
+Seven plans have landed on `main` and moved to [`archive/`](archive/). Full per-wave record in
+[SEQUENCING.md](SEQUENCING.md#status-tracker).
 
-No plan is rated High risk, but three carry non-obvious blast radius — see **Cross-cutting hazards** below.
+| Plan | Lifts | Status |
+|------|-------|--------|
+| [Cue-authoring robustness](archive/cue-authoring-robustness.md) | #4 Cue Deck | ✅ merged (also fixed a Stage crash) |
+| [DMX I/O fidelity](archive/dmx-io-fidelity.md) | #6 Patch & Prove | ✅ merged |
+| [Asset-ops safety](archive/asset-ops-safety.md) | #9 Pack & Hand Off | ✅ merged |
+| [Finish fixture segments](archive/fixture-segments-finish.md) | #3 Wiring Rescue | ✅ merged — gap/off verified on-wire |
+| [Auto-patch collision detection](archive/autopatch-collision-detection.md) | #6 Patch & Prove | ✅ merged — detector + reservation (Phase C split-brain deferred) |
+| [Schedule/show engine under `--headless`](archive/headless-plugin-host.md) | #10 Ship It | ✅ merged — schedule-fire runtime-verified |
+| [In-app docs browser](archive/docs-browser.md) | (net-new) | ✅ shipped v0.21.0 |
+
+## Active plans
+
+| Plan | Lifts (tutorial set) | Placement | Risk | Status |
+|------|----------------------|-----------|------|--------|
+| [Watchdog relaunch throttle](watchdog-relaunch-throttle.md) | #10 Ship It | **Core** | 🟢 Low | Wave 0 — not started |
+| [Show-control tablet parity](show-control-tablet-parity.md) | #7 Operator Remote | **Plugin** | 🟡 Med | Wave 0 — not started |
+| [Content source-region (crop)](content-source-region.md) | #5 Hello Projector | **Core** | 🟡 Med | held behind webgl-strict Phase 2 |
+| [Projector blend preview + phase-lock](projector-blend-preview.md) | #5 Hello Projector | **Hybrid** | 🟡 Med | held (loosely gated on webgl-strict) |
+| [WebGL strict per-surface sampling](webgl-strict-per-surface-sampling.md) | #1 Composite Stage | **Core** | 🟡 Med | **Phase 1 shipped** (banner + force-WebGL + GPU settings); **Phase 2 deferred — open GitHub decision issue** |
+| [MIDI controller support](midi-control.md) | (net-new) | **Plugin** | 🟡 Med | not started (Draft) |
+| [Native audio engine](audio-engine.md) | (net-new, Wave 3) | **Hybrid** | 🔴 High | not started (Draft) |
 
 ## Net-new subsystems (beyond limitation-lifts)
 
-The plans above lift *existing* limitations. This one designs a whole new capability the app lacks entirely:
+Two active plans design whole new capabilities (both in the Active table above):
+[MIDI controller support](midi-control.md) and the [Native audio engine](audio-engine.md). Audio is by far
+the heaviest — it introduces the **first non-Rust native module** (a JUCE C++ N-API addon alongside the Rust
+crates) and a **general time-keyframed automation-curve engine** that doesn't exist today (scenes/cues are
+snapshot+fade only). It is gated behind a Phase-0 toolchain spike and the graceful-degrade loader, so the tree
+stays releasable throughout. (The [in-app docs browser](archive/docs-browser.md) was the third net-new plan —
+shipped in v0.21.0.)
 
-| Plan | Adds | Placement | Risk | Breaking |
-|------|------|-----------|------|----------|
-| [Native audio engine](audio-engine.md) | Spatial multichannel audio: JUCE + libspatialaudio (ambisonic bus → binaural-HRTF stereo or 8-ch speaker decode), effect chains, **timeline automation**, scene/state recall | **Hybrid** (core types + core automation-curve engine + core timeline lane; JUCE engine + spatial UI as `plugins/audio`) | 🔴 High | Project-file (additive) + **first C++/CMake native module** + JUCE/libspatialaudio licensing |
-| [In-app docs browser](docs-browser.md) | Detachable in-app markdown viewer for the examples/tutorials + user guide, with interactive "open example" that loads the `.artlux` | **Core** | 🟡 Medium | Build/packaging (ships docs/examples) + new markdown dep + additive menu/IPC/window; no project-file change |
-| [MIDI controller support](midi-control.md) | MIDI-learn + remappable bindings: a hardware controller drives scenes / cues / states / transport (through the same buses as OSC) and continuous CC → fadeable params | **Plugin** (+ 2 minor core touches) | 🟡 Medium | Project-file (additive `midiBindings`) + a main-process Web-MIDI permission grant (needs restart) |
+## Sequencing
 
-Two things make it heavier than any lift-plan: it introduces the **first non-Rust native module** (a JUCE C++ N-API addon alongside the Rust crates), and it requires building a **general time-keyframed automation-curve engine** — which does not exist today (scenes/cues are snapshot+fade only) and is itself a substantial core subsystem worth having beyond audio. It is gated behind a Phase-0 toolchain spike and the usual graceful-degrade loader, so the tree stays releasable throughout. Decided route: fully-native JUCE substrate, ambisonic-bus spatialisation, core-types + plugin-engine placement, and a global audio bed + per-scene one-shots.
-
-## Recommended sequencing
-
-**Wave 1 — low-risk correctness (do first; each is self-contained, none breaks the project file).**
-`cue-authoring-robustness` (also fixes a real Stage **crash** when capturing a cue on a segmentless
-fixture — highest value/effort ratio here), `dmx-io-fidelity`, `asset-ops-safety`, `watchdog-relaunch-throttle`.
-
-**Wave 2 — core capability, additive schema (each ships "dark" until used).**
-`fixture-segments-finish`, `content-source-region`, `autopatch-collision-detection`, `webgl-strict-per-surface-sampling`.
-Order within the wave by need; `webgl-…` is the largest (it re-derives per-LED geometry in a second backend).
-
-**Wave 3 — larger surface / more churn (plan the rollout carefully).**
-`show-control-tablet-parity` (plugin-only, but the Kick→SSE fix touches the auth/streaming boundary),
-`projector-blend-preview` (adds an IPC transport field + a new WebGL preview path),
-`headless-plugin-host` (**most invasive** — the hardened plan retires `headless.html`/`headless.tsx`/
-`HeadlessRunner` and routes `--headless` through the full App entry; it gains media decode and the
-always-on show-control HTTP port as an operational/firewall surprise — read §7 before committing).
+Build order + git workflow live in **[SEQUENCING.md](SEQUENCING.md)** — the canonical source. Waves 1 + 2 are
+shipped (see the archived plans above); **Wave 0** (watchdog + show-control tablet parity) and **Wave 3**
+(audio) remain, plus the webgl-strict **Phase 2** decision that gates content-source-region + projector-blend.
 
 ## Cross-cutting hazards (every implementer must respect these)
 
