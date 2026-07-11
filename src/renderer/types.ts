@@ -430,11 +430,12 @@ export const normalizeTimeline = (t: Partial<Timeline> | null | undefined): Time
   // A missing `layers` is defaulted below like every other array instead.
   if (!t) return base;
   const { stateMachine: _legacySm, ...rest } = t; // legacy field migrated to project scope in App's loader
+  const clips = t.clips ?? [];
   return {
     ...base,
     ...rest,
     layers: Array.isArray(t.layers) ? t.layers.map(l => ({ enabled: true, ...l })) : [],
-    clips: t.clips ?? [],
+    clips,
     trackingTakes: t.trackingTakes ?? [],
     markers: t.markers ?? [],
     inPoint: t.inPoint ?? null,
@@ -442,6 +443,17 @@ export const normalizeTimeline = (t: Partial<Timeline> | null | undefined): Time
     fps: t.fps ?? base.fps,
     loop: t.loop ?? false,
     automation: normalizeAutomation(t.automation),
+    // BACK-COMPAT (Wave A). `duration` used to be a hint that never bounded playback, so old projects
+    // legitimately hold clips past it. Now that it IS the end, obeying it blindly would silently
+    // truncate those shows. Raise it once, at load, to cover the content. Never lower it — a
+    // deliberately long Length (trailing silence, a hold) is a legitimate authoring choice.
+    // Guarded: duration/clip fields/outPoint can each independently be junk (NaN, a string, Infinity)
+    // on a hand-edited or malformed project — finiteNum keeps one bad value from poisoning the max().
+    duration: Math.max(
+      finiteNum(t.duration) ?? base.duration,
+      ...clips.map(c => (finiteNum(c.start) ?? 0) + (finiteNum(c.duration) ?? 0)),
+      finiteNum(t.outPoint) ?? 0,
+    ),
   };
 };
 
