@@ -373,16 +373,19 @@ function atEndBound(): boolean {
 // the playhead backwards live on the projectors, emits `pause`, and PULSES hitEnd — firing the FSM's
 // 'onTimelineEnd' edge and putting the wrong scene on stage, from something that was never playback.
 //
-// Two callers repoint `data`:
-//   • setData()  — a document EDIT (Length lowered, `O` at the playhead, the out-handle dragged left,
-//     fps changed).
-//   • swap(..., {transport:'preserve'}) — a UI CLICK (the scene pill → Global, deleting the authored
-//     scene) that repoints the engine at a DIFFERENT, possibly much shorter document while the show
-//     runs. setData's guard cannot cover this: swap() assigns `data` synchronously inside the click
-//     handler, while App's [activeTimeline] effect is a passive effect flushed in a scheduler task —
-//     an rAF frame can interleave, and that frame sees the raw end-stop.
+// setData() IS THE SOLE CALLER — a document EDIT (Length lowered, `O` at the playhead, the out-handle
+// dragged left, fps changed). Nothing else routes through here, and nothing else should.
 //
-// So handle it HERE, where we know it was an edit/swap and not playback:
+// ⚠ swap() DOES NOT CALL THIS, AND MUST NOT BE ASSUMED TO. It used to, on the old
+// `transport:'preserve'` path — which is exactly how a click on the scene pill → Global emitted a
+// `pause` and killed the audio bed. That mode is GONE. The UI-CLICK case (pill → Global, deleting the
+// bound scene) is now swap()'s `'reconverge'` arm, which snaps the playhead onto the SHOW CLOCK — a
+// number that is by construction inside the global doc's [start, end), so there is normally nothing to
+// clamp at all. The one case that is NOT free — a PARKED show clock, sitting exactly one frame inside
+// the end — carries its OWN copy of the latch-without-pulse treatment below, inside that arm. If you
+// are reading this because you changed swap(), go read swap(): the guard is there, not here.
+//
+// So handle the EDIT case HERE, where we know it was an edit and not playback:
 //   • mainSeek to the new last frame — re-anchors originMs AND re-baselines prevPlayhead, so the move
 //     is not read as a window the playhead traversed (no phantom atTime/onMarker/onClipEnd crossings).
 //   • latch the end WITHOUT pulsing hitEnd: the machine must never be advanced by an edit or a click.
@@ -745,8 +748,9 @@ export const timeline = {
   setData(t: Timeline): void {
     data = t;
     if (external) return; // mirror windows don't decode — no blobs / video elements to manage
-    // A DOCUMENT EDIT MUST NEVER SYNTHESISE A TRANSPORT EVENT — the whole argument (and why the same
-    // treatment is applied to swap()'s 'preserve' path) lives on clampPlayheadIntoDoc above.
+    // A DOCUMENT EDIT MUST NEVER SYNTHESISE A TRANSPORT EVENT — the whole argument lives on
+    // clampPlayheadIntoDoc above. setData is its ONLY caller: swap()'s click case is 'reconverge', which
+    // carries its own copy of the latch-without-pulse guard.
     clampPlayheadIntoDoc(t);
     warmMedia(t);
     pruneStaleLayers(layerVideos, t);
@@ -823,7 +827,18 @@ export const timeline = {
       // never advanced by a click; the transport is simply told the truth.
       // In the NORMAL case showAtEndBound() is false, nothing latches, nothing pauses, and reconverge's
       // whole point survives intact.
-      if (showAtEndBound()) { endLatched = true; emitIntent({ kind: 'pause' }); }
+      //
+      // THE `pause` IS GATED ON `playing`, exactly as clampPlayheadIntoDoc gates its own. A `pause`
+      // intent on an ALREADY-STOPPED transport is a lie on a channel that is PUBLIC — dispatchTransportIntent
+      // opens it to OSC and to plugins, and a consumer that treats `pause` as an EVENT (a fade-out, a
+      // cue, a log line, a DMX blackout) would fire it from a mouse click on a show that was not running.
+      // App survives it today only because setIsVideoPlaying(false) on an already-false value is a React
+      // bail-out; that is luck, not a contract.
+      //
+      // THE LATCH IS *NOT* GATED. It is what stops the next Play from pulsing hitEnd, and it costs
+      // nothing when stopped (the end-stop branch only runs under `playing`). It is cleared by the next
+      // mainSeek — including the one inside setPlaying(true)'s parked-end restart.
+      if (showAtEndBound()) { endLatched = true; if (playing) emitIntent({ kind: 'pause' }); }
     }
     if (opts?.showClock === 'reset') showSeekInternal(timelineStart(globalDoc));
     compileAutomation(); // AFTER the seek, so the first post-recall sample is taken at the new playhead

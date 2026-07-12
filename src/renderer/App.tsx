@@ -1281,6 +1281,27 @@ const App: React.FC = () => {
         // re-baselines prevPlayhead, so no React batching can swallow the restart. App still owns
         // `playing` — this only moves the playhead.
         if (timelineEngine.isAtEndBound()) timelineEngine.seek(timelineEngine.getStart());
+        // …AND THE SAME RE-ARM FOR THE SHOW CLOCK, WHICH HAS THE SAME HOLE. Reset-table row 12 names TWO
+        // sites for "play from the parked end" — setPlaying(true) and this handler — and the engine's
+        // show-clock restart lives only in the first. That is the very React no-op described above: a
+        // `play` action arriving while `playing` is already true never reaches setPlaying(), so the
+        // engine's `if (showAtEndBound()) showSeekInternal(...)` never runs.
+        //
+        // Why it matters MORE for the show clock than for the playhead: the show clock is SILENT (no
+        // intent, no hitEnd), so a parked one has no symptom. An unattended FSM hopping between LOOPING
+        // scenes keeps `playing` true forever; the show clock runs out the global Length, parks, and
+        // isShowAtEndBound() latches — the audio driver stops the bed — while getStatus().playing goes on
+        // reporting a healthy show. Without this line the ONLY revival is a human pressing Stop or
+        // Pause→Play. The bed is silent for the rest of the day and nothing says so.
+        //
+        // Not a new policy: it is row 12 ("Play from the parked end restarts the SHOW clock iff
+        // showAtEndBound()") applied at the site row 12 already names. A `play` on a show clock that is
+        // NOT parked is a no-op, and while the global doc is bound the seek() above has already moved
+        // showTime with it (the identity), so isShowAtEndBound() is false by then and this cannot double-fire.
+        //
+        // ⚠ THE PARK ITSELF IS STILL BY DESIGN: with Global Loop OFF the show has a finite Length and it
+        // ENDS. This only restores the ability to start it again from a `play`.
+        if (timelineEngine.isShowAtEndBound()) timelineEngine.showSeek(timelineEngine.getGlobalStart());
         setIsVideoPlaying(true);
       }
       else if (i.kind === 'pause') setIsVideoPlaying(false);
