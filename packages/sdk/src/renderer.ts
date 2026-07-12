@@ -323,8 +323,27 @@ export interface ShowService<SM = unknown, Scene = unknown, Bank = unknown, Entr
   setSchedule(entries: Entry[]): void;
   subscribe(cb: () => void): () => void;
   // Live transport + FSM status for a remote's status display (polled by the plugin).
+  //
+  // TWO PLAYHEADS, ONE TRANSPORT. `playhead` is the BOUND document's time (it restarts when a scene is
+  // recalled). `showTime` is the SHOW clock — the time the global audio bed rides, which a scene recall
+  // does NOT reset. Anything describing the BED must read showTime; anything describing the picture on
+  // the bound timeline must read playhead. See docs/TIMELINE.md.
+  //
+  // `showEnd` is the SHOW's length (the GLOBAL doc's playable end) — `duration` is the BOUND doc's, and
+  // while a scene is bound that number means nothing to the bed.
+  //
+  // `showEnded` says the show clock is PARKED at showEnd (global loop off, the show ran out). It is NOT
+  // derivable from `playing`: a scene looping underneath keeps the transport running. A consumer that
+  // reconciles against showTime MUST check it — reconciling against a FROZEN clock is not a no-op, it is
+  // a defect (the audio driver's drift re-lock would re-seek every sounding clip back to the same source
+  // offset every ~50 ms, forever: a buzz, not silence).
+  //
+  // A mirror/projector window runs NO show clock: `showTime` is always 0 and `showEnded` always false
+  // there (`showEnd` still reads the global document's length). Nothing show-clock-driven exists in a
+  // projector — the audio driver early-returns for non-main windows — so this is a floor, not a lie.
   getStatus(): {
-    playing: boolean; playhead: number; duration: number;
+    playing: boolean; playhead: number; showTime: number; duration: number;
+    showEnd: number; showEnded: boolean;
     currentStateId: string | null; stateElapsedSec: number;
     activeSceneId: string | null; lastFiredTransitionId: string | null;
   };

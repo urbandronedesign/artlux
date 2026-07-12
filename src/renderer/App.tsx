@@ -1393,10 +1393,17 @@ const App: React.FC = () => {
       setFsmEnabled: (on) => setStateMachine(prev => (prev.enabled === on ? prev : { ...prev, enabled: on })),
       setSchedule: (entries) => setSchedule(entries as unknown[]),
       subscribe: (cb) => { showSubs.current.add(cb); return () => { showSubs.current.delete(cb); }; },
+      // TWO PLAYHEADS, ONE TRANSPORT. `playhead`/`duration` describe the BOUND document (a scene recall
+      // restarts them); `showTime`/`showEnd` describe the SHOW, which a recall does not touch — that is
+      // what the audio bed rides. `showEnded` publishes the show clock's PARK (global loop off): a
+      // consumer reconciling against a frozen clock has to know it is frozen. See the SDK's comment.
       getStatus: () => ({
         playing: timelineEngine.isPlaying(),
         playhead: timelineEngine.getPlayhead(),
+        showTime: timelineEngine.getShowTime(),
         duration: timelineEngine.getDuration(),
+        showEnd: timelineEngine.getGlobalEnd(),
+        showEnded: timelineEngine.isShowAtEndBound(),
         currentStateId: currentSmStateRef.current,
         stateElapsedSec: timelineEngine.getSmElapsedSec(),
         activeSceneId: activeSceneIdRef.current,

@@ -1,14 +1,21 @@
 // audio — renderer activation. Registers the Audio settings section + the 'audio' clip-kind (every
-// window), and — in the main window only — configures the native engine and runs the playhead-driven
-// GLOBAL AUDIO BED player.
+// window), and — in the main window only — configures the native engine and runs the GLOBAL AUDIO BED
+// player, which rides the SHOW CLOCK.
+//
+// ONE TRANSPORT, TWO PLAYHEADS. The bed is NOT on the bound document's playhead: a scene recall restarts
+// that number, and an inferred seek off it stopped and restarted a five-minute ambient bed on every GO.
+// The bed reconciles against host.show.getStatus().showTime — the SHOW clock, which a recall does not
+// move. See tick(), docs/TIMELINE.md, and the SDK's getStatus() comment.
 //
 // The native engine owns sample-accurate playback; this driver is a SCHEDULER. Each frame it reconciles
-// which bed clips should be sounding for the current transport playhead and starts/stops/re-syncs them.
-// onPlayhead fires every frame INCLUDING WHILE PAUSED (the playhead just freezes), so pause is detected
-// by polling host.show.getStatus().playing — never by "the callback stopped". Big seeks (playhead jumps
-// beyond wall-clock expectation) hard-resync; small seeks + live retime/gain edits are caught per-clip by
-// comparing each sounding clip's desired vs estimated source offset. Bus effects, solo, fades and spatial
-// are later phases; C4 does flat clip×track gain + mute.
+// which bed clips should be sounding for the current show time and starts/stops/re-syncs them. onPlayhead
+// fires every frame INCLUDING WHILE PAUSED (the clock just freezes), so pause is detected by polling
+// host.show.getStatus().playing — never by "the callback stopped". Big jumps (beyond wall-clock
+// expectation) hard-resync; small seeks + live retime/gain edits are caught per-clip by comparing each
+// sounding clip's desired vs estimated source offset — which is ALSO why the show clock's park
+// (getStatus().showEnded) must short-circuit the whole thing: drift re-locking against a frozen number
+// re-seeks forever. Bus effects, solo, fades and spatial are later phases; C4 does flat clip×track gain
+// + mute.
 
 import type { RendererPlugin, RendererPluginContext, RendererHostServices } from '@artlux/sdk/renderer';
 import { setIpc, audioClient } from './audioClient';
@@ -31,7 +38,7 @@ interface BedTrack { id: string; gain?: number; mute?: boolean }
 interface BedBus { id: string; gain?: number; effects?: AudioEffectSpec[] }
 interface Bed { tracks: BedTrack[]; clips: BedClip[]; buses: BedBus[] }
 
-const SEEK_THRESHOLD = 0.2;  // s — tick-level playhead jump beyond wall-clock expectation ⇒ hard resync
+const SEEK_THRESHOLD = 0.2;  // s — tick-level SHOW-CLOCK jump beyond wall-clock expectation ⇒ hard resync
 const SYNC_THRESHOLD = 0.05; // s — per-clip source-offset drift (retime / missed small seek) ⇒ re-seek
 
 let unsubTick: (() => void) | null = null;
@@ -86,7 +93,7 @@ export const plugin: RendererPlugin = {
     let sentMaster = '';                           // last master chain pushed (JSON)
     let sentMasterGain = NaN;                      // NaN ⇒ never pushed, so the first sync always lands
     let prevPlaying = false;
-    let prevPlayhead = 0;
+    let prevShowTime = 0;   // the bed rides the SHOW clock — see tick()
     let prevWallMs = 0;
 
     const trackOf = (clip: BedClip) => bed.tracks.find((t) => t.id === clip.trackId);
@@ -196,22 +203,29 @@ export const plugin: RendererPlugin = {
       syncMaster();
     };
 
-    const reconcile = (playhead: number, nowMs: number) => {
+    // `clock` — NOT "playhead". The bed's container is placed on the SHOW clock, and that is the only
+    // number this may be called with (tick() passes st.showTime). Every line below is a pure function of
+    // it, which is exactly why riding the show clock needed no logic change here — only a different
+    // argument. Naming it `playhead` would be a standing invitation to feed it the bound doc's time again.
+    const reconcile = (clock: number, nowMs: number) => {
       for (const clip of bed.clips) {
-        const inWindow = playhead >= clip.start && playhead < clip.start + clip.duration;
+        const inWindow = clock >= clip.start && clock < clip.start + clip.duration;
         const isSounding = sounding.has(clip.id);
         if (inWindow && audible(clip) && !isSounding) {
-          startClip(clip, clip.inPoint + (playhead - clip.start), nowMs);
+          startClip(clip, clip.inPoint + (clock - clip.start), nowMs);
         } else if (isSounding && (!inWindow || !audible(clip))) {
           stopSounding(clip.id);
         } else if (isSounding) {
           // In-window, audible, already sounding — track live gain + re-lock after a retime / small seek.
           const g = effGain(clip);
           if (sentGain.get(clip.id) !== g) { audioClient.setClipGain(clip.id, g); sentGain.set(clip.id, g); }
-          const desired = clip.inPoint + (playhead - clip.start);
+          const desired = clip.inPoint + (clock - clip.start);
           // Estimate where the engine's source cursor is now (it advanced in real time since the last seek).
           // During steady playback desired ≈ estimated (both derive from performance.now); a retime or a
-          // small seek the tick-level detector missed makes them diverge → re-seek to re-lock to the playhead.
+          // small seek the tick-level detector missed makes them diverge → re-seek to re-lock to the clock.
+          // ⚠ THIS IS WHY A FROZEN CLOCK IS A DEFECT AND NOT A NO-OP: park `clock` and `desired` freezes
+          // while `estimated` runs on, so this fires every ~50 ms forever, re-seeking to the same offset —
+          // a buzz. tick()'s `showEnded` arm exists to keep a parked clock out of here entirely.
           const estimated = (sentOffset.get(clip.id) ?? desired) + (nowMs - (sentWallMs.get(clip.id) ?? nowMs)) / 1000;
           if (Math.abs(desired - estimated) > SYNC_THRESHOLD) {
             audioClient.playClip(clip.id, desired, g);
@@ -221,7 +235,37 @@ export const plugin: RendererPlugin = {
       }
     };
 
-    const tick = (playhead: number) => {
+    // THE BED RIDES THE SHOW CLOCK, NOT THE PLAYHEAD.
+    //
+    // `ctx.onPlayhead` still drives the cadence (it fires every frame, INCLUDING while paused — the
+    // playhead just freezes — which is why pause is detected by polling `playing`, never by "the callback
+    // stopped"). But the NUMBER the bed reconciles against is host.show.getStatus().showTime.
+    //
+    // Why: a seek is not signalled, it is INFERRED (see `seeked` below — anything that displaces the clock
+    // by >200 ms in one frame, forward or backward, reads as a seek and hard-resyncs). A scene recall
+    // mainSeeks the PLAYHEAD to the scene's in-point, so on the old wiring every GO looked like a seek and
+    // stopAllSounding() restarted a five-minute ambient bed from its top. The show clock does not move on
+    // a recall, so Δ ≈ wall Δ, `seeked` is false, and NOTHING happens — which is the fix.
+    //
+    // What still (correctly) reads as a seek on the show clock: a real user seek while the global doc is
+    // bound, Stop, opening a project, the GLOBAL timeline's own loop wrap (the show looped, so the bed
+    // restarts with it) — and SHORTENING THE GLOBAL LENGTH BELOW showTime, which hard-cuts the bed and
+    // ends the show. The first four are intended; the fifth is a documented, audible consequence of
+    // telling the show it is shorter than it has already run (setGlobalDoc's own comment says so).
+    //
+    // AND ONE THING THAT IS NOT A SEEK AND MUST NOT BE TREATED AS PLAYBACK EITHER: THE PARKED SHOW CLOCK.
+    // With the global loop off the show clock parks at showEnd and STOPS ADVANCING — while `playing` can
+    // still be true, because a scene is looping underneath. reconcile() against a frozen number is not a
+    // no-op: `desired` (derived from the clock) freezes while `estimated` (derived from the wall clock)
+    // keeps advancing, so the drift test at SYNC_THRESHOLD trips every ~50 ms and re-seeks every sounding
+    // clip back to the SAME source offset — forever. That is a 50 ms buzz loop, not silence, and the park
+    // frame's own Δ (≈ −0.04 s at 60 Hz on a 30 fps doc) is far under SEEK_THRESHOLD, so `seeked` never
+    // catches it. (Simulated: 272 re-seeks to the identical offset in 15 s of parked show.)
+    // `st.showEnded` is the signal. The show is over: the bed stops.
+    //
+    // The `playhead` argument is deliberately IGNORED here. It is kept in the signature because
+    // ctx.onPlayhead's contract supplies it, and the BOUND timeline's own audio (a later phase) uses it.
+    const tick = (_playhead: number) => {
       // The automation sampler ran moments ago, in the same frame (timeline.ts calls it just before it
       // notifies its subscribers, of which this is one — so a curve's value reaches the engine on the
       // frame it was sampled, not the next). Push whatever it moved. Only the owners it actually touched:
@@ -233,18 +277,26 @@ export const plugin: RendererPlugin = {
         if (moved.has(MASTER_BUS_ID)) syncMaster();
       }
       const nowMs = performance.now();
-      const playing = host.show.getStatus().playing;
+      const st = host.show.getStatus();
+      const playing = st.playing;
+      const showTime = st.showTime;
       const expectedDelta = prevPlaying ? (nowMs - prevWallMs) / 1000 : 0;
-      const seeked = Math.abs((playhead - prevPlayhead) - expectedDelta) > SEEK_THRESHOLD;
+      const seeked = Math.abs((showTime - prevShowTime) - expectedDelta) > SEEK_THRESHOLD;
 
       if (prevPlaying && !playing) {
         stopAllSounding();                              // paused → freeze the bed
+      } else if (st.showEnded) {
+        // THE SHOW IS OVER — the clock is PARKED. Never reconcile against a frozen number (see above).
+        // Idempotent: only the frame that discovers it does any work. When the clock comes back (Play from
+        // the parked end, Stop→Play, a project open, or the global Length raised) showTime jumps and the
+        // `seeked` arm below hard-resyncs from the new position.
+        if (sounding.size > 0) stopAllSounding();
       } else if (playing && (seeked || !prevPlaying)) {
-        stopAllSounding(); reconcile(playhead, nowMs);  // resume or big seek → hard resync at the new playhead
+        stopAllSounding(); reconcile(showTime, nowMs);  // resume or a real show-clock seek → hard resync
       } else if (playing) {
-        reconcile(playhead, nowMs);                     // normal advance (+ live gain/retime/small-seek sync)
+        reconcile(showTime, nowMs);                     // normal advance (+ live gain/retime/small-seek sync)
       }
-      prevPlaying = playing; prevPlayhead = playhead; prevWallMs = nowMs;
+      prevPlaying = playing; prevShowTime = showTime; prevWallMs = nowMs;
     };
 
     void syncLoaded().then(syncClips);

@@ -12,7 +12,7 @@ import { EffectChain, type Effect } from './EffectChain';
 import { MASTER_BUS_ID } from './effectDefs';
 
 interface Spatial { x: number; y: number; z: number }
-interface Clip { id: string; trackId: string; name: string; path: string; start: number; duration: number; inPoint: number; gain?: number; mute?: boolean; spatial?: Spatial; effects?: Effect[] }
+interface Clip { id: string; trackId: string; name: string; path: string; start: number; duration: number; inPoint: number; sourceDuration?: number; gain?: number; mute?: boolean; spatial?: Spatial; effects?: Effect[] }
 interface Track { id: string; name: string; gain?: number; mute?: boolean }
 interface Bus { id: string; name: string; gain?: number; effects?: Effect[] }
 interface Mix { tracks: Track[]; clips: Clip[]; buses: Bus[] }
@@ -63,7 +63,9 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   const [meter, setMeter] = useState({ peak: 0, rms: 0, peakL: 0, peakR: 0 });
   const [clipping, setClipping] = useState(false);
   const clipUntil = useRef(0); // hold the warning ~1.5 s — a transient overshoot would otherwise flash past
-  const [transport, setTransport] = useState({ playing: false, playhead: 0, duration: 0 });
+  // THE BED RIDES THE SHOW CLOCK — so this mirrors showTime/showEnd, never playhead/duration. `sceneBound`
+  // gates the seek controls (see the scrub slider).
+  const [transport, setTransport] = useState({ playing: false, showTime: 0, showEnd: 0, sceneBound: false });
   const [error, setError] = useState<string | null>(null);
   const [openSpatial, setOpenSpatial] = useState<string | null>(null); // clip id whose positioner is open
   const [openFx, setOpenFx] = useState<string | null>(null);           // clip id whose effect chain is open
@@ -100,8 +102,12 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
         if (m.clipped) clipUntil.current = Date.now() + 1500; // engine-latched: catches every block, not 1 in 10
         setClipping(Date.now() < clipUntil.current);
       }).catch(() => {});
-      const st = host.show.getStatus(); // the bed rides the MAIN transport — mirror it here
-      setTransport({ playing: st.playing, playhead: st.playhead, duration: st.duration });
+      // THE BED RIDES THE SHOW CLOCK. Mirroring getStatus().playhead here was a LIE about the bed the
+      // moment a scene was bound: the readout and the scrub slider would show the SCENE's time while the
+      // bed played on at a completely different position. `duration` was the same lie one level down — it
+      // is the BOUND doc's Length, so a 20 s scene pinned the bed's scrub slider at its maximum.
+      const st = host.show.getStatus();
+      setTransport({ playing: st.playing, showTime: st.showTime, showEnd: st.showEnd, sceneBound: st.activeSceneId != null });
     }, 100);
     return () => clearInterval(iv);
   }, [host]);
@@ -135,7 +141,10 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
 
   const addClip = async (trackId: string, asset: { type?: string; path?: string }) => {
     if (asset?.type !== 'audio' || !asset.path) return;
-    const start = Math.max(0, host?.show.getStatus().playhead ?? 0);
+    // Dropped at the SHOW clock, because that is the container it lands in. (getStatus().playhead would
+    // place it at the BOUND doc's time — under a bound scene, an arbitrary number with no relation to
+    // where the bed is actually playing.)
+    const start = Math.max(0, host?.show.getStatus().showTime ?? 0);
     const clipId = uid();
     let meta = null as { durationSec: number } | null;
     try {
@@ -151,7 +160,15 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
     // The track may have been deleted while the file was decoding — don't orphan an invisible-but-audible clip.
     if (!cur.tracks.some((t) => t.id === trackId)) { audioClient.unloadClip(clipId); return; }
     setError(null);
-    commit({ ...cur, clips: [...cur.clips, { id: clipId, trackId, name: baseName(asset.path), path: asset.path, start, duration: meta.durationSec, inPoint: 0, gain: 1, mute: false }] });
+    commit({ ...cur, clips: [...cur.clips, { id: clipId, trackId, name: baseName(asset.path), path: asset.path,
+      start, duration: meta.durationSec, inPoint: 0,
+      // THE TRIM CAP. Absent, `(c.sourceDuration ?? Infinity) - c.inPoint` is INFINITY — a right-trim
+      // handle would have no cap at all and would happily drag a 30 s clip out to 5 minutes of source that
+      // does not exist (the driver's window test would then hold the show on silence). The panel has had
+      // this number in `meta` since Wave 3 and simply never wrote it. Old beds are NOT back-filled — no
+      // migration writes to a project on load.
+      sourceDuration: meta.durationSec,
+      gain: 1, mute: false }] });
   };
 
   const onDrop = (trackId: string) => (e: React.DragEvent) => {
@@ -165,8 +182,16 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   if (!host) return null;
   const clipsOf = (tid: string) => mix.clips.filter((c) => c.trackId === tid).sort((a, b) => a.start - b.start);
   const pct = (v: number) => `${Math.min(100, Math.round(v * 100))}%`;
-  // Scrub range: at least the timeline's length, but always far enough to reach the last bed clip.
-  const scrubMax = Math.max(10, transport.duration, ...mix.clips.map((c) => c.start + c.duration));
+  // Scrub range: the SHOW's length (the global doc's), not the bound doc's — a 20 s scene would otherwise
+  // pin the slider at its maximum while the bed played on at 4:30. Always far enough to reach the last clip.
+  const scrubMax = Math.max(10, transport.showEnd, ...mix.clips.map((c) => c.start + c.duration));
+  // ⚠ SEEKING FROM HERE IS DISABLED WHILE A SCENE IS BOUND, AND THAT IS NOT COSMETIC. A seek dispatches
+  // host.show.transport({kind:'seek'}) → timeline.seek(), whose show-clock identity rule only fires while
+  // the GLOBAL doc is bound. Under a bound scene the same control would seek the SCENE — the operator
+  // nudges a slider in the AUDIO BED panel and recalls the picture to an arbitrary point mid-show, while
+  // the bed does not move at all. Scrub Global to move the bed.
+  const seekLocked = transport.sceneBound;
+  const seekLockTitle = 'Scrub Global to move the bed — a seek inside a scene does not move the show clock.';
 
   return (
     // NOT a blocking modal: authoring the bed means dragging audio assets IN from the Media library, so the
@@ -181,22 +206,25 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
           <Music size={14} className="text-fg-2 shrink-0" />
           <span className="text-xs font-semibold text-fg-1 uppercase tracking-wider shrink-0">Audio Bed</span>
 
-          {/* Transport. The bed has NO clock of its own — it rides the MAIN timeline transport (same
-              controls as the Timeline panel / Space). These drive that transport via host.show. */}
+          {/* Transport. The bed has NO clock of its own — it rides the SHOW clock on the MAIN transport
+              (Play/Pause are the same ones as the Timeline panel / Space). The SEEK controls are disabled
+              under a bound scene: a seek there moves the scene, not the show. See seekLocked. */}
           <div className="flex items-center gap-1 ml-2 shrink-0">
-            <button onClick={() => host.show.transport({ kind: 'seek', sec: 0 })} title="Return to start"
-              className="p-1 rounded-sm bg-surface-3 text-fg-2 hover:text-fg-1"><SkipBack size={12} /></button>
+            <button onClick={() => host.show.transport({ kind: 'seek', sec: 0 })} disabled={seekLocked}
+              title={seekLocked ? seekLockTitle : 'Return to start'}
+              className="p-1 rounded-sm bg-surface-3 text-fg-2 hover:text-fg-1 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-fg-2"><SkipBack size={12} /></button>
             <button onClick={() => host.show.transport({ kind: transport.playing ? 'pause' : 'play' })}
               title={transport.playing ? 'Pause (Space)' : 'Play (Space)'}
               className={`p-1 rounded-sm ${transport.playing ? 'bg-accent text-black' : 'bg-surface-3 text-fg-2 hover:text-fg-1'}`}>
               {transport.playing ? <Pause size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
             </button>
-            <span className="text-micro text-fg-2 tabular-nums w-9">{fmt(transport.playhead)}</span>
+            <span className="text-micro text-fg-2 tabular-nums w-9" title="Show time — where the bed is playing">{fmt(transport.showTime)}</span>
           </div>
-          {/* Scrub the main playhead (seek) — the bed re-syncs to it. */}
-          <input type="range" min={0} max={scrubMax} step={0.05} value={Math.min(transport.playhead, scrubMax)}
+          {/* Scrub the SHOW clock (seek) — the bed re-syncs to it. Disabled under a bound scene (seekLocked). */}
+          <input type="range" min={0} max={scrubMax} step={0.05} value={Math.min(transport.showTime, scrubMax)}
             onChange={(e) => host.show.transport({ kind: 'seek', sec: Number(e.target.value) })}
-            title="Scrub the playhead" className="flex-1 min-w-[80px] accent-accent" />
+            disabled={seekLocked} title={seekLocked ? seekLockTitle : 'Scrub the show clock'}
+            className="flex-1 min-w-[80px] accent-accent disabled:opacity-40 disabled:cursor-not-allowed" />
 
           {/* L / R meters — the stereo image visibly shifts as you drag a source around the pad. */}
           <div className="w-20 shrink-0 space-y-0.5" title={`L ${meter.peakL.toFixed(3)} · R ${meter.peakR.toFixed(3)}`}>
@@ -324,7 +352,7 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
               </span>
             )}
             <span className="ml-auto text-micro text-fg-3">
-              Clips play when the playhead is over them. Drag audio in from the Media library.
+              Clips play when the show clock is over them — a scene recall does not restart the bed. Drag audio in from the Media library.
             </span>
           </div>
           {openMaster && (

@@ -40,7 +40,7 @@ const NOOP_HOST: RendererHostServices = {
   show: {
     getStateMachine: () => ({}), getScenes: () => [], getCueBanks: () => [], getSchedule: () => [],
     setFsmEnabled: () => {}, setSchedule: () => {}, subscribe: () => () => {},
-    getStatus: () => ({ playing: false, playhead: 0, duration: 0, currentStateId: null, stateElapsedSec: 0, activeSceneId: null, lastFiredTransitionId: null }),
+    getStatus: () => ({ playing: false, playhead: 0, showTime: 0, duration: 0, showEnd: 0, showEnded: false, currentStateId: null, stateElapsedSec: 0, activeSceneId: null, lastFiredTransitionId: null }),
     recallScene: () => {}, fireCue: () => {}, fireColumn: () => {}, transport: () => {},
     triggerTransition: () => {}, enterState: () => {},
   },
