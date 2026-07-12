@@ -64,8 +64,11 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   const [clipping, setClipping] = useState(false);
   const clipUntil = useRef(0); // hold the warning ~1.5 s — a transient overshoot would otherwise flash past
   // THE BED RIDES THE SHOW CLOCK — so this mirrors showTime/showEnd, never playhead/duration. `sceneBound`
-  // gates the seek controls (see the scrub slider).
-  const [transport, setTransport] = useState({ playing: false, showTime: 0, showEnd: 0, sceneBound: false });
+  // gates the seek controls (see the scrub slider). `showEnded` is NOT decoration: when the show clock parks
+  // (global Loop off, Length ran out) the driver correctly kills the bed, but `playing` STAYS TRUE if a scene
+  // is looping underneath — so without this the panel shows a lit Play button over a frozen readout and dead
+  // meters, and the only diagnosis available to a venue tech is "the audio engine crashed". See the badge.
+  const [transport, setTransport] = useState({ playing: false, showTime: 0, showEnd: 0, sceneBound: false, showEnded: false });
   const [error, setError] = useState<string | null>(null);
   const [openSpatial, setOpenSpatial] = useState<string | null>(null); // clip id whose positioner is open
   const [openFx, setOpenFx] = useState<string | null>(null);           // clip id whose effect chain is open
@@ -107,7 +110,8 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
       // bed played on at a completely different position. `duration` was the same lie one level down — it
       // is the BOUND doc's Length, so a 20 s scene pinned the bed's scrub slider at its maximum.
       const st = host.show.getStatus();
-      setTransport({ playing: st.playing, showTime: st.showTime, showEnd: st.showEnd, sceneBound: st.activeSceneId != null });
+      setTransport({ playing: st.playing, showTime: st.showTime, showEnd: st.showEnd,
+        sceneBound: st.activeSceneId != null, showEnded: st.showEnded });
     }, 100);
     return () => clearInterval(iv);
   }, [host]);
@@ -219,6 +223,18 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
               {transport.playing ? <Pause size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
             </button>
             <span className="text-micro text-fg-2 tabular-nums w-9" title="Show time — where the bed is playing">{fmt(transport.showTime)}</span>
+            {/* THE PARKED SHOW. The show clock is SILENT by design — it emits no intent and pulses no
+                hitEnd — so when the global Length runs out with Loop off, NOTHING else in the app says so.
+                The transport keeps reporting `playing` (a scene loops underneath), the Play button above
+                stays lit, this readout freezes, and the bed goes correctly but INEXPLICABLY silent. Without
+                this badge the state is undiagnosable from the mixer, and the default global doc is exactly
+                {'{'}duration: 60, loop: false{'}'} — so an unattended install reaches it in one minute. */}
+            {transport.showEnded && (
+              <span className="shrink-0 px-1.5 h-5 inline-flex items-center rounded bg-warn/15 text-warn text-micro whitespace-nowrap"
+                title="The global timeline's Length ran out (Loop off). The show clock is parked and the bed has stopped — this is not a fault. Raise the global Length, turn the global Loop on, or press Stop then Play.">
+                show ended
+              </span>
+            )}
           </div>
           {/* Scrub the SHOW clock (seek) — the bed re-syncs to it. Disabled under a bound scene (seekLocked). */}
           <input type="range" min={0} max={scrubMax} step={0.05} value={Math.min(transport.showTime, scrubMax)}

@@ -287,9 +287,20 @@ export const plugin: RendererPlugin = {
         stopAllSounding();                              // paused → freeze the bed
       } else if (st.showEnded) {
         // THE SHOW IS OVER — the clock is PARKED. Never reconcile against a frozen number (see above).
-        // Idempotent: only the frame that discovers it does any work. When the clock comes back (Play from
-        // the parked end, Stop→Play, a project open, or the global Length raised) showTime jumps and the
-        // `seeked` arm below hard-resyncs from the new position.
+        // Idempotent: only the frame that discovers it does any work.
+        //
+        // WHEN THE CLOCK COMES BACK, THE BED RESTARTS FROM THE NEW POSITION VIA ONE OF THE TWO ARMS BELOW —
+        // and WHICH one depends on the path, so do not go looking for a jump that some of them never make:
+        //   · Play from the parked end / a project open  → showSeek() to the global in-point: a −60 s jump,
+        //     `seeked` is true, the `seeked` arm hard-resyncs from the top.
+        //   · Stop → Play                                → Stop drops `playing`, so the pause arm above runs
+        //     first; Play then re-enters through `!prevPlaying` on the same `seeked` arm.
+        //   · THE GLOBAL LENGTH RAISED WHILE PARKED      → the un-park is NOT a jump. The park re-anchors
+        //     showOriginMs to the raw end every frame, so the clock resumes CONTINUOUSLY: Δclock = 0.05 s vs
+        //     Δwall = 0.017 s ⇒ |Δ| = 0.033 s, far under SEEK_THRESHOLD = 0.2. `seeked` is FALSE and recovery
+        //     runs through the plain normal-advance arm, whose `inWindow && !isSounding` branch restarts the
+        //     clip at the resumed offset (60.02 s, not 0). Same outcome, different arm.
+        //     (Simulated: scratch/showEnded-recovery-arms.mjs prints the arm taken for all three.)
         if (sounding.size > 0) stopAllSounding();
       } else if (playing && (seeked || !prevPlaying)) {
         stopAllSounding(); reconcile(showTime, nowMs);  // resume or a real show-clock seek → hard resync
