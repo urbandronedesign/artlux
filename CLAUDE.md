@@ -53,6 +53,10 @@ a project-level state machine, scenes/cues, OSC control, and a 3D simulator.
 ```bash
 npm install
 npm run build:native          # Rust crates → native/*/*.node (gitignored). Also: build:ndi / build:calib / build:nvwarp
+npm run build:audio           # JUCE audio engine (native/audio-engine, cmake-js). REQUIRED for sound: plugins/audio
+                              # graceful-degrades, so without it the audio UI renders and plays NOTHING, silently.
+                              # build:native runs it too but only WARNS on failure; package + CI are strict.
+                              # Close the app first — a running Electron locks the .node (LNK1104 → stale addon).
 npm run dev                   # electron-vite dev + launch the app (hot-reloads the renderer)
 ```
 - **Typecheck (do this — there's no test suite):** `npx tsc -p tsconfig.json --noEmit` (checks the whole tree).
