@@ -36,46 +36,112 @@ const isFilePath = (s: unknown): s is string =>
   typeof s === 'string' && s.length > 0 && !/^(blob:|https?:|data:)/i.test(s);
 
 // ---- The single source of truth for where asset paths live in a project ----------
-// Visits every asset path string, replacing it with map(value) (return the same string
-// to leave it unchanged). Mutates a shallow-cloned copy so the input isn't touched.
-function mapAssetPaths(data: ProjectData, map: (path: string) => string): ProjectData {
+// Visits every asset path string, replacing it with map(value) (return the same string to leave it
+// unchanged). Mutates a shallow-cloned copy so the input isn't touched.
+//
+// EXPRESSED AS PER-CONTAINER VISITORS ON PURPOSE. A Scene is a full look snapshot with its OWN
+// surfaces, scene3D and timeline — every one of them carrying collectable paths. Written inline (as
+// this used to be), the moment scenes needed the timeline walker too there would be TWO lists of
+// "where paths live", and the next field added to Timeline would be remembered in one and forgotten
+// in the other. (Wave B adds Timeline.audio — see mapTimeline.)
+//
+// EVERY HELPER MUST BE TOTAL OVER GARBAGE. This runs on every load of a possibly hand-edited file:
+// `scenes` may be `{}`, a scene may be `null`, a scene's `timeline` may be a string, `audio.clips` may
+// be a number. It must NEVER throw. (The renderer's sibling, normalizeTimeline, had FOUR separate
+// crash-on-load paths of exactly this shape.) The main process deliberately does not import renderer
+// types — ProjectData.scenes is `unknown[]` and `audio` is `unknown` — hence the `any` casts, matching
+// the file's existing style.
+type PathMap = (path: string) => string;
+
+// Surfaces: VIDEO/IMAGE content.url (skip blob:/http:/data: live urls — isFilePath).
+function mapSurfaces(surfaces: unknown, map: PathMap): unknown {
+  if (!Array.isArray(surfaces)) return surfaces;
+  return surfaces.map((s: any) => {
+    const c = s?.content;
+    if (c && (c.type === 'VIDEO' || c.type === 'IMAGE') && isFilePath(c.url)) {
+      return { ...s, content: { ...c, url: map(c.url) } };
+    }
+    return s;
+  });
+}
+
+// 3D scene: mesh model paths (planes have path '' → skipped by isFilePath's empty check).
+function mapScene3D(scene3D: unknown, map: PathMap): unknown {
+  const s3d = scene3D as any;
+  if (!s3d || typeof s3d !== 'object' || Array.isArray(s3d) || !Array.isArray(s3d.models)) return scene3D;
+  return {
+    ...s3d,
+    models: s3d.models.map((m: any) => (isFilePath(m?.path) ? { ...m, path: map(m.path) } : m)),
+  };
+}
+
+// Timeline: video clip paths + generalized content-clip urls + the recorded tracking-take library
+// (.lblob sidecars). Both placed clips and unplaced bin takes carry collectable paths, so map them
+// together.
+//
+// ⚠ WAVE B adds `Timeline.audio` (per-timeline audio clips). Its clips' `path` is mapped HERE — this
+// one function is what makes relativize/resolve/collect all see it, on the global timeline AND on
+// every scene's, because mapAssetPaths calls it from both places. Whoever adds it MUST ALSO WIDEN THE
+// NOTHING-PATH-BEARING BAIL BELOW to `&& !Array.isArray(t.audio?.clips)` — an audio-ONLY timeline
+// (no video clips, no tracking takes) is an authorable shape, and as written the bail returns it
+// untouched, so its audio paths would never be relativized, resolved or collected.
+function mapTimeline(tl: unknown, map: PathMap): unknown {
+  const t = tl as any;
+  if (!t || typeof t !== 'object' || Array.isArray(t)) return tl;
+  if (!Array.isArray(t.clips) && !Array.isArray(t.trackingTakes)) return tl; // nothing path-bearing
+  const next = { ...t };
+  if (Array.isArray(t.clips)) next.clips = t.clips.map((c: any) => {
+    let n = isFilePath(c?.path) ? { ...c, path: map(c.path) } : c;
+    // Generalized content clips carry the collectable file on content.url (Image/Video sources).
+    const cu = c?.content?.url;
+    if ((c?.content?.type === 'VIDEO' || c?.content?.type === 'IMAGE') && isFilePath(cu)) {
+      n = { ...n, content: { ...n.content, url: map(cu) } };
+    }
+    return n;
+  });
+  if (Array.isArray(t.trackingTakes)) {
+    next.trackingTakes = t.trackingTakes.map((r: any) => (isFilePath(r?.path) ? { ...r, path: map(r.path) } : r));
+  }
+  return next;
+}
+
+// An AudioMix's clips (the global bed today; a timeline's own audio in Wave B — same shape, same
+// visitor). AudioClip.path's own comment claims it is "relative on disk — like every asset path";
+// until this landed nothing made it so: the bed's paths were written ABSOLUTE, baked to the authoring
+// machine, never resolved on load, and never copied or reported missing by Collect Assets.
+function mapAudio(audio: unknown, map: PathMap): unknown {
+  const a = audio as any;
+  if (!a || typeof a !== 'object' || Array.isArray(a) || !Array.isArray(a.clips)) return audio;
+  return {
+    ...a,
+    clips: a.clips.map((c: any) => (isFilePath(c?.path) ? { ...c, path: map(c.path) } : c)),
+  };
+}
+
+function mapAssetPaths(data: ProjectData, map: PathMap): ProjectData {
   const out: ProjectData = { ...data };
 
-  // Surfaces: VIDEO/IMAGE content.url (skip blob:/http: live urls).
-  if (Array.isArray(out.surfaces)) {
-    out.surfaces = out.surfaces.map((s: any) => {
-      const c = s?.content;
-      if (c && (c.type === 'VIDEO' || c.type === 'IMAGE') && isFilePath(c.url)) {
-        return { ...s, content: { ...c, url: map(c.url) } };
-      }
-      return s;
+  out.surfaces = mapSurfaces(out.surfaces, map) as ProjectData['surfaces'];
+  out.scene3D = mapScene3D(out.scene3D, map) as ProjectData['scene3D'];
+  out.timeline = mapTimeline(out.timeline, map) as ProjectData['timeline'];
+
+  // Scenes: each is a full look snapshot with its own surfaces, scene3D and timeline. Missing this is
+  // why Collect Assets shipped a folder whose scenes pointed at the author's D: drive — and why a file
+  // referenced ONLY from a scene was never copied AND never named in CollectResult.missing, because
+  // `missing` is populated from this very visitor (see collectInto's discovery pass).
+  if (Array.isArray(out.scenes)) {
+    out.scenes = out.scenes.map((sc: any) => {
+      if (!sc || typeof sc !== 'object' || Array.isArray(sc)) return sc;
+      const next = { ...sc };
+      if (sc.surfaces !== undefined) next.surfaces = mapSurfaces(sc.surfaces, map);
+      if (sc.scene3D !== undefined) next.scene3D = mapScene3D(sc.scene3D, map);
+      if (sc.timeline !== undefined) next.timeline = mapTimeline(sc.timeline, map);
+      return next;
     });
   }
 
-  // 3D scene: mesh model paths (planes have path '' → skipped by the empty check).
-  if (out.scene3D && Array.isArray(out.scene3D.models)) {
-    out.scene3D = {
-      ...out.scene3D,
-      models: out.scene3D.models.map((m: any) =>
-        isFilePath(m?.path) ? { ...m, path: map(m.path) } : m),
-    };
-  }
-
-  // Timeline: video clip paths + the recorded tracking-take library (.lblob sidecars). Both placed
-  // clips and unplaced bin takes carry collectable paths, so map them together.
-  const tl = out.timeline as any;
-  if (tl && (Array.isArray(tl.clips) || Array.isArray(tl.trackingTakes))) {
-    const next = { ...tl };
-    if (Array.isArray(tl.clips)) next.clips = tl.clips.map((c: any) => {
-      let n = isFilePath(c?.path) ? { ...c, path: map(c.path) } : c;
-      // Generalized content clips carry the collectable file on content.url (Image/Video sources).
-      const cu = c?.content?.url;
-      if ((c?.content?.type === 'VIDEO' || c?.content?.type === 'IMAGE') && isFilePath(cu)) n = { ...n, content: { ...n.content, url: map(cu) } };
-      return n;
-    });
-    if (Array.isArray(tl.trackingTakes)) next.trackingTakes = tl.trackingTakes.map((r: any) => (isFilePath(r?.path) ? { ...r, path: map(r.path) } : r));
-    out.timeline = next;
-  }
+  // The global audio bed (Wave 3) — ProjectData.audio.
+  if (out.audio !== undefined) out.audio = mapAudio(out.audio, map);
 
   // Managed asset library: every entry's path (incl. unused entries).
   if (Array.isArray(out.assets)) {
