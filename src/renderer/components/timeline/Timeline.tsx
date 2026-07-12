@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { X, ChevronDown, Film, Plus, Save, ChevronLeft, ChevronRight } from 'lucide-react';
-import { Timeline as TL, VideoClip, VideoLayer, SurfaceContent, SourceType, StateMachine, defaultStateMachine, isContentClip, type AssetEntry } from '../../types';
+import { Timeline as TL, VideoClip, VideoLayer, SurfaceContent, SourceType, StateMachine, defaultStateMachine, isContentClip, timelineEnd, type AssetEntry } from '../../types';
 import { timeline as engine } from '../../services/timeline';
 import { ContentEditor } from '../ContentEditor';
 import { GUTTER, RULER_H, LANE_H, MIN_LANE_H, MAX_LANE_H, PAGE_SECS, laneHeight, clamp, fmtTimecode } from './geometry';
@@ -85,12 +85,17 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   );
   const viewEnd = Math.max(contentEnd, (pages + 1) * PAGE_SECS);
   const width = viewEnd * pxPerSec;
+  // Distinct from contentEnd: this is where PLAYBACK stops (the readout's denominator), not how far
+  // the canvas scrolls. A clip overrunning Length must still be visible/editable — contentEnd stays
+  // for that; `end` must NOT be conflated with it.
+  const end = useMemo(() => timelineEnd(timeline), [timeline.duration, timeline.inPoint, timeline.outPoint]);
 
   // Live refs so stable (window-listener / engine-subscription / memoized-child) handlers see
   // current values without re-subscribing or breaking React.memo on clips/headers.
   const pxRef = useRef(pxPerSec); pxRef.current = pxPerSec;
   const viewEndRef = useRef(viewEnd); viewEndRef.current = viewEnd;
   const contentEndRef = useRef(contentEnd); contentEndRef.current = contentEnd;
+  const endRef = useRef(end); endRef.current = end;
   const fpsRef = useRef(fps); fpsRef.current = fps;
   const snapRefEnabled = useRef(snapEnabled); snapRefEnabled.current = snapEnabled;
   const draftRef = useRef<VideoClip | null>(null); draftRef.current = draft;
@@ -111,7 +116,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   useEffect(() => engine.subscribe((ph) => {
     const px = pxRef.current;
     if (playheadRef.current) playheadRef.current.style.left = `${GUTTER + ph * px}px`;
-    if (timeRef.current) timeRef.current.textContent = `${fmtTimecode(ph, fpsRef.current)} / ${fmtTimecode(contentEndRef.current, fpsRef.current)}`;
+    if (timeRef.current) timeRef.current.textContent = `${fmtTimecode(ph, fpsRef.current)} / ${fmtTimecode(endRef.current, fpsRef.current)}`;
     if (ph + PAGE_SECS > viewEndRef.current) setPages(p => Math.max(p, Math.ceil((ph + PAGE_SECS) / PAGE_SECS)));
   }), []);
 
@@ -326,6 +331,9 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   const addMarker = () => onChange({ ...timeline, markers: [...(timeline.markers ?? []), { id: crypto.randomUUID(), time: engine.getPlayhead(), color: '#f5a623' }] });
   const setIn = () => { const t = engine.getPlayhead(); const out = timeline.outPoint != null && timeline.outPoint <= t ? null : timeline.outPoint ?? null; onChange({ ...timeline, inPoint: t, outPoint: out }); };
   const setOut = () => { const t = engine.getPlayhead(); const inp = timeline.inPoint != null && timeline.inPoint >= t ? null : timeline.inPoint ?? null; onChange({ ...timeline, inPoint: inp, outPoint: t }); };
+  // Stop goes through the SAME TransportIntent funnel the FSM and OSC use, so App stays the single
+  // writer of `playing`. (A 'stop' intent has existed since OSC landed; no UI ever emitted one.)
+  const stop = () => engine.dispatchTransportIntent({ kind: 'stop' });
   const deleteSelected = (ripple: boolean) => { if (!selected) return; onChange({ ...timeline, clips: ripple ? rippleDelete(timeline.clips, selected) : liftDelete(timeline.clips, selected) }); setSelected(null); };
   const bladeAtPlayhead = () => onChange({ ...timeline, clips: bladeAt(timeline.clips, engine.getPlayhead()) });
 
@@ -538,12 +546,14 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
         </div>
       )}
       <TimelineToolbar
-        playing={playing} onTogglePlay={onTogglePlay} timeRef={timeRef}
+        playing={playing} onTogglePlay={onTogglePlay} onStop={stop} timeRef={timeRef}
         duration={dur} onChangeDuration={(d) => onChange({ ...timeline, duration: d })}
         fps={fps} onChangeFps={(f) => onChange({ ...timeline, fps: f })}
         tool={tool} onSetTool={setTool}
         snapEnabled={snapEnabled} onToggleSnap={() => setSnapEnabled(v => !v)}
-        onAddMarker={addMarker} onZoom={onZoom} onZoomFit={onZoomFit} onAddTrack={addLayer}
+        onAddMarker={addMarker} onSetIn={setIn} onSetOut={setOut}
+        hasRegion={timeline.inPoint != null && timeline.outPoint != null && timeline.outPoint > timeline.inPoint}
+        onZoom={onZoom} onZoomFit={onZoomFit} onAddTrack={addLayer}
         loop={!!timeline.loop} onToggleLoop={toggleLoop}
         smEnabled={sm.enabled} onToggleSm={toggleSm} onEditLogic={() => setSmEditorOpen(true)}
         maximized={maximized} onToggleMax={() => onToggleMax?.()}

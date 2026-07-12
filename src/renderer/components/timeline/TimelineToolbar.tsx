@@ -1,9 +1,13 @@
 import React from 'react';
-import { Play, Pause, Plus, ZoomIn, ZoomOut, Maximize, Minimize, Scan, Scissors, MousePointer2, Magnet, Flag, Repeat, Workflow } from 'lucide-react';
+import { Play, Pause, Plus, ZoomIn, ZoomOut, Maximize, Minimize, Scan, Scissors, MousePointer2, Magnet, Flag, Repeat, Workflow, Square, LogIn, LogOut } from 'lucide-react';
 
 interface Props {
   playing: boolean;
   onTogglePlay: () => void;
+  onStop: () => void;
+  onSetIn: () => void;
+  onSetOut: () => void;
+  hasRegion: boolean;   // an in/out region exists — Loop honours it instead of [0, Length)
   timeRef: React.RefObject<HTMLSpanElement>;
   duration: number;
   onChangeDuration: (d: number) => void;
@@ -30,14 +34,21 @@ const TBtn: React.FC<{ active?: boolean; title: string; onClick: () => void; chi
   <button title={title} onClick={onClick} className={`p-1.5 rounded-sm ${active ? 'bg-accent text-black' : 'bg-surface-2 text-fg-2 hover:text-fg-1'}`}>{children}</button>
 );
 
-export const TimelineToolbar: React.FC<Props> = ({ playing, onTogglePlay, timeRef, duration, onChangeDuration, fps, onChangeFps, tool, onSetTool, snapEnabled, onToggleSnap, onAddMarker, onZoom, onZoomFit, onAddTrack, loop, onToggleLoop, smEnabled, onToggleSm, onEditLogic, maximized, onToggleMax }) => (
+export const TimelineToolbar: React.FC<Props> = ({ playing, onTogglePlay, onStop, timeRef, duration, onChangeDuration, fps, onChangeFps, tool, onSetTool, snapEnabled, onToggleSnap, onAddMarker, onSetIn, onSetOut, hasRegion, onZoom, onZoomFit, onAddTrack, loop, onToggleLoop, smEnabled, onToggleSm, onEditLogic, maximized, onToggleMax }) => (
   <div className="shrink-0 flex items-center gap-2 px-3 h-9 border-b border-line-1 bg-surface-1">
+    {/* ── transport: what is PLAYING ── */}
     <TBtn active={playing} title="Play / Pause (Space)" onClick={onTogglePlay}>
       {playing ? <Pause size={13} fill="currentColor" /> : <Play size={13} fill="currentColor" />}
     </TBtn>
-    <TBtn active={loop} title="Loop in/out region (Shift+L)" onClick={onToggleLoop}><Repeat size={13} /></TBtn>
+    <TBtn title="Stop — pause and return to the in-point" onClick={onStop}><Square size={13} fill="currentColor" /></TBtn>
+    <TBtn active={loop} title={hasRegion ? 'Loop the in/out region (Shift+L)' : 'Loop the whole timeline, 0 → Length (Shift+L)'} onClick={onToggleLoop}>
+      <Repeat size={13} />
+    </TBtn>
+    <TBtn title="Set in-point at the playhead (I)" onClick={onSetIn}><LogIn size={13} /></TBtn>
+    <TBtn title="Set out-point at the playhead (O)" onClick={onSetOut}><LogOut size={13} /></TBtn>
     <span ref={timeRef} className="num text-mini text-fg-1 tabular-nums w-44">00:00:00:00 / 00:00:00:00</span>
 
+    {/* ── tools: what I am DOING ── */}
     <div className="w-px h-5 bg-line-1 mx-0.5" />
     <TBtn active={tool === 'select'} title="Select tool (V)" onClick={() => onSetTool('select')}><MousePointer2 size={13} /></TBtn>
     <TBtn active={tool === 'blade'} title="Blade tool (B)" onClick={() => onSetTool('blade')}><Scissors size={13} /></TBtn>
@@ -48,6 +59,7 @@ export const TimelineToolbar: React.FC<Props> = ({ playing, onTogglePlay, timeRe
     <TBtn active={smEnabled} title="State machine: enable control layer" onClick={onToggleSm}><Workflow size={13} /></TBtn>
     <button onClick={onEditLogic} className="px-2 py-1 rounded-sm bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3 text-mini">Edit logic</button>
 
+    {/* ── document + view: what I am EDITING ── */}
     <div className="ml-auto flex items-center gap-2">
       <div className="flex items-center gap-1">
         <span className="text-fg-3 text-micro">FPS</span>
@@ -55,7 +67,7 @@ export const TimelineToolbar: React.FC<Props> = ({ playing, onTogglePlay, timeRe
           className="w-11 bg-surface-0 border border-line-1 rounded px-1.5 py-0.5 text-right num text-mini focus:border-accent focus:outline-none" />
       </div>
       <div className="flex items-center gap-1">
-        <span className="text-fg-3 text-micro">Length</span>
+        <span className="text-fg-3 text-micro" title="The end of the timeline. Playback stops here — or loops, if Loop is on.">Length</span>
         <input type="number" min={1} step={1} value={duration} onChange={(e) => onChangeDuration(Math.max(1, parseFloat(e.target.value) || 1))}
           className="w-14 bg-surface-0 border border-line-1 rounded px-1.5 py-0.5 text-right num text-mini focus:border-accent focus:outline-none" />
         <span className="text-fg-3 text-micro">s</span>
