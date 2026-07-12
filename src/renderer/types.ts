@@ -942,6 +942,21 @@ export interface Scene {
   projectorOutputs?: ProjectorOutput[];
   timeline?: Timeline;         // per-state timeline; absent → uses the shared global timeline
   accent?: string;             // stable identity colour (node/pill/border/strip/cell) — see accentPalette
+  // AUDIO PARAMS THIS SCENE RECALLS — an explicit list, NOT a snapshot of the mix.
+  //
+  // A Scene is a LOOK snapshot for surfaces/fixtures/brightness, but audio deliberately is not: the mix is
+  // a live, continuous thing (the bed does not restart on a recall — that is the whole point of the show
+  // clock), and snapshotting it whole would force every leaf to be classified snap-vs-fade, including the
+  // discrete `opts` strings the fade engine must never be handed. So a scene carries exactly the params the
+  // operator CHOSE to bind, in the same {path, value} shape a Cue uses — recalled through the same fade
+  // legs, with the same "a lane always wins" rule.
+  //
+  // ⚠ buildSceneSnapshot (App) is LOOK-ONLY and must stay that way: "Update Scene" spreads it over the
+  // scene, so putting `audio` in it would silently re-capture the LIVE mix over a carefully bound list.
+  // The cue panel's ♪ picker is the only writer.
+  //
+  // Absent ⇒ this scene changes no audio at all (which is what every existing project means).
+  audio?: CueEntry[];
 }
 
 // --- Granular cues (MadMapper-style cue banks) ---
@@ -978,6 +993,19 @@ export interface CueBank {
 export const defaultCueBank = (id: string, name = 'Bank 1'): CueBank => ({
   id, name, rows: 8, cols: 16, cues: [], sceneCells: [],
 });
+
+// A scene's bound audio entries — TOTAL OVER GARBAGE, on purpose.
+//
+// `Scene.audio` is the one Scene field with no normalizer in front of it: applyProjectData loads scenes
+// with a spread (`{ ...s, accent, timeline }`), so whatever a hand-edited .artlux carries here reaches the
+// recall path verbatim. And a `for…of` over a non-iterable ({} , 7, "x") THROWS — inside handleRecallScene,
+// i.e. inside a GO, with no ErrorBoundary above it: a black show from a stray brace. Coerce, do not drop.
+// (A garbage ENTRY inside a good array is harmless: applyAudioEntries requires a numeric `value` and a
+// fadeable `path`, and skips anything else.)
+export const sceneAudioEntries = (s: Scene | null | undefined): CueEntry[] => {
+  const a = s?.audio as unknown;
+  return Array.isArray(a) ? (a as CueEntry[]) : [];
+};
 
 // S4 — a saved, reusable fixture definition (LED structure only; no placement,
 // patch, or surface link). Persisted to userData so the library spans projects.

@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Scene, Cue, CueBank, CueEntry, CueTransition, Surface, Fixture } from '../types';
-import { Plus, Trash2, Play, RefreshCw, Camera, Zap, X, Film } from 'lucide-react';
-import { getByPath, globalParams, surfaceParams, fixtureParams, isFadeablePath, type StateView, type ParamDef } from '../services/paramPath';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Scene, Cue, CueBank, CueEntry, CueTransition, Surface, Fixture, sceneAudioEntries } from '../types';
+import { Plus, Trash2, RefreshCw, Camera, Zap, X, Film, Music } from 'lucide-react';
+import { getByPath, globalParams, surfaceParams, fixtureParams, isFadeablePath, pathLeaf, type StateView, type ParamDef } from '../services/paramPath';
+import { automationTargetRegistry } from '../host/registries';
 
 interface Props {
     banks: CueBank[];
@@ -18,6 +19,9 @@ interface Props {
     onRemoveScene: (id: string) => void;
     onRenameScene: (id: string, name: string) => void;
     onUpdateSceneFade: (id: string, fadeSec: number) => void;
+    // A scene's bound AUDIO params (Scene.audio — an explicit {path,value} list, not a mix snapshot).
+    // Optional: without it the ♪ button is not offered and a scene's audio is simply unauthorable here.
+    onUpdateSceneAudio?: (id: string, entries: CueEntry[]) => void;
     // Cue firing
     onFireCue: (cue: Cue) => void;
     onFireColumn: (bankId: string, col: number) => void;
@@ -34,10 +38,21 @@ const uid = () => crypto.randomUUID();
 // Bottom-dock cue-bank grid (MadMapper-style). Row 0 holds Scenes (whole-look snapshots), rows 1+
 // hold granular Cues (parameter subsets). Live mode: click a cell to fire it. Edit mode: click to
 // select and author it in the inspector. Column headers fire the whole column.
+// WHAT THE CAPTURE PICKER IS EDITING. A Cue and a Scene both carry a CueEntry[]; they differ only in where
+// that list is COMMITTED. Everything below drives off this, so there is exactly one capture UI and no
+// second, drifting copy of the five entry mutators.
+interface CaptureTarget {
+    key: string;
+    label: string;
+    entries: CueEntry[];
+    setEntries: (e: CueEntry[]) => void;
+    audioOnly: boolean;   // a Scene binds AUDIO params only — its LOOK is a snapshot, captured elsewhere
+}
+
 export const CueBankPanel: React.FC<Props> = ({
     banks, onChangeBanks, scenes, surfaces, fixtures, getCurrentState, oscPrefix,
-    onCaptureScene, onRecallScene, onUpdateScene, onRemoveScene, onRenameScene, onUpdateSceneFade, onFireCue, onFireColumn,
-    onEditScene, onPreloadScene, activeSceneId,
+    onCaptureScene, onRecallScene, onUpdateScene, onRemoveScene, onRenameScene, onUpdateSceneFade, onUpdateSceneAudio,
+    onFireCue, onFireColumn, onEditScene, onPreloadScene, activeSceneId,
 }) => {
     const [editSceneId, setEditSceneId] = useState<string | null>(null);
     const [editSceneName, setEditSceneName] = useState('');
@@ -45,7 +60,37 @@ export const CueBankPanel: React.FC<Props> = ({
     const [bankIdx, setBankIdx] = useState(0);
     const [mode, setMode] = useState<'live' | 'edit'>('live');
     const [selCueId, setSelCueId] = useState<string | null>(null);
+    const [audioSceneId, setAudioSceneId] = useState<string | null>(null); // the scene whose ♪ list is open
     const [addOpen, setAddOpen] = useState(false);
+
+    // PLUGIN NAMESPACES (today: audio), straight off the registry — exactly as the automation target picker
+    // already does it. Core does not know what a filter cutoff is and does not need to.
+    //
+    // FADEABLE LEAVES ONLY. enumerate() is the CATALOG (it emits a def's `params` and nothing else — never a
+    // discrete `opts` mode, never mute/solo, never the spatial flag) and isFadeablePath is the GATE. A path
+    // that got past both is one the fade engine can hand a number to; anything else would end up
+    // interpolating a filter's mode to 0.37.
+    //
+    // Re-enumerated whenever the picker opens (the bed changes as clips are added), never memoized on a
+    // stale dep. A provider in a bad state must not take the panel down with it.
+    const pluginParamGroups = useMemo(() => {
+        const out: { title: string; defs: ParamDef[] }[] = [];
+        for (const p of automationTargetRegistry.all()) {
+            if (p.namespaces.every(ns => ns === 'surfaces' || ns === 'fixtures' || ns === 'globalBrightness')) continue; // core — already above
+            let defs: { path: string; label: string; group: string }[] = [];
+            try { defs = p.enumerate(); } catch { defs = []; }
+            const byGroup = new Map<string, ParamDef[]>();
+            for (const d of defs) {
+                if (!isFadeablePath(d.path)) continue;
+                const g = byGroup.get(d.group) ?? [];
+                g.push({ path: d.path, label: d.label });
+                byGroup.set(d.group, g);
+            }
+            for (const [title, ds] of byGroup) out.push({ title, defs: ds });
+        }
+        return out;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [addOpen]);
 
     const bank = banks[Math.min(bankIdx, banks.length - 1)];
 
@@ -97,6 +142,7 @@ export const CueBankPanel: React.FC<Props> = ({
     const addCue = (row: number, col: number) => {
         const cue: Cue = { id: uid(), name: `Cue ${bank.cues.length + 1}`, row, col, entries: [], fadeSec: 1, transition: 'smooth' };
         patchBank({ cues: [...bank.cues, cue] });
+        setAudioSceneId(null);
         setSelCueId(cue.id);
         setMode('edit');
         setAddOpen(true);
@@ -104,39 +150,59 @@ export const CueBankPanel: React.FC<Props> = ({
     const removeCue = (id: string) => { patchBank({ cues: bank.cues.filter(c => c.id !== id) }); if (selCueId === id) setSelCueId(null); };
 
     const selCue = bank.cues.find(c => c.id === selCueId) ?? null;
+    const audioScene = audioSceneId ? scenes.find(s => s.id === audioSceneId) ?? null : null;
+    // Which list the picker commits into: a scene's ♪ audio bindings, else the selected cue's entries.
+    const target: CaptureTarget | null =
+        audioScene && onUpdateSceneAudio
+            ? {
+                key: audioScene.id, label: audioScene.name, entries: sceneAudioEntries(audioScene),
+                setEntries: (e) => onUpdateSceneAudio(audioScene.id, e), audioOnly: true,
+            }
+            : selCue
+                ? {
+                    key: selCue.id, label: selCue.name, entries: selCue.entries,
+                    setEntries: (e) => patchCue(selCue.id, { entries: e }), audioOnly: false,
+                }
+                : null;
 
-    // Capture a parameter's current value into the selected cue (add or update its entry).
+    // Capture a parameter's current value into the open target (add or update its entry).
     const captureEntry = (def: ParamDef) => {
-        if (!selCue) return;
-        const v = getByPath(getCurrentState(), def.path);
+        if (!target) return;
+        // Core params live on the StateView (getByPath). A PLUGIN-NAMESPACED param (audio.*) does NOT, and
+        // never will — it lives behind the AutomationTargetProvider contract, whose get() returns the
+        // AUTHORED value (what the slider last wrote). Without this fallback getByPath returns undefined and
+        // the bail below fires: you could not add an audio param to a cue at all.
+        const head = def.path.split('.')[0];
+        const v = head === 'surfaces' || head === 'fixtures' || def.path === 'globalBrightness'
+            ? getByPath(getCurrentState(), def.path)
+            : automationTargetRegistry.get(head)?.get(def.path);
         if (v === undefined) return;
-        const entries = selCue.entries.some(e => e.path === def.path)
-            ? selCue.entries.map(e => e.path === def.path ? { ...e, value: v as CueEntry['value'] } : e)
-            : [...selCue.entries, { path: def.path, value: v as CueEntry['value'] }];
-        patchCue(selCue.id, { entries });
+        const entries = target.entries.some(e => e.path === def.path)
+            ? target.entries.map(e => e.path === def.path ? { ...e, value: v as CueEntry['value'] } : e)
+            : [...target.entries, { path: def.path, value: v as CueEntry['value'] }];
+        target.setEntries(entries);
     };
-    const removeEntry = (path: string) => selCue && patchCue(selCue.id, { entries: selCue.entries.filter(e => e.path !== path) });
-    const setEntryValue = (path: string, value: CueEntry['value']) => selCue && patchCue(selCue.id, { entries: selCue.entries.map(e => e.path === path ? { ...e, value } : e) });
-    // Per-entry Fade/Transition overrides. undefined removes the key (= inherit the cue's value); note a
-    // fadeSec of 0 is a real override (snap), which must stay distinct from "inherit".
-    const setEntryFade = (path: string, fadeSec: number | undefined) => selCue && patchCue(selCue.id, {
-        entries: selCue.entries.map(e => {
-            if (e.path !== path) return e;
-            const next: CueEntry = { ...e };
-            if (fadeSec === undefined) delete next.fadeSec; else next.fadeSec = fadeSec;
-            return next;
-        }),
-    });
-    const setEntryTransition = (path: string, transition: CueTransition | undefined) => selCue && patchCue(selCue.id, {
-        entries: selCue.entries.map(e => {
-            if (e.path !== path) return e;
-            const next: CueEntry = { ...e };
-            if (transition === undefined) delete next.transition; else next.transition = transition;
-            return next;
-        }),
-    });
+    const removeEntry = (path: string) => target?.setEntries(target.entries.filter(e => e.path !== path));
+    const setEntryValue = (path: string, value: CueEntry['value']) => target?.setEntries(target.entries.map(e => e.path === path ? { ...e, value } : e));
+    // Per-entry Fade/Transition overrides. undefined removes the key (= inherit the cue's/scene's value);
+    // note a fadeSec of 0 is a real override (snap), which must stay distinct from "inherit".
+    const setEntryFade = (path: string, fadeSec: number | undefined) => target?.setEntries(target.entries.map(e => {
+        if (e.path !== path) return e;
+        const next: CueEntry = { ...e };
+        if (fadeSec === undefined) delete next.fadeSec; else next.fadeSec = fadeSec;
+        return next;
+    }));
+    const setEntryTransition = (path: string, transition: CueTransition | undefined) => target?.setEntries(target.entries.map(e => {
+        if (e.path !== path) return e;
+        const next: CueEntry = { ...e };
+        if (transition === undefined) delete next.transition; else next.transition = transition;
+        return next;
+    }));
 
-    const cellClick = (cue: Cue) => { if (mode === 'live') onFireCue(cue); else { setSelCueId(cue.id); setAddOpen(false); } };
+    // Selecting a cue closes the scene's ♪ list (they share one inspector; a scene target OUTRANKS a cue,
+    // so leaving audioSceneId set would strand the cue behind it — the way back out).
+    const selectCue = (id: string | null) => { setAudioSceneId(null); setSelCueId(id); };
+    const cellClick = (cue: Cue) => { if (mode === 'live') onFireCue(cue); else { selectCue(cue.id); setAddOpen(false); } };
 
     const cellBase = 'relative h-12 w-24 shrink-0 rounded border text-micro px-1.5 py-1 flex flex-col justify-between overflow-hidden transition-colors';
 
@@ -146,7 +212,7 @@ export const CueBankPanel: React.FC<Props> = ({
             <div className="h-9 shrink-0 flex items-center gap-2 px-3 border-b border-line-1 bg-surface-2">
                 <div className="flex items-center gap-1">
                     {banks.map((b, i) => (
-                        <button key={b.id} onClick={() => { setBankIdx(i); setSelCueId(null); }}
+                        <button key={b.id} onClick={() => { setBankIdx(i); setSelCueId(null); setAudioSceneId(null); }}
                             className={`h-6 px-2 rounded text-mini ${i === bankIdx ? 'bg-accent/15 text-accent' : 'text-fg-2 hover:bg-surface-3'}`}>{b.name}</button>
                     ))}
                     <button onClick={() => onChangeBanks([...banks, { id: uid(), name: `Bank ${banks.length + 1}`, rows: 8, cols: 16, cues: [], sceneCells: [] }])}
@@ -195,7 +261,12 @@ export const CueBankPanel: React.FC<Props> = ({
                                     <div className="flex items-center justify-between text-fg-3">
                                         <input type="number" min={0} step={0.1} value={s.fadeSec ?? 0} onChange={e => onUpdateSceneFade(s.id, Math.max(0, Number(e.target.value) || 0))}
                                             title="Crossfade (s)" className="w-9 bg-transparent hover:bg-surface-1 border border-transparent hover:border-line-1 rounded px-0.5 text-fg-3 tabular-nums" />
+                                        {/* A scene that recalls audio SAYS SO, always — not only on hover. In an unattended
+                                            install the operator has to be able to see which scenes touch the sound. */}
+                                        {!!sceneAudioEntries(s).length && <span className="text-accent shrink-0" title={`${sceneAudioEntries(s).length} audio param(s) recalled`}>♪{sceneAudioEntries(s).length}</span>}
                                         <span className="opacity-0 group-hover:opacity-100 flex gap-1">
+                                            {onUpdateSceneAudio && <button onClick={() => { setAudioSceneId(s.id); setSelCueId(null); setMode('edit'); setAddOpen(true); }}
+                                                title="Bind audio params to this scene" className="hover:text-fg-1"><Music size={10} /></button>}
                                             {onEditScene && <button onClick={() => onEditScene(s.id)} title="Edit this state's timeline" className="hover:text-fg-1"><Film size={10} /></button>}
                                             <button onClick={() => onUpdateScene(s.id)} title="Update from current look" className="hover:text-fg-1"><RefreshCw size={10} /></button>
                                             <button onClick={() => onRemoveScene(s.id)} title="Delete scene" className="hover:text-danger"><Trash2 size={10} /></button>
@@ -244,32 +315,48 @@ export const CueBankPanel: React.FC<Props> = ({
                     ))}
                 </div>
 
-                {/* Cue inspector (edit mode) */}
-                {mode === 'edit' && selCue && (
+                {/* Inspector (edit mode) — one panel, two targets: the selected CUE, or a scene's ♪ audio list. */}
+                {mode === 'edit' && target && (
                     <div className="w-64 shrink-0 border-l border-line-1 bg-surface-1 overflow-auto p-2 space-y-2">
-                        <div className="flex items-center gap-1">
-                            <input value={selCue.name} onChange={e => patchCue(selCue.id, { name: e.target.value })}
-                                className="flex-1 min-w-0 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-mini" />
-                            <button onClick={() => setSelCueId(null)} className="text-fg-3 hover:text-fg-1"><X size={14} /></button>
-                        </div>
-                        <div className="flex items-center gap-2 text-micro">
-                            <label className="text-fg-3">Fade</label>
-                            <input type="number" min={0} step={0.1} value={selCue.fadeSec} onChange={e => patchCue(selCue.id, { fadeSec: Math.max(0, Number(e.target.value) || 0) })}
-                                className="w-14 bg-surface-0 border border-line-1 rounded px-1 py-0.5 text-fg-1 tabular-nums" />
-                            <select value={selCue.transition} onChange={e => patchCue(selCue.id, { transition: e.target.value as CueTransition })}
-                                className="flex-1 bg-surface-0 border border-line-1 rounded px-1 py-0.5 text-fg-1">
-                                {TRANSITIONS.map(t => <option key={t} value={t}>{t}</option>)}
-                            </select>
-                        </div>
-                        <label className="flex items-center gap-1.5 text-micro text-fg-2"><input type="checkbox" checked={!!selCue.restartMedia} onChange={e => patchCue(selCue.id, { restartMedia: e.target.checked })} /> Restart media on fire</label>
+                        {audioScene ? (
+                            <>
+                                <div className="flex items-center gap-1">
+                                    <span className="flex-1 min-w-0 truncate text-fg-1 text-mini inline-flex items-center gap-1"><Music size={12} className="text-accent shrink-0" />{audioScene.name}</span>
+                                    <button onClick={() => setAudioSceneId(null)} className="text-fg-3 hover:text-fg-1"><X size={14} /></button>
+                                </div>
+                                {/* The scene's LOOK is a snapshot (Capture / Update Scene). Its AUDIO is this explicit
+                                    list — nothing here is auto-captured, so Update Scene can never clobber it. */}
+                                <div className="text-micro text-fg-3">
+                                    Audio params recalled on GO. Each fades over the scene's fade ({(audioScene.fadeSec ?? 0).toFixed(1)}s) unless it overrides it below. An automation lane on the same path always wins.
+                                </div>
+                            </>
+                        ) : selCue ? (
+                            <>
+                                <div className="flex items-center gap-1">
+                                    <input value={selCue.name} onChange={e => patchCue(selCue.id, { name: e.target.value })}
+                                        className="flex-1 min-w-0 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-mini" />
+                                    <button onClick={() => setSelCueId(null)} className="text-fg-3 hover:text-fg-1"><X size={14} /></button>
+                                </div>
+                                <div className="flex items-center gap-2 text-micro">
+                                    <label className="text-fg-3">Fade</label>
+                                    <input type="number" min={0} step={0.1} value={selCue.fadeSec} onChange={e => patchCue(selCue.id, { fadeSec: Math.max(0, Number(e.target.value) || 0) })}
+                                        className="w-14 bg-surface-0 border border-line-1 rounded px-1 py-0.5 text-fg-1 tabular-nums" />
+                                    <select value={selCue.transition} onChange={e => patchCue(selCue.id, { transition: e.target.value as CueTransition })}
+                                        className="flex-1 bg-surface-0 border border-line-1 rounded px-1 py-0.5 text-fg-1">
+                                        {TRANSITIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                                    </select>
+                                </div>
+                                <label className="flex items-center gap-1.5 text-micro text-fg-2"><input type="checkbox" checked={!!selCue.restartMedia} onChange={e => patchCue(selCue.id, { restartMedia: e.target.checked })} /> Restart media on fire</label>
+                            </>
+                        ) : null}
 
                         {/* Entries */}
                         <div className="flex items-center justify-between pt-1">
-                            <span className="text-micro text-fg-3 uppercase tracking-wide">Parameters ({selCue.entries.length})</span>
+                            <span className="text-micro text-fg-3 uppercase tracking-wide">{target.audioOnly ? 'Audio' : 'Parameters'} ({target.entries.length})</span>
                             <button onClick={() => setAddOpen(o => !o)} className="text-accent text-micro hover:underline inline-flex items-center gap-0.5"><Plus size={11} /> capture</button>
                         </div>
                         <div className="space-y-1">
-                            {selCue.entries.map(e => (
+                            {target.entries.map(e => (
                                 <div key={e.path} className="rounded bg-surface-0/40 px-1 py-1 space-y-1">
                                     <div className="flex items-center gap-1 text-micro">
                                         <span className="flex-1 min-w-0 truncate text-fg-2" title={e.path}>{labelForPath(e.path)}</span>
@@ -279,30 +366,40 @@ export const CueBankPanel: React.FC<Props> = ({
                                     {isFadeablePath(e.path) && (
                                         <div className="flex items-center gap-1 text-micro pl-1 text-fg-3">
                                             <span className="opacity-70">fade</span>
-                                            <input type="number" min={0} step={0.1} value={e.fadeSec ?? ''} placeholder="cue"
+                                            <input type="number" min={0} step={0.1} value={e.fadeSec ?? ''} placeholder={target.audioOnly ? 'scene' : 'cue'}
                                                 onChange={(ev) => setEntryFade(e.path, ev.target.value === '' ? undefined : Math.max(0, Number(ev.target.value) || 0))}
-                                                title="Per-entry fade (s) — blank inherits the cue's fade"
+                                                title={target.audioOnly ? "Per-entry fade (s) — blank inherits the scene's fade" : "Per-entry fade (s) — blank inherits the cue's fade"}
                                                 className="w-10 bg-surface-0 border border-line-1 rounded px-0.5 text-fg-1 tabular-nums" />
                                             <select value={e.transition ?? ''}
                                                 onChange={(ev) => setEntryTransition(e.path, ev.target.value === '' ? undefined : ev.target.value as CueTransition)}
-                                                title="Per-entry transition — 'cue' inherits the cue's"
+                                                title={target.audioOnly ? "Per-entry transition — blank inherits the scene's (smooth)" : "Per-entry transition — 'cue' inherits the cue's"}
                                                 className="flex-1 min-w-0 bg-surface-0 border border-line-1 rounded px-0.5 py-0.5 text-fg-1">
-                                                <option value="">cue</option>
+                                                <option value="">{target.audioOnly ? 'scene' : 'cue'}</option>
                                                 {TRANSITIONS.map(t => <option key={t} value={t}>{t}</option>)}
                                             </select>
                                         </div>
                                     )}
                                 </div>
                             ))}
-                            {selCue.entries.length === 0 && <div className="text-fg-3 italic text-micro">No params — use “capture” to add some.</div>}
+                            {target.entries.length === 0 && <div className="text-fg-3 italic text-micro">No params — use “capture” to add some.</div>}
                         </div>
 
                         {/* Capture picker */}
                         {addOpen && (
                             <div className="border border-line-1 rounded p-1.5 bg-surface-0 space-y-1.5 max-h-48 overflow-auto">
-                                <CaptureGroup title="Global" defs={globalParams()} cue={selCue} onCapture={captureEntry} />
-                                {surfaces.map(s => <CaptureGroup key={s.id} title={s.name} defs={surfaceParams(s)} cue={selCue} onCapture={captureEntry} />)}
-                                {fixtures.map(f => <CaptureGroup key={f.id} title={f.name} defs={fixtureParams(f)} cue={selCue} onCapture={captureEntry} />)}
+                                {/* A SCENE target carries AUDIO params only: its look is a snapshot, captured by
+                                    Capture / Update Scene, not by this picker. */}
+                                {!target.audioOnly && <>
+                                    <CaptureGroup title="Global" defs={globalParams()} entries={target.entries} onCapture={captureEntry} />
+                                    {surfaces.map(s => <CaptureGroup key={s.id} title={s.name} defs={surfaceParams(s)} entries={target.entries} onCapture={captureEntry} />)}
+                                    {fixtures.map(f => <CaptureGroup key={f.id} title={f.name} defs={fixtureParams(f)} entries={target.entries} onCapture={captureEntry} />)}
+                                </>}
+                                {pluginParamGroups.map(g => (
+                                    <CaptureGroup key={g.title} title={g.title} defs={g.defs} entries={target.entries} onCapture={captureEntry} />
+                                ))}
+                                {target.audioOnly && pluginParamGroups.length === 0 && (
+                                    <div className="text-fg-3 italic text-micro">No audio params — load the audio plugin and add clips to the bed.</div>
+                                )}
                             </div>
                         )}
                     </div>
@@ -317,14 +414,16 @@ export const CueBankPanel: React.FC<Props> = ({
     );
 };
 
-const CaptureGroup: React.FC<{ title: string; defs: ParamDef[]; cue: Cue; onCapture: (d: ParamDef) => void }> = ({ title, defs, cue, onCapture }) => (
+// `entries`, not `cue`: the group only ever read cue.entries, and the picker now commits into a CaptureTarget
+// (a Cue or a Scene's audio list). Taking the list rather than the owner is what lets both share this UI.
+const CaptureGroup: React.FC<{ title: string; defs: ParamDef[]; entries: CueEntry[]; onCapture: (d: ParamDef) => void }> = ({ title, defs, entries, onCapture }) => (
     <div>
         <div className="text-micro text-fg-3 uppercase tracking-wide mb-0.5">{title}</div>
         <div className="flex flex-wrap gap-1">
             {defs.map(d => {
-                const has = cue.entries.some(e => e.path === d.path);
+                const has = entries.some(e => e.path === d.path);
                 return (
-                    <button key={d.path} onClick={() => onCapture(d)} title={has ? 'Update value in cue' : 'Add to cue'}
+                    <button key={d.path} onClick={() => onCapture(d)} title={has ? 'Update captured value' : 'Capture current value'}
                         className={`px-1.5 py-0.5 rounded text-micro border ${has ? 'border-accent/50 bg-accent/15 text-accent' : 'border-line-1 text-fg-2 hover:bg-surface-3'}`}>{d.label}</button>
                 );
             })}
@@ -338,11 +437,23 @@ const EntryValue: React.FC<{ value: CueEntry['value']; onChange: (v: CueEntry['v
     return <input type="text" value={String(value ?? '')} onChange={e => onChange(e.target.value)} className="w-20 bg-surface-0 border border-line-1 rounded px-1 py-0.5 text-fg-1" />;
 };
 
-// Short label from a dot-path leaf (e.g. surfaces.s1.content.opacity -> opacity).
+// Short label from a dot-path leaf (e.g. surfaces.s1.content.opacity → "surf · opacity").
+//
+// HEAD-AWARE — via pathLeaf, which OWNS the grammar. A bare slice(2) was wrong for audio in two ways at
+// once: the leaf landed mid-path (`audio.clip.c7.gain` read as the leaf `c7.gain`), and the owner ternary
+// had no `else`, so EVERY non-surfaces head was labelled `fix` — `audio.master.gain` rendered as
+// "fix · gain", with the word *master* gone entirely. On a desk that is a mislabelled cue: the operator
+// reads "fix" and fires it expecting a light.
 function labelForPath(path: string): string {
     if (path === 'globalBrightness') return 'LED Brightness';
     const parts = path.split('.');
-    const leaf = parts.slice(2).join('.').replace(/^content\./, '');
-    const owner = parts[0] === 'surfaces' ? 'surf' : 'fix';
-    return `${owner} · ${leaf}`;
+    const leaf = pathLeaf(path).replace(/^content\./, '');
+    if (parts[0] === 'surfaces') return `surf · ${leaf}`;
+    if (parts[0] === 'fixtures') return `fix · ${leaf}`;
+    if (parts[0] === 'audio') {
+        // audio.master.<leaf>  /  audio.clip.<id>.<leaf>  /  audio.track.<id>.<leaf>
+        const what = parts[1] === 'master' ? 'master' : `${parts[1]} ${(parts[2] ?? '').slice(0, 6)}`;
+        return `♪ ${what} · ${leaf}`;
+    }
+    return `${parts[0]} · ${leaf}`;   // an unknown plugin namespace: say its name, don't call it a fixture
 }

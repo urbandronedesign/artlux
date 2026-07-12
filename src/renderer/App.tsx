@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, type TimelineAudio, type AssetEntry, type AssetType } from './types';
+import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, sceneAudioEntries, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType } from './types';
 import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge, WINDOWED_DISPLAY } from '../../shared/protocol';
 import type { ProjectorCalibration } from '../../shared/protocol';
 import { CalibWizard, AutoAlignWizard, calibCapture as cam, measureGamma, calibWorkspace } from '@artlux/plugin-calibration/renderer';
@@ -48,7 +48,7 @@ import { layoutStore, type WorkspaceLayout } from './services/layoutStore';
 import { useResizable } from './hooks/useResizable';
 import { activateRendererPlugins } from './host/plugins';
 import { setEnabled as mp4SetEnabled } from '@artlux/plugin-mp4';
-import type { RendererHostServices } from '@artlux/sdk/renderer';
+import type { RendererHostServices, AutomationTargetProvider } from '@artlux/sdk/renderer';
 import { projectorChannelRegistry, panelRegistry, automationTargetRegistry } from './host/registries';
 import * as cueBus from './services/cueBus';
 import * as selection from './services/selection';
@@ -624,6 +624,76 @@ const App: React.FC = () => {
     setFixtures(fixtures.map(f => group.fixtureIds.includes(f.id) ? { ...f, ...look } : f));
   };
 
+  // --- Plugin-namespaced cue/scene entries (today: audio.*) ---
+  //
+  // A core entry rides the StateView (surfaces / fixtures / globalBrightness): applyCues commits it with
+  // setByPath and the fade engine interpolates it there. A PLUGIN entry has no StateView to ride —
+  // setByPath silently returns the view untouched for any other head (paramPath's `return view`) — so it
+  // goes to its namespace's AutomationTargetProvider instead, landing in that provider's FADE LAYER, one
+  // level UNDER any automation lane that owns the same path (a lane always wins, structurally).
+  const isPluginHeadEntry = (e: CueEntry): boolean => {
+    const h = e.path.split('.')[0];
+    return h !== 'surfaces' && h !== 'fixtures' && e.path !== 'globalBrightness';
+  };
+  // Turn a cue's/scene's plugin entries into fade legs. `fadeSec`/`transition` are the OWNER's defaults;
+  // each entry may override either (exactly as the core loop in applyCues already does).
+  //
+  // ⚠ A SNAP IS A ZERO-LENGTH *LEG*, NOT A DIRECT writeFade() — AND THAT ORDERING IS LOAD-BEARING.
+  // transitions.start() ABANDONS the in-flight fade by finalizing every leg the incoming batch does not
+  // re-target (finalizePluginLegs → writeFade(leg.to)). A snap written directly HERE would happen BEFORE
+  // that, so an outgoing fade still animating the same path would land on ITS OWN endpoint a moment later
+  // and OVERWRITE the value we just recalled — the previous scene's audio, held forever, on a GO. Handing
+  // the snap to start() as a durMs-0 leg puts it in the batch's `skip` set instead: the abandoned leg is
+  // left alone and start()'s own zero-duration arm writes our value. One writer, correct order.
+  const applyAudioEntries = (entries: CueEntry[], fadeSec: number, transition?: CueTransition): transitions.FadeLeg[] => {
+    const legs: transitions.FadeLeg[] = [];
+    // enumerate() rebuilds the whole catalog (it walks the live mix) — do it ONCE per provider per recall,
+    // not once per entry. A provider in a bad state must not blow up a GO: an empty catalog just means
+    // "linear", which is the safe reading of a param we know nothing about.
+    const logByPath = new Map<string, Map<string, boolean>>();
+    const isLog = (head: string, provider: AutomationTargetProvider, path: string): boolean => {
+      let m = logByPath.get(head);
+      if (!m) {
+        m = new Map();
+        try { for (const d of provider.enumerate()) m.set(d.path, d.log ?? false); } catch { /* keep going */ }
+        logByPath.set(head, m);
+      }
+      return m.get(path) ?? false;
+    };
+    for (const e of entries) {
+      if (typeof e.value !== 'number' || !isFadeablePath(e.path)) continue;
+      const head = e.path.split('.')[0];
+      const provider = automationTargetRegistry.get(head);
+      if (!provider) continue;                       // the plugin is disabled — the entry persists, inert
+      // THE FADE'S `from` IS THE *EFFECTIVE* VALUE, NOT THE AUTHORED ONE. provider.get() returns the
+      // authored value — what the slider last wrote — and a fade NEVER touches the authored mix. So on the
+      // SECOND recall of a path an authored `from` starts the leg where the operator's fader is, not where
+      // the sound actually is: scene A fades master 1.0 → 0.2, scene B fades it → 0.5, and frame one of B
+      // slams the master to FULL LEVEL before gliding down. getLive() = laneOvr ?? fade ?? authored.
+      const from = provider.getLive?.(e.path) ?? provider.get(e.path);
+      if (typeof from !== 'number') {
+        // Nothing to glide FROM (a dangling path — the clip it addressed was deleted). Snap it: durMs 0,
+        // so start() writes `to` straight into the fade layer and the entry is applied rather than dropped.
+        legs.push({ path: e.path, from: e.value, to: e.value, transition: 'none', fadeSec: 0 });
+        continue;
+      }
+      // A per-entry override REPLACES the owner's default, it does not AND with it (transitions.start:
+      // `t.transition ?? opts.transition`, `t.fadeSec ?? opts.fadeSec`). An entry that explicitly asks for
+      // 'smooth' inside a cue whose default is 'none' must FADE. Resolving here (rather than leaving the
+      // leg's fields undefined) is also what makes the PER-CUE timing in applyCues real: the batch opts
+      // handed to start() are cues[0]'s, and a leg with no fadeSec of its own would silently inherit them.
+      // LOG-CURVE TARGETS FADE IN LOG SPACE — a filter cutoff (20 Hz–20 kHz), a delay time, an attack —
+      // because the AUTOMATION engine does, and the operator compares the two in the room.
+      legs.push({
+        path: e.path, from, to: e.value,
+        transition: e.transition ?? transition ?? 'smooth',
+        fadeSec: e.fadeSec ?? fadeSec,
+        log: isLog(head, provider, e.path),
+      });
+    }
+    return legs;
+  };
+
   // --- Scenes (look snapshots) ---
   // Capture the visible state — surfaces, fixtures, brightness, groups, 3D scene, projector
   // outputs — but not the timeline/assets (playing transport + media library) or rig wiring.
@@ -648,6 +718,11 @@ const App: React.FC = () => {
   };
   const handleRenameScene = (id: string, name: string) => setScenes(scenes.map(s => s.id === id ? { ...s, name } : s));
   const handleUpdateSceneFade = (id: string, fadeSec: number) => setScenes(scenes.map(s => s.id === id ? { ...s, fadeSec } : s));
+  // The ONLY writer of `scene.audio`. Deliberately NOT part of buildSceneSnapshot: "Update Scene" spreads
+  // that snapshot over the scene, so a look-only snapshot is what keeps a carefully bound audio list alive
+  // when the operator tweaks a light and presses Update.
+  const handleUpdateSceneAudio = (id: string, entries: CueEntry[]) =>
+    setScenes(prev => prev.map(s => s.id === id ? { ...s, audio: entries } : s));
   // Recall commits the target state immediately (discrete params snap), then — when fadeSec > 0 —
   // starts a render-free transition that animates the fadeable numerics from their old values to the
   // new ones (Stage pump overrides them per-frame, no React re-render). Every field beyond
@@ -666,19 +741,22 @@ const App: React.FC = () => {
     setSelectedFixtureId(null);
     setSelectedFixtureIds([]);
     setSelectedSurfaceId(null);
-    // ⚠ TASK 10, READ THIS BEFORE GIVING A SCENE AUDIO STATE. Today this branch is correct only because a
-    // Scene CANNOT carry audio: collectFadeableTargets diffs a StateView (surfaces/fixtures/globalBrightness)
-    // and Scene has no audio field, so a scene recall emits ZERO audio legs and the `else` arm is simply
-    // "abandon whatever cue-fade was in flight" — which is what cancel() correctly does.
+    // ── AUDIO ── The scene's bound audio params. They do NOT ride the StateView diff above (audio is not on
+    // the StateView and never will be) — they are an explicit {path, value} list, faded through the SAME
+    // engine and the SAME batch as the look, so picture and sound move together, and landing in the
+    // provider's fade layer UNDER any automation lane that owns the same path. Absent `scene.audio` ⇒ this
+    // scene changes no audio, which is every project authored before this shipped.
     //
-    // The moment a scene DOES carry audio, this shape is a defect: a zero-fade recall (the COMMON case —
-    // fadeSec defaults to 0) never calls start(), so start()'s `!willAnimate` snap-write is unreachable
-    // from here and the incoming scene's audio would never be written AT ALL, while cancel() lands the
-    // OUTGOING scene's legs on their endpoints — the wrong show's audio, held forever. The zero-length
-    // write path that exists today covers CUES ONLY. Route a zero-fade recall through start() with its
-    // audio legs (start() already snaps them) rather than adding a second direct-write path.
-    if (scene.fadeSec && scene.fadeSec > 0) {
-      transitions.start(collectFadeableTargets(fromView, toView), { fadeSec: scene.fadeSec, transition: 'smooth' });
+    // ⚠ A ZERO-FADE RECALL IS THE COMMON CASE (`fadeSec` defaults to 0) AND IT MUST STILL APPLY ITS AUDIO.
+    // It does, because a zero-fade entry is a durMs-0 LEG, not a skipped one: `audioLegs` is non-empty, we
+    // take the start() arm, and start()'s own !willAnimate branch writes those legs into the fade layer.
+    // The cancel() arm below is now reached ONLY when the scene binds no audio AND there is no look fade —
+    // exactly as before this shipped. (Routing the snap through start() rather than writing it here is what
+    // keeps it in the batch's `skip` set, so the outgoing fade's abandoned legs cannot overwrite it.)
+    const audioLegs = applyAudioEntries(sceneAudioEntries(scene), scene.fadeSec ?? 0, 'smooth');
+    const lookLegs = (scene.fadeSec && scene.fadeSec > 0) ? collectFadeableTargets(fromView, toView) : [];
+    if (lookLegs.length || audioLegs.length) {
+      transitions.start([...lookLegs, ...audioLegs], { fadeSec: scene.fadeSec ?? 0, transition: 'smooth' });
     } else {
       transitions.cancel();
     }
@@ -826,6 +904,7 @@ const App: React.FC = () => {
     let next: StateView = { surfaces, fixtures, globalBrightness };
     const legs: transitions.FadeLeg[] = [];
     for (const cue of cues) for (const e of cue.entries) {
+      if (isPluginHeadEntry(e)) continue;            // audio.* — handled below; `next` would DROP it anyway
       if (isFadeablePath(e.path) && typeof e.value === 'number') {
         const from = getByPath(fromView, e.path);
         if (typeof from === 'number') legs.push({ path: e.path, from, to: e.value, transition: e.transition ?? cue.transition, fadeSec: e.fadeSec ?? cue.fadeSec });
@@ -835,6 +914,20 @@ const App: React.FC = () => {
     setSurfaces(next.surfaces);
     setFixtures(next.fixtures);
     setGlobalBrightness(next.globalBrightness);
+    // Plugin-namespaced entries (audio.*). They never touch the StateView — setByPath silently returns it
+    // unchanged for a non-core head, so committing them into `next` above would have DROPPED THEM ON THE
+    // FLOOR. They go to their provider's fade layer, through the same fade engine, in the same batch.
+    //
+    // ⚠ PER CUE, NOT FLATTENED. Every cue carries its OWN fadeSec/transition and the core loop right above
+    // honours that (`e.fadeSec ?? cue.fadeSec`). Flatten the entries and hand them cues[0]'s timing and a
+    // column would fade its music in 0.5 s because the FIRST cue is a 0.5 s look cue — or SNAP it, if
+    // cues[0].transition is 'none'. And fireColumn sorts bottom-to-top, so cues[0] is not even the one the
+    // operator thinks of as "first". Iterate.
+    for (const cue of cues) {
+      legs.push(...applyAudioEntries(cue.entries.filter(isPluginHeadEntry), cue.fadeSec, cue.transition));
+    }
+    // The opts below are only the BATCH DEFAULTS; every leg above already carries its own fadeSec and
+    // transition, so no leg ever actually reads them. (That is already true of the core legs.)
     if (legs.length) transitions.start(legs, { fadeSec: cues[0].fadeSec, transition: cues[0].transition });
     else transitions.cancel();
   };
@@ -2229,6 +2322,7 @@ const App: React.FC = () => {
                         onRenameScene={handleRenameScene}
                         onRemoveScene={handleRemoveScene}
                         onUpdateSceneFade={handleUpdateSceneFade}
+                        onUpdateSceneAudio={handleUpdateSceneAudio}
                         onFireCue={(cue) => applyCues([cue])}
                         onFireColumn={fireColumn}
                         onEditScene={enterAuthor}
