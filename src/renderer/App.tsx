@@ -248,6 +248,14 @@ const App: React.FC = () => {
   // The GLOBAL timeline's lanes run as a BASE under every scene: the audio bed is global and survives
   // scene swaps, so its curves must too. A scene's own lane on the same targetPath shadows the base one.
   useEffect(() => { timelineEngine.setBaseAutomation(timeline.automation ?? []); }, [timeline.automation]);
+  // The GLOBAL timeline is the SHOW clock's document: its in/out region and its Length bound the bed and
+  // the base automation layer, and its `loop` is what makes the SHOW loop. The engine's `data` is always
+  // the BOUND doc, so it has no other way to see this.
+  //
+  // ⚠ THE DECLARATION SITE IS DELIBERATE: here, beside setBaseAutomation — NOT down in the setData /
+  // setPlaying window below, where the declaration order of those two effects is load-bearing and
+  // inserting anything between them silently kills setData's clampPlayheadIntoDoc guard.
+  useEffect(() => { timelineEngine.setGlobalDoc(timeline); }, [timeline]);
   // A lane is only evaluated while its TARGET exists — and the audio bed is not the timeline, so editing
   // it (adding a clip, deleting an effect) fires none of the engine's compile hooks. Recompile here, or a
   // lane whose target just vanished would keep sampling a dead path, and one whose target just appeared
@@ -670,7 +678,7 @@ const App: React.FC = () => {
     // If it was the current scene, fall back to global first (releasePool won't drop the active pool).
     if (activeSceneId === id) {
       setActiveSceneId(null);
-      timelineEngine.swap(GLOBAL_POOL, timeline, { transport: 'preserve' });
+      timelineEngine.swap(GLOBAL_POOL, timeline, { transport: 'reconverge' });
     }
     timelineEngine.releasePool(id); // free its warm pool if any
   };
@@ -688,7 +696,10 @@ const App: React.FC = () => {
   // Leave author mode → edit the shared global timeline again (no look recall; just rebind + swap).
   const exitToGlobal = () => {
     setActiveSceneId(null);
-    timelineEngine.swap(GLOBAL_POOL, timeline, { transport: 'preserve' });
+    // RECONVERGE: the playhead snaps to the show clock, so the picture rejoins the bed that never
+    // stopped. (This was 'preserve', which ran clampPlayheadIntoDoc → a `pause` intent → the audio
+    // driver's stopAllSounding(): clicking the pill back to Global could kill the bed.)
+    timelineEngine.swap(GLOBAL_POOL, timeline, { transport: 'reconverge' });
     for (const port of projectorPortsRef.current.values()) port.postMessage({ t: 'timeline', timeline });
   };
   // Create a new state: a Scene (current look + EMPTY timeline + stable accent) + a bound SmState node,
@@ -912,8 +923,12 @@ const App: React.FC = () => {
       setActiveSceneId(currentScene?.id ?? null);
       const curKey = currentScene ? currentScene.id : GLOBAL_POOL;
       const curTl = currentScene?.timeline ? normalizeTimeline(currentScene.timeline) : tl;
+      timelineEngine.setGlobalDoc(tl);   // BEFORE the swap — swap's showClock:'reset' reads globalDoc
+                                         // synchronously, and the [timeline] effect above is passive.
       timelinePreloader.warm(curKey, curTl);
-      timelineEngine.swap(curKey, curTl, { transport: 'restart' });
+      // Opening a project RESETS the show clock (the bed's time restarts with the show); a scene recall
+      // never does. Both reach swap() with transport:'restart' and cannot be told apart in there.
+      timelineEngine.swap(curKey, curTl, { transport: 'restart', showClock: 'reset' });
       // Asset library: use saved assets; migrate a legacy take-only project (trackingTakes but no
       // assets) so recorded takes still appear in the library. Takes stay owned by the timeline.
       setAssets(Array.isArray(data?.assets) ? data.assets as AssetEntry[] : []);
@@ -1004,6 +1019,9 @@ const App: React.FC = () => {
       setSelectedFixtureId(null);
       setSelectedFixtureIds([]);
       setSelectedSurfaceId(null);
+      // NEW PROJECT resets the show clock, like OPEN does. Without this the bed's clock keeps running
+      // into a project that no longer exists — and with `scenes: []` there is no swap to catch it.
+      timelineEngine.showSeek(timelineEngine.getGlobalStart());
   };
 
   // New Project always creates a *folder* (project.artlux + assets/ tree) and prompts where to put
@@ -1267,7 +1285,14 @@ const App: React.FC = () => {
       }
       else if (i.kind === 'pause') setIsVideoPlaying(false);
       // Stop returns to the in-point, not hard 0 — with a region set, 0 is outside the playable range.
-      else if (i.kind === 'stop') { setIsVideoPlaying(false); timelineEngine.seek(timelineEngine.getStart()); }
+      // The SHOW clock resets too, but to the GLOBAL doc's in-point: getStart() is the BOUND doc's start,
+      // and while a scene is bound that number means nothing to the bed. Stop is one of only three things
+      // that reset the show clock (the others are opening a project and New Project).
+      else if (i.kind === 'stop') {
+        setIsVideoPlaying(false);
+        timelineEngine.seek(timelineEngine.getStart());
+        timelineEngine.showSeek(timelineEngine.getGlobalStart());
+      }
       else if (i.kind === 'seek') timelineEngine.seek(i.sec);
       // The loop flag belongs to the document the ENGINE IS ACTUALLY PLAYING — resolved from the engine's
       // active pool key, never from a render-assigned ref.

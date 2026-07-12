@@ -85,6 +85,32 @@ let playhead = 0;
 // cadence stays uniform against the display refresh. Mirror windows phase-lock this anchor to the
 // bridged transport (see seek) with a gentle slew instead of a hard resync snap.
 let originMs = 0;
+// ── THE SHOW CLOCK ───────────────────────────────────────────────────────────────────────────────
+// ONE TRANSPORT, TWO PLAYHEADS. `playhead` is the SCENE clock (the BOUND document's time). `showTime`
+// is the SHOW clock — the time the global audio bed and the GLOBAL timeline's automation (the base
+// layer) ride. Both are DERIVED from performance.now() against their own anchor, both are gated on the
+// SAME `playing` flag, and there is still exactly one rAF, one `playing`, one <video> pool. What is new
+// is a second derived TIME VALUE, not a second transport.
+//
+// WHY IT NEEDS ITS OWN ANCHOR: originMs is re-anchored by SEVEN sites (mainSeek, the underrun branch,
+// the loop wrap, the end-stop park, the paused hold, setPlaying(true), the mirror snap/slew). A single
+// anchor cannot carry two times that are REQUIRED to diverge — and divergence is the whole point: a
+// scene recall mainSeeks the playhead to the scene's in-point, and the bed must not hear it.
+//
+// WHILE THE GLOBAL DOCUMENT IS BOUND THE TWO ARE THE SAME NUMBER. That identity is maintained inside
+// seek() and setPlaying() by isGlobalDocBound() — see the long note there; it is NOT the same question
+// as `activeKey === GLOBAL_POOL`.
+//
+// THE SHOW CLOCK IS SILENT. It NEVER emits a TransportIntent and NEVER pulses hitEnd: the bed wrapping
+// is not a show event, and firing 'onTimelineEnd' off it would advance the state machine behind the
+// operator's back. It only WRAPS (global loop on) or PARKS (global loop off) — and the park is PUBLISHED
+// on isShowAtEndBound(), because a consumer riding a frozen clock has to know it is frozen.
+let showTime = 0;
+let showOriginMs = 0;
+// The GLOBAL timeline document, pushed by App. `data` is ALWAYS the BOUND doc, so this is the engine's
+// only handle on the global one — and the show clock is bounded by ITS [start, end): the global
+// timeline's Length is the SHOW's length, and the bed lives inside it.
+let globalDoc: Timeline = defaultTimeline();
 let raf = 0;
 let prevPlayhead = 0; // previous frame's playhead — for FSM crossing detection
 // End-of-timeline latch. The engine cannot write `playing` (App owns it), so it emits a 'pause'
@@ -292,6 +318,43 @@ function mainSeek(sec: number): void {
   endLatched = false; // a deliberate jump re-arms the end
 }
 
+// The show clock's mainSeek — the ONLY thing that moves showTime from outside the frame loop.
+// DELIBERATELY SEPARATE from mainSeek: mainSeek is reached from five semantically different events
+// (Stop, a user seek, a scene recall, play-from-the-parked-end, project open) and the show-clock policy
+// DISCRIMINATES among them — a recall must not reset it, a Stop must. So the policy lives at the CALL
+// SITES, never in here. See the reset table in docs/TIMELINE.md.
+//
+// There is no prevShowTime to re-baseline (invariant 4's second half): nothing crossing-detects on this
+// clock. fsm.tick() runs on `playhead` alone, by design.
+function showSeekInternal(sec: number): void {
+  const clamped = Math.max(0, sec);
+  showTime = clamped;
+  showOriginMs = performance.now() - clamped * 1000;
+}
+
+// Is the SHOW clock parked at the global end (global loop off)? The twin of atEndBound(), asked of the
+// GLOBAL document instead of the bound one. Without it, a show that ran out its global Length while a
+// scene looped underneath would have a permanently parked bed: setPlaying()'s restart test only ever
+// looks at the BOUND doc, which is still merrily looping.
+function showAtEndBound(): boolean {
+  return !globalDoc.loop && showTime >= timelineEnd(globalDoc) - frameSec(globalDoc) - 1e-6;
+}
+
+// IS THE BOUND DOCUMENT THE GLOBAL ONE? Not the same question as "is Global bound" — and getting them
+// confused is a real bug. `activeKey === GLOBAL_POOL` is true only when the operator is on the Global
+// pill. But a scene with NO TIMELINE OF ITS OWN plays the GLOBAL DOC under its own pool key
+// (App.tsx: `const tl = scene.timeline ? normalizeTimeline(scene.timeline) : timeline`), so `data`
+// IS globalDoc while activeKey is the scene's id. In that state:
+//   · the global timeline's lanes are `data.automation` — they must still ride the SHOW clock (they are
+//     the base layer; a lane on audio.master.gain restarting from 0 on every GO would snap the bed's
+//     level while the bed itself plays serenely on);
+//   · the ruler the operator scrubs IS the global timeline, so a seek must move the bed with it.
+// Identity, not the key. Re-evaluated on every call — App pushes globalDoc from an effect declared
+// beside setBaseAutomation, which flushes BEFORE the setData effect, so the reference is never stale.
+function isGlobalDocBound(): boolean {
+  return activeKey === GLOBAL_POOL || data === globalDoc;
+}
+
 // Is the transport PARKED AT THE END (loop off)? A position test, not the `endLatched` flag — see the
 // long argument in setPlaying(), which owns the reasoning. Hoisted out of setPlaying so App's 'play'
 // intent handler can ask the same question: an FSM `play` entry action reached ON the end frame lands
@@ -356,6 +419,13 @@ interface LaneRT {
   eps: number;          // change-detect epsilon: half a UI step — below it, nothing can represent the difference
   cursor: Cursor;       // preallocated; carries last frame's segment index
   last: number;         // last value pushed; NaN ⇒ never ⇒ the first sample always lands
+  // WHICH CLOCK THIS LANE READS. A BASE lane belongs to the GLOBAL timeline, so it must ride the SHOW
+  // clock — otherwise a global curve authored over five minutes is re-sampled at scene-relative 0-30 s
+  // on every recall, which is what happens today and is a bug (the audio bed is global, so its curves
+  // must outlive a scene swap: that is exactly why setBaseAutomation exists). An ACTIVE lane belongs to
+  // the BOUND document and rides its playhead. Resolved HERE, at compile time, because compileAutomation
+  // is the only place that still knows which DOCUMENT a lane came from.
+  clock: 'show' | 'scene';
 }
 let lanesRT: LaneRT[] = [];
 let ownedPaths = new Set<string>();
@@ -368,12 +438,26 @@ function compileAutomation(): void {
   // stack on itself when it happens to be the active one.
   const active = data.automation ?? [];
   const activePaths = new Set(active.map(l => l.targetPath));
-  const base = activeKey === GLOBAL_POOL ? [] : baseAutomation.filter(l => !activePaths.has(l.targetPath));
-  const lanes = [...base, ...active];
+  // TAG BY DOCUMENT, NOT BY LIST. Which LIST a lane came from does not tell you which CLOCK it rides —
+  // because the GLOBAL DOC can be bound under a SCENE's pool key (a scene with no timeline of its own).
+  // There, `active` IS the global timeline's lanes and `base` filters itself down to [] (every base lane
+  // is shadowed BY ITSELF), so a list-derived tag would put every global lane on the scene clock — and a
+  // lane driving audio.master.gain would snap the bed's level to its t=0 value on every GO, while the bed
+  // plays on. Ask the DOCUMENT.
+  const onGlobalDoc = isGlobalDocBound();
+  const base = onGlobalDoc ? [] : baseAutomation.filter(l => !activePaths.has(l.targetPath));
+  // Tag each lane with the clock it rides BEFORE the concat — afterwards there is no way to tell them
+  // apart. When the global doc is bound, `base` is empty (the global timeline IS the base and must not
+  // stack on itself) and its own lanes are the base layer ⇒ 'show'. When Global is bound on the pill the
+  // two clocks are the same number anyway (the identity), so 'show' is exactly right there too.
+  const lanes: { lane: AutomationLane; clock: 'show' | 'scene' }[] = [
+    ...base.map(lane => ({ lane, clock: 'show' as const })),
+    ...active.map(lane => ({ lane, clock: (onGlobalDoc ? 'show' : 'scene') as 'show' | 'scene' })),
+  ];
 
   const next: LaneRT[] = [];
   const nextPaths = new Set<string>();
-  for (const lane of lanes) {
+  for (const { lane, clock } of lanes) {
     if (lane.enabled === false || !lane.keyframes?.length) continue;
     const head = lane.targetPath.split('.')[0];
     const provider = automationTargetRegistry.get(head);
@@ -395,6 +479,7 @@ function compileAutomation(): void {
       eps: (def.step ?? (def.max - def.min) / 1000) * 0.5,
       cursor: { i: -1 },
       last: NaN,
+      clock,
     });
     nextPaths.add(lane.targetPath);
   }
@@ -411,12 +496,15 @@ function compileAutomation(): void {
   frameEndProviders = automationTargetRegistry.all().filter(p => !!p.frameEnd);
 }
 
-function sampleAutomation(t: number): void {
+function sampleAutomation(playheadSec: number, showTimeSec: number): void {
   const n = lanesRT.length;
   if (n === 0) return; // the no-automation cost is one compare
   let wrote = false;
   for (let i = 0; i < n; i++) {
     const rt = lanesRT[i];
+    // The GLOBAL timeline's lanes (the base layer) ride the SHOW clock; the bound document's own lanes
+    // ride its playhead. See LaneRT.clock.
+    const t = rt.clock === 'show' ? showTimeSec : playheadSec;
     const v = sampleLane(rt.kfs, t, rt.cursor, rt.log);
     if (Math.abs(v - rt.last) < rt.eps) continue; // unchanged — do NOT push (every audio push takes the audio lock)
     rt.last = v;
@@ -520,13 +608,55 @@ function frame(now: number): void {
         originMs = now - playhead * 1000; // keep the anchor live while paused so resume is seamless
       }
     }
+    // ── THE SHOW CLOCK — a PARALLEL derivation on the same wall clock and the same `playing` flag.
+    //
+    // `!external` only — NOT `|| hapLocal`. A hapLocal projector runs the SCENE clock (so it plays at
+    // full speed while the hidden main window's rAF is throttled), but nothing show-clock-driven exists
+    // in a projector: the audio driver early-returns for non-main windows, and the transport bridge
+    // streams only {playing, playhead}. This matches sampleAutomation and the FSM block below.
+    //
+    // Every branch that MOVES showTime re-anchors showOriginMs — the same rule the scene clock follows
+    // for originMs. There is NO prevShowTime to re-baseline, because nothing crossing-detects on this
+    // clock: fsm.tick() runs on `playhead` alone, by design (the show clock reaching the global loop's
+    // end must NOT fire 'onTimelineEnd' — that would advance the machine behind the operator's back).
+    //
+    // AND NOTE THE ABSENCE, BELOW: no emitIntent, no hitEnd, no endLatched. The show clock is SILENT.
+    if (!external) {
+      if (playing) {
+        let s = (now - showOriginMs) / 1000;
+        const ga = timelineStart(globalDoc), gb = timelineEnd(globalDoc);
+        if (s < ga) {                                   // underrun: below the GLOBAL in-point
+          s = ga;
+          showOriginMs = now - s * 1000;
+        }
+        if (s >= gb) {
+          if (globalDoc.loop) {                         // THE SHOW LOOPS — and the bed restarts with it.
+            // This wrap IS a big backward jump, and the audio driver's inferred-seek test will read it
+            // as a seek and hard-resync the bed at the wrapped position. That is CORRECT: the show
+            // looped. (The bug this whole clock exists to fix is a SCENE's loop/recall doing that — and
+            // under showTime it no longer can, because a scene's clock never touches this number.)
+            s = ga + ((s - ga) % (gb - ga));
+            showOriginMs = now - s * 1000;
+          } else {                                      // THE SHOW ENDED — park, silently.
+            // Anchor at the RAW end boundary (gb), not at the parked value — the same reason the scene
+            // clock does it (see the end-stop above): re-anchoring to a value BEFORE gb would let the raw
+            // clock sail past the end again next frame and sawtooth over the last frame forever.
+            showOriginMs = now - gb * 1000;
+            s = Math.max(ga, gb - frameSec(globalDoc));
+          }
+        }
+        showTime = Math.max(0, s);
+      } else {
+        showOriginMs = now - showTime * 1000; // keep the anchor live while paused so resume is seamless
+      }
+    }
     // Automation: sample the lanes and push what moved. Deliberately NOT a subscribe() callback — `subs`
     // is insertion-ordered and the audio driver is one of them, so a late subscriber's values would land
     // AFTER reconcile() had already run this frame, costing a permanent frame of latency. It also sits
     // OUTSIDE the `playing` gate above, so scrubbing while paused still moves the curve (which is what
     // makes the bed sound right the instant you hit play).
     if (!external) {
-      try { sampleAutomation(playhead); } catch (e) { console.error('[timeline] automation error', e); }
+      try { sampleAutomation(playhead, showTime); } catch (e) { console.error('[timeline] automation error', e); }
     }
     // FSM control layer (main window only — mirrors receive the resulting transport via the bridge).
     // Ticks every frame regardless of `playing` so the standalone wall clock advances while stopped.
@@ -634,7 +764,25 @@ export const timeline = {
   // Promote a (warm, ideally) pool to ACTIVE — the seamless per-scene timeline swap. Only ONE pool is
   // ever live: the outgoing one is paused (kept warm for the preloader to evict), orphaned content
   // sources are released, and by default the incoming timeline restarts at its first frame.
-  swap(poolKey: string, t: Timeline, opts?: { transport?: 'restart' | 'preserve'; holdMs?: number }): void {
+  //
+  // transport:
+  //   'restart'    (default) — the incoming document plays from its first frame (a scene recall).
+  //   'reconverge'           — RETURNING TO GLOBAL. The playhead SNAPS TO THE SHOW CLOCK, so the picture
+  //                            rejoins the bed. While a scene was bound the two diverged; the show clock
+  //                            is the one that never stopped, and it is BY CONSTRUCTION inside the global
+  //                            doc's [start, end) (the clock wraps or parks it there). So — unlike the
+  //                            'preserve' this replaces — there is normally nothing to clamp and NO
+  //                            `pause` intent to emit. That emit is what used to kill the bed on a click
+  //                            back to Global: clampPlayheadIntoDoc → emitIntent({kind:'pause'}) → App
+  //                            sets playing=false → the audio driver's stopAllSounding().
+  //
+  // showClock:
+  //   'preserve'   (default) — THE BED ROLLS ON. The defining requirement of the show clock: a scene
+  //                            recall, an FSM hop, enterAuthor and handleCreateState all land here.
+  //   'reset'                — project open. A recall, project open and handleCreateState ALL reach
+  //                            swap() with transport:'restart' and cannot be told apart in here, so the
+  //                            CALLER says which it is.
+  swap(poolKey: string, t: Timeline, opts?: { transport?: 'restart' | 'reconverge'; showClock?: 'preserve' | 'reset'; holdMs?: number }): void {
     if (external) { data = t; return; } // mirror windows just track the doc; App bridges it separately
     const prevData = data;
     const prevKey = activeKey;
@@ -656,15 +804,28 @@ export const timeline = {
     // whole clock: every activeClip(NaN) matches nothing, so the projectors and the LED output go black and
     // the transport stays dead until someone seeks.
     //
-    // 'preserve' KEEPS THE CLOCK RUNNING ACROSS THE SWAP — and that is exactly how a UI click can drop a
-    // live playhead outside the incoming document (authoring a 600 s scene at 300 s, then clicking the
-    // pill back to the 60 s Global doc). setData's guard does NOT catch it: swap() assigns `data`
-    // synchronously inside the click handler, while App's [activeTimeline] effect is a passive effect
-    // flushed in a scheduler task — an rAF frame can interleave and hit the raw end-stop first, which
-    // would drag the playhead back live on the projectors AND pulse hitEnd, firing 'onTimelineEnd' from
-    // a mouse click. Same latch-WITHOUT-pulse treatment, applied where the repoint actually happens.
+    // 'reconverge' RETURNS THE PICTURE TO THE BED. The show clock never stopped and is by construction
+    // inside the global doc's [start, end), so snapping the playhead onto it cannot drop it outside the
+    // incoming document — which is what the old 'preserve' path had to guard (and it guarded it by
+    // emitting a `pause`, which killed the bed on a click back to Global).
     if ((opts?.transport ?? 'restart') === 'restart') mainSeek(timelineStart(t));
-    else clampPlayheadIntoDoc(t);
+    else {
+      // 'reconverge' — the picture rejoins the bed.
+      mainSeek(showTime);
+      // ⚠ THE BOUNDARY CASE, AND IT IS AN INVARIANT-5 BUG IF YOU SKIP IT.
+      // A PARKED show clock sits at EXACTLY `globalEnd - frameSec` — one rAF INSIDE the end. mainSeek()
+      // has just CLEARED endLatched, so within two frames the raw clock crosses `b`, takes the end-stop,
+      // PULSES hitEnd and fires an 'onTimelineEnd' transition — FROM A MOUSE CLICK. (Reachable from the
+      // pill → Global and from deleting the bound scene, once the show has run past its global Length
+      // with a scene on air — which the default 60 s global Length makes easy.)
+      // So: the same LATCH-WITHOUT-PULSE treatment clampPlayheadIntoDoc gives a document edit, and the
+      // pause it also gives — the show really is over (stop + hold on the last frame). The machine is
+      // never advanced by a click; the transport is simply told the truth.
+      // In the NORMAL case showAtEndBound() is false, nothing latches, nothing pauses, and reconverge's
+      // whole point survives intact.
+      if (showAtEndBound()) { endLatched = true; emitIntent({ kind: 'pause' }); }
+    }
+    if (opts?.showClock === 'reset') showSeekInternal(timelineStart(globalDoc));
     compileAutomation(); // AFTER the seek, so the first post-recall sample is taken at the new playhead
   },
   // The GLOBAL timeline's lanes, which run as a BASE under every scene (the global audio bed is global,
@@ -720,12 +881,17 @@ export const timeline = {
       // Only needed when loop is OFF: a looping clock wraps an out-of-range playhead into the region itself.
       // (The test itself is atEndBound(), hoisted so App's 'play' intent can ask the same question.)
       if (!external && atEndBound()) mainSeek(timelineStart(data));
+      // The SHOW clock has its own end — on the GLOBAL document — and needs its own restart. The test
+      // above only ever looks at the BOUND doc, so without this a show whose global Length ran out while
+      // a scene looped underneath would come back from a pause with a permanently dead bed.
+      if (!external && showAtEndBound()) showSeekInternal(timelineStart(globalDoc));
       // Re-arm the end regardless: the latch's ONLY job is to keep the end-stop from re-emitting a `pause`
       // intent every frame while App's state round-trips. Leave it set on a resume that did NOT restart
       // (the Length-moved case above) and the next end-stop would park silently, never emitting `pause` and
       // never pulsing hitEnd — the show would run past its new end with the FSM's onTimelineEnd dead.
       endLatched = false;
-      originMs = performance.now() - playhead * 1000; // re-anchor the monotonic clock on resume
+      originMs = performance.now() - playhead * 1000;     // re-anchor the monotonic clock on resume
+      showOriginMs = performance.now() - showTime * 1000; // …and the show clock's, identically
     }
   },
   setExternal(e: boolean): void { external = e; },
@@ -745,6 +911,24 @@ export const timeline = {
       return;
     }
     mainSeek(clamped); // don't fire FSM crossings across a deliberate jump
+    // THE IDENTITY. While the GLOBAL DOCUMENT is bound, showTime IS the playhead — so every seek moves
+    // both, and a ruler scrub, an OSC /transport/seek, the Home key, an AutomationLane click-to-seek and
+    // the Stop button all stay coherent without any of them knowing the show clock exists. While a
+    // SCENE'S OWN timeline is bound the two have diverged on purpose: seeking the scene must not move the
+    // bed.
+    //
+    // isGlobalDocBound(), NOT `activeKey === GLOBAL_POOL`: a scene with no timeline of its own binds the
+    // GLOBAL doc under its own pool key, and the ruler being scrubbed there IS the global timeline — so a
+    // seek must take the bed with it, or the operator scrubs the picture and the sound stays put, on one
+    // and the same document.
+    //
+    // It has to be HERE, not in App: Timeline.tsx's seekTo() calls engine.seek() DIRECTLY (it does not go
+    // through the TransportIntent funnel), so a rule living only in App's seek handler would let a ruler
+    // scrub break the identity.
+    //
+    // `!external`: a projector that is NOT hapLocal falls through the mirror arm above into mainSeek, and
+    // a mirror has no show clock at all. Guard it here rather than relying on the early return.
+    if (!external && isGlobalDocBound()) showSeekInternal(clamped);
   },
   getPlayhead(): number { return playhead; },
   // The document's "Length" — guarded, so junk (NaN / "10" / null) can't leak out to a plugin status
@@ -752,6 +936,42 @@ export const timeline = {
   getDuration(): number { return timelineDuration(data); },
   getEnd(): number { return timelineEnd(data); },
   getStart(): number { return timelineStart(data); },
+  // The GLOBAL timeline document. `data` is always the BOUND doc, so this is the engine's only handle on
+  // the global one — and the SHOW clock is bounded by it. Pushed by App on every global-timeline change.
+  //
+  // IT ALSO RE-ANCHORS THE SHOW CLOCK INTO THE NEW REGION. Lowering the global Length, or dragging its
+  // out-handle left, while a SCENE is bound does NOT reach setData's clampPlayheadIntoDoc guard
+  // (activeTimeline is the scene's) — and the show clock re-reads globalDoc every frame, so it would park
+  // on the next frame anyway. Do it HERE, deterministically, in the same call: same doctrine as
+  // clampPlayheadIntoDoc — REPOINTING A DOCUMENT UNDER A LIVE CLOCK MUST NEVER SYNTHESISE A TRANSPORT
+  // EVENT. So: no intent, no hitEnd, no FSM crossing.
+  //
+  // BE HONEST ABOUT WHAT THE OPERATOR HEARS: shortening the global region below showTime IS a big
+  // backward move, the audio driver reads it as a seek, and the bed hard-cuts (and then STOPS, because
+  // isShowAtEndBound() is now true). That is correct — you just told the show it is over — but it is not
+  // a no-op.
+  setGlobalDoc(t: Timeline): void {
+    globalDoc = t;
+    if (external) return;
+    const ga = timelineStart(globalDoc), gb = timelineEnd(globalDoc);
+    if (showTime < ga) showSeekInternal(ga);
+    else if (showTime >= gb) {
+      showSeekInternal(globalDoc.loop ? ga : Math.max(ga, gb - frameSec(globalDoc)));
+    }
+  },
+  // THE SHOW CLOCK, in seconds. Always 0 in mirror windows (they never run it).
+  getShowTime(): number { return showTime; },
+  getGlobalStart(): number { return timelineStart(globalDoc); },
+  getGlobalEnd(): number { return timelineEnd(globalDoc); },
+  // THE PARK, PUBLISHED. The audio driver MUST be able to ask this: a parked show clock is a FROZEN
+  // NUMBER, and a drift re-lock against a frozen number re-seeks every sounding clip back to the same
+  // source offset every ~50 ms — forever. That is a buzz, not silence. `playing` is not the signal (a
+  // scene looping underneath keeps it true), and the park is deliberately silent on the intent channel —
+  // so it is published as a READABLE STATE instead.
+  isShowAtEndBound(): boolean { return showAtEndBound(); },
+  // Move the SHOW clock explicitly. The POLICY lives at the call sites (Stop; project open; New Project)
+  // — see the reset table in docs/TIMELINE.md. No-op in mirror windows, which have no show clock.
+  showSeek(sec: number): void { if (!external) showSeekInternal(sec); },
   isPlaying(): boolean { return playing; },
   // Is the transport parked on the last frame with loop OFF (the non-looping end-stop's resting place)?
   // Exposed for App's 'play' intent handler, which must re-arm the clock IMPERATIVELY there: a `play`
@@ -803,7 +1023,13 @@ export const timeline = {
   getProgramDrawable(): CanvasImageSource | null { return !external && programReady && programCanvas ? programCanvas : null; },
   programSize(): { w: number; h: number } { return { w: PROGRAM_W, h: PROGRAM_H }; },
   subscribe(cb: (playhead: number) => void): () => void { subs.add(cb); return () => { subs.delete(cb); }; },
-  start(): void { if (!raf) { originMs = performance.now() - playhead * 1000; raf = requestAnimationFrame(frame); } },
+  start(): void {
+    if (!raf) {
+      originMs = performance.now() - playhead * 1000;
+      showOriginMs = performance.now() - showTime * 1000;
+      raf = requestAnimationFrame(frame);
+    }
+  },
 };
 
 timeline.start();
