@@ -105,9 +105,11 @@ function mapTimeline(tl: unknown, map: PathMap): unknown {
   if (Array.isArray(t.trackingTakes)) {
     next.trackingTakes = t.trackingTakes.map((r: any) => (isFilePath(r?.path) ? { ...r, path: map(r.path) } : r));
   }
-  // This timeline's OWN audio (Wave B) — same clip shape as the bed, same visitor. `undefined` is left
-  // alone so an old project's timeline does not grow an `audio` key just by being opened; mapAudio is
-  // itself total over garbage (a string, a number, `{clips: null}` come back untouched).
+  // This timeline's OWN audio (Wave B) — same clip shape as the bed, same visitor. The guard only
+  // short-circuits mapAudio(undefined) for a pre-Wave-B file on the way IN; it is not a promise that the
+  // key stays absent — normalizeTimeline() mints `audio: {tracks:[],clips:[]}` on load, so every project
+  // this build SAVES carries the key on every timeline. mapAudio is itself total over garbage anyway (a
+  // string, a number, `{clips: null}` come back untouched).
   if (t.audio !== undefined) next.audio = mapAudio(t.audio, map);
   return next;
 }

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { X, Film, Image as ImageIcon, Box, Music, FolderOpen, Link2, Trash2, MonitorPlay, PackageCheck, Search } from 'lucide-react';
-import { AssetEntry, AssetType, Timeline } from '../types';
+import { AssetEntry, AssetType, Timeline, timelineAudioClips } from '../types';
 import { AssetChip } from './AssetChip';
 import { libraryItems, usageIndex, normPath, typeLabel, type ProjectRefs } from '../services/assetLibrary';
 import { useDraggableModal } from '../hooks/useDraggableModal';
@@ -84,7 +84,17 @@ export const AssetManager: React.FC<Props> = (p) => {
     for (const sc of p.refs.scene3D) { const m = sc?.models?.find(mm => mm.id === id); if (m) return m.name; }
     return id;
   };
-  const audioClipName = (id: string) => p.refs.audioClips.find(c => c.id === id)?.name ?? id;
+  // An audio usage row can be a BED clip (refs.audioClips) or a clip on any timeline's OWN audio
+  // (Timeline.audio — Wave B put those ids in the same `audioClipIds` bucket), so resolve across BOTH
+  // lists the index was built from. Resolving only the bed made a stem used solely inside a scene's
+  // Timeline.audio render as a raw uuid — an unidentifiable row in the very audit that justifies the
+  // irreversible Delete/Relink click.
+  const audioClipName = (id: string) => {
+    const bed = p.refs.audioClips.find(c => c.id === id);
+    if (bed) return bed.name;
+    for (const tl of p.refs.timelines) { const c = timelineAudioClips(tl).find(cl => cl.id === id); if (c) return c.name; }
+    return id;
+  };
 
   const filterBtn = (label: string, value: Filter) => (
     <button onClick={() => setFilter(value)}

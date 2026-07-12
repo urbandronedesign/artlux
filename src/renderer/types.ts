@@ -421,6 +421,12 @@ export const defaultTimeline = (): Timeline => ({
 // silently stop Loop from doing anything, with no error anywhere. Coerce instead: a junk duration
 // falls back to defaultTimeline()'s 60, and a junk in/out-point is treated as ABSENT.
 const finiteNum = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+// finiteNum's boolean twin, for the optional flags (mute/solo) whose consumers all test TRUTHINESS.
+// A real boolean passes through byte-for-byte — an authored `false` stays `false`, so the round-trip is
+// exact — and anything else (`"false"`, `1`, `{}`, `null`) becomes ABSENT, which every call site reads
+// as "off". That is the safe direction: the alternative is a junk string, which is truthy, turning a
+// flag ON by itself. See sanitizeAudioTrack for what a spuriously-on `solo` does to a show.
+const boolOrAbsent = (v: unknown): boolean | undefined => (typeof v === 'boolean' ? v : undefined);
 const FALLBACK_DURATION = 60; // == defaultTimeline().duration
 
 // The "Length" field, coerced. NOT the playable end — an out-point overrides Length (use timelineEnd).
@@ -561,6 +567,12 @@ const sanitizeClip = (c: VideoClip): VideoClip => ({
 // coerced to 0 (zeroing it would fabricate a trim cap of `-inPoint`, which is worse than no cap).
 // gain/fadeIn/fadeOut get the same treatment: a non-finite fade is ABSENT, not a NaN gain ramp in the
 // driver.
+// `mute` is a BOOLEAN with the same hole one type over: the driver's audibility test is truthy
+// (`!clip.mute && !trackOf(clip)?.mute` in plugins/audio's renderer), so a hand-edited/bad-import
+// `"mute": "false"` — a non-empty STRING — is truthy and SILENCES the clip, with no error anywhere.
+// boolOrAbsent is the boolean twin of finiteNum: a real boolean survives byte-for-byte (an authored
+// `false` stays `false`, so load(save(x)) === x), and anything else becomes ABSENT, which reads as
+// "not muted" at every call site. Coerce to absent, do not drop the clip.
 export const sanitizeAudioClip = (c: AudioClip): AudioClip => ({
   ...c,
   start: finiteNum(c.start) ?? 0,
@@ -568,6 +580,7 @@ export const sanitizeAudioClip = (c: AudioClip): AudioClip => ({
   inPoint: finiteNum(c.inPoint) ?? 0,
   sourceDuration: finiteNum(c.sourceDuration) ?? undefined,
   gain: finiteNum(c.gain) ?? undefined,
+  mute: boolOrAbsent(c.mute),
   fadeIn: finiteNum(c.fadeIn) ?? undefined,
   fadeOut: finiteNum(c.fadeOut) ?? undefined,
 });
@@ -579,7 +592,20 @@ export const sanitizeAudioClip = (c: AudioClip): AudioClip => ({
 // `setClipGain(id, NaN)` for every clip on it, and a gutter's `<input type="range" value={NaN}>` goes
 // uncontrolled. Coerce, do not drop: `undefined` means "1" at every call site, so a junk gain becomes
 // absent rather than a silent zero.
-export const sanitizeAudioTrack = (t: AudioTrack): AudioTrack => ({ ...t, gain: finiteNum(t.gain) ?? undefined });
+//
+// `mute`/`solo` need it just as badly, and solo is the WORST of the three because it is INVERTED: the
+// rule is "if ANY track is soloed, every non-soloed track is silent" (the same shape as the video
+// layers' anySolo in services/timeline.ts), so ONE junk truthy value — `"solo": "false"`, a non-empty
+// string — on a single unused track SILENCES THE WHOLE BED, in a venue, with nothing logged. `mute` is
+// already live on that path today (plugins/audio's renderer tests `!trackOf(clip)?.mute` truthily).
+// boolOrAbsent keeps a real boolean byte-for-byte (round-trip) and turns anything else into ABSENT,
+// which is the "off" reading at every call site.
+export const sanitizeAudioTrack = (t: AudioTrack): AudioTrack => ({
+  ...t,
+  gain: finiteNum(t.gain) ?? undefined,
+  mute: boolOrAbsent(t.mute),
+  solo: boolOrAbsent(t.solo),
+});
 
 // Coerce a persisted audio container (Timeline.audio, or an AudioMix's tracks+clips). Never throws; a
 // missing/garbage value yields an empty container. Same filter shape as normalizeTimeline's clips
