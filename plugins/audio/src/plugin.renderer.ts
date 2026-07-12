@@ -63,19 +63,30 @@ const SYNC_THRESHOLD = 0.05; // s — per-clip source-offset drift (retime / mis
 let unsubTick: (() => void) | null = null;
 let unsubMix: (() => void) | null = null;
 
+// The fallbacks for a junk container, as SHARED FROZEN CONSTANTS — never fresh literals. readTlAudio runs
+// EVERY FRAME and pruneOrphans gates on the clip array's IDENTITY, so a fresh `[]` per call would defeat
+// that gate for exactly the malformed document the fallback exists to survive: pruneOrphans would see a
+// "new" array 60×/s and kick a syncLoaded pass on every frame, forever. (App.tsx's EMPTY_TIMELINE_AUDIO
+// makes the same guarantee one layer up, for the legacy doc with no `audio` at all; this is the same
+// promise held against a host that hands us something worse than undefined. Frozen: the driver only ever
+// reads and spreads these.)
+const EMPTY_CLIPS = Object.freeze([]) as unknown as BedClip[];
+const EMPTY_TRACKS = Object.freeze([]) as unknown as BedTrack[];
+const EMPTY_BUSES = Object.freeze([]) as unknown as BedBus[];
+
 function readBed(host: RendererHostServices): Bed {
   const mix = (host.audio.getMix() as Partial<Bed>) ?? {};
   return {
-    tracks: Array.isArray(mix.tracks) ? mix.tracks : [],
-    clips: Array.isArray(mix.clips) ? mix.clips : [],
-    buses: Array.isArray(mix.buses) ? mix.buses : [],
+    tracks: Array.isArray(mix.tracks) ? mix.tracks : EMPTY_TRACKS,
+    clips: Array.isArray(mix.clips) ? mix.clips : EMPTY_CLIPS,
+    buses: Array.isArray(mix.buses) ? mix.buses : EMPTY_BUSES,
   };
 }
 function readTlAudio(host: RendererHostServices): TlAudio {
   const a = (host.audio.getTimelineAudio() as Partial<TlAudio>) ?? {};
   return {
-    tracks: Array.isArray(a.tracks) ? a.tracks : [],
-    clips: Array.isArray(a.clips) ? a.clips : [],
+    tracks: Array.isArray(a.tracks) ? a.tracks : EMPTY_TRACKS,
+    clips: Array.isArray(a.clips) ? a.clips : EMPTY_CLIPS,
   };
 }
 
@@ -127,6 +138,14 @@ export const plugin: RendererPlugin = {
     const loaded = new Map<string, ClipMeta>();   // clip source loaded in the engine
     const loading = new Set<string>();            // loads in flight (dedupe overlapping syncLoaded runs)
     const failed = new Set<string>();             // sources that failed to decode (don't retry every bed edit)
+    // PATHS already reported as undecodable. `failed` is keyed by clip ID and is CORRECTLY cleared when a
+    // clip leaves both containers (a re-added or re-pointed clip must get another try) — but that means an
+    // FSM cycling a scene whose sting has a broken path re-attempts the decode on EVERY entry, and would
+    // otherwise re-log on every entry too: an unattended installation cycling a show for a week would grow
+    // a renderer console of millions of identical lines. The RETRY is deliberate (an operator who fixes the
+    // file on disk gets sound back on the next recall, with no restart); only the LOG is deduped, per
+    // source, for the lifetime of the window.
+    const warnedPaths = new Set<string>();
     // THE PATH each id was loaded (or attempted) FROM. `loaded` alone is keyed by clip ID, and an id is NOT
     // a source: `handleAddScene` captures a scene with `structuredClone(activeTimeline)`, so a scene's
     // Timeline.audio inherits the global doc's clip ids VERBATIM — ids are now legitimately shared across
@@ -311,12 +330,27 @@ export const plugin: RendererPlugin = {
                 void Promise.resolve().then(() => { void syncLoaded().then(syncClips); });
               }
             }
+          } else {
+            // NO META, NO THROW — the engine is ABSENT (plugin.main's graceful degrade: with the native
+            // addon missing, audioManager.loadClip returns null and the invoke RESOLVES null; see
+            // audioClient.ts:21). That is not a bad source, so the id must NOT go into `failed` — it stays
+            // retryable, and the next container change picks it up. But it is not in `loaded` either, and
+            // `srcPath` is only ever cleaned for ids in one of those two maps — so without this the ATTEMPT
+            // record written at the top of the loop would outlive the clip itself (the one hole in
+            // srcPath's cleanup). Drop it here and the invariant holds unconditionally:
+            //     srcPath's keys ⊆ loaded ∪ failed ∪ in-flight.
+            srcPath.delete(clip.id);
           }
         } catch {
           // Undecodable / missing source (loadClip rejects). Skip it and remember: one bad clip must never
           // abort the pass (that would silence every clip after it) nor retry-storm on every bed edit.
           failed.add(clip.id);
-          console.warn('[audio] clip failed to load:', clip.path);
+          // Deduped per SOURCE (see warnedPaths): the retry cadence is one attempt per scene entry, and a
+          // show cycling that scene unattended for days must not log the same broken path a million times.
+          if (!warnedPaths.has(clip.path)) {
+            warnedPaths.add(clip.path);
+            console.warn('[audio] clip failed to load (retried on each re-entry; logged once):', clip.path);
+          }
         } finally { loading.delete(clip.id); }
       }
     };
