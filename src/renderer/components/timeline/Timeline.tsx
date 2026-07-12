@@ -609,6 +609,10 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       )}
       <TimelineToolbar
         playing={playing} onTogglePlay={onTogglePlay} onStop={stop} timeRef={timeRef}
+        // Which document the number fields are editing. It must change on EVERY rebind — including one
+        // where the incoming scene's Length/fps happen to EQUAL the outgoing doc's, which is the normal
+        // case (Capture Scene clones the timeline, and fps is 30 nearly everywhere). See NumField.
+        docKey={author?.activeSceneId ?? '__global__'}
         duration={dur} onChangeDuration={(d) => onChange({ ...timeline, duration: d })}
         fps={fps} onChangeFps={(f) => onChange({ ...timeline, fps: f })}
         tool={tool} onSetTool={setTool}

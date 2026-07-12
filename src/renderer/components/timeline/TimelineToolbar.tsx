@@ -9,6 +9,9 @@ interface Props {
   onSetOut: () => void;
   hasRegion: boolean;   // an in/out region exists — Loop honours it instead of [0, Length)
   timeRef: React.RefObject<HTMLSpanElement>;
+  // Identity of the timeline currently BOUND to the editor (a scene id, or the global sentinel). The
+  // number fields hold an uncommitted draft; this is what tells them the document swapped under them.
+  docKey: string;
   duration: number;
   onChangeDuration: (d: number) => void;
   fps: number;
@@ -52,13 +55,14 @@ const TBtn: React.FC<{ active?: boolean; title: string; onClick: () => void; chi
 // value in the onBlur closure and commit the very edit the user just cancelled.
 const NumField: React.FC<{
   value: number;
+  docKey: string;   // identity of the BOUND document — see the discard effect below
   onCommit: (n: number) => void;
   min: number;
   max?: number;
   step?: number;
   integer?: boolean;
   className: string;
-}> = ({ value, onCommit, min, max, step = 1, integer, className }) => {
+}> = ({ value, docKey, onCommit, min, max, step = 1, integer, className }) => {
   const [draft, setDraft] = React.useState<string | null>(null);
   const draftRef = React.useRef<string | null>(null);
   const set = (v: string | null) => { draftRef.current = v; setDraft(v); };
@@ -72,7 +76,14 @@ const NumField: React.FC<{
   // onTimelineEnd hop is 85 s late. The timeline the operator meant to edit is never touched.
   // Snapping to the incoming document's value is the correct read of "the thing I was editing is gone",
   // and it is exactly what Escape already does.
-  React.useEffect(() => { set(null); }, [value]);
+  //
+  // DEPEND ON `docKey`, NOT ONLY ON `value`. Keying the discard on the value alone fixes nothing in the
+  // case that actually happens: Capture Scene deep-clones the timeline, so a scene's Length usually
+  // EQUALS the global doc's, and `fps` is 30 in virtually every document ever made. Same value ⇒ the
+  // effect never fires ⇒ the draft survives the very swap it exists to catch. `docKey` changes on every
+  // rebind regardless of the numbers, so the discard is driven by "which document am I editing", which
+  // is the actual question.
+  React.useEffect(() => { set(null); }, [value, docKey]);
   const commit = () => {
     const d = draftRef.current;
     if (d == null) return;              // untouched, or already discarded/committed this tick
@@ -103,7 +114,7 @@ const NumField: React.FC<{
 };
 const NUM_INPUT = 'bg-surface-0 border border-line-1 rounded px-1.5 py-0.5 text-right num text-mini focus:border-accent focus:outline-none';
 
-export const TimelineToolbar: React.FC<Props> = ({ playing, onTogglePlay, onStop, timeRef, duration, onChangeDuration, fps, onChangeFps, tool, onSetTool, snapEnabled, onToggleSnap, onAddMarker, onSetIn, onSetOut, hasRegion, onZoom, onZoomFit, onAddTrack, loop, onToggleLoop, smEnabled, onToggleSm, onEditLogic, maximized, onToggleMax }) => (
+export const TimelineToolbar: React.FC<Props> = ({ playing, onTogglePlay, onStop, timeRef, docKey, duration, onChangeDuration, fps, onChangeFps, tool, onSetTool, snapEnabled, onToggleSnap, onAddMarker, onSetIn, onSetOut, hasRegion, onZoom, onZoomFit, onAddTrack, loop, onToggleLoop, smEnabled, onToggleSm, onEditLogic, maximized, onToggleMax }) => (
   <div className="shrink-0 flex items-center gap-2 px-3 h-9 border-b border-line-1 bg-surface-1">
     {/* ── transport: what is PLAYING ── */}
     <TBtn active={playing} title="Play / Pause (Space)" onClick={onTogglePlay}>
@@ -132,11 +143,11 @@ export const TimelineToolbar: React.FC<Props> = ({ playing, onTogglePlay, onStop
     <div className="ml-auto flex items-center gap-2">
       <div className="flex items-center gap-1">
         <span className="text-fg-3 text-micro">FPS</span>
-        <NumField value={fps} onCommit={onChangeFps} min={1} max={120} step={1} integer className={`w-11 ${NUM_INPUT}`} />
+        <NumField value={fps} docKey={docKey} onCommit={onChangeFps} min={1} max={120} step={1} integer className={`w-11 ${NUM_INPUT}`} />
       </div>
       <div className="flex items-center gap-1">
         <span className="text-fg-3 text-micro" title="The end of the timeline. Playback stops here — or loops, if Loop is on. Committed on Enter / when you leave the field.">Length</span>
-        <NumField value={duration} onCommit={onChangeDuration} min={1} step={1} className={`w-14 ${NUM_INPUT}`} />
+        <NumField value={duration} docKey={docKey} onCommit={onChangeDuration} min={1} step={1} className={`w-14 ${NUM_INPUT}`} />
         <span className="text-fg-3 text-micro">s</span>
       </div>
       <div className="flex items-center gap-1">
