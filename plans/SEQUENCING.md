@@ -28,6 +28,10 @@ cue-authoring ──▶ audio-engine        (audio reuses recall/cue path + para
 headless-plugin-host ──▶ audio-engine (headless phase; headless-plugin-host retires HeadlessRunner)
 transport-wave-A ──▶ transport-wave-B (the bounded clock + the scene/global binding it rides on)
 asset-paths ──▶ transport-wave-B      (see below — a HARD edge, added 2026-07-12)
+timeline-undo ──▶ renderer-error-containment
+                                      (containment's reload rung can only recover to the LAST GOOD DOCUMENT
+                                       if document-wide history exists; otherwise it recovers to an EMPTY one
+                                       and the rung gets built twice — Wave 4, added 2026-07-12)
 ```
 Everything else is independent. **Hottest shared file:** `Stage.tsx` (6 plans) — sequence its editors
 before audio's additive apply-hook. `types.ts` (5 plans) and `paramPath.ts` (3) overlap too, but additively.
@@ -96,6 +100,38 @@ internal order — *the ✅ phases are on the branch, unmerged*:
 > so "an automation lane always wins over a scene fade" **cannot be enforced across the plugin boundary today**.
 > Wave B has to open that seam.
 
+### Wave 4 — Renderer robustness · branch `wave-4-robustness`
+**Surfaced by Wave B's adversarial review, which passed the branch but named these two as structural gaps that
+belong in their own wave rather than being smuggled into an audio wave.** Neither is an audio problem; both are
+the *structural* answer to a class of defect we have now fixed one instance at a time, three times.
+
+1. [timeline-undo](timeline-undo.md) — **first, because of the edge below.** A history system already exists
+   (`useHistory.ts:13`, instantiated once at `App.tsx:109-125`) but its `T` is `Fixture[]`, so
+   `handleTimelineChange` (`App.tsx:914-917`) calling `recordHistory()` would deep-clone the *fixtures* array
+   and undo nothing. **There is no undo for any timeline edit** — which is what made two Wave B CRITICALs
+   lethal rather than merely annoying. Also fixes the **3am line**, which is already half-sprung:
+   `handleRecallScene` (`:792`) and `applyCues` (`:980`) *do* call `recordHistory()`, and they are reached by
+   the FSM, OSC, the tablet and the scheduler — so an unattended install pushes history entries for changes
+   **no human made**, on an **uncapped** stack.
+2. [renderer-error-containment](renderer-error-containment.md) — there is **no ErrorBoundary anywhere in the
+   renderer**, so every load-path data bug is a white screen. But the thesis is not the boundary: **the
+   watchdog is structurally blind to the failure it exists to catch.** `watchdog.ts:143` arms only once
+   `lastRenderAt > 0`, and the sole heartbeat emitter is `App.tsx:358` — so a **first-render** throw (exactly
+   what a corrupt project file causes) means the heartbeat never fires once and the watchdog **never arms**.
+   An unattended install sits dead-white until someone drives to the venue. WS1/WS2 (a renderer-fault IPC
+   channel + seeding the watchdog from `did-finish-load`) come *before* any boundary, because alone they turn
+   "silently dead forever" into "relaunches, trips the breaker, writes an audit line".
+
+> **The hard edge, and why undo goes first:** error-containment's recovery ladder has a rung that reloads the
+> renderer. With document-wide history in place that rung can recover to **the last good document**; without
+> it, it can only recover to an **empty** one. Landing containment first means building that rung twice.
+
+**Both plans found live pre-existing bugs while grounding, neither of which is in scope for either:**
+`IPC.WINDOW_COMMAND` is **sender-blind** (`ipc.ts:145` calls `getWindow()`), so **the docs window's close
+button closes the main editor window** — on the exact channel the recovery ladder rides; and the two
+hand-mirrored menus have **already diverged** (`MenuBar.tsx:80-84` lists four plugin panels `menu.ts:78` does
+not), which is the cross-cutting hazard the README warns about, already realised.
+
 ## Independent track — Docs browser (parallel-safe)
 
 [docs-browser](docs-browser.md) — an in-app, detachable markdown viewer for the examples/tutorials + user
@@ -163,6 +199,7 @@ Keep `main` buildable + `tsc`-clean at all times. Never push to a remote or skip
 | 2 | `wave-2-render-output` (merged, deleted) | fixture-segments, content-source-region, projector-blend, autopatch | ◑ **partially merged + pushed 2026-07-11** — **fixture-segments** (segment gap/off; **verified live on-wire** — middle third → 0) + **autopatch** (collision detector always-on + opt-in locked-range reservation) landed. **content-source-region + projector-blend HELD behind webgl-strict Phase 2**; autopatch **Phase C (split-brain write-back) deferred**. |
 | 3 | `wave-3-audio` (in flight, unmerged) | audio-engine (P0→P6) + transport-and-scoping (supersedes P5) + asset-paths | ◑ **in progress** — **P0–P4 shipped** (JUCE/libspatialaudio addon, bed, ambisonic + spatial UI, juce_dsp FX, the core automation-curve engine). **Wave A shipped + live-tested 2026-07-12** (bounded clock, working Loop, Stop/in/out, `onTimelineEnd`, scene-vs-global legibility) — 4 blockers + an 11-item punch list found by adversarial review and fixed. **Next: asset-paths → Wave B → P6.** |
 | — | `feat-docs-browser` | docs-browser (independent, parallel-safe) | ☑ **shipped v0.21.0** — reader + detachable window + inline user-guide images + tutorial SVG diagrams; bundled into packaged builds via `extraResources` (23/23 image refs validated, tsc+build clean, in-app visual test confirmed). Getting-started fold-in still pending. |
+| 4 | `wave-4-robustness` | timeline-undo → renderer-error-containment | ☐ not started (Drafts — both plans written 2026-07-12, surfaced by Wave B's adversarial review). **`timeline-undo` first** (the last-good-document edge). Highest-value single item in the whole backlog for an unattended install: **the watchdog cannot see a white screen.** |
 | — | `feat-midi-control` | midi-control (independent, parallel-safe) | ☐ not started (Draft — plan written) |
 | — | (content, no branch gate) | LiDAR + state-machine tutorial sets | ☑ drafted; **SVG diagrams added** (state-graph, hub-and-spoke, tracking-zones, merge-people) — all 23 doc image refs resolve + read, 4/4 SVGs valid; needs in-app open test |
 

@@ -60,6 +60,8 @@ Seven plans have landed on `main` and moved to [`archive/`](archive/). Full per-
 | [Native audio engine](audio-engine.md) | (net-new, Wave 3) | **Hybrid** | 🔴 High | **P0–P4 shipped** on `wave-3-audio` (bed, spatial, FX, automation); **P5 shipped as Wave B** (its §WS6 was **wrong** and is corrected in place); P6 last |
 | [Timeline transport + global/scene scoping + audio scene binding](timeline-transport-and-audio-scoping.md) | (net-new, Wave 3) | **Hybrid** | 🟠 Med-High | **Wave A shipped + live-tested 2026-07-12**; **Wave B landed on `wave-3-audio` 2026-07-12** — the show clock, audio lanes, the mixer, audio on scenes/cues. **Live smoke test pending**; not merged. Execution plan: **[2026-07-12-audio-scoping-wave-b.md](../docs/superpowers/plans/2026-07-12-audio-scoping-wave-b.md)** |
 | [Asset paths: scenes + audio bed](asset-paths-scenes-and-audio.md) | #9 Pack & Hand Off | **Core** | 🟠 Med | **Shipped** as Wave B Task 1 (`mapAssetPaths` → per-container visitors over the top level, **every scene**, and the bed). ⚠ It makes a saved project **forward-incompatible** with older builds — see [CHANGELOG](../CHANGELOG.md) |
+| [Timeline undo](timeline-undo.md) | (net-new, Wave 4) | **Core** | 🟡 Med | Draft — **there is no undo for any timeline edit**, and the show engine (FSM/OSC/cues/scheduler) pushes history entries **no human made** onto an **uncapped** stack |
+| [Renderer error containment](renderer-error-containment.md) | #10 Ship It | **Core** | 🟠 Med | Draft — **the watchdog is blind to a white screen.** A first-render throw means the heartbeat never fires, so the watchdog **never arms** and an unattended install sits dead until someone drives to the venue |
 
 ## Net-new subsystems (beyond limitation-lifts)
 
@@ -78,6 +80,13 @@ merged. **Wave 3 (audio) is in flight on `wave-3-audio` and is not merged:** P0�
 Wave A (live-tested 2026-07-12), asset-paths, and **Wave B — audio scoping, the show clock** (landed
 2026-07-12, live smoke test pending) are on the branch. **P6 remains.** The webgl-strict **Phase 2**
 decision still gates content-source-region + projector-blend.
+
+**Wave 4 — renderer robustness** ([timeline-undo](timeline-undo.md) → [renderer-error-containment](renderer-error-containment.md))
+was **surfaced by Wave B's adversarial review**, which passed the branch but named both as structural gaps that
+belong in their own wave rather than being smuggled into an audio one. They are the structural answer to a class
+of defect this project has now fixed one instance at a time, three times: a data bug reaching a component that
+renders unconditionally, and an edit landing somewhere it cannot be taken back from. Undo goes first — see the
+[dependency graph](SEQUENCING.md#dependency-graph-the-hard-land-after-edges).
 
 > **Wave B introduced a new engine invariant — *one transport, two playheads*.** The transport carries a
 > second derived time (`showTime`, the SHOW clock) that a scene recall does **not** reset, so the audio bed
