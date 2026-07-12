@@ -38,6 +38,7 @@ import { dmxSignal } from './services/dmxSignal';
 import { perfMonitor } from './services/perfMonitor';
 import { getDrawable } from './services/surfaceMedia';
 import { timeline as timelineEngine, GLOBAL_POOL } from './services/timeline';
+import { usageForPath } from './services/assetLibrary';
 import { setCoreStateView } from './services/automationTargets.core';
 import * as timelinePreloader from './services/timelinePreloader';
 import { nextAccent, GLOBAL_ACCENT } from './sceneAccent';
@@ -190,6 +191,12 @@ const App: React.FC = () => {
   // panel shows/edits and the engine plays for the active pool.
   const activeScene = activeSceneId ? scenes.find(s => s.id === activeSceneId) ?? null : null;
   const activeTimeline: Timeline = activeScene?.timeline ?? timeline;
+  // Every timeline in the project — the global one plus each scene's own. Asset-usage counting must
+  // see ALL of them or deleting an asset used only inside a scene reports "unused".
+  const allTimelines = useMemo(
+    () => [timeline, ...scenes.map(s => s.timeline).filter((t): t is Timeline => !!t)],
+    [timeline, scenes],
+  );
   // Live mirrors for []-deps engine subscriptions (FSM look-ahead preload) — see below.
   const scenesRef = useRef(scenes); scenesRef.current = scenes;
   const cueBanksRef = useRef(cueBanks); cueBanksRef.current = cueBanks;
@@ -197,6 +204,12 @@ const App: React.FC = () => {
   const stateMachineRef = useRef(stateMachine); stateMachineRef.current = stateMachine;
   const audioMixRef = useRef(audioMix); audioMixRef.current = audioMix; // live mirror for host.audio (memo has [] deps)
   const activeSceneIdRef = useRef(activeSceneId); activeSceneIdRef.current = activeSceneId;
+  // The doc the editor is BOUND to + the writer that routes an edit to its owner. The transport-intent
+  // subscription below has [] deps (resubscribing per render would thrash), so it reads them through
+  // these refs. `handleTimelineChange` is defined further down, so this ref is *declared* here and
+  // *assigned* right after that definition — assigning it here would capture undefined.
+  const activeTimelineRef = useRef(activeTimeline); activeTimelineRef.current = activeTimeline;
+  const handleTimelineChangeRef = useRef<(t: Timeline) => void>(() => {});
   // Live FSM readback for the host `show` service (the show-control tablet polls getStatus()).
   const currentSmStateRef = useRef<string | null>(null);
   const lastFiredTransitionRef = useRef<string | null>(null);
@@ -698,6 +711,7 @@ const App: React.FC = () => {
     if (activeSceneId) setScenes(prev => prev.map(s => s.id === activeSceneId ? { ...s, timeline: next } : s));
     else setTimeline(next);
   };
+  handleTimelineChangeRef.current = handleTimelineChange; // live mirror for the []-deps intent subscription
   // The author-context bundle handed to the timeline panel (scene pill + author strip). One object so
   // the panel's Props stay tidy; both panel mounts (dock + fullscreen) share it.
   const timelineAuthor = {
@@ -1045,9 +1059,10 @@ const App: React.FC = () => {
   // from trackingTakes (and any clips referencing it). References to imported assets are left as-is.
   const handleRemoveAsset = (asset: AssetEntry) => {
       const usedTake = asset.type === 'take';
-      const refs = surfaces.filter(s => (s.content as { url?: string })?.url === asset.path).length
-          + timeline.clips.filter(c => c.path === asset.path).length
-          + (scene3D.models ?? []).filter(m => m.path === asset.path).length;
+      // Count references the SAME way the library badges do — across every timeline, not just the global
+      // one. This hand-rolled count used to scan `timeline.clips` alone, so an asset used only inside a
+      // scene's timeline was offered for deletion with no warning at all.
+      const refs = usageForPath(asset.path, { surfaces, scene3D, timelines: allTimelines }).count;
       if (refs > 0 && !window.confirm(`"${asset.name}" is used in ${refs} place(s). Remove it from the library anyway?`)) return;
       if (usedTake) {
           setTimeline(t => ({ ...t, trackingTakes: (t.trackingTakes ?? []).filter(r => r.id !== asset.id), clips: t.clips.filter(c => c.takeId !== asset.id) }));
@@ -1190,9 +1205,13 @@ const App: React.FC = () => {
   useEffect(() => timelineEngine.subscribeIntent((i) => {
       if (i.kind === 'play') setIsVideoPlaying(true);
       else if (i.kind === 'pause') setIsVideoPlaying(false);
-      else if (i.kind === 'stop') { setIsVideoPlaying(false); timelineEngine.seek(0); }
+      // Stop returns to the in-point, not hard 0 — with a region set, 0 is outside the playable range.
+      else if (i.kind === 'stop') { setIsVideoPlaying(false); timelineEngine.seek(timelineEngine.getStart()); }
       else if (i.kind === 'seek') timelineEngine.seek(i.sec);
-      else if (i.kind === 'loop') setTimeline(t => ({ ...t, loop: i.loopOn }));
+      // The loop flag belongs to the BOUND timeline (global OR the scene being authored). This used to
+      // call setTimeline() unconditionally, so OSC /transport/loop while a scene was bound silently
+      // toggled loop on the global doc instead.
+      else if (i.kind === 'loop') handleTimelineChangeRef.current({ ...activeTimelineRef.current, loop: i.loopOn });
   }), []);
   // Scene/cue triggers requested by a source (FSM action, OSC) — resolve by id/name and apply.
   useEffect(() => {
@@ -1749,7 +1768,7 @@ const App: React.FC = () => {
               <div className="flex-1 min-h-0">
                 {leftTab === 'media' ? (
                   <MediaPanel
-                    assets={assets} timeline={timeline} surfaces={surfaces} scene3D={scene3D}
+                    assets={assets} timeline={timeline} timelines={allTimelines} surfaces={surfaces} scene3D={scene3D}
                     selectedSurfaceId={selectedSurfaceId} hasProjectFolder={!!currentProjectPath}
                     onImport={handleImportAssets} onRemoveAsset={handleRemoveAsset}
                     onRelinkAsset={handleRelinkAsset} onUseOnSurface={handleUseAssetOnSurface}
@@ -1878,14 +1897,18 @@ const App: React.FC = () => {
                             </div>
                             {/* Full scene outliner (OBJECTS / FIXTURES / transform / LIGHTING + Save).
                                 Docked as a reserved column on the pane's right edge; hidden during a projector
-                                calibration session so it doesn't block the pick markers. */}
+                                calibration session so it doesn't block the pick markers.
+                                It gets the BOUND timeline, not the global one: its only use of the prop is the
+                                selected model's layer picker, and the texture a model shows is composited from
+                                the timeline the engine is PLAYING — the scene's own while authoring one. The
+                                global doc listed layers that weren't on air. */}
                             {!calibratingOutputId && (
                                 <ScenePanel3D
                                     scene3D={scene3D}
                                     fixtures={fixtures}
                                     selectedModelId={selectedModelId}
                                     selectedFixtureId={selectedFixtureId}
-                                    timeline={timeline}
+                                    timeline={activeTimeline}
                                     naturalSizes={modelNaturalSizes}
                                     saved={sceneSaved}
                                     onSelectModel={handleSelectModel}
@@ -2128,7 +2151,7 @@ const App: React.FC = () => {
       )}
 
       <AssetManager
-        open={assetManagerOpen} onClose={() => setAssetManagerOpen(false)}
+        open={assetManagerOpen} onClose={() => setAssetManagerOpen(false)} timelines={allTimelines}
         assets={assets} timeline={timeline} surfaces={surfaces} scene3D={scene3D}
         selectedSurfaceId={selectedSurfaceId} hasProjectFolder={!!currentProjectPath}
         onImport={handleImportAssets} onRemoveAsset={handleRemoveAsset} onRelinkAsset={handleRelinkAsset}

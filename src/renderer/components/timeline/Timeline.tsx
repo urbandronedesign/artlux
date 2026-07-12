@@ -558,6 +558,11 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
             <>
               <div className="fixed inset-0 z-40" onClick={() => setPillOpen(false)} />
               <div className="absolute z-50 top-full left-3 mt-1 w-64 bg-surface-1 border border-line-1 rounded-md p-1 shadow-e2 max-h-80 overflow-auto">
+                {/* Picking a scene here is NOT a quiet rebind: onSelect → enterAuthor → handleRecallScene,
+                    which recalls the look, starts the fade and restarts the transport. Say so. */}
+                <div className="px-2 pt-1 pb-1.5 text-micro text-fg-3 border-b border-line-1 mb-1">
+                  Selecting a scene <span className="text-fg-2">recalls it live</span> — its look, its fade and its timeline.
+                </div>
                 <button onClick={() => { author.onSelect(null); setPillOpen(false); }}
                   className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-mini text-left hover:bg-surface-2 ${!author.activeSceneId ? 'bg-surface-2' : ''}`}>
                   <span className="inline-block w-2.5 h-2.5 rounded-full border border-line-2" />
@@ -570,9 +575,12 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
                     className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-mini text-left hover:bg-surface-2 ${author.activeSceneId === s.id ? 'bg-surface-2' : ''}`}>
                     <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: s.accent ?? '#8b94a3' }} />
                     <span className="flex-1 text-fg-1 truncate">{s.name}</span>
-                    {s.hasTimeline
-                      ? <Film size={11} className="text-fg-3" />
-                      : <span className="text-micro text-fg-3 italic">global</span>}
+                    {s.hasTimeline && <Film size={11} className="text-fg-3 shrink-0" />}
+                    {/* A scene with no timeline of its own silently plays the GLOBAL one (swapTimelineForScene) —
+                        a genuinely surprising rule that appeared nowhere in the UI. */}
+                    <span className="ml-auto text-micro text-fg-3 shrink-0">
+                      {s.hasTimeline ? `${s.clipCount ?? 0} clip${(s.clipCount ?? 0) === 1 ? '' : 's'}` : 'plays global'}
+                    </span>
                   </button>
                 ))}
                 <div className="h-px bg-line-1 my-1" />

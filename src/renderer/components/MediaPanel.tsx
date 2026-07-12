@@ -7,7 +7,8 @@ import { libraryItems, usageForPath, normPath } from '../services/assetLibrary';
 
 interface Props {
   assets: AssetEntry[];
-  timeline: Timeline;
+  timeline: Timeline;      // the GLOBAL doc — the take library lives on it (libraryItems)
+  timelines: Timeline[];   // EVERY timeline (global + each scene's) — usage counting must see them all
   surfaces: Surface[];
   scene3D?: Scene3D | null;
   selectedSurfaceId: string | null;
@@ -23,7 +24,7 @@ type Filter = 'all' | AssetType;
 
 // Left-sidebar media library. Lists imported assets + recorded takes; drag a tile onto the Stage
 // or the Timeline to place it. Import copies files into the project's assets/ folder.
-export const MediaPanel: React.FC<Props> = ({ assets, timeline, surfaces, scene3D, selectedSurfaceId, hasProjectFolder, onImport, onRemoveAsset, onRelinkAsset, onUseOnSurface, onOpenManager }) => {
+export const MediaPanel: React.FC<Props> = ({ assets, timeline, timelines, surfaces, scene3D, selectedSurfaceId, hasProjectFolder, onImport, onRemoveAsset, onRelinkAsset, onUseOnSurface, onOpenManager }) => {
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -50,7 +51,7 @@ export const MediaPanel: React.FC<Props> = ({ assets, timeline, surfaces, scene3
     (!query || a.name.toLowerCase().includes(query.toLowerCase())));
 
   const selected = items.find(a => a.id === selectedId) ?? null;
-  const usageOf = (a: AssetEntry) => usageForPath(a.path, { surfaces, scene3D, timeline }).count;
+  const usageOf = (a: AssetEntry) => usageForPath(a.path, { surfaces, scene3D, timelines }).count;
 
   const chip = (label: string, value: Filter, icon?: React.ReactNode) => (
     <button onClick={() => setFilter(value)}

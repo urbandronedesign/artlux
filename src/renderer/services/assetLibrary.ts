@@ -1,7 +1,8 @@
 // Helpers for the managed media library. The library is the union of imported assets
 // (Timeline-independent video/image/model in ProjectData.assets) and recorded LiDAR takes
 // (Timeline.trackingTakes). Usage is computed by path equality against everywhere an asset path
-// can be referenced — surfaces, scene models, and timeline clips (video + tracking).
+// can be referenced — surfaces, scene models, and clips on EVERY timeline (the global one plus each
+// scene's own; video + tracking).
 import type { AssetEntry, AssetType, Surface, Timeline, TrackingTakeRef } from '../types';
 import type { Scene3D } from '../../../shared/protocol';
 import { SourceType } from '../types';
@@ -19,7 +20,8 @@ export interface AssetUsage {
 export interface ProjectRefs {
   surfaces: Surface[];
   scene3D?: Scene3D | null;
-  timeline: Timeline;
+  timelines: Timeline[];   // the GLOBAL timeline + every scene's own — an asset used only inside a
+                           // scene's timeline used to read as UNUSED, and that count gates deletion.
 }
 
 // Where is this file path referenced across the project?
@@ -35,8 +37,10 @@ export function usageForPath(path: string, refs: ProjectRefs): AssetUsage {
   for (const m of refs.scene3D?.models ?? []) {
     if (m.path && normPath(m.path) === key) modelIds.push(m.id);
   }
-  for (const c of refs.timeline.clips ?? []) {
-    if (c.path && normPath(c.path) === key) clipIds.push(c.id);
+  for (const tl of refs.timelines) {
+    for (const c of tl.clips ?? []) {
+      if (c.path && normPath(c.path) === key) clipIds.push(c.id);
+    }
   }
   return { surfaceIds, modelIds, clipIds, count: surfaceIds.length + modelIds.length + clipIds.length };
 }
@@ -46,7 +50,9 @@ export const takeToAsset = (t: TrackingTakeRef): AssetEntry => ({
   id: t.id, name: t.name, type: 'take', path: t.path, durationSec: t.duration, fps: t.fps,
 });
 
-// The unified library list: imported assets + recorded takes.
+// The unified library list: imported assets + recorded takes. Single-timeline ON PURPOSE — tracking
+// takes are recorded into the GLOBAL timeline's trackingTakes, so the library is a global-doc list.
+// (Usage counting is the thing that must span every timeline; see usageForPath.)
 export function libraryItems(assets: AssetEntry[] | undefined, timeline: Timeline): AssetEntry[] {
   const imported = assets ?? [];
   const takes = (timeline.trackingTakes ?? []).map(takeToAsset);

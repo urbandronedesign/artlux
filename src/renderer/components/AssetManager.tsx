@@ -10,7 +10,8 @@ interface Props {
   open: boolean;
   onClose: () => void;
   assets: AssetEntry[];
-  timeline: Timeline;
+  timeline: Timeline;      // the GLOBAL doc — the take library lives on it (libraryItems)
+  timelines: Timeline[];   // EVERY timeline (global + each scene's) — usage counting must see them all
   surfaces: Surface[];
   scene3D?: Scene3D | null;
   selectedSurfaceId: string | null;
@@ -66,10 +67,14 @@ export const AssetManager: React.FC<Props> = (p) => {
     (filter === 'all' || a.type === filter) &&
     (!query || a.name.toLowerCase().includes(query.toLowerCase())));
   const selected = items.find(a => a.id === selectedId) ?? null;
-  const usage = selected ? usageForPath(selected.path, { surfaces: p.surfaces, scene3D: p.scene3D, timeline: p.timeline }) : null;
+  const usage = selected ? usageForPath(selected.path, { surfaces: p.surfaces, scene3D: p.scene3D, timelines: p.timelines }) : null;
 
   const surfName = (id: string) => p.surfaces.find(s => s.id === id)?.name ?? id;
-  const clipName = (id: string) => p.timeline.clips.find(c => c.id === id)?.name ?? id;
+  // Usage now spans every timeline, so a clip id can come from a scene's own doc — look through them all.
+  const clipName = (id: string) => {
+    for (const tl of p.timelines) { const c = tl.clips.find(cl => cl.id === id); if (c) return c.name; }
+    return id;
+  };
   const modelName = (id: string) => p.scene3D?.models?.find(m => m.id === id)?.name ?? id;
 
   const filterBtn = (label: string, value: Filter) => (
@@ -111,7 +116,7 @@ export const AssetManager: React.FC<Props> = (p) => {
               {filtered.length === 0 ? <div className="text-fg-3 italic px-1 py-2">No media.</div> : (
                 <div className="grid grid-cols-4 gap-3">
                   {filtered.map(a => (
-                    <AssetChip key={a.id} asset={a} usageCount={usageForPath(a.path, { surfaces: p.surfaces, scene3D: p.scene3D, timeline: p.timeline }).count}
+                    <AssetChip key={a.id} asset={a} usageCount={usageForPath(a.path, { surfaces: p.surfaces, scene3D: p.scene3D, timelines: p.timelines }).count}
                       missing={missing.has(normPath(a.path))} selected={selectedId === a.id} onClick={() => setSelectedId(a.id)} />
                   ))}
                 </div>
