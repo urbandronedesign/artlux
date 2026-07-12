@@ -106,6 +106,30 @@ export function start(targets: FadeLeg[], opts: { fadeSec: number; transition?: 
 export function cancel(): void { if (active) { finalizePluginLegs(active.legs); active = null; notify(); } }
 export function isActive(): boolean { return active != null; }
 
+// ── THE TAKEOVER, ON THE CORE SIDE ──────────────────────────────────────────────────────────────
+// An operator grabbing a control mid-fade takes that param back. The PLUGIN side of that (dropping the
+// path from its fade layer) is releaseFade() — but on its own that is UNDONE WITHIN 16 ms and then made
+// PERMANENT, because apply() below re-writes EVERY plugin leg, unconditionally, EVERY frame while the fade
+// is live. The layer is deleted; the next frame puts it straight back; the leg then lands on `leg.to` and
+// SITS THERE FOREVER (a fade's value persists by design). Net effect: the operator's move is erased, the
+// house keeps sliding to the scene's value, and the fader reads 1.0 over a silent room — the exact shadow
+// releaseFade exists to prevent, reached through the other door.
+//
+// So a takeover has to ALSO remove the leg from the animation. That is this. It does NOT finalize the leg
+// (finalizing would write `leg.to` — the very value being taken over) and it does NOT fire onComplete: an
+// abandoned leg is not a completed fade, and inventing a completion here could pulse a caller's callback.
+//
+// CORE legs never reach here — core has no takeover problem (its target is committed in React state, so a
+// manual move simply wins). The single caller is the audio provider's releaseFade(), via host.show.dropFadeLeg.
+export function dropLeg(path: string): void {
+  const a = active;
+  if (!a) return;
+  const rest = a.legs.filter((l) => l.path !== path);
+  if (rest.length === a.legs.length) return;   // not fading this path — nothing to do
+  a.legs = rest;                                // mutate in place: sample()'s apply() closes over `a`
+  if (rest.length === 0) { active = null; notify(); }
+}
+
 // Called once per frame by the Stage pump. Returns null when idle. Fires onComplete and clears
 // when every leg has finished (on the frame the last leg reaches progress 1).
 export function sample(nowMs: number): SampleResult | null {

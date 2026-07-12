@@ -141,10 +141,20 @@ function applyBusPaths<T extends OvBus>(bus: T, paths: Set<string> | undefined, 
  * instant ANY scene or cue touches `audio.master.gain` the house-volume fader stops doing anything at all —
  * for the rest of the session, and across every project opened in it. An automation lane does not have that
  * bug precisely because it HAS a release. This is the fade layer's.
+ *
+ * A TAKEOVER HAS TWO HALVES, AND DELETING FROM `fade` IS ONLY ONE OF THEM. While a fade is IN FLIGHT the
+ * host re-writes every faded path through writeFade() on EVERY FRAME — so a release that stops here is
+ * undone within 16 ms, and then made PERMANENT when the leg lands on its endpoint and persists there. The
+ * operator pulls the master up two seconds into a 5 s fade to 0.2 (exactly when they would), the fader
+ * moves, the document says 1.0 — and the house still slides to 0.2 and STAYS. So the LEG has to go too,
+ * and only the host owns the animation: host.show.dropFadeLeg is that half. Every door into a takeover
+ * (the mixer's own faders, and core's timeline gutter fader via the provider member below) routes through
+ * THIS function, so this is the one place both halves have to meet.
  */
 export function releaseFade(path: string): void {
   const owner = ownerOf(path);
   if (!owner) return;
+  getAudioHost()?.show.dropFadeLeg(path);   // …the leg, before the layer: order is cosmetic (one task), intent is not
   fade.delete(path);
   fadeByOwner.get(owner)?.delete(path);
   dirty.add(owner);   // re-push, so the AUTHORED value reaches the engine on the next frame

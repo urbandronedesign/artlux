@@ -436,6 +436,27 @@ export interface ShowService<SM = unknown, Scene = unknown, Bank = unknown, Entr
   transport(intent: { kind: 'play' | 'pause' | 'stop' | 'seek' | 'loop'; sec?: number; loopOn?: boolean }): void;
   triggerTransition(id: string): void;            // manual FSM transition by id
   enterState(id: string): void;                   // jump directly to a state by id
+
+  /**
+   * A MANUAL TAKEOVER OF A FADED PARAM — remove `path` from any IN-FLIGHT scene/cue fade.
+   *
+   * The provider half of a takeover (AutomationTargetProvider.releaseFade) drops the path from the
+   * provider's own fade layer. THAT IS NOT ENOUGH ON ITS OWN, and the gap is not a small one: while a fade
+   * is live the host re-writes EVERY faded path through writeFade() on EVERY FRAME. A release that does not
+   * also reach the host is therefore undone within 16 ms, and then made PERMANENT when the leg lands on its
+   * endpoint and persists there — so the operator's move is erased and the param is stranded at the
+   * outgoing scene's value with the control reading as if it had worked. (Scene A fades the master to 0.2
+   * over 5 s; two seconds in — exactly when an operator reaches for it — they pull the fader up; without
+   * this the house still slides to 0.2 and STAYS.)
+   *
+   * So a provider's releaseFade() MUST call this. It is on the host contract, not the provider one,
+   * because the animation is the HOST's: a plugin cannot reach into it. Both halves, or neither works.
+   *
+   * Dropping a leg does NOT finalize it (that would write the very value being taken over) and does NOT
+   * complete the fade — the fade's OTHER legs keep animating untouched. Unknown/idle paths are a no-op.
+   * Inert in windows with no transport (projector), which run no fades to begin with.
+   */
+  dropFadeLeg(path: string): void;
 }
 
 // Read-only view of the persisted global audio bed (ProjectData.audio → AudioMix). The playhead-driven

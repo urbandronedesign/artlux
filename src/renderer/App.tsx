@@ -666,6 +666,17 @@ const App: React.FC = () => {
     setSelectedFixtureId(null);
     setSelectedFixtureIds([]);
     setSelectedSurfaceId(null);
+    // ⚠ TASK 10, READ THIS BEFORE GIVING A SCENE AUDIO STATE. Today this branch is correct only because a
+    // Scene CANNOT carry audio: collectFadeableTargets diffs a StateView (surfaces/fixtures/globalBrightness)
+    // and Scene has no audio field, so a scene recall emits ZERO audio legs and the `else` arm is simply
+    // "abandon whatever cue-fade was in flight" — which is what cancel() correctly does.
+    //
+    // The moment a scene DOES carry audio, this shape is a defect: a zero-fade recall (the COMMON case —
+    // fadeSec defaults to 0) never calls start(), so start()'s `!willAnimate` snap-write is unreachable
+    // from here and the incoming scene's audio would never be written AT ALL, while cancel() lands the
+    // OUTGOING scene's legs on their endpoints — the wrong show's audio, held forever. The zero-length
+    // write path that exists today covers CUES ONLY. Route a zero-fade recall through start() with its
+    // audio legs (start() already snaps them) rather than adding a second direct-write path.
     if (scene.fadeSec && scene.fadeSec > 0) {
       transitions.start(collectFadeableTargets(fromView, toView), { fadeSec: scene.fadeSec, transition: 'smooth' });
     } else {
@@ -975,8 +986,18 @@ const App: React.FC = () => {
       // keep shadowing the INCOMING project's authored values, silently and forever (a plugin's override
       // layer is module-level and the plugin is never deactivated). The audio driver reads
       // `laneOverride ?? sceneFade ?? authored`, so a stale master fade would clamp the new show's output
-      // with the fader sitting at 1.0 and reading as perfectly healthy. Core has nothing to clear: its fades
-      // live on the StateView, which applyProjectData replaces wholesale.
+      // with the fader sitting at 1.0 and reading as perfectly healthy.
+      //
+      // ORDER IS LOAD-BEARING, AND IT IS THE COUNTER-INTUITIVE WAY ROUND. cancel() must come FIRST, and
+      // NOT because it tidies core (core's fades live on the StateView, which we replace wholesale) —
+      // because of the two things it does to the PLUGIN layer, both of which defeat releaseAllFades if they
+      // happen after it:
+      //   · An in-flight fade left running would be REFILLED by the very next transitions.apply() frame,
+      //     with the OUTGOING project's legs, straight over the freshly-loaded mix.
+      //   · cancel() FINALIZES abandoned plugin legs — it WRITES `leg.to` into the fade layer. Run it
+      //     second and it resurrects the outgoing show's fades into the new project by hand.
+      // cancel() → releaseAllFades() writes the endpoints and then clears them: net empty, which is right.
+      transitions.cancel();
       for (const p of automationTargetRegistry.all()) p.releaseAllFades?.();
       timelinePreloader.warm(curKey, curTl);
       // Opening a project RESETS the show clock (the bed's time restarts with the show); a scene recall
@@ -1079,6 +1100,11 @@ const App: React.FC = () => {
       // SHOW state, not document state, and a plugin's layer is module-level — so without this a master or
       // track fade from the OUTGOING show survives into the new one and keeps shadowing its authored mix,
       // with every fader sitting where the operator put it and reading as perfectly healthy.
+      // cancel() FIRST, and for the same two reasons it goes first in applyProjectData: an in-flight fade
+      // would otherwise refill the layer on the next frame, and cancel() itself WRITES the layer (it
+      // finalizes abandoned plugin legs), so running it second would hand-copy the outgoing show's fades
+      // into the new project. Read that comment; this is the same trap.
+      transitions.cancel();
       for (const p of automationTargetRegistry.all()) p.releaseAllFades?.();
   };
 
@@ -1501,6 +1527,12 @@ const App: React.FC = () => {
       },
       triggerTransition: (id) => timelineEngine.triggerSmTransition(id),
       enterState: (id) => timelineEngine.enterSmState(id),
+      // THE HOST HALF OF A TAKEOVER. A provider's releaseFade() drops the path from ITS fade layer; that
+      // alone is undone on the next frame, because transitions.apply() re-writes every plugin leg every
+      // frame while the fade is live — and then made permanent when the leg lands on its endpoint and
+      // persists. This removes the leg from the animation itself, so the release actually sticks. Both
+      // halves, or the operator's mid-fade fader move is silently erased. See the SDK's comment.
+      dropFadeLeg: (path) => transitions.dropLeg(path),
     },
     // TWO AUDIO CONTAINERS, TWO CLOCKS (see docs/TIMELINE.md).
     //   getMix()           — ProjectData.audio, THE BED. Rides the SHOW clock. Survives a scene recall.

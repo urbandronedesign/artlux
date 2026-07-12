@@ -45,6 +45,8 @@ const NOOP_HOST: RendererHostServices = {
     getSelection: () => null, subscribeSelection: () => () => {},
     recallScene: () => {}, fireCue: () => {}, fireColumn: () => {}, transport: () => {},
     triggerTransition: () => {}, enterState: () => {},
+    // No transport here ⇒ no fades to drop a leg from. Inert, like the rest of this host.
+    dropFadeLeg: () => {},
   },
   audio: { getMix: () => ({ tracks: [], clips: [], buses: [] }), setMix: () => {}, getTimelineAudio: () => ({ tracks: [], clips: [] }), subscribe: () => () => {} },
 };
