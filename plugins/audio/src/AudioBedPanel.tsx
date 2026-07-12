@@ -31,7 +31,7 @@ import { X, Plus, Music, Trash2, Volume2, VolumeX, Headphones, AlertTriangle, Pl
 import { useDraggable, type PanelProps } from '@artlux/sdk/renderer';
 import { getAudioHost } from './audioHost';
 import { audioClient } from './audioClient';
-import { EffectChain, type Effect } from './EffectChain';
+import { EffectChain, type Effect, type FxParamRef } from './EffectChain';
 import { Fader } from './Fader';
 import { MASTER_BUS_ID } from './effectDefs';
 import { releaseFade } from './automationTargets';
@@ -269,7 +269,15 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   // An FX chain is written whole (EffectChain hands back the whole array), so the release is DIFFED against
   // the authored chain: only params whose value actually changed are taken back. Adding a delay must not
   // silently release a live filter-cutoff fade the operator never touched.
-  const releaseChangedFx = (prefix: string, next: Effect[], prev: Effect[]) => {
+  //
+  // ⚠ THE DIFF CANNOT SEE A GESTURE THAT LANDED BACK ON THE AUTHORED VALUE — and that gesture is a takeover
+  // like any other (Fader.tsx: "put it back where it says it is" is the operator's one natural recovery
+  // move, and it must WORK). Grab a shadowed cutoff, wiggle it, release it on the value the box already
+  // shows: the chain handed back is byte-identical, the diff is empty, and without `touched` the fade would
+  // keep sounding a value the panel says is not there. EffectChain names the param the gesture rode; that
+  // one is released unconditionally, everything else still has to prove it moved.
+  const releaseChangedFx = (prefix: string, next: Effect[], prev: Effect[], touched?: FxParamRef) => {
+    if (touched) releaseFade(`${prefix}.fx.${touched.fxId}.${touched.key}`);
     for (const fx of next) {
       const before = prev.find((p) => p.id === fx.id);
       for (const [k, v] of Object.entries(fx.params ?? {})) {
@@ -279,8 +287,8 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   };
 
   const setMasterGain = (g: number) => { releaseFade('audio.master.gain'); patchMaster({ gain: g }); };        // audio.master.gain
-  const setMasterEffects = (fx: Effect[]) => {                                                                 // audio.master.fx.<fxId>.<key>
-    releaseChangedFx('audio.master', fx, mixRef.current.buses.find((b) => b.id === MASTER_BUS_ID)?.effects ?? []);
+  const setMasterEffects = (fx: Effect[], touched?: FxParamRef) => {                                           // audio.master.fx.<fxId>.<key>
+    releaseChangedFx('audio.master', fx, mixRef.current.buses.find((b) => b.id === MASTER_BUS_ID)?.effects ?? [], touched);
     patchMaster({ effects: fx });
   };
   const setTrackGain = (id: string, g: number) => { releaseFade(`audio.track.${id}.gain`); patchTrack(id, { gain: g }); }; // audio.track.<id>.gain
@@ -297,8 +305,8 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   // deleting the clip (losing its trim, fades, gain, spatial and FX) or hand-editing the project JSON.
   // Discrete, not fadeable — a mute is a boolean, and the fade grammar admits only continuous paths.
   const setClipMute = (id: string, m: boolean) => patchClip(id, { mute: m });                // (not fadeable — discrete)
-  const setClipEffects = (id: string, fx: Effect[]) => {                                     // audio.clip.<id>.fx.<fxId>.<key>
-    releaseChangedFx(`audio.clip.${id}`, fx, mixRef.current.clips.find((c) => c.id === id)?.effects ?? []);
+  const setClipEffects = (id: string, fx: Effect[], touched?: FxParamRef) => {               // audio.clip.<id>.fx.<fxId>.<key>
+    releaseChangedFx(`audio.clip.${id}`, fx, mixRef.current.clips.find((c) => c.id === id)?.effects ?? [], touched);
     patchClip(id, { effects: fx });
   };
   // A spatial AXIS is fadeable (audio.clip.<id>.spatial.<x|y|z>); the spatial FLAG is not — turning it on
@@ -657,7 +665,7 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
                     <span className="text-micro font-semibold text-fg-2 uppercase tracking-wider">FX{selClip.effects?.length ? ` (${selClip.effects.length})` : ''}</span>
                   </div>
                   <EffectChain scope="clip" effects={selClip.effects ?? []} disabled={selReadOnly}
-                    onChange={(fx) => setClipEffects(selClip.id, fx)} />
+                    onChange={(fx, touched) => setClipEffects(selClip.id, fx, touched)} />
                 </section>
               </>
             )}

@@ -45,10 +45,26 @@ export const Fader: React.FC<FaderProps> = ({
   const draftRef = useRef<number | null>(null);
   const set = (v: number | null) => { draftRef.current = v; setDraft(v); };
   const live = draft ?? value;
+  // A COMPLETED GESTURE **IS** A TAKEOVER, WHEREVER IT LANDS. The gate is "a gesture happened" — NOT
+  // "the value differs from the document".
+  //
+  // `value` is the AUTHORED value. What is SOUNDING is `laneOvr ?? fade ?? authored`
+  // (automationTargets.ts), and A FADE'S VALUE PERSISTS AFTER THE FADE LANDS, by design. So the fader can
+  // sit at 1.00 over a 0.2 room — and `onCommit` is the ONLY door to releaseFade(), which is the only
+  // thing that drops BOTH halves of the shadow (the fade-layer entry AND the leg, via dropFadeLeg).
+  // Gating on `d !== value` made the ONE natural recovery gesture — grab it and put it back where it says
+  // it is — the one gesture that does NOTHING: no commit, no release, the house stays ducked for the rest
+  // of the session. (Arrow keys always move by `step`, so they can only land on 0.99/1.01 — they can never
+  // put the operator back on the authored value either.) audio.master.gain and audio.clip.*.gain have no
+  // second door; the mixer is their sole writer.
+  //
+  // Cost: one redundant, idempotent write per NO-OP gesture. INVARIANT 7 IS UNTOUCHED — the draft is still
+  // local and this still fires exactly ONCE per gesture, never per pointermove. A plain click on the thumb
+  // fires no `input` event at all, so `d` stays null and nothing is committed.
   const commit = () => {
     const d = draftRef.current;
     set(null);
-    if (d !== null && d !== value) onCommit(d);
+    if (d !== null) onCommit(d);
   };
   return (
     <>

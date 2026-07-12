@@ -17,6 +17,9 @@ export interface Effect {
   opts?: Record<string, string>;
 }
 
+/** The param a single Fader gesture touched. See the note on `onChange` below. */
+export interface FxParamRef { fxId: string; key: string }
+
 const uid = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `fx-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
 
 const fmt = (p: ParamDef, v: number) => {
@@ -52,7 +55,17 @@ const ParamRow: React.FC<{ p: ParamDef; value: number; disabled?: boolean; onCom
 export const EffectChain: React.FC<{
   scope: EffectScope;
   effects: Effect[];
-  onChange: (effects: Effect[]) => void;
+  /**
+   * The whole chain, every time — the engine diffs it.
+   *
+   * `touched` NAMES THE PARAM A FADER GESTURE JUST RODE, and it exists because THE CHAIN ALONE CANNOT SAY.
+   * A gesture that lands back ON the authored value (grab the cutoff, wiggle, put it back) hands back a
+   * BYTE-IDENTICAL chain — and it is still a takeover: what the operator hears is the scene/cue FADE, which
+   * persists over the authored value until releaseFade() drops it (Fader.tsx). The consumer's release is
+   * DIFFED against the previous chain (adding a delay must not release a live filter fade nobody touched),
+   * and a diff of an identical chain is empty. So the gesture says its own name.
+   */
+  onChange: (effects: Effect[], touched?: FxParamRef) => void;
   /** Read-only display (the mixer's inspector shows a TIMELINE clip's chain but cannot write to it — the
    *  panel has no write path into Timeline.audio; that document is core's). Every control is inert. */
   disabled?: boolean;
@@ -70,7 +83,7 @@ export const EffectChain: React.FC<{
   // with the fade work, not here. This guard costs nothing and cannot regress valid data.)
   const fxs = Array.isArray(effects) ? effects : [];
 
-  const patch = (i: number, e: Partial<Effect>) => onChange(fxs.map((fx, j) => (j === i ? { ...fx, ...e } : fx)));
+  const patch = (i: number, e: Partial<Effect>, touched?: FxParamRef) => onChange(fxs.map((fx, j) => (j === i ? { ...fx, ...e } : fx)), touched);
   const remove = (i: number) => onChange(fxs.filter((_, j) => j !== i));
   const move = (i: number, d: -1 | 1) => {
     const j = i + d;
@@ -117,7 +130,7 @@ export const EffectChain: React.FC<{
               ))}
               {def.params.map((p) => (
                 <ParamRow key={p.key} p={p} value={fx.params?.[p.key] ?? p.def} disabled={disabled}
-                  onCommit={(v) => patch(i, { params: { ...(fx.params ?? {}), [p.key]: v } })} />
+                  onCommit={(v) => patch(i, { params: { ...(fx.params ?? {}), [p.key]: v } }, { fxId: fx.id, key: p.key })} />
               ))}
             </div>
           </div>
