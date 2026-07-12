@@ -810,10 +810,20 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   const hasTrackingLane = layers.some(l => l.kind === 'tracking');
   const addTrackingLane = () => { if (!hasTrackingLane) onChange({ ...timeline, layers: [...layers, { id: crypto.randomUUID(), name: 'Tracking', kind: 'tracking', color: '#7ed321', enabled: true }] }); };
   const startRecord = () => { if (!trackingRecorder.start()) console.warn('[timeline] cannot record now (a take is playing)'); };
+  // ⚠ THE COMMIT RUNS AFTER TWO AWAITS — a disk write and an asset import. Same door as `place()` above:
+  // the world moves under it. `onChangeRef`/`timelineRef` are read AT COMMIT TIME, so they name WHATEVER IS
+  // BOUND NOW — and a take recorded against Global, or against scene A, lands its `trackingTakes` entry AND
+  // a synthesized 'tracking' layer in whatever document an FSM/scheduler/OSC recall bound while the file was
+  // being written. So the SAME guard place() got: capture the doc before the awaits, and if it moved, drop
+  // the commit. The take file itself stays on disk (harmless — an orphan file, not a document that lies),
+  // but nothing is written into a document the operator never recorded into. The putCache is inside the
+  // guard too: it seeds replay/sparkline for a `ref` that no document now holds, so on the abandon path it
+  // is dead weight, keeping a whole take's samples alive for a path nobody can reach.
   const stopRecord = async () => {
     const tk = trackingRecorder.stop();
     if (!tk) return;
     tk.name = `Take ${(timelineRef.current.trackingTakes?.length ?? 0) + 1}`;
+    const recDocKey = docKeyRef.current;
     let path = await window.artlux?.saveTrackingTake?.(tk.id, trackingTake.serialize(tk));
     if (!path) return;
     // Copy-in policy: relocate the take into the project's assets/tracking when we have a folder.
@@ -821,6 +831,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       const entry = await window.artlux?.importAssetFile?.(projectPath, path, 'take', tk.name);
       if (entry?.path) path = entry.path;
     }
+    if (docKeyRef.current !== recDocKey) return;   // recalled mid-write → the take is not this document's
     trackingTake.putCache(path, tk); // so replay/sparkline don't re-read disk
     const ref = { id: tk.id, name: tk.name, path, duration: tk.duration, fps: tk.fps };
     const tl = timelineRef.current;

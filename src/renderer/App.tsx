@@ -1262,7 +1262,14 @@ const App: React.FC = () => {
       }
   };
 
-  // The fresh surfaces/fixtures of a clean single-fixture project (no setState — see callers).
+  // The fresh surfaces/fixtures/cue banks of a clean single-fixture project (no setState — see callers).
+  //
+  // The banks are MINTED HERE, not in resetToNewProject, for the same reason surfaces/fixtures are: the
+  // caller writes the SAME value into state AND into the file it saves (setState hasn't applied to that
+  // closure yet), and defaultCueBank mints an id — so building it twice would put a different Bank 1 id in
+  // memory than on disk. One empty Bank 1 is exactly what applyProjectData synthesizes when it opens a
+  // project with no banks, and a clean project has no scenes, so sceneCells is empty there too: the grid you
+  // see after New Project is the grid you get when you reopen the file New Project just wrote.
   const makeNewProjectState = () => {
       const surf = defaultSurfaces();
       const fix = [{
@@ -1271,7 +1278,7 @@ const App: React.FC = () => {
           universe: 0, startAddress: 1, ledCount: 60, reverse: false, rotation: 0, colorData: [],
           surfaceId: surf[0].id,
       }];
-      return { surfaces: surf, fixtures: fix };
+      return { surfaces: surf, fixtures: fix, cueBanks: [defaultCueBank(generateId())] };
   };
   // Reset app state to a clean project. Keeps settings/scene3D/timeline (matches prior New behavior).
   const resetToNewProject = (st: ReturnType<typeof makeNewProjectState>) => {
@@ -1281,6 +1288,15 @@ const App: React.FC = () => {
       setControllers([]);
       setGroups([]);
       setScenes([]);
+      // …and the CUE GRID goes with them. Same defect as the state machine below, one field over: the banks
+      // are the OTHER container whose contents are nothing but sceneIds — every sceneCells entry names a
+      // scene `setScenes([])` just deleted, and every Cue's entries were authored against that show's rig.
+      // Left standing, resetToNewProject kept them AND buildProjectData() wrote them into the brand-new
+      // project file, which then opens (banksLoaded.length ⇒ the saved banks are used verbatim) with the
+      // outgoing show's grid, fully populated and completely dead: fireColumn resolves each cell's sceneId
+      // against `scenes: []`, finds nothing, and no-ops. Not a crash — a grid that lights up and does
+      // nothing, shipped into a project that never had those scenes.
+      setCueBanks(st.cueBanks);
       setProjectorOutputs([]);
       setAssets([]);
       setSelectedFixtureId(null);
@@ -1339,10 +1355,10 @@ const App: React.FC = () => {
       const st = makeNewProjectState();
       resetToNewProject(st);
       // Save from the fresh values directly — setState above hasn't applied to this closure yet. That
-      // includes `stateMachine`: resetToNewProject cleared it, but buildProjectData() still reads the
-      // OUTGOING show's graph out of this closure, and every one of its nodes points at a sceneId that
-      // `scenes: []` just deleted. Override it here, exactly like `scenes`.
-      const data = { ...buildProjectData(), surfaces: st.surfaces, fixtures: st.fixtures, controllers: [], groups: [], scenes: [], stateMachine: defaultStateMachine(), projectorOutputs: [], assets: [] };
+      // includes `stateMachine` AND `cueBanks`: resetToNewProject cleared both, but buildProjectData() still
+      // reads the OUTGOING show's graph and grid out of this closure, and every node/cell in them points at
+      // a sceneId that `scenes: []` just deleted. Override them here, exactly like `scenes`.
+      const data = { ...buildProjectData(), surfaces: st.surfaces, fixtures: st.fixtures, controllers: [], groups: [], scenes: [], cueBanks: st.cueBanks, stateMachine: defaultStateMachine(), projectorOutputs: [], assets: [] };
       const path = await window.artlux?.saveProject?.(data, res.projectFile);
       if (path) { setCurrentProjectPath(path); refreshRecents(); }
   };
