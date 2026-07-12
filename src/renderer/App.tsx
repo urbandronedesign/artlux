@@ -1296,8 +1296,17 @@ const App: React.FC = () => {
         //
         // Not a new policy: it is row 12 ("Play from the parked end restarts the SHOW clock iff
         // showAtEndBound()") applied at the site row 12 already names. A `play` on a show clock that is
-        // NOT parked is a no-op, and while the global doc is bound the seek() above has already moved
-        // showTime with it (the identity), so isShowAtEndBound() is false by then and this cannot double-fire.
+        // NOT parked is a no-op, so this cannot rewind a bed that is merely mid-show.
+        //
+        // NO DOUBLE-FIRE with the seek() above — but only *IF THAT SEEK RAN*. When the global doc is bound
+        // AND it was parked, seek() is mainSeek + the identity: it moved showTime to the same start, so
+        // isShowAtEndBound() is already false by the time we get here and this line no-ops. IT DOES NOT
+        // FOLLOW that "global bound ⇒ nothing left to do": the two clocks can be bound to the same document
+        // and still DISAGREE, because a swap can move one without the other. Recalling a scene with NO
+        // TIMELINE OF ITS OWN binds the GLOBAL doc (`const tl = scene.timeline ? … : timeline`, below) with
+        // transport:'restart' and the default showClock:'preserve' — playhead back to 0, show clock left
+        // PARKED. atEndBound() is false there (the playhead is at the START), so the seek() above never
+        // runs, and THIS LINE IS THE ONLY THING THAT REVIVES THE BED. That is the intent, not a leak.
         //
         // ⚠ THE PARK ITSELF IS STILL BY DESIGN: with Global Loop OFF the show has a finite Length and it
         // ENDS. This only restores the ability to start it again from a `play`.
