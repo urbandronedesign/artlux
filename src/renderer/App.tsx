@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, normalizeCueBanks, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, sceneAudioEntries, cueEntries, isAddressableEntry, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType } from './types';
+import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, normalizeCueBanks, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, timelineAudioTracks, sceneAudioEntries, cueEntries, isAddressableEntry, type AudioClip, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType } from './types';
 import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge, WINDOWED_DISPLAY } from '../../shared/protocol';
 import type { ProjectorCalibration } from '../../shared/protocol';
 import { CalibWizard, AutoAlignWizard, calibCapture as cam, measureGamma, calibWorkspace } from '@artlux/plugin-calibration/renderer';
@@ -231,6 +231,9 @@ const App: React.FC = () => {
   const stateMachineRef = useRef(stateMachine); stateMachineRef.current = stateMachine;
   const audioMixRef = useRef(audioMix); audioMixRef.current = audioMix; // live mirror for host.audio (memo has [] deps)
   const activeSceneIdRef = useRef(activeSceneId); activeSceneIdRef.current = activeSceneId;
+  // The GLOBAL document. Read by the plugin write path below when a scene that has NO timeline of its own
+  // is bound: `activeTimeline` is the global doc there, so that is the doc its first edit materializes from.
+  const timelineRef = useRef(timeline); timelineRef.current = timeline;
   // NB: the transport-intent subscription below deliberately does NOT read the editor binding through
   // a render-assigned ref (activeTimeline / handleTimelineChange). Those refs are refreshed on RENDER,
   // and an FSM `setLoop` entry action runs synchronously inside the very frame whose scene recall only
@@ -914,6 +917,50 @@ const App: React.FC = () => {
   const handleTimelineChange = (next: Timeline) => {
     if (activeSceneId) setScenes(prev => prev.map(s => s.id === activeSceneId ? { ...s, timeline: next } : s));
     else setTimeline(next);
+  };
+  // ── THE PLUGIN WRITE PATH INTO `Timeline.audio` (host.audio.patchTimelineClip) ────────────────────
+  //
+  // The mixer is a PLUGIN, and it has to be able to shape a clip that lives in a SCENE — its gain, mute,
+  // spatial position and insert FX. Every other timeline edit reaches core through the `onChange(timeline)`
+  // prop above, which no plugin can see; this is the host-service door onto THE SAME ROUTER, and it is the
+  // only one. Deliberately NOT `setTimelineAudio(container)` — see AudioService.patchTimelineClip in the SDK
+  // for why the symmetric-with-setMix shape is a trap. Three rules, each of them load-bearing:
+  //
+  //  1. IT ROUTES OFF THE SAME BINDING handleTimelineChange DOES. Active scene → that scene's own timeline;
+  //     none → the global one. Anything that just called setTimeline would edit the GLOBAL document while a
+  //     scene is on screen, and the operator's reverb would then be heard under EVERY scene.
+  //  2. A SCENE WITH NO TIMELINE OF ITS OWN MATERIALIZES ONE — from the document it is actually bound to
+  //     (`activeTimeline` = scene.timeline ?? the global doc, :207). That is core's lazy-materialize
+  //     contract (enterAuthor, :874). Skip it and the first FX edit under such a scene lands in Global.
+  //  3. THE ID RESOLVES IN THE BOUND DOCUMENT ONLY, AND A MISS IS A DROP — never a search across scenes.
+  //     handleCaptureScene deep-clones the bound timeline (structuredClone, :773 — ids and all), so two
+  //     scenes hold BYTE-IDENTICAL clip ids: `scenes.flatMap(s => s.timeline?.audio?.clips)` would match in
+  //     the WRONG scene on the very first duplicate, silently, in a venue. A recall landing between the
+  //     operator's gesture and its commit therefore LOSES the edit — which is the correct outcome, because
+  //     they are no longer looking at that clip. (Core defends the same hazard with Timeline.tsx's docKey.)
+  //
+  // Held in a ref because the plugin-host memo below has [] deps and must not close over a render value
+  // (see :234-238). This body reads ONLY refs and functional setState, so calling it from there is sound.
+  const patchBoundTimelineClipRef = useRef<(clipId: string, patch: Partial<AudioClip>) => void>(() => {});
+  patchBoundTimelineClipRef.current = (clipId, patch) => {
+    // Rule 3 in one place: patch the clip if THIS document holds it, else `null` ⇒ hand the document back
+    // untouched. (Both readers are the guarded ones — `audio` may be absent on a project older than Wave B.)
+    const applied = (t: Timeline): Timeline | null => {
+      const clips = timelineAudioClips(t);
+      if (!clips.some(c => c.id === clipId)) return null;
+      return { ...t, audio: { tracks: timelineAudioTracks(t), clips: clips.map(c => (c.id === clipId ? { ...c, ...patch } : c)) } };
+    };
+    const sceneId = activeSceneIdRef.current;
+    if (!sceneId) { setTimeline(prev => applied(prev) ?? prev); return; }   // `?? prev` — a drop must not re-render
+    setScenes(prev => {
+      const i = prev.findIndex(s => s.id === sceneId);
+      if (i < 0) return prev;
+      const next = applied(prev[i].timeline ?? timelineRef.current);        // rule 2 — materialize from the bound doc
+      if (!next) return prev;                                               // rule 3 — not this document's clip
+      const out = prev.slice();
+      out[i] = { ...prev[i], timeline: next };
+      return out;
+    });
   };
   // The author-context bundle handed to the timeline panel (scene pill + author strip). One object so
   // the panel's Props stay tidy; both panel mounts (dock + fullscreen) share it.
@@ -1794,6 +1841,12 @@ const App: React.FC = () => {
       // EMPTY_TIMELINE_AUDIO, not a fresh literal: this is read EVERY FRAME and the driver's orphan gate
       // compares clip arrays by identity. See the constant's comment.
       getTimelineAudio: () => timelineEngine.getBoundAudio() ?? EMPTY_TIMELINE_AUDIO,
+      // THE SECOND WRITER, AND IT IS NOT A MIRROR OF setMix. setMix replaces the bed — one document, App's
+      // own, never rebound. This patches ONE clip, BY ID, inside whichever document CORE has bound right
+      // now, through the owner-router every other timeline edit uses; the caller cannot name a scene, and an
+      // id that is not in the bound document is DROPPED (clip ids alias across scenes — Capture Scene clones
+      // them). The whole argument is on patchBoundTimelineClipRef above and in the SDK's AudioService.
+      patchTimelineClip: (clipId, patch) => patchBoundTimelineClipRef.current(clipId, patch as Partial<AudioClip>),
       subscribe: (cb) => { audioSubs.current.add(cb); return () => { audioSubs.current.delete(cb); }; },
     },
   }), []);

@@ -468,7 +468,12 @@ export interface ShowService<SM = unknown, Scene = unknown, Bank = unknown, Entr
 //   getMix()           — ProjectData.audio, THE BED. Rides the SHOW clock. Survives a scene recall.
 //   getTimelineAudio() — the BOUND timeline's own Timeline.audio. Rides the PLAYHEAD, restarts with it.
 // The clock follows the CONTAINER, not the panel it happens to be drawn in.
-export interface AudioService<Mix = unknown, TlAudio = unknown> {
+//
+// TWO CONTAINERS, TWO WRITERS, AND THEY ARE DELIBERATELY DIFFERENT SHAPES — `setMix` replaces the bed
+// (App owns that document outright); `patchTimelineClip` patches ONE clip, BY ID, in whichever document
+// core has bound right now (the caller cannot name it). See patchTimelineClip for why the symmetric
+// `setTimelineAudio(container)` is not offered.
+export interface AudioService<Mix = unknown, TlAudio = unknown, TlClip = unknown> {
   getMix(): Mix;
   setMix(mix: Mix): void;                 // replace the bed (host normalizes) — the bed-authoring UI writes here
   /** The BOUND timeline's own audio ({tracks, clips}) — plays on the PLAYHEAD and restarts with its
@@ -476,6 +481,41 @@ export interface AudioService<Mix = unknown, TlAudio = unknown> {
    *  the very frame a recall repoints the engine (App re-renders a frame later). Re-read on every
    *  `subscribe` fire — and, in the driver, on every frame. */
   getTimelineAudio(): TlAudio;
+
+  /**
+   * THE SECOND WRITER — patch ONE clip inside the BOUND timeline's own audio (gain, mute, spatial, FX).
+   *
+   * TWO CONTAINERS, TWO WRITERS, AND THEY ARE NOT SYMMETRIC — read this before reaching for `setMix`.
+   *
+   *   · `setMix(mix)` replaces THE BED wholesale. The bed is ProjectData.audio: ONE document, owned by
+   *     App, never rebound. Handing back a whole container is safe there.
+   *   · THIS replaces nothing and names no document. `Timeline.audio` is CORE's document and WHICH ONE it
+   *     is changes under you: the global timeline, or the timeline of whichever scene is bound right now.
+   *     A `setTimelineAudio(whole container)` would be the obvious symmetric API and it is a trap — the
+   *     caller builds the container from a snapshot it read a render ago, so it CLOBBERS any lane edit
+   *     (placement / trim / fades) landed since, and it hands the host a payload with NO OWNER IDENTITY,
+   *     leaving the host to GUESS which document to write it into. Hence: id-addressed, one clip, a patch.
+   *
+   * THE CALLER MAY NOT NAME A SCENE, AND THAT IS THE POINT. The host resolves `clipId` inside the BOUND
+   * document ONLY and writes it back through the same owner-router every other timeline edit goes through
+   * (the active scene's own timeline, else the global one; a scene with no timeline of its own materializes
+   * one on this write, exactly as core does). Clip ids ALIAS ACROSS SCENES — "Capture Scene" deep-clones
+   * the bound timeline, ids and all, so two scenes hold BYTE-IDENTICAL clip ids — so an API that let a
+   * caller (or the host) SEARCH for a matching id would write scene A's reverb into scene B on the very
+   * first duplicate, silently, in a venue. **If `clipId` is not in the bound document, the write is
+   * DROPPED.** A recall that lands between the gesture and the commit therefore loses the edit, which is
+   * correct: the operator is no longer looking at that clip.
+   *
+   * NOT AN AUTOMATION TARGET. `Timeline.audio` is outside the audio automation provider's world (it
+   * enumerates the BED's tracks/clips/master only), so a clip patched here has no lane and no scene/cue
+   * fade over it: callers must NOT pair this with releaseFade()/dropFadeLeg() the way the bed's writes do.
+   *
+   * COSTLY — INVARIANT 7 IS NOT OPTIONAL HERE. One call is a core document commit: engine.setData →
+   * clampPlayheadIntoDoc + warmMedia + pruneStaleLayers + compileAutomation, PLUS a structured-clone
+   * postMessage of the WHOLE document to EVERY projector port. A continuous control (a fader, a pad, an FX
+   * param) must draft locally and call this ONCE, on release — never per pointermove.
+   */
+  patchTimelineClip(clipId: string, patch: Partial<TlClip>): void;
   subscribe(cb: () => void): () => void;  // fires when EITHER container changes (the bed, or the bound timeline)
 }
 

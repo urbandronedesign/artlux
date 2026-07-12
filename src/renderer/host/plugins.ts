@@ -48,7 +48,14 @@ const NOOP_HOST: RendererHostServices = {
     // No transport here ⇒ no fades to drop a leg from. Inert, like the rest of this host.
     dropFadeLeg: () => {},
   },
-  audio: { getMix: () => ({ tracks: [], clips: [], buses: [] }), setMix: () => {}, getTimelineAudio: () => ({ tracks: [], clips: [] }), subscribe: () => () => {} },
+  // No editor state here ⇒ no document to write. Both writers are inert: `setMix` (the bed) and
+  // `patchTimelineClip` (one clip in the bound timeline's own audio) drop on the floor, exactly like
+  // `patch` on the other services above.
+  audio: {
+    getMix: () => ({ tracks: [], clips: [], buses: [] }), setMix: () => {},
+    getTimelineAudio: () => ({ tracks: [], clips: [] }), patchTimelineClip: () => {},
+    subscribe: () => () => {},
+  },
 };
 
 function makeContext(win: 'main' | 'projector', host: RendererHostServices): RendererPluginContext {
