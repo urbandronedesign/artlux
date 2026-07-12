@@ -16,6 +16,11 @@ interface Props {
   outPoint: number | null;
   bandStart: number | null;
   bandEnd: number | null;
+  // Content authored PAST the end of playback (Timeline.tsx's `overrunAt`). An audio clip does not extend
+  // Length, and a video clip past a deliberately-short Length is honoured as authored — so either way this
+  // content will never be heard or seen. Both null ⇒ nothing overruns ⇒ no band.
+  overrunFrom: number | null;
+  overrunTo: number | null;
   onSeekDown: (e: React.PointerEvent) => void;
   onMarkerSeek: (time: number) => void;
   onMarkerDelete: (id: string) => void;
@@ -32,7 +37,7 @@ const shortTc = (t: number, fps: number) => {
   return s.startsWith('00:') ? s.slice(3) : s;
 };
 
-export const TimelineRuler: React.FC<Props> = ({ pxPerSec, width, height, fps, markers, inPoint, outPoint, bandStart, bandEnd, onSeekDown, onMarkerSeek, onMarkerDelete, onMarkerNote, onMoveInDown, onMoveOutDown }) => {
+export const TimelineRuler: React.FC<Props> = ({ pxPerSec, width, height, fps, markers, inPoint, outPoint, bandStart, bandEnd, overrunFrom, overrunTo, onSeekDown, onMarkerSeek, onMarkerDelete, onMarkerNote, onMoveInDown, onMoveOutDown }) => {
   const [editing, setEditing] = useState<{ id: string; note: string } | null>(null);
   const step = chooseTickStep(pxPerSec);
   const ticks: number[] = [];
@@ -44,6 +49,12 @@ export const TimelineRuler: React.FC<Props> = ({ pxPerSec, width, height, fps, m
       {/* the playable range — shaded. Either point alone produces one (see Props). */}
       {bandStart != null && bandEnd != null && bandEnd > bandStart && (
         <div className="absolute top-0 bottom-0 bg-accent/15 border-x border-accent/60 pointer-events-none" style={{ left: bandStart * pxPerSec, width: (bandEnd - bandStart) * pxPerSec }} />
+      )}
+      {/* Content past the END — authored but unplayable. Distinct from the playable band above, and never
+          a pointer target: the fix is the one-click badge in the toolbar, not a drag. */}
+      {overrunFrom != null && overrunTo != null && overrunTo > overrunFrom && (
+        <div className="absolute top-0 bottom-0 bg-warn/10 border-l border-warn/50 pointer-events-none"
+          style={{ left: overrunFrom * pxPerSec, width: (overrunTo - overrunFrom) * pxPerSec }} />
       )}
       {/* handles: 8px hit area (w-2 -ml-1), the line itself stays 2px — a 2px target is unusable */}
       {inPoint != null && (

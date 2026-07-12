@@ -1,5 +1,6 @@
 import React from 'react';
-import { Play, Pause, Plus, ZoomIn, ZoomOut, Maximize, Minimize, Scan, Scissors, MousePointer2, Magnet, Flag, Repeat, Workflow, Square, LogIn, LogOut } from 'lucide-react';
+import { Play, Pause, Plus, ZoomIn, ZoomOut, Maximize, Minimize, Scan, Scissors, MousePointer2, Magnet, Flag, Repeat, Workflow, Square, LogIn, LogOut, AlertTriangle } from 'lucide-react';
+import { fmtClock } from './geometry';
 
 interface Props {
   playing: boolean;
@@ -9,6 +10,13 @@ interface Props {
   onSetOut: () => void;
   hasRegion: boolean;   // an in/out region exists — Loop honours it instead of [0, Length)
   timeRef: React.RefObject<HTMLSpanElement>;
+  // The audio bed's position (the SHOW clock) while a scene is bound and its lanes are therefore not
+  // drawn. Painted imperatively by Timeline.tsx's engine subscription — never React state (invariant 3).
+  bedTimeRef?: React.RefObject<HTMLSpanElement>;
+  // Content authored past where playback stops, and the one-click fix (Length → the content end). Absent
+  // ⇒ nothing overruns. An audio clip does NOT extend Length, so without this the operator's only clue
+  // that a clip will never be heard is that it is silent.
+  overrun?: { at: number; end: number; movesOutPoint: boolean; onFix: () => void };
   // Identity of the timeline currently BOUND to the editor (a scene id, or the global sentinel). The
   // number fields hold an uncommitted draft; this is what tells them the document swapped under them.
   docKey: string;
@@ -114,7 +122,7 @@ const NumField: React.FC<{
 };
 const NUM_INPUT = 'bg-surface-0 border border-line-1 rounded px-1.5 py-0.5 text-right num text-mini focus:border-accent focus:outline-none';
 
-export const TimelineToolbar: React.FC<Props> = ({ playing, onTogglePlay, onStop, timeRef, docKey, duration, onChangeDuration, fps, onChangeFps, tool, onSetTool, snapEnabled, onToggleSnap, onAddMarker, onSetIn, onSetOut, hasRegion, onZoom, onZoomFit, onAddTrack, loop, onToggleLoop, smEnabled, onToggleSm, onEditLogic, maximized, onToggleMax }) => (
+export const TimelineToolbar: React.FC<Props> = ({ playing, onTogglePlay, onStop, timeRef, bedTimeRef, overrun, docKey, duration, onChangeDuration, fps, onChangeFps, tool, onSetTool, snapEnabled, onToggleSnap, onAddMarker, onSetIn, onSetOut, hasRegion, onZoom, onZoomFit, onAddTrack, loop, onToggleLoop, smEnabled, onToggleSm, onEditLogic, maximized, onToggleMax }) => (
   <div className="shrink-0 flex items-center gap-2 px-3 h-9 border-b border-line-1 bg-surface-1">
     {/* ── transport: what is PLAYING ── */}
     <TBtn active={playing} title="Play / Pause (Space)" onClick={onTogglePlay}>
@@ -127,6 +135,17 @@ export const TimelineToolbar: React.FC<Props> = ({ playing, onTogglePlay, onStop
     <TBtn title="Set in-point at the playhead (I)" onClick={onSetIn}><LogIn size={13} /></TBtn>
     <TBtn title="Set out-point at the playhead (O)" onClick={onSetOut}><LogOut size={13} /></TBtn>
     <span ref={timeRef} className="num text-mini text-fg-1 tabular-nums w-44">00:00:00:00 / 00:00:00:00</span>
+    {bedTimeRef && (
+      <span ref={bedTimeRef} className="text-micro text-fg-3 tabular-nums shrink-0"
+        title="The audio bed's position — the SHOW clock. It does not restart when a scene is recalled, which is why its lanes are not drawn against this scene's ruler.">♪ BED 0:00</span>
+    )}
+    {overrun && (
+      <button onClick={overrun.onFix}
+        title={`Content runs to ${fmtClock(overrun.at)} but playback stops at ${fmtClock(overrun.end)}. Click to set Length to the content end${overrun.movesOutPoint ? ' (and move the out-point there)' : ''}.`}
+        className="shrink-0 inline-flex items-center gap-1 px-1.5 h-5 rounded bg-warn/15 text-warn text-micro">
+        <AlertTriangle size={10} /> past the end — Length → {fmtClock(overrun.at)}
+      </button>
+    )}
 
     {/* ── tools: what I am DOING ── */}
     <div className="w-px h-5 bg-line-1 mx-0.5" />

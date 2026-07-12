@@ -11,7 +11,10 @@ export interface SnapResult { t: number; snapped: boolean; guideTime: number | n
 // the first 8 px of every drag land back on the value you started from — a dead zone the handle refuses
 // to leave, followed by a jump once you clear it. The clip drag has always excluded itself; the loop
 // region's in/out handles are dragged the same way and need the same exclusion.
-export function collectSnapPoints(tl: Timeline, playhead: number, excludeClipId?: string, excludeRegion?: 'in' | 'out'): SnapPoint[] {
+// `extra`: snap points the CALLER supplies — audio clip edges, which live in a different array (the bed's
+// AudioMix.clips, or Timeline.audio.clips) that this function has no business knowing about. The same
+// exclusion rule applies to them: the caller must leave out the clip being dragged.
+export function collectSnapPoints(tl: Timeline, playhead: number, excludeClipId?: string, excludeRegion?: 'in' | 'out', extra?: SnapPoint[]): SnapPoint[] {
   const pts: SnapPoint[] = [{ t: 0, kind: 'trackStart' }, { t: playhead, kind: 'playhead' }];
   if (tl.inPoint != null && excludeRegion !== 'in') pts.push({ t: tl.inPoint, kind: 'inOut' });
   if (tl.outPoint != null && excludeRegion !== 'out') pts.push({ t: tl.outPoint, kind: 'inOut' });
@@ -20,6 +23,7 @@ export function collectSnapPoints(tl: Timeline, playhead: number, excludeClipId?
     if (c.id === excludeClipId) continue;
     pts.push({ t: c.start, kind: 'clipEdge' }, { t: c.start + c.duration, kind: 'clipEdge' });
   }
+  if (extra) for (const p of extra) pts.push(p);
   return pts;
 }
 

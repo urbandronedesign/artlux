@@ -8,6 +8,8 @@ export const MAX_LANE_H = 180;
 export const GUTTER = 188;         // track-header column width
 export const RULER_H = 28;
 export const SM_LANE_H = 30;       // control-layer (state-machine) lane height
+export const AUDIO_LANE_H = 54;    // audio lane height. A CONSTANT, not per-track: AudioTrack carries no
+                                   // `height` field (types.ts), and a waveform needs a fixed, generous strip.
 export const PAGE_SECS = 120;      // infinite-timeline growth quantum (content width grows by pages)
 
 export const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));

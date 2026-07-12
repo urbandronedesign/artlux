@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { X, ChevronDown, Film, Plus, Save, ChevronLeft, ChevronRight } from 'lucide-react';
-import { Timeline as TL, VideoClip, VideoLayer, SurfaceContent, SourceType, StateMachine, defaultStateMachine, isContentClip, timelineEnd, timelineStart, hasTimelineRegion, type AssetEntry } from '../../types';
+import { Timeline as TL, VideoClip, VideoLayer, SurfaceContent, SourceType, StateMachine, defaultStateMachine, isContentClip, timelineEnd, timelineStart, hasTimelineRegion, timelineAudioClips, timelineAudioTracks, type AudioClip, type AudioMix, type AudioTrack, type AssetEntry } from '../../types';
 import { timeline as engine } from '../../services/timeline';
 import { ContentEditor } from '../ContentEditor';
-import { GUTTER, RULER_H, LANE_H, MIN_LANE_H, MAX_LANE_H, PAGE_SECS, laneHeight, clamp, fmtTimecode } from './geometry';
+import { GUTTER, RULER_H, LANE_H, MIN_LANE_H, MAX_LANE_H, PAGE_SECS, laneHeight, clamp, fmtClock, fmtTimecode } from './geometry';
 import { splitClipAt, bladeAt, rippleDelete, liftDelete } from './operations';
-import { collectSnapPoints, snap } from './snapping';
+import { collectSnapPoints, snap, type SnapPoint } from './snapping';
+import { AudioLane, type AudioDragMode } from './AudioLane';
+import { ensurePeaks, probeAudioDuration, sourceDurationFor } from './audioPeaks';
 import { TimelineToolbar } from './TimelineToolbar';
 import { TimelineRuler } from './TimelineRuler';
 import { TrackHeader } from './TrackHeader';
@@ -23,6 +25,10 @@ import { StateGraphEditor } from './StateGraphEditor';
 import { DragMode } from './ClipBlock';
 import { useTimelineKeys } from './hooks/useTimelineKeys';
 
+// Fallback length for an audio file the browser cannot decode (some .aiff): place a trimmable clip rather
+// than refuse the drop. A decodable file gets its real length from probeAudioDuration.
+const DEFAULT_AUDIO_DURATION = 10;
+
 interface Props {
   timeline: TL;
   onChange: (t: TL) => void;
@@ -39,6 +45,11 @@ interface Props {
   // Per-state authoring context: which scene's timeline is bound to the editor, the scene list for the
   // pill, and the trigger→build→save→continue handlers. Absent → plain global-timeline editing.
   author?: AuthorContext;
+  // The GLOBAL audio bed (ProjectData.audio). Passed straight down from App, because the bed's lanes are
+  // drawn on THIS ruler while Global is bound — there, show clock ≡ playhead, so the ruler is honest.
+  // ABSENT while a scene is bound (App decides): the two clocks have diverged and drawing the bed against
+  // a scene-relative ruler would be a lie. The header shows a `♪ BED mm:ss` readout instead.
+  audio?: { mix: AudioMix; onChangeMix: (m: AudioMix) => void };
 }
 
 export interface AuthorContext {
@@ -59,16 +70,23 @@ export interface AuthorContext {
 // (top-bar play) drives the engine — the playback clock. Edits commit to project state via
 // onChange; the live playhead/time are read from the engine render-free. Layout is a single
 // vertical scroller with a sticky track-header gutter and a sticky timecode ruler.
-export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, onStateMachineChange, playing, onTogglePlay, maximized = false, onToggleMax, projectPath, onRegisterAsset, scenes = [], cues = [], author }) => {
+export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, onStateMachineChange, playing, onTogglePlay, maximized = false, onToggleMax, projectPath, onRegisterAsset, scenes = [], cues = [], author, audio: audioProp }) => {
   const [pxPerSec, setPxPerSec] = useState(40);
   const [pillOpen, setPillOpen] = useState(false); // scene/state selector dropdown
   const [selected, setSelected] = useState<string | null>(null);
+  // WHICH ARRAY the single `selected` id lives in. It names an id in one of THREE arrays now (the video
+  // clips, the bed's clips, this timeline's audio clips), and every consumer of it has to be told which —
+  // see deleteSelected, which is a live bug without it.
+  const [selectedSource, setSelectedSource] = useState<'video' | 'bed' | 'timeline'>('video');
   const [pickerAt, setPickerAt] = useState<{ x: number; y: number } | null>(null); // automation picker anchor
   const [defsTick, setDefsTick] = useState(0);           // forces a target re-enumeration (~1 Hz)
   const [autoPlayhead, setAutoPlayhead] = useState(0);   // ~10 Hz playhead for the lanes' live readouts
   const [tool, setTool] = useState<'select' | 'blade'>('select');
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [draft, setDraft] = useState<VideoClip | null>(null);
+  // ONE draft for a dragged audio clip, tagged with its container so the single commit on pointerup knows
+  // which array to write back (the bed's, or this timeline's).
+  const [audioDraft, setAudioDraft] = useState<{ clip: AudioClip; source: 'bed' | 'timeline' } | null>(null);
   const [resizeDraft, setResizeDraft] = useState<{ id: string; height: number } | null>(null);
   const [regionDrag, setRegionDrag] = useState<{ edge: 'in' | 'out'; t: number } | null>(null); // loop-region handle drag (draft; commits once on pointerup)
   const [pages, setPages] = useState(0); // infinite-timeline growth: content spans (pages+1) PAGE_SECS at least
@@ -78,11 +96,24 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   const dur = timeline.duration;
   const fps = timeline.fps ?? 30;
   const sm = stateMachine ?? defaultStateMachine();
+  // --- the two audio containers (see the `audio` prop, and Timeline.audio in types.ts) ---
+  const bedTracks = audioProp?.mix.tracks ?? [];
+  const bedClips = audioProp?.mix.clips ?? [];
+  const tlTracks = timelineAudioTracks(timeline);
+  const tlClips = timelineAudioClips(timeline);
   // Infinite timeline: content width grows with the furthest content end AND the explored viewport
   // (pages bumped imperatively as the playhead/scroll approaches the right edge — never per frame).
+  //
+  // CANVAS EXTENT ONLY — how far the view scrolls, NOT where playback stops (that is `end`, below).
+  // Audio counts here: a 5-minute bed clip on a 60 s timeline must be visible and editable, or you cannot
+  // reach the thing you just dropped. It does NOT count toward `Length` (see `overrunAt`).
   const contentEnd = useMemo(
-    () => Math.max(dur, timeline.outPoint ?? 0, ...timeline.clips.map(c => c.start + c.duration)),
-    [timeline.clips, dur, timeline.outPoint],
+    () => Math.max(dur, timeline.outPoint ?? 0,
+      ...timeline.clips.map(c => c.start + c.duration),
+      ...tlClips.map(c => c.start + c.duration),
+      ...bedClips.map(c => c.start + c.duration)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [timeline.clips, dur, timeline.outPoint, tlClips, bedClips],
   );
   const viewEnd = Math.max(contentEnd, (pages + 1) * PAGE_SECS);
   const width = viewEnd * pxPerSec;
@@ -90,6 +121,26 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   // the canvas scrolls. A clip overrunning Length must still be visible/editable — contentEnd stays
   // for that; `end` must NOT be conflated with it.
   const end = useMemo(() => timelineEnd(timeline), [timeline.duration, timeline.inPoint, timeline.outPoint]);
+
+  // CONTENT PAST THE END must not be silently unplayable. `Length` bounds playback (Wave A), and an audio
+  // clip does NOT extend it (D8: Length stays purely authored) — so a clip beyond `end` is authored
+  // content that will never be heard or seen. Say so on the ruler, and offer the one-click fix.
+  const overrunAt = useMemo(() => {
+    const far = Math.max(0,
+      ...timeline.clips.map(c => c.start + c.duration),
+      ...tlClips.map(c => c.start + c.duration),
+      ...bedClips.map(c => c.start + c.duration));
+    return far > end + 1e-6 ? far : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeline.clips, tlClips, bedClips, end]);
+  // RAISE the out-point, never DELETE it. `timelineEnd` lets an out-point override Length, so the fix has
+  // to move it — but nulling it DESTROYS an authored playable region: a user with a deliberate in 10 /
+  // out 40 clicks this once and their region is gone, with no signal and no undo. If there is no
+  // out-point, there is nothing to raise.
+  const fixLength = () => {
+    if (overrunAt == null) return;
+    onChange({ ...timeline, duration: overrunAt, outPoint: timeline.outPoint == null ? null : overrunAt });
+  };
 
   // Live refs so stable (window-listener / engine-subscription / memoized-child) handlers see
   // current values without re-subscribing or breaking React.memo on clips/headers.
@@ -103,6 +154,8 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   const regionDragRef = useRef<{ edge: 'in' | 'out'; t: number } | null>(null); regionDragRef.current = regionDrag;
   const timelineRef = useRef(timeline); timelineRef.current = timeline;
   const onChangeRef = useRef(onChange); onChangeRef.current = onChange;
+  const audioDraftRef = useRef<{ clip: AudioClip; source: 'bed' | 'timeline' } | null>(null); audioDraftRef.current = audioDraft;
+  const audioRef = useRef(audioProp); audioRef.current = audioProp;
   const hoverRef = useRef(false);
 
   const panelRef = useRef<HTMLDivElement>(null);
@@ -110,7 +163,9 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   const playheadRef = useRef<HTMLDivElement>(null);
   const snapGuideRef = useRef<HTMLDivElement>(null);
   const timeRef = useRef<HTMLSpanElement>(null);
+  const bedTimeRef = useRef<HTMLSpanElement>(null);
   const dragRef = useRef<{ mode: DragMode; clip: VideoClip; x0: number; points: ReturnType<typeof collectSnapPoints> } | null>(null);
+  const audioDragRef = useRef<{ mode: AudioDragMode; clip: AudioClip; source: 'bed' | 'timeline'; x0: number; points: SnapPoint[] } | null>(null);
 
   // Render-free playhead + timecode (engine ticks every frame, even when paused). Also grows the
   // infinite content width by whole pages when the playhead nears the current right edge — quantized
@@ -119,6 +174,10 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     const px = pxRef.current;
     if (playheadRef.current) playheadRef.current.style.left = `${GUTTER + ph * px}px`;
     if (timeRef.current) timeRef.current.textContent = `${fmtTimecode(ph, fpsRef.current)} / ${fmtTimecode(endRef.current, fpsRef.current)}`;
+    // The bed rides the SHOW clock, which diverged from this ruler the moment a scene was bound. Its lanes
+    // are not drawn then (that would be a lie), so this readout is the only honest sign that it is still
+    // running. Painted imperatively, like the playhead — invariant 3: neither ever enters React state.
+    if (bedTimeRef.current) bedTimeRef.current.textContent = `♪ BED ${fmtClock(engine.getShowTime())}`;
     if (ph + PAGE_SECS > viewEndRef.current) setPages(p => Math.max(p, Math.ceil((ph + PAGE_SECS) / PAGE_SECS)));
   }), []);
 
@@ -245,10 +304,123 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   }, [onDragMove, showGuide]);
   const onStartDrag = useCallback((e: React.PointerEvent, clip: VideoClip, mode: DragMode) => {
     e.stopPropagation(); e.preventDefault();
-    setSelected(clip.id);
+    setSelected(clip.id); setSelectedSource('video');
     dragRef.current = { mode, clip: { ...clip }, x0: e.clientX, points: collectSnapPoints(timelineRef.current, engine.getPlayhead(), clip.id) };
     window.addEventListener('pointermove', onDragMove); window.addEventListener('pointerup', onDragUp);
   }, [onDragMove, onDragUp]);
+
+  // --- audio: TWO CONTAINERS, TWO COMMIT PATHS, TWO VERY DIFFERENT COSTS ---
+  //   bed      → onChangeMix → App.setAudioMix → recompileAutomation() + the audio host fan-out.
+  //   timeline → onChange(timeline) → App.handleTimelineChange → setScenes/setTimeline → engine.setData →
+  //              clampPlayheadIntoDoc + warmMedia + pruneStaleLayers + compileAutomation + a
+  //              structured-clone postMessage of the WHOLE doc to EVERY projector port.
+  // Both are called EXACTLY ONCE, on pointerup. Never per pointermove. (Invariant 7.)
+  const commitAudioClips = useCallback((source: 'bed' | 'timeline', clips: AudioClip[]) => {
+    if (source === 'bed') {
+      const a = audioRef.current; if (!a) return;
+      a.onChangeMix({ ...a.mix, clips });
+    } else {
+      const t = timelineRef.current;
+      onChangeRef.current({ ...t, audio: { tracks: timelineAudioTracks(t), clips } });
+    }
+  }, []);
+  const audioClipsOf = useCallback((source: 'bed' | 'timeline'): AudioClip[] =>
+    (source === 'bed' ? (audioRef.current?.mix.clips ?? []) : timelineAudioClips(timelineRef.current)), []);
+
+  const onAudioDragMove = useCallback((e: PointerEvent) => {
+    const d = audioDragRef.current; if (!d) return;
+    const px = pxRef.current; const ds = (e.clientX - d.x0) / px; const c = d.clip;
+    const thr = 8 / px; const en = snapRefEnabled.current; const pts = d.points;
+    // THE RIGHT-TRIM CAP. Never `Infinity`: a clip with no `sourceDuration` (every bed clip authored
+    // before this wave) would then have NO cap at all — drag its right edge from 30 s to 5 minutes and the
+    // lane draws it happily, the driver's window test calls it "in window" for 4½ minutes of source that
+    // does not exist, and the show HOLDS ON SILENCE. Ask the decode (`sourceDurationFor`); if the source
+    // length is still unknown, the cap is the clip's CURRENT duration — you may shorten it, you may not
+    // invent source you cannot prove exists.
+    const srcLen = c.sourceDuration ?? sourceDurationFor(c.path);
+    const srcCap = srcLen != null ? Math.max(0.1, srcLen - c.inPoint) : Math.max(0.1, c.duration);
+    // A shorter clip cannot carry longer fades than it has room for — clamp them WITH it, or the driver
+    // computes a ramp longer than the clip and hands the engine a gain that never reaches 1.
+    const fitFades = (dur: number) => ({
+      fadeIn: Math.min(c.fadeIn ?? 0, dur) || undefined,
+      fadeOut: Math.min(c.fadeOut ?? 0, dur) || undefined,
+    });
+    if (d.mode === 'move') {
+      const raw = Math.max(0, c.start + ds);
+      let st = raw, guide: number | null = null;
+      if (en) {
+        let s = snap(raw, pts, thr);
+        if (!s.snapped) { const e2 = snap(raw + c.duration, pts, thr); if (e2.snapped) s = { t: e2.t - c.duration, snapped: true, guideTime: e2.guideTime }; }
+        if (s.snapped) { st = Math.max(0, s.t); guide = s.guideTime; }
+      }
+      setAudioDraft({ clip: { ...c, start: st }, source: d.source }); showGuide(guide);
+    } else if (d.mode === 'r') {
+      let dur = clamp(c.duration + ds, 0.1, srcCap); let guide: number | null = null;
+      if (en) { const e2 = snap(c.start + dur, pts, thr); if (e2.snapped) { dur = clamp(e2.t - c.start, 0.1, srcCap); guide = e2.guideTime; } }
+      setAudioDraft({ clip: { ...c, duration: dur, ...fitFades(dur) }, source: d.source }); showGuide(guide);
+    } else if (d.mode === 'l') {
+      // A TRUE SOURCE TRIM: start, inPoint AND duration move together (same as the video 'l' branch).
+      let delta = clamp(ds, -c.inPoint, c.duration - 0.1); let guide: number | null = null;
+      if (en) { const s = snap(c.start + delta, pts, thr); if (s.snapped) { delta = clamp(s.t - c.start, -c.inPoint, c.duration - 0.1); guide = s.guideTime; } }
+      const dur = c.duration - delta;
+      setAudioDraft({ clip: { ...c, start: Math.max(0, c.start + delta), inPoint: Math.max(0, c.inPoint + delta), duration: dur, ...fitFades(dur) }, source: d.source }); showGuide(guide);
+    } else if (d.mode === 'fadeIn') {
+      // D9. Fades do NOT snap: they are a gain envelope, not a time edit — snapping them to clip edges and
+      // markers would make short fades impossible to author at any sane zoom.
+      const fi = clamp((c.fadeIn ?? 0) + ds, 0, c.duration);
+      setAudioDraft({ clip: { ...c, fadeIn: fi > 0 ? fi : undefined }, source: d.source }); showGuide(null);
+    } else { // 'fadeOut' — drag LEFT to lengthen, hence the negated delta
+      const fo = clamp((c.fadeOut ?? 0) - ds, 0, c.duration);
+      setAudioDraft({ clip: { ...c, fadeOut: fo > 0 ? fo : undefined }, source: d.source }); showGuide(null);
+    }
+  }, [showGuide]);
+  const onAudioDragUp = useCallback(() => {
+    const d = audioDraftRef.current;
+    // THE ONE COMMIT. Outside any state updater (a commit inside setAudioDraft(d => …) would be a
+    // render-phase update to App, which React 19 StrictMode double-invokes — see AutomationLane).
+    if (audioDragRef.current && d) {
+      commitAudioClips(d.source, audioClipsOf(d.source).map(c => (c.id === d.clip.id ? d.clip : c)));
+    }
+    setAudioDraft(null); audioDragRef.current = null; showGuide(null);
+    window.removeEventListener('pointermove', onAudioDragMove); window.removeEventListener('pointerup', onAudioDragUp);
+  }, [onAudioDragMove, showGuide, commitAudioClips, audioClipsOf]);
+  const onAudioStartDrag = useCallback((e: React.PointerEvent, clip: AudioClip, mode: AudioDragMode, source: 'bed' | 'timeline') => {
+    if (e.button !== 0) return;            // middle-drag pans the timeline
+    e.stopPropagation(); e.preventDefault();
+    // Snap points are captured ONCE at pointerdown (same as the video drag). Audio clip edges come in via
+    // the new `extra` parameter — collectSnapPoints is Timeline-typed and cannot see them. The clip being
+    // dragged is EXCLUDED, or the first 8 px of every drag land back on the value you started from.
+    const extra: SnapPoint[] = [...audioClipsOf('bed'), ...timelineAudioClips(timelineRef.current)]
+      .filter(c => c.id !== clip.id)
+      .flatMap(c => ([{ t: c.start, kind: 'clipEdge' as const }, { t: c.start + c.duration, kind: 'clipEdge' as const }]));
+    audioDragRef.current = {
+      mode, clip: { ...clip }, source, x0: e.clientX,
+      points: collectSnapPoints(timelineRef.current, engine.getPlayhead(), undefined, undefined, extra),
+    };
+    window.addEventListener('pointermove', onAudioDragMove); window.addEventListener('pointerup', onAudioDragUp);
+  }, [onAudioDragMove, onAudioDragUp, audioClipsOf]);
+
+  // Blade an audio clip. splitClipAt is structurally generic and copies EVERY field to both halves —
+  // which is right for a source trim and wrong for a gain envelope: the left half would inherit the
+  // fade-OUT (an audible dip at the cut) and the right half the fade-IN. Give each half only the fade
+  // that still belongs to it, clamped to its own length.
+  const onAudioBlade = useCallback((clip: AudioClip, clientX: number, source: 'bed' | 'timeline') => {
+    const before = audioClipsOf(source);
+    const after = splitClipAt(before, clip.id, clientXToTime(clientX));
+    if (after.length === before.length) return;   // the cut fell outside the clip — no-op, and NO commit
+    const i = after.findIndex(c => c.id === clip.id);          // splitClipAt keeps the left half's id
+    if (i < 0 || i + 1 >= after.length) { commitAudioClips(source, after); return; }
+    const left = after[i], right = after[i + 1];
+    const next = after.slice();
+    next[i] = { ...left, fadeIn: Math.min(left.fadeIn ?? 0, left.duration) || undefined, fadeOut: undefined };
+    next[i + 1] = { ...right, fadeIn: undefined, fadeOut: Math.min(right.fadeOut ?? 0, right.duration) || undefined };
+    commitAudioClips(source, next);
+  }, [clientXToTime, commitAudioClips, audioClipsOf]);
+
+  const onAudioRemoveClip = useCallback((id: string, source: 'bed' | 'timeline') => {
+    commitAudioClips(source, liftDelete(audioClipsOf(source), id));
+    setSelected(s => (s === id ? null : s));
+  }, [commitAudioClips, audioClipsOf]);
 
   // --- blade / delete (stable for memoized children) ---
   const onBlade = useCallback((clip: VideoClip, clientX: number) => {
@@ -304,6 +476,61 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
 
   // --- non-stable mutations (toolbar / lane / ruler / keyboard) read fresh closure state ---
   const addLayer = () => onChange({ ...timeline, layers: [...layers, { id: crypto.randomUUID(), name: `Track ${layers.length + 1}`, enabled: true }] });
+
+  // --- audio track ops. Discrete edits (one commit each) — the CONTINUOUS ones (gain fader, name field)
+  // draft inside AudioLane and land here once, on release/blur. ---
+  const patchAudioTrack = (source: 'bed' | 'timeline', id: string, patch: Partial<AudioTrack>) => {
+    if (source === 'bed') {
+      const a = audioRef.current; if (!a) return;
+      a.onChangeMix({ ...a.mix, tracks: a.mix.tracks.map(t => (t.id === id ? { ...t, ...patch } : t)) });
+    } else {
+      const t = timelineRef.current;
+      onChangeRef.current({ ...t, audio: { tracks: timelineAudioTracks(t).map(x => (x.id === id ? { ...x, ...patch } : x)), clips: timelineAudioClips(t) } });
+    }
+  };
+  const removeAudioTrack = (source: 'bed' | 'timeline', id: string) => {
+    if (source === 'bed') {
+      const a = audioRef.current; if (!a) return;
+      a.onChangeMix({ ...a.mix, tracks: a.mix.tracks.filter(t => t.id !== id), clips: a.mix.clips.filter(c => c.trackId !== id) });
+    } else {
+      const t = timelineRef.current;
+      onChangeRef.current({ ...t, audio: { tracks: timelineAudioTracks(t).filter(x => x.id !== id), clips: timelineAudioClips(t).filter(c => c.trackId !== id) } });
+    }
+  };
+  const addAudioTrack = (source: 'bed' | 'timeline') => {
+    const track: AudioTrack = { id: crypto.randomUUID(), name: `Audio ${(source === 'bed' ? bedTracks.length : tlTracks.length) + 1}`, gain: 1, mute: false };
+    if (source === 'bed') {
+      const a = audioRef.current; if (!a) return;
+      a.onChangeMix({ ...a.mix, tracks: [...a.mix.tracks, track] });
+    } else {
+      const t = timelineRef.current;
+      onChangeRef.current({ ...t, audio: { tracks: [...timelineAudioTracks(t), track], clips: timelineAudioClips(t) } });
+    }
+  };
+  // Drop a library AUDIO asset onto an audio lane → a clip AT THE DROP X (not at the playhead: on a
+  // show-clock container the playhead is not even the same clock). Today such a drop dies silently on a
+  // video lane (onDropFile rejects everything that is not video/image).
+  const onDropAudioAsset = (e: React.DragEvent, trackId: string, source: 'bed' | 'timeline') => {
+    e.preventDefault();
+    const raw = e.dataTransfer.getData('application/artlux-asset');
+    if (!raw) return;
+    let asset: { type?: string; path?: string };
+    try { asset = JSON.parse(raw); } catch { return; }
+    if (asset.type !== 'audio' || !asset.path) return;
+    const path = asset.path;
+    const start = clientXToTime(e.clientX);
+    const name = path.split(/[\\/]/).pop()?.replace(/\.[^.]+$/, '') ?? 'audio';
+    const place = (d: number) => {
+      const clip: AudioClip = { id: crypto.randomUUID(), trackId, name, path, start, duration: d, inPoint: 0, sourceDuration: d, gain: 1, mute: false };
+      commitAudioClips(source, [...audioClipsOf(source), clip]);
+      setSelected(clip.id); setSelectedSource(source);
+      ensurePeaks(path);
+    };
+    // Core probes the duration with the browser; the native engine loads the file for playback itself
+    // (the audio driver's syncLoaded). A source Chromium cannot decode (some .aiff) still gets a clip —
+    // a default-length one the user can trim — rather than a drop that silently does nothing.
+    void probeAudioDuration(path).then(d => place(d && d > 0 ? d : DEFAULT_AUDIO_DURATION));
+  };
   // --- tracking takes: record the live blob feed, place takes on a special lane ---
   const hasTrackingLane = layers.some(l => l.kind === 'tracking');
   const addTrackingLane = () => { if (!hasTrackingLane) onChange({ ...timeline, layers: [...layers, { id: crypto.randomUUID(), name: 'Tracking', kind: 'tracking', color: '#7ed321', enabled: true }] }); };
@@ -388,7 +615,20 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   // Stop goes through the SAME TransportIntent funnel the FSM and OSC use, so App stays the single
   // writer of `playing`. (A 'stop' intent has existed since OSC landed; no UI ever emitted one.)
   const stop = () => engine.dispatchTransportIntent({ kind: 'stop' });
-  const deleteSelected = (ripple: boolean) => { if (!selected) return; onChange({ ...timeline, clips: ripple ? rippleDelete(timeline.clips, selected) : liftDelete(timeline.clips, selected) }); setSelected(null); };
+  // `selected` names an id in ONE OF THREE ARRAYS (the video clips, the bed's clips, this timeline's audio
+  // clips), and this used to filter `timeline.clips` unconditionally. Selecting an audio clip and pressing
+  // Delete would: leave the clip exactly where it is (liftDelete finds nothing to remove), CLEAR the
+  // selection so it LOOKS like something happened, and still fire a full onChange — liftDelete always
+  // returns a NEW array — driving setData → warmMedia + pruneStaleLayers + compileAutomation + a
+  // structured-clone postMessage to every projector port, for a document that did not change. Invariant
+  // 7's entire cost, paid for nothing, on a no-op.
+  const deleteSelected = (ripple: boolean) => {
+    if (!selected) return;
+    // No ripple for audio: rippleDelete is layerId-bound and audio has no ripple in Wave B (operations.ts).
+    if (selectedSource !== 'video') { onAudioRemoveClip(selected, selectedSource); return; }
+    onChange({ ...timeline, clips: ripple ? rippleDelete(timeline.clips, selected) : liftDelete(timeline.clips, selected) });
+    setSelected(null);
+  };
   const bladeAtPlayhead = () => onChange({ ...timeline, clips: bladeAt(timeline.clips, engine.getPlayhead()) });
 
   // --- drop a video (or a recorded take) onto a lane → create a clip ---
@@ -418,6 +658,8 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
         onChangeRef.current({ ...timelineRef.current, clips: [...timelineRef.current.clips, { id: crypto.randomUUID(), layerId, name, content: { type: SourceType.IMAGE, url: asset.path }, path: asset.path, start, duration: DEFAULT_CONTENT_DURATION, inPoint: 0 }] });
         return;
       }
+      // Audio goes on an AUDIO lane (AudioLane's own onDrop → onDropAudioAsset); a video lane genuinely
+      // cannot hold it, and a take was already rejected above.
       if (asset.type !== 'video') return;
       const addClip = (d: number) => onChangeRef.current({ ...timelineRef.current, clips: [...timelineRef.current.clips, { id: crypto.randomUUID(), layerId, name, path: asset.path, start, duration: d, inPoint: 0, sourceDuration: d }] });
       void (async () => {
@@ -485,7 +727,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       path: content.url ?? '', start: Math.max(0, start), duration: DEFAULT_CONTENT_DURATION, inPoint: 0,
     };
     onChangeRef.current({ ...timelineRef.current, clips: [...timelineRef.current.clips, clip] });
-    setSelected(clip.id);
+    setSelected(clip.id); setSelectedSource('video');
     setContentMenu(null);
   };
   // Edit the selected content clip's source config from the clip inspector.
@@ -538,9 +780,10 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   const laneHeightOf = (l: VideoLayer) => (resizeDraft && resizeDraft.id === l.id ? resizeDraft.height : laneHeight(l));
 
   const authoring = !!author?.activeSceneId;
-  // "Empty" means nothing on the canvas at all — no tracks, no clips, AND no automation lanes.
-  // Counting clips alone left the hint card sitting over a timeline full of audio curves.
-  const isEmpty = layers.length === 0 && timeline.clips.length === 0 && (timeline.automation?.length ?? 0) === 0;
+  // "Empty" means nothing on the canvas at all — no tracks, no clips, no automation lanes AND no audio
+  // lanes. Counting clips alone left the hint card sitting over a timeline full of audio curves.
+  const isEmpty = layers.length === 0 && timeline.clips.length === 0 && (timeline.automation?.length ?? 0) === 0
+    && tlTracks.length === 0 && bedTracks.length === 0;
   return (
     <div ref={panelRef} tabIndex={0} onMouseEnter={() => { hoverRef.current = true; }} onMouseLeave={() => { hoverRef.current = false; }}
       className="relative h-full flex flex-col bg-surface-0 text-fg-1 text-xs select-none outline-none"
@@ -609,6 +852,10 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       )}
       <TimelineToolbar
         playing={playing} onTogglePlay={onTogglePlay} onStop={stop} timeRef={timeRef}
+        // The bed's readout is only shown when its lanes are NOT drawn — i.e. while a scene is bound and
+        // the show clock has diverged from this ruler.
+        bedTimeRef={authoring ? bedTimeRef : undefined}
+        overrun={overrunAt != null ? { at: overrunAt, end, movesOutPoint: timeline.outPoint != null, onFix: fixLength } : undefined}
         // Which document the number fields are editing. It must change on EVERY rebind — including one
         // where the incoming scene's Length/fps happen to EQUAL the outgoing doc's, which is the normal
         // case (Capture Scene clones the timeline, and fps is 30 nearly everywhere). See NumField.
@@ -643,6 +890,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
               markers={timeline.markers ?? []} inPoint={regionInPoint} outPoint={regionOutPoint}
               bandStart={bandOn ? timelineStart(draftTimeline) : null}
               bandEnd={bandOn ? timelineEnd(draftTimeline) : null}
+              overrunFrom={overrunAt != null ? end : null} overrunTo={overrunAt}
               onSeekDown={startSeekDrag}
               onMarkerSeek={(t) => engine.seek(t)}
               onMarkerDelete={(id) => onChange({ ...timeline, markers: (timeline.markers ?? []).filter(m => m.id !== id) })}
@@ -680,6 +928,27 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
             );
           })}
 
+          {/* AUDIO LANES. The bed's tracks are drawn ONLY while Global is bound (App passes `audio`
+              undefined otherwise): there, show clock ≡ playhead, so the ruler is honest. Inside a scene
+              the two clocks diverge and drawing the bed against a scene-relative ruler would be a lie —
+              the `♪ BED` readout in the author strip carries it instead. */}
+          {audioProp && bedTracks.map(t => (
+            <AudioLane key={`bed-${t.id}`} track={t} source="bed"
+              clips={bedClips.filter(c => c.trackId === t.id).map(c => (audioDraft?.source === 'bed' && audioDraft.clip.id === c.id ? audioDraft.clip : c))}
+              selectedId={selectedSource === 'bed' ? selected : null} tool={tool} pxPerSec={pxPerSec} width={Math.max(width, 100)}
+              onPatchTrack={(p) => patchAudioTrack('bed', t.id, p)} onRemoveTrack={() => removeAudioTrack('bed', t.id)}
+              onStartDrag={onAudioStartDrag} onBlade={onAudioBlade} onRemoveClip={onAudioRemoveClip}
+              onSelect={(id, src) => { setSelected(id); setSelectedSource(src); }} onSeek={seekTo} onDropAsset={onDropAudioAsset} />
+          ))}
+          {tlTracks.map(t => (
+            <AudioLane key={`tl-${t.id}`} track={t} source="timeline"
+              clips={tlClips.filter(c => c.trackId === t.id).map(c => (audioDraft?.source === 'timeline' && audioDraft.clip.id === c.id ? audioDraft.clip : c))}
+              selectedId={selectedSource === 'timeline' ? selected : null} tool={tool} pxPerSec={pxPerSec} width={Math.max(width, 100)}
+              onPatchTrack={(p) => patchAudioTrack('timeline', t.id, p)} onRemoveTrack={() => removeAudioTrack('timeline', t.id)}
+              onStartDrag={onAudioStartDrag} onBlade={onAudioBlade} onRemoveClip={onAudioRemoveClip}
+              onSelect={(id, src) => { setSelected(id); setSelectedSource(src); }} onSeek={seekTo} onDropAsset={onDropAudioAsset} />
+          ))}
+
           {/* Automation lanes — keyframe curves over the same time axis. Like StateLane they are not
               VideoLayers (they hold keyframes, not clips), so they mount here rather than in layers.map. */}
           {lanes.map((lane, i) => (
@@ -697,13 +966,19 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
             />
           ))}
 
-          {/* add an automation lane */}
+          {/* add an automation lane / an audio lane */}
           <div className="flex border-b border-line-1">
-            <div className="sticky left-0 z-20 shrink-0 bg-surface-1 border-r border-line-1 flex items-center px-2 relative" style={{ width: GUTTER, height: 26 }}>
+            <div className="sticky left-0 z-20 shrink-0 bg-surface-1 border-r border-line-1 flex items-center gap-2 px-2 relative" style={{ width: GUTTER, height: 26 }}>
               <button onClick={(e) => { const r = (e.target as HTMLElement).getBoundingClientRect(); setPickerAt({ x: r.left, y: r.bottom }); }}
                 className="text-micro text-fg-3 hover:text-fg-1 inline-flex items-center gap-1">
                 <Plus size={11} /> Automation
               </button>
+              <button onClick={() => addAudioTrack('timeline')} title="Add an audio track to THIS timeline (rides the playhead; restarts when the timeline does)"
+                className="text-micro text-fg-3 hover:text-fg-1 inline-flex items-center gap-1"><Plus size={11} /> Audio</button>
+              {audioProp && (
+                <button onClick={() => addAudioTrack('bed')} title="Add a BED track (rides the show clock; it does NOT restart on a scene recall)"
+                  className="text-micro text-fg-3 hover:text-fg-1 inline-flex items-center gap-1"><Plus size={11} /> Bed</button>
+              )}
               {pickerAt && (
                 <AutomationTargetPicker
                   taken={new Set(lanes.map(l => l.targetPath))}

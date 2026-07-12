@@ -749,6 +749,20 @@ const App: React.FC = () => {
     onNext: () => authorStep(1),
     onNew: handleCreateState,
   };
+  // THE BED, handed to the timeline panel — and ONLY while Global is bound.
+  //
+  // `undefined` while a scene is bound is not a nicety: it is the single line that enforces "never draw
+  // the bed against a scene-relative ruler". The bed rides the SHOW clock; while Global is bound the two
+  // clocks are the same number (the engine maintains that identity), so the ruler under the bed's lanes is
+  // honest. The instant a scene is bound they diverge — the scene restarts, the bed rolls on — and a bed
+  // clip drawn at "0:30" on a scene ruler would be a lie about when it is heard. The panel shows the
+  // `♪ BED mm:ss` readout instead, and the mixer keeps the (time-independent) faders reachable.
+  //
+  // setAudioMix does NOT normalize (host.audio.setMix does); the lane's commits go through the same guard.
+  const timelineBedProp = useMemo(
+    () => (activeSceneId ? undefined : { mix: audioMix, onChangeMix: (m: AudioMix) => setAudioMix(normalizeAudioMix(m)) }),
+    [activeSceneId, audioMix],
+  );
   // Resolve a cueBus recall request (id then name) against current scenes. Held in a ref so the
   // once-subscribed cueBus listener always sees the latest scenes/handler closure.
   const recallByRefRef = useRef<(ref: string, fadeSec?: number) => void>(() => {});
@@ -2099,7 +2113,7 @@ const App: React.FC = () => {
                     timelineMax ? (
                         <div className="h-full flex items-center justify-center text-fg-3 text-mini italic">Timeline maximized — press F or the restore button to dock it</div>
                     ) : (
-                        <TimelinePanel timeline={activeTimeline} onChange={handleTimelineChange} author={timelineAuthor} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} onToggleMax={() => setTimelineMax(true)} projectPath={currentProjectPath} onRegisterAsset={handleRegisterAsset} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} />
+                        <TimelinePanel timeline={activeTimeline} onChange={handleTimelineChange} author={timelineAuthor} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} onToggleMax={() => setTimelineMax(true)} projectPath={currentProjectPath} onRegisterAsset={handleRegisterAsset} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} audio={timelineBedProp} />
                     )
                 ) : dockTab === DockTab.SCENES ? (
                     <CueBankPanel
@@ -2300,7 +2314,7 @@ const App: React.FC = () => {
 
       {timelineMax && (
         <div className="fixed inset-0 z-50 bg-surface-0 flex flex-col">
-          <TimelinePanel timeline={activeTimeline} onChange={handleTimelineChange} author={timelineAuthor} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} maximized onToggleMax={() => setTimelineMax(false)} projectPath={currentProjectPath} onRegisterAsset={handleRegisterAsset} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} />
+          <TimelinePanel timeline={activeTimeline} onChange={handleTimelineChange} author={timelineAuthor} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} maximized onToggleMax={() => setTimelineMax(false)} projectPath={currentProjectPath} onRegisterAsset={handleRegisterAsset} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} audio={timelineBedProp} />
         </div>
       )}
 
