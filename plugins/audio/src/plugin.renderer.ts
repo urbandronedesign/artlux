@@ -495,9 +495,42 @@ export const plugin: RendererPlugin = {
     // (loaded/loading/failed/srcPath guards) and generation-guarded, so the fan-out's own call a commit
     // later is a no-op — and until then this has ALREADY started the decode, which is a whole React commit
     // shaved off the latency of a scene's sting.
+    //
+    // ...AND IT MUST NOT NEED TO BE TOLD WHAT TO SOUND *LIKE*, EITHER — WHICH IS WHY syncClips() IS CALLED
+    // SYNCHRONOUSLY HERE AND NOT ONLY BEHIND THE LOAD PASS.
+    //
+    // A RESIDENT clip's chain and position depend on NOTHING that syncLoaded awaits. Pushing them only in
+    // `.then(syncClips)` chains them to the decode of every OTHER clip in the incoming document — and
+    // across a scene recall of an ALIASED clip, that is an audible wrong-sound bug:
+    //
+    //   · handleCaptureScene deep-clones the bound timeline (`structuredClone(activeTimeline)`), so the
+    //     incoming scene's clip has the SAME id AND the SAME path as the outgoing one (see the ⚠ at the top
+    //     of this file). syncLoaded therefore does NOT see it as stale, does NOT unload it, and does NOT
+    //     clear its `sentSpatial` / `sentEffects` keys — correctly, because it is the same SOURCE.
+    //   · But the engine keeps a source's chain across a stop: native stopClip() is `transport->stop()` and
+    //     nothing else — the Clip struct (spatial, pos, specs, chain) survives, and ONLY unloadClip()
+    //     destroys it. So the source is still wearing the OUTGOING scene's reverb and sitting at the
+    //     OUTGOING scene's position.
+    //   · reconcileContainer starts it THIS FRAME (`loaded.has(id)` is true, so it is audible()), while
+    //     `.then(syncClips)` — the only thing that would push the INCOMING scene's chain — cannot run until
+    //     syncLoaded has awaited EVERY new decode in the incoming document, one at a time.
+    //
+    // Result, before this line existed: on every GO, a clip that both scenes share sounded with the
+    // PREVIOUS scene's effects and in the PREVIOUS scene's position, from the recall frame until the
+    // slowest decode in the new scene landed. In a venue. Unattended. On every cycle of the show.
+    // (Simulated: scratch/scene-recall-stale-chain.mjs prints the engine calls frame by frame, before and
+    // after — 7 frames of the outgoing scene's reverb on a 130 ms decode, and none after.)
+    //
+    // syncClips() is exactly "push the params of every clip the engine already holds", so calling it here
+    // costs one string compare per resident clip (both pushes are content-keyed) and re-sends NOTHING on a
+    // steady recall. It is NOT redundant with the `.then(syncClips)` below, which is kept: that one is what
+    // pushes the master chain and catches clips that only became resident during the pass. Nor is it
+    // redundant with syncLoaded's own per-clip push on decode — that one fires only for a clip it actually
+    // DECODED, and the aliased clip is precisely the one it skips.
     const pruneOrphans = () => {
       if (bed.clips === prevBedClips && tlAudio.clips === prevTlClips) return;
       prevBedClips = bed.clips; prevTlClips = tlAudio.clips;
+      syncClips();                       // what the engine ALREADY holds: correct it NOW, before reconcile() starts it
       void syncLoaded().then(syncClips); // the containers moved: load what arrived, unload what left
       if (sounding.size === 0) return;
       const live = new Set(allClips().map((c) => c.id));
@@ -616,6 +649,12 @@ export const plugin: RendererPlugin = {
     unsubMix = host.audio.subscribe(() => {
       bed = readBed(host);
       refreshTlAudio();
+      // Same reason as in pruneOrphans: a RESIDENT clip's chain and position wait on no decode, so pushing
+      // them only in `.then(syncClips)` would chain an FX edit to whatever else happens to be loading. Drop
+      // a long file on one track and every reverb knob in the mixer goes dead until it finishes decoding —
+      // the edit is not lost, it just does not arrive for as long as the decode takes. Content-keyed, so an
+      // edit that changed nothing re-sends nothing.
+      syncClips();
       void syncLoaded().then(syncClips);
     });
     unsubTick = ctx.onPlayhead(tick);
