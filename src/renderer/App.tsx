@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, type AssetEntry, type AssetType } from './types';
+import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, type TimelineAudio, type AssetEntry, type AssetType } from './types';
 import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge, WINDOWED_DISPLAY } from '../../shared/protocol';
 import type { ProjectorCalibration } from '../../shared/protocol';
 import { CalibWizard, AutoAlignWizard, calibCapture as cam, measureGamma, calibWorkspace } from '@artlux/plugin-calibration/renderer';
@@ -73,6 +73,19 @@ const SHOW_ENGINE = BROADCAST || HEADLESS;
 const QUERY_PROJECT = QS.get('project') || '';
 // Perf HUD debug flag: `?perf=1` forces it on; otherwise it persists via localStorage (toggle: Ctrl+Alt+P).
 const PERF_FLAG = QS.get('perf') === '1';
+
+// The empty bound-timeline audio container, for a document saved before Timeline.audio existed
+// (timelineEngine.getBoundAudio() → undefined). A MODULE-SCOPE CONSTANT, deliberately, and it must stay
+// one: host.audio.getTimelineAudio() is called by the audio driver EVERY FRAME, and the driver's orphan
+// detector gates on the clip array's IDENTITY (plugin.renderer.ts pruneOrphans). Returning a fresh
+// `{ tracks: [], clips: [] }` per call would hand it two brand-new arrays 60×/s, so the gate could never
+// short-circuit — it would rebuild its live-id Set and re-run the load pass on every frame, forever, on
+// exactly the legacy document this fallback exists to serve. Frozen so no consumer can mutate the shared
+// instance into a live container.
+const EMPTY_TIMELINE_AUDIO: TimelineAudio = Object.freeze({
+  tracks: Object.freeze([]) as unknown as TimelineAudio['tracks'],
+  clips: Object.freeze([]) as unknown as TimelineAudio['clips'],
+});
 
 const DEFAULT_SETTINGS: AppSettings = {
   artNetIp: '127.0.0.1',
@@ -1486,7 +1499,9 @@ const App: React.FC = () => {
     audio: {
       getMix: () => audioMixRef.current,
       setMix: (mix) => setAudioMix(normalizeAudioMix(mix as Partial<AudioMix>)),
-      getTimelineAudio: () => timelineEngine.getBoundAudio() ?? { tracks: [], clips: [] },
+      // EMPTY_TIMELINE_AUDIO, not a fresh literal: this is read EVERY FRAME and the driver's orphan gate
+      // compares clip arrays by identity. See the constant's comment.
+      getTimelineAudio: () => timelineEngine.getBoundAudio() ?? EMPTY_TIMELINE_AUDIO,
       subscribe: (cb) => { audioSubs.current.add(cb); return () => { audioSubs.current.delete(cb); }; },
     },
   }), []);

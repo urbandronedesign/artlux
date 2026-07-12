@@ -127,6 +127,15 @@ export const plugin: RendererPlugin = {
     const loaded = new Map<string, ClipMeta>();   // clip source loaded in the engine
     const loading = new Set<string>();            // loads in flight (dedupe overlapping syncLoaded runs)
     const failed = new Set<string>();             // sources that failed to decode (don't retry every bed edit)
+    // THE PATH each id was loaded (or attempted) FROM. `loaded` alone is keyed by clip ID, and an id is NOT
+    // a source: `handleAddScene` captures a scene with `structuredClone(activeTimeline)`, so a scene's
+    // Timeline.audio inherits the global doc's clip ids VERBATIM — ids are now legitimately shared across
+    // containers and across documents. Re-point one copy at another file (a re-link, a Save-As that remaps
+    // asset paths onto the same ids, a hand-merged project) and an id-keyed residency check would say
+    // "already loaded" and go on playing THE OTHER FILE, silently, forever. Comparing the path is what
+    // makes the check a check on the SOURCE rather than on the NAME of the source.
+    const srcPath = new Map<string, string>();
+    let loadGen = 0;                              // generation of the newest syncLoaded pass — see syncLoaded
     const sounding = new Set<string>();           // clips the engine is currently playing
     const sentGain = new Map<string, number>();   // last gain pushed, per sounding clip
     const sentOffset = new Map<string, number>(); // last source offset seeked, per sounding clip
@@ -220,38 +229,87 @@ export const plugin: RendererPlugin = {
     // "Removed" INCLUDES "belongs to the scene we just left": leaving a scene drops its Timeline.audio from
     // `allClips()`, so its sources are unloaded, and re-entering it loads them again (asynchronously — its
     // clips are inaudible until the decode lands, exactly as on a first drop). The bed is never affected.
+    //
+    // ⚠ KNOWN LIMITATION — NO AUDIO PRELOAD TIER YET. Because residency tracks the two LIVE containers, a
+    // scene's sting is decoded on ENTRY, every entry. pruneOrphans now starts that decode on the recall
+    // FRAME (rather than a React commit later), but a decode is not instant, and reconcileContainer starts
+    // a clip at `clip.inPoint + tLocal` — i.e. wherever the playhead has REACHED by the time the source
+    // lands. So a clip at start=0 loses its first few ms: for a percussive sting, that is its attack. And an
+    // FSM cycling scenes re-decodes the same files on every cycle, forever, unattended.
+    //
+    // The fix is a preload tier, not a change here: `timelinePreloader.warm(scene.id, tl)` is ALREADY called
+    // for every scene recall (App.tsx swapTimelineForScene) and by the FSM look-ahead effect — it warms
+    // VIDEO only. Teaching it to keep audio sources engine-resident (path-keyed, LRU) would make entry
+    // sample-accurate and end the re-decode churn. Doing it HERE is not possible: the driver sees only the
+    // two bound containers, so it cannot tell "this scene departed" (keep it warm) from "this clip was
+    // DELETED" (unload it now) — that distinction lives in App, which is why the preloader is the seam.
+    // Tracked as a Wave-B follow-up; until it lands, author a scene's sting with a few ms of head, and do
+    // not rely on a zero-start sting for a hard musical hit.
+    //
+    // GENERATION-GUARDED. The pass snapshots `allClips()` and then awaits one decode at a time, so a GO
+    // mid-pass would otherwise leave it decoding the DEPARTED scene's snapshot to completion — every
+    // remaining clip fully decoded over IPC and then thrown away by the post-await re-check below.
+    // Residency stays correct either way, but on a GO-GO-GO sequence the driver would spend its whole
+    // decode budget on scenes that are already gone, CONTENDING WITH THE LIVE SCENE'S LOADS — i.e. adding
+    // latency to exactly the cue the operator is waiting to hear. `loadGen` is bumped by every new pass, so
+    // an outrun pass stops before STARTING any further decode.
+    //
+    // The guard is at the top of the loop body and nowhere else, deliberately: a decode already IN FLIGHT
+    // is always completed and stored. A concurrent newer pass SKIPS an id it finds in `loading` (it expects
+    // this pass to finish it), so bailing out of a resolved load would strand that clip unloaded with
+    // nobody left to pick it up. Bail before you start, never after.
     const syncLoaded = async () => {
+      const myGen = ++loadGen;
       const clips = allClips();
-      const wanted = new Set(clips.map((c) => c.id));
+      // id → path. A clip whose PATH changed is NOT the same source, even though it is the same id — see
+      // `srcPath`. Treat it as removed (unload) so the loop below reloads it from the new file.
+      const wanted = new Map<string, string>();
+      for (const c of clips) wanted.set(c.id, c.path);
+      const stale = (id: string) => !wanted.has(id) || wanted.get(id) !== srcPath.get(id);
       for (const id of [...loaded.keys()]) {
-        if (!wanted.has(id)) {
+        if (stale(id)) {
           if (sounding.has(id)) stopSounding(id);
           audioClient.unloadClip(id);
           loaded.delete(id);
+          srcPath.delete(id);
           // The engine dropped the source AND its chain — forget what we pushed, so a clip that comes
           // back (undo, re-add) gets its position and effects re-sent rather than assumed still applied.
           sentSpatial.delete(id);
           sentEffects.delete(id);
         }
       }
-      for (const id of [...failed]) if (!wanted.has(id)) failed.delete(id); // a re-added clip gets another try
+      // A re-added clip gets another try — and so does a clip RE-POINTED at a different file after the old
+      // one failed to decode. `failed` must never outlive the source it is about.
+      for (const id of [...failed]) if (stale(id)) { failed.delete(id); srcPath.delete(id); }
       for (const clip of clips) {
+        if (loadGen !== myGen) return; // a newer pass owns the containers now — don't start another decode
         if (loaded.has(clip.id) || loading.has(clip.id) || failed.has(clip.id) || !clip.path) continue;
         loading.add(clip.id);
+        srcPath.set(clip.id, clip.path); // record the ATTEMPTED path, so a failure is remembered per-source
         try {
           const meta = await audioClient.loadClip(clip.id, clip.path);
           if (meta) {
             // Re-check against a FRESH allClips(): the containers can have changed across the await (a
-            // scene recall swapped the bound timeline out from under this load).
-            if (allClips().some((c) => c.id === clip.id)) {
+            // scene recall swapped the bound timeline out from under this load). Same id AND same path —
+            // an id re-pointed mid-decode is not the source we just decoded.
+            const live = allClips().find((c) => c.id === clip.id);
+            if (live && live.path === clip.path) {
               loaded.set(clip.id, meta);
               // Push THIS clip's position + effects immediately, before awaiting the next load. The
               // moment it lands in `loaded` it becomes audible() — and the playhead tick is rAF-driven,
               // so reconcile() can start it on the very next frame. Deferring the push to the end of the
               // pass would let it begin life dry and dead-centre while the rest of the bed decodes.
-              pushClipParams(eff(clip)); // eff(), not the raw clip — a lane may already own some of its leaves
+              pushClipParams(eff(live)); // eff(), not the raw clip — a lane may already own some of its leaves
             } else {
-              audioClient.unloadClip(clip.id); // removed while loading → don't leave it resident
+              audioClient.unloadClip(clip.id); // removed (or re-pointed) while loading → don't leave it resident
+              srcPath.delete(clip.id);
+              if (live) {
+                // Still wanted, but from a DIFFERENT file: re-pointed while this decode was in flight. Any
+                // concurrent pass SKIPPED this id because it was in `loading`, so nothing else will pick
+                // the new source up. Re-run once the `finally` below has released the id. This fires only
+                // on an actual re-point, so it cannot loop.
+                void Promise.resolve().then(() => { void syncLoaded().then(syncClips); });
+              }
             }
           }
         } catch {
@@ -350,10 +408,25 @@ export const plugin: RendererPlugin = {
     //
     // Gated on array IDENTITY (not content): the clip arrays are replaced wholesale by the engine's swap()
     // and by every commit, so a reference compare catches every real change for two compares a frame and
-    // allocates nothing on the steady path.
+    // allocates nothing on the steady path. (That is also why host.audio.getTimelineAudio() must return a
+    // CONSTANT for a document with no `audio` — App.tsx's EMPTY_TIMELINE_AUDIO. A fresh literal per call
+    // would defeat this gate and run the whole body 60×/s.)
+    //
+    // ...AND IT MUST NOT NEED TO BE TOLD TO GO LOUD, EITHER. The container the driver reconciles comes from
+    // the ENGINE (host.audio.getTimelineAudio() → timeline.getBoundAudio(), read every frame). But the only
+    // thing that LOADS the incoming clips' sources is App's `useEffect(…, [audioMix, activeTimeline])` — a
+    // REACT-STATE-sourced signal. Those two co-move today (every timelineEngine.swap() call site also sets
+    // activeSceneId — all five checked), but nothing ENFORCES it: add one swap() that doesn't touch
+    // activeSceneId (a future FSM path, a plugin-driven recall) and you get a scene whose audio container is
+    // bound, reconciled, and PERMANENTLY SILENT — no error, no log, nothing on the mixer to see it. So the
+    // identity gate the driver already owns kicks the load pass itself. syncLoaded is idempotent
+    // (loaded/loading/failed/srcPath guards) and generation-guarded, so the fan-out's own call a commit
+    // later is a no-op — and until then this has ALREADY started the decode, which is a whole React commit
+    // shaved off the latency of a scene's sting.
     const pruneOrphans = () => {
       if (bed.clips === prevBedClips && tlAudio.clips === prevTlClips) return;
       prevBedClips = bed.clips; prevTlClips = tlAudio.clips;
+      void syncLoaded().then(syncClips); // the containers moved: load what arrived, unload what left
       if (sounding.size === 0) return;
       const live = new Set(allClips().map((c) => c.id));
       for (const id of [...sounding]) if (!live.has(id)) stopSounding(id);
