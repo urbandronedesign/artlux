@@ -81,14 +81,17 @@ function mapScene3D(scene3D: unknown, map: PathMap): unknown {
 //
 // ⚠ WAVE B adds `Timeline.audio` (per-timeline audio clips). Its clips' `path` is mapped HERE — this
 // one function is what makes relativize/resolve/collect all see it, on the global timeline AND on
-// every scene's, because mapAssetPaths calls it from both places. Whoever adds it MUST ALSO WIDEN THE
-// NOTHING-PATH-BEARING BAIL BELOW to `&& !Array.isArray(t.audio?.clips)` — an audio-ONLY timeline
-// (no video clips, no tracking takes) is an authorable shape, and as written the bail returns it
-// untouched, so its audio paths would never be relativized, resolved or collected.
+// every scene's, because mapAssetPaths calls it from both places. Adding it is ONE line next to the
+// others below (`if (t.audio) next.audio = mapAudio(t.audio, map);`) and nothing else: there is
+// deliberately NO "nothing path-bearing" early bail here. An earlier draft bailed out when a timeline
+// had neither `clips` nor `trackingTakes` arrays — which is exactly the shape of a music-only scene
+// (defaultTimeline() mints `clips: []`, and an audio-only timeline has no takes), so its audio paths
+// would have been silently skipped by relativize, resolve AND collect: a silent bed in the venue with
+// nothing in CollectResult.missing to warn anyone. Each field guards itself instead; the cost of the
+// bail's absence is one shallow spread for an empty timeline, on load/save only.
 function mapTimeline(tl: unknown, map: PathMap): unknown {
   const t = tl as any;
   if (!t || typeof t !== 'object' || Array.isArray(t)) return tl;
-  if (!Array.isArray(t.clips) && !Array.isArray(t.trackingTakes)) return tl; // nothing path-bearing
   const next = { ...t };
   if (Array.isArray(t.clips)) next.clips = t.clips.map((c: any) => {
     let n = isFilePath(c?.path) ? { ...c, path: map(c.path) } : c;
@@ -270,25 +273,34 @@ function collectInto(root: string, data: ProjectData): CollectResult {
   const assetsDir = join(root, 'assets');
 
   const remap = new Map<string, string>(); // source path -> collected absolute path
-  const missing: string[] = [];
+  const missing = new Set<string>();       // deduped: one line per FILE in the operator's report
   let copied = 0;
   let skipped = 0;
 
   // First pass: discover unique source paths and copy them in.
+  //
+  // Every branch MUST record the source in `remap` (mapping it to itself when it stays external), or
+  // the `remap.has(p)` guard below never fires for it and the SAME file is re-counted once per
+  // reference. Scenes snapshot the surfaces/clips that reference a path, so one file is reached N+1
+  // times in an N-scene show: without this, three genuinely missing files in a 20-scene show became a
+  // 60-line window.alert (App.tsx pours `missing.join('\n')` into it) and `skipped` reported a number
+  // that was a multiple of the truth. Mapping a source to itself is a no-op in the rewrite pass, and
+  // the library-entry loop below already ignores anything outside assets/.
   mapAssetPaths(data, (p) => {
     if (remap.has(p)) return p; // already handled this source
     const abs = isAbsolute(p) ? p : join(root, p);
     // Already inside assets/ → nothing to do.
     if (isInside(assetsDir, abs)) { remap.set(p, abs); skipped += 1; return p; }
     const cat = categoryFor(abs);
-    if (!cat) { skipped += 1; return p; }            // unknown type — leave external
-    if (!existsSync(abs)) { missing.push(abs); skipped += 1; return p; }
+    if (!cat) { remap.set(p, p); skipped += 1; return p; }            // unknown type — leave external
+    if (!existsSync(abs)) { remap.set(p, p); missing.add(abs); skipped += 1; return p; }
     try {
       const { dest, reused } = uniqueDest(join(assetsDir, cat), abs);
       if (!reused) { copyFileSync(abs, dest); copied += 1; }
       remap.set(p, dest);
     } catch (e) {
       console.error('[projectFolder] copy failed', abs, e);
+      remap.set(p, p);
       skipped += 1;
     }
     return p;
@@ -318,7 +330,7 @@ function collectInto(root: string, data: ProjectData): CollectResult {
   }
   if (added.length) out.assets = [...(out.assets ?? []), ...added];
 
-  return { data: out, copied, skipped, missing };
+  return { data: out, copied, skipped, missing: [...missing] };
 }
 
 // In-place: collect into the project's own folder (the destructive path — the renderer confirms first).
