@@ -1230,9 +1230,39 @@ const App: React.FC = () => {
       setSelectedFixtureId(null);
       setSelectedFixtureIds([]);
       setSelectedSurfaceId(null);
-      // NEW PROJECT resets the show clock, like OPEN does. Without this the bed's clock keeps running
-      // into a project that no longer exists — and with `scenes: []` there is no swap to catch it.
-      timelineEngine.showSeek(timelineEngine.getGlobalStart());
+      // ⚠ THE SCENES ARE GONE, SO THE BINDING MUST GO WITH THEM — AND SO MUST THE ENGINE'S POOL.
+      //
+      // This used to be a bare `showSeek(getGlobalStart())`: it moved the SHOW clock and left everything
+      // else pointing at the show that no longer exists. `activeSceneId` stayed on a scene that is not in
+      // `scenes` any more, and the engine stayed bound to that scene's pool. Nothing heals it — `activeScene`
+      // is a bare `scenes.find(...) ?? null` derivation, and the only other writers of `activeSceneId` are
+      // recall / removeScene / exitToGlobal / createState / applyProjectData, none of which run here. Open a
+      // project with states, then New Project, and:
+      //   · `activeScene` → null ⇒ `activeTimeline` = the GLOBAL doc, and the setData effect's pool guard
+      //     passes on the STALE key ⇒ the engine believes the global doc is bound (isGlobalDocBound()) and
+      //     tags every global lane `'show'` — while the PLAYHEAD is still parked wherever the departed
+      //     scene left it and only `showTime` was reset. Clips, curves and the bed run at three times.
+      //   · handleTimelineChange sees `activeSceneId` truthy and maps over an EMPTY scenes array ⇒ every
+      //     timeline edit is silently discarded, while the pill reads "Global".
+      //   · getStatus().activeSceneId reports the phantom ⇒ the mixer locks seeking and never draws the
+      //     bed's lanes, in a project with no scenes.
+      // So do what the two sibling "leave the scene" sites do (handleRemoveScene, exitToGlobal): clear the
+      // binding and put the engine back on the global pool.
+      const departed = activeSceneIdRef.current;
+      setActiveSceneId(null);
+      // …and the state machine, whose nodes all point at now-deleted sceneIds. resetToNewProject never
+      // touched it and handleNewProject's payload does not override it, so buildProjectData() wrote the
+      // OUTGOING show's graph straight into the brand-new project file.
+      setStateMachine(defaultStateMachine());
+      // NEW PROJECT resets the show clock, like OPEN does (reset table row 20). Without this the bed's clock
+      // keeps running into a project that no longer exists. It is done through the SWAP — not a bare
+      // showSeek — because both clocks have to move: 'restart' mainSeeks the PLAYHEAD to the global doc's
+      // start (re-anchoring originMs AND re-baselining prevPlayhead, so no phantom crossing window opens and
+      // hitEnd is never pulsed), and showClock:'reset' showSeeks the SHOW clock to the same place. One call,
+      // both clocks, and the identity the bare showSeek quietly broke is real again.
+      timelineEngine.swap(GLOBAL_POOL, timeline, { transport: 'restart', showClock: 'reset' });
+      if (departed) timelineEngine.releasePool(departed); // free the departed scene's decoders (it is no longer active)
+      for (const port of projectorPortsRef.current.values()) port.postMessage({ t: 'timeline', timeline });
       // …and it drops the SCENE/CUE FADE LAYER, for the same reason OPEN does (see applyProjectData). It is
       // SHOW state, not document state, and a plugin's layer is module-level — so without this a master or
       // track fade from the OUTGOING show survives into the new one and keeps shadowing its authored mix,
@@ -1252,8 +1282,11 @@ const App: React.FC = () => {
       if (!res) return; // user cancelled the folder dialog → keep the current project
       const st = makeNewProjectState();
       resetToNewProject(st);
-      // Save from the fresh values directly — setState above hasn't applied to this closure yet.
-      const data = { ...buildProjectData(), surfaces: st.surfaces, fixtures: st.fixtures, controllers: [], groups: [], scenes: [], projectorOutputs: [], assets: [] };
+      // Save from the fresh values directly — setState above hasn't applied to this closure yet. That
+      // includes `stateMachine`: resetToNewProject cleared it, but buildProjectData() still reads the
+      // OUTGOING show's graph out of this closure, and every one of its nodes points at a sceneId that
+      // `scenes: []` just deleted. Override it here, exactly like `scenes`.
+      const data = { ...buildProjectData(), surfaces: st.surfaces, fixtures: st.fixtures, controllers: [], groups: [], scenes: [], stateMachine: defaultStateMachine(), projectorOutputs: [], assets: [] };
       const path = await window.artlux?.saveProject?.(data, res.projectFile);
       if (path) { setCurrentProjectPath(path); refreshRecents(); }
   };
