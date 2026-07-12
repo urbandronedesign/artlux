@@ -48,7 +48,7 @@ import { layoutStore, type WorkspaceLayout } from './services/layoutStore';
 import { useResizable } from './hooks/useResizable';
 import { activateRendererPlugins } from './host/plugins';
 import { setEnabled as mp4SetEnabled } from '@artlux/plugin-mp4';
-import type { RendererHostServices, AutomationTargetProvider } from '@artlux/sdk/renderer';
+import type { RendererHostServices, AutomationTargetProvider, AutomationTargetDef } from '@artlux/sdk/renderer';
 import { projectorChannelRegistry, panelRegistry, automationTargetRegistry } from './host/registries';
 import * as cueBus from './services/cueBus';
 import * as selection from './services/selection';
@@ -649,32 +649,49 @@ const App: React.FC = () => {
     const legs: transitions.FadeLeg[] = [];
     // enumerate() rebuilds the whole catalog (it walks the live mix) — do it ONCE per provider per recall,
     // not once per entry. A provider in a bad state must not blow up a GO: an empty catalog just means
-    // "linear", which is the safe reading of a param we know nothing about.
-    const logByPath = new Map<string, Map<string, boolean>>();
-    const isLog = (head: string, provider: AutomationTargetProvider, path: string): boolean => {
-      let m = logByPath.get(head);
+    // "linear and unclamped", which is the safe reading of a param we know nothing about.
+    const defsByHead = new Map<string, Map<string, AutomationTargetDef>>();
+    const defFor = (head: string, provider: AutomationTargetProvider, path: string): AutomationTargetDef | undefined => {
+      let m = defsByHead.get(head);
       if (!m) {
         m = new Map();
-        try { for (const d of provider.enumerate()) m.set(d.path, d.log ?? false); } catch { /* keep going */ }
-        logByPath.set(head, m);
+        try { for (const d of provider.enumerate()) m.set(d.path, d); } catch { /* keep going */ }
+        defsByHead.set(head, m);
       }
-      return m.get(path) ?? false;
+      return m.get(path);
     };
     for (const e of entries) {
-      if (typeof e.value !== 'number' || !isFadeablePath(e.path)) continue;
+      // ⚠ THE SHAPE CHECK COMES FIRST, AND `path` BEFORE `value`. These entries are DOCUMENT data — a
+      // hand-edited or tool-generated .artlux reaches here verbatim (Scene.audio has no normalizer) — and
+      // isFadeablePath does `path.split('.')`, which throws on a missing or non-string path. This runs
+      // INSIDE A GO, with no ErrorBoundary above it: one bad entry would be a white screen mid-show.
+      // sceneAudioEntries already drops the unaddressable ones at the door; this is the second lock, and
+      // the one that also covers Cue.entries.
+      if (!e || typeof e.path !== 'string' || typeof e.value !== 'number' || !isFadeablePath(e.path)) continue;
       const head = e.path.split('.')[0];
       const provider = automationTargetRegistry.get(head);
       if (!provider) continue;                       // the plugin is disabled — the entry persists, inert
+      const def = defFor(head, provider, e.path);
       // THE FADE'S `from` IS THE *EFFECTIVE* VALUE, NOT THE AUTHORED ONE. provider.get() returns the
       // authored value — what the slider last wrote — and a fade NEVER touches the authored mix. So on the
       // SECOND recall of a path an authored `from` starts the leg where the operator's fader is, not where
       // the sound actually is: scene A fades master 1.0 → 0.2, scene B fades it → 0.5, and frame one of B
       // slams the master to FULL LEVEL before gliding down. getLive() = laneOvr ?? fade ?? authored.
       const from = provider.getLive?.(e.path) ?? provider.get(e.path);
+      // ⚠ CLAMP THE DESTINATION TO THE TARGET'S OWN RANGE. This is the ONE door into the audio engine that a
+      // number can be TYPED through: the ♪ inspector's value box is a free-text <input type=number> and an
+      // OSC-fired or hand-edited entry has no UI in front of it at all. Every mixer fader is bounded
+      // (master: min 0 max 1.5) — an entry was not. `2` typed where `0.2` was meant on audio.master.gain
+      // rode writeFade → syncMaster → setMasterGain unchecked all the way to the native bus (which jlimits
+      // at 4.0, i.e. +12 dB): a level event, in a venue, with nobody in the room. Same door for a filter
+      // cutoff typed past Nyquist. enumerate() is the catalog and it carries min/max for every target — the
+      // map is already built above for `log`. No def (a dangling path, or a provider that threw) ⇒ no range
+      // to clamp against, so the value passes: we do not invent a bound we do not know.
+      const to = def ? Math.min(def.max, Math.max(def.min, e.value)) : e.value;
       if (typeof from !== 'number') {
         // Nothing to glide FROM (a dangling path — the clip it addressed was deleted). Snap it: durMs 0,
         // so start() writes `to` straight into the fade layer and the entry is applied rather than dropped.
-        legs.push({ path: e.path, from: e.value, to: e.value, transition: 'none', fadeSec: 0 });
+        legs.push({ path: e.path, from: to, to, transition: 'none', fadeSec: 0 });
         continue;
       }
       // A per-entry override REPLACES the owner's default, it does not AND with it (transitions.start:
@@ -685,10 +702,10 @@ const App: React.FC = () => {
       // LOG-CURVE TARGETS FADE IN LOG SPACE — a filter cutoff (20 Hz–20 kHz), a delay time, an attack —
       // because the AUTOMATION engine does, and the operator compares the two in the room.
       legs.push({
-        path: e.path, from, to: e.value,
+        path: e.path, from, to,
         transition: e.transition ?? transition ?? 'smooth',
         fadeSec: e.fadeSec ?? fadeSec,
-        log: isLog(head, provider, e.path),
+        log: def?.log ?? false,
       });
     }
     return legs;
@@ -753,7 +770,15 @@ const App: React.FC = () => {
     // The cancel() arm below is now reached ONLY when the scene binds no audio AND there is no look fade —
     // exactly as before this shipped. (Routing the snap through start() rather than writing it here is what
     // keeps it in the batch's `skip` set, so the outgoing fade's abandoned legs cannot overwrite it.)
-    const audioLegs = applyAudioEntries(sceneAudioEntries(scene), scene.fadeSec ?? 0, 'smooth');
+    //
+    // ⚠ PLUGIN HEADS ONLY — the same filter applyCues puts in front of this call. `Scene.audio` is written
+    // by the ♪ picker, which only ever offers PLUGIN params, so this drops nothing an operator can author.
+    // But the field has no normalizer, and a hand-edited scene carrying a CORE path (globalBrightness,
+    // surfaces.<id>.x) would sail through: isFadeablePath passes it, the registry resolves the head to the
+    // CORE provider, and transitions routes the leg down its setByPath arm — FADING a param the recall above
+    // has already committed, then snapping it back when the leg lands. The contract is now structural rather
+    // than conventional.
+    const audioLegs = applyAudioEntries(sceneAudioEntries(scene).filter(isPluginHeadEntry), scene.fadeSec ?? 0, 'smooth');
     const lookLegs = (scene.fadeSec && scene.fadeSec > 0) ? collectFadeableTargets(fromView, toView) : [];
     if (lookLegs.length || audioLegs.length) {
       transitions.start([...lookLegs, ...audioLegs], { fadeSec: scene.fadeSec ?? 0, transition: 'smooth' });

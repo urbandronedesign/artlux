@@ -994,17 +994,27 @@ export const defaultCueBank = (id: string, name = 'Bank 1'): CueBank => ({
   id, name, rows: 8, cols: 16, cues: [], sceneCells: [],
 });
 
-// A scene's bound audio entries — TOTAL OVER GARBAGE, on purpose.
+// A scene's bound audio entries — TOTAL OVER GARBAGE, on purpose, DOWN TO THE ENTRY.
 //
 // `Scene.audio` is the one Scene field with no normalizer in front of it: applyProjectData loads scenes
 // with a spread (`{ ...s, accent, timeline }`), so whatever a hand-edited .artlux carries here reaches the
 // recall path verbatim. And a `for…of` over a non-iterable ({} , 7, "x") THROWS — inside handleRecallScene,
 // i.e. inside a GO, with no ErrorBoundary above it: a black show from a stray brace. Coerce, do not drop.
-// (A garbage ENTRY inside a good array is harmless: applyAudioEntries requires a numeric `value` and a
-// fadeable `path`, and skips anything else.)
+//
+// ⚠ THE ARRAY GUARD IS NOT ENOUGH — A BAD *ELEMENT* IS THE SAME BLACK SHOW. Every consumer's first act is to
+// dereference `e.path`: applyAudioEntries' `isFadeablePath(e.path)` (→ `path.split`) inside a GO, and the ♪
+// inspector's `labelForPath(e.path)` / `isFadeablePath(e.path)` inside a RENDER. So `[null]`, `[{value:1}]`
+// and `[{path:7}]` each throw — one on the next GO, one the moment the operator opens the list. React 19
+// unmounts the tree on a throw in render and there is no ErrorBoundary above either: white screen, black
+// projector, silent bed. Filter the ELEMENTS, not just the container: an entry needs an object shape and a
+// string `path` to be addressable at all. (`value` is left to the consumer — applyAudioEntries wants a
+// number, the inspector will happily display and re-type anything.)
 export const sceneAudioEntries = (s: Scene | null | undefined): CueEntry[] => {
   const a = s?.audio as unknown;
-  return Array.isArray(a) ? (a as CueEntry[]) : [];
+  if (!Array.isArray(a)) return [];
+  return (a as unknown[]).filter(
+    (e): e is CueEntry => !!e && typeof e === 'object' && typeof (e as CueEntry).path === 'string',
+  );
 };
 
 // S4 — a saved, reusable fixture definition (LED structure only; no placement,

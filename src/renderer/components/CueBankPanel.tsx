@@ -3,6 +3,7 @@ import { Scene, Cue, CueBank, CueEntry, CueTransition, Surface, Fixture, sceneAu
 import { Plus, Trash2, RefreshCw, Camera, Zap, X, Film, Music } from 'lucide-react';
 import { getByPath, globalParams, surfaceParams, fixtureParams, isFadeablePath, pathLeaf, type StateView, type ParamDef } from '../services/paramPath';
 import { automationTargetRegistry } from '../host/registries';
+import type { AutomationTargetDef } from '@artlux/sdk/renderer';
 
 interface Props {
     banks: CueBank[];
@@ -41,9 +42,10 @@ const uid = () => crypto.randomUUID();
 // WHAT THE CAPTURE PICKER IS EDITING. A Cue and a Scene both carry a CueEntry[]; they differ only in where
 // that list is COMMITTED. Everything below drives off this, so there is exactly one capture UI and no
 // second, drifting copy of the five entry mutators.
+// (No `key`/`label` here: the header renders the Scene/Cue directly, so a copy of its name on the target
+// would be a second source of truth for the same string, free to drift. WHERE the list is committed is the
+// only thing that differs between the two — that is all this carries.)
 interface CaptureTarget {
-    key: string;
-    label: string;
     entries: CueEntry[];
     setEntries: (e: CueEntry[]) => void;
     audioOnly: boolean;   // a Scene binds AUDIO params only — its LOOK is a snapshot, captured elsewhere
@@ -73,11 +75,20 @@ export const CueBankPanel: React.FC<Props> = ({
     //
     // Re-enumerated whenever the picker opens (the bed changes as clips are added), never memoized on a
     // stale dep. A provider in a bad state must not take the panel down with it.
-    const pluginParamGroups = useMemo(() => {
+    //
+    // THE RANGES RIDE ALONG. enumerate() carries a min/max for every target and the picker used to throw
+    // both away, leaving the entry's value box a free-text <input type=number> with no bound — the one
+    // unbounded door into the audio engine's gain (every mixer fader is bounded; master is 0…1.5). Keep the
+    // range, bound the input, and clamp on commit. Built here rather than in a second memo because the
+    // component early-returns above `target`, so this is the last place a hook may legally go — and it is
+    // fresh exactly when it must be: every way into the ♪ inspector (the ♪ button, selectCue, addCue) sets
+    // addOpen, which is this memo's dep.
+    const { pluginParamGroups, pluginRanges } = useMemo(() => {
         const out: { title: string; defs: ParamDef[] }[] = [];
+        const ranges = new Map<string, { min: number; max: number; step?: number }>();
         for (const p of automationTargetRegistry.all()) {
             if (p.namespaces.every(ns => ns === 'surfaces' || ns === 'fixtures' || ns === 'globalBrightness')) continue; // core — already above
-            let defs: { path: string; label: string; group: string }[] = [];
+            let defs: AutomationTargetDef[] = [];
             try { defs = p.enumerate(); } catch { defs = []; }
             const byGroup = new Map<string, ParamDef[]>();
             for (const d of defs) {
@@ -85,10 +96,11 @@ export const CueBankPanel: React.FC<Props> = ({
                 const g = byGroup.get(d.group) ?? [];
                 g.push({ path: d.path, label: d.label });
                 byGroup.set(d.group, g);
+                ranges.set(d.path, { min: d.min, max: d.max, step: d.step });
             }
             for (const [title, ds] of byGroup) out.push({ title, defs: ds });
         }
-        return out;
+        return { pluginParamGroups: out, pluginRanges: ranges };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [addOpen]);
 
@@ -155,12 +167,12 @@ export const CueBankPanel: React.FC<Props> = ({
     const target: CaptureTarget | null =
         audioScene && onUpdateSceneAudio
             ? {
-                key: audioScene.id, label: audioScene.name, entries: sceneAudioEntries(audioScene),
+                entries: sceneAudioEntries(audioScene),
                 setEntries: (e) => onUpdateSceneAudio(audioScene.id, e), audioOnly: true,
             }
             : selCue
                 ? {
-                    key: selCue.id, label: selCue.name, entries: selCue.entries,
+                    entries: selCue.entries,
                     setEntries: (e) => patchCue(selCue.id, { entries: e }), audioOnly: false,
                 }
                 : null;
@@ -183,7 +195,17 @@ export const CueBankPanel: React.FC<Props> = ({
         target.setEntries(entries);
     };
     const removeEntry = (path: string) => target?.setEntries(target.entries.filter(e => e.path !== path));
-    const setEntryValue = (path: string, value: CueEntry['value']) => target?.setEntries(target.entries.map(e => e.path === path ? { ...e, value } : e));
+    // CLAMPED ON COMMIT, against the target's own declared range. The value box is free text: `2` typed
+    // where `0.2` was meant on audio.master.gain is a +6 dB level event in an unattended venue, and nothing
+    // downstream of here would have caught it (the fade engine takes any number; native only jlimits at
+    // 4.0). A path with no known range — a core param, or a dangling audio path whose clip is gone — is left
+    // alone: we do not invent a bound we do not know. (applyAudioEntries clamps again at the engine door,
+    // which is what covers an entry that never passed through this box at all: OSC, or a hand-edited file.)
+    const setEntryValue = (path: string, value: CueEntry['value']) => {
+        const r = typeof value === 'number' ? pluginRanges.get(path) : undefined;
+        const v = r ? Math.min(r.max, Math.max(r.min, value as number)) : value;
+        target?.setEntries(target.entries.map(e => e.path === path ? { ...e, value: v } : e));
+    };
     // Per-entry Fade/Transition overrides. undefined removes the key (= inherit the cue's/scene's value);
     // note a fadeSec of 0 is a real override (snap), which must stay distinct from "inherit".
     const setEntryFade = (path: string, fadeSec: number | undefined) => target?.setEntries(target.entries.map(e => {
@@ -360,7 +382,7 @@ export const CueBankPanel: React.FC<Props> = ({
                                 <div key={e.path} className="rounded bg-surface-0/40 px-1 py-1 space-y-1">
                                     <div className="flex items-center gap-1 text-micro">
                                         <span className="flex-1 min-w-0 truncate text-fg-2" title={e.path}>{labelForPath(e.path)}</span>
-                                        <EntryValue value={e.value} onChange={(v) => setEntryValue(e.path, v)} />
+                                        <EntryValue value={e.value} range={pluginRanges.get(e.path)} onChange={(v) => setEntryValue(e.path, v)} />
                                         <button onClick={() => removeEntry(e.path)} className="text-fg-3 hover:text-danger"><Trash2 size={10} /></button>
                                     </div>
                                     {isFadeablePath(e.path) && (
@@ -431,8 +453,40 @@ const CaptureGroup: React.FC<{ title: string; defs: ParamDef[]; entries: CueEntr
     </div>
 );
 
-const EntryValue: React.FC<{ value: CueEntry['value']; onChange: (v: CueEntry['value']) => void }> = ({ value, onChange }) => {
-    if (typeof value === 'number') return <input type="number" step={0.01} value={value} onChange={e => onChange(Number(e.target.value))} className="w-14 bg-surface-0 border border-line-1 rounded px-1 py-0.5 text-fg-1 tabular-nums" />;
+// A number entry: DRAFT LOCALLY, COMMIT ONCE — clamped — ON BLUR/ENTER.
+//
+// ⚠ THE DRAFT IS WHAT MAKES THE CLAMP SAFE TO HAVE. Clamping per KEYSTROKE is worse than not clamping: on a
+// 20 Hz–20 kHz cutoff, the first digit of "2000" is `2`, which is below min, so a live clamp snaps the box
+// to `20` — and the operator, typing on, lands on 20000. The number they meant is unreachable. So the box
+// holds a string while it is being typed, and exactly one clamped number is committed when they leave it
+// (Escape abandons; an empty or unparseable box reverts to the authored value rather than committing NaN,
+// which would reach the fade engine as a permanent silent leg).
+const NumberEntry: React.FC<{ value: number; range?: { min: number; max: number; step?: number }; onCommit: (v: number) => void }> = ({ value, range, onCommit }) => {
+    const [draft, setDraft] = useState<string | null>(null);
+    const commit = (raw: string) => {
+        const n = Number(raw);
+        if (raw.trim() !== '' && Number.isFinite(n)) onCommit(range ? Math.min(range.max, Math.max(range.min, n)) : n);
+        setDraft(null);   // either way, fall back to rendering the committed value
+    };
+    return (
+        <input type="number" min={range?.min} max={range?.max} step={range?.step ?? 0.01}
+            value={draft ?? String(value)}
+            onChange={e => setDraft(e.target.value)}
+            onBlur={e => commit(e.target.value)}
+            onKeyDown={e => {
+                if (e.key === 'Enter') e.currentTarget.blur();
+                else if (e.key === 'Escape') { setDraft(null); e.currentTarget.blur(); }
+            }}
+            title={range ? `${range.min} … ${range.max} — Enter to commit` : undefined}
+            className="w-14 bg-surface-0 border border-line-1 rounded px-1 py-0.5 text-fg-1 tabular-nums" />
+    );
+};
+
+// `range` — the target's own min/max, when we know it (plugin params; enumerate() declares one for every
+// target it emits). It bounds the spinner, titles the field and clamps the commit, so the limit is VISIBLE
+// rather than a level event. Core paths have never declared one; they render exactly as before.
+const EntryValue: React.FC<{ value: CueEntry['value']; range?: { min: number; max: number; step?: number }; onChange: (v: CueEntry['value']) => void }> = ({ value, range, onChange }) => {
+    if (typeof value === 'number') return <NumberEntry value={value} range={range} onCommit={onChange} />;
     if (typeof value === 'boolean') return <input type="checkbox" checked={value} onChange={e => onChange(e.target.checked)} />;
     return <input type="text" value={String(value ?? '')} onChange={e => onChange(e.target.value)} className="w-20 bg-surface-0 border border-line-1 rounded px-1 py-0.5 text-fg-1" />;
 };
