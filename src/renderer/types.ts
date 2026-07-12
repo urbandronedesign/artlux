@@ -683,7 +683,17 @@ export const normalizeTimeline = (t: Partial<Timeline> | null | undefined): Time
     inPoint: finiteNum(t.inPoint),
     outPoint: finiteNum(t.outPoint),
     fps: finiteNum(t.fps) ?? base.fps,
-    loop: t.loop ?? false,
+    // finiteNum's boolean twin, for the same reason as fps above: `??` only substitutes null/undefined,
+    // so a hand-edited or tool-generated `"loop": "false"` (a non-empty string — TRUTHY) sailed through
+    // and turned looping ON. Every consumer tests truthiness, not identity (services/timeline.ts:340,
+    // 365, 401, 555, 636, 990), so the clock WRAPS at timelineEnd instead of parking: hitEnd never
+    // pulses, onTimelineEnd never fires, and an FSM whose only outgoing transition is 'onTimelineEnd'
+    // (services/stateMachine.ts:124) NEVER ADVANCES — the installation loops scene 1 all night with
+    // `playing === true` and a green getStatus(). This is the one boolean in this object literal that
+    // was left on bare `??` when boolOrAbsent landed (see AudioClip.mute / AudioTrack.mute+solo).
+    // Round-trip is exact: an authored `true`/`false` passes through byte-for-byte; only junk (which
+    // carries no recoverable authored intent) becomes ABSENT, which `?? false` reads as "off".
+    loop: boolOrAbsent(t.loop) ?? false,
     automation: normalizeAutomation(t.automation),
     // BACK-COMPAT (Wave A) — see Timeline.boundedDuration for the whole story. `duration` used to be a
     // hint that never bounded playback, so old projects legitimately hold clips past it. Now that it IS
@@ -840,14 +850,64 @@ export const normalizeAudioMix = (a: Partial<AudioMix> | null | undefined): Audi
 };
 
 // Normalize a persisted/partial state machine into a complete one (fills new fields on old saves).
+//
+// TOTAL OVER GARBAGE — CONTAINER *AND* ELEMENT. This is the ONLY normalizer on the container (its single
+// call site is applyProjectData), it runs on every load, and its consumers check nothing.
+//
+// ⚠ `??` ONLY SUBSTITUTES null/undefined. It does NOT catch `{"0":…}` — the array→object corruption class
+// THIS CODEBASE HAS ALREADY WRITTEN ONCE (see the `segments` repair in applyProjectData: "a non-array
+// `segments` (e.g. {"0":…} from a pre-fix cue write) is always garbage"). So `transitions ?? []` passed a
+// junk container straight through to:
+//   · StateLane.tsx:24-25 — `sm.transitions.filter(t => … t.trigger.kind …)`, in a lane that is rendered
+//     UNCONDITIONALLY (Timeline.tsx, "always-present state-machine control lane"). `.filter is not a
+//     function` IN RENDER, and there is no ErrorBoundary in this renderer — React 19 unmounts the tree:
+//     WHITE SCREEN ON LOAD, black projector, silent room, with nothing opened and nobody in the venue.
+//   · services/stateMachine.ts:156 — `for (const tr of sm.transitions)`. tick()'s re-init branch RETURNS
+//     BEFORE that loop, so the initial recall SUCCEEDS and only subsequent frames throw — into the
+//     try/catch at services/timeline.ts's fsm.tick call. Net: the machine enters state 1, recalls scene 1,
+//     and then never evaluates a single transition for the rest of the night, while getStatus() reports a
+//     live currentStateId and `playing: true`. A watchdog sees a perfectly healthy show. That is the
+//     self-reporting-healthy failure class, which is worse than the crash.
+//
+// ⚠ AND A BAD *ELEMENT* IS THE SAME WHITE SCREEN. StateLane derefs `t.from` and `t.trigger.kind` on EVERY
+// element in render; enter()/runEntry() do `for (const a of s.entry)`. So `[null]`, a transition with no
+// `trigger`, and a state with `"entry": 7` each throw exactly like the container does. Guard both levels.
+//
+// COERCE, DO NOT DROP, wherever there is something to recover. A state/transition keeps every field it
+// carries (spread first, like sanitizeClip); only what a consumer ITERATES or DEREFERENCES is repaired.
+// A trigger-less transition KEEPS ITS EDGE and is coerced to 'manual' — the one kind that can never fire
+// by itself (triggerFires returns false for it; only triggerManual() fires it), so a corrupt graph cannot
+// recall a scene at 3am on its own, and the operator can still see and re-author the edge in the graph
+// editor. An element that is not even an object holds nothing addressable and is dropped, exactly as
+// normalizeTimeline drops a non-object clip. A SANE MACHINE ROUND-TRIPS BYTE-FOR-BYTE (invariant 6): every
+// authored field is spread through untouched, so nothing here can persist a coercion over a real value.
 export const normalizeStateMachine = (sm: Partial<StateMachine> | null | undefined): StateMachine => {
   if (!sm || !Array.isArray(sm.states)) return defaultStateMachine();
+  // The container guard `states` already has, for the two containers that never got one — plus the
+  // element guard all three need. A non-array container yields []; a junk element is not addressable.
+  const objectsIn = (v: unknown): Record<string, unknown>[] =>
+    (Array.isArray(v) ? (v as unknown[]) : []).filter(
+      (e): e is Record<string, unknown> => !!e && typeof e === 'object' && !Array.isArray(e),
+    );
   return {
     enabled: !!sm.enabled,
-    states: sm.states ?? [],
-    transitions: sm.transitions ?? [],
-    initialStateId: sm.initialStateId ?? null,
-    regions: sm.regions ?? [],
+    states: objectsIn(sm.states).map((s) => ({
+      ...(s as unknown as SmState),
+      // runEntry() does `for (const a of s.entry)` on state ENTRY — i.e. inside a recall, inside a GO.
+      // A missing/junk `entry` (an old save, a hand-edit) is not iterable and throws there.
+      entry: Array.isArray(s.entry) ? (s.entry as SmAction[]) : [],
+    })),
+    transitions: objectsIn(sm.transitions).map((t) => ({
+      ...(t as unknown as SmTransition),
+      trigger:
+        !!t.trigger && typeof t.trigger === 'object' && !Array.isArray(t.trigger)
+          ? (t.trigger as SmTrigger)
+          : { kind: 'manual' as const }, // inert by construction — see above
+    })),
+    // A non-string id can never match a state id anyway (tick falls back to states[0]); make the type
+    // honest so no consumer is handed a number where it was promised `string | null`.
+    initialStateId: typeof sm.initialStateId === 'string' ? sm.initialStateId : null,
+    regions: objectsIn(sm.regions) as unknown as SmRegion[],
   };
 };
 
@@ -1024,6 +1084,56 @@ export const isAddressableEntry = (e: unknown): e is CueEntry =>
 export const cueEntries = (list: unknown): CueEntry[] =>
   Array.isArray(list) ? (list as unknown[]).filter(isAddressableEntry) : [];
 export const sceneAudioEntries = (s: Scene | null | undefined): CueEntry[] => cueEntries(s?.audio);
+
+// The CueBank CONTAINER's normalizer — the one document container that had none. applyProjectData used to
+// do `if (Array.isArray(data.cueBanks) && data.cueBanks.length) setCueBanks(data.cueBanks as CueBank[])`:
+// THE CAST WAS THE VALIDATION. `Array.isArray` guards the OUTER array only; the bank objects, `bank.cues`
+// and `bank.sceneCells` arrived raw, and every consumer dereferences them without a check.
+//
+// This is the level ABOVE cueEntries() — Wave B hardened the entry list precisely because "Cue.entries is
+// document data with no normalizer in front of it", and left the list's OWNER unguarded. Same doctrine,
+// one level up.
+//
+//   · IN RENDER (a throw here = React 19 unmounts the tree = WHITE SCREEN ON LOAD; there is no
+//     ErrorBoundary in this renderer): App's OWN render does `cueBanks.flatMap(b => b.cues.map(...))` to
+//     build the timeline's cue list — that is NOT gated on a dock tab, it runs on the ordinary boot path.
+//     CueBankPanel then does `Math.max(bank.cols, ...bank.cues.map(c => c.col + 2), ...)` — its `if
+//     (!bank)` bail catches a MISSING bank, never a bank whose `cues` is `{"0":…}`.
+//   · ON A GO: fireColumn derefs `b.id` inside its `.find` predicate (a null element throws), then
+//     `bank.sceneCells.find(...)` and `bank.cues.filter(...)`. cueBus fires it with a bare
+//     `forEach(cb => cb(bankRef, col))` — no try/catch — so an OSC /artlux/column reaches it raw. React 19
+//     does NOT unmount for a throw outside render, so this one does not white-screen: the column simply
+//     NEVER FIRES, the show sits on the previous look, and everything reports green.
+//
+// COERCE, DO NOT DROP. A bank/cue/cell object keeps every field it carries (spread first), and only what a
+// consumer ITERATES or feeds to ARITHMETIC is repaired: the three containers get an array guard, their
+// elements an object guard, and the numbers that drive the grid (`rows`/`cols`/`row`/`col`) and the fade
+// engine (`fadeSec` → `Math.max(0, sec) * 1000`, which is NaN for a junk value and writes NaN into every
+// faded param) get finiteNum. `Cue.entries` is deliberately LEFT RAW: cueEntries() already guards it at
+// every consumer, container and element, and dropping unaddressable entries HERE would persist that drop
+// on the next save (invariant 6). A sane bank round-trips byte-for-byte.
+export const normalizeCueBanks = (list: unknown): CueBank[] => {
+  const objects = (v: unknown): Record<string, unknown>[] =>
+    (Array.isArray(v) ? (v as unknown[]) : []).filter(
+      (e): e is Record<string, unknown> => !!e && typeof e === 'object' && !Array.isArray(e),
+    );
+  const d = defaultCueBank('');
+  return objects(list).map((b) => ({
+    ...(b as unknown as CueBank),
+    rows: finiteNum(b.rows) ?? d.rows,
+    cols: finiteNum(b.cols) ?? d.cols,
+    cues: objects(b.cues).map((c) => ({
+      ...(c as unknown as Cue),
+      row: finiteNum(c.row) ?? 1, // rows 1+ are cue rows; row 0 is reserved for scenes
+      col: finiteNum(c.col) ?? 0,
+      fadeSec: finiteNum(c.fadeSec) ?? 0, // a missing/junk fade is a SNAP, which is what the panel already shows
+    })),
+    sceneCells: objects(b.sceneCells).map((c) => ({
+      ...(c as unknown as CueBank['sceneCells'][number]),
+      col: finiteNum(c.col) ?? 0,
+    })),
+  }));
+};
 
 // S4 — a saved, reusable fixture definition (LED structure only; no placement,
 // patch, or surface link). Persisted to userData so the library spans projects.

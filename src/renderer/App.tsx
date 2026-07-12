@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, sceneAudioEntries, cueEntries, isAddressableEntry, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType } from './types';
+import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, normalizeCueBanks, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, sceneAudioEntries, cueEntries, isAddressableEntry, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType } from './types';
 import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge, WINDOWED_DISPLAY } from '../../shared/protocol';
 import type { ProjectorCalibration } from '../../shared/protocol';
 import { CalibWizard, AutoAlignWizard, calibCapture as cam, measureGamma, calibWorkspace } from '@artlux/plugin-calibration/renderer';
@@ -1079,8 +1079,16 @@ const App: React.FC = () => {
       setScenes(loadedScenes);
       // Cue banks: use saved banks, else synthesize Bank 1 and place existing scenes in row 0 so
       // older (pre-cues) projects open with their scenes already on the grid.
-      if (Array.isArray(data?.cueBanks) && data.cueBanks.length) {
-        setCueBanks(data.cueBanks as CueBank[]);
+      //
+      // ⚠ normalizeCueBanks, NOT a cast. `Array.isArray(data.cueBanks)` guards the OUTER array only, and the
+      // cast that used to stand in for validation guards NOTHING: a bank whose `cues` is `{"0":…}` reaches
+      // App's own render (`cueBanks.flatMap(b => b.cues.map(...))`, the TimelinePanel `cues` prop — no dock
+      // tab required) and white-screens the app on load, and reaches fireColumn's `bank.cues.filter(...)`,
+      // where the throw is NOT a white screen but something quieter: the GO silently never fires. Container
+      // AND elements, like every other document container. (`Cue.entries` stays raw — cueEntries() owns it.)
+      const banksLoaded = normalizeCueBanks(data?.cueBanks);
+      if (banksLoaded.length) {
+        setCueBanks(banksLoaded);
       } else {
         const bank = defaultCueBank(generateId());
         bank.sceneCells = loadedScenes.map((s, i) => ({ col: i, sceneId: s.id }));
