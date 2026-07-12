@@ -132,8 +132,23 @@ export const plugin: RendererPlugin = {
     let prevBedClips: BedClip[] = bed.clips;
     let prevTlClips: BedClip[] = tlAudio.clips;
     // EVERY per-clip map below (loaded/sounding/sentGain/sentOffset/…) is keyed by CLIP ID and is SHARED
-    // across both containers. Clip ids are UUIDs, so they cannot collide — and sharing means one
-    // syncLoaded, one reconcile-shaped code path, and no chance of the two drifting apart.
+    // across both containers. Sharing means one syncLoaded, one reconcile-shaped code path, and no chance
+    // of the two drifting apart.
+    //
+    // ⚠ THIS COMMENT USED TO SAY "clip ids are UUIDs, so they cannot collide". THAT IS FALSE, and it is the
+    // single most dangerous sentence that has been in this file: handleCaptureScene deep-clones the bound
+    // timeline (`structuredClone(activeTimeline)`, App.tsx), so two scenes hold BYTE-IDENTICAL clip ids —
+    // see `srcPath` fifteen lines down, which exists precisely because ids are shared across documents.
+    // Anyone who trusted the old sentence would build an id-addressed write that SEARCHES every scene, and
+    // it would write scene A's reverb into scene B on the first duplicate.
+    //
+    // The sharing is nevertheless safe HERE, and for a reason that has nothing to do with uniqueness: the
+    // engine never holds two scenes at once. `getBoundAudio()` (services/timeline.ts) returns the ONE bound
+    // document, so `allClips()` is the bed ∪ EXACTLY ONE timeline's audio, and scene A's clip X and scene
+    // B's clip X are never in the same map. A bed↔timeline collision is likewise not producible through the
+    // UI (bed ids are minted fresh; structuredClone only ever clones a TIMELINE, never into the bed).
+    // Aliasing across a RECALL is a different question, and `srcPath` + the content-keyed re-pushes are
+    // what answer it.
     const allClips = (): BedClip[] => [...bed.clips, ...tlAudio.clips];
     const loaded = new Map<string, ClipMeta>();   // clip source loaded in the engine
     const loading = new Set<string>();            // loads in flight (dedupe overlapping syncLoaded runs)
