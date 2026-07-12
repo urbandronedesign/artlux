@@ -54,6 +54,47 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, pl
   const kfs = draft ?? lane.keyframes;
   const enabled = lane.enabled !== false;
 
+  // ⚠ EVERY HOOK IN THIS COMPONENT RUNS **ABOVE** THE `!def` BAIL — INCLUDING THE `path` MEMO. MOVING IT
+  // BACK BELOW IS A WHITE SCREEN.
+  //
+  // `def` is not a constant: Timeline resolves it from the LIVE target registry and re-enumerates at 1 Hz
+  // (its `defsTick`) for the express purpose of noticing that "a lane whose target was just deleted"
+  // stopped being bound. So `def` goes defined → undefined UNDER A MOUNTED LANE, in the ordinary course
+  // of use: delete the bed clip (or the surface, or the effect) that an existing lane automates and the
+  // target it names is gone within the second. The lane itself is deliberately KEPT — dropping it would
+  // silently discard the user's curve — and simply re-renders through the "target missing" branch below.
+  //
+  // With the memo sitting after that early return, THAT render called one FEWER HOOK than the last one,
+  // and React throws `Rendered fewer hooks than expected` — IN RENDER. There is no ErrorBoundary anywhere
+  // in this renderer, so React 19 unmounts the tree: white screen, black projector, silent room, from
+  // deleting a clip. Hoisting the hooks makes the hook count constant across both branches.
+  const min = def?.min ?? 0;
+  const max = def?.max ?? 1;
+  const log = def?.log ?? false;
+  const valueToY = (v: number) => PAD + (1 - normValue(v, min, max, log)) * (h - 2 * PAD);
+  const yToValue = (y: number) => denormValue(1 - (y - PAD) / (h - 2 * PAD), min, max, log);
+  const quant = (v: number) => {
+    const s = def?.step ?? 0;
+    return s > 0 ? Math.round(v / s) * s : v;
+  };
+
+  // Sample the curve across the lane — the engine's own function, so the drawing cannot drift from the
+  // sound. Memoized, and the point count is CAPPED: the timeline is unbounded (its width grows as the
+  // playhead advances), so a fixed 2px step would keep adding points forever, and this runs on every
+  // render — including every pointermove of a keyframe drag.
+  const path = useMemo(() => {
+    if (!def || kfs.length === 0) return '';   // no axis to draw against — the bail below renders instead
+    const step = Math.max(2, width / 1200);
+    const cur = { i: -1 };
+    const pts: string[] = [];
+    for (let x = 0; x <= width; x += step) {
+      const v = sampleLane(kfs, x / pxPerSec, cur, log);
+      pts.push(`${x.toFixed(1)},${valueToY(v).toFixed(1)}`);
+    }
+    return `M${pts.join(' L')}`;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [def, kfs, width, pxPerSec, log, min, max, h]);
+
   // A lane whose target vanished keeps its data (never silently dropped — that would be losing the
   // user's work), but it can't be drawn against an axis it no longer has.
   if (!def) {
@@ -70,31 +111,6 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, pl
       </div>
     );
   }
-
-  const { min, max, log = false } = def;
-  const valueToY = (v: number) => PAD + (1 - normValue(v, min, max, log)) * (h - 2 * PAD);
-  const yToValue = (y: number) => denormValue(1 - (y - PAD) / (h - 2 * PAD), min, max, log);
-  const quant = (v: number) => {
-    const s = def.step ?? 0;
-    return s > 0 ? Math.round(v / s) * s : v;
-  };
-
-  // Sample the curve across the lane — the engine's own function, so the drawing cannot drift from the
-  // sound. Memoized, and the point count is CAPPED: the timeline is unbounded (its width grows as the
-  // playhead advances), so a fixed 2px step would keep adding points forever, and this runs on every
-  // render — including every pointermove of a keyframe drag.
-  const path = useMemo(() => {
-    if (kfs.length === 0) return '';
-    const step = Math.max(2, width / 1200);
-    const cur = { i: -1 };
-    const pts: string[] = [];
-    for (let x = 0; x <= width; x += step) {
-      const v = sampleLane(kfs, x / pxPerSec, cur, log);
-      pts.push(`${x.toFixed(1)},${valueToY(v).toFixed(1)}`);
-    }
-    return `M${pts.join(' L')}`;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [kfs, width, pxPerSec, log, min, max, h]);
 
   const commit = (next: Keyframe[]) => onChange({ ...lane, keyframes: next.slice().sort((a, b) => a.t - b.t) });
 
