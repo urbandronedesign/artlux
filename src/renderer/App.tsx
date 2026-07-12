@@ -647,12 +647,12 @@ const App: React.FC = () => {
   // each entry may override either (exactly as the core loop in applyCues already does).
   //
   // ⚠ A SNAP IS A ZERO-LENGTH *LEG*, NOT A DIRECT writeFade() — AND THAT ORDERING IS LOAD-BEARING.
-  // transitions.start() ABANDONS the in-flight fade by finalizing every leg the incoming batch does not
-  // re-target (finalizePluginLegs → writeFade(leg.to)). A snap written directly HERE would happen BEFORE
-  // that, so an outgoing fade still animating the same path would land on ITS OWN endpoint a moment later
-  // and OVERWRITE the value we just recalled — the previous scene's audio, held forever, on a GO. Handing
-  // the snap to start() as a durMs-0 leg puts it in the batch's `skip` set instead: the abandoned leg is
-  // left alone and start()'s own zero-duration arm writes our value. One writer, correct order.
+  // An in-flight fade on the same path KEEPS RUNNING until an incoming batch names that path: start()
+  // RE-TARGETS it (the old leg is dropped from its batch) and only then writes the snap. A snap written
+  // directly HERE would happen BEFORE that hand-off, so the still-live leg would overwrite the value we
+  // just recalled on its very next apply() frame — the previous scene's audio, sliding back over ours, on
+  // a GO. Handing the snap to start() as a durMs-0 leg is what puts it on the right side of the re-target.
+  // One writer per path, correct order.
   const applyAudioEntries = (entries: CueEntry[], fadeSec: number, transition?: CueTransition): transitions.FadeLeg[] => {
     const legs: transitions.FadeLeg[] = [];
     // enumerate() rebuilds the whole catalog (it walks the live mix) — do it ONCE per provider per recall,
@@ -775,9 +775,8 @@ const App: React.FC = () => {
     // ⚠ A ZERO-FADE RECALL IS THE COMMON CASE (`fadeSec` defaults to 0) AND IT MUST STILL APPLY ITS AUDIO.
     // It does, because a zero-fade entry is a durMs-0 LEG, not a skipped one: `audioLegs` is non-empty, we
     // take the start() arm, and start()'s own !willAnimate branch writes those legs into the fade layer.
-    // The cancel() arm below is now reached ONLY when the scene binds no audio AND there is no look fade —
-    // exactly as before this shipped. (Routing the snap through start() rather than writing it here is what
-    // keeps it in the batch's `skip` set, so the outgoing fade's abandoned legs cannot overwrite it.)
+    // (Routing the snap through start() rather than writing it here is what puts it on the far side of the
+    // re-target, so a still-live leg on the same path cannot slide back over it — see applyAudioEntries.)
     //
     // ⚠ PLUGIN HEADS ONLY — the same filter applyCues puts in front of this call. `Scene.audio` is written
     // by the ♪ picker, which only ever offers PLUGIN params, so this drops nothing an operator can author.
@@ -788,10 +787,20 @@ const App: React.FC = () => {
     // than conventional.
     const audioLegs = applyAudioEntries(sceneAudioEntries(scene).filter(isPluginHeadEntry), scene.fadeSec ?? 0, 'smooth');
     const lookLegs = (scene.fadeSec && scene.fadeSec > 0) ? collectFadeableTargets(fromView, toView) : [];
+    // ⚠ THE LOOK IS REPLACED WHOLESALE ABOVE, SO EVERY IN-FLIGHT *CORE* LEG IS NOW STALE — it is gliding
+    // toward a value this document no longer holds, and it would paint the OUTGOING scene's crossfade
+    // straight over the look we just committed for the rest of its duration (a 0-fade recall, which has no
+    // lookLegs of its own to re-target them, would be overpainted for seconds). Say so explicitly.
+    //
+    // It is NOT cancel(). cancel() also FINALIZES the plugin legs — it writes `leg.to` into the audio fade
+    // layer — so recalling a look-only scene three seconds into a 20 s music duck used to snap the house
+    // from ~0.95 to 0.3 in ONE FRAME, mid-sentence, and the FSM does exactly that on schedule every night.
+    // A scene that binds no audio expresses NO OPINION about the sound: the duck runs to the same endpoint,
+    // on its own clock, the way it was authored. (cancel() is still right for project open/new/reset —
+    // "this show is over" — and that is now all it is used for.)
+    transitions.dropCoreLegs();
     if (lookLegs.length || audioLegs.length) {
       transitions.start([...lookLegs, ...audioLegs], { fadeSec: scene.fadeSec ?? 0, transition: 'smooth' });
-    } else {
-      transitions.cancel();
     }
     // Per-scene decoupled timelines: warm-swap the engine to this scene's own timeline (or global
     // content) and make this the CURRENT edit target — so "just editing" the timeline attaches here
@@ -964,8 +973,19 @@ const App: React.FC = () => {
     }
     // The opts below are only the BATCH DEFAULTS; every leg above already carries its own fadeSec and
     // transition, so no leg ever actually reads them. (That is already true of the core legs.)
+    //
+    // ⚠ NO `else cancel()`. A CUE PATCHES THE PATHS IT NAMES AND NOTHING ELSE — it does not replace the
+    // look, so it has no business ending a fade it never touched. cancel() FINALIZES every in-flight leg
+    // straight to its endpoint, and a discrete-only cue produces NO legs at all: "swap the effect" is a
+    // perfectly ordinary cue (CueBankPanel captures content.effectId / content.paletteId, neither of them
+    // fadeable, neither of them a number), and firing one three seconds into a 20-second music duck snapped
+    // the house from ~0.95 to 0.3 IN ONE FRAME, mid-sentence, while the running look crossfade jumped to
+    // its endpoint too. In an unattended install the FSM and the scheduler fire these on schedule — so it
+    // happened every night, on cue, with nobody there to hear it.
+    //
+    // There is nothing to fight, either: legs only ever exist on FADEABLE NUMERIC paths, and the paths a
+    // discrete cue commits are not leg paths. A cue that DOES name a faded path re-targets it in start().
     if (legs.length) transitions.start(legs, { fadeSec: cues[0].fadeSec, transition: cues[0].transition });
-    else transitions.cancel();
   };
   const fireCueByRef = (ref: string) => {
     for (const b of cueBanks) {
