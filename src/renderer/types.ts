@@ -510,9 +510,15 @@ export const normalizeTimeline = (t: Partial<Timeline> | null | undefined): Time
     clips,
     trackingTakes: normalizeTrackingTakes(t.trackingTakes),
     markers: normalizeMarkers(t.markers),
-    inPoint: t.inPoint ?? null,
-    outPoint: t.outPoint ?? null,
-    fps: t.fps ?? base.fps,
+    // Guarded like every other number that reaches arithmetic. `??` alone only substitutes null/
+    // undefined, so `{"outPoint": 1e400}` (valid JSON — it overflows to Infinity on parse) or
+    // `{"fps": "abc"}` sailed straight through into Timeline.tsx's `Math.max(dur, outPoint, …)` and
+    // `fmtTimecode(playhead, fps)`, painting the timecode readout as literally "Infinity:NaN:NaN:NaN"
+    // or "NaN:NaN:NaN:NaN" — the very corruption the clip-level guards above exist to prevent, one
+    // line away. finiteNum returns null on failure, which IS the "absent" sentinel for in/out.
+    inPoint: finiteNum(t.inPoint),
+    outPoint: finiteNum(t.outPoint),
+    fps: finiteNum(t.fps) ?? base.fps,
     loop: t.loop ?? false,
     automation: normalizeAutomation(t.automation),
     // BACK-COMPAT (Wave A). `duration` used to be a hint that never bounded playback, so old projects
