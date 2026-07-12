@@ -29,20 +29,29 @@ const subs = new Set<() => void>();
 // clip's current duration for the rest of the session. So a missing url is RETRIED, and only a bounded
 // number of times, so a genuinely unreadable path cannot storm IPC on every render either.
 //
-// ⚠ THE BUDGET MUST BE SPENT IN WALL-CLOCK TIME, NOT IN FRAMES — OR IT REINTRODUCES THE VERY BUG IT
-// EXISTS TO PREVENT. `ensurePeaks` is reached from RENDER (`Wave`) and from EVERY POINTERMOVE OF A DRAG
-// (Timeline.tsx's onAudioDragMove → sourceDurationFor, on any clip with no `sourceDuration` — i.e. every
-// bed clip authored before this wave). `pending` dedupes only while a read is in flight, and each failed
-// read clears it in its `finally` — so a caller firing at 60 Hz simply re-enters on the next frame. Six
-// frames (~100 ms) of one drag would burn the entire budget against a transient concurrent read and
-// `failed.add(path)` PERMANENTLY: flat waveform for the session, `sourceDurationFor` pinned to null, and
-// the right-trim cap pinned to the clip's current duration. Exactly the failure the retry was written to
-// avoid, re-entered through the drag path.
+// ⚠ THE BUDGET MUST BE SPENT IN WALL-CLOCK TIME, NOT IN FRAMES. `ensurePeaks` can be reached from EVERY
+// POINTERMOVE OF A DRAG (Timeline.tsx's onAudioDragMove → sourceDurationFor, on any clip with no
+// `sourceDuration` — i.e. every bed clip authored before this wave). `pending` dedupes only while a read
+// is in flight, and each failed read clears it in its `finally` — so a caller firing at 60 Hz would
+// simply re-enter on the next frame. Six frames (~100 ms) of one drag would burn the entire budget
+// against a transient concurrent read and `failed.add(path)` PERMANENTLY: flat waveform for the session,
+// `sourceDurationFor` pinned to null, and the right-trim cap pinned to the clip's current duration.
+// Exactly the failure the retry was written to avoid, re-entered through the drag path.
 //
-// So a retry serves a COOLDOWN. Six attempts now span ≥ 2.5 s of real time, which a concurrent
-// mediaCache read finishes inside many times over — while a genuinely unreadable path still gives up
-// after six, and still cannot storm IPC (the cooldown check runs before `pending.add`, so the frames in
-// between cost one Map lookup and no IPC at all).
+// So a retry serves a COOLDOWN: six attempts span ≥ 2.5 s of real time, which a concurrent mediaCache
+// read finishes inside many times over — while a genuinely unreadable path still gives up after six, and
+// still cannot storm IPC (the cooldown check runs before `pending.add`, so the frames in between cost one
+// Map lookup and no IPC at all).
+//
+// ⚠ AND THE RETRY MUST DRIVE ITSELF — A COOLDOWN NOBODY WAKES UP IS JUST A PERMANENT FAILURE WITH A
+// FRIENDLY NAME. DO NOT remove the setTimeout below on the theory that "some render will come along and
+// call us again". IT WILL NOT. `Wave` memoizes its call on [path, inPoint, duration, sourceDuration,
+// widthPx, peakTick]; for a clip sitting still NONE of those move, and `peakTick` is bumped by `notify()`,
+// which fires on SUCCESSFUL DECODE ONLY. So after a `!url` arm sets a cooldown, no render recomputes, no
+// tick advances, and nothing re-enters ensurePeaks — the flat waveform and the pinned trim cap would last
+// the whole session (only an unrelated trim/zoom, or a drag, would happen to pump it). The timer makes
+// the retry independent of whether anything renders at all. It is bounded by MAX_ATTEMPTS, so an
+// unreadable path still cannot storm IPC.
 const MAX_ATTEMPTS = 6;
 const RETRY_COOLDOWN_MS = 500;
 
@@ -79,8 +88,12 @@ export function ensurePeaks(path: string): void {
         // Not a failure yet — most likely a concurrent read of the same path (see MAX_ATTEMPTS).
         const n = (attempts.get(path) ?? 0) + 1;
         attempts.set(path, n);
-        if (n >= MAX_ATTEMPTS) failed.add(path);
-        else retryAfter.set(path, Date.now() + RETRY_COOLDOWN_MS);
+        if (n >= MAX_ATTEMPTS) { failed.add(path); return; }
+        // The cooldown blocks re-entry until `due`; THIS TIMER IS THE ONLY THING THAT LIFTS IT AND TRIES
+        // AGAIN (see RETRY_COOLDOWN_MS — no render path will). `retryAfter` is still set, so a 60 Hz drag
+        // caller arriving in the meantime falls through at zero cost instead of racing us.
+        retryAfter.set(path, Date.now() + RETRY_COOLDOWN_MS);
+        setTimeout(() => { retryAfter.delete(path); ensurePeaks(path); }, RETRY_COOLDOWN_MS);
         return;
       }
       const buf = await (await fetch(url)).arrayBuffer();

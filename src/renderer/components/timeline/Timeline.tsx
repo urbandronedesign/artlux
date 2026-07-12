@@ -554,8 +554,20 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     const path = asset.path;
     const start = clientXToTime(e.clientX);
     const name = path.split(/[\\/]/).pop()?.replace(/\.[^.]+$/, '') ?? 'audio';
-    const place = (d: number) => {
-      const clip: AudioClip = { id: crypto.randomUUID(), trackId, name, path, start, duration: d, inPoint: 0, sourceDuration: d, gain: 1, mute: false };
+    // ⚠ `d === null` MEANS "THE PROBE DID NOT LEARN THE SOURCE'S LENGTH" — IT DOES NOT MEAN "THE SOURCE IS
+    // 30 s LONG". So the fallback feeds `duration` (a layout choice: give the clip a body the user can
+    // trim) and NOT `sourceDuration` (a factual claim ABOUT THE FILE, which gets SAVED INTO THE DOCUMENT).
+    // Fabricating one from a failed probe would be the invariant-6 family: persist a value nobody
+    // authored, and lie with it forever. `sourceDuration` is the right-trim cap (onAudioDragMove) and the
+    // waveform's time base (AudioLane's Wave) — write 30 for a 6-minute file and the operator can NEVER
+    // extend that clip past 30 s, in any session, while the native engine happily plays all six minutes,
+    // and the wave is drawn against a source that does not exist. Leaving it ABSENT is what lets the
+    // decode (`sourceDurationFor`) supply the truth later — which matters, because the commonest null
+    // here is not an undecodable .aiff at all, it is the probe LOSING A RACE with a concurrent read of
+    // the same path (ensureBlobUrl returns undefined while another caller is mid-read). That clip
+    // recovers its cap the moment the peaks land; a fabricated 30 never would.
+    const place = (d: number | null) => {
+      const clip: AudioClip = { id: crypto.randomUUID(), trackId, name, path, start, duration: d ?? DEFAULT_AUDIO_DURATION, inPoint: 0, sourceDuration: d ?? undefined, gain: 1, mute: false };
       commitAudioClips(source, [...audioClipsOf(source), clip]);
       setSelected(clip.id); setSelectedSource(source);
       ensurePeaks(path);
@@ -563,7 +575,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     // Core probes the duration with the browser; the native engine loads the file for playback itself
     // (the audio driver's syncLoaded). A source Chromium cannot decode (some .aiff) still gets a clip —
     // a default-length one the user can trim — rather than a drop that silently does nothing.
-    void probeAudioDuration(path).then(d => place(d && d > 0 ? d : DEFAULT_AUDIO_DURATION));
+    void probeAudioDuration(path).then(d => place(d && d > 0 ? d : null));
   };
   // --- tracking takes: record the live blob feed, place takes on a special lane ---
   const hasTrackingLane = layers.some(l => l.kind === 'tracking');
