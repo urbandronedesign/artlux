@@ -37,6 +37,49 @@ transport bar gains **Stop**, **Set In**, **Set Out**, and draggable loop-region
 > now carries a `boundedDuration` marker, so the raise runs at most once per document, on files that
 > predate it).
 
+**Audio scoping — the bed no longer restarts on every scene recall (Wave B).** *One transport, two playheads.*
+
+- **The show clock.** The global audio bed (`ProjectData.audio`) and the global timeline's automation now
+  ride a second derived time, `showTime`, which a scene recall does **not** reset. A five-minute ambient
+  bed plays continuously across every GO while the picture restarts. There is still exactly one transport
+  (one `playing`, one rAF, one `<video>` pool) — see [docs/TIMELINE.md](docs/TIMELINE.md) for the full
+  reset table. **Leaving a scene reconverges**: the playhead snaps to the show clock, so the picture
+  rejoins the bed. (Clicking the scene pill back to Global used to *stop the transport* and kill the bed.)
+- **The global timeline's Length is the SHOW's length.** The bed is bounded by it: with the global Loop on,
+  the bed wraps with the show; **with it off, the bed ends at the global Length and stays silent** until
+  you Stop and Play (or press Play again, or lengthen the timeline). **Set the global Length to cover your
+  show.** ⚠ And note the edit case: **shortening the global Length below where the show has already
+  reached ends the show immediately — the bed hard-cuts and stops.** That is honest ("you just told the
+  show it is 60 s long, and it is now over"), but it is not a no-op, and it happens with **no dialog**.
+- **Audio lanes.** Audio is authored on a timeline lane — drag, trim, blade, snap, waveforms, and **fadeIn /
+  fadeOut corner handles** (which the driver now honours; the two fields have been persisted and silently
+  ignored since Wave 3). The Audio Bed panel's `@ N s` numeric placement field is **removed** — the lane
+  replaces it. **`AudioTrack.solo` is honoured too** (also silently ignored until now).
+- **`Timeline.audio` — every timeline gets its own audio.** Additive, normalize-defaulted. It rides the
+  **playhead** and restarts with its timeline — unlike the bed. The clock follows the *container*, not the
+  ruler the lane is drawn next to.
+- **The Audio Bed panel is now a mixer**: track faders + mute/solo, the master strip, and a clip inspector
+  that follows the timeline selection.
+- **Scenes and cues can recall audio params, with a fade** (`audio.master.gain`, clip/track gains, spatial
+  position, effect params — continuous leaves only). **An automation lane always wins over a scene fade**,
+  and disabling the lane hands the param to the fade, not back to the authored value. A manual fader move
+  is a **takeover** — it releases that path's fade, so the mixer never goes dead after a recall.
+- **Fixed: `Collect Assets` shipped a broken project.** `mapAssetPaths` never visited `data.scenes[]` or
+  `data.audio`, so a file referenced only from a scene or only from the bed was **not copied, not rewritten,
+  and not even reported as missing** — Collect said "copied 12" and the venue machine played nothing.
+- **Fixed: the cue picker could not add an audio param at all** (`captureEntry` bailed on the `undefined`
+  that `getByPath` returns for any `audio.*` path), and `labelForPath` rendered `audio.master.gain` as
+  `fix · gain`.
+
+> ⚠ **FORWARD-COMPAT:** a project saved by this build **will not fully load on an older one.** Scene and
+> audio-bed asset paths are now relativized on save (they were written absolute, baked to the authoring
+> machine); an older build's `resolveAssets` does not visit them and will never make them absolute again —
+> so on an older build those scenes/bed clips resolve to nothing and play silence/black. **No schema
+> version distinguishes the two** — `ProjectData.version` is *written* (`'1.2'`) but **read by nothing**,
+> so there is no guard and no warning: the old build just opens the file and quietly comes up short.
+> Back up before downgrading. Backward-compat is unaffected: old projects load exactly as they do today
+> (absolute paths still resolve) and are converted on the first save.
+
 ## v0.21.0
 
 - **New: In-app Docs & Tutorials browser + illustrated example tutorials (`src/main/docs.ts`, `src/renderer/components/DocsBrowser.tsx`).** A **Help ▸ Docs & Tutorials** viewer — a dockable right-side panel that **detaches into its own window** — renders the shipped example/tutorial sets and the **illustrated user guide** as in-app markdown, with sibling **images loaded inline** (a main-side reader hands the sandboxed renderer image bytes over a traversal-guarded IPC, which wraps them in blob URLs) and **"open example"** links that load the `.artlux` straight into the editor. Bundled into packaged builds via `extraResources` (examples + user guide). Ships two openable **tutorial courses** — **LiDAR blob tracking** (feed → calibrate → replay, driven by a bundled synthetic emitter, no hardware) and the **state machine** (looping show → triggers → interactive installation) — each now illustrated with **self-contained SVG diagrams** (state graph, hub-and-spoke, tracking zones, merge-people). Adds new reference docs (**STATE-MACHINE, EFFECTS, CODECS, SPOUT**) and a **`plans/`** folder of implementation plans (incl. the native audio engine) with a dev-sequencing guide. `tsc` + `npm run build` clean; all 23 doc image references validated (resolve + read), docs-scan + traversal guard exercised, in-app visual test confirmed.

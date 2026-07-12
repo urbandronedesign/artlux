@@ -64,8 +64,33 @@ There is **no** keyframe/envelope system today (verified: zero hits for automati
 - A **playhead-subscribed audio driver** (the [trackingPlayback.ts](../plugins/lidar-tracking/src/trackingPlayback.ts) precedent) `timeline.subscribe(playhead)` schedules clip starts/gains and pushes automation segments to the engine over the `plugin:<ch>` bridge; a meter subscription drives level UI. Barrel-only imports + `"sideEffects": false` (singleton hazard, CLAUDE.md:164).
 
 ### WS6 · Scene / state binding (reuse existing machinery)
-- Extend the dot-path model for an `audio.*` namespace: add handling to `getByPath`/`setByPath` ([paramPath.ts:45-96](../src/renderer/services/paramPath.ts#L45)), an `AUDIO_FADEABLE` leaf set + `isFadeablePath` coverage, an `audioParams()` enumerator for the cue picker, and an audio slice on `StateView` ([paramPath.ts:15-19](../src/renderer/services/paramPath.ts#L15)) threaded through its construction sites ([App.tsx:581-582,702-703](../src/renderer/App.tsx#L581), [Stage.tsx:270](../src/renderer/components/Stage.tsx#L270)).
-- Per-frame apply of audio param fades at the existing hook ([Stage.tsx:263-274](../src/renderer/components/Stage.tsx#L263)) → push to the engine. Scene/state recall then works with **no new recall plumbing** (state entry → `recallScene` → `transitions.start` → `Stage.transitions.sample`). **Global bed** clips live on `ProjectData.audio` (survive swaps); **per-scene** clips ride the scene timeline (restart-on-swap semantics, docs/SCENE-TIMELINES.md:102-107).
+
+> ⚠ **CORRECTED IN PLACE (Wave B, 2026-07-12) — this section was wrong, and the two bullets below are kept
+> only so the correction has something to point at.** P5 shipped as
+> [2026-07-12-audio-scoping-wave-b.md](../docs/superpowers/plans/2026-07-12-audio-scoping-wave-b.md),
+> Tasks 9–10. What it actually took is in the two struck-through bullets' footnotes.
+
+- ~~Extend the dot-path model for an `audio.*` namespace: add handling to `getByPath`/`setByPath`, … and an audio slice on `StateView` threaded through its construction sites.~~ — **NOT WHAT SHIPPED.** `getByPath`/`setByPath` were **not** extended and `StateView` was **not** widened: audio is not in `StateView` and never will be (widening it means touching 9 construction sites and adding two per-frame allocations in `Stage`'s tick). Audio reads/writes go through the **automation-target registry** instead. What was needed: one head-aware `pathLeaf()` helper (the old grammar was hardwired to `<head>.<id>.<leaf>` via `slice(2)` — an audio path is one segment deeper), an `AUDIO_FADEABLE_RE` leaf set + an `isFadeablePath` audio arm, and a registry-driven cue picker.
+- ~~Per-frame apply of audio param fades at the existing hook (Stage.tsx:263-274)~~ — **THERE IS NO AUDIO SINK IN `Stage`'s `tick()`.** The `eff*` values it computes feed only the LED mapper and the composite. The real sink is the **audio driver's own `eff`/`effGain` pull-through** in `plugins/audio/src/plugin.renderer.ts`, which reads a layered `lane-override ?? scene-fade ?? authored` value every frame.
+- ~~Scene/state recall then works with **no new recall plumbing**~~ — **CORRECTED (Wave B, 2026-07-12).** The
+  *recall* plumbing is reusable; the **param model was not extensible.** `paramPath.ts` had **zero**
+  occurrences of "audio"; `isFadeablePath`/`getByPath`/`setByPath` are hardcoded head switches whose whole
+  grammar is `<head>.<id>.<leaf>` via `slice(2)`; `StateView` is a closed 3-field interface not exported
+  from `@artlux/sdk`; `transitions.ts` is typed on `StateView` end-to-end; and there is **no
+  `paramPathRegistry`**. Worse, `automationOverlay.owns()` — the rule that makes "a lane always wins over a
+  scene fade" true — is a **core-only** map, so it could never see that an audio lane owned
+  `audio.master.gain`, and `setByPath` on an `audio.*` path was a **silent no-op**.
+  P5 therefore required: a head-aware `pathLeaf`, an `AUDIO_FADEABLE` leaf set, a registry-driven cue
+  picker, `writeFade` / `releaseFade` / `releaseAllFades` / `getLive` on the SDK's
+  `AutomationTargetProvider`, a **second override layer** in the audio plugin read *under* the automation
+  one, a `FadeLeg.log` flag (the fade engine interpolated linearly over log-curve params like `cutoff`),
+  and `Scene.audio?: CueEntry[]` + a `CaptureTarget` interface so the picker could commit to a **scene**
+  and not only to the selected cue. See
+  [2026-07-12-audio-scoping-wave-b.md](../docs/superpowers/plans/2026-07-12-audio-scoping-wave-b.md), Tasks 9–10.
+- **Global bed** clips live on `ProjectData.audio`. ~~They survive swaps~~ — **they survive swaps *and no
+  longer restart*: they ride the new SHOW CLOCK** (`showTime`), which a scene recall does not reset. **Per-scene**
+  clips are `Timeline.audio` and ride the **playhead**, restarting with their timeline. *The clock follows the
+  container.* See [docs/TIMELINE.md](../docs/TIMELINE.md#the-show-clock-wave-b--one-transport-two-playheads).
 
 ### WS7 · Spatialisation UI (plugin modal panel, + optional stage overlay)
 - A `mount:'modal'` panel (`ctx.panels.register`, mounted at [App.tsx:1930-1932](../src/renderer/App.tsx#L1930)) with a 2D/3D positioner per source, ambisonic-order selector, per-bus sends, and HRTF/speaker-layout picker. Positions are automatable (WS3) and fadeable (WS6).

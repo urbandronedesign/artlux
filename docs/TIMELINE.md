@@ -37,13 +37,16 @@ src/renderer/components/timeline/
   BlobSparkline.tsx    per-clip blob-density signature for tracking-take clips (v0.14.0)
   StateLane.tsx        always-present control lane: live state, manual-trigger buttons, time markers
   StateGraphEditor.tsx modal node-graph editor: states (draggable), transitions, entry actions/triggers
-  geometry.ts          layout constants (+ SM_LANE_H, PAGE_SECS) + px<->sec + timecode helpers
-  operations.ts        PURE clip-array ops: split, blade, rippleDelete, liftDelete, rippleTrim
+  AudioLane.tsx        one audio track's lane (Timeline.audio): clips, waveform, drag/trim/blade, fade handles, gutter
+  audioPeaks.ts        cached waveform peaks (decodeAudioData) — path-keyed + deduped, never on the rAF path
+  geometry.ts          layout constants (+ SM_LANE_H, AUDIO_LANE_H, PAGE_SECS) + px<->sec + timecode helpers
+  operations.ts        PURE clip ops: split, blade, rippleDelete, liftDelete, rippleTrim (generic over video + audio clips)
   snapping.ts          PURE: collect snap points + nearest-within-threshold
   hooks/useTimelineKeys.ts  keyboard shortcuts scoped to the panel
 
 src/renderer/services/
-  timeline.ts          the playback engine (bounded clock: loops or stops at Length + per-track decode + transport intents + per-scene pools)
+  timeline.ts          the playback engine (bounded clock + THE SHOW CLOCK: loops or stops at Length + per-track decode + transport intents + per-scene pools)
+  selection.ts         render-free timeline-selection channel (ephemeral; published to plugin panels)
   timelinePreloader.ts tiered residency (ACTIVE/WARM/COLD) so per-scene timeline swaps stay hitless — see SCENE-TIMELINES.md
   stateMachine.ts      PURE-ish FSM runtime: tick/triggerManual/subscribeState, emits TransportIntents
   thumbnailCache.ts    async LRU thumbnail extraction, isolated from playback
@@ -67,7 +70,12 @@ SmTrigger   { kind: manual|afterDelay|atTime|onMarker|onClipEnd|onTimelineEnd, s
 SmState     { id, name, x, y, entry: SmAction[] }
 SmTransition{ id, from, to, trigger: SmTrigger }
 StateMachine{ enabled, states[], transitions[], initialStateId }
-Timeline    { layers, clips, duration, fps?, markers?, inPoint?, outPoint?, loop?, stateMachine? }
+AudioClip   { id, trackId, name, path, start, duration, inPoint, sourceDuration?, gain?, mute?,
+              fadeIn?, fadeOut?, position?, effects? }
+AudioTrack  { id, name, busId?, gain?, mute?, solo?, height?, color? }
+TimelineAudio { tracks: AudioTrack[], clips: AudioClip[] }
+Timeline    { layers, clips, duration, fps?, markers?, inPoint?, outPoint?, loop?, trackingTakes?,
+              automation?, audio?, boundedDuration?, stateMachine? /* @deprecated → ProjectData */ }
 ```
 
 - `VideoClip.inPoint` is the **source trim** (offset into the file). `Timeline.inPoint/outPoint` is a
@@ -107,6 +115,12 @@ Timeline    { layers, clips, duration, fps?, markers?, inPoint?, outPoint?, loop
 - **Ephemeral vs persisted.** Tool mode, snapping toggle, selection, zoom, hover, and the live drag
   draft are **component state** — they must not enter `Timeline` (it broadcasts to the Scene/projector
   on every change and dirties the project). Only data fields persist.
+- **Selection is ephemeral, and stays ephemeral even though a plugin can read it.** The clip selection is
+  *mirrored* into a render-free singleton (`services/selection.ts` — `set`/`get`/`subscribe`, the
+  `automationOverlay` idiom) and published to plugin panels as `host.show.getSelection()` /
+  `subscribeSelection()`, which is how the audio mixer's clip inspector follows the timeline. It is a
+  **channel, not a store**: nothing persists it, and it must never enter the `Timeline` type. (That
+  indirection is exactly *why* it can be published without dirtying the project.)
 - **Perf (whole-tree re-render, no app-wide memo).** `ClipBlock` and `TrackHeader` are `React.memo`'d
   and receive **stable** `useCallback` handlers that read live values from refs. Clip move/trim uses a
   local `setDraft` (not `onChange`) so the engine isn't re-warmed (`setData`) mid-drag; it commits once
@@ -142,6 +156,115 @@ Timeline    { layers, clips, duration, fps?, markers?, inPoint?, outPoint?, loop
   fullscreen overlay. The timeline renders in **exactly one** place at a time (dock XOR overlay) so its
   key hook and engine subscription are never doubled.
 
+## The show clock (Wave B) — one transport, two playheads
+
+The transport carries **two derived times**. There is still exactly **one** running transport — one
+`playing` flag, one rAF loop, one `<video>` pool (see [SCENE-TIMELINES.md](SCENE-TIMELINES.md)); what is
+new is a second *time value* riding the same clock, because a scene recall must restart the picture
+**without restarting the music**.
+
+| | `playhead` — the SCENE clock | `showTime` — the SHOW clock |
+|---|---|---|
+| drives | the BOUND timeline's video, its own `Timeline.audio`, its automation lanes, the state machine | the global audio bed (`ProjectData.audio`) and the GLOBAL timeline's automation (the base layer) |
+| bounded by | the BOUND doc's `[timelineStart, timelineEnd)` | the GLOBAL doc's `[timelineStart, timelineEnd)` |
+| on a scene recall | **RESETS** to the scene's in-point | **NEVER RESETS** — the bed plays on |
+| on exit to Global | **RECONVERGES**: `playhead := showTime` | unchanged |
+| on a seek | always moves | only while the **global document** is bound |
+| anchor | `originMs` | `showOriginMs` |
+| read by | `subscribe(playhead)`, `getStatus().playhead` | `getShowTime()`, `getStatus().showTime` |
+
+Both are **derived** — `(now − anchor) / 1000`, never accumulated — so every branch that *moves* a clock
+must re-anchor its own origin. (`showTime` has no `prevShowTime` to re-baseline, because nothing
+crossing-detects on it: `fsm.tick()` runs on `playhead` alone, deliberately.)
+
+### The three rules
+
+1. **The reset policy cannot live in `mainSeek`.** `mainSeek` is reached from five semantically distinct
+   events (Stop, a user seek, a scene recall, play-from-the-parked-end, project open) and the policy
+   discriminates among them. Instead the engine maintains the **identity** (`isGlobalDocBound()` ⇒ the show
+   clock tracks the playhead) inside `seek()` and `setPlaying()`, and *every other* move is an explicit
+   `showSeek()` from a named call site or an explicit `swap()` option.
+2. **The show clock is silent.** It emits **no** `TransportIntent` and pulses **no** `hitEnd` — it only
+   wraps or parks. Firing `onTimelineEnd` from the bed looping would advance the state machine behind the
+   operator's back. "Silent" is not "invisible": the park is published on `getStatus().showEnded`, because
+   a consumer riding a **frozen** clock has to know it is frozen (the audio driver stops the bed on it —
+   reconciling a live driver against a frozen clock does not go silent, it *buzzes*).
+3. **`isGlobalDocBound()` is the only representation of "the global doc is bound"** — and it is
+   `activeKey === GLOBAL_POOL || data === globalDoc` (`timeline.ts:354`), **not** just the pool key. A scene
+   with **no timeline of its own** plays the GLOBAL document under its own pool key, and there the ruler
+   being scrubbed *is* the global timeline and `data.automation` *is* the base layer. Ask the **document**,
+   not the key.
+
+### The two audio containers — the clock follows the CONTAINER
+
+| | `ProjectData.audio` — **THE BED** | `Timeline.audio` — **this doc's audio** |
+|---|---|---|
+| one per | project | timeline (the global one *and* every scene's) |
+| rides | **`showTime`** | **the `playhead`** |
+| on a scene recall | **never restarts** | restarts with its timeline |
+| authored on | the Audio Bed panel's lane + the mixer | that timeline's audio lanes |
+
+The clock follows the **container**, never the timeline the lane happens to be drawn next to. A bed clip
+drawn on the global timeline's ruler still rides `showTime`; the global timeline's *own* `Timeline.audio`
+rides the playhead and restarts whenever the global timeline does. A show can legitimately use both.
+
+**The global timeline's Length is the SHOW's length**, and the bed lives inside it:
+
+- **Global Loop ON** → `showTime` wraps `[globalStart, globalEnd)` and **the bed restarts with it**. That
+  backward jump is read by the audio driver as a seek and hard-resyncs the bed — which is *correct*: the
+  show looped. (A **scene's** loop wrap no longer touches the bed at all — that was the bug.)
+- **Global Loop OFF** → `showTime` **parks** at `globalEnd − 1/fps`, `showEnded` goes true, and **the bed
+  stops**. It stays stopped until Stop→Play, a `play` intent, or a longer global Length. Set the global
+  Length to cover your show.
+
+**An audio clip does NOT extend `Length`.** `normalizeTimeline`'s one-shot duration raise is
+**video-only** (raising it for audio would re-break the "deliberately short Length" rule Wave A's
+`boundedDuration` marker exists to protect). The affordance is instead the **overrun badge** on the ruler
+— "content past the end" — with a one-click **Length → content end** fix. It counts video *and* audio
+clips.
+
+### THE SHOW-CLOCK RESET TABLE
+
+`G` ≡ `isGlobalDocBound()`. `globalStart` / `globalEnd` ≡ `timelineStart(globalDoc)` / `timelineEnd(globalDoc)`.
+**This is the specification** — the next person to touch `mainSeek`, `swap` or `frame()` needs all of it.
+
+| # | Transport event | `playhead` | `showTime` | Enforced by |
+|---|---|---|---|---|
+| 1 | **Stop** (`{kind:'stop'}`) | → the **BOUND** doc's start | **RESET to `globalStart`** — `getStart()` is the *bound* doc's start, and while a scene is bound that number means nothing to the bed | an explicit `showSeek(getGlobalStart())` in App's `stop` intent handler |
+| 2 | **Seek while the GLOBAL DOC is bound** (ruler scrub, `seekTo`, automation-lane click, Home/End, OSC, `host.show.transport`) | jumps | **MOVES to the same value** (the identity) | inside `seek()`: `if (!external && isGlobalDocBound()) showSeekInternal(clamped)` |
+| 3 | **Seek while a SCENE'S OWN timeline is bound** | jumps | **DOES NOT MOVE** | the same `if` — it simply does not fire |
+| 4 | **Scene recall / GO / cueBus / FSM hop / `enterAuthor` / `fireColumn`** | → the scene's in-point | **NEVER RESET** — *the defining requirement* | `swap`'s default `showClock:'preserve'`; `mainSeek` never touches `showOriginMs` |
+| 5 | **Exit to Global** (pill → Global) | **RECONVERGES: `playhead := showTime`** | does not move | `swap(..., {transport:'reconverge'})`. Normally `showTime` is inside `[globalStart, globalEnd)` ⇒ nothing to clamp, **no `pause`**. ⚠ **Exception:** a **parked** show clock is at `globalEnd − 1/fps`, one frame inside the end, and `mainSeek` *clears* `endLatched` — so the raw end-stop would pulse `hitEnd` two frames later and fire `onTimelineEnd` **from a mouse click**. The arm therefore re-applies the latch: `endLatched = true` + a `pause` intent, **without pulsing `hitEnd`** |
+| 6 | **Scene deleted while bound** | as row 5 | as row 5 | `'reconverge'` |
+| 7 | **Loop wrap of the BOUND (scene) timeline** | wraps to the scene's `timelineStart` | **DOES NOT MOVE** — *the scene restarts, the bed rolls on* | the bound doc's wrap touches only `originMs` / `prevPlayhead` |
+| 8 | **Loop wrap of the GLOBAL region** (`globalDoc.loop === true`) | unaffected (unless `G`, where it *is* the same wrap) | **WRAPS over `[globalStart, globalEnd)`**, re-anchoring `showOriginMs` | the show-clock branch in `frame()`. The driver reads the backward jump as a seek and restarts the bed — **correct: the show looped** |
+| 9 | **End-stop of the GLOBAL region** (`globalDoc.loop === false`) | unaffected (unless `G`) | **PARKS at `globalEnd − 1/fps`**, and **`showEnded` goes TRUE** | the show-clock branch. **No intent, no `hitEnd`** — but the park is *published*, and the audio driver **stops the bed and skips `reconcile()`** on it. `playing` is no signal here: a scene looping underneath keeps it true |
+| 10 | **End-stop of the BOUND (scene) timeline** (loop off) | parks on the last frame | **FREEZES — but only if the `pause` actually lands.** If the FSM re-armed the clock in the same tick the pause is swallowed, `playing` stays true, and the bed rolls on: **an auto-advancing show never freezes its bed** | falls out of the existing end-stop latch — no new mechanism |
+| 11 | **Document edit of the BOUND doc** (Length lowered, `O` at the playhead, fps changed) | conditionally jumps + emits `pause` | **DOES NOT MOVE** | `clampPlayheadIntoDoc` never touches `showOriginMs` |
+| 11b | **Document edit of the GLOBAL doc while a SCENE is bound** (`setData`'s guard does *not* run — `activeTimeline` is the scene's) | unaffected | **RE-ANCHORED INTO THE NEW REGION, SILENTLY** — no intent, no pulse, no phantom recall. ⚠ **But it is audible:** dropping the global Length 300 → 60 while `showTime` is at 300 **is** a −240 s move — the driver reads it as a seek and **the bed hard-cuts**; if the new region has already ended it *stops* (row 9) | `setGlobalDoc` re-anchors into `[globalStart, globalEnd)` in the same call, deterministically, and **never synthesises a transport event** |
+| 12 | **Play from the parked end** | restarts the bound doc | **restarts the SHOW clock iff `showAtEndBound()`** | `setPlaying(true)` **and** App's `play` intent handler — **both**. A `play` arriving while `playing` is already true never reaches `setPlaying()`, and an FSM hopping between *looping* scenes keeps `playing` true forever; without the second site a show that ran out its global Length has a **permanently dead bed** and nothing says so |
+| 13 | **Underrun** (Play at 0 on a doc whose in-point is 5 s) | jumps *forward* to the **BOUND** doc's in-point | its **own** underrun test, against `globalStart` — **a scene's in-point cannot drag the show clock** | a parallel `if (s < ga)` branch in the show clock |
+| 14 | **Pause / resume** | frozen / seamless | **identical treatment on `showOriginMs`** — the paused hold runs every frame and is what keeps the anchor live | ⚠ `setPlaying` early-returns when unchanged: never put show-clock logic where that guard can skip it |
+| 15 | **Project open** | resets | **RESET to `globalStart`** | `applyProjectData` passes `{transport:'restart', showClock:'reset'}` (rows 4/15/16 all reach `swap(..., 'restart')` and cannot be told apart *inside* `swap` — the caller says which it is) |
+| 16 | **`handleCreateState`** | resets | **NEVER RESET** — a recall-shaped event: you drop into author mode on a new state and the bed keeps playing | `swap`'s default `showClock:'preserve'` ⇒ the call site does not change |
+| 17 | **Mirror-window slew / snap** (projector) | slews / snaps | **NOT COMPUTED AT ALL** | one `if (!external)` around the whole show-clock block (**not** `!external \|\| hapLocal`). Nothing show-clock-driven renders in a projector: the audio driver early-returns for non-main windows and the bridge streams only `{playing, playhead}` |
+| 18 | **`start()`** | init | init `showOriginMs` alongside `originMs` | mind the `if (!raf)` guard |
+| 19 | **The `loop` intent** (an FSM `setLoop` entry action, or the Loop button) | unaffected | **does not move — but it flips the show clock between row 8 (WRAP: the bed restarts every lap) and row 9 (PARK: the bed stops)** | falls out of the `setGlobalDoc` push. `globalDoc.loop` is a **live input** to the show clock, and an unattended FSM can reach it |
+| 20 | **New Project** | unchanged (pre-existing) | **RESET to `globalStart`** — the show clock must not keep running into a project that no longer exists | one `showSeek(getGlobalStart())` in `resetToNewProject` |
+
+Rationale for every row (and the design calls behind it) lives in
+[`docs/superpowers/plans/2026-07-12-audio-scoping-wave-b.md`](superpowers/plans/2026-07-12-audio-scoping-wave-b.md), Task 2.
+
+### Engine API (`services/timeline.ts`)
+
+| Method | Purpose |
+|---|---|
+| `setGlobalDoc(t)` | App pushes the **global** timeline (the engine's `data` is always the *bound* doc). Also re-anchors `showTime` into the new `[start, end)` — silently (row 11b). |
+| `getShowTime()` | the show clock, in seconds. Always `0` in a mirror window. |
+| `getGlobalStart()` / `getGlobalEnd()` | the show's playable range. |
+| `isShowAtEndBound()` | the show clock is **parked** at the global end (loop off). A driver reconciling against `showTime` **must** check this. |
+| `showSeek(sec)` | move the show clock explicitly (Stop, project open, New Project). No-op when `external`. |
+
 ## State-machine control layer (v0.12.0)
 
 An always-present FSM (`Timeline.stateMachine`, kept outside `layers[]`/`clips[]` so video logic is
@@ -171,6 +294,11 @@ the toolbar.
 ## Interactions
 
 - **Drop** a video file onto a lane to create a clip at that time.
+- **Audio lanes** (`Timeline.audio`) behave like clip lanes: drop an audio file to place a clip, drag to
+  move, drag an edge to trim, blade to split, snap to the same guides — plus **fadeIn / fadeOut corner
+  handles** (drag the top corners of a clip) and a waveform. A clip past the **Length** raises the ruler's
+  **overrun badge** (audio never extends Length by itself); one click sets Length to the content end.
+  Selecting a clip drives the Audio Bed panel's clip inspector.
 - **Select tool (V):** drag a clip body to move; drag its left/right edge to trim. Magnetic snapping
   (toggle **S/N**) aligns to clip edges, the playhead, markers, the in/out range and track start, with
   a live guide.

@@ -57,9 +57,9 @@ Seven plans have landed on `main` and moved to [`archive/`](archive/). Full per-
 | [Projector blend preview + phase-lock](projector-blend-preview.md) | #5 Hello Projector | **Hybrid** | 🟡 Med | held (loosely gated on webgl-strict) |
 | [WebGL strict per-surface sampling](webgl-strict-per-surface-sampling.md) | #1 Composite Stage | **Core** | 🟡 Med | **Phase 1 shipped** (banner + force-WebGL + GPU settings); **Phase 2 deferred — open GitHub decision issue** |
 | [MIDI controller support](midi-control.md) | (net-new) | **Plugin** | 🟡 Med | not started (Draft) |
-| [Native audio engine](audio-engine.md) | (net-new, Wave 3) | **Hybrid** | 🔴 High | **P0–P4 shipped** on `wave-3-audio` (bed, spatial, FX, automation); **P5 superseded** by the transport plan below; P6 last |
-| [Timeline transport + global/scene scoping + audio scene binding](timeline-transport-and-audio-scoping.md) | (net-new, Wave 3) | **Hybrid** | 🟠 Med-High | **Wave A shipped + live-tested 2026-07-12**; **Wave B next**, after asset-paths |
-| [Asset paths: scenes + audio bed](asset-paths-scenes-and-audio.md) | #9 Pack & Hand Off | **Core** | 🟠 Med | **Next up** — **Collect Assets ships a broken folder**; a **hard prerequisite for Wave B**, which adds `Timeline.audio` to every timeline ([SEQUENCING](SEQUENCING.md#dependency-graph-the-hard-land-after-edges)) |
+| [Native audio engine](audio-engine.md) | (net-new, Wave 3) | **Hybrid** | 🔴 High | **P0–P4 shipped** on `wave-3-audio` (bed, spatial, FX, automation); **P5 shipped as Wave B** (its §WS6 was **wrong** and is corrected in place); P6 last |
+| [Timeline transport + global/scene scoping + audio scene binding](timeline-transport-and-audio-scoping.md) | (net-new, Wave 3) | **Hybrid** | 🟠 Med-High | **Wave A shipped + live-tested 2026-07-12**; **Wave B landed on `wave-3-audio` 2026-07-12** — the show clock, audio lanes, the mixer, audio on scenes/cues. **Live smoke test pending**; not merged. Execution plan: **[2026-07-12-audio-scoping-wave-b.md](../docs/superpowers/plans/2026-07-12-audio-scoping-wave-b.md)** |
+| [Asset paths: scenes + audio bed](asset-paths-scenes-and-audio.md) | #9 Pack & Hand Off | **Core** | 🟠 Med | **Shipped** as Wave B Task 1 (`mapAssetPaths` → per-container visitors over the top level, **every scene**, and the bed). ⚠ It makes a saved project **forward-incompatible** with older builds — see [CHANGELOG](../CHANGELOG.md) |
 
 ## Net-new subsystems (beyond limitation-lifts)
 
@@ -74,9 +74,16 @@ shipped in v0.21.0.)
 ## Sequencing
 
 Build order + git workflow live in **[SEQUENCING.md](SEQUENCING.md)** — the canonical source. Waves 0–2 are
-merged. **Wave 3 (audio) is in flight on `wave-3-audio` and is not merged:** P0–P4 and the transport plan's
-Wave A are on the branch (Wave A live-tested 2026-07-12); **asset-paths → Wave B → P6** remain, in that order.
-The webgl-strict **Phase 2** decision still gates content-source-region + projector-blend.
+merged. **Wave 3 (audio) is in flight on `wave-3-audio` and is not merged:** P0–P4, the transport plan's
+Wave A (live-tested 2026-07-12), asset-paths, and **Wave B — audio scoping, the show clock** (landed
+2026-07-12, live smoke test pending) are on the branch. **P6 remains.** The webgl-strict **Phase 2**
+decision still gates content-source-region + projector-blend.
+
+> **Wave B introduced a new engine invariant — *one transport, two playheads*.** The transport carries a
+> second derived time (`showTime`, the SHOW clock) that a scene recall does **not** reset, so the audio bed
+> plays through a GO while the picture restarts. The full reset table (every transport event × both clocks)
+> is in **[docs/TIMELINE.md](../docs/TIMELINE.md#the-show-clock-wave-b--one-transport-two-playheads)**; read
+> it before touching `mainSeek`, `swap()` or `frame()`.
 
 ## Cross-cutting hazards (every implementer must respect these)
 
