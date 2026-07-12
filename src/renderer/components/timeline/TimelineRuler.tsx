@@ -14,6 +14,11 @@ interface Props {
   onMarkerSeek: (time: number) => void;
   onMarkerDelete: (id: string) => void;
   onMarkerNote: (id: string, note: string) => void;
+  // Region-handle grab. Deliberately just a pointerdown forward — Timeline.tsx owns the whole drag
+  // (window listeners, snapping, draft state, commit-on-up), same as onSeekDown above. The ruler
+  // itself carries no time math beyond px→sec for layout and stays pure props-in.
+  onMoveInDown: (e: React.PointerEvent) => void;
+  onMoveOutDown: (e: React.PointerEvent) => void;
 }
 
 const shortTc = (t: number, fps: number) => {
@@ -21,7 +26,7 @@ const shortTc = (t: number, fps: number) => {
   return s.startsWith('00:') ? s.slice(3) : s;
 };
 
-export const TimelineRuler: React.FC<Props> = ({ pxPerSec, width, height, fps, markers, inPoint, outPoint, onSeekDown, onMarkerSeek, onMarkerDelete, onMarkerNote }) => {
+export const TimelineRuler: React.FC<Props> = ({ pxPerSec, width, height, fps, markers, inPoint, outPoint, onSeekDown, onMarkerSeek, onMarkerDelete, onMarkerNote, onMoveInDown, onMoveOutDown }) => {
   const [editing, setEditing] = useState<{ id: string; note: string } | null>(null);
   const step = chooseTickStep(pxPerSec);
   const ticks: number[] = [];
@@ -34,8 +39,21 @@ export const TimelineRuler: React.FC<Props> = ({ pxPerSec, width, height, fps, m
       {inPoint != null && outPoint != null && outPoint > inPoint && (
         <div className="absolute top-0 bottom-0 bg-accent/15 border-x border-accent/60 pointer-events-none" style={{ left: inPoint * pxPerSec, width: (outPoint - inPoint) * pxPerSec }} />
       )}
-      {inPoint != null && <div className="absolute top-0 bottom-0 w-0.5 bg-accent pointer-events-none" style={{ left: inPoint * pxPerSec }} title="In" />}
-      {outPoint != null && <div className="absolute top-0 bottom-0 w-0.5 bg-accent pointer-events-none" style={{ left: outPoint * pxPerSec }} title="Out" />}
+      {/* handles: 8px hit area (w-2 -ml-1), the line itself stays 2px — a 2px target is unusable */}
+      {inPoint != null && (
+        <div onPointerDown={onMoveInDown} title="In — drag to move"
+          className="absolute top-0 bottom-0 w-2 -ml-1 cursor-ew-resize z-10 flex justify-center group"
+          style={{ left: inPoint * pxPerSec }}>
+          <div className="w-0.5 h-full bg-accent group-hover:w-1 transition-[width]" />
+        </div>
+      )}
+      {outPoint != null && (
+        <div onPointerDown={onMoveOutDown} title="Out — drag to move"
+          className="absolute top-0 bottom-0 w-2 -ml-1 cursor-ew-resize z-10 flex justify-center group"
+          style={{ left: outPoint * pxPerSec }}>
+          <div className="w-0.5 h-full bg-accent group-hover:w-1 transition-[width]" />
+        </div>
+      )}
 
       {ticks.map((t, i) => (
         <div key={i} className="absolute top-0 bottom-0 border-l border-line-1/60 pointer-events-none" style={{ left: t * pxPerSec }}>

@@ -70,6 +70,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [draft, setDraft] = useState<VideoClip | null>(null);
   const [resizeDraft, setResizeDraft] = useState<{ id: string; height: number } | null>(null);
+  const [regionDrag, setRegionDrag] = useState<{ edge: 'in' | 'out'; t: number } | null>(null); // loop-region handle drag (draft; commits once on pointerup)
   const [pages, setPages] = useState(0); // infinite-timeline growth: content spans (pages+1) PAGE_SECS at least
   const [smEditorOpen, setSmEditorOpen] = useState(false);
 
@@ -99,6 +100,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   const fpsRef = useRef(fps); fpsRef.current = fps;
   const snapRefEnabled = useRef(snapEnabled); snapRefEnabled.current = snapEnabled;
   const draftRef = useRef<VideoClip | null>(null); draftRef.current = draft;
+  const regionDragRef = useRef<{ edge: 'in' | 'out'; t: number } | null>(null); regionDragRef.current = regionDrag;
   const timelineRef = useRef(timeline); timelineRef.current = timeline;
   const onChangeRef = useRef(onChange); onChangeRef.current = onChange;
   const hoverRef = useRef(false);
@@ -331,6 +333,42 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   const addMarker = () => onChange({ ...timeline, markers: [...(timeline.markers ?? []), { id: crypto.randomUUID(), time: engine.getPlayhead(), color: '#f5a623' }] });
   const setIn = () => { const t = engine.getPlayhead(); const out = timeline.outPoint != null && timeline.outPoint <= t ? null : timeline.outPoint ?? null; onChange({ ...timeline, inPoint: t, outPoint: out }); };
   const setOut = () => { const t = engine.getPlayhead(); const inp = timeline.inPoint != null && timeline.inPoint >= t ? null : timeline.inPoint ?? null; onChange({ ...timeline, inPoint: inp, outPoint: t }); };
+  // Region handles (ruler drag). Snapped like everything else, and kept ordered: an in past the out
+  // (or vice versa) would make timelineEnd() ignore the region — clamp instead of relying on that.
+  // The loop region is now LIVE (the clock wraps over it), and onChange is not cheap here: it re-enters
+  // App → setScenes/setTimeline → engine.setData → warmMedia/pruneStaleLayers/compileAutomation (see
+  // services/timeline.ts setData). Committing that per pointermove would be brutal, so — same as
+  // ClipBlock and AutomationLane — the drag holds a local draft (regionDrag) and commits ONCE on
+  // pointerup. clientXToTime (not a fresh rect capture) is reused for the px→time conversion: it
+  // already accounts for GUTTER and scrollLeft, and re-measures on every call, so it stays correct
+  // even if the panel is scrolled mid-drag.
+  const regionCandidate = (edge: 'in' | 'out', raw: number) => {
+    const s = snap(raw, collectSnapPoints(timelineRef.current, engine.getPlayhead()), 8 / pxRef.current).t;
+    const tl = timelineRef.current;
+    if (edge === 'in') {
+      const out = tl.outPoint;
+      return clamp(s, 0, out != null ? out - 0.05 : Number.MAX_SAFE_INTEGER);
+    }
+    const inp = tl.inPoint ?? 0;
+    return Math.max(s, inp + 0.05);
+  };
+  const startRegionDrag = (edge: 'in' | 'out') => (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    e.stopPropagation(); // don't also scrub the playhead — the ruler root has onPointerDown={startSeekDrag}
+    e.preventDefault();
+    const move = (ev: PointerEvent) => setRegionDrag({ edge, t: regionCandidate(edge, clientXToTime(ev.clientX)) });
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      const d = regionDragRef.current;
+      setRegionDrag(null);
+      if (d) onChangeRef.current(d.edge === 'in' ? { ...timelineRef.current, inPoint: d.t } : { ...timelineRef.current, outPoint: d.t });
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+  const regionInPoint = regionDrag?.edge === 'in' ? regionDrag.t : (timeline.inPoint ?? null);
+  const regionOutPoint = regionDrag?.edge === 'out' ? regionDrag.t : (timeline.outPoint ?? null);
   // Stop goes through the SAME TransportIntent funnel the FSM and OSC use, so App stays the single
   // writer of `playing`. (A 'stop' intent has existed since OSC landed; no UI ever emitted one.)
   const stop = () => engine.dispatchTransportIntent({ kind: 'stop' });
@@ -572,11 +610,13 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
             <div className="sticky left-0 z-40 shrink-0 bg-surface-1 border-b border-r border-line-1 flex items-center px-2 text-micro text-fg-3" style={{ width: GUTTER, height: RULER_H }}>Tracks</div>
             <TimelineRuler
               pxPerSec={pxPerSec} width={Math.max(width, 100)} height={RULER_H} fps={fps}
-              markers={timeline.markers ?? []} inPoint={timeline.inPoint ?? null} outPoint={timeline.outPoint ?? null}
+              markers={timeline.markers ?? []} inPoint={regionInPoint} outPoint={regionOutPoint}
               onSeekDown={startSeekDrag}
               onMarkerSeek={(t) => engine.seek(t)}
               onMarkerDelete={(id) => onChange({ ...timeline, markers: (timeline.markers ?? []).filter(m => m.id !== id) })}
               onMarkerNote={(id, note) => onChange({ ...timeline, markers: (timeline.markers ?? []).map(m => m.id === id ? { ...m, note } : m) })}
+              onMoveInDown={startRegionDrag('in')}
+              onMoveOutDown={startRegionDrag('out')}
             />
           </div>
 
