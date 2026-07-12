@@ -204,12 +204,11 @@ const App: React.FC = () => {
   const stateMachineRef = useRef(stateMachine); stateMachineRef.current = stateMachine;
   const audioMixRef = useRef(audioMix); audioMixRef.current = audioMix; // live mirror for host.audio (memo has [] deps)
   const activeSceneIdRef = useRef(activeSceneId); activeSceneIdRef.current = activeSceneId;
-  // The doc the editor is BOUND to + the writer that routes an edit to its owner. The transport-intent
-  // subscription below has [] deps (resubscribing per render would thrash), so it reads them through
-  // these refs. `handleTimelineChange` is defined further down, so this ref is *declared* here and
-  // *assigned* right after that definition — assigning it here would capture undefined.
-  const activeTimelineRef = useRef(activeTimeline); activeTimelineRef.current = activeTimeline;
-  const handleTimelineChangeRef = useRef<(t: Timeline) => void>(() => {});
+  // NB: the transport-intent subscription below deliberately does NOT read the editor binding through
+  // a render-assigned ref (activeTimeline / handleTimelineChange). Those refs are refreshed on RENDER,
+  // and an FSM `setLoop` entry action runs synchronously inside the very frame whose scene recall only
+  // QUEUED setActiveSceneId — so they would still describe the timeline the machine just LEFT. It asks
+  // the engine (activePoolKey(), already repointed by swap()) instead. See the 'loop' intent below.
   // Live FSM readback for the host `show` service (the show-control tablet polls getStatus()).
   const currentSmStateRef = useRef<string | null>(null);
   const lastFiredTransitionRef = useRef<string | null>(null);
@@ -711,7 +710,6 @@ const App: React.FC = () => {
     if (activeSceneId) setScenes(prev => prev.map(s => s.id === activeSceneId ? { ...s, timeline: next } : s));
     else setTimeline(next);
   };
-  handleTimelineChangeRef.current = handleTimelineChange; // live mirror for the []-deps intent subscription
   // The author-context bundle handed to the timeline panel (scene pill + author strip). One object so
   // the panel's Props stay tidy; both panel mounts (dock + fullscreen) share it.
   const timelineAuthor = {
@@ -815,7 +813,13 @@ const App: React.FC = () => {
   ]);
 
   const buildProjectData = () => ({
-      version: '1.1', // 1.1: asset paths stored relative to the project folder when collected
+      // 1.1: asset paths stored relative to the project folder when collected.
+      // 1.2: every Timeline carries `boundedDuration` — the Wave A marker that says its Length was
+      //      authored against a clock that Length actually bounds, so the load-time "raise Length to
+      //      the content end" migration must not run on it again (see types.ts). Informational only:
+      //      nothing has ever READ this field (the migration is gated on the per-timeline marker, not
+      //      on this), so an older build opening a 1.2 file behaves exactly as it always did.
+      version: '1.2',
       timestamp: new Date().toISOString(),
       surfaces,
       fixtures,
@@ -1203,15 +1207,42 @@ const App: React.FC = () => {
   // The FSM control layer drives transport by emitting intents; App turns them into React state so
   // App stays the single writer of `playing` (the setPlaying effect above then drives the engine).
   useEffect(() => timelineEngine.subscribeIntent((i) => {
-      if (i.kind === 'play') setIsVideoPlaying(true);
+      if (i.kind === 'play') {
+        // Re-arm the clock IMPERATIVELY when it is parked at the end, BEFORE asking React to play.
+        // An FSM `play` entry action can be reached on the very frame the end-stop parked — an
+        // 'onTimelineEnd' hop into a state that carries `play` but has no bound scene to re-seek us.
+        // `playing` is still true then, so setIsVideoPlaying(true) is a NO-OP: no re-render, no
+        // [isVideoPlaying] effect, no engine.setPlaying() — and therefore nothing ever clears the
+        // engine's end latch. The clock re-parks every frame while the Play button stays lit and
+        // show.getStatus().playing keeps reporting true: a frozen still frame that a watchdog reads
+        // as a healthy show. seek() is mainSeek(): it re-anchors originMs, clears the latch and
+        // re-baselines prevPlayhead, so no React batching can swallow the restart. App still owns
+        // `playing` — this only moves the playhead.
+        if (timelineEngine.isAtEndBound()) timelineEngine.seek(timelineEngine.getStart());
+        setIsVideoPlaying(true);
+      }
       else if (i.kind === 'pause') setIsVideoPlaying(false);
       // Stop returns to the in-point, not hard 0 — with a region set, 0 is outside the playable range.
       else if (i.kind === 'stop') { setIsVideoPlaying(false); timelineEngine.seek(timelineEngine.getStart()); }
       else if (i.kind === 'seek') timelineEngine.seek(i.sec);
-      // The loop flag belongs to the BOUND timeline (global OR the scene being authored). This used to
-      // call setTimeline() unconditionally, so OSC /transport/loop while a scene was bound silently
-      // toggled loop on the global doc instead.
-      else if (i.kind === 'loop') handleTimelineChangeRef.current({ ...activeTimelineRef.current, loop: i.loopOn });
+      // The loop flag belongs to the document the ENGINE IS ACTUALLY PLAYING — resolved from the engine's
+      // active pool key, never from a render-assigned ref.
+      //
+      // stateMachine.enter() recalls the state's bound scene BEFORE running its entry actions, both
+      // synchronously inside ONE rAF frame. The recall repoints the engine immediately (swap()) but only
+      // QUEUES setActiveSceneId — so a ref refreshed on render still describes the scene the machine just
+      // LEFT. Routing `setLoop` through one wrote `loop:true` into the PREVIOUS scene's timeline (or into
+      // the global doc when no scene was bound yet), persisted it on save, and left the scene that asked
+      // to loop not looping: it runs to its Length, the end-stop parks it, and the unattended show dies.
+      // activePoolKey() is the truth. Functional updaters, so a same-batch edit isn't clobbered by a
+      // stale spread. A scene with no timeline of its own PLAYS the global doc (swapTimelineForScene),
+      // so the flag belongs to the global doc — not to a timeline that scene does not have.
+      else if (i.kind === 'loop') {
+        const key = timelineEngine.activePoolKey();
+        const owner = key !== GLOBAL_POOL ? scenesRef.current.find(s => s.id === key) : undefined;
+        if (owner?.timeline) setScenes(prev => prev.map(s => (s.id === key && s.timeline ? { ...s, timeline: { ...s.timeline, loop: i.loopOn } } : s)));
+        else setTimeline(t => ({ ...t, loop: i.loopOn }));
+      }
   }), []);
   // Scene/cue triggers requested by a source (FSM action, OSC) — resolve by id/name and apply.
   useEffect(() => {

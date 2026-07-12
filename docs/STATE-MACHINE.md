@@ -115,10 +115,29 @@ There are **two clocks**, and which one a trigger uses decides whether you must 
 - **`atTime` / `onMarker` / `onClipEnd` / `onTimelineEnd` follow the timeline playhead.** They only
   advance while the transport is **playing**, so a graph that uses them needs something to start
   playback — usually a `play` **entry action** on an upstream state (see [template 2](../examples/state-machine/02-triggers-and-actions.artlux)).
+  One `play` on the state that starts the show is **enough**: see the auto-advance rule below.
   `onTimelineEnd` is the odd one out among these four: `atTime`/`onMarker`/`onClipEnd` are **crossing**
   tests over the `prev → current` playhead window, while a clean stop at the end crosses nothing — the
   engine hands `onTimelineEnd` a one-frame edge instead (`ctx.atEnd`), latched so it fires exactly once
   per end-stop.
+
+### `onTimelineEnd` and the transport (auto-advance)
+
+Reaching the end of a non-looping timeline normally **pauses** the transport. When an `onTimelineEnd`
+transition fires on that same frame, it does not: the engine holds the pause back until the machine has
+had its turn, and **cancels it if entering the destination state put the clock back in motion** — which
+a state with a **bound scene** always does (the recall restarts its timeline at frame 0), and which a
+scene-less state does if it carries a `play` **entry action**. So:
+
+- **A → (onTimelineEnd) → B, both bound to scenes:** B's timeline simply plays on. The transport never
+  stops, the timecode keeps running, and B's own `onTimelineEnd` fires in turn. **You do not need a
+  `play` entry action on B** — a chain of scene-bound states auto-advances unattended off the single
+  `play` that started it.
+- **A → (onTimelineEnd) → C, where C has no bound scene:** give C a `play` entry action if you want the
+  show to keep running; without one the transport pauses on A's last frame (which is the honest report:
+  nothing restarted the clock). C's `play` re-seeks to the timeline's in-point and continues.
+- **Loop ON never fires it.** A wrap is not an end. A state whose scene loops will sit there until some
+  *other* trigger (`afterDelay`, `manual`, `atTime`, OSC) moves the machine on.
 
 Playhead crossings use a `prev → current` window that survives loop/seek wraps; a deliberate `seek`
 re-anchors `prev` so one jump doesn't fire every intermediate trigger along the way.

@@ -292,6 +292,16 @@ function mainSeek(sec: number): void {
   endLatched = false; // a deliberate jump re-arms the end
 }
 
+// Is the transport PARKED AT THE END (loop off)? A position test, not the `endLatched` flag — see the
+// long argument in setPlaying(), which owns the reasoning. Hoisted out of setPlaying so App's 'play'
+// intent handler can ask the same question: an FSM `play` entry action reached ON the end frame lands
+// on a `playing` value React already holds, so setIsVideoPlaying(true) is a no-op, setPlaying() is
+// never called, and the latch would never clear — the show freezes on one frame while still reporting
+// itself as playing. App re-seeks imperatively instead (see isAtEndBound below).
+function atEndBound(): boolean {
+  return !data.loop && playhead >= timelineEnd(data) - frameSec(data) - 1e-6;
+}
+
 
 // ── Automation ──────────────────────────────────────────────────────────────────────────────────
 // Lanes ride the Timeline, so they arrive with `data` for free — the ACTIVE timeline's lanes, layered
@@ -384,6 +394,9 @@ function frame(now: number): void {
   raf = requestAnimationFrame(frame); // reschedule first so a throw below can never kill the loop
   try {
     hitEnd = false; // one frame only: set below when the playhead lands on the end, read by the FSM tick
+    // The end-stop's `pause` intent is RAISED in the clock below but only EMITTED after fsm.tick() —
+    // see the deferral just past the tick. Frame-local: it must never survive into the next frame.
+    let pausePending = false;
     // The main window owns the clock; a hapLocal mirror (the fullscreen projector) runs the same
     // monotonic clock so it plays at full speed while the hidden main window's bridged transport is
     // throttled. Deriving the playhead from a fixed origin (not += dt) keeps cadence uniform against
@@ -462,7 +475,7 @@ function frame(now: number): void {
             if (!endLatched) {
               endLatched = true;
               hitEnd = true;                 // consumed by the FSM tick below, this frame only
-              if (!external) emitIntent({ kind: 'pause' });
+              pausePending = true;           // NOT emitted here — deferred until after fsm.tick(). See below.
             }
           }
         }
@@ -484,6 +497,26 @@ function frame(now: number): void {
     if (!external) {
       frameNowSec = now / 1000;
       try { fsm.tick(projectSm, playhead, prevPlayhead, smContext()); } catch (e) { console.error('[timeline] fsm error', e); }
+      // THE END-STOP'S `pause`, DEFERRED TO HERE — the whole point of the 'onTimelineEnd' feature.
+      //
+      // The end-stop and the FSM edge it feeds happen on the SAME frame: hitEnd is set up in the clock
+      // and consumed by the tick above. If the pause were emitted where it is raised (~20 lines up), an
+      // 'onTimelineEnd' transition would fire immediately AFTER it — and its destination's recall
+      // (swap → mainSeek) re-seeks the clock but, correctly, never writes `playing` (App owns it). The
+      // already-queued setIsVideoPlaying(false) would still land: the destination scene's look on the
+      // projectors, its timeline parked at frame 0, and the transport STOPPED. The auto-advance chain
+      // freezes after exactly one hop — with the show reporting itself healthy. That is the failure this
+      // ordering exists to prevent.
+      //
+      // So: emit only if the tick did NOT re-arm the clock. `endLatched` is precisely that signal —
+      // mainSeek() clears it, and every way the FSM can put the show back in motion goes through
+      // mainSeek SYNCHRONOUSLY inside the tick above (recallScene → cueBus → App → swap(restart);
+      // a `seek`/`jumpMarker` action → App → seek(); a `play` action → App → seek() when parked at the
+      // end). If nothing re-seeked, the show really did end and the pause stands — which is the normal,
+      // non-FSM case and must keep working.
+      //
+      // Mirror windows never reach here (`!external`), so they still cannot emit intents.
+      if (pausePending && endLatched) emitIntent({ kind: 'pause' });
     }
     // Main window decodes everything; mirror windows decode only HAP locally (when hapLocal),
     // otherwise they consume streamed frames and skip decoding entirely.
@@ -546,6 +579,32 @@ export const timeline = {
   setData(t: Timeline): void {
     data = t;
     if (external) return; // mirror windows don't decode — no blobs / video elements to manage
+    // A DOCUMENT EDIT MUST NEVER SYNTHESISE A TRANSPORT EVENT.
+    //
+    // The clock re-reads timelineEnd(data) every frame, so an edit that moves the end to or behind a
+    // LIVE playhead — Length lowered, `O` pressed at the playhead, the out-point handle dragged left,
+    // fps changed — makes the very next frame take the end-stop branch. That branch is written for
+    // PLAYBACK reaching the end: it re-anchors originMs to the new (nearer) end, which TELEPORTS the
+    // playhead backwards live on the projectors, emits `pause`, and pulses hitEnd — firing the FSM's
+    // 'onTimelineEnd' edge and putting the wrong scene on stage, from an edit.
+    //
+    // Handle it here instead, where we know it was an EDIT and not playback:
+    //   • mainSeek to the new last frame — re-anchors originMs AND re-baselines prevPlayhead, so the
+    //     move is not read as a window the playhead traversed (no phantom atTime/onMarker crossings).
+    //   • latch the end WITHOUT pulsing hitEnd: the machine must not be advanced by a text edit. The
+    //     latch also keeps the end-stop below from re-emitting while App's `playing` round-trips.
+    //   • ask App to pause (the engine still never writes `playing` itself).
+    // Ordering matters: mainSeek() CLEARS the latch, so it is re-set after.
+    //
+    // LOOP ON IS EXCLUDED, and must be: a looping clock has no end-stop — it WRAPS an out-of-range
+    // playhead back into [start, end) on the next frame, emitting nothing and pulsing nothing (and it
+    // re-baselines prevPlayhead itself). Pausing a looping show because its Length was shortened would
+    // be a regression invented by this guard, not a bug prevented by it.
+    if (playing && !t.loop && playhead >= timelineEnd(t)) {
+      mainSeek(Math.max(timelineStart(t), timelineEnd(t) - frameSec(t)));
+      endLatched = true;
+      emitIntent({ kind: 'pause' });
+    }
     warmMedia(t);
     pruneStaleLayers(layerVideos, t);
     compileAutomation();
@@ -637,8 +696,8 @@ export const timeline = {
       //   • scrubbed to 30s on a 10s show → way past the bound          → restarts ✓ (no latch was ever set)
       //   • paused mid-show at 4s        → well short of the bound      → resumes ✓
       // Only needed when loop is OFF: a looping clock wraps an out-of-range playhead into the region itself.
-      const atEnd = !data.loop && playhead >= timelineEnd(data) - frameSec(data) - 1e-6;
-      if (!external && atEnd) mainSeek(timelineStart(data));
+      // (The test itself is atEndBound(), hoisted so App's 'play' intent can ask the same question.)
+      if (!external && atEndBound()) mainSeek(timelineStart(data));
       // Re-arm the end regardless: the latch's ONLY job is to keep the end-stop from re-emitting a `pause`
       // intent every frame while App's state round-trips. Leave it set on a resume that did NOT restart
       // (the Length-moved case above) and the next end-stop would park silently, never emitting `pause` and
@@ -672,6 +731,12 @@ export const timeline = {
   getEnd(): number { return timelineEnd(data); },
   getStart(): number { return timelineStart(data); },
   isPlaying(): boolean { return playing; },
+  // Is the transport parked on the last frame with loop OFF (the non-looping end-stop's resting place)?
+  // Exposed for App's 'play' intent handler, which must re-arm the clock IMPERATIVELY there: a `play`
+  // that arrives while `playing` is already true (an FSM 'play' entry action on the end frame) is a
+  // React no-op and would otherwise leave the engine latched at the end forever — playing, frozen, and
+  // reporting itself healthy. Same position-based test the Play button uses (see setPlaying).
+  isAtEndBound(): boolean { return atEndBound(); },
   // FSM control layer (main window). App subscribes to intents and turns them into transport state.
   subscribeIntent(cb: (i: TransportIntent) => void): () => void { intentSubs.add(cb); return () => { intentSubs.delete(cb); }; },
   // Inject a transport intent from outside the FSM (e.g. external OSC control). Flows through the

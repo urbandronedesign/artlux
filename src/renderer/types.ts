@@ -371,12 +371,31 @@ export interface Timeline {
   loop?: boolean;        // when true, playback wraps over [timelineStart, timelineEnd); else it pauses at the end
   trackingTakes?: TrackingTakeRef[]; // recorded LiDAR-blob take library (drag onto a tracking lane)
   automation?: AutomationLane[];     // keyframe curves over the playhead (P4)
+  // WAVE A MIGRATION MARKER — "this document's `duration` was authored against a BOUNDED clock".
+  //
+  // Before Wave A, `duration` was an ignored hint: playback ran on past it, so an old project can
+  // legitimately hold clips that overrun its Length. Now that Length IS the end (timelineEnd), obeying
+  // an old file's Length blindly would silently truncate those shows — hence the one-shot raise in
+  // normalizeTimeline. But that raise is PERSISTED, so without a way to tell "old file" from "new
+  // file" it also runs on every subsequent load and destroys a deliberately SHORT Length (a Length of
+  // 8 over a 20 s ambient bed comes back as 20): load(save(x)).duration !== x.duration, and "Length
+  // shorter than the content" becomes unauthorable forever.
+  //
+  // This flag is that discriminator. ABSENT ⇒ pre-Wave-A (or hand-written): raise Length to cover the
+  // content, once. PRESENT ⇒ the Length is intentional: never touch it. normalizeTimeline stamps it on
+  // the way out and defaultTimeline() mints it, so every timeline this build writes carries it and the
+  // raise can never run twice on the same document.
+  //
+  // ADDITIVE on purpose (rather than gating on ProjectData.version, which nothing reads): an older
+  // ArtLux build simply ignores the field — and would re-raise on load, which is exactly its own
+  // pre-existing behaviour, not a new failure.
+  boundedDuration?: boolean;
   /** @deprecated moved to project scope (ProjectData.stateMachine); kept read-only for migration. */
   stateMachine?: StateMachine;
 }
 export const defaultTimeline = (): Timeline => ({
   layers: [], clips: [], duration: 60, fps: 30, markers: [], inPoint: null, outPoint: null,
-  loop: false, trackingTakes: [], automation: [],
+  loop: false, trackingTakes: [], automation: [], boundedDuration: true,
 });
 
 // The timeline's playable range. `duration` (the "Length" field) IS the end — as of Wave A it once
@@ -521,20 +540,32 @@ export const normalizeTimeline = (t: Partial<Timeline> | null | undefined): Time
     fps: finiteNum(t.fps) ?? base.fps,
     loop: t.loop ?? false,
     automation: normalizeAutomation(t.automation),
-    // BACK-COMPAT (Wave A). `duration` used to be a hint that never bounded playback, so old projects
-    // legitimately hold clips past it. Now that it IS the end, obeying it blindly would silently
-    // truncate those shows. Raise it once, at load, to cover the content. Never lower it — a
-    // deliberately long Length (trailing silence, a hold) is a legitimate authoring choice.
+    // BACK-COMPAT (Wave A) — see Timeline.boundedDuration for the whole story. `duration` used to be a
+    // hint that never bounded playback, so old projects legitimately hold clips past it. Now that it IS
+    // the end, obeying it blindly would silently truncate those shows. Raise it to cover the content —
+    // but ONLY on a document that predates the bounded clock (no marker). A document that carries the
+    // marker was authored against the bounded clock, so its Length is INTENTIONAL, including a Length
+    // deliberately set short of the content end, and must survive the round-trip untouched. Without
+    // that gate the raise re-ran on every load and silently, permanently destroyed the authored value.
+    // Never lower it either — a deliberately long Length (trailing silence, a hold) is equally valid.
     // Guarded: duration/clip fields/outPoint can each independently be junk (NaN, a string, Infinity)
     // on a hand-edited or malformed project — finiteNum keeps one bad value from poisoning the max().
-    duration: Math.max(
-      finiteNum(t.duration) ?? base.duration,
-      // `c?.` is defense in depth: `clips` is already filtered to objects above, but a bad
-      // element shape (e.g. `start`/`duration` themselves missing or non-finite) must still
-      // resolve to 0 rather than throw or poison the max() with NaN.
-      ...clips.map(c => (finiteNum(c?.start) ?? 0) + (finiteNum(c?.duration) ?? 0)),
-      finiteNum(t.outPoint) ?? 0,
-    ),
+    // `=== true` (not truthy): `...rest` above can carry a hand-edited junk value for the marker, and
+    // "junk" must read as ABSENT (do the migration) rather than as "already migrated".
+    duration: t.boundedDuration === true
+      ? finiteNum(t.duration) ?? base.duration
+      : Math.max(
+          finiteNum(t.duration) ?? base.duration,
+          // `c?.` is defense in depth: `clips` is already filtered to objects above, but a bad
+          // element shape (e.g. `start`/`duration` themselves missing or non-finite) must still
+          // resolve to 0 rather than throw or poison the max() with NaN.
+          ...clips.map(c => (finiteNum(c?.start) ?? 0) + (finiteNum(c?.duration) ?? 0)),
+          finiteNum(t.outPoint) ?? 0,
+        ),
+    // Stamp the marker LAST (after `...rest`, so it also overrides a junk persisted value): the raise
+    // above has now either happened or been correctly skipped, so from here on this document's Length
+    // is authoritative — through buildProjectData, into the .artlux file, and back.
+    boundedDuration: true,
   };
 };
 

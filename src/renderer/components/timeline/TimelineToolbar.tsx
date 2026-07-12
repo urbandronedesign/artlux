@@ -34,6 +34,59 @@ const TBtn: React.FC<{ active?: boolean; title: string; onClick: () => void; chi
   <button title={title} onClick={onClick} className={`p-1.5 rounded-sm ${active ? 'bg-accent text-black' : 'bg-surface-2 text-fg-2 hover:text-fg-1'}`}>{children}</button>
 );
 
+// A number field that holds a local DRAFT and commits on BLUR / ENTER only — never per keystroke.
+//
+// Length and FPS are LIVE TRANSPORT inputs: the engine re-reads timelineEnd(data) and fps every frame.
+// Committed per keystroke, every transient value you type is published THROUGH the running show —
+// retyping 600 → 900 commits `duration = 9` on the first keystroke, and select-all + Delete commits the
+// empty string's fallback of 1. Either one puts the end behind a live playhead, which used to teleport
+// the playhead backwards on the projectors, stop the transport, and pulse the state machine's
+// 'onTimelineEnd' edge — the wrong scene on stage, from a text edit. (services/timeline.ts's setData
+// now also refuses to let a document edit fire that edge; this is the other half: don't publish an edit
+// the user hasn't finished making.) Same rule the loop-region drag already follows: hold a draft,
+// commit once. Escape reverts. `null` draft ⇒ not editing ⇒ the prop is shown, so a clamped or rejected
+// entry visibly snaps back.
+//
+// The draft is mirrored in a REF because Enter blurs (committing via onBlur) and Escape blurs after
+// discarding: both run before React re-renders, so a state-only draft would still read its pre-discard
+// value in the onBlur closure and commit the very edit the user just cancelled.
+const NumField: React.FC<{
+  value: number;
+  onCommit: (n: number) => void;
+  min: number;
+  max?: number;
+  step?: number;
+  integer?: boolean;
+  className: string;
+}> = ({ value, onCommit, min, max, step = 1, integer, className }) => {
+  const [draft, setDraft] = React.useState<string | null>(null);
+  const draftRef = React.useRef<string | null>(null);
+  const set = (v: string | null) => { draftRef.current = v; setDraft(v); };
+  const commit = () => {
+    const d = draftRef.current;
+    if (d == null) return;              // untouched, or already discarded/committed this tick
+    set(null);
+    const raw = integer ? parseInt(d, 10) : parseFloat(d);
+    if (!Number.isFinite(raw)) return;  // empty / garbage — keep the last good value
+    const n = Math.max(min, max != null ? Math.min(max, raw) : raw);
+    if (n !== value) onCommit(n);
+  };
+  return (
+    <input
+      type="number" min={min} max={max} step={step}
+      value={draft ?? String(value)}
+      onChange={(e) => set(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur();              // commits via onBlur
+        else if (e.key === 'Escape') { set(null); e.currentTarget.blur(); } // discard, then onBlur no-ops
+      }}
+      className={className}
+    />
+  );
+};
+const NUM_INPUT = 'bg-surface-0 border border-line-1 rounded px-1.5 py-0.5 text-right num text-mini focus:border-accent focus:outline-none';
+
 export const TimelineToolbar: React.FC<Props> = ({ playing, onTogglePlay, onStop, timeRef, duration, onChangeDuration, fps, onChangeFps, tool, onSetTool, snapEnabled, onToggleSnap, onAddMarker, onSetIn, onSetOut, hasRegion, onZoom, onZoomFit, onAddTrack, loop, onToggleLoop, smEnabled, onToggleSm, onEditLogic, maximized, onToggleMax }) => (
   <div className="shrink-0 flex items-center gap-2 px-3 h-9 border-b border-line-1 bg-surface-1">
     {/* ── transport: what is PLAYING ── */}
@@ -63,13 +116,11 @@ export const TimelineToolbar: React.FC<Props> = ({ playing, onTogglePlay, onStop
     <div className="ml-auto flex items-center gap-2">
       <div className="flex items-center gap-1">
         <span className="text-fg-3 text-micro">FPS</span>
-        <input type="number" min={1} max={120} step={1} value={fps} onChange={(e) => onChangeFps(Math.max(1, Math.min(120, parseInt(e.target.value) || 30)))}
-          className="w-11 bg-surface-0 border border-line-1 rounded px-1.5 py-0.5 text-right num text-mini focus:border-accent focus:outline-none" />
+        <NumField value={fps} onCommit={onChangeFps} min={1} max={120} step={1} integer className={`w-11 ${NUM_INPUT}`} />
       </div>
       <div className="flex items-center gap-1">
-        <span className="text-fg-3 text-micro" title="The end of the timeline. Playback stops here — or loops, if Loop is on.">Length</span>
-        <input type="number" min={1} step={1} value={duration} onChange={(e) => onChangeDuration(Math.max(1, parseFloat(e.target.value) || 1))}
-          className="w-14 bg-surface-0 border border-line-1 rounded px-1.5 py-0.5 text-right num text-mini focus:border-accent focus:outline-none" />
+        <span className="text-fg-3 text-micro" title="The end of the timeline. Playback stops here — or loops, if Loop is on. Committed on Enter / when you leave the field.">Length</span>
+        <NumField value={duration} onCommit={onChangeDuration} min={1} step={1} className={`w-14 ${NUM_INPUT}`} />
         <span className="text-fg-3 text-micro">s</span>
       </div>
       <div className="flex items-center gap-1">
