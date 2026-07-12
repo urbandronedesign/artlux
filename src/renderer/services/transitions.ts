@@ -174,8 +174,19 @@ export function isActive(): boolean { return actives.length > 0; }
 // (finalizing would write `leg.to` — the very value being taken over) and it does NOT fire onComplete: an
 // abandoned leg is not a completed fade, and inventing a completion here could pulse a caller's callback.
 //
-// CORE legs never reach here — core has no takeover problem (its target is committed in React state, so a
-// manual move simply wins). The single caller is the audio provider's releaseFade(), via host.show.dropFadeLeg.
+// ⚠ CORE LEGS REACH HERE TOO, AND THE COMMENT THAT USED TO SIT ON THIS LINE — "core has no takeover
+// problem, its target is committed in React state, so a manual move simply wins" — WAS FALSE, in exactly
+// the way that gets an audience the wrong picture for eight seconds. A manual move commits into React
+// state, yes; but apply() below lays the interpolation back OVER that committed state EVERY FRAME
+// (Stage rebuilds `base` from surfacesRef/fixturesRef and hands it to us), and for a path with no
+// automation lane `to` is the leg's frozen endpoint, not the live document. So pulling a surface's
+// content.opacity to 0 two seconds into a 10 s crossfade did this: the slider read 0, the document held 0,
+// and the projector KEPT SHOWING THE IMAGE for the remaining eight seconds — then snapped to 0 the instant
+// the leg landed. The control appeared to have worked. It had not.
+//
+// Core's manual writers therefore drop their own legs, the same way the audio provider's releaseFade()
+// does (App.tsx: dropTakenOverLegs, on every surface / fixture / brightness commit). This function has
+// always been head-agnostic; only the comment claimed otherwise.
 export function dropLeg(path: string): void {
   if (!actives.length) return;
   let hit = false;

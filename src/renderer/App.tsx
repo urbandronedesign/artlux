@@ -533,8 +533,38 @@ const App: React.FC = () => {
   };
   const handleToggleNdiSend = (surfaceId: string, on: boolean) => upsertOutput(surfaceId, { ndiSend: on });
   const refreshDisplays = () => { window.artlux?.listDisplays?.().then(d => setDisplays(d ?? [])); };
+  // ── THE TAKEOVER, ON THE CORE SIDE ─────────────────────────────────────────────────────────────
+  // A MANUAL MOVE TAKES THE PARAM BACK from whatever scene or cue is fading it — and COMMITTING IT INTO
+  // REACT STATE IS NOT ENOUGH. transitions.apply() lays the interpolation back OVER the committed state on
+  // EVERY FRAME (Stage rebuilds `base` from surfacesRef/fixturesRef and hands it to the fade), and a leg on
+  // a path with no automation lane glides to its own FROZEN endpoint, not to the live document.
+  //
+  // So: pull a surface's content.opacity to 0 two seconds into a 10 s crossfade, because you can see the
+  // projection is wrong. The slider reads 0. The document holds 0. AND THE PROJECTOR KEEPS SHOWING THE
+  // IMAGE FOR EIGHT MORE SECONDS, then snaps to 0 the instant the leg lands. The control appeared to work.
+  // The audience saw the wrong picture for the whole fade. The audio side went to considerable trouble to
+  // close exactly this hole (releaseFade + dropFadeLeg); this is core's, through the same head-agnostic
+  // transitions.dropLeg().
+  //
+  // Only the paths that ACTUALLY MOVED are released — collectFadeableTargets IS that diff — so nudging a
+  // fixture's position never silently kills a running crossfade on its intensity. An automation LANE still
+  // owns its path (dropLeg touches the fade, never the overlay), exactly as it does on the audio side.
+  const dropTakenOverLegs = (from: StateView, to: StateView) => {
+    if (!transitions.isActive()) return;   // free on the overwhelmingly common path — no fade is running
+    for (const t of collectFadeableTargets(from, to)) transitions.dropLeg(t.path);
+  };
+  // The master brightness slider is the FIRST thing an operator grabs when a fade is going wrong on the
+  // wall — so it is the last one that may keep sliding under their hand. (Its own path, directly: the
+  // slider writes a bare number, not a StateView.)
+  const handleMasterBrightness = (val: number) => {
+    transitions.dropLeg('globalBrightness');
+    setGlobalBrightness(val);
+  };
+
   const handleUpdateSurface = (id: string, patch: Partial<Surface>) => {
-    setSurfaces(surfaces.map(s => s.id === id ? { ...s, ...patch } : s));
+    const next = surfaces.map(s => s.id === id ? { ...s, ...patch } : s);
+    dropTakenOverLegs({ surfaces, fixtures, globalBrightness }, { surfaces: next, fixtures, globalBrightness });
+    setSurfaces(next);
   };
   const handleRenameSurface = (id: string, name: string) => handleUpdateSurface(id, { name });
 
@@ -566,7 +596,9 @@ const App: React.FC = () => {
     recordHistory();
     const mapped = fixtures.map(f => f.id === id ? { ...f, ...updates } : f);
     const repatch = REPATCH_KEYS.some(k => k in updates);
-    setFixtures(repatch ? autoPatch(mapped, controllers, settings) : mapped);
+    const next = repatch ? autoPatch(mapped, controllers, settings) : mapped;
+    dropTakenOverLegs({ surfaces, fixtures, globalBrightness }, { surfaces, fixtures: next, globalBrightness });
+    setFixtures(next);
   };
 
   const handleAutoPatch = () => setFixtures(autoPatch(fixtures, controllers, settings));
@@ -595,7 +627,9 @@ const App: React.FC = () => {
 
   // 3D gizmo commit: history already recorded at drag-start, so don't re-record.
   const handleCommitFixture3D = (id: string, updates: Partial<Fixture>) => {
-    setFixtures(fixtures.map(f => f.id === id ? { ...f, ...updates } : f));
+    const next = fixtures.map(f => f.id === id ? { ...f, ...updates } : f);
+    dropTakenOverLegs({ surfaces, fixtures, globalBrightness }, { surfaces, fixtures: next, globalBrightness });
+    setFixtures(next);
   };
 
   // --- Groups ---
@@ -621,7 +655,9 @@ const App: React.FC = () => {
       speed: src.speed, intensity: src.intensity, segments: src.segments,
     };
     recordHistory();
-    setFixtures(fixtures.map(f => group.fixtureIds.includes(f.id) ? { ...f, ...look } : f));
+    const next = fixtures.map(f => group.fixtureIds.includes(f.id) ? { ...f, ...look } : f);
+    dropTakenOverLegs({ surfaces, fixtures, globalBrightness }, { surfaces, fixtures: next, globalBrightness });
+    setFixtures(next);
   };
 
   // --- Plugin-namespaced cue/scene entries (today: audio.*) ---
@@ -2250,7 +2286,7 @@ const App: React.FC = () => {
                     onRemove={handleRemoveFixture}
                     onRename={handleRenameFixture}
                     masterBrightness={globalBrightness}
-                    onMasterBrightnessChange={setGlobalBrightness}
+                    onMasterBrightnessChange={handleMasterBrightness}
                     projectorBrightness={projectorBrightness}
                     onProjectorBrightnessChange={setProjectorBrightness}
                     onProjectorBrightnessInput={(v) => pushProjectorBrightnessRef.current(v)}
