@@ -47,8 +47,8 @@ export const HELP_TOPICS: HelpTopic[] = [
     id: 'timeline',
     title: { en: 'Timeline', fr: 'Ligne de temps' },
     body: {
-      en: 'The timeline sequences video-layer clips over an unbounded clock. Add clips to layers, blade/snap/ripple to edit, and set an optional loop region. Wheel-zoom toward the cursor, middle-drag to pan, and press F to maximize. Transport (play/pause/seek) can also be driven by OSC and the state machine.',
-      fr: "La ligne de temps séquence des clips de calques vidéo sur une horloge illimitée. Ajoutez des clips aux calques, utilisez lame/aimant/ripple pour éditer, et définissez une région de boucle optionnelle. Zoomez à la molette vers le curseur, panoramique au clic-milieu, et appuyez sur F pour agrandir. Le transport (lecture/pause/recherche) peut aussi être piloté par OSC et la machine à états.",
+      en: 'The timeline sequences video-layer clips up to the Length field, which is the end of the timeline. Add clips to layers, blade/snap/ripple to edit, and toggle Loop to wrap the in/out region (or the whole timeline if none is set) — with Loop off, playback stops and holds at the end. Wheel-zoom toward the cursor, middle-drag to pan, and press F to maximize. Transport (play/pause/seek/stop) can also be driven by OSC and the state machine.',
+      fr: "La ligne de temps séquence des clips de calques vidéo jusqu'au champ Longueur, qui marque la fin de la ligne de temps. Ajoutez des clips aux calques, utilisez lame/aimant/ripple pour éditer, et activez Boucle pour boucler la région in/out (ou toute la ligne de temps si aucune région n'est définie) — Boucle désactivée, la lecture s'arrête et se fige à la fin. Zoomez à la molette vers le curseur, panoramique au clic-milieu, et appuyez sur F pour agrandir. Le transport (lecture/pause/recherche/stop) peut aussi être piloté par OSC et la machine à états.",
     },
   },
   {

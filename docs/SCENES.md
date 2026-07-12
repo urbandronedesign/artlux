@@ -129,8 +129,8 @@ The **GO** button in the Scenes & Cues panel.
 The control-layer FSM ([services/stateMachine.ts](../src/renderer/services/stateMachine.ts), see
 [TIMELINE.md](TIMELINE.md)) gains a new **state-entry action: `recallScene`**. Add it to a state in
 the state-graph editor and pick a scene. When the FSM enters that state — via any trigger
-(`atTime`, `onMarker`, `onClipEnd`, `afterDelay`, `manual`) — the scene fires. This lets a timed
-show recall looks as it plays. The action stores the scene **id**.
+(`atTime`, `onMarker`, `onClipEnd`, `onTimelineEnd`, `afterDelay`, `manual`) — the scene fires. This
+lets a timed show recall looks as it plays. The action stores the scene **id**.
 
 ### 3. OSC
 Under the control prefix (default `/artlux`), resolve by scene **id or name**:

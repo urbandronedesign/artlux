@@ -12,9 +12,10 @@ is a built-in GPU **effect**, so the projects animate the moment you open them.
 
 A **finite-state graph over your Scenes**. Each **state** is a circle that *is* a look (it recalls a
 bound **Scene** when entered). **Transitions** are arrows between states; each arrow has a **trigger**
-that decides *when* it fires — a delay elapses, the timeline reaches a time or marker, a clip ends, or
-you fire it by hand / OSC. While the machine is **enabled**, it sits in one state, watches that state's
-outgoing arrows, and moves when a trigger fires — recalling the next look (optionally crossfading).
+that decides *when* it fires — a delay elapses, the timeline reaches a time or marker, a clip ends, the
+timeline reaches its end, or you fire it by hand / OSC. While the machine is **enabled**, it sits in one
+state, watches that state's outgoing arrows, and moves when a trigger fires — recalling the next look
+(optionally crossfading).
 
 ```
    ( Calm ) ──after 6s──▶ ( Rise ) ──after 6s──▶ ( Burn ) ──after 8s──┐
@@ -41,7 +42,7 @@ That's the whole surface. Everything below happens in the graph editor and the s
 | # | Project | You'll learn |
 |---|---------|--------------|
 | 1 | [01 · Hello State Machine](01-hello-state-machine.md) — [`.artlux`](../01-hello-state-machine.artlux) | states, **Scene binding**, the **initial** state, the `afterDelay` trigger, looping, the **transition crossfade** |
-| 2 | [02 · Triggers & Actions](02-triggers-and-actions.md) — [`.artlux`](../02-triggers-and-actions.artlux) | **all five triggers** (`manual`/`afterDelay`/`atTime`/`onMarker`/`onClipEnd`), the **two clocks**, **entry actions**, **lock time**, **regions** |
+| 2 | [02 · Triggers & Actions](02-triggers-and-actions.md) — [`.artlux`](../02-triggers-and-actions.artlux) | **five of the six triggers** (`manual`/`afterDelay`/`atTime`/`onMarker`/`onClipEnd`; the sixth, `onTimelineEnd`, is covered in the reference doc), the **two clocks**, **entry actions**, **lock time**, **regions** |
 | 3 | [03 · Interactive Installation](03-interactive-installation.md) — [`.artlux`](../03-interactive-installation.artlux) | the **hub-and-spoke** pattern, live **manual triggers**, **OSC** control, **auto-return** dwell, a **blackout**, deployment |
 
 Work through them in order — each builds on the last.

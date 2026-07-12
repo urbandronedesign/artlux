@@ -5,18 +5,22 @@ on tracks (layers) over time. A track is an addressable output channel: surfaces
 to a track's `layerId` and show whatever clip is under the playhead. Shipped as a basic editor in
 v0.4.0, reworked into a full NLE in v0.11.0, and made an **infinite, navigable, programmable**
 surface in **v0.12.0** (maximize, mouse zoom/pan, unbounded clock + optional loop region, and an
-always-present state-machine control layer).
+always-present state-machine control layer). Wave A later **bounded the clock again** (see
+**Length bounds playback** below) — the infinite pan/zoom canvas and the state-machine layer are
+unaffected.
 
 > **Scope invariant (clips):** clip editing is **UX-only** — the track header flags
 > (`muted/solo/locked/enabled`) are visual aids, never engine inputs, and the engine still samples
 > the **topmost clip per track** under the playhead (gaps → black). Multiple clips per track sequence
 > naturally from this.
 >
-> **Deliberate engine changes (v0.12.0):** the playback **clock** in `services/timeline.ts` is now
-> **unbounded** (no modulo-by-`duration` wrap); it wraps only when `Timeline.loop` is on over a valid
-> `[inPoint, outPoint)` region. A separate **state-machine** layer can drive transport — it never
-> writes `playing` itself, only emits `TransportIntent`s that `App` turns into React state (App stays
-> the single transport writer). Video sampling/compositing is otherwise untouched.
+> **Deliberate engine changes (v0.12.0; clock re-bounded in Wave A):** the playback **clock** in
+> `services/timeline.ts` bounds playback to `[timelineStart, timelineEnd)` — `Timeline.loop` wraps
+> over that range (the whole timeline when no in/out region is set); with Loop off the playhead
+> advances to the end and **parks on the last frame** instead of going black. See **Length bounds
+> playback** below. A separate **state-machine** layer can drive transport — it never writes
+> `playing` itself, only emits `TransportIntent`s that `App` turns into React state (App stays the
+> single transport writer). Video sampling/compositing is otherwise untouched.
 
 ## Where it lives
 
@@ -59,7 +63,7 @@ VideoLayer  { id, name, height?, color?, muted?, solo?, locked?, enabled? }   //
 VideoClip   { id, layerId, name, path, start, duration, inPoint, sourceDuration?, color? }
 Marker      { id, time, color, note? }
 SmAction    { kind: play|pause|stop|seek|setLoop|jumpMarker, seekTo?, loopOn?, markerId? }
-SmTrigger   { kind: manual|afterDelay|atTime|onMarker|onClipEnd, seconds?, time?, markerId?, layerId? }
+SmTrigger   { kind: manual|afterDelay|atTime|onMarker|onClipEnd|onTimelineEnd, seconds?, time?, markerId?, layerId? }
 SmState     { id, name, x, y, entry: SmAction[] }
 SmTransition{ id, from, to, trigger: SmTrigger }
 StateMachine{ enabled, states[], transitions[], initialStateId }
@@ -67,12 +71,28 @@ Timeline    { layers, clips, duration, fps?, markers?, inPoint?, outPoint?, loop
 ```
 
 - `VideoClip.inPoint` is the **source trim** (offset into the file). `Timeline.inPoint/outPoint` is a
-  separate **timeline range**: the export/loop region. It only affects playback when `loop` is on.
-- `duration` is now a **length hint** (zoom-to-fit, the toolbar Length field) — it no longer caps or
-  wraps playback (the timeline is unbounded).
+  separate **timeline range** that narrows the timeline's own start/end (see below) — it now bounds
+  playback whether `loop` is on or off, not only when looping.
+- **Length bounds playback (restored in Wave A).** `Timeline.duration` — the **Length** field — is the
+  end of the timeline. `inPoint`/`outPoint` narrow it:
+
+      start = inPoint  ?? 0
+      end   = outPoint ?? duration
+
+  With **Loop** on, playback wraps over `[start, end)` — including with no in/out region set, in which
+  case it loops the whole timeline. With Loop off, the playhead advances to `end` and **parks on the
+  last frame** (`end - 1/fps`, standard NLE semantics — one frame back so a clip is still under the
+  playhead and the output doesn't cut to black), and the engine emits a `pause` TransportIntent (it
+  never writes `playing` itself — App owns that).
+
+  This reverses the v0.12.0 change that made the clock unbounded. That change left **Length** and
+  **Loop** as controls that did nothing: `duration` was a hint nothing read, and Loop needed an in/out
+  region settable only via the undocumented `I`/`O` keys. Projects saved under the old rule may hold
+  clips past their Length; `normalizeTimeline` raises `duration` to the content end **at load** so none
+  of them truncate — it never lowers it, since a deliberately long Length (trailing silence, a hold) is
+  a legitimate authoring choice. Seeking past the end is still allowed — only *playback* is bounded.
 - All new fields are optional and back-compatible. `normalizeTimeline()` defaults old projects on
-  load (`loop:false`, an empty disabled `stateMachine`) — note legacy projects that used to loop at
-  `duration` now play unbounded unless you turn `loop` on. Save/broadcast carry the whole object.
+  load (`loop:false`, an empty disabled `stateMachine`). Save/broadcast carry the whole object.
 
 ## Key design decisions (read before extending)
 
@@ -103,14 +123,18 @@ Timeline    { layers, clips, duration, fps?, markers?, inPoint?, outPoint?, loop
   time-under-cursor by setting `scrollLeft` in a `requestAnimationFrame` after the new width lays out,
   using the same `GUTTER` offset as `clientXToTime`.
 
-## Infinite timeline, looping & navigation (v0.12.0)
+## Infinite navigation, looping & the end-stop (v0.12.0; clock bounded again in Wave A)
 
-- **Unbounded clock.** `frame()` advances `playhead = (now − originMs)/1000` with no wrap. Past the
-  last clip the playhead keeps running and all layers output black (`getLayerDrawable()` → null).
-- **Loop region.** Toolbar loop toggle (**Shift+L**) sets `Timeline.loop`; with a valid `[inPoint,
-  outPoint)` the clock wraps over that span (re-anchoring `originMs` to keep cadence uniform). Loop is
-  computed **only in the main window**; mirror windows (Scene/projector) receive the wrap as a bridged
-  seek (the >0.5s branch snaps; the slew path is for small drift).
+- **Bounded clock.** `frame()` advances `playhead = (now − originMs)/1000` and tests it against
+  `[timelineStart, timelineEnd)` every frame (see **Length bounds playback** above). Looping wraps over
+  that range; not looping parks the playhead on the last frame at the end instead of running past it.
+- **Loop region.** Toolbar loop toggle (**Shift+L**) sets `Timeline.loop`; the clock wraps over
+  `[timelineStart, timelineEnd)` — the **whole timeline** when no `inPoint`/`outPoint` is set, or the
+  narrower region when one is (re-anchoring `originMs` to keep cadence uniform). Loop is computed
+  **only in the main window**; mirror windows (Scene/projector) receive the wrap as a bridged seek (the
+  >0.5s branch snaps; the slew path is for small drift). The region's edges are **draggable on the
+  ruler**, and toolbar **Set In** / **Set Out** buttons set them without needing the `I`/`O` keys.
+  **Stop** returns to the in-point (not hard 0).
 - **Mouse:** wheel = zoom (anchored at the cursor), **Shift+wheel** = horizontal scroll, **middle-button
   drag** = pan both axes (imperative — zero re-renders). Left-button-only guards on the lane/ruler seek
   handlers keep middle-click free for panning.
@@ -125,9 +149,13 @@ untouched) that can drive transport. It is **disabled by default**; enable it fr
 the toolbar.
 
 - **Model:** named `SmState`s with `entry` actions (play/pause/stop/seek/setLoop/jumpMarker) and
-  `SmTransition`s whose `SmTrigger` fires on `manual`, `afterDelay`, `atTime`, `onMarker`, or
-  `onClipEnd`. Author it in the **Edit logic** modal (`StateGraphEditor`): drag state nodes, use a
-  node's *link* to connect, set the initial (star), edit entry actions and triggers in the inspector.
+  `SmTransition`s whose `SmTrigger` fires on `manual`, `afterDelay`, `atTime`, `onMarker`, `onClipEnd`,
+  or `onTimelineEnd` (the bound timeline reaching its end while playing and not looping — a loop wrap
+  does **not** fire it). Note `onClipEnd` **never fires for a clip that runs to the end of the
+  timeline**: the end-stop parks the playhead *inside* that clip (see above), so no gap ever opens on
+  it; use `onTimelineEnd` for "the show finished". Author it in the **Edit logic** modal
+  (`StateGraphEditor`): drag state nodes, use a node's *link* to connect, set the initial (star), edit
+  entry actions and triggers in the inspector.
 - **Runtime (`services/stateMachine.ts`):** the engine calls `fsm.tick()` once per frame **main window
   only**. It (re)initializes on the `enabled` rising edge or when the current state vanishes (so editing
   the graph while running doesn't reset it), then evaluates the current state's outgoing transitions in
@@ -151,7 +179,8 @@ the toolbar.
   drag the grip to reorder, drag the header's bottom edge to resize height.
 - **Markers:** **M** adds at the playhead; click a marker to seek, Alt/right-click to delete,
   double-click to edit its note.
-- **Range:** **I/O** set the timeline in/out points (shown as a band on the ruler).
+- **Range:** **I/O** (or the toolbar **Set In**/**Set Out** buttons) set the timeline in/out points,
+  shown as a band on the ruler whose edges are also **draggable**.
 
 ### Keyboard shortcuts
 
@@ -186,8 +215,12 @@ still shows it (engine unchanged). Save → reload to confirm new fields persist
 cleanly.
 
 v0.12.0 checks: wheel-zoom toward the cursor (time under cursor stays put), Shift+wheel scroll,
-middle-drag pan; **F** maximize and dock resize; play past the old `duration` and confirm the playhead
-keeps going with **black** output over gaps; toggle **loop** with an in/out region and confirm it wraps
-(projector/Scene stay in sync). State machine: build e.g. *Idle →(manual)→ Play →(atTime)→ Pause
-→(afterDelay)→ Play*, enable it, and confirm the transport obeys the graph, the lane's current-state
-readout updates, the toolbar play button reflects FSM-driven changes, and disabling reverts to manual.
+middle-drag pan; **F** maximize and dock resize. Wave A checks: play to `Length` with **Loop off** and
+confirm the playhead **stops and holds on the last frame** (no cut to black), pressing Play again
+restarts from the in-point; toggle **loop** with **no** in/out region and confirm it wraps the whole
+timeline on first press, then set a region and confirm it wraps that instead (projector/Scene stay in
+sync); a project with content past its `Length` loads with `Length` raised to the content end. State
+machine: build e.g. *Idle →(manual)→ Play →(atTime)→ Pause →(afterDelay)→ Play*, enable it, and confirm
+the transport obeys the graph, the lane's current-state readout updates, the toolbar play button
+reflects FSM-driven changes, and disabling reverts to manual. Confirm `onTimelineEnd` fires a
+transition when the timeline ends (Loop off) and does **not** fire on a loop wrap.

@@ -430,8 +430,11 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
                     onChange={(v) => patchTransition(selTrans.id, { trigger: { ...selTrans.trigger, markerId: v } })} />
                 )}
                 {selTrans.trigger.kind === 'onClipEnd' && (
-                  <SelectField label="Track" value={selTrans.trigger.layerId ?? ''} options={layers.map(l => ({ v: l.id, l: l.name }))}
-                    onChange={(v) => patchTransition(selTrans.id, { trigger: { ...selTrans.trigger, layerId: v } })} />
+                  <>
+                    <SelectField label="Track" value={selTrans.trigger.layerId ?? ''} options={layers.map(l => ({ v: l.id, l: l.name }))}
+                      onChange={(v) => patchTransition(selTrans.id, { trigger: { ...selTrans.trigger, layerId: v } })} />
+                    <div className="text-fg-3 italic">A clip that runs to the end of the timeline never opens a gap — use onTimelineEnd for &lsquo;the show finished&rsquo;.</div>
+                  </>
                 )}
                 {/* onTimelineEnd takes no parameter — it fires on the frame the timeline ends. */}
                 {selTrans.trigger.kind === 'onTimelineEnd' && <div className="text-fg-3 italic">Fires when the timeline reaches its end with Loop OFF. A loop wrap is not an end.</div>}

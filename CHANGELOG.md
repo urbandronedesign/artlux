@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+**Timeline transport — Length bounds playback again (Wave A).** Reverts the v0.12.0 unbounded-clock
+change: `Timeline.duration` (the **Length** field) is once more the end of the timeline, and the
+transport bar gains **Stop**, **Set In**, **Set Out**, and draggable loop-region handles on the ruler.
+
+- **Length bounds playback.** `start = inPoint ?? 0`, `end = outPoint ?? duration`. With **Loop** on,
+  playback wraps `[start, end)` — including with **no in/out region set**, in which case it loops the
+  whole timeline (previously Loop needed a region, settable only via the undocumented `I`/`O` keys).
+  With Loop off, the playhead now **stops and holds on the last frame** at the end (instead of running
+  on unbounded into black), and the engine emits a `pause` transport intent — App remains the sole
+  writer of `playing`. Seeking past the end is still allowed; only *playback* is bounded.
+- **New state-machine trigger: `onTimelineEnd`.** Fires once when the bound timeline reaches its end
+  while playing and not looping; a loop wrap does not fire it. This is what lets a scene auto-advance
+  unattended — see [docs/STATE-MACHINE.md](docs/STATE-MACHINE.md).
+- **`onClipEnd` narrowed — re-author affected projects.** Because the playhead now parks *inside* the
+  final clip at the end-stop (so the output holds a picture instead of cutting to black), a clip that
+  runs all the way to the end of the timeline never opens a gap, and `onClipEnd` no longer fires for it.
+  **If a project used `onClipEnd` on a final, full-length clip as its "show over" signal, that
+  transition will stop firing — switch it to `onTimelineEnd`.** A clip that ends *before* the timeline
+  does is unaffected.
+- **Transport bar:** new **Stop** (returns to the in-point, not hard 0), **Set In**, **Set Out**
+  buttons; the loop region's edges are now draggable on the ruler.
+
+> Old projects may hold clips past their Length (legitimate under the old unbounded rule).
+> `normalizeTimeline` raises `duration` to the content end **at load**, once, so none of them truncate —
+> it never lowers a deliberately long Length. No project-file migration; the change is purely in
+> playback semantics. See [docs/TIMELINE.md](docs/TIMELINE.md).
+
 ## v0.21.0
 
 - **New: In-app Docs & Tutorials browser + illustrated example tutorials (`src/main/docs.ts`, `src/renderer/components/DocsBrowser.tsx`).** A **Help ▸ Docs & Tutorials** viewer — a dockable right-side panel that **detaches into its own window** — renders the shipped example/tutorial sets and the **illustrated user guide** as in-app markdown, with sibling **images loaded inline** (a main-side reader hands the sandboxed renderer image bytes over a traversal-guarded IPC, which wraps them in blob URLs) and **"open example"** links that load the `.artlux` straight into the editor. Bundled into packaged builds via `extraResources` (examples + user guide). Ships two openable **tutorial courses** — **LiDAR blob tracking** (feed → calibrate → replay, driven by a bundled synthetic emitter, no hardware) and the **state machine** (looping show → triggers → interactive installation) — each now illustrated with **self-contained SVG diagrams** (state graph, hub-and-spoke, tracking zones, merge-people). Adds new reference docs (**STATE-MACHINE, EFFECTS, CODECS, SPOUT**) and a **`plans/`** folder of implementation plans (incl. the native audio engine) with a dev-sequencing guide. `tsc` + `npm run build` clean; all 23 doc image references validated (resolve + read), docs-scan + traversal guard exercised, in-app visual test confirmed.

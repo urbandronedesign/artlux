@@ -1,8 +1,10 @@
 # 02 · Triggers & Actions
 
 > Project: [`../02-triggers-and-actions.artlux`](../02-triggers-and-actions.artlux)
-> You'll learn: **all five triggers**, the **two clocks**, **entry actions**, **lock time**, and
-> **regions**.
+> You'll learn: **five of ArtLux's six triggers** (`manual`/`afterDelay`/`atTime`/`onMarker`/
+> `onClipEnd`), the **two clocks**, **entry actions**, **lock time**, and **regions**. (The sixth,
+> `onTimelineEnd`, fires once when a non-looping timeline reaches its end — see
+> [docs/STATE-MACHINE.md](../../../docs/STATE-MACHINE.md).)
 
 Chapter 1 used one trigger (`afterDelay`). This project is a **cookbook**: a single linear path that
 walks through **every** trigger kind once, and shows how a state can drive the **transport** on entry.
@@ -99,7 +101,10 @@ Also note two more things in this graph:
 ## Recap
 
 Five triggers, two clocks: `manual` (you), `afterDelay` (wall clock, runs while stopped), and
-`atTime`/`onMarker`/`onClipEnd` (playhead, need Play). **Entry actions** let a state drive the
+`atTime`/`onMarker`/`onClipEnd` (playhead, need Play). ArtLux has a sixth trigger not used in this
+walkthrough, `onTimelineEnd` — it fires once when a non-looping timeline reaches its end (a loop wrap
+doesn't count), the trigger to reach for when "the show finished" should advance the graph; see
+[docs/STATE-MACHINE.md](../../../docs/STATE-MACHINE.md). **Entry actions** let a state drive the
 transport; **lock time** guarantees a dwell; **regions** keep the graph tidy. Next: wire these into a
 real, deployable **interactive installation**.
 
