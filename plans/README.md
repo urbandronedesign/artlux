@@ -58,7 +58,8 @@ Seven plans have landed on `main` and moved to [`archive/`](archive/). Full per-
 | [WebGL strict per-surface sampling](webgl-strict-per-surface-sampling.md) | #1 Composite Stage | **Core** | 🟡 Med | **Phase 1 shipped** (banner + force-WebGL + GPU settings); **Phase 2 deferred — open GitHub decision issue** |
 | [MIDI controller support](midi-control.md) | (net-new) | **Plugin** | 🟡 Med | not started (Draft) |
 | [Native audio engine](audio-engine.md) | (net-new, Wave 3) | **Hybrid** | 🔴 High | **P0–P4 shipped** on `wave-3-audio` (bed, spatial, FX, automation); **P5 superseded** by the plan below |
-| [Timeline transport + global/scene scoping + audio scene binding](timeline-transport-and-audio-scoping.md) | (net-new, Wave 3) | **Hybrid** | 🟠 Med-High | Approved — Wave A, checkpoint, Wave B |
+| [Timeline transport + global/scene scoping + audio scene binding](timeline-transport-and-audio-scoping.md) | (net-new, Wave 3) | **Hybrid** | 🟠 Med-High | **Wave A shipped** on `wave-3-audio` (awaiting live test); Wave B next |
+| [Asset paths: scenes + audio bed](asset-paths-scenes-and-audio.md) | #9 Pack & Hand Off | **Core** | 🟠 Med | Draft — **Collect Assets ships a broken folder** (surfaced by Wave A's review) |
 
 ## Net-new subsystems (beyond limitation-lifts)
 
