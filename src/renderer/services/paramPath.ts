@@ -57,6 +57,14 @@ export function isGeometryPath(path: string): boolean {
 //   audio.clip.<id>.gain          audio.track.<id>.gain          audio.master.gain
 //   audio.clip.<id>.spatial.{x|y|z}
 //   audio.clip.<id>.fx.<effectId>.<param>                        audio.master.fx.<effectId>.<param>
+//
+// ⚠ HARD CONSTRAINT ON EVERY CALLER: the `fx.<id>.<key>` arm CANNOT tell a continuous param from a discrete
+// `opts` key — `fx.e2.cutoff` and `fx.e2.mode` are the same shape, and core must not import the plugin's
+// effect defs to tell them apart (that is the whole point of the namespace boundary). So a PATH MUST NEVER
+// BE HAND-TYPED OR FREE-TEXTED INTO A CUE/SCENE ENTRY. Every audio path an entry can carry must come from
+// `provider.enumerate()`, which emits `def.params` and NOTHING else — never `opts`, never mute/solo, never
+// the spatial flag. That is the only thing standing between this regex and the fade engine handing a
+// filter's `mode` the value 0.37. isFadeablePath is a GATE, not a catalog; enumerate() is the catalog.
 export const AUDIO_FADEABLE_RE = /^(gain|spatial\.[xyz]|fx\.[^.]+\.[^.]+)$/;
 
 // Whether a path addresses a fadeable numeric parameter (else a cue entry snaps on fire).

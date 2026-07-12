@@ -32,6 +32,32 @@ const CORE_HEADS = new Set(['globalBrightness', 'surfaces', 'fixtures']);
 
 let active: ActiveFade | null = null;
 
+// ── FINALIZING AN ABANDONED LEG ─────────────────────────────────────────────────────────────────
+// A CORE leg needs nothing when a fade is dropped: its caller COMMITTED the target into React state
+// before calling start(), so abandoning the animation simply snaps the param to the value the document
+// already holds. That is why cancel() has always been a one-liner.
+//
+// A PLUGIN leg has NO committed target. The provider's fade layer IS the target, and that layer only ever
+// holds whatever the last apply() frame happened to write. Abandon the animation without finalizing and
+// the param is STRANDED at an arbitrary mid-glide value — not the outgoing scene's, not the incoming
+// one's, but a number that depends on WHEN the operator pressed GO — and it stays there, because a fade's
+// value persists by design and nothing ever "restores" it. (Recall A: master 1.0 → 0.2 over 5 s. GO B at
+// t = 2 s, B carries no audio and fades in 0 s → cancel() → the house sits at ≈0.6 for the rest of the show.)
+//
+// Finalizing to `leg.to` reproduces exactly what would have happened had the fade been allowed to finish:
+// the outgoing recall's authored audio state, held in the layer, waiting to be shadowed or replaced.
+// `skip` = the paths an INCOMING batch re-targets; those are overwritten from the next frame anyway, and
+// the incoming leg's `from` is read from the live layer, so leaving them mid-glide is what makes the
+// hand-off continuous.
+function finalizePluginLegs(legs: readonly ActiveLeg[], skip?: ReadonlySet<string>): void {
+  for (const leg of legs) {
+    if (skip?.has(leg.path)) continue;
+    const head = leg.path.split('.')[0];
+    if (CORE_HEADS.has(head)) continue;
+    automationTargetRegistry.get(head)?.writeFade?.(leg.path, leg.to);
+  }
+}
+
 // Subscribers notified when a fade starts/ends (e.g. UI progress). Render-free.
 const subs = new Set<(active: boolean) => void>();
 const notify = (): void => { subs.forEach(cb => cb(active != null)); };
@@ -60,8 +86,15 @@ export function start(targets: FadeLeg[], opts: { fadeSec: number; transition?: 
     };
   });
   const willAnimate = legs.some((l) => l.durMs > 0);
+  // Replacing a live fade ABANDONS every leg the incoming batch does not re-target. Core's are already
+  // committed; the plugin ones have to be landed on their endpoint or they freeze mid-glide forever.
+  if (active) finalizePluginLegs(active.legs, new Set(legs.map((l) => l.path)));
   if (!willAnimate) {
-    // Nothing to animate — run completion immediately (caller already committed target state).
+    // Nothing to animate. Core needs nothing (the caller already committed the target state) — but a SNAP
+    // on a PLUGIN leg (fadeSec 0 / transition 'none') still has to be WRITTEN: apply() is the only other
+    // writer of the fade layer and it never runs on this path, so bailing here without this would make a
+    // zero-length audio recall silently INERT — the cue fires, the log says so, the sound never changes.
+    finalizePluginLegs(legs);
     opts.onComplete?.();
     if (active) { active = null; notify(); }
     return;
@@ -70,7 +103,7 @@ export function start(targets: FadeLeg[], opts: { fadeSec: number; transition?: 
   notify();
 }
 
-export function cancel(): void { if (active) { active = null; notify(); } }
+export function cancel(): void { if (active) { finalizePluginLegs(active.legs); active = null; notify(); } }
 export function isActive(): boolean { return active != null; }
 
 // Called once per frame by the Stage pump. Returns null when idle. Fires onComplete and clears

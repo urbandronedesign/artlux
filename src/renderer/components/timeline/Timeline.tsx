@@ -547,6 +547,16 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   const patchAudioTrack = (source: 'bed' | 'timeline', id: string, patch: Partial<AudioTrack>) => {
     if (source === 'bed') {
       const a = audioRef.current; if (!a) return;
+      // A MANUAL MOVE IS A TAKEOVER — the same rule the mixer's own faders follow (AudioBedPanel's
+      // setTrackGain). This gutter is the SECOND authored writer of `audio.track.<id>.gain`, a fully
+      // enumerated, fadeable target: without the release, a scene that faded this track to 0.2 keeps
+      // shadowing it forever (the driver reads lane ?? sceneFade ?? authored), so the operator drags the
+      // fader back to 1.0, the slider moves, the document says 1.0 — and the sound stays at 0.2, for the
+      // rest of the session and across every project opened in it. Core cannot reach the plugin's fade map
+      // directly; the provider contract is the sanctioned door.
+      // (The 'timeline' arm below needs none of this: enumerate() offers only the BED, so no Timeline.audio
+      // track can carry a fade. Track name/mute/solo are discrete — the fade grammar admits neither.)
+      if (patch.gain !== undefined) automationTargetRegistry.get('audio')?.releaseFade?.(`audio.track.${id}.gain`);
       a.onChangeMix({ ...a.mix, tracks: a.mix.tracks.map(t => (t.id === id ? { ...t, ...patch } : t)) });
     } else {
       const t = timelineRef.current;

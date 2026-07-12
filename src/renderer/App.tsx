@@ -1075,6 +1075,11 @@ const App: React.FC = () => {
       // NEW PROJECT resets the show clock, like OPEN does. Without this the bed's clock keeps running
       // into a project that no longer exists — and with `scenes: []` there is no swap to catch it.
       timelineEngine.showSeek(timelineEngine.getGlobalStart());
+      // …and it drops the SCENE/CUE FADE LAYER, for the same reason OPEN does (see applyProjectData). It is
+      // SHOW state, not document state, and a plugin's layer is module-level — so without this a master or
+      // track fade from the OUTGOING show survives into the new one and keeps shadowing its authored mix,
+      // with every fader sitting where the operator put it and reading as perfectly healthy.
+      for (const p of automationTargetRegistry.all()) p.releaseAllFades?.();
   };
 
   // New Project always creates a *folder* (project.artlux + assets/ tree) and prompts where to put
