@@ -44,6 +44,20 @@
 // EVERY FADER DRAFTS LOCALLY AND COMMITS ONCE (invariant 7 — see Fader.tsx). A commit is
 // host.audio.setMix → App re-render → recompileAutomation → the audio fan-out; per pointermove that is
 // sixty of those a second, on the bound document of a running show.
+//
+// AND BECAUSE A GESTURE IS SPLIT IN TWO, IT CAN OUTLIVE ITS DOCUMENT — SO EVERY CONTINUOUS CONTROL THAT
+// WRITES A TIMELINE CLIP IS KEYED ON `docKey` (gestureDocKey, below). Seconds pass between the pointerdown
+// that opens a draft and the pointerup that writes it, and in that window a recall — the FSM, the scheduler,
+// an OSC / tablet GO, the scene pill; all of them funnel into App.handleRecallScene and none of them checks
+// for an in-flight edit — rebinds the document under this panel. Nothing else here can notice: the incoming
+// scene is normally a Capture-Scene structuredClone, so its clip carries the SAME ID in the SAME container,
+// selection.ts's `same()` suppresses the re-notify, and every id-keyed guard downstream (this panel's, and
+// the host's "is the clip in the bound document") RESOLVES — against the wrong scene. The commit would then
+// land the reverb the operator dialled on scene A onto scene B, silently, while scene B is on the
+// projectors. The guard is IDENTITY, not value (the clone's values match too), it is the same string core
+// mints for its own drags (Timeline.tsx:117), and a dead gesture writes NOTHING — losing an edit the
+// operator must redo is the cheap failure. THE BED IS DELIBERATELY UNGUARDED: it is one document, owned by
+// App, that survives every recall, so it has nothing to rebind to and its gestures must never be abandoned.
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Plus, Music, Trash2, Volume2, VolumeX, Headphones, AlertTriangle, Play, Pause, SkipBack, Square, Orbit, Sliders } from 'lucide-react';
 import { useDraggable, type PanelProps } from '@artlux/sdk/renderer';
@@ -80,16 +94,36 @@ const RANGE = 3;
 // commit is host.audio.setMix; a timeline commit is a CORE DOCUMENT commit — engine.setData (clamp + warm +
 // prune + compile) plus a structured-clone postMessage of the WHOLE document to EVERY projector port. Per
 // pointermove that is sixty of those a second while an operator idly drags a source around the room.
+//
+// ⚠⚠ AND SO DID THE PRICE OF THE SECOND THING INVARIANT 7 COSTS YOU: A GESTURE THAT OUTLIVES ITS DOCUMENT.
+// Draft-then-commit means seconds pass between the pointerdown and the write, and in that window a recall
+// (the FSM, the scheduler, an OSC/tablet GO, the scene pill — all of them funnel into handleRecallScene,
+// none of them checks for an in-flight edit) rebinds the document under this pad. The panel does NOT find
+// out: core re-publishes the selection, but the incoming scene is usually a Capture-Scene CLONE, so the id
+// AND the container name are byte-identical and selection.ts's `same()` suppresses the notify. Every
+// downstream id guard then RESOLVES against the incoming scene — and the operator's position lands on scene
+// B's clip while they are still looking at the dot they dragged on scene A's. `docKey` is the only thing
+// that catches it, and it is IDENTITY, not value: the clone's values match too. (Core mints the same string
+// and refuses the same way — Timeline.tsx:117, `endDrag`.)
 const SpatialPad: React.FC<{
   x: number; z: number;
+  /** Identity of the rebindable document this pad writes, or undefined for the BED (never rebound, never
+   *  abandoned — see Fader.docKey). Read LIVE at both ends of the gesture, never from a polled mirror. */
+  docKey?: () => string;
   onDraft: (x: number, z: number) => void;
   onCommit: (x: number, z: number) => void;
-}> = ({ x, z, onDraft, onCommit }) => {
+}> = ({ x, z, docKey, onDraft, onCommit }) => {
   const ref = useRef<HTMLDivElement>(null);
   // The last position the pointer produced. Read on pointerup — never the closure, which is a render behind.
   const pending = useRef<{ x: number; z: number } | null>(null);
+  // The document the in-flight drag was started against. `null` when there is no doc to guard (the bed).
+  const gestureDoc = useRef<string | null>(null);
+  // A gesture whose document rebound under it is DEAD. It stops drafting and it never commits — the same
+  // two refusals core makes (Timeline.tsx onDragMove: "don't re-arm the draft"; endDrag: "ABANDON").
+  const dead = () => docKey != null && gestureDoc.current !== docKey();
   const set = (clientX: number, clientY: number) => {
     const el = ref.current; if (!el) return;
+    if (dead()) return;                      // rebound mid-drag — do not paint the incoming scene's dot either
     const r = el.getBoundingClientRect();
     const px = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
     const py = Math.min(1, Math.max(0, (clientY - r.top) / r.height));
@@ -100,6 +134,7 @@ const SpatialPad: React.FC<{
   };
   const onDown = (e: React.PointerEvent) => {
     e.preventDefault();
+    gestureDoc.current = docKey ? docKey() : null;
     set(e.clientX, e.clientY);
     const move = (ev: PointerEvent) => set(ev.clientX, ev.clientY);
     const up = () => {
@@ -107,7 +142,8 @@ const SpatialPad: React.FC<{
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', up);
       const p = pending.current; pending.current = null;
-      if (p) onCommit(p.x, p.z);   // ONE write per drag
+      const alive = !dead(); gestureDoc.current = null;
+      if (p && alive) onCommit(p.x, p.z);   // ONE write per drag, and only into the document it was made on
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
@@ -167,6 +203,19 @@ const g2 = (v: number) => v.toFixed(2);
 
 export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   const host = getAudioHost();
+  // ── WHICH DOCUMENT IS BOUND, RIGHT NOW ───────────────────────────────────────────────────────────────
+  // THE SAME STRING CORE MINTS (Timeline.tsx:117 — `author?.activeSceneId ?? '__global__'`), because it is
+  // the same guard against the same hazard, and it must agree with core's exactly: it names WHERE A COMMIT
+  // WILL LAND. host.audio.patchTimelineClip routes off activeSceneIdRef and nothing else (App.tsx), and
+  // getStatus().activeSceneId reads that very ref — so this is not an approximation of the write target,
+  // it IS the write target.
+  //
+  // A FUNCTION, READ LIVE, NEVER A POLLED MIRROR. Every guarded gesture below calls it twice — once when
+  // the gesture opens, once when it commits — and the whole point is to catch a change that happened
+  // BETWEEN those two moments. A value captured in a render would be exactly as stale as the closure it
+  // is meant to police. (The `boundDoc` state below is a separate, cosmetic thing: it clears a stale
+  // DRAFT. It may lag; the guard may not.)
+  const docKeyOf = () => host?.show.getStatus().activeSceneId ?? '__global__';
   const [mix, setMixState] = useState<Mix>(() => (host?.audio.getMix() as Mix) ?? emptyMix());
   const [tlAudio, setTlAudio] = useState<TlAudio>(() => (host?.audio.getTimelineAudio() as TlAudio) ?? EMPTY_TL);
   const [sel, setSel] = useState<Sel>(() => host?.show.getSelection() ?? null);
@@ -183,6 +232,15 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   const [openMaster, setOpenMaster] = useState(false);
   // The spatial pad's in-flight drag (invariant 7). LOCAL state — a draft is not a document.
   const [padDraft, setPadDraft] = useState<{ x: number; z: number } | null>(null);
+  // A RENDERABLE mirror of docKeyOf(), for the ONE thing that needs a re-render when the binding changes:
+  // dropping a stale pad draft (see the reset effect). It is NOT the guard — the guard is docKeyOf(), read
+  // live — so this may lag by up to one meter tick without costing correctness. Refreshed from the audio
+  // fan-out (which fires on `[audioMix, activeTimeline]`, i.e. in the recall render itself) with the meter
+  // poll as the backstop for the one recall the fan-out cannot see: binding a scene that has no timeline of
+  // its own leaves `activeTimeline` pointing at the same global document, so nothing in `audio` changes —
+  // but the WRITE TARGET does (that scene now materializes its own timeline on the first edit), which is
+  // precisely a gesture the guard must abandon.
+  const [boundDoc, setBoundDoc] = useState<string>(docKeyOf);
   const peakHold = useRef(0);
   const holdL = useRef(0);
   const holdR = useRef(0);
@@ -211,6 +269,10 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
       const t = (host.audio.getTimelineAudio() as TlAudio) ?? EMPTY_TL;
       tlRef.current = t;   // THE HOST IS THE TRUTH — it overwrites any optimistic patch below, including a dropped one
       setTlAudio(t);
+      // The fan-out fires on `[audioMix, activeTimeline]` — so a recall that rebinds the bound document
+      // wakes it in the recall render. A primitive setState with an unchanged value is a React bail-out, so
+      // this costs nothing on the (far commoner) bed-only fire.
+      setBoundDoc(host.show.getStatus().activeSceneId ?? '__global__');
     });
   }, [host]);
 
@@ -247,30 +309,61 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
       const st = host.show.getStatus();
       setTransport({ playing: st.playing, showTime: st.showTime, showEnd: st.showEnd,
         sceneBound: st.activeSceneId != null, showEnded: st.showEnded });
+      setBoundDoc(st.activeSceneId ?? '__global__');   // backstop for the fan-out (see boundDoc) — bails out unchanged
     }, 100);
     return () => clearInterval(iv);
   }, [host]);
 
   const selId = sel && sel.kind === 'audioClip' ? sel.id : null;
-  // A new selection abandons any half-finished pad drag from the previous one — otherwise the draft would
-  // paint the NEW clip's dot at the OLD clip's position for a frame.
-  useEffect(() => { setPadDraft(null); }, [selId]);
+  const selSource: 'bed' | 'timeline' | null = sel?.kind === 'audioClip' ? sel.source : null;
+  // A new selection — OR A REBOUND DOCUMENT — abandons any half-finished pad drag, or the draft would paint
+  // the NEW clip's dot at the OLD clip's position.
+  //
+  // ALL THREE DEPS ARE LOAD-BEARING, AND THEY ARE THE THREE WAYS THE THING UNDER THE DOT CAN CHANGE WITHOUT
+  // THE ID CHANGING:
+  //   · `selId`   — the obvious one: a different clip was clicked.
+  //   · `selSource` — the SAME id in the OTHER container. The two clip pools are independent id spaces (the
+  //     Sel union is discriminated for exactly this reason), so `selId` alone cannot see a bed↔timeline flip.
+  //   · `boundDoc` — the SAME id, the SAME container, a DIFFERENT DOCUMENT. Capture Scene structuredClones
+  //     the timeline, so a recall to a cloned scene changes neither of the other two — this is the only dep
+  //     that fires, and without it the outgoing scene's dragged position would sit painted over the incoming
+  //     scene's clip. (The commit is already refused by the pad's own docKey guard; this is the PAINT.)
+  useEffect(() => { setPadDraft(null); }, [selId, selSource, boundDoc]);
 
   // Every mutation builds a fresh bed and writes it back (host normalizes + persists + notifies the player).
   const commit = (next: Mix) => { mixRef.current = next; setMixState(next); host?.audio.setMix(next); };
 
-  // ── WHICH CONTAINER IS THE INSPECTOR LOOKING AT ──────────────────────────────────────────────────────
+  // ── WHICH CONTAINER IS THE INSPECTOR LOOKING AT (selSource, above) ───────────────────────────────────
   // THE ONE ROUTER for every clip write below. It is read off the SELECTION, never guessed: `sel.source` is
   // a discriminated field precisely because the same clip id can exist in both containers (Capture Scene
   // deep-clones the bound timeline into a scene, ids verbatim), and the two commit through completely
   // different paths at completely different costs. `null` = nothing (or a video clip) is selected.
-  const selSource: 'bed' | 'timeline' | null = sel?.kind === 'audioClip' ? sel.source : null;
+  //
+  // ── AND WHICH GESTURES ARE GUARDED BY THE DOCUMENT'S IDENTITY ────────────────────────────────────────
+  // Handed to every CONTINUOUS control (the pad, the clip gain, the height, every FX param) — but ONLY for
+  // a `timeline` selection, and the asymmetry is the whole point:
+  //   · a TIMELINE clip lives in a document core REBINDS UNDER US (a recall). A gesture that started on
+  //     scene A and commits after the recall must be ABANDONED, because every id-keyed guard between here
+  //     and the document RESOLVES against scene B — Capture Scene aliases the ids — so the write would land,
+  //     silently, in the scene that is on the projectors now. Losing the edit is the correct outcome: the
+  //     operator is no longer looking at that clip.
+  //   · a BED clip lives in ProjectData.audio: ONE document, owned by App, which SURVIVES every recall.
+  //     There is nothing to rebind and nothing to alias, so a bed gesture must NOT be abandoned — guarding
+  //     it would throw away an edit that had nowhere else to go.
+  // `undefined` for the bed is therefore not an omission; it is the statement that the bed cannot rebind.
+  const gestureDocKey = selSource === 'timeline' ? docKeyOf : undefined;
   // Patch ONE clip in the bound timeline's own audio. Optimistic locally (the host hands nothing back), and
   // guarded by the SAME rule the host applies: an id that is not in the container we are looking at is
   // DROPPED, not searched for. The host's fan-out is the truth and overwrites this a render later.
+  //
+  // ⚠ THIS GUARD CANNOT SEE A REBIND, AND IT IS NOT SUPPOSED TO. It catches a DELETED clip. It cannot catch
+  // a recall, because the incoming scene is a structuredClone of the outgoing one and its clip carries the
+  // SAME ID — `some(c => c.id === id)` finds it and waves the write through, into the wrong scene. Only
+  // gestureDocKey above catches that, and it catches it BEFORE this is ever called. Do not "harden" this
+  // into a rebind check by comparing values; the clone's values match too.
   const patchTlClip = (id: string, p: Partial<Clip>) => {
     const cur = tlRef.current;
-    if (!cur.clips.some((c) => c.id === id)) return;   // the doc rebound (a recall, a delete) — abandon the edit
+    if (!cur.clips.some((c) => c.id === id)) return;   // the clip was deleted under the gesture — abandon the edit
     const next: TlAudio = { ...cur, clips: cur.clips.map((c) => (c.id === id ? { ...c, ...p } : c)) };
     tlRef.current = next;
     setTlAudio(next);
@@ -686,6 +779,7 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
                   <span className="text-micro text-fg-3 w-16 shrink-0">gain</span>
                   <Fader value={selClip.gain ?? 1} min={0} max={1.5} step={0.01}
                     ariaLabel="clip gain"
+                    docKey={gestureDocKey}
                     title={(v) => `gain ${g2(v)}`}
                     onCommit={(g) => setClipGain(selClip.id, g)}
                     className="flex-1 min-w-0"
@@ -705,7 +799,7 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
                   </div>
                   {spatial ? (
                     <div className="flex items-center gap-3">
-                      <SpatialPad x={padX} z={padZ}
+                      <SpatialPad x={padX} z={padZ} docKey={gestureDocKey}
                         onDraft={(x, z) => setPadDraft({ x, z })}
                         onCommit={(x, z) => { setPadDraft(null); setClipSpatialXZ(selClip.id, x, z); }} />
                       <div className="flex flex-col gap-1 min-w-0">
@@ -713,6 +807,7 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
                           <span className="text-micro text-fg-3 w-10 shrink-0">height</span>
                           <Fader value={spatial.y} min={-2} max={2} step={0.1}
                             ariaLabel="spatial height"
+                            docKey={gestureDocKey}
                             title={(v) => `y ${v.toFixed(1)} m`}
                             onCommit={(y) => setClipSpatialY(selClip.id, y)}
                             className="w-24"
@@ -738,8 +833,11 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
                   </div>
                   {/* No `disabled` — the chain is live against BOTH containers now. The engine has exactly two
                       insert points and one of them is the clip; a container whose clips could not take that
-                      insert was a container in which half the engine did not exist. */}
-                  <EffectChain scope="clip" effects={selClip.effects ?? []}
+                      insert was a container in which half the engine did not exist.
+                      `docKey` guards the PARAM FADERS inside it: an FX knob is a split gesture like any
+                      other, and EffectChain keys its rows on `fx.id` — which Capture Scene aliases too — so
+                      a recall mid-drag does not even remount the row. See gestureDocKey. */}
+                  <EffectChain scope="clip" effects={selClip.effects ?? []} docKey={gestureDocKey}
                     onChange={(fx, touched) => setClipEffects(selClip.id, fx, touched)} />
                 </section>
               </>

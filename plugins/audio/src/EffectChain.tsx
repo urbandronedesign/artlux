@@ -41,7 +41,12 @@ const fmt = (p: ParamDef, v: number) => {
 // postMessage of the WHOLE document to EVERY projector port. Sixty of those a second, while an operator
 // rides a reverb knob, is a frame-rate cliff on the projectors — i.e. on the picture in the venue. If you
 // ever swap this Fader for a raw <input type="range" onChange={...}>, you have shipped that cliff.
-const ParamRow: React.FC<{ p: ParamDef; value: number; disabled?: boolean; onCommit: (v: number) => void }> = ({ p, value, disabled, onCommit }) => (
+//
+// AND BECAUSE THE GESTURE IS SPLIT, IT CAN OUTLIVE ITS DOCUMENT — hence `docKey`, threaded straight down to
+// the Fader. A recall lands between the pointerdown and the pointerup; React keys the node on `fx.id`, which
+// Capture Scene ALIASES between the two scenes, so the row does not remount and its draft is still holding
+// scene A's value when the commit fires against scene B's identically-id'd chain. See Fader.docKey.
+const ParamRow: React.FC<{ p: ParamDef; value: number; disabled?: boolean; docKey?: () => string; onCommit: (v: number) => void }> = ({ p, value, disabled, docKey, onCommit }) => (
   <label className="flex items-center gap-2">
     <span className="text-micro text-fg-3 w-16 shrink-0">{p.label}</span>
     <Fader
@@ -50,6 +55,7 @@ const ParamRow: React.FC<{ p: ParamDef; value: number; disabled?: boolean; onCom
       step={p.curve === 'log' ? 0.001 : p.step}
       value={toSlider(p, value)}
       disabled={disabled}
+      docKey={docKey}
       ariaLabel={p.label}
       onCommit={(s) => onCommit(fromSlider(p, s))}
       className="flex-1 min-w-0"
@@ -84,7 +90,20 @@ export const EffectChain: React.FC<{
    * but if you reach for it, be sure the alternative is not simply plumbing the write.
    */
   disabled?: boolean;
-}> = ({ scope, effects, onChange, disabled }) => {
+  /**
+   * Identity of the REBINDABLE document this chain edits, if it edits one — passed through to every param
+   * Fader so a knob gesture straddling a scene recall is ABANDONED rather than committed into the incoming
+   * scene's aliased effect id. See Fader.docKey.
+   *
+   * The MASTER bus and a BED clip pass nothing: neither document is rebindable, so neither gesture may be
+   * abandoned. Only a clip in the bound timeline's own audio supplies it.
+   *
+   * The DISCRETE controls below (add / remove / reorder / bypass / a select) deliberately do NOT take it:
+   * a click resolves in one task against the chain the panel is showing AT THAT INSTANT, so there is no
+   * gesture to straddle a rebind. Only the continuous ones are split across time, and only they can lie.
+   */
+  docKey?: () => string;
+}> = ({ scope, effects, onChange, disabled, docKey }) => {
   const available = defsFor(scope);
 
   // ⚠ SHAPE-GUARD THE CHAIN AT THE RENDER, because the document does not guarantee it. normalizeAudioMix
@@ -144,7 +163,7 @@ export const EffectChain: React.FC<{
                 </label>
               ))}
               {def.params.map((p) => (
-                <ParamRow key={p.key} p={p} value={fx.params?.[p.key] ?? p.def} disabled={disabled}
+                <ParamRow key={p.key} p={p} value={fx.params?.[p.key] ?? p.def} disabled={disabled} docKey={docKey}
                   onCommit={(v) => patch(i, { params: { ...(fx.params ?? {}), [p.key]: v } }, { fxId: fx.id, key: p.key })} />
               ))}
             </div>
