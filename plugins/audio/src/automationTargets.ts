@@ -43,6 +43,25 @@ const ovr = new Map<string, number>();          // targetPath → live value
 const byOwner = new Map<string, Set<string>>(); // ownerId (clipId | trackId | 'master') → its paths
 const dirty = new Set<string>();                // owners whose engine state needs a re-push this frame
 
+// ── THE SCENE / CUE FADE LAYER ───────────────────────────────────────────────────────────────────
+// A SECOND override layer, kept strictly separate from `ovr` above. Written by core's transitions.ts (a
+// scene recall or a cue, through AutomationTargetProvider.writeFade), and read UNDER it.
+//
+// WHY A SECOND MAP AND NOT `ovr`:
+//   · A LANE MUST WIN. With one map, a lane and a fade on the same path would be two writers racing
+//     last-writer-wins, every frame. With two, the driver's read order settles it once and for all — and
+//     core cannot ask "does a lane own this path?" across the plugin boundary anyway (automationOverlay's
+//     owns() is a CORE-ONLY map; the provider contract has no owns() and is not getting one).
+//   · `release(path)` (below) unconditionally deletes the path — so a lane being disabled would have
+//     DELETED A LIVE SCENE FADE. Two maps make that structurally impossible.
+//
+// A fade's value PERSISTS after the fade completes. It is not "the fade animating"; it IS the recalled
+// scene's audio state, held outside the persisted AudioMix exactly as `ovr` is — so nothing is ever baked
+// into the saved file and nothing has to be "restored". A later recall/cue overwrites it; a MANUAL move of
+// the control takes the path back (releaseFade); opening a project drops the lot (releaseAllFades).
+const fade = new Map<string, number>();               // targetPath → the scene/cue value
+const fadeByOwner = new Map<string, Set<string>>();   // ownerId → its faded paths
+
 // ownerId of a path: audio.clip.<id>.… → <id>; audio.track.<id>.… → <id>; audio.master.… → 'master'.
 const ownerOf = (path: string): string | null => {
   const p = path.split('.');
@@ -52,9 +71,9 @@ const ownerOf = (path: string): string | null => {
   return null;
 };
 
-const link = (owner: string, path: string) => {
-  let s = byOwner.get(owner);
-  if (!s) { s = new Set(); byOwner.set(owner, s); }
+const link = (index: Map<string, Set<string>>, owner: string, path: string) => {
+  let s = index.get(owner);
+  if (!s) { s = new Set(); index.set(owner, s); }
   s.add(path);
 };
 
@@ -67,19 +86,25 @@ export function takeDirty(): ReadonlySet<string> {
 }
 const EMPTY: ReadonlySet<string> = new Set<string>();
 
-export const autoGain = (clipId: string): number | undefined => ovr.get(`${NS}.clip.${clipId}.gain`);
-export const autoTrackGain = (trackId: string): number | undefined => ovr.get(`${NS}.track.${trackId}.gain`);
-export const autoMasterGain = (): number | undefined => ovr.get(`${NS}.master.gain`);
-export const hasOverride = (ownerId: string): boolean => (byOwner.get(ownerId)?.size ?? 0) > 0;
+// THE READ ORDER, IN ONE PLACE: lane override ?? scene/cue fade ?? (the caller's authored value).
+// Every driver read of an automatable leaf goes through these — that is what makes "a lane always wins"
+// true, structurally, with no query and no coordination between the two writers.
+const layered = (path: string): number | undefined => ovr.get(path) ?? fade.get(path);
 
-/** A clip with its automated leaves laid over the authored ones. Only called for clips that have some. */
-export function applyClipOverrides<T extends OvClip>(clip: T): T {
-  const paths = byOwner.get(clip.id);
+export const autoOrFadeGain = (clipId: string): number | undefined => layered(`${NS}.clip.${clipId}.gain`);
+export const autoOrFadeTrackGain = (trackId: string): number | undefined => layered(`${NS}.track.${trackId}.gain`);
+export const autoOrFadeMasterGain = (): number | undefined => layered(`${NS}.master.gain`);
+export const hasAnyOverride = (ownerId: string): boolean =>
+  (byOwner.get(ownerId)?.size ?? 0) > 0 || (fadeByOwner.get(ownerId)?.size ?? 0) > 0;
+
+// One layer's worth of clip leaves, laid over `clip`. Called TWICE per clip (fade, then lane) — the SECOND
+// call wins on any path both layers hold, which IS the priority rule.
+function applyClipPaths<T extends OvClip>(clip: T, paths: Set<string> | undefined, values: Map<string, number>): T {
   if (!paths || paths.size === 0) return clip;
   let spatial = clip.spatial;
   let effects = clip.effects;
   for (const path of paths) {
-    const v = ovr.get(path);
+    const v = values.get(path);
     if (v === undefined) continue;
     const p = path.split('.'); // audio.clip.<id>.<what>...
     if (p[3] === 'spatial' && spatial) {
@@ -93,12 +118,11 @@ export function applyClipOverrides<T extends OvClip>(clip: T): T {
 }
 
 /** Same, for the master bus. */
-export function applyBusOverrides<T extends OvBus>(bus: T): T {
-  const paths = byOwner.get(MASTER_BUS_ID);
+function applyBusPaths<T extends OvBus>(bus: T, paths: Set<string> | undefined, values: Map<string, number>): T {
   if (!paths || paths.size === 0) return bus;
   let effects = bus.effects;
   for (const path of paths) {
-    const v = ovr.get(path);
+    const v = values.get(path);
     if (v === undefined) continue;
     const p = path.split('.'); // audio.master.fx.<effectId>.<param>
     if (p[2] === 'fx' && effects) {
@@ -106,6 +130,40 @@ export function applyBusOverrides<T extends OvBus>(bus: T): T {
     }
   }
   return { ...bus, effects } as T;
+}
+
+/**
+ * THE TAKEOVER — drop the scene/cue fade on `path`, handing it back to the AUTHORED value.
+ *
+ * Exported as a plain function as well as a provider member because THE MIXER CALLS IT DIRECTLY, on every
+ * authored write it makes (AudioBedPanel). Without that, the `fade` map is WRITE-ONLY and the layer is a
+ * one-way trap: the driver reads `laneOvr ?? fade ?? authored`, a fade's value persists by design, so the
+ * instant ANY scene or cue touches `audio.master.gain` the house-volume fader stops doing anything at all —
+ * for the rest of the session, and across every project opened in it. An automation lane does not have that
+ * bug precisely because it HAS a release. This is the fade layer's.
+ */
+export function releaseFade(path: string): void {
+  const owner = ownerOf(path);
+  if (!owner) return;
+  fade.delete(path);
+  fadeByOwner.get(owner)?.delete(path);
+  dirty.add(owner);   // re-push, so the AUTHORED value reaches the engine on the next frame
+}
+
+/** A clip with its scene/cue fade laid on, then its automated leaves laid OVER that. Lane wins. */
+export function applyClipLayers<T extends OvClip>(clip: T): T {
+  let out = clip;
+  out = applyClipPaths(out, fadeByOwner.get(clip.id), fade);   // fade first…
+  out = applyClipPaths(out, byOwner.get(clip.id), ovr);        // …lane over it. ORDER IS THE PRIORITY.
+  return out;
+}
+
+/** Same, for the master bus. */
+export function applyBusLayers<T extends OvBus>(bus: T): T {
+  let out = bus;
+  out = applyBusPaths(out, fadeByOwner.get(MASTER_BUS_ID), fade);
+  out = applyBusPaths(out, byOwner.get(MASTER_BUS_ID), ovr);
+  return out;
 }
 
 // ── The provider ────────────────────────────────────────────────────────────────────────────────
@@ -173,7 +231,7 @@ export const audioAutomationProvider: AutomationTargetProvider = {
     const owner = ownerOf(path);
     if (!owner) return;
     ovr.set(path, value);
-    link(owner, path);
+    link(byOwner, owner, path);
     dirty.add(owner);
   },
 
@@ -183,5 +241,44 @@ export const audioAutomationProvider: AutomationTargetProvider = {
     ovr.delete(path);
     byOwner.get(owner)?.delete(path);
     dirty.add(owner); // re-push, so the AUTHORED value goes back to the engine on the next frame
+    // NOTE: `fade` is UNTOUCHED, and deliberately so. A lane being disabled hands the path back to the
+    // SCENE FADE (one layer down), not to the authored value — which is exactly right: the recalled scene's
+    // value is still in effect, it was merely shadowed. The fade is dropped by releaseFade() (a manual
+    // takeover) or releaseAllFades() (a project open) — NEVER by a lane.
+  },
+
+  // A SCENE/CUE FADE. Same contract as write(): it NEVER calls audioClient. The driver re-reads each clip
+  // from its container every frame through eff()/effGain(), so a value pushed straight to the engine would
+  // be overwritten with the AUTHORED one on the same frame, forever — an audible 60 Hz flutter, not a
+  // silent bug. PULL-THROUGH, never push-per-frame. See the header of this file.
+  writeFade(path: string, value: number): void {
+    const owner = ownerOf(path);
+    if (!owner) return;
+    fade.set(path, value);
+    link(fadeByOwner, owner, path);
+    dirty.add(owner);   // the driver's takeDirty() re-pushes this owner on the next frame
+  },
+
+  // THE TAKEOVER. Without this the `fade` map is WRITE-ONLY and the layer is a one-way trap: the mixer's
+  // master fader dies the moment any scene or cue touches audio.master.gain, because effGain/syncMaster
+  // read `laneOvr ?? fade ?? authored` and the authored value they'd read is the one the fader just wrote.
+  // A manual write to the authored value means the operator has taken the param back. Drop the fade.
+  releaseFade,
+
+  // A fade layer is SHOW state, not DOCUMENT state. App calls this on project open/reset (through the
+  // registry), or a stale master fade from the last project would clamp the next one's output — silently,
+  // with the fader sitting at 1.0 and reading as healthy.
+  releaseAllFades(): void {
+    for (const owner of fadeByOwner.keys()) dirty.add(owner);
+    fade.clear();
+    fadeByOwner.clear();
+  },
+
+  // The EFFECTIVE value — what is actually reaching the engine right now. A FADE'S `from` MUST BE THIS, not
+  // get()'s AUTHORED value: otherwise the second recall of a path jumps to the authored value on frame 1 and
+  // glides down from there — a full-scale pop on every audio recall after the first. (Lane SEEDING still
+  // reads get(): creating a lane must not change the sound.)
+  getLive(path: string): number | undefined {
+    return layered(path) ?? audioAutomationProvider.get(path);
   },
 };

@@ -26,21 +26,55 @@ const FIXTURE_FADEABLE = ['x', 'y', 'width', 'height', 'rotation', 'speed', 'int
 // Geometry leaves change LED↔surface UV mapping, so the GPU mapper must rebuild while they animate.
 const GEOMETRY_LEAVES = new Set(['x', 'y', 'width', 'height', 'rotation']);
 
+// THE PATH GRAMMAR, IN ONE FUNCTION.
+//
+// Core paths are `<head>.<id>.<leaf…>`  (surfaces.s1.content.opacity)   → the leaf starts at index 2.
+// Audio paths are ONE SEGMENT DEEPER:
+//     audio.clip.<id>.<leaf…>     audio.track.<id>.<leaf…>              → the leaf starts at index 3
+//     audio.master.<leaf…>                                              → the leaf starts at index 2
+// (the master is a singleton — it has no id — which is why it is not uniformly index 3).
+//
+// Every leaf extractor in the app used a bare `.slice(2)`, so every one of them was wrong for audio
+// (`audio.master.gain` read as the leaf `gain` on an owner called `master` only by accident; the clip form
+// `audio.clip.c7.gain` read as the leaf `c7.gain`). This is the single head-aware replacement; use it,
+// never slice(2), for anything that must work across heads.
+export function pathLeaf(path: string): string {
+  const p = path.split('.');
+  if (p[0] !== 'audio') return p.slice(2).join('.');
+  if (p[1] === 'master') return p.slice(2).join('.');   // audio.master.gain → 'gain'
+  return p.slice(3).join('.');                           // audio.clip.c7.fx.e2.cutoff → 'fx.e2.cutoff'
+}
+
 export function isGeometryPath(path: string): boolean {
-  const leaf = path.split('.').slice(2).join('.'); // strip "surfaces.<id>." / "fixtures.<id>."
+  const leaf = pathLeaf(path); // strips "surfaces.<id>." / "fixtures.<id>." / "audio.<kind>.<id>."
   return GEOMETRY_LEAVES.has(leaf) || GEOMETRY_LEAVES.has(path);
 }
+
+// Continuous audio leaves ONLY. Never a discrete `opts` mode (filter.mode = 'lowpass'), which the fade
+// engine would hand `0.37` — AudioEffect.opts is typed as strings ON PURPOSE to make that unrepresentable.
+// Never a chain's length, never spatial on/off: each changes the SHAPE of the engine's chain and forces a
+// rebuild (a spatial flip changes its channel count 2⇔1), and a rebuild allocates.
+//   audio.clip.<id>.gain          audio.track.<id>.gain          audio.master.gain
+//   audio.clip.<id>.spatial.{x|y|z}
+//   audio.clip.<id>.fx.<effectId>.<param>                        audio.master.fx.<effectId>.<param>
+export const AUDIO_FADEABLE_RE = /^(gain|spatial\.[xyz]|fx\.[^.]+\.[^.]+)$/;
 
 // Whether a path addresses a fadeable numeric parameter (else a cue entry snaps on fire).
 export function isFadeablePath(path: string): boolean {
   if (path === 'globalBrightness') return true;
   const head = path.split('.')[0];
-  const leaf = path.split('.').slice(2).join('.');
+  const leaf = pathLeaf(path);
   if (head === 'surfaces') return SURFACE_FADEABLE.includes(leaf);
   if (head === 'fixtures') return FIXTURE_FADEABLE.includes(leaf) || /^segments\.\d+\.(speed|intensity)$/.test(leaf);
+  if (head === 'audio') return AUDIO_FADEABLE_RE.test(leaf);
   return false;
 }
 
+// NOTE: there is deliberately no `audio` arm here or in setByPath. Audio does not live on the StateView —
+// it lives behind the AutomationTargetProvider contract, and is read via provider.get() / provider.getLive()
+// and written via provider.writeFade(). See transitions.ts's head router and DC11 in the Wave B plan.
+// (Widening StateView would break its 9 construction sites, two of which are inside Stage's rAF tick.)
+//
 // Read a value at a dot-path from the state view (numeric leaves only matter for fades).
 export function getByPath(view: StateView, path: string): number | string | boolean | null | undefined {
   const parts = path.split('.');

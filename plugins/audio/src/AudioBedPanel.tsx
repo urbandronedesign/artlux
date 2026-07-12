@@ -34,6 +34,7 @@ import { audioClient } from './audioClient';
 import { EffectChain, type Effect } from './EffectChain';
 import { Fader } from './Fader';
 import { MASTER_BUS_ID } from './effectDefs';
+import { releaseFade } from './automationTargets';
 
 interface Spatial { x: number; y: number; z: number }
 interface Clip { id: string; trackId: string; name: string; path: string; start: number; duration: number; inPoint: number; sourceDuration?: number; gain?: number; mute?: boolean; spatial?: Spatial; effects?: Effect[] }
@@ -255,13 +256,38 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
     commit({ ...cur, buses: has ? cur.buses.map((b) => (b.id === MASTER_BUS_ID ? next : b)) : [...cur.buses, next] });
   };
 
-  const setMasterGain = (g: number) => patchMaster({ gain: g });                             // audio.master.gain
-  const setMasterEffects = (fx: Effect[]) => patchMaster({ effects: fx });                   // audio.master.fx.<fxId>.<key>
-  const setTrackGain = (id: string, g: number) => patchTrack(id, { gain: g });               // audio.track.<id>.gain
+  // A MANUAL MOVE TAKES THE PARAM BACK from whatever scene or cue last faded it. WITHOUT THIS the fader
+  // moves on screen, the value changes in the document, and NOTHING HAPPENS TO THE SOUND — the fade layer is
+  // still winning the read (laneOvr ?? fade ?? authored), and it keeps winning for the rest of the session
+  // and across every project opened in it. The house-volume fader would be dead the moment ANY scene or cue
+  // touched audio.master.gain — which is precisely what an audio scene recall exists to do.
+  //
+  // Only the FADE layer is released, never the lane's: a lane is owned by the automation engine and only it
+  // may drop one (moving a fader under a live lane is still shadowed, exactly as it is today, and the
+  // authored value is what re-appears when the lane is disabled).
+  //
+  // An FX chain is written whole (EffectChain hands back the whole array), so the release is DIFFED against
+  // the authored chain: only params whose value actually changed are taken back. Adding a delay must not
+  // silently release a live filter-cutoff fade the operator never touched.
+  const releaseChangedFx = (prefix: string, next: Effect[], prev: Effect[]) => {
+    for (const fx of next) {
+      const before = prev.find((p) => p.id === fx.id);
+      for (const [k, v] of Object.entries(fx.params ?? {})) {
+        if (before?.params?.[k] !== v) releaseFade(`${prefix}.fx.${fx.id}.${k}`);
+      }
+    }
+  };
+
+  const setMasterGain = (g: number) => { releaseFade('audio.master.gain'); patchMaster({ gain: g }); };        // audio.master.gain
+  const setMasterEffects = (fx: Effect[]) => {                                                                 // audio.master.fx.<fxId>.<key>
+    releaseChangedFx('audio.master', fx, mixRef.current.buses.find((b) => b.id === MASTER_BUS_ID)?.effects ?? []);
+    patchMaster({ effects: fx });
+  };
+  const setTrackGain = (id: string, g: number) => { releaseFade(`audio.track.${id}.gain`); patchTrack(id, { gain: g }); }; // audio.track.<id>.gain
   const setTrackMute = (id: string, m: boolean) => patchTrack(id, { mute: m });              // (not fadeable — discrete)
   const setTrackSolo = (id: string, s: boolean) => patchTrack(id, { solo: s });              // (not fadeable — discrete)
   const setTrackName = (id: string, n: string) => patchTrack(id, { name: n });
-  const setClipGain = (id: string, g: number) => patchClip(id, { gain: g });                 // audio.clip.<id>.gain
+  const setClipGain = (id: string, g: number) => { releaseFade(`audio.clip.${id}.gain`); patchClip(id, { gain: g }); }; // audio.clip.<id>.gain
   // ⚠ THIS BUTTON IS THE ONLY WRITER OF AudioClip.mute IN THE WHOLE APPLICATION, and it must stay that way
   // or the field becomes UNAUTHORABLE — the exact hazard the plan raised for `@ N s`, landing on a different
   // field. The lane RENDERS a muted clip (AudioLane 40% opacity) but has no toggle: its gutter's mute/solo/
@@ -271,7 +297,10 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   // deleting the clip (losing its trim, fades, gain, spatial and FX) or hand-editing the project JSON.
   // Discrete, not fadeable — a mute is a boolean, and the fade grammar admits only continuous paths.
   const setClipMute = (id: string, m: boolean) => patchClip(id, { mute: m });                // (not fadeable — discrete)
-  const setClipEffects = (id: string, fx: Effect[]) => patchClip(id, { effects: fx });       // audio.clip.<id>.fx.<fxId>.<key>
+  const setClipEffects = (id: string, fx: Effect[]) => {                                     // audio.clip.<id>.fx.<fxId>.<key>
+    releaseChangedFx(`audio.clip.${id}`, fx, mixRef.current.clips.find((c) => c.id === id)?.effects ?? []);
+    patchClip(id, { effects: fx });
+  };
   // A spatial AXIS is fadeable (audio.clip.<id>.spatial.<x|y|z>); the spatial FLAG is not — turning it on
   // or off changes the engine chain's channel count (2⇔1) and forces a rebuild, which is why the fade
   // grammar admits the axes and never the flag.
@@ -283,13 +312,22 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   const spatialOf = (id: string): Spatial | undefined => mixRef.current.clips.find((c) => c.id === id)?.spatial;
   const setClipSpatialXZ = (id: string, x: number, z: number) => {
     const cur = spatialOf(id); if (!cur) return;
+    releaseFade(`audio.clip.${id}.spatial.x`); releaseFade(`audio.clip.${id}.spatial.z`);
     patchClip(id, { spatial: { ...cur, x, z } });
   };
   const setClipSpatialY = (id: string, y: number) => {
     const cur = spatialOf(id); if (!cur) return;
+    releaseFade(`audio.clip.${id}.spatial.y`);
     patchClip(id, { spatial: { ...cur, y } });
   };
-  const setClipSpatialOn = (id: string, on: boolean) => patchClip(id, { spatial: on ? { x: 0, y: 0, z: 1 } : undefined });
+  // Flipping spatialisation REBUILDS the clip's container, so every axis fade over it is stale by
+  // definition — a fade holding x = 2.4 from a scene recall must not silently re-shadow the fresh
+  // {0,0,1} the operator just created. (The FLAG itself is not fadeable — it changes the chain's channel
+  // count 2⇔1 — so there is no fade on it to release.)
+  const setClipSpatialOn = (id: string, on: boolean) => {
+    for (const ax of ['x', 'y', 'z'] as const) releaseFade(`audio.clip.${id}.spatial.${ax}`);
+    patchClip(id, { spatial: on ? { x: 0, y: 0, z: 1 } : undefined });
+  };
 
   const addTrack = () => {
     const cur = mixRef.current;

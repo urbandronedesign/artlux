@@ -49,7 +49,7 @@ import { useResizable } from './hooks/useResizable';
 import { activateRendererPlugins } from './host/plugins';
 import { setEnabled as mp4SetEnabled } from '@artlux/plugin-mp4';
 import type { RendererHostServices } from '@artlux/sdk/renderer';
-import { projectorChannelRegistry, panelRegistry } from './host/registries';
+import { projectorChannelRegistry, panelRegistry, automationTargetRegistry } from './host/registries';
 import * as cueBus from './services/cueBus';
 import * as selection from './services/selection';
 import * as transitions from './services/transitions';
@@ -971,6 +971,13 @@ const App: React.FC = () => {
       const curTl = currentScene?.timeline ? normalizeTimeline(currentScene.timeline) : tl;
       timelineEngine.setGlobalDoc(tl);   // BEFORE the swap — swap's showClock:'reset' reads globalDoc
                                          // synchronously, and the [timeline] effect above is passive.
+      // A SCENE/CUE FADE LAYER IS SHOW STATE, NOT DOCUMENT STATE — drop it, or the OUTGOING project's fades
+      // keep shadowing the INCOMING project's authored values, silently and forever (a plugin's override
+      // layer is module-level and the plugin is never deactivated). The audio driver reads
+      // `laneOverride ?? sceneFade ?? authored`, so a stale master fade would clamp the new show's output
+      // with the fader sitting at 1.0 and reading as perfectly healthy. Core has nothing to clear: its fades
+      // live on the StateView, which applyProjectData replaces wholesale.
+      for (const p of automationTargetRegistry.all()) p.releaseAllFades?.();
       timelinePreloader.warm(curKey, curTl);
       // Opening a project RESETS the show clock (the bed's time restarts with the show); a scene recall
       // never does. Both reach swap() with transport:'restart' and cannot be told apart in there.

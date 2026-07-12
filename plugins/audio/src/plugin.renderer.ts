@@ -39,8 +39,8 @@ import { AudioBedPanel } from './AudioBedPanel';
 import type { AudioEffectSpec, ClipMeta, OutputMode, SpeakerLayout } from './audioManager';
 import { MASTER_BUS_ID } from './effectDefs';
 import {
-  audioAutomationProvider, autoGain, autoTrackGain, autoMasterGain,
-  applyClipOverrides, applyBusOverrides, hasOverride, takeDirty,
+  audioAutomationProvider, autoOrFadeGain, autoOrFadeTrackGain, autoOrFadeMasterGain,
+  applyClipLayers, applyBusLayers, hasAnyOverride, takeDirty,
 } from './automationTargets';
 
 interface AudioPluginCfg { outputChannels?: number; outputMode?: OutputMode; speakerLayout?: SpeakerLayout }
@@ -198,20 +198,31 @@ export const plugin: RendererPlugin = {
       }
       return g;
     };
-    // AUTOMATION READS THROUGH HERE. An automation lane writes to an override layer, not to the bed and
-    // not to the engine — because reconcile() below re-reads the clip from its container every frame, so a
-    // value pushed straight to the engine would be overwritten with the AUTHORED one on the same frame,
-    // 60 times a second. Every driver read of an automatable leaf therefore goes through `eff`/`effGain`.
-    // (`autoGain`/`autoTrackGain` enumerate the BED's targets only, so for a Timeline.audio clip they miss
-    // and the authored value stands — a scene's own audio is not automatable from the bed's namespace.)
-    // `tLocal` is the clip-local time on the clip's OWN container clock: the fade is a property of the
+    // AUTOMATION **AND SCENE/CUE FADES** READ THROUGH HERE — and the read ORDER is the priority:
+    //
+    //     lane override  ??  scene/cue fade  ??  the authored value
+    //
+    // Neither writer touches the bed or the engine. reconcile() below re-reads the clip from its container
+    // every frame, so a value pushed straight to the engine would be overwritten with the AUTHORED one on
+    // the same frame, 60 times a second. Every driver read of an automatable leaf therefore goes through
+    // `eff`/`effGain`, and A LANE ALWAYS WINS OVER A SCENE FADE because the lane's value SHADOWS the fade's
+    // in the very read that reaches the engine — no owns() query, no race, no ordering to get wrong.
+    // Disabling the lane doesn't "restore" anything: the fade is simply visible again, one layer down.
+    //
+    // ⚠ Do not conflate this with `fadeGain` above. That is a CLIP's fadeIn/fadeOut ENVELOPE (a property of
+    // the clip's own edges); the `fade` layer inside automationTargets is a scene/cue RECALL. Two different
+    // things that both got called "fade", kept apart by module.
+    //
+    // (These enumerate the BED's and the bound timeline's clips alike — they are path lookups, keyed by clip
+    // id, so a Timeline.audio clip a cue fades is honoured too.)
+    // `tLocal` is the clip-local time on the clip's OWN container clock: the envelope is a property of the
     // clip's position in ITS timeline, so passing it in is what keeps the two clocks from crossing.
     const effGain = (clip: BedClip, tLocal: number) =>
-      (autoGain(clip.id) ?? clip.gain ?? 1)
-      * (autoTrackGain(clip.trackId) ?? trackOfClip(clip)?.gain ?? 1)
+      (autoOrFadeGain(clip.id) ?? clip.gain ?? 1)
+      * (autoOrFadeTrackGain(clip.trackId) ?? trackOfClip(clip)?.gain ?? 1)
       * fadeGain(clip, tLocal);
-    /** The clip as it should SOUND: authored, with any automated leaves laid over it. */
-    const eff = (clip: BedClip): BedClip => (hasOverride(clip.id) ? applyClipOverrides(clip) : clip);
+    /** The clip as it should SOUND: authored, with the scene fade laid on, with the lane's leaves over that. */
+    const eff = (clip: BedClip): BedClip => (hasAnyOverride(clip.id) ? applyClipLayers(clip) : clip);
     // MUTE **AND SOLO** — solo has been persisted and silently ignored since Wave 3, and the lane's gutter
     // now offers the button, so ignoring it would make the button a lie.
     //
@@ -381,11 +392,15 @@ export const plugin: RendererPlugin = {
 
     const syncMaster = () => {
       const authored = bed.buses.find((b) => b.id === MASTER_BUS_ID);
-      const master = authored ? applyBusOverrides(authored) : undefined;
+      const master = authored ? applyBusLayers(authored) : undefined;
       const mfx = master?.effects ?? [];
       const mkey = JSON.stringify(mfx);
       if (sentMaster !== mkey) { audioClient.setMasterEffects(mfx); sentMaster = mkey; }
-      const mgain = autoMasterGain() ?? master?.gain ?? 1;
+      // laneOvr ?? sceneFade ?? authored. NOTE the `authored === undefined` hole this leaves open: a project
+      // that has never touched the master has no master BUS, so a scene fading `audio.master.gain` still
+      // lands — autoOrFadeMasterGain() is a path lookup, not a bus read. That is deliberate: D5's headline
+      // recall must work on a bed the operator never opened the mixer for.
+      const mgain = autoOrFadeMasterGain() ?? master?.gain ?? 1;
       if (sentMasterGain !== mgain) { audioClient.setMasterGain(mgain); sentMasterGain = mgain; }
     };
     const syncClips = () => {

@@ -95,6 +95,59 @@ export interface AutomationTargetProvider {
   release(path: string): void;
   /** Optional: called once per frame AFTER all writes, so a provider can flush coalesced changes. */
   frameEnd?(): void;
+
+  /**
+   * Optional: A SCENE OR CUE FADE writes here — a layer SEPARATE from the automation override above.
+   *
+   * Two writers, two maps, and the separation is load-bearing:
+   *   · A LANE MUST ALWAYS WIN over a scene fade. Providers implement that by READ ORDER — the value the
+   *     provider hands the engine is `laneOverride ?? fadeOverride ?? authored`. No owns() query is needed
+   *     and none exists: core cannot see inside a plugin's override layer, by design.
+   *   · A lane's release() must never delete a live fade. Sharing one map would make it do exactly that,
+   *     and would put two writers in a last-writer-wins race every frame.
+   *
+   * SAME CONTRACT AS write(): called from inside a rAF frame loop. MUST NOT touch React state, MUST NOT
+   * write the persisted document, and MUST NOT push to a device/engine directly — the consumer PULLS the
+   * value through on its own next read. (A direct push would be overwritten by the authored value on the
+   * same frame by whatever re-reads the document each frame — an audible flutter, not a silent bug.)
+   *
+   * A fade's value PERSISTS after the fade completes: it IS the recalled scene's state for that param,
+   * held outside the saved document exactly as the automation override is. A later recall overwrites it.
+   * WHICH IS EXACTLY WHY releaseFade() BELOW IS NOT OPTIONAL IN PRACTICE — see it.
+   */
+  writeFade?(path: string, value: number): void;
+
+  /**
+   * Optional: HAND THE PATH BACK. A MANUAL write to the authored value (an operator moving a fader) is a
+   * TAKEOVER — the fade layer for that path must be dropped, or the value the user just set is SHADOWED BY
+   * A DEAD FADE FOREVER.
+   *
+   * This is not hypothetical, it is the default outcome of the layer above. A fade's value persists, and
+   * the driver reads `laneOvr ?? fade ?? authored` — so the instant ANY scene or cue touches
+   * `audio.master.gain`, the mixer's master fader stops doing anything at all, for the rest of the session
+   * and across every project opened in it. An automation lane does not have this bug precisely because it
+   * HAS a release, and this codebase already names the failure: a dropped target "must be handed back to
+   * manual control, or the target would be STRANDED at the outgoing curve's last value forever".
+   */
+  releaseFade?(path: string): void;
+
+  /**
+   * Optional: drop EVERY fade. The host calls this through the automation-target registry when a project is
+   * OPENED or RESET — a fade layer is show state, not document state, and a stale master fade from the
+   * previous project must not clamp the new one's output.
+   */
+  releaseAllFades?(): void;
+
+  /**
+   * Optional: the EFFECTIVE value of a path — `laneOverride ?? fadeOverride ?? authored`.
+   *
+   * `get()` returns the AUTHORED value on purpose (it seeds a new lane's first keyframe, so creating a
+   * lane never changes the sound). A FADE'S `from` MUST NOT USE IT: scene A fades the master 1.0 → 0.2;
+   * scene B later fades it → 0.5; built from `get()`, B's leg starts at the AUTHORED 1.0 and frame 1 of
+   * the fade slams the master to FULL LEVEL before gliding down. A full-scale pop on the second and every
+   * subsequent audio recall of the show. Fades read getLive(); lane seeding still reads get().
+   */
+  getLive?(path: string): number | undefined;
 }
 export interface AutomationTargetRegistry {
   register(p: AutomationTargetProvider): void;

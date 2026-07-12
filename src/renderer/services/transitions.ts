@@ -1,6 +1,7 @@
 import type { CueTransition } from '../types';
 import { StateView, FadeTarget, setByPath, getByPath, isGeometryPath } from './paramPath';
 import * as automationOverlay from './automationOverlay';
+import { automationTargetRegistry } from '../host/registries';
 
 // Render-free fade/crossfade engine for Scenes & Cues. Modeled on livePreview/dmxSignal: an
 // imperative singleton the Stage frame pump samples each frame to lay interpolated values over the
@@ -17,10 +18,17 @@ const EASES: Record<CueTransition, (t: number) => number> = {
 };
 
 // One animated parameter. Extends FadeTarget {path, from, to} with optional per-leg timing.
-export interface FadeLeg extends FadeTarget { transition?: CueTransition; fadeSec?: number }
+// `log`: interpolate in LOG space (a filter cutoff is 20 Hz–20 kHz with curve:'log', and so are a delay's
+// timeMs and a compressor's attack/release). Only PLUGIN-namespaced legs carry it — core legs never set it,
+// so their behaviour is byte-identical. See the plugin arm of apply() below (DC15).
+export interface FadeLeg extends FadeTarget { transition?: CueTransition; fadeSec?: number; log?: boolean }
 
-interface ActiveLeg { path: string; from: number; to: number; durMs: number; ease: (t: number) => number; geom: boolean }
+interface ActiveLeg { path: string; from: number; to: number; durMs: number; ease: (t: number) => number; geom: boolean; log: boolean }
 interface ActiveFade { legs: ActiveLeg[]; startMs: number; onComplete?: () => void }
+
+// The heads that live on the StateView. Everything else is a PLUGIN NAMESPACE and is written through its
+// AutomationTargetProvider — setByPath would silently no-op on it (paramPath's `return view`).
+const CORE_HEADS = new Set(['globalBrightness', 'surfaces', 'fixtures']);
 
 let active: ActiveFade | null = null;
 
@@ -48,6 +56,7 @@ export function start(targets: FadeLeg[], opts: { fadeSec: number; transition?: 
       durMs: trans === 'none' ? 0 : Math.max(0, sec) * 1000,
       ease: EASES[trans] ?? EASES.smooth,
       geom: isGeometryPath(t.path),
+      log: t.log ?? false,
     };
   });
   const willAnimate = legs.some((l) => l.durMs > 0);
@@ -90,6 +99,37 @@ export function sample(nowMs: number): SampleResult | null {
     let v = base;
     for (const leg of a.legs) {
       const raw = leg.durMs <= 0 ? 1 : (nowMs - a.startMs) / leg.durMs;
+      const head = leg.path.split('.')[0];
+      if (!CORE_HEADS.has(head)) {
+        // A PLUGIN-NAMESPACED LEG (today: audio.*). It does NOT live on the StateView and setByPath would
+        // silently no-op on it (paramPath.ts's `return view`). It goes to the namespace's owner, into a
+        // LIVE FADE LAYER the provider keeps SEPARATE from its automation-override layer.
+        //
+        // NO owns() QUERY, AND NONE IS POSSIBLE: automationOverlay.owns() is a CORE-ONLY map, and core
+        // never reaches inside a plugin's override layer (automationOverlay.ts states the boundary).
+        // "A lane always wins over a scene fade" is enforced STRUCTURALLY instead, by the provider's READ
+        // ORDER — laneOverride ?? fadeOverride ?? authored — so the fade simply lands UNDERNEATH a live
+        // lane and becomes visible the instant that lane is disabled. That is the same "nothing is ever
+        // restored, because nothing was ever overwritten" doctrine core already follows, one layer deeper.
+        //
+        // No re-targeting either (the getByPath(base, …) glide below): base carries no audio, so there is
+        // nothing to read. The fade runs its authored from→to and lands under whatever owns the path.
+        //
+        // LOG-CURVE PARAMS INTERPOLATE IN LOG SPACE (DC15). A filter cutoff is 20 Hz–20 kHz with
+        // `curve: 'log'`; so are a delay's timeMs and a compressor's attack/release. The AUTOMATION engine
+        // honours that (LaneRT.log → sampleLane) and the SDK contract states it — so a linear fade of the
+        // same move would be past 4 kHz in the first 700 ms of a 3 s sweep and would sound nothing like the
+        // identical curve drawn on a lane, which is the comparison the operator makes in the room. Guarded:
+        // a hand-authored 0 endpoint falls back to linear rather than producing Math.log(0) = -Infinity →
+        // NaN → setClipEffects(NaN).
+        const t = leg.ease(clamp01(raw));
+        const val = raw >= 1 ? leg.to
+          : (leg.log && leg.from > 0 && leg.to > 0)
+            ? Math.exp(Math.log(leg.from) + (Math.log(leg.to) - Math.log(leg.from)) * t)
+            : leg.from + (leg.to - leg.from) * t;
+        automationTargetRegistry.get(head)?.writeFade?.(leg.path, val);
+        continue;
+      }
       // Whether a lane owns this path is asked EVERY FRAME, not captured at start(). Two things would
       // break a snapshot: a scene recall starts the fade BEFORE it swaps the timeline (so the lane set
       // at start() is the OUTGOING scene's), and a lane can be enabled or disabled mid-fade. It's a
