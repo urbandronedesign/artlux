@@ -1009,13 +1009,21 @@ export const defaultCueBank = (id: string, name = 'Bank 1'): CueBank => ({
 // projector, silent bed. Filter the ELEMENTS, not just the container: an entry needs an object shape and a
 // string `path` to be addressable at all. (`value` is left to the consumer — applyAudioEntries wants a
 // number, the inspector will happily display and re-type anything.)
-export const sceneAudioEntries = (s: Scene | null | undefined): CueEntry[] => {
-  const a = s?.audio as unknown;
-  if (!Array.isArray(a)) return [];
-  return (a as unknown[]).filter(
-    (e): e is CueEntry => !!e && typeof e === 'object' && typeof (e as CueEntry).path === 'string',
-  );
-};
+//
+// ⚠ AND `Cue.entries` IS THE SAME FIELD WITH THE SAME HOLE. It has no normalizer either (applyProjectData
+// loads cue banks with a spread), and its consumers dereference `e.path` exactly as harshly: applyCues'
+// `isPluginHeadEntry` (→ `path.split`) inside a GO, and the cue inspector's `labelForPath(e.path)` inside a
+// RENDER. So the guard is not a Scene.audio guard — it is a CueEntry guard, and every reader of an unvetted
+// entry list goes through `cueEntries()`, container and elements at once.
+//
+// An entry that fails this is not an authored value being coerced (invariant 6) — it is not ADDRESSABLE at
+// all: no path, so nothing downstream could ever fire it, fade it, label it or delete it. It is dropped, not
+// repaired, and the drop only persists if the operator edits that list — the same bargain Scene.audio makes.
+export const isAddressableEntry = (e: unknown): e is CueEntry =>
+  !!e && typeof e === 'object' && typeof (e as CueEntry).path === 'string';
+export const cueEntries = (list: unknown): CueEntry[] =>
+  Array.isArray(list) ? (list as unknown[]).filter(isAddressableEntry) : [];
+export const sceneAudioEntries = (s: Scene | null | undefined): CueEntry[] => cueEntries(s?.audio);
 
 // S4 — a saved, reusable fixture definition (LED structure only; no placement,
 // patch, or surface link). Persisted to userData so the library spans projects.

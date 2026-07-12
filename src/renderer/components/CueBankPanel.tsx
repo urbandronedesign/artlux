@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Scene, Cue, CueBank, CueEntry, CueTransition, Surface, Fixture, sceneAudioEntries } from '../types';
+import React, { useEffect, useRef, useState } from 'react';
+import { Scene, Cue, CueBank, CueEntry, CueTransition, Surface, Fixture, sceneAudioEntries, cueEntries } from '../types';
 import { Plus, Trash2, RefreshCw, Camera, Zap, X, Film, Music } from 'lucide-react';
 import { getByPath, globalParams, surfaceParams, fixtureParams, isFadeablePath, pathLeaf, type StateView, type ParamDef } from '../services/paramPath';
 import { automationTargetRegistry } from '../host/registries';
@@ -73,17 +73,21 @@ export const CueBankPanel: React.FC<Props> = ({
     // that got past both is one the fade engine can hand a number to; anything else would end up
     // interpolating a filter's mode to 0.37.
     //
-    // Re-enumerated whenever the picker opens (the bed changes as clips are added), never memoized on a
-    // stale dep. A provider in a bad state must not take the panel down with it.
-    //
     // THE RANGES RIDE ALONG. enumerate() carries a min/max for every target and the picker used to throw
     // both away, leaving the entry's value box a free-text <input type=number> with no bound — the one
     // unbounded door into the audio engine's gain (every mixer fader is bounded; master is 0…1.5). Keep the
-    // range, bound the input, and clamp on commit. Built here rather than in a second memo because the
-    // component early-returns above `target`, so this is the last place a hook may legally go — and it is
-    // fresh exactly when it must be: every way into the ♪ inspector (the ♪ button, selectCue, addCue) sets
-    // addOpen, which is this memo's dep.
-    const { pluginParamGroups, pluginRanges } = useMemo(() => {
+    // range, bound the input, and clamp on commit.
+    //
+    // ⚠ DERIVED PER RENDER, NOT MEMOIZED. There is no honest dep for it: the catalog is owned by the audio
+    // plugin's live mix, which this panel neither holds nor is told about. It was memoized on `addOpen` (the
+    // capture picker's open flag) and that map went STALE the moment the mix changed without the picker
+    // toggling — load a project after the panel has mounted, click a cue, and its audio entries render with
+    // NO min/max: the bound the box advertises, and the UI clamp behind it, quietly gone. (The engine-door
+    // clamp in applyAudioEntries still catches the value, so this was never a level event — but a limit you
+    // can see and a limit that is enforced must not disagree.) enumerate() is a plain walk over the mix —
+    // the provider's own get() calls it once PER PATH LOOKUP — so re-deriving it is cheaper than a dep that
+    // lies. A provider in a bad state must still not take the panel down with it: hence the try/catch.
+    const { pluginParamGroups, pluginRanges } = (() => {
         const out: { title: string; defs: ParamDef[] }[] = [];
         const ranges = new Map<string, { min: number; max: number; step?: number }>();
         for (const p of automationTargetRegistry.all()) {
@@ -101,8 +105,7 @@ export const CueBankPanel: React.FC<Props> = ({
             for (const [title, ds] of byGroup) out.push({ title, defs: ds });
         }
         return { pluginParamGroups: out, pluginRanges: ranges };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [addOpen]);
+    })();
 
     const bank = banks[Math.min(bankIdx, banks.length - 1)];
 
@@ -172,7 +175,12 @@ export const CueBankPanel: React.FC<Props> = ({
             }
             : selCue
                 ? {
-                    entries: selCue.entries,
+                    // cueEntries(), not the raw list: `Cue.entries` has no normalizer either, and the rows
+                    // below dereference `e.path` in RENDER (labelForPath / isFadeablePath) exactly as the GO
+                    // does. `[null]` in a hand-edited bank is a white screen the moment the operator selects
+                    // the cue. Same bargain as a scene's ♪ list: an entry with no path can never fire, so it
+                    // is dropped from the list rather than repaired.
+                    entries: cueEntries(selCue.entries),
                     setEntries: (e) => patchCue(selCue.id, { entries: e }), audioOnly: false,
                 }
                 : null;
@@ -327,7 +335,7 @@ export const CueBankPanel: React.FC<Props> = ({
                                             <span className="truncate flex-1 text-fg-1" title={cue.name}>{cue.name}</span>
                                         </div>
                                         <div className="flex items-center justify-between text-fg-3">
-                                            <span>{cue.entries.length}p · {cue.fadeSec.toFixed(1)}s</span>
+                                            <span>{cueEntries(cue.entries).length}p · {(cue.fadeSec ?? 0).toFixed(1)}s</span>
                                             <button onClick={(e) => { e.stopPropagation(); removeCue(cue.id); }} className="opacity-0 group-hover:opacity-100 hover:text-danger" title="Delete cue"><Trash2 size={10} /></button>
                                         </div>
                                     </div>
@@ -461,21 +469,32 @@ const CaptureGroup: React.FC<{ title: string; defs: ParamDef[]; entries: CueEntr
 // holds a string while it is being typed, and exactly one clamped number is committed when they leave it
 // (Escape abandons; an empty or unparseable box reverts to the authored value rather than committing NaN,
 // which would reach the fade engine as a permanent silent leg).
+// ⚠ THE REF IS WHAT MAKES *ESCAPE* REAL. Escape must abandon; blur/Enter must commit; and both leave through
+// the SAME onBlur, because `.blur()` dispatches focusout SYNCHRONOUSLY inside the keydown stack — where the
+// batched `setDraft(null)` has not re-rendered yet. So an onBlur that read the DOM (`e.target.value`) or a
+// stale closure would still see the discarded text and COMMIT IT: Escape on a mistyped `2` for
+// audio.master.gain would author 1.5 into the scene, clamped but wrong, in a document that runs unattended.
+// A cancel that does the opposite of cancel. `set(null)` clears the ref SYNCHRONOUSLY, so the commit that
+// fires a moment later sees null and no-ops. (AudioBedPanel's TrackName documents and solves the same trap.)
 const NumberEntry: React.FC<{ value: number; range?: { min: number; max: number; step?: number }; onCommit: (v: number) => void }> = ({ value, range, onCommit }) => {
     const [draft, setDraft] = useState<string | null>(null);
-    const commit = (raw: string) => {
+    const draftRef = useRef<string | null>(null);
+    const set = (v: string | null) => { draftRef.current = v; setDraft(v); };
+    const commit = () => {
+        const raw = draftRef.current;
+        set(null);   // either way, fall back to rendering the committed value
+        if (raw === null) return;   // Escape already abandoned it — or the box was never touched
         const n = Number(raw);
         if (raw.trim() !== '' && Number.isFinite(n)) onCommit(range ? Math.min(range.max, Math.max(range.min, n)) : n);
-        setDraft(null);   // either way, fall back to rendering the committed value
     };
     return (
         <input type="number" min={range?.min} max={range?.max} step={range?.step ?? 0.01}
             value={draft ?? String(value)}
-            onChange={e => setDraft(e.target.value)}
-            onBlur={e => commit(e.target.value)}
+            onChange={e => set(e.target.value)}
+            onBlur={commit}
             onKeyDown={e => {
                 if (e.key === 'Enter') e.currentTarget.blur();
-                else if (e.key === 'Escape') { setDraft(null); e.currentTarget.blur(); }
+                else if (e.key === 'Escape') { set(null); e.currentTarget.blur(); }
             }}
             title={range ? `${range.min} … ${range.max} — Enter to commit` : undefined}
             className="w-14 bg-surface-0 border border-line-1 rounded px-1 py-0.5 text-fg-1 tabular-nums" />

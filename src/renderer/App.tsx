@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, sceneAudioEntries, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType } from './types';
+import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, sceneAudioEntries, cueEntries, isAddressableEntry, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType } from './types';
 import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge, WINDOWED_DISPLAY } from '../../shared/protocol';
 import type { ProjectorCalibration } from '../../shared/protocol';
 import { CalibWizard, AutoAlignWizard, calibCapture as cam, measureGamma, calibWorkspace } from '@artlux/plugin-calibration/renderer';
@@ -631,7 +631,15 @@ const App: React.FC = () => {
   // setByPath silently returns the view untouched for any other head (paramPath's `return view`) — so it
   // goes to its namespace's AutomationTargetProvider instead, landing in that provider's FADE LAYER, one
   // level UNDER any automation lane that owns the same path (a lane always wins, structurally).
+  //
+  // ⚠ SHAPE FIRST — THIS IS A *GO*, AND IT IS REACHED BEFORE applyAudioEntries' OWN GUARD. `Cue.entries` is
+  // document data with no normalizer in front of it (applyProjectData spreads the banks in), and a bare
+  // `e.path.split('.')` on a hand-edited `[null]` / `[{value:1}]` throws inside applyCues — the second lock
+  // downstream never gets the chance to run. A malformed entry is not a plugin entry and not a core one: it
+  // is unaddressable, so it is neither, and both loops skip it. (Callers filtering with cueEntries() have
+  // already dropped it; this keeps the predicate honest on its own, for whoever calls it next.)
   const isPluginHeadEntry = (e: CueEntry): boolean => {
+    if (!isAddressableEntry(e)) return false;
     const h = e.path.split('.')[0];
     return h !== 'surfaces' && h !== 'fixtures' && e.path !== 'globalBrightness';
   };
@@ -928,7 +936,10 @@ const App: React.FC = () => {
     const fromView: StateView = { surfaces, fixtures, globalBrightness };
     let next: StateView = { surfaces, fixtures, globalBrightness };
     const legs: transitions.FadeLeg[] = [];
-    for (const cue of cues) for (const e of cue.entries) {
+    // cueEntries(): the container AND the elements. `Cue.entries` has no normalizer, so a `for…of` over a
+    // non-array throws and a bad element throws on the very next line — inside a GO, with no ErrorBoundary
+    // above it. Coerce, do not drop the show.
+    for (const cue of cues) for (const e of cueEntries(cue.entries)) {
       if (isPluginHeadEntry(e)) continue;            // audio.* — handled below; `next` would DROP it anyway
       if (isFadeablePath(e.path) && typeof e.value === 'number') {
         const from = getByPath(fromView, e.path);
@@ -949,7 +960,7 @@ const App: React.FC = () => {
     // cues[0].transition is 'none'. And fireColumn sorts bottom-to-top, so cues[0] is not even the one the
     // operator thinks of as "first". Iterate.
     for (const cue of cues) {
-      legs.push(...applyAudioEntries(cue.entries.filter(isPluginHeadEntry), cue.fadeSec, cue.transition));
+      legs.push(...applyAudioEntries(cueEntries(cue.entries).filter(isPluginHeadEntry), cue.fadeSec, cue.transition));
     }
     // The opts below are only the BATCH DEFAULTS; every leg above already carries its own fadeSec and
     // transition, so no leg ever actually reads them. (That is already true of the core legs.)
