@@ -1,65 +1,152 @@
-// Audio Bed panel — authors the GLOBAL audio bed (ProjectData.audio → AudioMix). The bed survives
-// scene swaps and rides the main transport playhead (the plugins/audio scheduler plays it). Tracks hold
-// clips; drag an audio asset from the Media library onto a track to add a clip at the current playhead
-// (its duration comes from decoding the file). Reads/writes the bed through host.audio (getMix/setMix/
-// subscribe). Per-scene audio (stingers/cues) is a later phase and rides the scene timeline instead.
-import React, { useEffect, useRef, useState } from 'react';
-import { X, Plus, Music, Trash2, Volume2, VolumeX, AlertTriangle, Play, Pause, SkipBack, Orbit, Sliders } from 'lucide-react';
+// THE MIXER. Answers "how loud / what does it sound like"; the timeline's audio lanes answer "when".
+//
+// THE ARRANGEMENT/MIXER SPLIT IS FORCED BY THE ENGINE, NOT BY TASTE. Because of ambisonics there are
+// exactly TWO insert points — the CLIP and the MASTER (types.ts AudioBus/AudioClip.effects). A spatial
+// source is a point in a field, so it cannot be summed into a bus before it is placed; there is no
+// per-track insert and there never will be. FX and mix are therefore STRIP material, not lane material.
+//   · the LANES (Timeline's AudioLane) own placement, trim, blade, fades, mute/solo/gain per track.
+//   · THIS PANEL owns level and character: track faders, the master strip, and a CLIP INSPECTOR that
+//     follows whatever the operator last clicked on the timeline.
+//
+// TWO CONTAINERS, TWO CLOCKS — and the panel shows both, because the operator mixes both:
+//   · THE BED (ProjectData.audio, host.audio.getMix()) rides the SHOW clock. It survives a scene recall.
+//     Writable here (host.audio.setMix).
+//   · THE BOUND TIMELINE'S OWN AUDIO (Timeline.audio, host.audio.getTimelineAudio()) rides the PLAYHEAD
+//     and restarts with its timeline. READ-ONLY here: the panel has no write path into that document (it
+//     would need core's onChange(timeline)), and the lane's gutter already carries its name/mute/solo/gain.
+//     Shipping a half-write path that silently edits the document the operator is NOT looking at is worse
+//     than not shipping it — which is exactly why the selection carries `source`.
+//
+// EVERY AUTHORED WRITE IS A NAMED, PATH-LABELLED FUNCTION (setMasterGain, setTrackGain, setClipGain,
+// setClipSpatial*, setClipEffects, setMasterEffects). That is not a style choice: once the scene/cue fade
+// layer lands, the driver reads `laneOverride ?? sceneFade ?? authored` and a fade's value PERSISTS — so
+// the instant any recall touches a path, the control that writes it is DEAD unless it releases the fade.
+// These functions are the one place that release goes.
+//
+// EVERY FADER DRAFTS LOCALLY AND COMMITS ONCE (invariant 7 — see Fader.tsx). A commit is
+// host.audio.setMix → App re-render → recompileAutomation → the audio fan-out; per pointermove that is
+// sixty of those a second, on the bound document of a running show.
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { X, Plus, Music, Trash2, Volume2, VolumeX, Headphones, AlertTriangle, Play, Pause, SkipBack, Square, Orbit, Sliders } from 'lucide-react';
 import { useDraggable, type PanelProps } from '@artlux/sdk/renderer';
 import { getAudioHost } from './audioHost';
 import { audioClient } from './audioClient';
 import { EffectChain, type Effect } from './EffectChain';
+import { Fader } from './Fader';
 import { MASTER_BUS_ID } from './effectDefs';
 
 interface Spatial { x: number; y: number; z: number }
 interface Clip { id: string; trackId: string; name: string; path: string; start: number; duration: number; inPoint: number; sourceDuration?: number; gain?: number; mute?: boolean; spatial?: Spatial; effects?: Effect[] }
-interface Track { id: string; name: string; gain?: number; mute?: boolean }
+interface Track { id: string; name: string; gain?: number; mute?: boolean; solo?: boolean }
 interface Bus { id: string; name: string; gain?: number; effects?: Effect[] }
 interface Mix { tracks: Track[]; clips: Clip[]; buses: Bus[] }
+// The BOUND timeline's own audio — the same clip/track shapes, no buses (one output chain, project-global).
+interface TlAudio { tracks: Track[]; clips: Clip[] }
+// Which container a selected clip lives in. The union is the host's, restated structurally (the plugin
+// cannot import core's types) — and it is DISCRIMINATED for a reason: the two containers commit through
+// completely different paths, and a `source ?? 'bed'` guess would silently edit the bed, which survives
+// every scene recall, under a live show.
+type Sel = { kind: 'clip'; id: string } | { kind: 'audioClip'; id: string; source: 'bed' | 'timeline' } | null;
 
 // Metres shown across the positioner pad (listener at the centre).
 const RANGE = 3;
 
 // Top-down positioner: horizontal = x (left/right), vertical = z (up = IN FRONT of the listener).
 // Ambisonic encoding places the source from this; height (y) is a separate slider.
-const SpatialPad: React.FC<{ x: number; z: number; onChange: (x: number, z: number) => void }> = ({ x, z, onChange }) => {
+//
+// INVARIANT 7 APPLIES TO A PAD JUST AS IT DOES TO A FADER: this used to patch the clip on every
+// pointermove. It now DRAFTS (the parent paints the dot from the draft) and commits ONCE on pointerup.
+const SpatialPad: React.FC<{
+  x: number; z: number; disabled?: boolean;
+  onDraft: (x: number, z: number) => void;
+  onCommit: (x: number, z: number) => void;
+}> = ({ x, z, disabled, onDraft, onCommit }) => {
   const ref = useRef<HTMLDivElement>(null);
+  // The last position the pointer produced. Read on pointerup — never the closure, which is a render behind.
+  const pending = useRef<{ x: number; z: number } | null>(null);
   const set = (clientX: number, clientY: number) => {
     const el = ref.current; if (!el) return;
     const r = el.getBoundingClientRect();
     const px = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
     const py = Math.min(1, Math.max(0, (clientY - r.top) / r.height));
-    onChange(Number(((px - 0.5) * 2 * RANGE).toFixed(2)), Number(((0.5 - py) * 2 * RANGE).toFixed(2)));
+    const nx = Number(((px - 0.5) * 2 * RANGE).toFixed(2));
+    const nz = Number(((0.5 - py) * 2 * RANGE).toFixed(2));
+    pending.current = { x: nx, z: nz };
+    onDraft(nx, nz);
   };
   const onDown = (e: React.PointerEvent) => {
+    if (disabled) return;
     e.preventDefault();
     set(e.clientX, e.clientY);
     const move = (ev: PointerEvent) => set(ev.clientX, ev.clientY);
-    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+      const p = pending.current; pending.current = null;
+      if (p) onCommit(p.x, p.z);   // ONE write per drag
+    };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
   };
   return (
-    <div ref={ref} onPointerDown={onDown} title="Drag to place the source (top-down; up = in front of the listener)"
-      className="relative w-24 h-24 rounded border border-line-1 bg-surface-0 cursor-crosshair shrink-0">
+    <div ref={ref} onPointerDown={onDown}
+      title={disabled ? 'Read-only — this clip lives on the bound timeline.' : 'Drag to place the source (top-down; up = in front of the listener)'}
+      className={`relative w-24 h-24 rounded border border-line-1 bg-surface-0 shrink-0 ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-crosshair'}`}>
       <div className="absolute left-1/2 top-0 bottom-0 w-px bg-line-1/60" />
       <div className="absolute top-1/2 left-0 right-0 h-px bg-line-1/60" />
       <div className="absolute left-1/2 top-1/2 w-1.5 h-1.5 -ml-[3px] -mt-[3px] rounded-full bg-fg-3" title="listener" />
-      <span className="absolute top-0.5 left-1/2 -translate-x-1/2 text-[9px] leading-none text-fg-3/70">front</span>
+      <span className="absolute top-0.5 left-1/2 -translate-x-1/2 text-micro leading-none text-fg-3/70">front</span>
       <div className="absolute w-2.5 h-2.5 -ml-[5px] -mt-[5px] rounded-full bg-accent"
         style={{ left: `${((x / RANGE) * 0.5 + 0.5) * 100}%`, top: `${(0.5 - (z / RANGE) * 0.5) * 100}%` }} />
     </div>
   );
 };
 
+// A track's name field. Drafts on keystroke, commits on blur / Enter, ABANDONS on Escape — and the ref is
+// what makes the abandon real: `.blur()` fires onBlur synchronously inside the keydown stack, where the
+// batched setState has not landed and the closure still holds the discarded text. (AudioLane's gutter
+// documents the same trap; a per-keystroke commit here would be a full setMix per character.)
+const TrackName: React.FC<{ value: string; disabled?: boolean; title?: string; onCommit: (s: string) => void }> = ({ value, disabled, title, onCommit }) => {
+  const [draft, setDraft] = useState<string | null>(null);
+  const draftRef = useRef<string | null>(null);
+  const set = (v: string | null) => { draftRef.current = v; setDraft(v); };
+  const commit = () => {
+    const d = draftRef.current;
+    set(null);
+    if (d === null) return;
+    const t = d.trim();
+    if (t && t !== value) onCommit(t);   // an empty name is not an edit — keep the old one
+  };
+  return (
+    <input value={draft ?? value} disabled={disabled} title={title}
+      onChange={(e) => set(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+        if (e.key === 'Escape') { set(null); (e.target as HTMLInputElement).blur(); }
+      }}
+      className="flex-1 min-w-0 bg-transparent outline-none text-mini text-fg-1 truncate disabled:text-fg-2" />
+  );
+};
+
 const uid = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `a-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
 const emptyMix = (): Mix => ({ tracks: [], clips: [], buses: [] });
+// A SHARED FROZEN FALLBACK, never a fresh literal: it lands in React state and feeds a useMemo dep, so a
+// new `{}` per read would re-render (and re-derive the inspector) on every host fan-out for a document
+// that has no audio at all. (The driver's EMPTY_CLIPS makes the same promise one layer down.)
+const EMPTY_TL: TlAudio = Object.freeze({ tracks: Object.freeze([]) as unknown as Track[], clips: Object.freeze([]) as unknown as Clip[] });
 const baseName = (p: string) => p.split(/[\\/]/).pop() ?? 'audio';
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+const g2 = (v: number) => v.toFixed(2);
 
 export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   const host = getAudioHost();
   const [mix, setMixState] = useState<Mix>(() => (host?.audio.getMix() as Mix) ?? emptyMix());
+  const [tlAudio, setTlAudio] = useState<TlAudio>(() => (host?.audio.getTimelineAudio() as TlAudio) ?? EMPTY_TL);
+  const [sel, setSel] = useState<Sel>(() => host?.show.getSelection() ?? null);
   const [meter, setMeter] = useState({ peak: 0, rms: 0, peakL: 0, peakR: 0 });
   const [clipping, setClipping] = useState(false);
   const clipUntil = useRef(0); // hold the warning ~1.5 s — a transient overshoot would otherwise flash past
@@ -70,27 +157,43 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   // meters, and the only diagnosis available to a venue tech is "the audio engine crashed". See the badge.
   const [transport, setTransport] = useState({ playing: false, showTime: 0, showEnd: 0, sceneBound: false, showEnded: false });
   const [error, setError] = useState<string | null>(null);
-  const [openSpatial, setOpenSpatial] = useState<string | null>(null); // clip id whose positioner is open
-  const [openFx, setOpenFx] = useState<string | null>(null);           // clip id whose effect chain is open
   const [openMaster, setOpenMaster] = useState(false);
+  // The spatial pad's in-flight drag (invariant 7). LOCAL state — a draft is not a document.
+  const [padDraft, setPadDraft] = useState<{ x: number; z: number } | null>(null);
   const peakHold = useRef(0);
   const holdL = useRef(0);
   const holdR = useRef(0);
   // Synchronously-fresh mirror of the bed. `host.audio.getMix()` reads App's audioMixRef, which only
-  // refreshes on a React render — so two drops resolving in the same turn would both read the pre-edit
-  // bed and the second would clobber the first. Every write path updates this ref immediately instead.
+  // refreshes on a React render — so two edits resolving in the same turn would both read the pre-edit
+  // bed and the second would clobber the first. EVERY write path below patches from this ref, never from
+  // the React `mix` (which is a render behind): patch a track's gain and then its mute in one turn and the
+  // gain would snap back. Do not "simplify" it away.
   const mixRef = useRef<Mix>(mix);
   // Floating (non-blocking) window — draggable by its header so it can be moved clear of the Media library.
   const { positionerStyle, handleProps } = useDraggable();
 
-  // Sync from host (external edits / project load) → repaint.
+  // Sync BOTH containers from the host (external edits / project load / a scene recall → a different bound
+  // timeline). The fan-out fires on either one changing.
   useEffect(() => {
     if (!host) return;
     return host.audio.subscribe(() => {
       const m = (host.audio.getMix() as Mix) ?? emptyMix();
       mixRef.current = m;
       setMixState(m);
+      setTlAudio((host.audio.getTimelineAudio() as TlAudio) ?? EMPTY_TL);
     });
+  }, [host]);
+
+  // THE INSPECTOR FOLLOWS THE TIMELINE SELECTION. This is the whole point of the arrangement/mixer split:
+  // you place the clip on the lane, you shape it here. The selection arrives through host.show — a
+  // render-free channel core publishes and this panel subscribes to (services/selection.ts). It fires once
+  // immediately, so a panel opened mid-show sees what is already selected. Core publishes only a RESOLVABLE
+  // selection, so an id that arrives here names a clip that exists in the container it names — but the
+  // lookup below still tolerates a miss, because the bound document can change between the notify and the
+  // read (a recall, a delete).
+  useEffect(() => {
+    if (!host) return;
+    return host.show.subscribeSelection(() => setSel(host.show.getSelection()));
   }, [host]);
 
   // Master meter (~10 Hz) with peak-hold decay.
@@ -105,10 +208,12 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
         if (m.clipped) clipUntil.current = Date.now() + 1500; // engine-latched: catches every block, not 1 in 10
         setClipping(Date.now() < clipUntil.current);
       }).catch(() => {});
-      // THE BED RIDES THE SHOW CLOCK. Mirroring getStatus().playhead here was a LIE about the bed the
-      // moment a scene was bound: the readout and the scrub slider would show the SCENE's time while the
-      // bed played on at a completely different position. `duration` was the same lie one level down — it
-      // is the BOUND doc's Length, so a 20 s scene pinned the bed's scrub slider at its maximum.
+      // THE BED RIDES THE SHOW CLOCK — st.showTime, and NEVER the BOUND DOCUMENT'S PLAYHEAD (the other
+      // number on this status object). Mirroring that one here was a LIE about the bed the moment a scene
+      // was bound: the readout and the scrub slider would show the SCENE's time while the bed played on at
+      // a completely different position. `duration` was the same lie one level down — it is the BOUND doc's
+      // Length, so a 20 s scene pinned the bed's scrub slider at its maximum. Neither belongs in this file:
+      // nothing here may read either of them, which is a grep-enforced gate, not a preference.
       const st = host.show.getStatus();
       setTransport({ playing: st.playing, showTime: st.showTime, showEnd: st.showEnd,
         sceneBound: st.activeSceneId != null, showEnded: st.showEnded });
@@ -116,37 +221,80 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
     return () => clearInterval(iv);
   }, [host]);
 
+  const selId = sel && sel.kind === 'audioClip' ? sel.id : null;
+  // A new selection abandons any half-finished pad drag from the previous one — otherwise the draft would
+  // paint the NEW clip's dot at the OLD clip's position for a frame.
+  useEffect(() => { setPadDraft(null); }, [selId]);
+
   // Every mutation builds a fresh bed and writes it back (host normalizes + persists + notifies the player).
   const commit = (next: Mix) => { mixRef.current = next; setMixState(next); host?.audio.setMix(next); };
 
-  const addTrack = () => {
+  // ---- THE AUTHORED WRITES. Every one names its PATH. -------------------------------------------------
+  // Once the scene/cue fade layer exists the driver reads `laneOverride ?? sceneFade ?? authored`, and a
+  // fade's value PERSISTS by design — so the moment any scene or cue touches a path, the authored value
+  // under it is shadowed FOREVER and the control that writes it is DEAD. A manual move is a TAKEOVER, and
+  // these functions are the one place that release goes (one line each, no hunt). The master fader is the
+  // headline case: `audio.master.gain` is precisely what a scene recall exists to fade.
+  const patchTrack = (id: string, p: Partial<Track>) => {
     const cur = mixRef.current;
-    commit({ ...cur, tracks: [...cur.tracks, { id: uid(), name: `Track ${cur.tracks.length + 1}`, gain: 1, mute: false }] });
+    commit({ ...cur, tracks: cur.tracks.map((t) => (t.id === id ? { ...t, ...p } : t)) });
   };
-  const removeTrack = (id: string) => commit({ ...mix, tracks: mix.tracks.filter((t) => t.id !== id), clips: mix.clips.filter((c) => c.trackId !== id) });
-  const patchTrack = (id: string, p: Partial<Track>) => commit({ ...mix, tracks: mix.tracks.map((t) => (t.id === id ? { ...t, ...p } : t)) });
-  const removeClip = (id: string) => commit({ ...mix, clips: mix.clips.filter((c) => c.id !== id) });
-  const patchClip = (id: string, p: Partial<Clip>) => commit({ ...mix, clips: mix.clips.map((c) => (c.id === id ? { ...c, ...p } : c)) });
-
+  const patchClip = (id: string, p: Partial<Clip>) => {
+    const cur = mixRef.current;
+    commit({ ...cur, clips: cur.clips.map((c) => (c.id === id ? { ...c, ...p } : c)) });
+  };
   // The master bus is materialised on FIRST EDIT, not by default — a project that never touches master
-  // keeps `buses: []`, so an untouched bed persists exactly as it did before P3.
+  // keeps `buses: []`, so an untouched bed persists exactly as it did before P3. The master bus is
+  // PROJECT-GLOBAL and cannot be per-scene: there is exactly one output chain.
   const DEFAULT_MASTER: Bus = { id: MASTER_BUS_ID, name: 'Master', gain: 1, effects: [] };
   const master: Bus = mix.buses.find((b) => b.id === MASTER_BUS_ID) ?? DEFAULT_MASTER; // for RENDER only
   const patchMaster = (p: Partial<Bus>) => {
-    // Base the patch on mixRef (synchronously fresh), NOT on `master` above, which derives from React
-    // state and is a render behind. Spreading the stale one would drop a sibling field edited earlier in
-    // the same turn — patch the gain then the effects and the gain would snap back. Same reason addClip
-    // reads mixRef.
-    const cur = mixRef.current;
+    const cur = mixRef.current;   // synchronously fresh — `master` above is a render behind (see mixRef)
     const has = cur.buses.some((b) => b.id === MASTER_BUS_ID);
     const next: Bus = { ...(cur.buses.find((b) => b.id === MASTER_BUS_ID) ?? DEFAULT_MASTER), ...p };
     commit({ ...cur, buses: has ? cur.buses.map((b) => (b.id === MASTER_BUS_ID ? next : b)) : [...cur.buses, next] });
   };
 
+  const setMasterGain = (g: number) => patchMaster({ gain: g });                             // audio.master.gain
+  const setMasterEffects = (fx: Effect[]) => patchMaster({ effects: fx });                   // audio.master.fx.<fxId>.<key>
+  const setTrackGain = (id: string, g: number) => patchTrack(id, { gain: g });               // audio.track.<id>.gain
+  const setTrackMute = (id: string, m: boolean) => patchTrack(id, { mute: m });              // (not fadeable — discrete)
+  const setTrackSolo = (id: string, s: boolean) => patchTrack(id, { solo: s });              // (not fadeable — discrete)
+  const setTrackName = (id: string, n: string) => patchTrack(id, { name: n });
+  const setClipGain = (id: string, g: number) => patchClip(id, { gain: g });                 // audio.clip.<id>.gain
+  const setClipEffects = (id: string, fx: Effect[]) => patchClip(id, { effects: fx });       // audio.clip.<id>.fx.<fxId>.<key>
+  // A spatial AXIS is fadeable (audio.clip.<id>.spatial.<x|y|z>); the spatial FLAG is not — turning it on
+  // or off changes the engine chain's channel count (2⇔1) and forces a rebuild, which is why the fade
+  // grammar admits the axes and never the flag.
+  //
+  // The SIBLING AXES ARE READ FROM mixRef, not from the render — an axis write must not carry a stale copy
+  // of the other two back into the document. A pad drag commits at POINTERUP, so its closure is as old as
+  // the pointerdown; if the clip's spatial was turned off (or the clip removed) in between, the lookup
+  // misses and the write is DROPPED rather than resurrecting a container the operator just deleted.
+  const spatialOf = (id: string): Spatial | undefined => mixRef.current.clips.find((c) => c.id === id)?.spatial;
+  const setClipSpatialXZ = (id: string, x: number, z: number) => {
+    const cur = spatialOf(id); if (!cur) return;
+    patchClip(id, { spatial: { ...cur, x, z } });
+  };
+  const setClipSpatialY = (id: string, y: number) => {
+    const cur = spatialOf(id); if (!cur) return;
+    patchClip(id, { spatial: { ...cur, y } });
+  };
+  const setClipSpatialOn = (id: string, on: boolean) => patchClip(id, { spatial: on ? { x: 0, y: 0, z: 1 } : undefined });
+
+  const addTrack = () => {
+    const cur = mixRef.current;
+    commit({ ...cur, tracks: [...cur.tracks, { id: uid(), name: `Track ${cur.tracks.length + 1}`, gain: 1, mute: false }] });
+  };
+  const removeTrack = (id: string) => {
+    const cur = mixRef.current;
+    commit({ ...cur, tracks: cur.tracks.filter((t) => t.id !== id), clips: cur.clips.filter((c) => c.trackId !== id) });
+  };
+
   const addClip = async (trackId: string, asset: { type?: string; path?: string }) => {
     if (asset?.type !== 'audio' || !asset.path) return;
-    // Dropped at the SHOW clock, because that is the container it lands in. (getStatus().playhead would
-    // place it at the BOUND doc's time — under a bound scene, an arbitrary number with no relation to
+    // Dropped at the SHOW clock, because that is the container it lands in. (The bound document's playhead
+    // would place it at the SCENE's time — under a bound scene, an arbitrary number with no relation to
     // where the bed is actually playing.)
     const start = Math.max(0, host?.show.getStatus().showTime ?? 0);
     const clipId = uid();
@@ -166,11 +314,9 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
     setError(null);
     commit({ ...cur, clips: [...cur.clips, { id: clipId, trackId, name: baseName(asset.path), path: asset.path,
       start, duration: meta.durationSec, inPoint: 0,
-      // THE TRIM CAP. Absent, `(c.sourceDuration ?? Infinity) - c.inPoint` is INFINITY — a right-trim
-      // handle would have no cap at all and would happily drag a 30 s clip out to 5 minutes of source that
-      // does not exist (the driver's window test would then hold the show on silence). The panel has had
-      // this number in `meta` since Wave 3 and simply never wrote it. Old beds are NOT back-filled — no
-      // migration writes to a project on load.
+      // THE TRIM CAP. Absent, `(c.sourceDuration ?? Infinity) - c.inPoint` is INFINITY — the lane's
+      // right-trim handle would have no cap at all and would happily drag a 30 s clip out to 5 minutes of
+      // source that does not exist (the driver's window test would then hold the show on silence).
       sourceDuration: meta.durationSec,
       gain: 1, mute: false }] });
   };
@@ -183,8 +329,17 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   };
   const allowDrop = (e: React.DragEvent) => { if (e.dataTransfer.types.includes('application/artlux-asset')) e.preventDefault(); };
 
+  // THE SELECTED CLIP, RESOLVED IN THE CONTAINER THE SELECTION NAMES. `source` is load-bearing: the same id
+  // can legitimately exist in both (handleAddScene captures the global doc's timeline with structuredClone,
+  // so a scene's Timeline.audio inherits its clip ids verbatim). Guessing would edit the wrong document.
+  const selClip: Clip | null = useMemo(() => {
+    if (!sel || sel.kind !== 'audioClip') return null;
+    const pool = sel.source === 'bed' ? mix.clips : tlAudio.clips;
+    return pool.find((c) => c.id === sel.id) ?? null;
+  }, [sel, mix, tlAudio]);
+  const selReadOnly = sel?.kind === 'audioClip' && sel.source === 'timeline';
+
   if (!host) return null;
-  const clipsOf = (tid: string) => mix.clips.filter((c) => c.trackId === tid).sort((a, b) => a.start - b.start);
   const pct = (v: number) => `${Math.min(100, Math.round(v * 100))}%`;
   // Scrub range: the SHOW's length (the global doc's), not the bound doc's — a 20 s scene would otherwise
   // pin the slider at its maximum while the bed played on at 4:30. Always far enough to reach the last clip.
@@ -193,9 +348,48 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   // host.show.transport({kind:'seek'}) → timeline.seek(), whose show-clock identity rule only fires while
   // the GLOBAL doc is bound. Under a bound scene the same control would seek the SCENE — the operator
   // nudges a slider in the AUDIO BED panel and recalls the picture to an arbitrary point mid-show, while
-  // the bed does not move at all. Scrub Global to move the bed.
+  // the bed does not move at all. Scrub Global to move the bed. (STOP is exempt and stays enabled: it
+  // resets BOTH clocks — App's stop handler seeks the bound doc to its in-point AND showSeeks the global.)
   const seekLocked = transport.sceneBound;
   const seekLockTitle = 'Scrub Global to move the bed — a seek inside a scene does not move the show clock.';
+  const spatial = selClip?.spatial;
+  const padX = padDraft?.x ?? spatial?.x ?? 0;
+  const padZ = padDraft?.z ?? spatial?.z ?? 0;
+
+  const trackRow = (t: Track, source: 'bed' | 'timeline') => {
+    const ro = source === 'timeline';
+    const roTitle = "Read-only here — edit this track on its timeline lane (the gutter carries its name, mute, solo and gain). It rides the PLAYHEAD and restarts with its timeline.";
+    return (
+      <div key={t.id} onDrop={ro ? undefined : onDrop(t.id)} onDragOver={ro ? undefined : allowDrop}
+        className={`px-2 py-1.5 rounded border border-line-1 ${t.solo ? 'bg-accent/5' : 'bg-surface-2'} ${t.mute ? 'opacity-60' : ''} ${ro ? 'border-dashed' : ''}`}>
+        <div className="flex items-center gap-1.5">
+          <Music size={11} className="text-fg-3 shrink-0" />
+          <TrackName value={t.name} disabled={ro} title={ro ? roTitle : 'Rename (Enter commits, Escape abandons)'}
+            onCommit={(n) => setTrackName(t.id, n)} />
+          {!ro && (
+            <button onClick={() => removeTrack(t.id)} title="Remove track (and its clips)"
+              className="shrink-0 text-fg-3 hover:text-danger"><Trash2 size={12} /></button>
+          )}
+        </div>
+        <div className="mt-1 flex items-center gap-1.5">
+          <button onClick={() => setTrackMute(t.id, !t.mute)} disabled={ro} title={ro ? roTitle : (t.mute ? 'Unmute' : 'Mute')}
+            className={`shrink-0 disabled:opacity-40 disabled:cursor-not-allowed ${t.mute ? 'text-danger' : 'text-fg-3 hover:text-fg-1'}`}>
+            {t.mute ? <VolumeX size={12} /> : <Volume2 size={12} />}
+          </button>
+          <button onClick={() => setTrackSolo(t.id, !t.solo)} disabled={ro} title={ro ? roTitle : (t.solo ? 'Un-solo' : 'Solo — silences every other track in THIS container')}
+            className={`shrink-0 disabled:opacity-40 disabled:cursor-not-allowed ${t.solo ? 'text-accent' : 'text-fg-3 hover:text-fg-1'}`}>
+            <Headphones size={12} />
+          </button>
+          <Fader value={t.gain ?? 1} min={0} max={1.5} step={0.01} disabled={ro}
+            ariaLabel={`${t.name} gain`}
+            title={(v) => (ro ? roTitle : `gain ${g2(v)}`)}
+            onCommit={(g) => setTrackGain(t.id, g)}
+            className="flex-1 min-w-0"
+            readout={g2} readoutClassName="text-micro text-fg-3 tabular-nums w-8 text-right shrink-0" />
+        </div>
+      </div>
+    );
+  };
 
   return (
     // NOT a blocking modal: authoring the bed means dragging audio assets IN from the Media library, so the
@@ -204,7 +398,7 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
     <div className="fixed inset-0 z-50 pointer-events-none flex items-center justify-center">
       <div style={positionerStyle} className="pointer-events-auto">
       <div role="dialog" aria-label="Audio Bed"
-        className="w-[720px] max-w-[94vw] h-[70vh] max-h-[84vh] flex flex-col bg-surface-1 border border-line-2 rounded-lg shadow-e3 animate-modal-in">
+        className="w-[880px] max-w-[94vw] h-[70vh] max-h-[84vh] flex flex-col bg-surface-1 border border-line-2 rounded-lg shadow-e3 animate-modal-in">
         {/* header — drag handle */}
         <div {...handleProps} className="h-11 px-3 flex items-center gap-2 border-b border-line-1 bg-surface-2 shrink-0 cursor-move select-none">
           <Music size={14} className="text-fg-2 shrink-0" />
@@ -222,7 +416,16 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
               className={`p-1 rounded-sm ${transport.playing ? 'bg-accent text-black' : 'bg-surface-3 text-fg-2 hover:text-fg-1'}`}>
               {transport.playing ? <Pause size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
             </button>
-            <span className="text-micro text-fg-2 tabular-nums w-9" title="Show time — where the bed is playing">{fmt(transport.showTime)}</span>
+            {/* STOP IS NOT SEEK-LOCKED. App's stop handler resets BOTH clocks — the bound doc to its own
+                in-point AND the show clock to the GLOBAL in-point — so it is meaningful (and the only way
+                back from a parked show) even with a scene bound. */}
+            <button onClick={() => host.show.transport({ kind: 'stop' })}
+              title="Stop — returns the show clock to the global in-point (and the bound timeline to its own)"
+              className="p-1 rounded-sm bg-surface-3 text-fg-2 hover:text-fg-1"><Square size={12} /></button>
+            <span className="text-micro text-fg-2 tabular-nums shrink-0"
+              title="The show clock — the bed's position. It does not restart when a scene is recalled.">
+              ♪ {fmt(transport.showTime)}
+            </span>
             {/* THE PARKED SHOW. The show clock is SILENT by design — it emits no intent and pulses no
                 hitEnd — so when the global Length runs out with Loop off, NOTHING else in the app says so.
                 The transport keeps reporting `playing` (a scene loops underneath), the Play button above
@@ -236,7 +439,9 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
               </span>
             )}
           </div>
-          {/* Scrub the SHOW clock (seek) — the bed re-syncs to it. Disabled under a bound scene (seekLocked). */}
+          {/* Scrub the SHOW clock (seek) — the bed re-syncs to it. Disabled under a bound scene (seekLocked).
+              A scrub IS a transport command, not a document edit: it goes to timeline.seek(), never through
+              setMix/setData, so invariant 7 has nothing to say about it and it stays live per input event. */}
           <input type="range" min={0} max={scrubMax} step={0.05} value={Math.min(transport.showTime, scrubMax)}
             onChange={(e) => host.show.transport({ kind: 'seek', sec: Number(e.target.value) })}
             disabled={seekLocked} title={seekLocked ? seekLockTitle : 'Scrub the show clock'}
@@ -247,7 +452,8 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
             <div className="h-1.5 rounded bg-surface-3 overflow-hidden"><div className="h-full bg-accent transition-[width] duration-75" style={{ width: pct(meter.peakL) }} /></div>
             <div className="h-1.5 rounded bg-surface-3 overflow-hidden"><div className="h-full bg-accent transition-[width] duration-75" style={{ width: pct(meter.peakR) }} /></div>
           </div>
-          <button onClick={addTrack} className="shrink-0 inline-flex items-center gap-1 px-2 h-7 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 text-mini"><Plus size={12} /> Track</button>
+          <button onClick={addTrack} title="Add a track to the BED"
+            className="shrink-0 inline-flex items-center gap-1 px-2 h-7 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 text-mini"><Plus size={12} /> Track</button>
           <button onClick={onClose} className="text-fg-3 hover:text-fg-1 ml-1"><X size={16} /></button>
         </div>
 
@@ -259,96 +465,143 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
           </div>
         )}
 
-        {/* body */}
-        <div className="flex-1 min-h-0 overflow-auto p-3 space-y-3">
-          {mix.tracks.length === 0 ? (
-            <div className="text-fg-3 text-mini italic px-1 py-6 text-center">
-              No tracks. Add a track, then drag audio clips from the Media library onto it.
-            </div>
-          ) : mix.tracks.map((t) => (
-            <div key={t.id} className="border border-line-1 rounded bg-surface-1">
-              {/* track header */}
-              <div className="h-9 px-2 flex items-center gap-2 border-b border-line-1 bg-surface-2">
-                <input value={t.name} onChange={(e) => patchTrack(t.id, { name: e.target.value })}
-                  className="bg-transparent outline-none text-mini text-fg-1 w-40 truncate" />
-                <button onClick={() => patchTrack(t.id, { mute: !t.mute })} title={t.mute ? 'Unmute' : 'Mute'}
-                  className={`inline-flex items-center justify-center w-6 h-6 rounded border ${t.mute ? 'border-danger/50 text-danger bg-danger/10' : 'border-line-1 text-fg-3 hover:text-fg-1'}`}>
-                  {t.mute ? <VolumeX size={12} /> : <Volume2 size={12} />}
-                </button>
-                <input type="range" min={0} max={1.5} step={0.01} value={t.gain ?? 1} onChange={(e) => patchTrack(t.id, { gain: Number(e.target.value) })}
-                  title={`gain ${(t.gain ?? 1).toFixed(2)}`} className="w-28 accent-accent" />
-                <span className="text-micro text-fg-3 w-8">{(t.gain ?? 1).toFixed(2)}</span>
-                <button onClick={() => removeTrack(t.id)} title="Remove track" className="ml-auto text-fg-3 hover:text-danger"><Trash2 size={13} /></button>
+        {/* body — TRACKS (left) | CLIP INSPECTOR (right) */}
+        <div className="flex-1 min-h-0 flex">
+          {/* ── TRACKS ─────────────────────────────────────────────────────────────────────────────── */}
+          <div className="w-[300px] shrink-0 border-r border-line-1 overflow-auto p-2 space-y-3">
+            <section className="space-y-1.5">
+              <h3 className="text-micro font-semibold text-fg-2 uppercase tracking-wider px-0.5"
+                title="The BED — ProjectData.audio. One per project. It rides the SHOW clock, so a scene recall does not restart it.">
+                Tracks — the bed
+              </h3>
+              {mix.tracks.length === 0 ? (
+                <p className="text-micro text-fg-3/70 italic px-0.5 py-2">
+                  No bed tracks. Add one, then drag audio in from the Media library — onto the track here, or straight onto its lane in the timeline.
+                </p>
+              ) : mix.tracks.map((t) => trackRow(t, 'bed'))}
+            </section>
+
+            <section className="space-y-1.5">
+              <h3 className="text-micro font-semibold text-fg-2 uppercase tracking-wider px-0.5"
+                title={transport.sceneBound
+                  ? "The BOUND SCENE's own audio (Timeline.audio). It rides the PLAYHEAD and restarts with its timeline. Read-only here — edit it on its lane."
+                  : "The GLOBAL timeline's own audio (Timeline.audio). It rides the PLAYHEAD and restarts with its timeline. Read-only here — edit it on its lane."}>
+                Tracks — this timeline
+              </h3>
+              {tlAudio.tracks.length === 0 ? (
+                <p className="text-micro text-fg-3/70 italic px-0.5 py-2">
+                  {transport.sceneBound ? 'The bound scene' : 'The global timeline'} has no audio tracks of its own.
+                </p>
+              ) : (
+                <>
+                  {tlAudio.tracks.map((t) => trackRow(t, 'timeline'))}
+                  <p className="text-micro text-fg-3/70 italic px-0.5">
+                    Read-only here — a timeline's own tracks are mixed on their lane (name, mute, solo, gain live in the gutter).
+                  </p>
+                </>
+              )}
+            </section>
+          </div>
+
+          {/* ── CLIP INSPECTOR — follows the timeline selection ───────────────────────────────────── */}
+          <div className="flex-1 min-w-0 overflow-auto p-3 space-y-3">
+            {!selClip ? (
+              <div className="h-full flex flex-col items-center justify-center gap-1 text-center px-6">
+                <Sliders size={18} className="text-fg-3/50" />
+                <p className="text-mini text-fg-3">Select an audio clip on the timeline to shape it.</p>
+                <p className="text-micro text-fg-3/70">
+                  {sel?.kind === 'clip'
+                    ? 'A video clip is selected — this inspector shapes audio (gain, spatial position, effects).'
+                    : 'Gain, spatial position and the insert chain live here; placement, trim and fades live on the lane.'}
+                </p>
               </div>
-              {/* clips + drop zone */}
-              <div onDrop={onDrop(t.id)} onDragOver={allowDrop} className="min-h-[44px] p-1.5 space-y-1">
-                {clipsOf(t.id).length === 0 ? (
-                  <div className="text-micro text-fg-3/70 italic px-1 py-1.5">Drag an audio asset here…</div>
-                ) : clipsOf(t.id).map((c) => (
-                  <div key={c.id}>
-                    <div className="flex items-center gap-2 px-2 h-8 rounded bg-surface-2 border border-line-1">
-                      <Music size={11} className="text-fg-3 shrink-0" />
-                      <span className="text-micro text-fg-1 truncate w-32" title={c.name}>{c.name}</span>
-                      <label className="text-micro text-fg-3 flex items-center gap-1">@
-                        <input type="number" min={0} step={0.1} value={Number(c.start.toFixed(2))}
-                          onChange={(e) => { const v = e.target.value; if (v === '') return; const n = Number(v); if (Number.isFinite(n)) patchClip(c.id, { start: Math.max(0, n) }); }}
-                          className="w-14 bg-surface-1 border border-line-1 rounded px-1 text-fg-1 outline-none" />s
-                      </label>
-                      <span className="text-micro text-fg-3/80">{fmt(c.duration)}</span>
-                      <button onClick={() => patchClip(c.id, { mute: !c.mute })} title={c.mute ? 'Unmute' : 'Mute'}
-                        className={`inline-flex items-center justify-center w-5 h-5 rounded ${c.mute ? 'text-danger' : 'text-fg-3 hover:text-fg-1'}`}>{c.mute ? <VolumeX size={11} /> : <Volume2 size={11} />}</button>
-                      <input type="range" min={0} max={1.5} step={0.01} value={c.gain ?? 1} onChange={(e) => patchClip(c.id, { gain: Number(e.target.value) })} title={`gain ${(c.gain ?? 1).toFixed(2)}`} className="w-20 accent-accent" />
-                      <button onClick={() => setOpenSpatial(openSpatial === c.id ? null : c.id)} title="Spatial position (3D)"
-                        className={`inline-flex items-center justify-center w-5 h-5 rounded ${c.spatial ? 'text-accent' : 'text-fg-3 hover:text-fg-1'}`}><Orbit size={12} /></button>
-                      <button onClick={() => setOpenFx(openFx === c.id ? null : c.id)} title="Effects (insert chain)"
-                        className={`inline-flex items-center justify-center w-5 h-5 rounded ${c.effects?.length ? 'text-accent' : 'text-fg-3 hover:text-fg-1'}`}><Sliders size={12} /></button>
-                      <button onClick={() => removeClip(c.id)} title="Remove clip" className="ml-auto text-fg-3 hover:text-danger"><Trash2 size={12} /></button>
-                    </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  <Music size={13} className="text-fg-2 shrink-0" />
+                  <span className="text-mini font-semibold text-fg-1 truncate" title={selClip.path}>{selClip.name}</span>
+                  <span className={`shrink-0 px-1.5 h-5 inline-flex items-center rounded text-micro uppercase tracking-wider ${selReadOnly ? 'bg-surface-3 text-fg-3' : 'bg-accent/15 text-accent'}`}
+                    title={selReadOnly
+                      ? "This clip is on the BOUND TIMELINE's own audio (Timeline.audio) — it rides the playhead and restarts with its timeline."
+                      : 'This clip is on the BED (ProjectData.audio) — it rides the show clock and survives a scene recall.'}>
+                    {selReadOnly ? 'this timeline' : 'bed'}
+                  </span>
+                </div>
 
-                    {/* Insert chain on this source. It runs BEFORE spatialisation, so a reverb here puts
-                        the source in a room and then the room is placed with it — which is what you want. */}
-                    {openFx === c.id && (
-                      <div className="mt-1 px-2 py-2 rounded bg-surface-1 border border-line-1">
-                        <EffectChain scope="clip" effects={c.effects ?? []} onChange={(fx) => patchClip(c.id, { effects: fx })} />
-                      </div>
-                    )}
+                {selReadOnly && (
+                  <p className="px-2 py-1.5 rounded border border-line-1 bg-surface-2 text-micro text-fg-3">
+                    Read-only. Edit this clip on its lane — placement, trim, fades, mute and gain are all there.
+                    The mixer has no write path into a timeline's own audio (that document is the timeline's, not the bed's),
+                    and spatial/FX for per-timeline audio is a follow-on.
+                  </p>
+                )}
 
-                    {/* Spatial positioner — ambisonic encode + binaural HRTF decode. Drag the pad to move
-                        the source around the listener; you'll hear it move and see the L/R meters shift. */}
-                    {openSpatial === c.id && (
-                      <div className="mt-1 px-2 py-2 rounded bg-surface-1 border border-line-1 flex items-center gap-3">
-                        <label className="flex items-center gap-1.5 text-micro text-fg-2 shrink-0">
-                          <input type="checkbox" checked={!!c.spatial} className="accent-accent"
-                            onChange={(e) => patchClip(c.id, { spatial: e.target.checked ? { x: 0, y: 0, z: 1 } : undefined })} />
-                          Spatial
-                        </label>
-                        {c.spatial ? (
-                          <>
-                            <SpatialPad x={c.spatial.x} z={c.spatial.z}
-                              onChange={(x, z) => patchClip(c.id, { spatial: { ...(c.spatial as Spatial), x, z } })} />
-                            <div className="flex flex-col items-center gap-1 shrink-0">
-                              <span className="text-[9px] leading-none text-fg-3">height</span>
-                              <input type="range" min={-2} max={2} step={0.1} value={c.spatial.y}
-                                onChange={(e) => patchClip(c.id, { spatial: { ...(c.spatial as Spatial), y: Number(e.target.value) } })}
-                                className="w-20 accent-accent" />
-                            </div>
-                            <span className="text-micro text-fg-3 tabular-nums">
-                              x {c.spatial.x.toFixed(1)} · y {c.spatial.y.toFixed(1)} · z {c.spatial.z.toFixed(1)} m
-                            </span>
-                          </>
-                        ) : (
-                          <span className="text-micro text-fg-3 italic">Off — the clip plays flat (unspatialised) into the mix.</span>
-                        )}
-                      </div>
-                    )}
+                {/* gain */}
+                <div className="flex items-center gap-2">
+                  <span className="text-micro text-fg-3 w-16 shrink-0">gain</span>
+                  <Fader value={selClip.gain ?? 1} min={0} max={1.5} step={0.01} disabled={selReadOnly}
+                    ariaLabel="clip gain"
+                    title={(v) => `gain ${g2(v)}`}
+                    onCommit={(g) => setClipGain(selClip.id, g)}
+                    className="flex-1 min-w-0"
+                    readout={g2} readoutClassName="text-micro text-fg-2 tabular-nums w-16 text-right shrink-0" />
+                </div>
+
+                {/* Spatial positioner — ambisonic encode + binaural HRTF decode. Drag the pad to move the
+                    source around the listener; you hear it move and the L/R meters shift. */}
+                <section className="rounded border border-line-1 bg-surface-2 p-2 space-y-2">
+                  <div className="flex items-center gap-1.5">
+                    <Orbit size={12} className={spatial ? 'text-accent' : 'text-fg-3'} />
+                    <label className="flex items-center gap-1.5 text-micro text-fg-2">
+                      <input type="checkbox" checked={!!spatial} disabled={selReadOnly} className="accent-accent disabled:opacity-40"
+                        onChange={(e) => setClipSpatialOn(selClip.id, e.target.checked)} />
+                      Spatial
+                    </label>
                   </div>
-                ))}
-              </div>
-            </div>
-          ))}
+                  {spatial ? (
+                    <div className="flex items-center gap-3">
+                      <SpatialPad x={padX} z={padZ} disabled={selReadOnly}
+                        onDraft={(x, z) => setPadDraft({ x, z })}
+                        onCommit={(x, z) => { setPadDraft(null); setClipSpatialXZ(selClip.id, x, z); }} />
+                      <div className="flex flex-col gap-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-micro text-fg-3 w-10 shrink-0">height</span>
+                          <Fader value={spatial.y} min={-2} max={2} step={0.1} disabled={selReadOnly}
+                            ariaLabel="spatial height"
+                            title={(v) => `y ${v.toFixed(1)} m`}
+                            onCommit={(y) => setClipSpatialY(selClip.id, y)}
+                            className="w-24"
+                            readout={(v) => `${v.toFixed(1)} m`}
+                            readoutClassName="text-micro text-fg-2 tabular-nums w-12 shrink-0" />
+                        </div>
+                        <span className="text-micro text-fg-3 tabular-nums">
+                          x {padX.toFixed(1)} · z {padZ.toFixed(1)} m
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-micro text-fg-3 italic">Off — the clip plays flat (unspatialised) into the mix.</p>
+                  )}
+                </section>
+
+                {/* Insert chain on this source. It runs BEFORE spatialisation, so a reverb here puts the
+                    source in a room and then the room is placed with it — which is what you want. */}
+                <section className="rounded border border-line-1 bg-surface-2 p-2 space-y-2">
+                  <div className="flex items-center gap-1.5">
+                    <Sliders size={12} className={selClip.effects?.length ? 'text-accent' : 'text-fg-3'} />
+                    <span className="text-micro font-semibold text-fg-2 uppercase tracking-wider">FX{selClip.effects?.length ? ` (${selClip.effects.length})` : ''}</span>
+                  </div>
+                  <EffectChain scope="clip" effects={selClip.effects ?? []} disabled={selReadOnly}
+                    onChange={(fx) => setClipEffects(selClip.id, fx)} />
+                </section>
+              </>
+            )}
+          </div>
         </div>
+
         {/* Master strip — the fader + insert chain on the DECODED output (after the ambisonic field has
-            been rendered to headphones or speakers). This is where a limiter to protect the rig goes. */}
+            been rendered to headphones or speakers). This is where a limiter to protect the rig goes.
+            PROJECT-GLOBAL: there is one output chain, so it cannot be per-scene. */}
         <div className="border-t border-line-1 shrink-0">
           <div className="h-9 px-3 flex items-center gap-2">
             <span className="text-mini font-semibold text-fg-2 shrink-0">Master</span>
@@ -356,10 +609,12 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
               className={`inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 text-micro ${master.effects?.length ? 'text-accent' : 'text-fg-3 hover:text-fg-1'}`}>
               <Sliders size={11} /> FX{master.effects?.length ? ` (${master.effects.length})` : ''}
             </button>
-            <input type="range" min={0} max={1.5} step={0.01} value={master.gain ?? 1}
-              onChange={(e) => patchMaster({ gain: Number(e.target.value) })}
-              title={`master gain ${(master.gain ?? 1).toFixed(2)}`} className="w-28 accent-accent" />
-            <span className="text-micro text-fg-3 w-8 tabular-nums">{(master.gain ?? 1).toFixed(2)}</span>
+            <Fader value={master.gain ?? 1} min={0} max={1.5} step={0.01}
+              ariaLabel="master gain"
+              title={(v) => `master gain ${g2(v)}`}
+              onCommit={setMasterGain}
+              className="w-40"
+              readout={g2} readoutClassName="text-micro text-fg-3 w-8 tabular-nums" />
             {/* A reverb with a big room and a hot wet level really can push past full scale — that clips
                 the output. Better to see it here than to hear it on the amp. */}
             {clipping && (
@@ -367,13 +622,13 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
                 <AlertTriangle size={10} /> clipping
               </span>
             )}
-            <span className="ml-auto text-micro text-fg-3">
-              Clips play when the show clock is over them — a scene recall does not restart the bed. Drag audio in from the Media library.
+            <span className="ml-auto text-micro text-fg-3 truncate">
+              The bed plays when the SHOW clock is over it — a scene recall does not restart it.
             </span>
           </div>
           {openMaster && (
             <div className="px-3 pb-2">
-              <EffectChain scope="master" effects={master.effects ?? []} onChange={(fx) => patchMaster({ effects: fx })} />
+              <EffectChain scope="master" effects={master.effects ?? []} onChange={setMasterEffects} />
             </div>
           )}
         </div>
