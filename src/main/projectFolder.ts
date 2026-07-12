@@ -1,5 +1,5 @@
 import { dialog, type BrowserWindow } from 'electron';
-import { copyFileSync, existsSync, mkdirSync, statSync } from 'node:fs';
+import { closeSync, copyFileSync, existsSync, mkdirSync, openSync, readSync, statSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { basename, dirname, extname, isAbsolute, join, relative, sep } from 'node:path';
 import type { ProjectData, CollectResult, NewProjectFolder, AssetEntry, AssetType } from '../../shared/protocol';
@@ -214,7 +214,69 @@ export async function pickProjectFolder(win: BrowserWindow | null): Promise<stri
   return projectFile;
 }
 
-// Pick a unique destination filename inside destDir, reusing an existing identically-sized file.
+// Are these two files byte-for-byte the same? Read in bounded chunks, comparing as we go.
+//
+// THIS IS THE IDENTITY TEST FOR ASSET DE-DUPLICATION AND IT MUST BE EXACT. It used to be
+// "same basename, same byte size", which is a lottery for compressed media and a CERTAINTY for
+// uncompressed audio: a WAV's size is a pure function of duration x rate x channels x depth, so
+// two different 16.000 s 48k/24-bit stereo stems both called `loop.wav` are byte-size-identical
+// EVERY time. uniqueDest declared them the same file, skipped the copy, and remapped the second
+// clip onto the first stem's bytes — Scene B playing Room A's loop, with Collect Assets reporting
+// `copied: 1, missing: []`. A clean bill of health, forever. Never weaken this back to a heuristic:
+// a false positive here is a silent, self-certifying wrong-asset-on-stage.
+//
+// Cost: nothing at all unless a candidate ALREADY collides on name AND size (the only case that
+// ever reached the old test). Then it is one sequential read of each, short-circuited at the first
+// differing byte — a mismatched pair of large videos costs one chunk, not one file. A true match
+// reads both in full, which is still strictly cheaper than the copyFileSync it saves. Chunked, not
+// readFileSync: a 3 GB capture is not hypothetical, and readFileSync would allocate it (and throws
+// outright past Node's max buffer length).
+const CMP_CHUNK = 1 << 20; // 1 MiB
+
+// Fill buf from fd, looping until it is full or EOF; returns the byte count (< buf.length only at
+// EOF). readSync is allowed to come back short of what was asked for, so the two files must be
+// filled to a common length before their chunks can be compared — a raw single readSync each would
+// let a short read on one side alone report two identical files as different.
+function readFull(fd: number, buf: Buffer): number {
+  let off = 0;
+  while (off < buf.length) {
+    const n = readSync(fd, buf, off, buf.length - off, null);
+    if (n <= 0) break;
+    off += n;
+  }
+  return off;
+}
+
+function sameContent(a: string, b: string): boolean {
+  let fa = -1;
+  let fb = -1;
+  try {
+    fa = openSync(a, 'r');
+    fb = openSync(b, 'r');
+    const ba = Buffer.allocUnsafe(CMP_CHUNK);
+    const bb = Buffer.allocUnsafe(CMP_CHUNK);
+    for (;;) {
+      const na = readFull(fa, ba);
+      const nb = readFull(fb, bb);
+      if (na !== nb) return false;              // one ended early — different files
+      if (na === 0) return true;                // both hit EOF with everything matched
+      if (ba.compare(bb, 0, nb, 0, na) !== 0) return false;
+    }
+  } catch (e) {
+    // Unreadable / vanished / locked. Fail towards a fresh copy: a duplicated file on disk is a
+    // wasted megabyte, a wrongly-reused one is the wrong stem in the room.
+    console.error('[projectFolder] content compare failed', a, b, e);
+    return false;
+  } finally {
+    if (fa >= 0) closeSync(fa);
+    if (fb >= 0) closeSync(fb);
+  }
+}
+
+// Pick a unique destination filename inside destDir, reusing an existing file only when it is
+// byte-for-byte the SAME FILE (the ten-scenes-one-asset case must not copy ten times). Size is kept
+// as the cheap pre-filter — different sizes can never be the same file, so no bytes are read — but it
+// is a filter, not the verdict. See sameContent.
 function uniqueDest(destDir: string, srcPath: string): { dest: string; reused: boolean } {
   const ext = extname(srcPath);
   const stem = basename(srcPath, ext);
@@ -222,7 +284,9 @@ function uniqueDest(destDir: string, srcPath: string): { dest: string; reused: b
   let candidate = join(destDir, stem + ext);
   let n = 0;
   while (existsSync(candidate)) {
-    if (statSync(candidate).size === srcSize) return { dest: candidate, reused: true };
+    if (statSync(candidate).size === srcSize && sameContent(candidate, srcPath)) {
+      return { dest: candidate, reused: true };
+    }
     n += 1;
     candidate = join(destDir, `${stem}-${n}${ext}`);
   }
