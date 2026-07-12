@@ -16,9 +16,13 @@ interface Props {
   outPoint: number | null;
   bandStart: number | null;
   bandEnd: number | null;
-  // Content authored PAST the end of playback (Timeline.tsx's `overrunAt`). An audio clip does not extend
-  // Length, and a video clip past a deliberately-short Length is honoured as authored — so either way this
-  // content will never be heard or seen. Both null ⇒ nothing overruns ⇒ no band.
+  // Content authored past the document's LENGTH (Timeline.tsx's `overrunAt`, banded from `lengthEnd`). An
+  // audio clip does not extend Length, and a video clip past a deliberately-short Length is honoured as
+  // authored — so either way this content will never be heard or seen. Both null ⇒ nothing overruns ⇒ no
+  // band.
+  //
+  // NOT banded from the playable end: an out-point overrides Length, and hatching a deliberately narrowed
+  // LOOP REGION as if it were broken content is a false alarm on a normal authoring workflow.
   overrunFrom: number | null;
   overrunTo: number | null;
   onSeekDown: (e: React.PointerEvent) => void;

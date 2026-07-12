@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { X, ChevronDown, Film, Plus, Save, ChevronLeft, ChevronRight } from 'lucide-react';
-import { Timeline as TL, VideoClip, VideoLayer, SurfaceContent, SourceType, StateMachine, defaultStateMachine, isContentClip, timelineEnd, timelineStart, hasTimelineRegion, timelineAudioClips, timelineAudioTracks, type AudioClip, type AudioMix, type AudioTrack, type AssetEntry } from '../../types';
+import { Timeline as TL, VideoClip, VideoLayer, SurfaceContent, SourceType, StateMachine, defaultStateMachine, isContentClip, timelineEnd, timelineStart, timelineDuration, hasTimelineRegion, timelineAudioClips, timelineAudioTracks, type AudioClip, type AudioMix, type AudioTrack, type AssetEntry } from '../../types';
 import { timeline as engine } from '../../services/timeline';
 import { ContentEditor } from '../ContentEditor';
 import { GUTTER, RULER_H, LANE_H, MIN_LANE_H, MAX_LANE_H, PAGE_SECS, laneHeight, clamp, fmtClock, fmtTimecode } from './geometry';
@@ -123,23 +123,46 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   const end = useMemo(() => timelineEnd(timeline), [timeline.duration, timeline.inPoint, timeline.outPoint]);
 
   // CONTENT PAST THE END must not be silently unplayable. `Length` bounds playback (Wave A), and an audio
-  // clip does NOT extend it (D8: Length stays purely authored) — so a clip beyond `end` is authored
-  // content that will never be heard or seen. Say so on the ruler, and offer the one-click fix.
+  // clip does NOT extend it (D8: Length stays purely authored) — so a clip beyond the document's reach is
+  // authored content that will never be heard or seen. Say so on the ruler, and offer the one-click fix.
+  //
+  // ⚠ THE THRESHOLD IS *LENGTH*, NOT `timelineEnd` — AND MEASURING IT AGAINST `timelineEnd` MAKES THE
+  // ONE-CLICK FIX DESTROY THE THING IT WARNS ABOUT. `timelineEnd` returns the OUT-POINT when a region is
+  // set (types.ts), and setting an out-point to loop a section is a first-class shipped feature (the
+  // `Set Out` button, the `O` key, the Loop button's own tooltip). So on a 60 s show with clips to 60 s,
+  // one click of `Set Out` at 20 would instantly: paint a permanent warn-hatched band over 20→60 — the
+  // operator's own loop region — and raise a badge reading "past the end", inviting them to clear a
+  // defect that is not one. Clicking it wrote `outPoint: 60`, WIDENING THE LOOP THEY WERE WORKING IN,
+  // silently and with no undo: THE SHOW THEN LOOPS THE WRONG SECTION. Content outside a deliberately
+  // narrowed region is not past the end — it is outside the loop you are working in.
+  //
+  // So the threshold is how far this document can reach WITHOUT anyone touching Length:
+  //   max(Length, timelineEnd) — the second term because an out-point BEYOND Length is a supported,
+  //   honoured shape (see timelineStart's note: `in: 70, out: 90` over a Length of 60 is a real region),
+  //   and content inside it is perfectly playable, so it must not raise a false alarm.
+  // Both readers COERCE junk (NaN / "10" / null), so a hand-edited document cannot silently disable the
+  // badge by making the comparison NaN.
+  const lengthEnd = useMemo(
+    () => Math.max(timelineDuration(timeline), timelineEnd(timeline)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [timeline.duration, timeline.inPoint, timeline.outPoint],
+  );
   const overrunAt = useMemo(() => {
     const far = Math.max(0,
       ...timeline.clips.map(c => c.start + c.duration),
       ...tlClips.map(c => c.start + c.duration),
       ...bedClips.map(c => c.start + c.duration));
-    return far > end + 1e-6 ? far : null;
+    return far > lengthEnd + 1e-6 ? far : null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeline.clips, tlClips, bedClips, end]);
-  // RAISE the out-point, never DELETE it. `timelineEnd` lets an out-point override Length, so the fix has
-  // to move it — but nulling it DESTROYS an authored playable region: a user with a deliberate in 10 /
-  // out 40 clicks this once and their region is gone, with no signal and no undo. If there is no
-  // out-point, there is nothing to raise.
+  }, [timeline.clips, tlClips, bedClips, lengthEnd]);
+  // RAISE `duration`, AND TOUCH NOTHING ELSE. The fix's own copy is "Length → X" and the overrun is
+  // measured against Length, so Length is the only field it has any business writing. It must NOT move
+  // the out-point: that is the user's authored playable region (a deliberate in 10 / out 40), and moving
+  // it destroys the region with no signal and no undo — the exact failure the threshold above exists to
+  // stop. Raising Length alone is also idempotent: it lifts the threshold past `far`, so the badge clears.
   const fixLength = () => {
     if (overrunAt == null) return;
-    onChange({ ...timeline, duration: overrunAt, outPoint: timeline.outPoint == null ? null : overrunAt });
+    onChange({ ...timeline, duration: overrunAt });
   };
 
   // Live refs so stable (window-listener / engine-subscription / memoized-child) handlers see
@@ -417,8 +440,19 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     commitAudioClips(source, next);
   }, [clientXToTime, commitAudioClips, audioClipsOf]);
 
+  // BAIL IF THE ID IS NOT THERE — `liftDelete` is `Array.filter`, which ALWAYS returns a new array, so
+  // without this a delete that removes nothing still fires a full commit.
+  //
+  // That is not hypothetical: a SELECTION OUTLIVES A DOCUMENT REBIND. Select an audio clip on the global
+  // doc (selected = X, selectedSource = 'timeline'), recall a scene with its own timeline, press Delete →
+  // liftDelete(timelineAudioClips(sceneTL), X) finds nothing, and the new array still rides
+  // onChange(timeline) → setData → warmMedia + pruneStaleLayers + compileAutomation + a structured-clone
+  // postMessage to every projector port, for a document that did not change. Invariant 7's entire cost,
+  // paid on a no-op, ON THE BOUND DOCUMENT OF A RUNNING SHOW. The selection is still cleared (it named a
+  // clip that is not in this document — that is precisely what makes it stale).
   const onAudioRemoveClip = useCallback((id: string, source: 'bed' | 'timeline') => {
-    commitAudioClips(source, liftDelete(audioClipsOf(source), id));
+    const before = audioClipsOf(source);
+    if (before.some(c => c.id === id)) commitAudioClips(source, liftDelete(before, id));
     setSelected(s => (s === id ? null : s));
   }, [commitAudioClips, audioClipsOf]);
 
@@ -855,7 +889,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
         // The bed's readout is only shown when its lanes are NOT drawn — i.e. while a scene is bound and
         // the show clock has diverged from this ruler.
         bedTimeRef={authoring ? bedTimeRef : undefined}
-        overrun={overrunAt != null ? { at: overrunAt, end, movesOutPoint: timeline.outPoint != null, onFix: fixLength } : undefined}
+        overrun={overrunAt != null ? { at: overrunAt, length: lengthEnd, onFix: fixLength } : undefined}
         // Which document the number fields are editing. It must change on EVERY rebind — including one
         // where the incoming scene's Length/fps happen to EQUAL the outgoing doc's, which is the normal
         // case (Capture Scene clones the timeline, and fps is 30 nearly everywhere). See NumField.
@@ -890,7 +924,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
               markers={timeline.markers ?? []} inPoint={regionInPoint} outPoint={regionOutPoint}
               bandStart={bandOn ? timelineStart(draftTimeline) : null}
               bandEnd={bandOn ? timelineEnd(draftTimeline) : null}
-              overrunFrom={overrunAt != null ? end : null} overrunTo={overrunAt}
+              overrunFrom={overrunAt != null ? lengthEnd : null} overrunTo={overrunAt}
               onSeekDown={startSeekDrag}
               onMarkerSeek={(t) => engine.seek(t)}
               onMarkerDelete={(id) => onChange({ ...timeline, markers: (timeline.markers ?? []).filter(m => m.id !== id) })}

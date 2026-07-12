@@ -18,6 +18,7 @@ const durs = new Map<string, number>();          // path → the SOURCE's true l
 const pending = new Set<string>();               // decodes in flight (dedupe — a lane re-renders constantly)
 const failed = new Set<string>();                // don't retry-storm an undecodable source on every render
 const attempts = new Map<string, number>();      // see MAX_ATTEMPTS
+const retryAfter = new Map<string, number>();    // path → the wall-clock ms before which a retry is NOT an attempt
 const subs = new Set<() => void>();
 
 // ensureBlobUrl DOES NOT WAIT ON A CONCURRENT LOAD — it returns `undefined` the moment another caller is
@@ -27,7 +28,23 @@ const subs = new Set<() => void>();
 // waveform, and — far worse — `sourceDurationFor` stuck at null, which pins the right-trim cap to the
 // clip's current duration for the rest of the session. So a missing url is RETRIED, and only a bounded
 // number of times, so a genuinely unreadable path cannot storm IPC on every render either.
+//
+// ⚠ THE BUDGET MUST BE SPENT IN WALL-CLOCK TIME, NOT IN FRAMES — OR IT REINTRODUCES THE VERY BUG IT
+// EXISTS TO PREVENT. `ensurePeaks` is reached from RENDER (`Wave`) and from EVERY POINTERMOVE OF A DRAG
+// (Timeline.tsx's onAudioDragMove → sourceDurationFor, on any clip with no `sourceDuration` — i.e. every
+// bed clip authored before this wave). `pending` dedupes only while a read is in flight, and each failed
+// read clears it in its `finally` — so a caller firing at 60 Hz simply re-enters on the next frame. Six
+// frames (~100 ms) of one drag would burn the entire budget against a transient concurrent read and
+// `failed.add(path)` PERMANENTLY: flat waveform for the session, `sourceDurationFor` pinned to null, and
+// the right-trim cap pinned to the clip's current duration. Exactly the failure the retry was written to
+// avoid, re-entered through the drag path.
+//
+// So a retry serves a COOLDOWN. Six attempts now span ≥ 2.5 s of real time, which a concurrent
+// mediaCache read finishes inside many times over — while a genuinely unreadable path still gives up
+// after six, and still cannot storm IPC (the cooldown check runs before `pending.add`, so the frames in
+// between cost one Map lookup and no IPC at all).
 const MAX_ATTEMPTS = 6;
+const RETRY_COOLDOWN_MS = 500;
 
 // A decode landing must repaint the lanes. Nothing else would: Timeline.tsx's ~10 Hz `autoPlayhead`
 // setState bails out when the transport is paused (same value in, no re-render), so a waveform decoded
@@ -50,6 +67,10 @@ let ctx: OfflineAudioContext | null = null;      // lazily created: one per deco
 // Kick off a decode for `path` if we don't have it. Fire-and-forget.
 export function ensurePeaks(path: string): void {
   if (!path || peaks.has(path) || pending.has(path) || failed.has(path)) return;
+  // A retry inside its cooldown is a WAIT, not an attempt: cost it nothing and take no IPC. This runs
+  // before `pending.add` precisely so a 60 Hz caller falls straight through here (see RETRY_COOLDOWN_MS).
+  const due = retryAfter.get(path);
+  if (due !== undefined && Date.now() < due) return;
   pending.add(path);
   void (async () => {
     try {
@@ -59,6 +80,7 @@ export function ensurePeaks(path: string): void {
         const n = (attempts.get(path) ?? 0) + 1;
         attempts.set(path, n);
         if (n >= MAX_ATTEMPTS) failed.add(path);
+        else retryAfter.set(path, Date.now() + RETRY_COOLDOWN_MS);
         return;
       }
       const buf = await (await fetch(url)).arrayBuffer();
@@ -81,6 +103,12 @@ export function ensurePeaks(path: string): void {
         out[b] = m;
       }
       peaks.set(path, out);
+      // The decode landed — retire this path's retry bookkeeping rather than leaving a spent budget
+      // lying around. (`peaks.has(path)` short-circuits ensurePeaks from here on, so this is hygiene
+      // rather than correctness — but a half-spent budget surviving a SUCCESS is exactly the kind of
+      // state that makes the next bug in here invisible.)
+      attempts.delete(path);
+      retryAfter.delete(path);
       notify();
     } catch {
       failed.add(path);   // undecodable / missing — the lane draws a flat bar; the driver reports the load failure
@@ -101,7 +129,16 @@ export function sourceDurationFor(path: string): number | null {
   return d > 0 ? d : null;
 }
 
-// The cached peaks, downsampled to `buckets`. Null while decoding (or if it failed) — draw a flat bar.
+// The cached peaks, downsampled to AT MOST `buckets`. Null while decoding (or if it failed) — draw a
+// flat bar.
+//
+// NOTE WHAT THE LANE ACTUALLY ASKS FOR, so nobody "optimizes" this into a lie: `Wave` passes
+// PEAK_BUCKETS and therefore always takes the `buckets >= full.length` short-circuit — it wants the FULL
+// array and resamples it itself. It has to: a clip shows the window [inPoint, inPoint + duration) of the
+// source, and downsampling to the clip's pixel width HERE would average across the whole file, not
+// across that window. So this downsample path is unused by the only caller today; it is kept because it
+// is the correct general answer for a caller that wants fewer buckets than the cache holds (an overview
+// strip, a thumbnail), and it is the reason the parameter exists at all.
 export function peaksFor(path: string, buckets: number): Float32Array | null {
   const full = peaks.get(path);
   if (!full) { ensurePeaks(path); return null; }

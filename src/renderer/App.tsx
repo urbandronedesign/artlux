@@ -758,6 +758,24 @@ const App: React.FC = () => {
   // clip drawn at "0:30" on a scene ruler would be a lie about when it is heard. The panel shows the
   // `♪ BED mm:ss` readout instead, and the mixer keeps the (time-independent) faders reachable.
   //
+  // ⚠ THE GATE IS `activeSceneId`, AND IT IS *NOT* `timelineEngine.isGlobalDocBound()`. DO NOT "FIX" IT.
+  //
+  // The tempting argument: a scene with NO timeline of its own binds the GLOBAL doc (swapTimelineForScene:
+  // `const tl = scene.timeline ? … : timeline`), so isGlobalDocBound() is true there, so the ruler must be
+  // honest, so the bed's lanes should be drawn. THE MIDDLE STEP IS FALSE. isGlobalDocBound() decides which
+  // clock a lane RIDES and whether a seek MOVES BOTH clocks — it does not assert that the two clocks are
+  // EQUAL. The recall that bound that scene went through swap(scene.id, tl, {transport:'restart'}), which
+  // does `mainSeek(timelineStart(t))` — resetting the PLAYHEAD — while showClock defaults to 'preserve'
+  // and the bed rolls serenely on. So the instant a timeline-less scene is recalled, playhead = 0:00 and
+  // showTime = 4:05: DIVERGED, deliberately (that divergence IS Task 3 — the bed no longer restarts on a
+  // scene recall). DC6b says so itself: "under a timeline-less scene the global picture restarts while the
+  // global curves continue on the show clock."
+  //
+  // Draw the bed there and a clip that is AUDIBLE RIGHT NOW is painted four minutes to the right of the
+  // playhead — the precise lie this `undefined` exists to prevent. `activeSceneId == null` (the Global
+  // pill) is the only state in which no restart-swap has pulled the two apart. The mixer keeps the
+  // (time-independent) faders reachable meanwhile, and the ♪ BED readout says where the bed actually is.
+  //
   // setAudioMix does NOT normalize (host.audio.setMix does); the lane's commits go through the same guard.
   const timelineBedProp = useMemo(
     () => (activeSceneId ? undefined : { mix: audioMix, onChangeMix: (m: AudioMix) => setAudioMix(normalizeAudioMix(m)) }),

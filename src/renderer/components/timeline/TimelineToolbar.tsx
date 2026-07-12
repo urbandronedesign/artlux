@@ -13,10 +13,14 @@ interface Props {
   // The audio bed's position (the SHOW clock) while a scene is bound and its lanes are therefore not
   // drawn. Painted imperatively by Timeline.tsx's engine subscription — never React state (invariant 3).
   bedTimeRef?: React.RefObject<HTMLSpanElement>;
-  // Content authored past where playback stops, and the one-click fix (Length → the content end). Absent
+  // Content authored past the document's LENGTH, and the one-click fix (Length → the content end). Absent
   // ⇒ nothing overruns. An audio clip does NOT extend Length, so without this the operator's only clue
   // that a clip will never be heard is that it is silent.
-  overrun?: { at: number; end: number; movesOutPoint: boolean; onFix: () => void };
+  //
+  // `length`, NOT the playable end: an out-point OVERRIDES Length, and a deliberately narrowed loop
+  // region is not an overrun (see Timeline.tsx's `lengthEnd`). The fix raises Length and NEVER touches
+  // the in/out region — say so, because the operator is about to click it on a live show.
+  overrun?: { at: number; length: number; onFix: () => void };
   // Identity of the timeline currently BOUND to the editor (a scene id, or the global sentinel). The
   // number fields hold an uncommitted draft; this is what tells them the document swapped under them.
   docKey: string;
@@ -141,7 +145,7 @@ export const TimelineToolbar: React.FC<Props> = ({ playing, onTogglePlay, onStop
     )}
     {overrun && (
       <button onClick={overrun.onFix}
-        title={`Content runs to ${fmtClock(overrun.at)} but playback stops at ${fmtClock(overrun.end)}. Click to set Length to the content end${overrun.movesOutPoint ? ' (and move the out-point there)' : ''}.`}
+        title={`Content runs to ${fmtClock(overrun.at)} but Length is ${fmtClock(overrun.length)}, so it will never be heard or seen. Click to set Length to ${fmtClock(overrun.at)}. Your in/out region is not touched.`}
         className="shrink-0 inline-flex items-center gap-1 px-1.5 h-5 rounded bg-warn/15 text-warn text-micro">
         <AlertTriangle size={10} /> past the end — Length → {fmtClock(overrun.at)}
       </button>
