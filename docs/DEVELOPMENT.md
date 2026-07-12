@@ -59,6 +59,48 @@ so every machine and every CI runner builds its own. It is gitignored (`*.node`)
 > (`LNK1104` on Windows) and **silently leaves the stale addon in place**, so you debug code that
 > isn't loaded. Stop `npm run dev` and kill stray `electron` processes first.
 
+### "The audio UI is all there and nothing plays" — no sound?
+There is no error dialog and no red UI: the loader degrades to a no-op by design, so a missing **or
+stale** engine looks exactly like a bug in your code. Work the list in order.
+
+**1. Read the log — in the terminal, not DevTools.** `audioManager` runs in the **main process**
+(the addon is loaded with `createRequire`), so its lines go to the console running `npm run dev`.
+The renderer DevTools console will never show them. You get exactly one of:
+
+| Line (`plugins/audio/src/audioManager.ts`) | Means |
+|---|---|
+| `[audio] native engine loaded (JUCE 8.0.14)` | An addon loaded. **This does not mean it is current** — go to step 3. |
+| `[audio] native engine unavailable — audio disabled` | No addon found or loaded. Step 2. |
+| `[audio] native engine load failed at <path> <err>` | The file **exists** but `require()` threw — ABI/arch mismatch, missing runtime DLL. |
+
+The `load failed` warning is only printed for a path that **exists**. A file that is simply absent
+logs nothing per-path — you just get `unavailable`. So *`unavailable` with no per-path error means
+the addon isn't there at all*, not that it failed to load.
+
+**2. Does the addon exist?** The loader probes, in order (`audioManager.ts:61-65`):
+```
+<resourcesPath>/audio-engine.node                     # packaged (extraResources; note the HYPHEN)
+native/audio-engine/build/Release/audio_engine.node   # dev — the raw cmake-js output (UNDERSCORE)
+native/audio-engine/audio_engine.node                 # the copy scripts/build-audio.cjs makes
+```
+None present → `npm run build:audio` (needs CMake ≥ 3.23 + a C++17 toolchain; see Prerequisites).
+
+**3. Is it NEWER than `native/audio-engine/src/engine.cpp`?** This is the one that wastes an
+afternoon: a stale addon **loads fine and logs `native engine loaded`**, so success and staleness are
+indistinguishable in the log. If you edited `engine.cpp` and nothing changed, compare mtimes:
+```powershell
+Get-Item native/audio-engine/build/Release/audio_engine.node, native/audio-engine/src/engine.cpp |
+  Select-Object Name, LastWriteTime
+```
+Addon older than the source → **your last build never linked.** Almost always because the app was
+running: MSVC fails `LNK1104`, `build:audio` exits non-zero, and the previous `.node` stays on disk.
+Confirm nothing holds it (`tasklist /FI "IMAGENAME eq electron.exe"` → *No tasks*), then rebuild.
+
+**4. Packaging does not rebuild the engine.** `npm run package` runs `build-audio.cjs --check`, which
+only asserts `native/audio-engine/audio_engine.node` **exists** — it does not check freshness and does
+not build. If `engine.cpp` changed, run `npm run build:audio` *before* packaging or you ship the old
+engine. (CI is immune: the runner starts from a clean clone with no addon at all.)
+
 ### Scripts
 | Script | What |
 |--------|------|
@@ -163,7 +205,8 @@ dmgs need a one-time Gatekeeper bypass: right-click → Open → "Open Anyway", 
   `node scripts/copy-native.cjs`). For the **audio engine** the same lock surfaces as MSVC `LNK1104`,
   and the failed link **leaves the previous `audio_engine.node` in place** — so the app keeps loading
   the STALE engine and your change appears to do nothing. Confirm with
-  `tasklist /FI "IMAGENAME eq electron.exe"` before `npm run build:audio`.
+  `tasklist /FI "IMAGENAME eq electron.exe"` before `npm run build:audio`. If audio is dead or acting
+  stale, work the checklist in [No sound?](#the-audio-ui-is-all-there-and-nothing-plays--no-sound).
 - **Camera / mic surfaces** need the main process to grant the `'media'` permission
   (`session.setPermissionRequestHandler` + `setPermissionCheckHandler` in `src/main/index.ts`); without
   it `getUserMedia` is denied and the live source stays blank. The renderer logs the exact failure as

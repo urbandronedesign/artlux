@@ -39,6 +39,7 @@ a project-level state machine, scenes/cues, OSC control, and a 3D simulator.
 | NDI network video | [docs/NDI.md](docs/NDI.md) |
 | Spout (Windows GPU video receive) | [docs/SPOUT.md](docs/SPOUT.md) |
 | Video codecs (HAP, MP4/WebCodecs) | [docs/CODECS.md](docs/CODECS.md) |
+| Audio engine (JUCE addon) — build, and **"no sound?"** | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md#the-audio-ui-is-all-there-and-nothing-plays--no-sound) |
 | OSC control + LiDAR tracking protocol | [docs/OSC.md](docs/OSC.md), [docs/TRACKING_SYNC.md](docs/TRACKING_SYNC.md), [docs/TRACKING_TAKES.md](docs/TRACKING_TAKES.md) |
 | Camera pose tracking (MediaPipe BlazePose) | [docs/MEDIAPIPE.md](docs/MEDIAPIPE.md) |
 | Augmenta optical tracking (OSC v2) | [docs/AUGMENTA.md](docs/AUGMENTA.md) |
