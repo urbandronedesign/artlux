@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, type AssetEntry, type AssetType } from './types';
+import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, type AssetEntry, type AssetType } from './types';
 import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge, WINDOWED_DISPLAY } from '../../shared/protocol';
 import type { ProjectorCalibration } from '../../shared/protocol';
 import { CalibWizard, AutoAlignWizard, calibCapture as cam, measureGamma, calibWorkspace } from '@artlux/plugin-calibration/renderer';
@@ -1099,6 +1099,12 @@ const App: React.FC = () => {
       // circuits the confirm below, so anything this count can't see is deleted with no warning at all.
       const refs = usageForPath(asset.path, projectRefs).count;
       if (refs > 0 && !window.confirm(`"${asset.name}" is used in ${refs} place(s). Remove it from the library anyway?`)) return;
+      // NB: removing a library entry never removes the CLIPS that reference it — video, audio (bed or
+      // Timeline.audio) or content. The reference survives and reads as missing, which is recoverable;
+      // deleting the user's placement is not. (A take is the one exception below, because a take's
+      // library entry IS its trackingTakes row — the recording itself, not a reference to one.) The
+      // confirm above is the guard, and it is only as good as usageIndex's coverage of every field a
+      // path can live in — see services/assetLibrary.usageIndex.
       if (usedTake) {
           setTimeline(t => ({ ...t, trackingTakes: (t.trackingTakes ?? []).filter(r => r.id !== asset.id), clips: t.clips.filter(c => c.takeId !== asset.id) }));
       } else {
@@ -1135,9 +1141,20 @@ const App: React.FC = () => {
           ({ ...s, models: (s.models ?? []).map(m => isOld(m.path) ? { ...m, path: newPath } : m) });
       const relinkTimeline = (t: Timeline): Timeline => ({
           ...t,
-          clips: t.clips.map(c => isOld(c.path) ? { ...c, path: newPath } : c),
+          clips: t.clips.map(c => {
+              const n = isOld(c.path) ? { ...c, path: newPath } : c;
+              // A generalized content clip carries its file on `content.url`. mapAssetPaths maps it and
+              // (as of Wave B) usageIndex counts it — so the confirm dialog above already promises to
+              // rewrite it. Leaving it here would make the count and the rewrite disagree and leave a
+              // DEAD PATH on air, which is precisely the class of bug this function's header describes.
+              const cu = (n.content as { url?: string } | undefined)?.url;
+              return isOld(cu) ? { ...n, content: { ...n.content!, url: newPath } } : n;
+          }),
           // Takes are matched by id as well: a take's library entry IS its trackingTakes row.
           trackingTakes: (t.trackingTakes ?? []).map(r => (r.id === asset.id || isOld(r.path)) ? { ...r, path: newPath } : r),
+          // This timeline's OWN audio (Wave B). The BED is relinked separately at the setAudioMix below.
+          // `t.audio` is left absent if it was absent — a relink must not mint containers.
+          audio: t.audio ? { ...t.audio, clips: timelineAudioClips(t).map(c => isOld(c.path) ? { ...c, path: newPath } : c) } : t.audio,
       });
       setAssets(prev => prev.some(a => a.id === asset.id) ? prev.map(a => a.id === asset.id ? { ...a, path: newPath, size: next.size } : a) : prev);
       setSurfaces(prev => relinkSurfaces(prev));

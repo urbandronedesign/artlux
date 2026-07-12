@@ -2,10 +2,11 @@
 // (Timeline-independent video/image/model/audio in ProjectData.assets) and recorded LiDAR takes
 // (Timeline.trackingTakes). Usage is computed by path equality against EVERY place an asset path can
 // be referenced: surfaces (live + every captured scene's look snapshot), scene3D models (same), clips
-// on every timeline (the global one plus each scene's own; video + tracking), and the audio bed's clips.
+// on every timeline (the global one plus each scene's own; video paths, content urls, and that
+// timeline's own audio clips), and the audio bed's clips.
 import type { AssetEntry, AssetType, AudioClip, Surface, Timeline, TrackingTakeRef } from '../types';
 import type { Scene3D } from '../../../shared/protocol';
-import { SourceType } from '../types';
+import { SourceType, timelineAudioClips } from '../types';
 
 // Normalize a path for cross-reference equality (Windows: backslashes + case-insensitive).
 export const normPath = (p: string): string => (p || '').replace(/\\/g, '/').toLowerCase();
@@ -29,10 +30,12 @@ export interface ProjectRefs {
   // The LIVE scene3D, followed by each Scene's own. Same aliasing, same dedupe.
   scene3D: (Scene3D | null | undefined)[];
   // The GLOBAL timeline + every scene's own — an asset used only inside a scene's timeline used to read
-  // as UNUSED.
+  // as UNUSED. Every path-bearing field of each one is counted: a video clip's `path`, a generalized
+  // content clip's `content.url`, and (Wave B) that timeline's OWN audio clips (Timeline.audio.clips).
   timelines: Timeline[];
-  // The global audio bed's clips (AudioMix.clips). An audio file used only on the bed had no field to
-  // be counted in at all, so it read as 0 uses and was deleted silently.
+  // The global audio bed's clips (ProjectData.audio.clips — the BED, not a timeline's own audio, which
+  // arrives through `timelines` above). An audio file used only on the bed had no field to be counted
+  // in at all, so it read as 0 uses and was deleted silently.
   audioClips: AudioClip[];
 }
 
@@ -65,7 +68,22 @@ export function usageIndex(refs: ProjectRefs): Map<string, AssetUsage> {
     for (const m of sc?.models ?? []) if (m.path) at(normPath(m.path)).m.add(m.id);
   }
   for (const tl of refs.timelines) {
-    for (const c of tl.clips ?? []) if (c.path) at(normPath(c.path)).c.add(c.id);
+    for (const c of tl.clips ?? []) {
+      if (c.path) at(normPath(c.path)).c.add(c.id);
+      // A generalized content clip carries its file on `content.url` — mapAssetPaths maps it, this index
+      // never counted it. An image placed by drag-and-drop was deletable with NO warning at all.
+      const cu = (c.content as { url?: string } | undefined)?.url;
+      if (cu) at(normPath(cu)).c.add(c.id);
+    }
+    // NB: `trackingTakes[].path` is deliberately NOT counted here, even though mapAssetPaths maps it.
+    // A take's library entry IS its trackingTakes row (takeToAsset), so counting the row would make
+    // every take report a use OF ITSELF: the delete confirm would fire for an unplaced take, and
+    // AssetManager would render the take's own id as one of its "clip" usage rows. A take that is
+    // actually USED is a clip, and a take clip carries `path: ref.path` (Timeline.tsx's take drop), so
+    // it is already counted by the loop above — which is what gates the confirm.
+    // Wave B: this timeline's OWN audio. Derived from `timelines` rather than a new ProjectRefs field,
+    // because the list App passes already spans the global doc + every scene's timeline.
+    for (const c of timelineAudioClips(tl)) if (c.path) at(normPath(c.path)).a.add(c.id);
   }
   for (const c of refs.audioClips) {
     if (c.path) at(normPath(c.path)).a.add(c.id);

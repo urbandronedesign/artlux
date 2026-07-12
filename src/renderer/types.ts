@@ -371,6 +371,18 @@ export interface Timeline {
   loop?: boolean;        // when true, playback wraps over [timelineStart, timelineEnd); else it pauses at the end
   trackingTakes?: TrackingTakeRef[]; // recorded LiDAR-blob take library (drag onto a tracking lane)
   automation?: AutomationLane[];     // keyframe curves over the playhead (P4)
+  // A timeline's OWN audio — audio that plays with THIS timeline's picture and restarts when it does.
+  //
+  // NOT a second bed. The two audio containers differ by CLOCK, and the clock follows the CONTAINER,
+  // never the timeline it happens to be drawn next to:
+  //   · ProjectData.audio  — THE BED. One per project. Rides the SHOW clock. Survives a scene recall.
+  //   · Timeline.audio     — this document's audio. Rides the PLAYHEAD. Restarts with its timeline.
+  // It exists on the GLOBAL timeline too (a show can legitimately use both: a bed that never stops, plus
+  // global-timeline audio that restarts whenever the global timeline does). No `buses`: AudioBus is
+  // project-global (there is ONE output chain — see "WHERE EFFECTS SIT" below).
+  //
+  // An audio clip does NOT extend the Length — see the duration raise in normalizeTimeline.
+  audio?: TimelineAudio;
   // WAVE A MIGRATION MARKER — "this document's `duration` was authored against a BOUNDED clock".
   //
   // Before Wave A, `duration` was an ignored hint: playback ran on past it, so an old project can
@@ -395,7 +407,7 @@ export interface Timeline {
 }
 export const defaultTimeline = (): Timeline => ({
   layers: [], clips: [], duration: 60, fps: 30, markers: [], inPoint: null, outPoint: null,
-  loop: false, trackingTakes: [], automation: [], boundedDuration: true,
+  loop: false, trackingTakes: [], automation: [], audio: { tracks: [], clips: [] }, boundedDuration: true,
 });
 
 // The timeline's playable range. `duration` (the "Length" field) IS the end — as of Wave A it once
@@ -529,6 +541,70 @@ const sanitizeClip = (c: VideoClip): VideoClip => ({
   sourceDuration: finiteNum(c.sourceDuration) ?? undefined,
 });
 
+// --- Audio coercion (Wave B). Declared HERE, above normalizeTimeline, rather than down in the audio
+// section next to the types they coerce: normalizeTimeline calls normalizeTimelineAudio, and a `const`
+// arrow is NOT hoisted. It would work either way (normalizeTimeline only runs long after this module's
+// body has evaluated), but "it would work" is not a property worth betting a WHITE SCREEN ON LOAD on —
+// a single future module-scope call would turn it into a TDZ ReferenceError inside the one function
+// that is documented to never throw. The interfaces they mention (AudioClip/AudioTrack/TimelineAudio)
+// are declared further down and are hoisted; only the VALUES need to be in order. ---
+
+// The audio twin of sanitizeClip — and the guard the BED has been missing since Wave 3.
+//
+// COERCE, DO NOT DROP, same as video: a clip with a bad number is recoverable user data (you can see
+// and fix a zero-duration clip); silently deleting it is not. start/duration/inPoint feed the lane's
+// width arithmetic (`Math.max(..., ...clips.map(c => c.start + c.duration))`) and the driver's window
+// test (`playhead >= clip.start && playhead < clip.start + clip.duration`) completely unguarded — one
+// NaN there poisons contentEnd, the scroll-area CSS width, and every audibility decision.
+// `sourceDuration` is OPTIONAL and "absent" already means "no cap" at its call sites, and `??` does
+// NOT catch a present-but-NaN value — so a non-finite one is DROPPED back to undefined rather than
+// coerced to 0 (zeroing it would fabricate a trim cap of `-inPoint`, which is worse than no cap).
+// gain/fadeIn/fadeOut get the same treatment: a non-finite fade is ABSENT, not a NaN gain ramp in the
+// driver.
+export const sanitizeAudioClip = (c: AudioClip): AudioClip => ({
+  ...c,
+  start: finiteNum(c.start) ?? 0,
+  duration: finiteNum(c.duration) ?? 0,
+  inPoint: finiteNum(c.inPoint) ?? 0,
+  sourceDuration: finiteNum(c.sourceDuration) ?? undefined,
+  gain: finiteNum(c.gain) ?? undefined,
+  fadeIn: finiteNum(c.fadeIn) ?? undefined,
+  fadeOut: finiteNum(c.fadeOut) ?? undefined,
+});
+
+// A TRACK's numbers need the same guard as a clip's — and this is not theoretical. The driver
+// multiplies the track gain in UNGUARDED (`... ?? trackOf(clip)?.gain ?? 1` in plugins/audio's
+// renderer), and `??` does NOT catch a present-but-NaN value, which is the exact hole sanitizeClip's
+// own comment above was written about. A hand-edited/bad-import `"gain": "x"` on a track ⇒
+// `setClipGain(id, NaN)` for every clip on it, and a gutter's `<input type="range" value={NaN}>` goes
+// uncontrolled. Coerce, do not drop: `undefined` means "1" at every call site, so a junk gain becomes
+// absent rather than a silent zero.
+export const sanitizeAudioTrack = (t: AudioTrack): AudioTrack => ({ ...t, gain: finiteNum(t.gain) ?? undefined });
+
+// Coerce a persisted audio container (Timeline.audio, or an AudioMix's tracks+clips). Never throws; a
+// missing/garbage value yields an empty container. Same filter shape as normalizeTimeline's clips
+// guard: exclude null/undefined slots and bare ARRAYS (`typeof [] === 'object'`, so they used to sail
+// through a naive `typeof c === 'object'` test), but ACCEPT `{}` — sanitizeAudioClip coerces its
+// numbers, so it can no longer poison anything, and dropping it would fight the coerce-don't-drop rule.
+export const normalizeTimelineAudio = (a: unknown): TimelineAudio => {
+  const o = a as Partial<TimelineAudio> | null | undefined;
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return { tracks: [], clips: [] };
+  return {
+    tracks: (Array.isArray(o.tracks) ? o.tracks : [])
+      .filter((t): t is AudioTrack => !!t && typeof t === 'object' && !Array.isArray(t))
+      .map(sanitizeAudioTrack),
+    clips: (Array.isArray(o.clips) ? o.clips : [])
+      .filter((c): c is AudioClip => !!c && typeof c === 'object' && !Array.isArray(c))
+      .map(sanitizeAudioClip),
+  };
+};
+
+// Guarded readers — every consumer goes through these, so `audio` being absent (an old project) or junk
+// (a live in-memory Timeline that never passed through normalizeTimeline) is handled in ONE place
+// instead of at each of a dozen `t.audio?.clips ?? []` sites that will drift.
+export const timelineAudioClips = (t: Timeline): AudioClip[] => (Array.isArray(t.audio?.clips) ? t.audio!.clips : []);
+export const timelineAudioTracks = (t: Timeline): AudioTrack[] => (Array.isArray(t.audio?.tracks) ? t.audio!.tracks : []);
+
 // Fill defaults for fields added after a project was saved, so old projects load cleanly.
 // Top-level fields would migrate via the spread in App's loader, but per-array fields
 // (layer/clip) need explicit defaulting — done here in one place.
@@ -568,6 +644,10 @@ export const normalizeTimeline = (t: Partial<Timeline> | null | undefined): Time
     clips,
     trackingTakes: normalizeTrackingTakes(t.trackingTakes),
     markers: normalizeMarkers(t.markers),
+    // ⚠ AFTER the spread, like every other array: `...rest` above would otherwise pass a hand-edited
+    // `"audio": 5` or `{"clips": null}` straight into the lane renderer and the audio driver, both of
+    // which iterate it unguarded. (Wave B — this timeline's OWN audio, not the bed.)
+    audio: normalizeTimelineAudio(t.audio),
     // Guarded like every other number that reaches arithmetic. `??` alone only substitutes null/
     // undefined, so `{"outPoint": 1e400}` (valid JSON — it overflows to Infinity on parse) or
     // `{"fps": "abc"}` sailed straight through into Timeline.tsx's `Math.max(dur, outPoint, …)` and
@@ -591,6 +671,12 @@ export const normalizeTimeline = (t: Partial<Timeline> | null | undefined): Time
     // on a hand-edited or malformed project — finiteNum keeps one bad value from poisoning the max().
     // `=== true` (not truthy): `...rest` above can carry a hand-edited junk value for the marker, and
     // "junk" must read as ABSENT (do the migration) rather than as "already migrated".
+    //
+    // ONLY VIDEO `clips` extend the Length. trackingTakes, automation and Timeline.audio do NOT — an
+    // audio clip past the end is authored content the user can see and one-click-fix on the ruler (the
+    // overrun badge in Timeline.tsx), not a reason to silently rewrite their authored Length. Adding
+    // audio to this max() would re-break the "deliberately short Length" invariant boundedDuration
+    // exists to protect, on a container that did not even exist when a pre-Wave-A file was written.
     duration: t.boundedDuration === true
       ? finiteNum(t.duration) ?? base.duration
       : Math.max(
@@ -667,6 +753,14 @@ export interface AudioTrack {
   solo?: boolean;
   color?: string;          // hex label color
 }
+// A timeline's own audio container (Timeline.audio — see there for the clock doctrine). Tracks + clips,
+// deliberately NO buses: AudioBus is project-global (ProjectData.audio.buses) because there is exactly
+// ONE output chain, and an output chain cannot be per-scene. Same clip/track shapes as the bed, so the
+// same sanitizers, the same asset-path visitor and (Task 6) the same driver code serve both.
+export interface TimelineAudio {
+  tracks: AudioTrack[];
+  clips: AudioClip[];
+}
 // A mix bus: gain + an effect chain, optionally sent to a parent bus.
 //
 // WHERE EFFECTS SIT. A spatial source is a point in an ambisonic field, so it cannot be summed into a
@@ -698,12 +792,24 @@ export interface AudioMix {
 export const defaultAudioMix = (): AudioMix => ({ tracks: [], clips: [], buses: [] });
 // Fill defaults for old/partial project data (mirrors normalizeTimeline). Never throws; a missing
 // or malformed `audio` yields an empty bed.
+//
+// ⚠ Until Wave B this was a SHAPE guard only: a NaN / "5" / Infinity start, a null slot inside `clips`,
+// an array-typed clip, a track with `"gain": "x"` — all passed through untouched and reached the driver
+// and the panel unguarded, while normalizeTimeline had guarded every one of those classes for VIDEO
+// clips since Wave A. It now runs the SAME coercion Timeline.audio gets (normalizeTimelineAudio), so
+// the bed finally has the sanitizer it never had. Behaviour change, deliberate: a bed clip's junk
+// numbers are coerced on load and on every host.audio.setMix(). A sane bed round-trips unchanged.
 export const normalizeAudioMix = (a: Partial<AudioMix> | null | undefined): AudioMix => {
   if (!a || typeof a !== 'object') return defaultAudioMix();
+  const inner = normalizeTimelineAudio(a); // tracks + clips, coerced — the SAME guard Timeline.audio gets
   return {
-    tracks: Array.isArray(a.tracks) ? a.tracks : [],
-    clips: Array.isArray(a.clips) ? a.clips : [],
-    buses: Array.isArray(a.buses) ? a.buses : [],
+    tracks: inner.tracks,
+    clips: inner.clips,
+    // Buses stay a shape guard (no numeric coercion here yet): a bus's `gain` is read through
+    // masterBus()/`?? 1` and its effect params are a Record the plugin owns. Junk THERE is a separate
+    // hole from the one this task closes; it is not widened by anything in Wave B.
+    buses: (Array.isArray(a.buses) ? a.buses : [])
+      .filter((b): b is AudioBus => !!b && typeof b === 'object' && !Array.isArray(b)),
   };
 };
 
