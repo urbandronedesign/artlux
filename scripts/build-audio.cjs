@@ -17,12 +17,20 @@
 // hap.node). Keep both spellings straight — package.json maps one to the other.
 //
 // MANDATORY-VS-OPTIONAL (see docs/DEVELOPMENT.md → Audio engine):
-//   `npm run build:audio`  → strict. Used by CI and by `npm run package`.
+//   `npm run build:audio`  → strict. Used by CI and by `npm run package` / `package:dir`.
 //   `npm run build:native` → runs this with --optional: a cargo-only contributor with no CMake/C++
 //     toolchain is NOT blocked, but gets a banner telling them audio is dead. Never silent.
-//   `--check`              → no build; just assert the addon exists. Guards the packaging scripts so
-//     an installer can never be cut without an engine (electron-builder would otherwise happily
-//     package a missing extraResources entry).
+//   `--check`              → no build; just assert the addon EXISTS. Kept for ad-hoc verification.
+//
+// THE PACKAGING SCRIPTS BUILD, THEY DO NOT --check. `--check` proves the addon exists; it says
+// NOTHING about whether it is CURRENT. Guarding `package` with it meant you could edit engine.cpp,
+// run `npm run package`, watch --check print "ok", and ship the PREVIOUS engine — the very
+// silent-stale-binary failure this file exists to prevent, reintroduced one layer up. (Found by the
+// adversarial review of this change, not by its author.) The governing rule: BUILD STRICTLY WHEREVER
+// AN ARTIFACT IS PRODUCED FOR SOMEONE ELSE. Packaging is exactly that, so packaging builds. The cost
+// is that cutting an installer now requires a C++ toolchain — which is correct: the alternative is
+// cutting an installer that is silently mute. On CI the rebuild is an incremental no-op, because the
+// workflow's strict build step has already run.
 // Unlike native/ndi/ndi.node (a committed Windows-only prebuilt), this addon CANNOT be committed:
 // it is platform-specific and every OS needs its own, so it must be BUILT on each machine/runner.
 
