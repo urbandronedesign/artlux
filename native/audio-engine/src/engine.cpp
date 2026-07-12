@@ -540,10 +540,19 @@ public:
 
   void unloadClip(const std::string& id) { bus.removeClip(id); }
 
+  // A CLIP'S GAIN IS BOUNDED HERE, exactly as the master's is in setMasterGain — this is the last door
+  // before the amplifier and it is the one door a number cannot be typed past. The persisted
+  // AudioClip.gain / AudioTrack.gain are coerced for FINITENESS only on the JS side (sanitizeAudioClip),
+  // so a hand-edited or tool-generated project carrying "gain": 20 used to arrive here verbatim and play
+  // at 20×. The renderer now bounds it to the target's declared range (0..1.5) before it is sent; this is
+  // the belt to that pair of braces, and it holds even for a caller that has not read the contract.
+  static float boundedGain(float g) noexcept {
+    return std::isfinite(g) ? juce::jlimit(0.0f, 4.0f, g) : 1.0f;
+  }
   void playClip(const std::string& id, double seekSec, float gain) {
     const juce::ScopedLock sl(bus.lock);
     if (Clip* c = bus.find(id)) {
-      c->transport->setGain(gain);
+      c->transport->setGain(boundedGain(gain));
       c->transport->setPosition(juce::jmax(0.0, seekSec));
       c->transport->start();
     }
@@ -551,7 +560,7 @@ public:
   void stopClip(const std::string& id) { bus.stopClip(id); } // stops OUTSIDE the lock — see SpatialBus::removeClip
   void setClipGain(const std::string& id, float gain) {
     const juce::ScopedLock sl(bus.lock);
-    if (Clip* c = bus.find(id)) c->transport->setGain(gain);
+    if (Clip* c = bus.find(id)) c->transport->setGain(boundedGain(gain));
   }
   // Flipping `spatial` changes the clip chain's channel count (2 ⇔ 1), so the chain is rebuilt after —
   // refreshClipChain is a no-op when the shape didn't actually move, so dragging the positioner is free.

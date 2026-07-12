@@ -180,6 +180,31 @@ export function applyBusLayers<T extends OvBus>(bus: T): T {
 const GAIN = { min: 0, max: 1.5, step: 0.01, def: 1 };
 const POS = { min: -6, max: 6, step: 0.05, def: 0, unit: 'm' };
 
+/**
+ * THE ENGINE DOOR FOR A GAIN — the LAST bound before a level reaches the amplifier.
+ *
+ * Every AUTHORING door is already bounded: the mixer's faders are min 0 / max 1.5, the cue inspector
+ * clamps on commit, compileAutomation clamps every keyframe, and the fade engine clamps a cue's endpoint
+ * against this same catalog. The one value with NO bound was the PERSISTED one: `AudioClip.gain` /
+ * `AudioTrack.gain` are coerced by sanitizeAudioClip for FINITENESS only, never for RANGE. A hand-edited
+ * or tool-generated .artlux — this sanitizer's own declared threat model — carrying `"gain": 20` loaded
+ * clean, drew normally on the lane, and played at 20× into the mix the moment the show clock crossed it.
+ * A level event, in a venue, with nobody in the room.
+ *
+ * ⚠ IT IS CLAMPED **HERE**, AT THE DOOR, AND NEVER IN THE NORMALIZER. normalizeAudioMix's output is what
+ * setAudioMix stores and buildProjectData re-saves, so a clamp there would be PERSISTED on the next save —
+ * an authored value silently rewritten by a load, which is the exact invariant-6 shape this project has
+ * shipped once already. The document keeps whatever it says; the AMPLIFIER gets a number that is in range.
+ * (A NaN is not the same case and does become the default: it has no recoverable authored intent.)
+ *
+ * Each FACTOR is bounded against its own declared range, not the product — a clip at 1.5 on a track at 1.5
+ * is authored, reachable from the faders, and must stay audible as authored.
+ */
+export const boundGain = (g: number | undefined | null, def = GAIN.def): number => {
+  const n = typeof g === 'number' && Number.isFinite(g) ? g : def;
+  return n < GAIN.min ? GAIN.min : n > GAIN.max ? GAIN.max : n;
+};
+
 export const audioAutomationProvider: AutomationTargetProvider = {
   namespaces: [NS],
 

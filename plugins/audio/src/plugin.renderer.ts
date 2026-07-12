@@ -40,7 +40,7 @@ import type { AudioEffectSpec, ClipMeta, OutputMode, SpeakerLayout } from './aud
 import { MASTER_BUS_ID } from './effectDefs';
 import {
   audioAutomationProvider, autoOrFadeGain, autoOrFadeTrackGain, autoOrFadeMasterGain,
-  applyClipLayers, applyBusLayers, hasAnyOverride, takeDirty,
+  applyClipLayers, applyBusLayers, hasAnyOverride, takeDirty, boundGain,
 } from './automationTargets';
 
 interface AudioPluginCfg { outputChannels?: number; outputMode?: OutputMode; speakerLayout?: SpeakerLayout }
@@ -217,9 +217,14 @@ export const plugin: RendererPlugin = {
     // id, so a Timeline.audio clip a cue fades is honoured too.)
     // `tLocal` is the clip-local time on the clip's OWN container clock: the envelope is a property of the
     // clip's position in ITS timeline, so passing it in is what keeps the two clocks from crossing.
+    //
+    // ⚠ boundGain IS THE ENGINE DOOR (see automationTargets). The lane and the fade are already clamped to
+    // the target's declared range; the PERSISTED clip/track gain never was — sanitizeAudioClip coerces it
+    // for finiteness only. A `"gain": 20` in the file played at 20×. It is bounded HERE, per factor, and
+    // NOT in the normalizer, which would persist the clamp on the next save and destroy the authored value.
     const effGain = (clip: BedClip, tLocal: number) =>
-      (autoOrFadeGain(clip.id) ?? clip.gain ?? 1)
-      * (autoOrFadeTrackGain(clip.trackId) ?? trackOfClip(clip)?.gain ?? 1)
+      boundGain(autoOrFadeGain(clip.id) ?? clip.gain)
+      * boundGain(autoOrFadeTrackGain(clip.trackId) ?? trackOfClip(clip)?.gain)
       * fadeGain(clip, tLocal);
     /** The clip as it should SOUND: authored, with the scene fade laid on, with the lane's leaves over that. */
     const eff = (clip: BedClip): BedClip => (hasAnyOverride(clip.id) ? applyClipLayers(clip) : clip);
@@ -400,7 +405,10 @@ export const plugin: RendererPlugin = {
       // that has never touched the master has no master BUS, so a scene fading `audio.master.gain` still
       // lands — autoOrFadeMasterGain() is a path lookup, not a bus read. That is deliberate: D5's headline
       // recall must work on a bed the operator never opened the mixer for.
-      const mgain = autoOrFadeMasterGain() ?? master?.gain ?? 1;
+      // Bounded at the same door, for the same reason: the master BUS's persisted gain has no normalizer at
+      // all (normalizeAudioMix's buses are a shape guard — its own comment says so), and the native side
+      // jlimits at 4.0, i.e. +12 dB. The faders, the cue door and the automation engine all cap at 1.5.
+      const mgain = boundGain(autoOrFadeMasterGain() ?? master?.gain);
       if (sentMasterGain !== mgain) { audioClient.setMasterGain(mgain); sentMasterGain = mgain; }
     };
     const syncClips = () => {
