@@ -3,7 +3,7 @@ import { Film, Image as ImageIcon, Box, Music, FolderOpen, Link2, Trash2, Maximi
 import { AssetEntry, AssetType, Surface, Timeline } from '../types';
 import type { Scene3D } from '../../../shared/protocol';
 import { AssetChip } from './AssetChip';
-import { libraryItems, usageForPath, normPath } from '../services/assetLibrary';
+import { libraryItems, usageIndex, normPath } from '../services/assetLibrary';
 
 interface Props {
   assets: AssetEntry[];
@@ -51,7 +51,11 @@ export const MediaPanel: React.FC<Props> = ({ assets, timeline, timelines, surfa
     (!query || a.name.toLowerCase().includes(query.toLowerCase())));
 
   const selected = items.find(a => a.id === selectedId) ?? null;
-  const usageOf = (a: AssetEntry) => usageForPath(a.path, { surfaces, scene3D, timelines }).count;
+  // One index built per render (not one usageForPath() scan per asset) — MediaPanel is an
+  // always-mounted sidebar, so this recomputes on every App state change; Capture Scene cloning the
+  // timeline into each scene made the per-asset scan cost scale with (1 + #scenes).
+  const usage = useMemo(() => usageIndex({ surfaces, scene3D, timelines }), [surfaces, scene3D, timelines]);
+  const usageOf = (a: AssetEntry) => usage.get(normPath(a.path))?.count ?? 0;
 
   const chip = (label: string, value: Filter, icon?: React.ReactNode) => (
     <button onClick={() => setFilter(value)}

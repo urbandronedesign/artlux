@@ -3,7 +3,7 @@ import { X, Film, Image as ImageIcon, Box, Music, FolderOpen, Link2, Trash2, Mon
 import { AssetEntry, AssetType, Surface, Timeline } from '../types';
 import type { Scene3D } from '../../../shared/protocol';
 import { AssetChip } from './AssetChip';
-import { libraryItems, usageForPath, normPath, typeLabel } from '../services/assetLibrary';
+import { libraryItems, usageIndex, normPath, typeLabel } from '../services/assetLibrary';
 import { useDraggableModal } from '../hooks/useDraggableModal';
 
 interface Props {
@@ -37,6 +37,12 @@ export const AssetManager: React.FC<Props> = (p) => {
   const [missing, setMissing] = useState<Set<string>>(new Set());
 
   const items = useMemo(() => libraryItems(p.assets, p.timeline), [p.assets, p.timeline]);
+  // One index built per render instead of one usageForPath() scan per asset per grid cell — see
+  // usageIndex's comment in assetLibrary.ts.
+  const usageMap = useMemo(
+    () => usageIndex({ surfaces: p.surfaces, scene3D: p.scene3D, timelines: p.timelines }),
+    [p.surfaces, p.scene3D, p.timelines],
+  );
 
   useEffect(() => {
     if (!p.open) return;
@@ -67,7 +73,7 @@ export const AssetManager: React.FC<Props> = (p) => {
     (filter === 'all' || a.type === filter) &&
     (!query || a.name.toLowerCase().includes(query.toLowerCase())));
   const selected = items.find(a => a.id === selectedId) ?? null;
-  const usage = selected ? usageForPath(selected.path, { surfaces: p.surfaces, scene3D: p.scene3D, timelines: p.timelines }) : null;
+  const usage = selected ? usageMap.get(normPath(selected.path)) ?? null : null;
 
   const surfName = (id: string) => p.surfaces.find(s => s.id === id)?.name ?? id;
   // Usage now spans every timeline, so a clip id can come from a scene's own doc — look through them all.
@@ -116,7 +122,7 @@ export const AssetManager: React.FC<Props> = (p) => {
               {filtered.length === 0 ? <div className="text-fg-3 italic px-1 py-2">No media.</div> : (
                 <div className="grid grid-cols-4 gap-3">
                   {filtered.map(a => (
-                    <AssetChip key={a.id} asset={a} usageCount={usageForPath(a.path, { surfaces: p.surfaces, scene3D: p.scene3D, timelines: p.timelines }).count}
+                    <AssetChip key={a.id} asset={a} usageCount={usageMap.get(normPath(a.path))?.count ?? 0}
                       missing={missing.has(normPath(a.path))} selected={selectedId === a.id} onClick={() => setSelectedId(a.id)} />
                   ))}
                 </div>
