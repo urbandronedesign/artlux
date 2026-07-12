@@ -262,6 +262,15 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   const setTrackSolo = (id: string, s: boolean) => patchTrack(id, { solo: s });              // (not fadeable — discrete)
   const setTrackName = (id: string, n: string) => patchTrack(id, { name: n });
   const setClipGain = (id: string, g: number) => patchClip(id, { gain: g });                 // audio.clip.<id>.gain
+  // ⚠ THIS BUTTON IS THE ONLY WRITER OF AudioClip.mute IN THE WHOLE APPLICATION, and it must stay that way
+  // or the field becomes UNAUTHORABLE — the exact hazard the plan raised for `@ N s`, landing on a different
+  // field. The lane RENDERS a muted clip (AudioLane 40% opacity) but has no toggle: its gutter's mute/solo/
+  // gain are the TRACK's (onPatchTrack), not the clip's. The driver HONOURS it (`if (clip.mute || tr?.mute)
+  // → inaudible`) and the sanitizer PRESERVES it (boolOrAbsent). So with no writer, a project saved with a
+  // muted bed clip loads silent FOREVER: drawn on its lane, refused by the driver, and unfixable except by
+  // deleting the clip (losing its trim, fades, gain, spatial and FX) or hand-editing the project JSON.
+  // Discrete, not fadeable — a mute is a boolean, and the fade grammar admits only continuous paths.
+  const setClipMute = (id: string, m: boolean) => patchClip(id, { mute: m });                // (not fadeable — discrete)
   const setClipEffects = (id: string, fx: Effect[]) => patchClip(id, { effects: fx });       // audio.clip.<id>.fx.<fxId>.<key>
   // A spatial AXIS is fadeable (audio.clip.<id>.spatial.<x|y|z>); the spatial FLAG is not — turning it on
   // or off changes the engine chain's channel count (2⇔1) and forces a rebuild, which is why the fade
@@ -520,6 +529,16 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
                 <div className="flex items-center gap-2">
                   <Music size={13} className="text-fg-2 shrink-0" />
                   <span className="text-mini font-semibold text-fg-1 truncate" title={selClip.path}>{selClip.name}</span>
+                  {/* THE CLIP'S MUTE. The lane draws a muted clip but cannot clear the flag (its gutter's mute
+                      is the TRACK's) and the driver silences it, so this is the only control in the app that
+                      can un-mute a bed clip. Deleting it would strand any project already carrying one. */}
+                  <button onClick={() => setClipMute(selClip.id, !selClip.mute)} disabled={selReadOnly}
+                    title={selReadOnly
+                      ? 'Read-only — this clip lives on the bound timeline.'
+                      : (selClip.mute ? 'Unmute this clip' : 'Mute this clip (the track keeps playing)')}
+                    className={`shrink-0 disabled:opacity-40 disabled:cursor-not-allowed ${selClip.mute ? 'text-danger' : 'text-fg-3 hover:text-fg-1'}`}>
+                    {selClip.mute ? <VolumeX size={13} /> : <Volume2 size={13} />}
+                  </button>
                   <span className={`shrink-0 px-1.5 h-5 inline-flex items-center rounded text-micro uppercase tracking-wider ${selReadOnly ? 'bg-surface-3 text-fg-3' : 'bg-accent/15 text-accent'}`}
                     title={selReadOnly
                       ? "This clip is on the BOUND TIMELINE's own audio (Timeline.audio) — it rides the playhead and restarts with its timeline."
@@ -528,11 +547,19 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
                   </span>
                 </div>
 
+                {/* ⚠ THIS NOTE MUST NAME ONLY CONTROLS THAT ACTUALLY EXIST. It used to send the operator to the
+                    lane for "mute and gain" — the lane has NEITHER for a clip (its gutter's mute/solo/gain are
+                    the TRACK's). An operator who needs one scene's stinger 6 dB down would follow that sentence
+                    to a control that isn't there, then pull the TRACK fader instead and quietly duck every other
+                    clip on it — including a cue the show depends on. Say what the lane really carries, and say
+                    plainly that this clip's OWN level is not authorable yet. */}
                 {selReadOnly && (
                   <p className="px-2 py-1.5 rounded border border-line-1 bg-surface-2 text-micro text-fg-3">
-                    Read-only. Edit this clip on its lane — placement, trim, fades, mute and gain are all there.
-                    The mixer has no write path into a timeline's own audio (that document is the timeline's, not the bed's),
-                    and spatial/FX for per-timeline audio is a follow-on.
+                    Read-only. On its lane you can set this clip's placement, trim and fades, and in that lane's
+                    gutter its TRACK's mute, solo and gain. The clip's OWN gain, mute, spatial and FX are not
+                    authorable anywhere yet — the mixer has no write path into a timeline's own audio (that
+                    document is the timeline's, not the bed's), so per-timeline clip level is a follow-on.
+                    To ride one clip's level today, put it on the bed.
                   </p>
                 )}
 

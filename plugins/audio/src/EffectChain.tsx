@@ -59,22 +59,33 @@ export const EffectChain: React.FC<{
 }> = ({ scope, effects, onChange, disabled }) => {
   const available = defsFor(scope);
 
-  const patch = (i: number, e: Partial<Effect>) => onChange(effects.map((fx, j) => (j === i ? { ...fx, ...e } : fx)));
-  const remove = (i: number) => onChange(effects.filter((_, j) => j !== i));
+  // ⚠ SHAPE-GUARD THE CHAIN AT THE RENDER, because the document does not guarantee it. normalizeAudioMix
+  // (types.ts) coerces the bed's tracks and clips but its BUSES are a shape guard only — its own comment
+  // says so — so a hand-edited or bad-import `buses: [{ id: 'master', effects: "x" }]` SURVIVES load with
+  // `effects` a string. `.map` on a string is a TypeError, thrown inside a plugin panel that has no
+  // ErrorBoundary above it: the project loads clean and OPENING THE AUDIO BED PANEL is what dies, which is
+  // the worst possible place to learn about it. Fall back to an empty chain — the operator sees "no
+  // effects" and adding one writes a real array back, repairing the document. (The proper fix is to run
+  // buses through the same coercion in normalizeAudioMix; that is a persist-a-coercion call and belongs
+  // with the fade work, not here. This guard costs nothing and cannot regress valid data.)
+  const fxs = Array.isArray(effects) ? effects : [];
+
+  const patch = (i: number, e: Partial<Effect>) => onChange(fxs.map((fx, j) => (j === i ? { ...fx, ...e } : fx)));
+  const remove = (i: number) => onChange(fxs.filter((_, j) => j !== i));
   const move = (i: number, d: -1 | 1) => {
     const j = i + d;
-    if (j < 0 || j >= effects.length) return;
-    const next = effects.slice();
+    if (j < 0 || j >= fxs.length) return;
+    const next = fxs.slice();
     [next[i], next[j]] = [next[j], next[i]]; // order is audible — a filter before a reverb ≠ after it
     onChange(next);
   };
-  const add = (type: string) => { if (type) onChange([...effects, makeEffect(type, uid())]); };
+  const add = (type: string) => { if (type) onChange([...fxs, makeEffect(type, uid())]); };
 
   return (
     <div className="space-y-1.5">
-      {effects.length === 0 ? (
+      {fxs.length === 0 ? (
         <div className="text-micro text-fg-3/70 italic">No effects. The signal passes through untouched.</div>
-      ) : effects.map((fx, i) => {
+      ) : fxs.map((fx, i) => {
         const def = defOf(fx.type);
         if (!def) return null;
         return (
@@ -84,7 +95,7 @@ export const EffectChain: React.FC<{
               <span className="text-micro text-fg-3/70 truncate flex-1" title={def.blurb}>{def.blurb}</span>
               <button onClick={() => move(i, -1)} disabled={disabled || i === 0} title="Move earlier in the chain"
                 className="text-fg-3 hover:text-fg-1 disabled:opacity-25 disabled:hover:text-fg-3"><ChevronUp size={12} /></button>
-              <button onClick={() => move(i, 1)} disabled={disabled || i === effects.length - 1} title="Move later in the chain"
+              <button onClick={() => move(i, 1)} disabled={disabled || i === fxs.length - 1} title="Move later in the chain"
                 className="text-fg-3 hover:text-fg-1 disabled:opacity-25 disabled:hover:text-fg-3"><ChevronDown size={12} /></button>
               <button onClick={() => patch(i, { bypass: !fx.bypass })} disabled={disabled} title={fx.bypass ? 'Enable' : 'Bypass'}
                 className={`disabled:opacity-40 ${fx.bypass ? 'text-fg-3 hover:text-fg-1' : 'text-accent'}`}><Power size={12} /></button>
