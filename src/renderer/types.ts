@@ -419,6 +419,58 @@ const normalizeAutomation = (a: unknown): AutomationLane[] => {
   });
 };
 
+// Coerce a persisted markers array the same way normalizeAutomation coerces lanes: a
+// present-but-wrong-shaped value (`"x"`, `{}`, a null slot) must not reach TimelineRuler's
+// unguarded `{markers.map(...)}` in the always-mounted Timeline panel. `id`/`color` are checked
+// as strings and `time` as a finite number — the fields TimelineRuler actually keys/positions
+// off of — mirroring normalizeAutomation's `id`/`targetPath` check.
+const normalizeMarkers = (m: unknown): Marker[] => {
+  if (!Array.isArray(m)) return [];
+  return m.filter(
+    (x): x is Marker =>
+      !!x && typeof x === 'object' &&
+      typeof (x as Marker).id === 'string' &&
+      typeof (x as Marker).color === 'string' &&
+      Number.isFinite((x as Marker).time),
+  );
+};
+
+// Coerce a persisted trackingTakes array the same way. Consumers (TakesBin, assetLibrary) iterate
+// it unguarded. `duration` is checked finite because assetLibrary/TakesBin use it directly (e.g.
+// to size/label the take) without their own guard.
+const normalizeTrackingTakes = (tt: unknown): TrackingTakeRef[] => {
+  if (!Array.isArray(tt)) return [];
+  return tt.filter(
+    (x): x is TrackingTakeRef =>
+      !!x && typeof x === 'object' &&
+      typeof (x as TrackingTakeRef).id === 'string' &&
+      typeof (x as TrackingTakeRef).name === 'string' &&
+      typeof (x as TrackingTakeRef).path === 'string' &&
+      Number.isFinite((x as TrackingTakeRef).duration),
+  );
+};
+
+// Sanitise a clip's numeric fields so junk (NaN, a string, Infinity) can never escape
+// normalizeTimeline. Coerce, do not drop: a clip with a bad number is recoverable user data (the
+// user can see and fix a zero-duration clip); silently deleting it is not. `start`/`duration`
+// feed Timeline.tsx's `Math.max(dur, ..., ...clips.map(c => c.start + c.duration))` unguarded —
+// one NaN there poisons contentEnd/viewEnd/the scroll-area CSS width and fmtTimecode renders the
+// literal string "NaN:NaN:NaN:NaN". `inPoint` gets the same treatment: it feeds the same file's
+// trim-limit arithmetic (`(c.sourceDuration ?? Infinity) - c.inPoint`) just as unguarded. A
+// non-finite `start`/`duration`/`inPoint` becomes 0 — inert and visible, not corrupt.
+// `sourceDuration` is different: it's OPTIONAL and "absent" already means "no cap" at its one call
+// site (`c.sourceDuration ?? Infinity`). Note `??` does NOT catch a present-but-NaN value, so
+// without this a junk sourceDuration would compute `NaN - inPoint = NaN` there. Zeroing it would
+// fabricate a cap of `-inPoint` (worse than no cap), so a non-finite sourceDuration is dropped
+// back to `undefined` — i.e. treated as absent — instead of coerced to 0.
+const sanitizeClip = (c: VideoClip): VideoClip => ({
+  ...c,
+  start: finiteNum(c.start) ?? 0,
+  duration: finiteNum(c.duration) ?? 0,
+  inPoint: finiteNum(c.inPoint) ?? 0,
+  sourceDuration: finiteNum(c.sourceDuration) ?? undefined,
+});
+
 // Fill defaults for fields added after a project was saved, so old projects load cleanly.
 // Top-level fields would migrate via the spread in App's loader, but per-array fields
 // (layer/clip) need explicit defaulting — done here in one place.
@@ -435,19 +487,29 @@ export const normalizeTimeline = (t: Partial<Timeline> | null | undefined): Time
   // corruption class actually occurring, from a pre-fix cue write) must not reach the `.map()`
   // in the duration computation below, and a null/undefined slot inside an otherwise-valid array
   // (a hand edit, a partially-written save) must not either.
+  // Shape check: tightened only to exclude a bare array (`typeof [] === 'object'`, so it used to
+  // pass `!!c && typeof c === 'object'`) — that's the concrete hole the review named. `{}` is
+  // still accepted deliberately: once sanitizeClip below coerces its numeric fields, `{}` can no
+  // longer poison the Math.max() the way a NaN duration could, so excluding it would only be
+  // gold-plating, and it would fight the "coerce, don't drop" rule just below — a clip object
+  // whose only problem is a bad/missing number is recoverable user data and must survive, not be
+  // silently deleted for the same reason. id/layerId are NOT required here for that reason: an
+  // id-less or layerId-less clip is exactly the `{start: 5, duration: NaN}` shape this fix targets
+  // (a bad-but-object-shaped clip), and requiring them would drop it instead of coercing it.
+  // Numeric fields are sanitised by sanitizeClip below; no other field is validated here.
   // The filtered array is also what gets RETURNED as Timeline.clips — downstream code (services/
   // timeline.ts, components/timeline/Timeline.tsx, services/assetLibrary.ts, ...) iterates clips
   // and reads their fields unguarded, so junk entries must be dropped here, once, not chased later.
-  const clips: VideoClip[] = (Array.isArray(t.clips) ? t.clips : []).filter(
-    (c): c is VideoClip => !!c && typeof c === 'object',
-  );
+  const clips: VideoClip[] = (Array.isArray(t.clips) ? t.clips : [])
+    .filter((c): c is VideoClip => !!c && typeof c === 'object' && !Array.isArray(c))
+    .map(sanitizeClip);
   return {
     ...base,
     ...rest,
     layers: Array.isArray(t.layers) ? t.layers.map(l => ({ enabled: true, ...l })) : [],
     clips,
-    trackingTakes: t.trackingTakes ?? [],
-    markers: t.markers ?? [],
+    trackingTakes: normalizeTrackingTakes(t.trackingTakes),
+    markers: normalizeMarkers(t.markers),
     inPoint: t.inPoint ?? null,
     outPoint: t.outPoint ?? null,
     fps: t.fps ?? base.fps,
