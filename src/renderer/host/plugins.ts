@@ -41,6 +41,8 @@ const NOOP_HOST: RendererHostServices = {
     getStateMachine: () => ({}), getScenes: () => [], getCueBanks: () => [], getSchedule: () => [],
     setFsmEnabled: () => {}, setSchedule: () => {}, subscribe: () => () => {},
     getStatus: () => ({ playing: false, playhead: 0, showTime: 0, duration: 0, showEnd: 0, showEnded: false, currentStateId: null, stateElapsedSec: 0, activeSceneId: null, lastFiredTransitionId: null }),
+    // No editor state here ⇒ no timeline, no selection. Never fires.
+    getSelection: () => null, subscribeSelection: () => () => {},
     recallScene: () => {}, fireCue: () => {}, fireColumn: () => {}, transport: () => {},
     triggerTransition: () => {}, enterState: () => {},
   },

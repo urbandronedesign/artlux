@@ -51,6 +51,7 @@ import { setEnabled as mp4SetEnabled } from '@artlux/plugin-mp4';
 import type { RendererHostServices } from '@artlux/sdk/renderer';
 import { projectorChannelRegistry, panelRegistry } from './host/registries';
 import * as cueBus from './services/cueBus';
+import * as selection from './services/selection';
 import * as transitions from './services/transitions';
 import { collectFadeableTargets, getByPath, setByPath, isFadeablePath, type StateView } from './services/paramPath';
 import { trackingPlayback, trackingDrawable, resetPeopleTracking } from '@artlux/plugin-lidar-tracking';
@@ -1471,6 +1472,11 @@ const App: React.FC = () => {
         activeSceneId: activeSceneIdRef.current,
         lastFiredTransitionId: lastFiredTransitionRef.current,
       }),
+      // The timeline's live selection. Straight through to the render-free singleton Timeline.tsx writes:
+      // it never enters App state, so clicking a clip re-renders the timeline panel and nothing else. The
+      // store is idempotent, so a subscriber is woken once per COMMITTED selection change, not per render.
+      getSelection: () => selection.getSelection(),
+      subscribeSelection: (cb) => selection.subscribe(() => cb()),
       // Command surface — same singletons the OSC controller uses (App's own subscriptions resolve
       // recalls/cues; App stays the single writer of `playing` via dispatchTransportIntent).
       recallScene: (ref) => cueBus.requestRecall(ref),

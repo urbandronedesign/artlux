@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { X, ChevronDown, Film, Plus, Save, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Timeline as TL, VideoClip, VideoLayer, SurfaceContent, SourceType, StateMachine, defaultStateMachine, isContentClip, timelineEnd, timelineStart, timelineDuration, hasTimelineRegion, timelineAudioClips, timelineAudioTracks, type AudioClip, type AudioMix, type AudioTrack, type AssetEntry } from '../../types';
 import { timeline as engine } from '../../services/timeline';
+import * as selection from '../../services/selection';
 import { ContentEditor } from '../ContentEditor';
 import { GUTTER, RULER_H, LANE_H, MIN_LANE_H, MAX_LANE_H, PAGE_SECS, laneHeight, clamp, fmtClock, fmtTimecode } from './geometry';
 import { splitClipAt, bladeAt, rippleDelete, liftDelete } from './operations';
@@ -91,6 +92,20 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   const [regionDrag, setRegionDrag] = useState<{ edge: 'in' | 'out'; t: number } | null>(null); // loop-region handle drag (draft; commits once on pointerup)
   const [pages, setPages] = useState(0); // infinite-timeline growth: content spans (pages+1) PAGE_SECS at least
   const [smEditorOpen, setSmEditorOpen] = useState(false);
+
+  // Mirror the selection into the render-free store a plugin panel (the audio mixer's clip inspector)
+  // subscribes to through host.show. An EFFECT, not a call inside setSelected: an updater is invoked
+  // twice under StrictMode and may be replayed, while an effect commits exactly once per committed
+  // selection. The store itself is idempotent, so a re-render with an unchanged selection wakes nobody.
+  // Nothing here enters the `Timeline` data type or App state — the selection stays ephemeral.
+  useEffect(() => {
+    if (!selected) { selection.setSelection(null); return; }
+    if (selectedSource === 'video') selection.setSelection({ kind: 'clip', id: selected });
+    else selection.setSelection({ kind: 'audioClip', id: selected, source: selectedSource });
+  }, [selected, selectedSource]);
+  // Unmounting the panel (dock ↔ fullscreen, or the timeline tab being left) must not strand a stale
+  // selection in a mixer that outlives it — an inspector would keep offering to edit a clip nobody can see.
+  useEffect(() => () => { selection.setSelection(null); }, []);
 
   const layers = timeline.layers;
   const dur = timeline.duration;

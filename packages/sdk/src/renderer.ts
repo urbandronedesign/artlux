@@ -347,6 +347,18 @@ export interface ShowService<SM = unknown, Scene = unknown, Bank = unknown, Entr
     currentStateId: string | null; stateElapsedSec: number;
     activeSceneId: string | null; lastFiredTransitionId: string | null;
   };
+  // The timeline's live selection (ephemeral — never persisted, never in the document, never React state
+  // in between). A panel with an inspector that FOLLOWS what the operator clicked subscribes here.
+  //
+  // `source` says WHICH audio container an audioClip belongs to: the bed (ProjectData.audio) and the bound
+  // timeline's own audio (Timeline.audio) can hold the same clip id, and the two commit through different
+  // host calls at very different costs. An inspector that guessed would write to the wrong document.
+  //
+  // `subscribeSelection` fires immediately on subscribe (a panel opened mid-show sees the live selection)
+  // and then only on a CHANGE — the store is idempotent, so a re-rendering Timeline does not spam it.
+  // A window with no editor state (projector) always reads null and never fires.
+  getSelection(): { kind: 'clip' | 'audioClip'; id: string; source?: 'bed' | 'timeline' } | null;
+  subscribeSelection(cb: () => void): () => void;
   // Command surface — the host wires these to the same cueBus/timeline singletons OSC uses, so a
   // remote drives the show through the identical path (App stays the single writer of `playing`).
   recallScene(ref: string): void;                 // scene id or name
