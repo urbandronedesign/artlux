@@ -10,12 +10,30 @@
 //
 // TWO CONTAINERS, TWO CLOCKS — and the panel shows both, because the operator mixes both:
 //   · THE BED (ProjectData.audio, host.audio.getMix()) rides the SHOW clock. It survives a scene recall.
-//     Writable here (host.audio.setMix).
+//     Written whole, through host.audio.setMix.
 //   · THE BOUND TIMELINE'S OWN AUDIO (Timeline.audio, host.audio.getTimelineAudio()) rides the PLAYHEAD
-//     and restarts with its timeline. READ-ONLY here: the panel has no write path into that document (it
-//     would need core's onChange(timeline)), and the lane's gutter already carries its name/mute/solo/gain.
-//     Shipping a half-write path that silently edits the document the operator is NOT looking at is worse
-//     than not shipping it — which is exactly why the selection carries `source`.
+//     and restarts with its timeline. That document is CORE's, and WHICH one it is changes under you (the
+//     global timeline, or the bound scene's) — so it is written ONE CLIP AT A TIME, BY ID, through
+//     host.audio.patchTimelineClip, which resolves the id in the bound document and DROPS a miss.
+//
+// THE CLIP INSPECTOR NOW WRITES BOTH — and that is the whole reason patchTimelineClip exists. While a scene
+// is bound the timeline panel draws NO bed lanes at all (App's timelineBedProp is `undefined` there — the
+// bed rides the show clock and the ruler is the scene's), so the ONLY audio clip an operator can select
+// while authoring a scene is a TIMELINE clip. When every one of those was read-only, this inspector — gain,
+// mute, the orbit pad, the insert chain — was inert for 100% of the time the per-scene-audio feature was in
+// use. The engine, the driver, the schema and the persistence were all already complete for it; the one
+// missing piece was a write path from a plugin into a core document.
+//
+// THE TRACK STRIPS ARE A DIFFERENT QUESTION AND THEY STAY READ-ONLY. A timeline TRACK already has a live
+// editor — its lane's gutter (name/mute/solo/gain). A timeline CLIP had none anywhere. Only the clip moved.
+//
+// TWO CONTAINERS, TWO WRITE PATHS, AND THEY DIFFER IN MORE THAN THE CALL:
+//   · a BED clip is an AUTOMATION TARGET (lanes, and scene/cue fades that PERSIST over the authored value),
+//     so every authored write there is also a TAKEOVER and must releaseFade() — see below.
+//   · a TIMELINE clip is NOT: the audio automation provider's readMix() is the bed and only the bed
+//     (automationTargets.ts), so there is no lane and no fade over it, and calling releaseFade() for one
+//     would name a path in the BED's namespace — which, because clip ids ALIAS between the two containers,
+//     could release a real fade on a real bed clip that shares the id. Its writes must NOT release.
 //
 // EVERY AUTHORED WRITE IS A NAMED, PATH-LABELLED FUNCTION (setMasterGain, setTrackGain, setClipGain,
 // setClipSpatial*, setClipEffects, setMasterEffects). That is not a style choice: once the scene/cue fade
@@ -57,11 +75,16 @@ const RANGE = 3;
 //
 // INVARIANT 7 APPLIES TO A PAD JUST AS IT DOES TO A FADER: this used to patch the clip on every
 // pointermove. It now DRAFTS (the parent paints the dot from the draft) and commits ONCE on pointerup.
+//
+// ⚠ AND THE PRICE OF GETTING THAT WRONG WENT UP WHEN THE PAD LEARNED TO WRITE A *TIMELINE* CLIP. A bed
+// commit is host.audio.setMix; a timeline commit is a CORE DOCUMENT commit — engine.setData (clamp + warm +
+// prune + compile) plus a structured-clone postMessage of the WHOLE document to EVERY projector port. Per
+// pointermove that is sixty of those a second while an operator idly drags a source around the room.
 const SpatialPad: React.FC<{
-  x: number; z: number; disabled?: boolean;
+  x: number; z: number;
   onDraft: (x: number, z: number) => void;
   onCommit: (x: number, z: number) => void;
-}> = ({ x, z, disabled, onDraft, onCommit }) => {
+}> = ({ x, z, onDraft, onCommit }) => {
   const ref = useRef<HTMLDivElement>(null);
   // The last position the pointer produced. Read on pointerup — never the closure, which is a render behind.
   const pending = useRef<{ x: number; z: number } | null>(null);
@@ -76,7 +99,6 @@ const SpatialPad: React.FC<{
     onDraft(nx, nz);
   };
   const onDown = (e: React.PointerEvent) => {
-    if (disabled) return;
     e.preventDefault();
     set(e.clientX, e.clientY);
     const move = (ev: PointerEvent) => set(ev.clientX, ev.clientY);
@@ -93,8 +115,8 @@ const SpatialPad: React.FC<{
   };
   return (
     <div ref={ref} onPointerDown={onDown}
-      title={disabled ? 'Read-only — this clip lives on the bound timeline.' : 'Drag to place the source (top-down; up = in front of the listener)'}
-      className={`relative w-24 h-24 rounded border border-line-1 bg-surface-0 shrink-0 ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-crosshair'}`}>
+      title="Drag to place the source (top-down; up = in front of the listener)"
+      className="relative w-24 h-24 rounded border border-line-1 bg-surface-0 shrink-0 cursor-crosshair">
       <div className="absolute left-1/2 top-0 bottom-0 w-px bg-line-1/60" />
       <div className="absolute top-1/2 left-0 right-0 h-px bg-line-1/60" />
       <div className="absolute left-1/2 top-1/2 w-1.5 h-1.5 -ml-[3px] -mt-[3px] rounded-full bg-fg-3" title="listener" />
@@ -170,6 +192,11 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   // the React `mix` (which is a render behind): patch a track's gain and then its mute in one turn and the
   // gain would snap back. Do not "simplify" it away.
   const mixRef = useRef<Mix>(mix);
+  // The SAME discipline for the bound timeline's own audio, and it earns its keep for a second reason: a
+  // patch here is FIRE-AND-FORGET into core (patchTimelineClip takes an id and a patch, and hands nothing
+  // back), so the panel paints the result optimistically from this ref and lets the host's fan-out confirm
+  // it a render later. Without the ref, an axis write would carry a stale copy of its siblings.
+  const tlRef = useRef<TlAudio>(tlAudio);
   // Floating (non-blocking) window — draggable by its header so it can be moved clear of the Media library.
   const { positionerStyle, handleProps } = useDraggable();
 
@@ -181,7 +208,9 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
       const m = (host.audio.getMix() as Mix) ?? emptyMix();
       mixRef.current = m;
       setMixState(m);
-      setTlAudio((host.audio.getTimelineAudio() as TlAudio) ?? EMPTY_TL);
+      const t = (host.audio.getTimelineAudio() as TlAudio) ?? EMPTY_TL;
+      tlRef.current = t;   // THE HOST IS THE TRUTH — it overwrites any optimistic patch below, including a dropped one
+      setTlAudio(t);
     });
   }, [host]);
 
@@ -229,6 +258,37 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
 
   // Every mutation builds a fresh bed and writes it back (host normalizes + persists + notifies the player).
   const commit = (next: Mix) => { mixRef.current = next; setMixState(next); host?.audio.setMix(next); };
+
+  // ── WHICH CONTAINER IS THE INSPECTOR LOOKING AT ──────────────────────────────────────────────────────
+  // THE ONE ROUTER for every clip write below. It is read off the SELECTION, never guessed: `sel.source` is
+  // a discriminated field precisely because the same clip id can exist in both containers (Capture Scene
+  // deep-clones the bound timeline into a scene, ids verbatim), and the two commit through completely
+  // different paths at completely different costs. `null` = nothing (or a video clip) is selected.
+  const selSource: 'bed' | 'timeline' | null = sel?.kind === 'audioClip' ? sel.source : null;
+  // Patch ONE clip in the bound timeline's own audio. Optimistic locally (the host hands nothing back), and
+  // guarded by the SAME rule the host applies: an id that is not in the container we are looking at is
+  // DROPPED, not searched for. The host's fan-out is the truth and overwrites this a render later.
+  const patchTlClip = (id: string, p: Partial<Clip>) => {
+    const cur = tlRef.current;
+    if (!cur.clips.some((c) => c.id === id)) return;   // the doc rebound (a recall, a delete) — abandon the edit
+    const next: TlAudio = { ...cur, clips: cur.clips.map((c) => (c.id === id ? { ...c, ...p } : c)) };
+    tlRef.current = next;
+    setTlAudio(next);
+    host?.audio.patchTimelineClip(id, p);
+  };
+  // The selected clip's writer, and its container's read side. `mixRef`/`tlRef`, never the React render —
+  // both are a render behind (see mixRef).
+  const patchSelClip = (id: string, p: Partial<Clip>) => {
+    if (selSource === 'timeline') patchTlClip(id, p); else patchClip(id, p);
+  };
+  const selClipIn = (id: string): Clip | undefined =>
+    (selSource === 'timeline' ? tlRef.current.clips : mixRef.current.clips).find((c) => c.id === id);
+  // ⚠ RELEASE ONLY THE BED'S PATHS. A takeover is a bed concept: the audio automation provider enumerates
+  // the BED's tracks/clips/master and nothing else (automationTargets.ts readMix), so a Timeline.audio clip
+  // has no lane and no scene/cue fade over it — there is nothing to take back. And `audio.clip.<id>.*` is
+  // the BED's namespace: because clip ids ALIAS across containers, releasing one for a timeline clip could
+  // drop a LIVE fade on a real bed clip that happens to share the id. Silence here is not laziness.
+  const releaseSel = (path: string) => { if (selSource === 'bed') releaseFade(path); };
 
   // ---- THE AUTHORED WRITES. Every one names its PATH. -------------------------------------------------
   // Once the scene/cue fade layer exists the driver reads `laneOverride ?? sceneFade ?? authored`, and a
@@ -295,46 +355,52 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   const setTrackMute = (id: string, m: boolean) => patchTrack(id, { mute: m });              // (not fadeable — discrete)
   const setTrackSolo = (id: string, s: boolean) => patchTrack(id, { solo: s });              // (not fadeable — discrete)
   const setTrackName = (id: string, n: string) => patchTrack(id, { name: n });
-  const setClipGain = (id: string, g: number) => { releaseFade(`audio.clip.${id}.gain`); patchClip(id, { gain: g }); }; // audio.clip.<id>.gain
+  // ── THE SELECTED CLIP'S WRITES — the same six controls against EITHER container (see selSource). ──────
+  const setClipGain = (id: string, g: number) => { releaseSel(`audio.clip.${id}.gain`); patchSelClip(id, { gain: g }); }; // audio.clip.<id>.gain
   // ⚠ THIS BUTTON IS THE ONLY WRITER OF AudioClip.mute IN THE WHOLE APPLICATION, and it must stay that way
   // or the field becomes UNAUTHORABLE — the exact hazard the plan raised for `@ N s`, landing on a different
   // field. The lane RENDERS a muted clip (AudioLane 40% opacity) but has no toggle: its gutter's mute/solo/
   // gain are the TRACK's (onPatchTrack), not the clip's. The driver HONOURS it (`if (clip.mute || tr?.mute)
   // → inaudible`) and the sanitizer PRESERVES it (boolOrAbsent). So with no writer, a project saved with a
-  // muted bed clip loads silent FOREVER: drawn on its lane, refused by the driver, and unfixable except by
+  // muted clip loads silent FOREVER: drawn on its lane, refused by the driver, and unfixable except by
   // deleting the clip (losing its trim, fades, gain, spatial and FX) or hand-editing the project JSON.
+  // (True in BOTH containers now — a muted clip in a scene's own audio was, until this write path, the
+  // strictly worse case: not authorable anywhere at all.)
   // Discrete, not fadeable — a mute is a boolean, and the fade grammar admits only continuous paths.
-  const setClipMute = (id: string, m: boolean) => patchClip(id, { mute: m });                // (not fadeable — discrete)
+  const setClipMute = (id: string, m: boolean) => patchSelClip(id, { mute: m });             // (not fadeable — discrete)
   const setClipEffects = (id: string, fx: Effect[], touched?: FxParamRef) => {               // audio.clip.<id>.fx.<fxId>.<key>
-    releaseChangedFx(`audio.clip.${id}`, fx, mixRef.current.clips.find((c) => c.id === id)?.effects ?? [], touched);
-    patchClip(id, { effects: fx });
+    // The diff+release is BED-ONLY (see releaseSel): a timeline clip has no fade layer over it, and its ids
+    // alias into the bed's `audio.clip.<id>.*` namespace.
+    if (selSource === 'bed') releaseChangedFx(`audio.clip.${id}`, fx, mixRef.current.clips.find((c) => c.id === id)?.effects ?? [], touched);
+    patchSelClip(id, { effects: fx });
   };
   // A spatial AXIS is fadeable (audio.clip.<id>.spatial.<x|y|z>); the spatial FLAG is not — turning it on
   // or off changes the engine chain's channel count (2⇔1) and forces a rebuild, which is why the fade
   // grammar admits the axes and never the flag.
   //
-  // The SIBLING AXES ARE READ FROM mixRef, not from the render — an axis write must not carry a stale copy
-  // of the other two back into the document. A pad drag commits at POINTERUP, so its closure is as old as
-  // the pointerdown; if the clip's spatial was turned off (or the clip removed) in between, the lookup
-  // misses and the write is DROPPED rather than resurrecting a container the operator just deleted.
-  const spatialOf = (id: string): Spatial | undefined => mixRef.current.clips.find((c) => c.id === id)?.spatial;
+  // The SIBLING AXES ARE READ FROM THE LIVE REF (mixRef / tlRef — selClipIn), not from the render — an axis
+  // write must not carry a stale copy of the other two back into the document. A pad drag commits at
+  // POINTERUP, so its closure is as old as the pointerdown; if the clip's spatial was turned off (or the
+  // clip removed, or its document rebound) in between, the lookup misses and the write is DROPPED rather
+  // than resurrecting a container the operator just deleted.
+  const spatialOf = (id: string): Spatial | undefined => selClipIn(id)?.spatial;
   const setClipSpatialXZ = (id: string, x: number, z: number) => {
     const cur = spatialOf(id); if (!cur) return;
-    releaseFade(`audio.clip.${id}.spatial.x`); releaseFade(`audio.clip.${id}.spatial.z`);
-    patchClip(id, { spatial: { ...cur, x, z } });
+    releaseSel(`audio.clip.${id}.spatial.x`); releaseSel(`audio.clip.${id}.spatial.z`);
+    patchSelClip(id, { spatial: { ...cur, x, z } });
   };
   const setClipSpatialY = (id: string, y: number) => {
     const cur = spatialOf(id); if (!cur) return;
-    releaseFade(`audio.clip.${id}.spatial.y`);
-    patchClip(id, { spatial: { ...cur, y } });
+    releaseSel(`audio.clip.${id}.spatial.y`);
+    patchSelClip(id, { spatial: { ...cur, y } });
   };
   // Flipping spatialisation REBUILDS the clip's container, so every axis fade over it is stale by
   // definition — a fade holding x = 2.4 from a scene recall must not silently re-shadow the fresh
   // {0,0,1} the operator just created. (The FLAG itself is not fadeable — it changes the chain's channel
   // count 2⇔1 — so there is no fade on it to release.)
   const setClipSpatialOn = (id: string, on: boolean) => {
-    for (const ax of ['x', 'y', 'z'] as const) releaseFade(`audio.clip.${id}.spatial.${ax}`);
-    patchClip(id, { spatial: on ? { x: 0, y: 0, z: 1 } : undefined });
+    for (const ax of ['x', 'y', 'z'] as const) releaseSel(`audio.clip.${id}.spatial.${ax}`);
+    patchSelClip(id, { spatial: on ? { x: 0, y: 0, z: 1 } : undefined });
   };
 
   const addTrack = () => {
@@ -392,7 +458,13 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
     const pool = sel.source === 'bed' ? mix.clips : tlAudio.clips;
     return pool.find((c) => c.id === sel.id) ?? null;
   }, [sel, mix, tlAudio]);
-  const selReadOnly = sel?.kind === 'audioClip' && sel.source === 'timeline';
+  // ⚠ THERE IS NO `selReadOnly` ANY MORE, AND THERE MUST NOT BE ONE AGAIN. It used to disable every control
+  // below for `source === 'timeline'` because the panel had no write path into Timeline.audio. It has one
+  // now (patchTlClip → host.audio.patchTimelineClip), and while a scene is bound a timeline clip is the ONLY
+  // audio clip that can be selected at all — so that flag made this inspector dead for the entire duration
+  // of a scene-authoring session. The container difference is now expressed where it actually lives: the
+  // WRITE (selSource) and the RELEASE (releaseSel), not in a disabled attribute.
+  const selTimeline = selSource === 'timeline';   // for the badge + the notes; NEVER for `disabled`
 
   if (!host) return null;
   const pct = (v: number) => `${Math.min(100, Math.round(v * 100))}%`;
@@ -578,41 +650,41 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
                   {/* THE CLIP'S MUTE. The lane draws a muted clip but cannot clear the flag (its gutter's mute
                       is the TRACK's) and the driver silences it, so this is the only control in the app that
                       can un-mute a bed clip. Deleting it would strand any project already carrying one. */}
-                  <button onClick={() => setClipMute(selClip.id, !selClip.mute)} disabled={selReadOnly}
-                    title={selReadOnly
-                      ? 'Read-only — this clip lives on the bound timeline.'
-                      : (selClip.mute ? 'Unmute this clip' : 'Mute this clip (the track keeps playing)')}
-                    className={`shrink-0 disabled:opacity-40 disabled:cursor-not-allowed ${selClip.mute ? 'text-danger' : 'text-fg-3 hover:text-fg-1'}`}>
+                  <button onClick={() => setClipMute(selClip.id, !selClip.mute)}
+                    title={selClip.mute ? 'Unmute this clip' : 'Mute this clip (the track keeps playing)'}
+                    className={`shrink-0 ${selClip.mute ? 'text-danger' : 'text-fg-3 hover:text-fg-1'}`}>
                     {selClip.mute ? <VolumeX size={13} /> : <Volume2 size={13} />}
                   </button>
-                  <span className={`shrink-0 px-1.5 h-5 inline-flex items-center rounded text-micro uppercase tracking-wider ${selReadOnly ? 'bg-surface-3 text-fg-3' : 'bg-accent/15 text-accent'}`}
-                    title={selReadOnly
+                  {/* WHICH CONTAINER — and therefore WHICH CLOCK. Both are writable; they differ in WHEN they
+                      are heard, which is the one thing the operator cannot see from the controls below. */}
+                  <span className={`shrink-0 px-1.5 h-5 inline-flex items-center rounded text-micro uppercase tracking-wider ${selTimeline ? 'bg-surface-3 text-fg-2' : 'bg-accent/15 text-accent'}`}
+                    title={selTimeline
                       ? "This clip is on the BOUND TIMELINE's own audio (Timeline.audio) — it rides the playhead and restarts with its timeline."
                       : 'This clip is on the BED (ProjectData.audio) — it rides the show clock and survives a scene recall.'}>
-                    {selReadOnly ? 'this timeline' : 'bed'}
+                    {selTimeline ? 'this timeline' : 'bed'}
                   </span>
                 </div>
 
-                {/* ⚠ THIS NOTE MUST NAME ONLY CONTROLS THAT ACTUALLY EXIST. It used to send the operator to the
-                    lane for "mute and gain" — the lane has NEITHER for a clip (its gutter's mute/solo/gain are
-                    the TRACK's). An operator who needs one scene's stinger 6 dB down would follow that sentence
-                    to a control that isn't there, then pull the TRACK fader instead and quietly duck every other
-                    clip on it — including a cue the show depends on. Say what the lane really carries, and say
-                    plainly that this clip's OWN level is not authorable yet. */}
-                {selReadOnly && (
+                {/* ⚠ THIS NOTE MUST NAME ONLY CONTROLS THAT ACTUALLY EXIST — and it must never again claim
+                    this clip is read-only. It said so honestly until the write path landed; the sentence it
+                    ended on ("to ride one clip's level today, put it on the bed") told the operator to stop
+                    using the per-scene audio feature, which for a spatialised per-scene sting is not a
+                    workaround at all. Everything below now writes. What is left to say is the DIVISION OF
+                    LABOUR (this panel shapes; the lane places) and the CLOCK — and the clock is the part
+                    nothing else on screen tells them. */}
+                {selTimeline && (
                   <p className="px-2 py-1.5 rounded border border-line-1 bg-surface-2 text-micro text-fg-3">
-                    Read-only. On its lane you can set this clip's placement, trim and fades, and in that lane's
-                    gutter its TRACK's mute, solo and gain. The clip's OWN gain, mute, spatial and FX are not
-                    authorable anywhere yet — the mixer has no write path into a timeline's own audio (that
-                    document is the timeline's, not the bed's), so per-timeline clip level is a follow-on.
-                    To ride one clip's level today, put it on the bed.
+                    This clip belongs to the bound timeline, so it rides the PLAYHEAD and restarts whenever its
+                    timeline does — it is not on the show clock. Gain, mute, position and FX are yours here;
+                    its placement, trim and fades live on its lane, and its TRACK's mute, solo and gain live in
+                    that lane's gutter.
                   </p>
                 )}
 
                 {/* gain */}
                 <div className="flex items-center gap-2">
                   <span className="text-micro text-fg-3 w-16 shrink-0">gain</span>
-                  <Fader value={selClip.gain ?? 1} min={0} max={1.5} step={0.01} disabled={selReadOnly}
+                  <Fader value={selClip.gain ?? 1} min={0} max={1.5} step={0.01}
                     ariaLabel="clip gain"
                     title={(v) => `gain ${g2(v)}`}
                     onCommit={(g) => setClipGain(selClip.id, g)}
@@ -626,20 +698,20 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
                   <div className="flex items-center gap-1.5">
                     <Orbit size={12} className={spatial ? 'text-accent' : 'text-fg-3'} />
                     <label className="flex items-center gap-1.5 text-micro text-fg-2">
-                      <input type="checkbox" checked={!!spatial} disabled={selReadOnly} className="accent-accent disabled:opacity-40"
+                      <input type="checkbox" checked={!!spatial} className="accent-accent"
                         onChange={(e) => setClipSpatialOn(selClip.id, e.target.checked)} />
                       Spatial
                     </label>
                   </div>
                   {spatial ? (
                     <div className="flex items-center gap-3">
-                      <SpatialPad x={padX} z={padZ} disabled={selReadOnly}
+                      <SpatialPad x={padX} z={padZ}
                         onDraft={(x, z) => setPadDraft({ x, z })}
                         onCommit={(x, z) => { setPadDraft(null); setClipSpatialXZ(selClip.id, x, z); }} />
                       <div className="flex flex-col gap-1 min-w-0">
                         <div className="flex items-center gap-1.5">
                           <span className="text-micro text-fg-3 w-10 shrink-0">height</span>
-                          <Fader value={spatial.y} min={-2} max={2} step={0.1} disabled={selReadOnly}
+                          <Fader value={spatial.y} min={-2} max={2} step={0.1}
                             ariaLabel="spatial height"
                             title={(v) => `y ${v.toFixed(1)} m`}
                             onCommit={(y) => setClipSpatialY(selClip.id, y)}
@@ -664,7 +736,10 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
                     <Sliders size={12} className={selClip.effects?.length ? 'text-accent' : 'text-fg-3'} />
                     <span className="text-micro font-semibold text-fg-2 uppercase tracking-wider">FX{selClip.effects?.length ? ` (${selClip.effects.length})` : ''}</span>
                   </div>
-                  <EffectChain scope="clip" effects={selClip.effects ?? []} disabled={selReadOnly}
+                  {/* No `disabled` — the chain is live against BOTH containers now. The engine has exactly two
+                      insert points and one of them is the clip; a container whose clips could not take that
+                      insert was a container in which half the engine did not exist. */}
+                  <EffectChain scope="clip" effects={selClip.effects ?? []}
                     onChange={(fx, touched) => setClipEffects(selClip.id, fx, touched)} />
                 </section>
               </>

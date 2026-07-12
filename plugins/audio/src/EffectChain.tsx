@@ -34,6 +34,13 @@ const fmt = (p: ParamDef, v: number) => {
 // ⚠ INVARIANT 7. This used to call onChange() per DOM input event — i.e. per pointermove — and one of those
 // is a whole host.audio.setMix → App re-render → recompileAutomation → audio fan-out (an engine lock per
 // clip, per frame). Dragging a cutoff was paying that 60×/s on a running show. Draft, then commit once.
+//
+// THE DRAFT/COMMIT SPLIT IS `Fader`, AND IT IS LOAD-BEARING TWICE OVER NOW THAT THIS CHAIN ALSO EDITS A CLIP
+// IN A TIMELINE'S OWN AUDIO. That commit is not a setMix — it is a CORE DOCUMENT commit (engine.setData →
+// clampPlayheadIntoDoc + warmMedia + pruneStaleLayers + compileAutomation) plus a structured-clone
+// postMessage of the WHOLE document to EVERY projector port. Sixty of those a second, while an operator
+// rides a reverb knob, is a frame-rate cliff on the projectors — i.e. on the picture in the venue. If you
+// ever swap this Fader for a raw <input type="range" onChange={...}>, you have shipped that cliff.
 const ParamRow: React.FC<{ p: ParamDef; value: number; disabled?: boolean; onCommit: (v: number) => void }> = ({ p, value, disabled, onCommit }) => (
   <label className="flex items-center gap-2">
     <span className="text-micro text-fg-3 w-16 shrink-0">{p.label}</span>
@@ -66,8 +73,16 @@ export const EffectChain: React.FC<{
    * and a diff of an identical chain is empty. So the gesture says its own name.
    */
   onChange: (effects: Effect[], touched?: FxParamRef) => void;
-  /** Read-only display (the mixer's inspector shows a TIMELINE clip's chain but cannot write to it — the
-   *  panel has no write path into Timeline.audio; that document is core's). Every control is inert. */
+  /**
+   * Render every control inert.
+   *
+   * NOTHING PASSES THIS TODAY, and the reason it once did is worth keeping: the mixer's clip inspector used
+   * to set it for a clip on the BOUND TIMELINE's own audio, because the panel had no write path into
+   * Timeline.audio (that document is core's — it would need onChange(timeline), which no plugin can see).
+   * It has one now (host.audio.patchTimelineClip), so BOTH insert points are live for BOTH containers. The
+   * prop stays because "the host cannot write this document" is a state a plugin surface can be in again —
+   * but if you reach for it, be sure the alternative is not simply plumbing the write.
+   */
   disabled?: boolean;
 }> = ({ scope, effects, onChange, disabled }) => {
   const available = defsFor(scope);
