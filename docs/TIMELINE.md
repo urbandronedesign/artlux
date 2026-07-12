@@ -43,7 +43,7 @@ src/renderer/components/timeline/
   hooks/useTimelineKeys.ts  keyboard shortcuts scoped to the panel
 
 src/renderer/services/
-  timeline.ts          the playback engine (unbounded clock + per-track decode + transport intents + per-scene pools)
+  timeline.ts          the playback engine (bounded clock: loops or stops at Length + per-track decode + transport intents + per-scene pools)
   timelinePreloader.ts tiered residency (ACTIVE/WARM/COLD) so per-scene timeline swaps stay hitless — see SCENE-TIMELINES.md
   stateMachine.ts      PURE-ish FSM runtime: tick/triggerManual/subscribeState, emits TransportIntents
   thumbnailCache.ts    async LRU thumbnail extraction, isolated from playback
