@@ -89,11 +89,50 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   // which array to write back (the bed's, or this timeline's).
   const [audioDraft, setAudioDraft] = useState<{ clip: AudioClip; source: 'bed' | 'timeline' } | null>(null);
   const [resizeDraft, setResizeDraft] = useState<{ id: string; height: number } | null>(null);
+  // The lane REORDER's draft: the layer ids in their dragged order. It used to commit a whole document
+  // per lane crossing, INSIDE pointermove (invariant 7) — six full setData + projector fan-outs per drag.
+  const [orderDraft, setOrderDraft] = useState<string[] | null>(null);
   const [regionDrag, setRegionDrag] = useState<{ edge: 'in' | 'out'; t: number } | null>(null); // loop-region handle drag (draft; commits once on pointerup)
   const [pages, setPages] = useState(0); // infinite-timeline growth: content spans (pages+1) PAGE_SECS at least
   const [smEditorOpen, setSmEditorOpen] = useState(false);
 
-  const layers = timeline.layers;
+  // ⚠ THE BOUND-DOCUMENT KEY. A GESTURE MUST LAND ON THE DOCUMENT IT STARTED ON, OR ON NOTHING.
+  //
+  // <TimelinePanel> carries NO React `key`, so it does NOT remount when the bound scene changes (see
+  // TimelineToolbar's NumField, which fixed exactly this for Length/fps): a recall simply repoints
+  // `timeline`, `timelineRef.current` and `onChange` under the SAME component instance — under a live
+  // pointer, mid-drag. And `handleRecallScene` (App.tsx) is the single funnel for the FSM, the cueBus
+  // (OSC / tablet GO), the scheduler, `enterAuthor` and the scene pill, with no in-flight-edit check.
+  // So the rebind is not exotic: in an unattended install it is what the show DOES, on schedule.
+  //
+  // THIS EXACT STRING IS THE WRITE TARGET. App.handleTimelineChange switches on `activeSceneId` and
+  // nothing else: truthy → setScenes(that scene), null → setTimeline (global). So keying a gesture on
+  // it is keying it on where its commit will actually LAND.
+  //
+  // DO NOT KEY THE DISCARD ON THE DOCUMENT'S VALUE (or on the dragged clip's value). Capture Scene does
+  // `timeline: structuredClone(activeTimeline)` — the clone's clips, tracks and automation lanes carry
+  // the SAME IDS and usually the same values — so a value-keyed guard never fires on the swap it exists
+  // to catch, and the edit lands in the incoming scene's identically-named clip. That is the inert fix.
+  // Identity, not value.
+  const docKey = author?.activeSceneId ?? '__global__';
+  const docKeyRef = useRef(docKey); docKeyRef.current = docKey;
+
+  // The rendered track order = the bound document's, with the reorder draft applied. RESOLVED BY ID
+  // AGAINST THE BOUND DOCUMENT on every render: if a recall rebinds mid-drag, the ids stop resolving and
+  // the preview falls straight back to what is actually bound — a draft can never paint the outgoing
+  // document's tracks over the incoming one.
+  const layers = useMemo(() => {
+    const ls = timeline.layers;
+    if (!orderDraft || orderDraft.length !== ls.length) return ls;
+    const out: VideoLayer[] = [];
+    for (const id of orderDraft) {
+      const l = ls.find(x => x.id === id);
+      if (!l) return ls;                  // the document rebound under the drag — show what is bound
+      out.push(l);
+    }
+    return out;
+  }, [timeline.layers, orderDraft]);
+
   const dur = timeline.duration;
   const fps = timeline.fps ?? 30;
   const sm = stateMachine ?? defaultStateMachine();
@@ -218,8 +257,12 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   const snapGuideRef = useRef<HTMLDivElement>(null);
   const timeRef = useRef<HTMLSpanElement>(null);
   const bedTimeRef = useRef<HTMLSpanElement>(null);
-  const dragRef = useRef<{ mode: DragMode; clip: VideoClip; x0: number; points: ReturnType<typeof collectSnapPoints> } | null>(null);
-  const audioDragRef = useRef<{ mode: AudioDragMode; clip: AudioClip; source: 'bed' | 'timeline'; x0: number; points: SnapPoint[] } | null>(null);
+  // Each drag carries the docKey it STARTED on (see docKey above) — the commit is refused across a rebind.
+  const dragRef = useRef<{ mode: DragMode; clip: VideoClip; docKey: string; x0: number; points: ReturnType<typeof collectSnapPoints> } | null>(null);
+  const audioDragRef = useRef<{ mode: AudioDragMode; clip: AudioClip; source: 'bed' | 'timeline'; docKey: string; x0: number; points: SnapPoint[] } | null>(null);
+  // The window listeners of the two ref-held drags, torn down as a unit (pointerup AND pointercancel).
+  const dragAbort = useRef<AbortController | null>(null);
+  const audioDragAbort = useRef<AbortController | null>(null);
 
   // Render-free playhead + timecode (engine ticks every frame, even when paused). Also grows the
   // infinite content width by whole pages when the playhead nears the current right edge — quantized
@@ -250,19 +293,45 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     // never invalidate and a lane whose target was just deleted would keep rendering as if still bound.
   }, [timeline, defsTick]);
 
-  const setLanes = (next: AutoLane[]) => onChangeRef.current({ ...timelineRef.current, automation: next });
+  // ⚠ EVERY LANE WRITE RESOLVES THE LANE **BY ID, OUT OF THE BOUND DOCUMENT**, AT COMMIT TIME.
+  //
+  // This used to be `setLanes(lanes.map((l, j) => (j === i ? next : l)))` — a WHOLE-ARRAY REPLACEMENT
+  // built from the `lanes` array of the render that started the gesture, merged into whatever document is
+  // bound when it ends. AutomationLane's keyframe drag commits from a `window` pointerup handler that is
+  // removed only inside itself, so unmounting the lane does not even save it: drag a keyframe on the
+  // global doc's `audio.master.gain` curve, let the state machine hop to scene S mid-drag, release —
+  // and S's ENTIRE `automation` array was replaced by the global document's. S then carries a master-gain
+  // curve authored for another timeline, an automation lane OWNS its path (lane ?? fade ?? authored), so
+  // it drives the house volume; any automation S did have is destroyed. handleTimelineChange does not
+  // recordHistory(), so THERE IS NO UNDO.
+  //
+  // By-id, against `timelineRef.current`, with a bail when the lane is not there, makes a cross-document
+  // clobber structurally impossible — even if a future rebind path forgets AutomationLane's docKey guard.
+  const patchLane = useCallback((laneId: string, next: AutoLane | null) => {
+    const tl = timelineRef.current;
+    const cur = tl.automation ?? [];
+    if (!cur.some(l => l.id === laneId)) return;    // not a lane of the bound document → discard
+    onChangeRef.current({
+      ...tl,
+      automation: next ? cur.map(l => (l.id === laneId ? next : l)) : cur.filter(l => l.id !== laneId),
+    });
+  }, []);
   const addLane = (d: AutomationTargetDef) => {
     setPickerAt(null);
     // Seed with ONE keyframe at the playhead holding the target's CURRENT authored value, so creating a
     // lane never changes the sound. A single-keyframe lane is a constant — safe, and it immediately takes
     // ownership of the path (the authoring slider goes read-only, visibly).
     const cur = automationTargetRegistry.get(d.path.split('.')[0])?.get(d.path) ?? d.def;
-    setLanes([...lanes, {
-      id: `au-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
-      targetPath: d.path,
-      enabled: true,
-      keyframes: [{ t: Math.max(0, engine.getPlayhead()), v: cur, curve: 'linear' }],
-    }]);
+    const tl = timelineRef.current;                 // the BOUND document, never a captured array
+    onChangeRef.current({
+      ...tl,
+      automation: [...(tl.automation ?? []), {
+        id: `au-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
+        targetPath: d.path,
+        enabled: true,
+        keyframes: [{ t: Math.max(0, engine.getPlayhead()), v: cur, curve: 'linear' }],
+      }],
+    });
   };
 
   // The lanes show a live value readout at the playhead. The 60 Hz playhead above is deliberately
@@ -282,12 +351,16 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     return clamp(x / pxRef.current, 0, viewEndRef.current); // unbounded up to the explored view edge
   }, []);
   const seekTo = useCallback((clientX: number) => engine.seek(clientXToTime(clientX)), [clientXToTime]);
+  // The scrub drag needs `pointercancel` MORE than the edit drags do, not less: its `move` SEEKS THE
+  // RUNNING SHOW. A touch taken over as a pan on a kiosk never delivers `pointerup`, so the listener
+  // stayed attached and every later mouse move — with no button held — scrubbed the transport.
   const startSeekDrag = useCallback((e: React.PointerEvent) => {
     if (e.button !== 0) return; // left button only; middle is reserved for panning
     seekTo(e.clientX);
-    const move = (ev: PointerEvent) => seekTo(ev.clientX);
-    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
-    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+    const ac = new AbortController();
+    window.addEventListener('pointermove', (ev: PointerEvent) => seekTo(ev.clientX), { signal: ac.signal });
+    window.addEventListener('pointerup', () => ac.abort(), { signal: ac.signal });
+    window.addEventListener('pointercancel', () => ac.abort(), { signal: ac.signal });
   }, [seekTo]);
 
   // --- mouse navigation: wheel = cursor-anchored zoom (Shift = horizontal scroll); middle-drag = pan ---
@@ -310,9 +383,11 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       e.preventDefault();
       const x0 = e.clientX, y0 = e.clientY, sl0 = el.scrollLeft, st0 = el.scrollTop;
       const prevCursor = el.style.cursor; el.style.cursor = 'grabbing';
-      const move = (ev: PointerEvent) => { el.scrollLeft = sl0 - (ev.clientX - x0); el.scrollTop = st0 - (ev.clientY - y0); };
-      const up = () => { el.style.cursor = prevCursor; window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
-      window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+      const ac = new AbortController();
+      const end = () => { el.style.cursor = prevCursor; ac.abort(); };
+      window.addEventListener('pointermove', (ev: PointerEvent) => { el.scrollLeft = sl0 - (ev.clientX - x0); el.scrollTop = st0 - (ev.clientY - y0); }, { signal: ac.signal });
+      window.addEventListener('pointerup', end, { signal: ac.signal });
+      window.addEventListener('pointercancel', end, { signal: ac.signal });   // a cancelled pan must not leave the view glued to the cursor
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     el.addEventListener('pointerdown', onPointerDown);
@@ -325,9 +400,21 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     else { g.style.display = 'block'; g.style.left = `${GUTTER + t * pxRef.current}px`; }
   }, []);
 
+  // A REBIND KILLS EVERY IN-FLIGHT VISUAL DRAFT. The commits are already refused across a rebind (each
+  // gesture carries the docKey it started on and abandons if it changed) — this is about what is on
+  // SCREEN: the incoming scene's clips/tracks/lanes share their ids with the outgoing document's (Capture
+  // Scene deep-clones), so a surviving draft would be painted over the INCOMING document's identically-
+  // id'd clip. The operator would watch scene S's stinger slide under their cursor. Each drag's `move`
+  // also refuses to re-arm the draft once the document has changed, so this fires once, not per frame.
+  useEffect(() => {
+    setDraft(null); setAudioDraft(null); setResizeDraft(null); setRegionDrag(null); setOrderDraft(null);
+    showGuide(null);
+  }, [docKey, showGuide]);
+
   // --- clip drag (move / trim) with snapping — stable handlers read from refs ---
   const onDragMove = useCallback((e: PointerEvent) => {
     const d = dragRef.current; if (!d) return;
+    if (d.docKey !== docKeyRef.current) return;   // rebound mid-drag — the gesture is dead; don't re-arm the draft
     const px = pxRef.current; const ds = (e.clientX - d.x0) / px; const c = d.clip;
     const thr = 8 / px; const en = snapRefEnabled.current; const pts = d.points;
     const srcCap = (c.sourceDuration ?? Infinity) - c.inPoint;
@@ -350,18 +437,35 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       setDraft({ ...c, start: Math.max(0, c.start + delta), inPoint: Math.max(0, c.inPoint + delta), duration: c.duration - delta }); showGuide(guide);
     }
   }, [showGuide]);
-  const onDragUp = useCallback(() => {
-    const f = draftRef.current;
-    if (dragRef.current && f) onChangeRef.current({ ...timelineRef.current, clips: timelineRef.current.clips.map(c => c.id === f.id ? f : c) });
-    setDraft(null); dragRef.current = null; showGuide(null);
-    window.removeEventListener('pointermove', onDragMove); window.removeEventListener('pointerup', onDragUp);
-  }, [onDragMove, showGuide]);
+  // THE ONE COMMIT — and it lands on the document the gesture STARTED on, or on NOTHING.
+  //
+  // `pointercancel` ABANDONS. It is not a completed gesture: on a touchscreen kiosk the browser fires it
+  // when the scroll container takes the touch over as a pan, and `pointerup` then NEVER ARRIVES. Before
+  // this, the window listeners and the draft both stayed live, so the clip kept following an UNPRESSED
+  // cursor across the lane and the operator's next click anywhere committed it wherever the mouse had
+  // wandered — into whatever document was bound by then. Discarding an unfinished gesture can only cost
+  // an edit the user must redo; committing one writes a move nobody made.
+  const endDrag = useCallback((commit: boolean) => {
+    const d = dragRef.current, f = draftRef.current;
+    dragRef.current = null;
+    dragAbort.current?.abort(); dragAbort.current = null;
+    setDraft(null); showGuide(null);
+    if (!commit || !d || !f) return;
+    if (d.docKey !== docKeyRef.current) return;   // a recall rebound the panel mid-drag → ABANDON
+    onChangeRef.current({ ...timelineRef.current, clips: timelineRef.current.clips.map(c => c.id === f.id ? f : c) });
+  }, [showGuide]);
+  const onDragUp = useCallback(() => endDrag(true), [endDrag]);
+  const onDragCancel = useCallback(() => endDrag(false), [endDrag]);
   const onStartDrag = useCallback((e: React.PointerEvent, clip: VideoClip, mode: DragMode) => {
     e.stopPropagation(); e.preventDefault();
     setSelected(clip.id); setSelectedSource('video');
-    dragRef.current = { mode, clip: { ...clip }, x0: e.clientX, points: collectSnapPoints(timelineRef.current, engine.getPlayhead(), clip.id) };
-    window.addEventListener('pointermove', onDragMove); window.addEventListener('pointerup', onDragUp);
-  }, [onDragMove, onDragUp]);
+    dragRef.current = { mode, clip: { ...clip }, docKey: docKeyRef.current, x0: e.clientX, points: collectSnapPoints(timelineRef.current, engine.getPlayhead(), clip.id) };
+    dragAbort.current?.abort();
+    const ac = new AbortController(); dragAbort.current = ac;
+    window.addEventListener('pointermove', onDragMove, { signal: ac.signal });
+    window.addEventListener('pointerup', onDragUp, { signal: ac.signal });
+    window.addEventListener('pointercancel', onDragCancel, { signal: ac.signal });
+  }, [onDragMove, onDragUp, onDragCancel]);
 
   // --- audio: TWO CONTAINERS, TWO COMMIT PATHS, TWO VERY DIFFERENT COSTS ---
   //   bed      → onChangeMix → App.setAudioMix → recompileAutomation() + the audio host fan-out.
@@ -383,6 +487,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
 
   const onAudioDragMove = useCallback((e: PointerEvent) => {
     const d = audioDragRef.current; if (!d) return;
+    if (d.docKey !== docKeyRef.current) return;   // rebound mid-drag — the gesture is dead; don't re-arm the draft
     const px = pxRef.current; const ds = (e.clientX - d.x0) / px; const c = d.clip;
     const thr = 8 / px; const en = snapRefEnabled.current; const pts = d.points;
     // THE RIGHT-TRIM CAP. Never `Infinity`: a clip with no `sourceDuration` (every bed clip authored
@@ -428,16 +533,30 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       setAudioDraft({ clip: { ...c, fadeOut: fo > 0 ? fo : undefined }, source: d.source }); showGuide(null);
     }
   }, [showGuide]);
-  const onAudioDragUp = useCallback(() => {
-    const d = audioDraftRef.current;
-    // THE ONE COMMIT. Outside any state updater (a commit inside setAudioDraft(d => …) would be a
-    // render-phase update to App, which React 19 StrictMode double-invokes — see AutomationLane).
-    if (audioDragRef.current && d) {
-      commitAudioClips(d.source, audioClipsOf(d.source).map(c => (c.id === d.clip.id ? d.clip : c)));
-    }
-    setAudioDraft(null); audioDragRef.current = null; showGuide(null);
-    window.removeEventListener('pointermove', onAudioDragMove); window.removeEventListener('pointerup', onAudioDragUp);
-  }, [onAudioDragMove, showGuide, commitAudioClips, audioClipsOf]);
+  // THE ONE COMMIT. Outside any state updater (a commit inside setAudioDraft(d => …) would be a
+  // render-phase update to App, which React 19 StrictMode double-invokes — see AutomationLane).
+  //
+  // AND IT LANDS ON THE DOCUMENT THE GESTURE STARTED ON, OR ON NOTHING. `audioClipsOf('timeline')` reads
+  // `timelineRef.current` — WHATEVER IS BOUND RIGHT NOW. Drag a music clip on Global from 0:10 toward
+  // 0:25, let the FSM's onTimelineEnd hop (or a tablet GO, or the scheduler) recall scene S mid-drag, and
+  // the commit read S's clips — which, because Capture Scene deep-clones, hold a clip with the SAME ID.
+  // The operator's global edit vanished and S's stinger silently moved 15 s late, persisted, over the
+  // wrong beat, every night. `source === 'bed'` cannot rebind (the bed is one container, and its lanes
+  // are only drawn while Global is bound), but the guard is uniform: one rule, no exception to get wrong.
+  // `pointercancel` abandons — see endDrag.
+  const endAudioDrag = useCallback((commit: boolean) => {
+    const dr = audioDragRef.current, d = audioDraftRef.current;
+    audioDragRef.current = null;
+    audioDragAbort.current?.abort(); audioDragAbort.current = null;
+    setAudioDraft(null); showGuide(null);
+    if (!commit || !dr || !d) return;
+    if (dr.docKey !== docKeyRef.current) return;                 // rebound mid-drag → ABANDON
+    const clips = audioClipsOf(d.source);
+    if (!clips.some(c => c.id === d.clip.id)) return;            // the clip is not in the bound container
+    commitAudioClips(d.source, clips.map(c => (c.id === d.clip.id ? d.clip : c)));
+  }, [showGuide, commitAudioClips, audioClipsOf]);
+  const onAudioDragUp = useCallback(() => endAudioDrag(true), [endAudioDrag]);
+  const onAudioDragCancel = useCallback(() => endAudioDrag(false), [endAudioDrag]);
   const onAudioStartDrag = useCallback((e: React.PointerEvent, clip: AudioClip, mode: AudioDragMode, source: 'bed' | 'timeline') => {
     if (e.button !== 0) return;            // middle-drag pans the timeline
     e.stopPropagation(); e.preventDefault();
@@ -448,11 +567,15 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       .filter(c => c.id !== clip.id)
       .flatMap(c => ([{ t: c.start, kind: 'clipEdge' as const }, { t: c.start + c.duration, kind: 'clipEdge' as const }]));
     audioDragRef.current = {
-      mode, clip: { ...clip }, source, x0: e.clientX,
+      mode, clip: { ...clip }, source, docKey: docKeyRef.current, x0: e.clientX,
       points: collectSnapPoints(timelineRef.current, engine.getPlayhead(), undefined, undefined, extra),
     };
-    window.addEventListener('pointermove', onAudioDragMove); window.addEventListener('pointerup', onAudioDragUp);
-  }, [onAudioDragMove, onAudioDragUp, audioClipsOf]);
+    audioDragAbort.current?.abort();
+    const ac = new AbortController(); audioDragAbort.current = ac;
+    window.addEventListener('pointermove', onAudioDragMove, { signal: ac.signal });
+    window.addEventListener('pointerup', onAudioDragUp, { signal: ac.signal });
+    window.addEventListener('pointercancel', onAudioDragCancel, { signal: ac.signal });
+  }, [onAudioDragMove, onAudioDragUp, onAudioDragCancel, audioClipsOf]);
 
   // Blade an audio clip. splitClipAt is structurally generic and copies EVERY field to both halves —
   // which is right for a source trim and wrong for a gain envelope: the left half would inherit the
@@ -506,37 +629,83 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     onChangeRef.current({ ...tl, layers: tl.layers.filter(l => l.id !== id), clips: tl.clips.filter(c => c.layerId !== id) });
     setSelected(null);
   }, []);
+  // DRAFT THE ORDER, COMMIT ONCE (invariant 7). This was the last drag in the file still writing the
+  // document from INSIDE pointermove: dragging a track header from position 6 to position 1 fired SIX
+  // full onChange → setData → clampPlayheadIntoDoc + warmMedia + pruneStaleLayers + compileAutomation +
+  // a structured-clone postMessage to EVERY projector port, during the gesture, on the bound document of
+  // a running show. Now the gesture moves a local list of ids and lands one commit on pointerup — on the
+  // document it started on (docKey), or on nothing.
   const startReorder = useCallback((e: React.PointerEvent, index: number) => {
     e.stopPropagation(); e.preventDefault();
     const el = scrollRef.current; if (!el) return;
-    const id = timelineRef.current.layers[index]?.id; if (!id) return;
+    const tl0 = timelineRef.current;
+    const id = tl0.layers[index]?.id; if (!id) return;
+    const doc = docKeyRef.current;
+    let order = tl0.layers.map(l => l.id);
+    setOrderDraft(order);
     const move = (ev: PointerEvent) => {
-      const tl = timelineRef.current; const ls = tl.layers;
+      if (doc !== docKeyRef.current) return;                  // rebound mid-drag — the gesture is dead
+      // Heights come from the BOUND document, resolved by id — never from a stale captured array.
+      const byId = new Map(timelineRef.current.layers.map(l => [l.id, l] as const));
+      const rows = order.map(i => byId.get(i));
+      if (rows.some(l => !l)) return;                       // rebound under the drag → freeze the preview
       const r = el.getBoundingClientRect();
       const y = ev.clientY - r.top + el.scrollTop - RULER_H;
       let target = 0, acc = 0;
-      for (let i = 0; i < ls.length; i++) { const h = laneHeight(ls[i]); if (y > acc + h / 2) target = i + 1; acc += h; }
-      target = clamp(target, 0, ls.length - 1);
-      const cur = ls.findIndex(l => l.id === id);
+      for (let i = 0; i < rows.length; i++) { const h = laneHeight(rows[i]!); if (y > acc + h / 2) target = i + 1; acc += h; }
+      target = clamp(target, 0, rows.length - 1);
+      const cur = order.indexOf(id);
       if (cur < 0 || target === cur) return;
-      const next = ls.slice(); const [m] = next.splice(cur, 1); next.splice(target, 0, m);
-      onChangeRef.current({ ...tl, layers: next });
+      const next = order.slice(); const [m] = next.splice(cur, 1); next.splice(target, 0, m);
+      order = next;
+      setOrderDraft(next);                                  // DRAFT ONLY — no document write mid-gesture
     };
-    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
-    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+    const done = (commit: boolean) => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', cancel);
+      setOrderDraft(null);
+      if (!commit || doc !== docKeyRef.current) return;     // cancelled, or rebound mid-drag → ABANDON
+      const tl = timelineRef.current;
+      const byId = new Map(tl.layers.map(l => [l.id, l] as const));
+      const next = order.map(i => byId.get(i));
+      // The layer set changed under the drag (a delete elsewhere): committing `order` would DROP a layer
+      // and every clip on it. Abandon instead.
+      if (next.length !== tl.layers.length || next.some(l => !l)) return;
+      if (next.every((l, i) => l!.id === tl.layers[i].id)) return;   // nothing moved → no commit at all
+      onChangeRef.current({ ...tl, layers: next as VideoLayer[] });
+    };
+    const up = () => done(true);
+    const cancel = () => done(false);
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', cancel);
   }, []);
   const startResize = useCallback((e: React.PointerEvent, layer: VideoLayer) => {
     e.stopPropagation(); e.preventDefault();
     const h0 = laneHeight(layer); const y0 = e.clientY;
+    const doc = docKeyRef.current;
     setResizeDraft({ id: layer.id, height: h0 });
-    const move = (ev: PointerEvent) => setResizeDraft({ id: layer.id, height: clamp(h0 + (ev.clientY - y0), MIN_LANE_H, MAX_LANE_H) });
-    const up = (ev: PointerEvent) => {
-      const nh = clamp(h0 + (ev.clientY - y0), MIN_LANE_H, MAX_LANE_H);
-      setResizeDraft(null);
-      onChangeRef.current({ ...timelineRef.current, layers: timelineRef.current.layers.map(l => l.id === layer.id ? { ...l, height: nh } : l) });
-      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
+    const move = (ev: PointerEvent) => {
+      if (doc !== docKeyRef.current) return;                  // rebound mid-drag — the gesture is dead
+      setResizeDraft({ id: layer.id, height: clamp(h0 + (ev.clientY - y0), MIN_LANE_H, MAX_LANE_H) });
     };
-    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+    const done = (commit: boolean, ev?: PointerEvent) => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', cancel);
+      setResizeDraft(null);
+      if (!commit || !ev || doc !== docKeyRef.current) return;   // cancelled, or rebound mid-drag → ABANDON
+      const nh = clamp(h0 + (ev.clientY - y0), MIN_LANE_H, MAX_LANE_H);
+      const tl = timelineRef.current;
+      if (!tl.layers.some(l => l.id === layer.id)) return;       // the track is gone — no no-op fan-out
+      onChangeRef.current({ ...tl, layers: tl.layers.map(l => l.id === layer.id ? { ...l, height: nh } : l) });
+    };
+    const up = (ev: PointerEvent) => done(true, ev);
+    const cancel = () => done(false);
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', cancel);
   }, []);
 
   // --- non-stable mutations (toolbar / lane / ruler / keyboard) read fresh closure state ---
@@ -607,7 +776,26 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     // here is not an undecodable .aiff at all, it is the probe LOSING A RACE with a concurrent read of
     // the same path (ensureBlobUrl returns undefined while another caller is mid-read). That clip
     // recovers its cap the moment the peaks land; a fabricated 30 never would.
+    // ⚠ `place` RUNS AFTER AN AWAIT — an IPC file read and a decode. The world moves under it.
+    //
+    // Appending unconditionally MINTS AN ORPHAN: a clip whose `trackId` names a track that no longer
+    // exists in the container it lands in. No AudioLane draws it (every lane filters c.trackId === t.id),
+    // but the driver PLAYS it — allClips() has no track filter, `audibleIn` reads `tracks.find(...)` →
+    // undefined → `tr?.mute` falsy → AUDIBLE, and `effGain` falls through to `?? 1` → AT UNITY GAIN.
+    // For a 'timeline' orphan the mixer's inspector is read-only and has no write path into
+    // Timeline.audio at all: it is a permanent, unmutable sound in the show, fixable only by hand-editing
+    // the project JSON. Two ordinary windows: drop a big wav on the wrong track and hit the gutter trash
+    // before the probe lands; or have a scene recalled during the probe, so the clip is appended to the
+    // NEWLY BOUND document, on a track id that document does not have.
+    //
+    // The mixer's own addClip already guards exactly this (AudioBedPanel: "the track may have been
+    // deleted while the file was decoding — don't orphan an invisible-but-audible clip"). Core's drop did
+    // not. Both doors are checked here: the document it was dropped on, then the track it was dropped on.
+    const dropDocKey = docKeyRef.current;
     const place = (d: number | null) => {
+      if (docKeyRef.current !== dropDocKey) return;                       // recalled mid-probe → drop it
+      const tracks = source === 'bed' ? (audioRef.current?.mix.tracks ?? []) : timelineAudioTracks(timelineRef.current);
+      if (!tracks.some(t => t.id === trackId)) return;                    // track deleted mid-probe → drop it
       const clip: AudioClip = { id: crypto.randomUUID(), trackId, name, path, start, duration: d ?? DEFAULT_AUDIO_DURATION, inPoint: 0, sourceDuration: d ?? undefined, gain: 1, mute: false };
       commitAudioClips(source, [...audioClipsOf(source), clip]);
       setSelected(clip.id); setSelectedSource(source);
@@ -676,16 +864,27 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     if (e.button !== 0) return;
     e.stopPropagation(); // don't also scrub the playhead — the ruler root has onPointerDown={startSeekDrag}
     e.preventDefault();
-    const move = (ev: PointerEvent) => setRegionDrag({ edge, t: regionCandidate(edge, clientXToTime(ev.clientX)) });
-    const up = () => {
+    const doc = docKeyRef.current;
+    const move = (ev: PointerEvent) => {
+      if (doc !== docKeyRef.current) return;                  // rebound mid-drag — the gesture is dead
+      setRegionDrag({ edge, t: regionCandidate(edge, clientXToTime(ev.clientX)) });
+    };
+    const done = (commit: boolean) => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', cancel);
       const d = regionDragRef.current;
       setRegionDrag(null);
-      if (d) onChangeRef.current(d.edge === 'in' ? { ...timelineRef.current, inPoint: d.t } : { ...timelineRef.current, outPoint: d.t });
+      // A loop region is LIVE (the clock wraps over it). Committing one across a rebind would write the
+      // operator's in/out onto the INCOMING scene — silently narrowing what that scene plays, forever.
+      if (!commit || !d || doc !== docKeyRef.current) return;
+      onChangeRef.current(d.edge === 'in' ? { ...timelineRef.current, inPoint: d.t } : { ...timelineRef.current, outPoint: d.t });
     };
+    const up = () => done(true);
+    const cancel = () => done(false);
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', cancel);
   };
   const regionInPoint = regionDrag?.edge === 'in' ? regionDrag.t : (timeline.inPoint ?? null);
   const regionOutPoint = regionDrag?.edge === 'out' ? regionDrag.t : (timeline.outPoint ?? null);
@@ -946,7 +1145,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
         // Which document the number fields are editing. It must change on EVERY rebind — including one
         // where the incoming scene's Length/fps happen to EQUAL the outgoing doc's, which is the normal
         // case (Capture Scene clones the timeline, and fps is 30 nearly everywhere). See NumField.
-        docKey={author?.activeSceneId ?? '__global__'}
+        docKey={docKey}
         duration={dur} onChangeDuration={(d) => onChange({ ...timeline, duration: d })}
         fps={fps} onChangeFps={(f) => onChange({ ...timeline, fps: f })}
         tool={tool} onSetTool={setTool}
@@ -1020,15 +1219,18 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
               the two clocks diverge and drawing the bed against a scene-relative ruler would be a lie —
               the `♪ BED` readout in the author strip carries it instead. */}
           {audioProp && bedTracks.map(t => (
-            <AudioLane key={`bed-${t.id}`} track={t} source="bed"
+            <AudioLane key={`bed-${t.id}`} track={t} source="bed" docKey={docKey}
               clips={bedClips.filter(c => c.trackId === t.id).map(c => (audioDraft?.source === 'bed' && audioDraft.clip.id === c.id ? audioDraft.clip : c))}
               selectedId={selectedSource === 'bed' ? selected : null} tool={tool} pxPerSec={pxPerSec} width={Math.max(width, 100)}
               onPatchTrack={(p) => patchAudioTrack('bed', t.id, p)} onRemoveTrack={() => removeAudioTrack('bed', t.id)}
               onStartDrag={onAudioStartDrag} onBlade={onAudioBlade} onRemoveClip={onAudioRemoveClip}
               onSelect={(id, src) => { setSelected(id); setSelectedSource(src); }} onSeek={seekTo} onDropAsset={onDropAudioAsset} />
           ))}
+          {/* ⚠ THE KEY IS THE TRACK ID, AND A CLONED SCENE'S TRACK CARRIES THE SAME ONE (Capture Scene
+              deep-clones) — so a rebind RECONCILES TO THE SAME COMPONENT INSTANCE and its gutter drafts
+              (gain, name) survive it. `docKey` is what tells the lane to throw them away. See AudioLane. */}
           {tlTracks.map(t => (
-            <AudioLane key={`tl-${t.id}`} track={t} source="timeline"
+            <AudioLane key={`tl-${t.id}`} track={t} source="timeline" docKey={docKey}
               clips={tlClips.filter(c => c.trackId === t.id).map(c => (audioDraft?.source === 'timeline' && audioDraft.clip.id === c.id ? audioDraft.clip : c))}
               selectedId={selectedSource === 'timeline' ? selected : null} tool={tool} pxPerSec={pxPerSec} width={Math.max(width, 100)}
               onPatchTrack={(p) => patchAudioTrack('timeline', t.id, p)} onRemoveTrack={() => removeAudioTrack('timeline', t.id)}
@@ -1038,7 +1240,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
 
           {/* Automation lanes — keyframe curves over the same time axis. Like StateLane they are not
               VideoLayers (they hold keyframes, not clips), so they mount here rather than in layers.map. */}
-          {lanes.map((lane, i) => (
+          {lanes.map((lane) => (
             <AutomationLane
               key={lane.id}
               lane={lane}
@@ -1046,10 +1248,11 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
               pxPerSec={pxPerSec}
               width={Math.max(width, 100)}
               playhead={autoPlayhead}
+              docKey={docKey}
               onSnap={(t) => snap(t, collectSnapPoints(timelineRef.current, engine.getPlayhead()), 8 / pxRef.current).t}
               onSeek={seekTo}
-              onChange={(next) => setLanes(lanes.map((l, j) => (j === i ? next : l)))}
-              onRemove={() => setLanes(lanes.filter((_, j) => j !== i))}
+              onChange={(next) => patchLane(lane.id, next)}
+              onRemove={() => patchLane(lane.id, null)}
             />
           ))}
 

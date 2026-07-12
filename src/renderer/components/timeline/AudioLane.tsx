@@ -27,6 +27,7 @@ export interface AudioLaneProps {
   track: AudioTrack;
   clips: AudioClip[];               // already filtered to this track, with the drag draft applied
   source: 'bed' | 'timeline';       // WHICH CONTAINER — decides the commit path and the clock label
+  docKey: string;                   // identity of the BOUND document — see the draft discard below
   selectedId: string | null;
   tool: 'select' | 'blade';
   pxPerSec: number;
@@ -169,7 +170,7 @@ const AudioClipBlock: React.FC<{
 };
 
 export const AudioLane: React.FC<AudioLaneProps> = ({
-  track, clips, source, selectedId, tool, pxPerSec, width,
+  track, clips, source, docKey, selectedId, tool, pxPerSec, width,
   onPatchTrack, onRemoveTrack, onStartDrag, onBlade, onRemoveClip, onSelect, onSeek, onDropAsset,
 }) => {
   const blade = tool === 'blade';
@@ -210,6 +211,27 @@ export const AudioLane: React.FC<AudioLaneProps> = ({
     if (d != null && d !== track.name) onPatchTrack({ name: d });
     setName(null);
   };
+  // ⚠ THE DOCUMENT CHANGED UNDER ME → THROW BOTH DRAFTS AWAY. (The NumField rule, in the one file the
+  // wave forgot to apply it to.)
+  //
+  // <TimelinePanel> has no React `key`, so a recall does NOT remount it — and this lane's key is the
+  // TRACK ID, which a cloned scene's track shares verbatim (Capture Scene deep-clones), so a rebind
+  // reconciles onto THIS VERY INSTANCE and the drafts sail straight through it. `onPatchTrack` then
+  // writes through the parent's `timelineRef.current` — the document that is bound NOW.
+  //   · The gain fader is the audible one: drag a global track toward 0.2, let the FSM hop mid-drag,
+  //     release → SCENE S's music track is now at 20 %, the global's untouched. The room goes quiet in a
+  //     scene nobody is looking at, and every readout there honestly says "0.2".
+  //   · The name draft is worse in lifetime — it lives until BLUR, i.e. minutes. Type into a global
+  //     track's name, step away, let the FSM hop, click anything → the rename lands in S, firing a full
+  //     onChange(timeline) → setData → projector fan-out on a running show, for a document the operator
+  //     never opened.
+  // Discarding is the correct read of "the thing I was editing is gone" — and it is exactly what Escape
+  // already does to the name field.
+  //
+  // (`source === 'bed'` is passed the same key. Under a bound scene App withholds the bed prop entirely,
+  // so a bed lane only ever exists while docKey === '__global__' — the guard is inert there by
+  // construction, which is better than an exception someone has to remember.)
+  React.useEffect(() => { setGainDraft(null); setName(null); }, [docKey]);
   return (
     <div className={`flex border-b border-line-1 ${muted ? 'opacity-50' : ''} ${track.solo ? 'bg-accent/5' : ''}`}>
       {/* gutter — the component owns it (the AutomationLane/StateLane idiom, not the video-lane one) */}

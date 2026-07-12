@@ -23,18 +23,32 @@ interface Props {
   pxPerSec: number;
   width: number;
   playhead: number;
+  docKey: string;                  // identity of the BOUND document — see the discard below
   onChange: (lane: Lane) => void;
   onRemove: () => void;
   onSnap: (t: number) => number;   // reuse the timeline's snapping
   onSeek: (clientX: number) => void;
 }
 
-export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, playhead, onChange, onRemove, onSnap, onSeek }) => {
+export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, playhead, docKey, onChange, onRemove, onSnap, onSeek }) => {
   const bodyRef = useRef<HTMLDivElement>(null);
   const [draft, setDraft] = useState<Keyframe[] | null>(null);
   const draftRef = useRef<Keyframe[] | null>(null);
   draftRef.current = draft;
   const [sel, setSel] = useState<number | null>(null);
+  // ⚠ THE DOCUMENT CAN REBIND UNDER A LIVE POINTER — AND THIS LANE SURVIVES IT.
+  //
+  // <TimelinePanel> has no React `key`, so a recall does not remount it; and a cloned scene's automation
+  // lane carries the SAME id (Capture Scene deep-clones), so `key={lane.id}` reconciles this very
+  // instance onto the incoming document's lane — draft and all. The `up` handler below lives on `window`
+  // and is removed only inside itself, so unmounting would not have saved us either: it still runs.
+  // A keyframe drag must therefore refuse to commit across a rebind, keyed on WHICH DOCUMENT IS BOUND
+  // (identity), never on the lane's value — the clone makes the values equal, which is what made the
+  // first version of this fix, elsewhere in the tree, completely inert.
+  const docKeyRef = useRef(docKey); docKeyRef.current = docKey;
+  // Belt to the braces below: drop a live drag's draft the moment the document changes, so the curve on
+  // screen is the bound document's and not the departed one's.
+  React.useEffect(() => { setDraft(null); setSel(null); }, [docKey]);
 
   const h = lane.height ?? AUTO_LANE_H;
   const kfs = draft ?? lane.keyframes;
@@ -93,7 +107,9 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, pl
     if (!el) return;
     const rect = el.getBoundingClientRect();
     const base = lane.keyframes;
+    const doc = docKeyRef.current;   // the document this gesture STARTED on
     const move = (ev: PointerEvent) => {
+      if (doc !== docKeyRef.current) return;   // rebound mid-drag — the gesture is dead; don't re-arm the draft
       const next = base.slice();
       // Clamp between the neighbours so the array stays sorted — the sampler's cursor depends on it.
       const lo = i > 0 ? base[i - 1].t + 0.001 : 0;
@@ -103,17 +119,26 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, pl
       next[i] = { ...base[i], t: Math.max(0, t), v };
       setDraft(next);
     };
-    const up = () => {
+    const done = (allowCommit: boolean) => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', cancel);
       // ONE commit, on release — and OUTSIDE the state updater. Committing inside setDraft(d => ...)
       // would issue a render-phase update to App, which React 19 StrictMode double-invokes.
       const d = draftRef.current;
       setDraft(null);
-      if (d) commit(d);
+      if (!allowCommit || !d) return;
+      if (doc !== docKeyRef.current) return;   // the document rebound mid-drag → ABANDON, never merge
+      commit(d);
     };
+    const up = () => done(true);
+    // pointercancel = the system took the gesture away (a touchscreen pan takeover); pointerup will never
+    // arrive. Tear down and abandon — leaving the listeners live let the keyframe follow an unpressed
+    // cursor and the next click anywhere commit it.
+    const cancel = () => done(false);
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', cancel);
   };
 
   const addAt = (e: React.MouseEvent) => {
