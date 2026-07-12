@@ -187,19 +187,29 @@ crossing-detects on it: `fsm.tick()` runs on `playhead` alone, deliberately.)
 
 1. **The reset policy cannot live in `mainSeek`.** `mainSeek` is reached from five semantically distinct
    events (Stop, a user seek, a scene recall, play-from-the-parked-end, project open) and the policy
-   discriminates among them. Instead the engine maintains the **identity** (`isGlobalDocBound()` ⇒ the show
-   clock tracks the playhead) inside `seek()` and `setPlaying()`, and *every other* move is an explicit
-   `showSeek()` from a named call site or an explicit `swap()` option.
+   discriminates among them. Instead the engine maintains the **identity** (`clocksCoincident()` ⇒ the show
+   clock tracks the playhead) inside `seek()`, and *every other* move is an explicit `showSeek()` from a
+   named call site or an explicit `swap()` option.
 2. **The show clock is silent.** It emits **no** `TransportIntent` and pulses **no** `hitEnd` — it only
    wraps or parks. Firing `onTimelineEnd` from the bed looping would advance the state machine behind the
    operator's back. "Silent" is not "invisible": the park is published on `getStatus().showEnded`, because
    a consumer riding a **frozen** clock has to know it is frozen (the audio driver stops the bed on it —
    reconciling a live driver against a frozen clock does not go silent, it *buzzes*).
-3. **`isGlobalDocBound()` is the only representation of "the global doc is bound"** — and it is
-   `activeKey === GLOBAL_POOL || data === globalDoc` (`timeline.ts:354`), **not** just the pool key. A scene
-   with **no timeline of its own** plays the GLOBAL document under its own pool key, and there the ruler
-   being scrubbed *is* the global timeline and `data.automation` *is* the base layer. Ask the **document**,
-   not the key.
+3. **TWO PREDICATES, TWO QUESTIONS — and swapping them is a bug.**
+   - **`isGlobalDocBound()`** = `activeKey === GLOBAL_POOL || data === globalDoc` — *which **document** is
+     bound.* A scene with **no timeline of its own** plays the GLOBAL document under its own pool key, and
+     there `data.automation` **is** the base layer. This is the right question for **which clock a LANE
+     RIDES** (`compileAutomation`): a lane of the global doc is a base lane and rides the **show** clock,
+     wherever that doc happens to be bound. Ask the **document**, not the key.
+   - **`clocksCoincident()`** = `activeKey === GLOBAL_POOL` — *are `playhead` and `showTime` **the same
+     number**.* This is the right question for **whether a seek MOVES BOTH CLOCKS** (`seek()`). It is
+     **narrower**, and it must be: a timeline-less scene is bound with `transport:'restart'` (playhead → 0)
+     and the default `showClock:'preserve'` (bed rolls on) — the **document** is bound, the **clocks are
+     minutes apart**. Gating the seek on the document there hurls `showTime` to a scene-relative number and
+     **hard-restarts the bed on every entry to that state**. The Global pill is the only state no
+     restart-swap has pulled apart — which is also why `App.tsx` gates the bed's *lanes* on `activeSceneId`.
+
+   `isGlobalDocBound()` **does not assert that the two clocks are equal.** It never did.
 
 ### The two audio containers — the clock follows the CONTAINER
 
@@ -231,14 +241,15 @@ clips.
 
 ### THE SHOW-CLOCK RESET TABLE
 
-`G` ≡ `isGlobalDocBound()`. `globalStart` / `globalEnd` ≡ `timelineStart(globalDoc)` / `timelineEnd(globalDoc)`.
+`G` ≡ `clocksCoincident()` (`activeKey === GLOBAL_POOL` — the Global pill). `globalStart` / `globalEnd` ≡
+`timelineStart(globalDoc)` / `timelineEnd(globalDoc)`.
 **This is the specification** — the next person to touch `mainSeek`, `swap` or `frame()` needs all of it.
 
 | # | Transport event | `playhead` | `showTime` | Enforced by |
 |---|---|---|---|---|
 | 1 | **Stop** (`{kind:'stop'}`) | → the **BOUND** doc's start | **RESET to `globalStart`** — `getStart()` is the *bound* doc's start, and while a scene is bound that number means nothing to the bed | an explicit `showSeek(getGlobalStart())` in App's `stop` intent handler |
-| 2 | **Seek while the GLOBAL DOC is bound** (ruler scrub, `seekTo`, automation-lane click, Home/End, OSC, `host.show.transport`) | jumps | **MOVES to the same value** (the identity) | inside `seek()`: `if (!external && isGlobalDocBound()) showSeekInternal(clamped)` |
-| 3 | **Seek while a SCENE'S OWN timeline is bound** | jumps | **DOES NOT MOVE** | the same `if` — it simply does not fire |
+| 2 | **Seek while GLOBAL is bound** — the pill (ruler scrub, `seekTo`, automation-lane click, Home/End, OSC, `host.show.transport`) | jumps | **MOVES to the same value** (the identity) | inside `seek()`: `if (!external && clocksCoincident()) showSeekInternal(clamped)` |
+| 3 | **Seek while ANY SCENE is bound** — *its own* timeline **or the global doc under its pool key** (a timeline-less scene) | jumps | **DOES NOT MOVE** | the same `if` — it simply does not fire. ⚠ **The timeline-less case is why the test is `clocksCoincident()` and not `isGlobalDocBound()`:** the *document* is bound but the clocks are minutes apart (`restart` reset the playhead; `preserve` left the bed running), so tracking the seek would hurl `showTime` to a scene-relative number and **hard-restart the bed on every entry to that state** |
 | 4 | **Scene recall / GO / cueBus / FSM hop / `enterAuthor` / `fireColumn`** | → the scene's in-point | **NEVER RESET** — *the defining requirement* | `swap`'s default `showClock:'preserve'`; `mainSeek` never touches `showOriginMs` |
 | 5 | **Exit to Global** (pill → Global) | **RECONVERGES: `playhead := showTime`** | does not move | `swap(..., {transport:'reconverge'})`. Normally `showTime` is inside `[globalStart, globalEnd)` ⇒ nothing to clamp, **no `pause`**. ⚠ **Exception:** a **parked** show clock is at `globalEnd − 1/fps`, one frame inside the end, and `mainSeek` *clears* `endLatched` — so the raw end-stop would pulse `hitEnd` two frames later and fire `onTimelineEnd` **from a mouse click**. The arm therefore re-applies the latch: `endLatched = true` + a `pause` intent, **without pulsing `hitEnd`** |
 | 6 | **Scene deleted while bound** | as row 5 | as row 5 | `'reconverge'` |
@@ -256,7 +267,7 @@ clips.
 | 17 | **Mirror-window slew / snap** (projector) | slews / snaps | **NOT COMPUTED AT ALL** | one `if (!external)` around the whole show-clock block (**not** `!external \|\| hapLocal`). Nothing show-clock-driven renders in a projector: the audio driver early-returns for non-main windows and the bridge streams only `{playing, playhead}` |
 | 18 | **`start()`** | init | init `showOriginMs` alongside `originMs` | mind the `if (!raf)` guard |
 | 19 | **The `loop` intent** (an FSM `setLoop` entry action, or the Loop button) | unaffected | **does not move — but it flips the show clock between row 8 (WRAP: the bed restarts every lap) and row 9 (PARK: the bed stops)** | falls out of the `setGlobalDoc` push. `globalDoc.loop` is a **live input** to the show clock, and an unattended FSM can reach it |
-| 20 | **New Project** | unchanged (pre-existing) | **RESET to `globalStart`** — the show clock must not keep running into a project that no longer exists | one `showSeek(getGlobalStart())` in `resetToNewProject` |
+| 20 | **New Project** | **RESET to `globalStart`** | **RESET to `globalStart`** — the show clock must not keep running into a project that no longer exists | `resetToNewProject` clears `activeSceneId` + the state machine and re-binds the engine to the global pool: `swap(GLOBAL_POOL, timeline, {transport:'restart', showClock:'reset'})`. ⚠ **The bare `showSeek` this replaces moved ONE clock and left the binding on a scene that no longer exists** — the engine stayed on the departed scene's pool, `handleTimelineChange` mapped every edit over an empty `scenes` array (silently discarded), and the mixer locked its seek on a phantom `activeSceneId` |
 
 Rationale for every row (and the design calls behind it) lives in
 [`docs/superpowers/plans/2026-07-12-audio-scoping-wave-b.md`](superpowers/plans/2026-07-12-audio-scoping-wave-b.md), Task 2.

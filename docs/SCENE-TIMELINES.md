@@ -36,19 +36,26 @@ What that one transport carries is **two derived times** (Wave B):
 | bounded by | the BOUND doc's `[timelineStart, timelineEnd)` | the GLOBAL doc's `[timelineStart, timelineEnd)` |
 | on a scene recall | **RESETS** to the scene's in-point | **NEVER RESETS** — the bed plays on |
 | on exit to Global | **RECONVERGES**: `playhead := showTime` | unchanged |
-| on a seek | always moves | only while the **global document** is bound |
+| on a seek | always moves | only while **Global is bound** (the pill) — i.e. only while the two clocks are the **same number** |
 | anchor | `originMs` | `showOriginMs` |
 
-**While the global document is bound the two are the same number** — an identity the engine maintains
-inside `seek()` and `setPlaying()` by testing `isGlobalDocBound()` (`timeline.ts:354`). They diverge only
-inside a scene with a timeline of its own: **the scene restarts, the bed rolls on.** This does not break
-the one-transport rule — there is still exactly one `playing`, one rAF, one `<video>` pool. A second
-*time value* rides the same clock.
+**While Global is bound (the pill) the two are the same number** — an identity the engine maintains inside
+`seek()` by testing `clocksCoincident()` (`activeKey === GLOBAL_POOL`). They diverge the moment **any** scene
+is bound: **the scene restarts, the bed rolls on.** This does not break the one-transport rule — there is
+still exactly one `playing`, one rAF, one `<video>` pool. A second *time value* rides the same clock.
 
-> ⚠ `isGlobalDocBound()` is `activeKey === GLOBAL_POOL || data === globalDoc` — **not** just the pool key.
-> A scene with **no timeline of its own** binds the GLOBAL document under its own pool key
-> (`handleRecallScene`), and there the ruler the operator scrubs *is* the global timeline and the lanes in
-> `data.automation` *are* the base layer. Both must ride the show clock.
+> ⚠ **TWO PREDICATES. DO NOT SWAP THEM.**
+> - `isGlobalDocBound()` = `activeKey === GLOBAL_POOL || data === globalDoc` — **which DOCUMENT is bound.**
+>   A scene with **no timeline of its own** binds the GLOBAL document under its own pool key
+>   (`handleRecallScene`), and the lanes in `data.automation` there *are* the base layer — so they ride the
+>   **show clock**. That is `compileAutomation`'s question, and this is the right answer to it.
+> - `clocksCoincident()` = `activeKey === GLOBAL_POOL` — **are the two clocks EQUAL.** That is `seek()`'s
+>   question. Under a timeline-less scene the document is bound but the clocks are **minutes apart**
+>   (`transport:'restart'` reset the playhead; `showClock:'preserve'` left the bed running), so a seek that
+>   tracked the *document* would drag `showTime` to a scene-relative number and **hard-restart the bed on
+>   every entry to that state** — the exact bug the show clock exists to prevent, through the seek door.
+>
+> `isGlobalDocBound()` says which clock a **lane** rides. It has never asserted that the clocks are equal.
 
 **The show clock is silent.** It never emits a `TransportIntent` and never pulses `hitEnd`: the bed
 wrapping is not a show event, and firing `onTimelineEnd` from it would advance the state machine behind

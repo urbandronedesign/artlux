@@ -97,9 +97,10 @@ let originMs = 0;
 // anchor cannot carry two times that are REQUIRED to diverge — and divergence is the whole point: a
 // scene recall mainSeeks the playhead to the scene's in-point, and the bed must not hear it.
 //
-// WHILE THE GLOBAL DOCUMENT IS BOUND THE TWO ARE THE SAME NUMBER. That identity is maintained inside
-// seek() and setPlaying() by isGlobalDocBound() — see the long note there; it is NOT the same question
-// as `activeKey === GLOBAL_POOL`.
+// WHILE GLOBAL IS BOUND (the pill) THE TWO ARE THE SAME NUMBER. That identity is maintained by seek(),
+// which tests clocksCoincident() — and NOT isGlobalDocBound(), which is a question about the DOCUMENT and
+// is true in a state where the clocks are deliberately MINUTES apart (a scene with no timeline of its own).
+// Both predicates exist, both are correct for their own question, and swapping them is a bug: read them.
 //
 // THE SHOW CLOCK IS SILENT. It NEVER emits a TransportIntent and NEVER pulses hitEnd: the bed wrapping
 // is not a show event, and firing 'onTimelineEnd' off it would advance the state machine behind the
@@ -353,6 +354,36 @@ function showAtEndBound(): boolean {
 // beside setBaseAutomation, which flushes BEFORE the setData effect, so the reference is never stale.
 function isGlobalDocBound(): boolean {
   return activeKey === GLOBAL_POOL || data === globalDoc;
+}
+
+// ARE THE TWO CLOCKS THE SAME NUMBER? A DIFFERENT QUESTION FROM isGlobalDocBound(), AND THE TWO ARE NOT
+// INTERCHANGEABLE — seek() used to ask the wrong one, and it restarted the bed.
+//
+// isGlobalDocBound() answers "WHICH DOCUMENT is bound" — which is exactly right for deciding which CLOCK a
+// LANE RIDES (a lane of the global doc is a BASE lane, so it rides the show clock, wherever that doc is
+// bound). It says NOTHING about the two clocks being EQUAL, and App.tsx says so in as many words at the
+// timelineBedProp gate.
+//
+// Under a TIMELINE-LESS SCENE (`const tl = scene.timeline ? … : timeline`, a supported legacy/imported
+// shape — types.ts: "absent → uses the shared global timeline") the global doc IS bound, under the scene's
+// pool key, via swap(scene.id, tl, {transport:'restart'}): mainSeek puts the PLAYHEAD back to 0 while
+// showClock defaults to 'preserve' and the bed rolls on. playhead = 0:00, showTime = 4:05 — DIVERGED, ON
+// PURPOSE (that divergence is the whole point of the show clock). isGlobalDocBound() is true there.
+//
+// So a seek gated on isGlobalDocBound() would drag showTime to a SCENE-RELATIVE number: an FSM `seek` /
+// `jumpMarker` entry action, or an OSC /transport/seek, on entry to such a state sets showTime := 10 — a
+// four-minute BACKWARD jump, which the audio driver reads as a seek (SEEK_THRESHOLD 0.2 s) and answers by
+// stopping every sounding bed clip and restarting it from 0:10. The 20-minute ambient bed jumps back to its
+// top on every entry to that state, forever, in an empty room. That is the bug the split exists to kill,
+// reached through the seek door.
+//
+// The clocks are coincident in exactly ONE state: the Global pill. It is the only one no restart-swap has
+// pulled apart ('reconverge' snaps the playhead onto the show clock on the way in; both clocks then run off
+// the same wall clock against the same document bounds, so they stay equal). It is also the condition the
+// mixer's own seek lock already uses (AudioBedPanel: `sceneBound = activeSceneId != null`) and the condition
+// App uses to decide whether the bed's lanes may be DRAWN against the ruler at all. Same rule, one place.
+function clocksCoincident(): boolean {
+  return activeKey === GLOBAL_POOL;
 }
 
 // Is the transport PARKED AT THE END (loop off)? A position test, not the `endLatched` flag — see the
@@ -926,16 +957,19 @@ export const timeline = {
       return;
     }
     mainSeek(clamped); // don't fire FSM crossings across a deliberate jump
-    // THE IDENTITY. While the GLOBAL DOCUMENT is bound, showTime IS the playhead — so every seek moves
-    // both, and a ruler scrub, an OSC /transport/seek, the Home key, an AutomationLane click-to-seek and
-    // the Stop button all stay coherent without any of them knowing the show clock exists. While a
-    // SCENE'S OWN timeline is bound the two have diverged on purpose: seeking the scene must not move the
-    // bed.
+    // THE IDENTITY. While the two clocks ARE THE SAME NUMBER, a seek moves both — so a ruler scrub, an OSC
+    // /transport/seek, the Home key, an AutomationLane click-to-seek and the Stop button all stay coherent
+    // without any of them knowing the show clock exists. Once they have DIVERGED, a seek moves the playhead
+    // only: seeking a scene must not move the bed.
     //
-    // isGlobalDocBound(), NOT `activeKey === GLOBAL_POOL`: a scene with no timeline of its own binds the
-    // GLOBAL doc under its own pool key, and the ruler being scrubbed there IS the global timeline — so a
-    // seek must take the bed with it, or the operator scrubs the picture and the sound stays put, on one
-    // and the same document.
+    // ⚠ clocksCoincident(), NOT isGlobalDocBound() — the full argument is on clocksCoincident() itself. The
+    // short version: isGlobalDocBound() asks WHICH DOCUMENT is bound, and a scene with NO TIMELINE OF ITS
+    // OWN binds the GLOBAL doc under its own pool key with transport:'restart' — playhead back to 0, show
+    // clock (correctly) preserved at 4:05. The doc is "bound"; the clocks are four minutes apart. Gating on
+    // the DOCUMENT there would hurl showTime to a scene-relative number and hard-restart the 20-minute bed
+    // on every entry to that state. The clocks are equal in exactly one state — the Global pill — and that
+    // is what clocksCoincident() means. (isGlobalDocBound() keeps its own, correct job: which clock a LANE
+    // rides — see compileAutomation.)
     //
     // It has to be HERE, not in App: Timeline.tsx's seekTo() calls engine.seek() DIRECTLY (it does not go
     // through the TransportIntent funnel), so a rule living only in App's seek handler would let a ruler
@@ -943,7 +977,7 @@ export const timeline = {
     //
     // `!external`: a projector that is NOT hapLocal falls through the mirror arm above into mainSeek, and
     // a mirror has no show clock at all. Guard it here rather than relying on the early return.
-    if (!external && isGlobalDocBound()) showSeekInternal(clamped);
+    if (!external && clocksCoincident()) showSeekInternal(clamped);
   },
   getPlayhead(): number { return playhead; },
   // The document's "Length" — guarded, so junk (NaN / "10" / null) can't leak out to a plugin status
