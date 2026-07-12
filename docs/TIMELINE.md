@@ -70,14 +70,20 @@ SmTrigger   { kind: manual|afterDelay|atTime|onMarker|onClipEnd|onTimelineEnd, s
 SmState     { id, name, x, y, entry: SmAction[] }
 SmTransition{ id, from, to, trigger: SmTrigger }
 StateMachine{ enabled, states[], transitions[], initialStateId }
+AudioSpatial{ x, y, z, order? }                              // absent on a clip ⇒ non-spatial
 AudioClip   { id, trackId, name, path, start, duration, inPoint, sourceDuration?, gain?, mute?,
-              fadeIn?, fadeOut?, position?, effects? }
-AudioTrack  { id, name, busId?, gain?, mute?, solo?, height?, color? }
+              fadeIn?, fadeOut?, spatial?: AudioSpatial, effects? }
+AudioTrack  { id, name, busId?, gain?, mute?, solo?, color? }   // NO height: audio lanes are a constant
 TimelineAudio { tracks: AudioTrack[], clips: AudioClip[] }
 Timeline    { layers, clips, duration, fps?, markers?, inPoint?, outPoint?, loop?, trackingTakes?,
               automation?, audio?, boundedDuration?, stateMachine? /* @deprecated → ProjectData */ }
 ```
 
+- The spatial field is **`spatial`**, not `position`. It is also the automation leaf: a clip's fadeable
+  paths are `audio.clip.<id>.gain`, `audio.clip.<id>.spatial.{x,y,z}` and `audio.clip.<id>.fx.<id>.<param>`
+  (`AUDIO_FADEABLE_RE`, `services/paramPath.ts`). Any other spelling is a **silent** failure: the fade gate
+  rejects it (the cue snaps instead of gliding) and the provider has no such leaf (the write is a no-op, no
+  error, no log). Never hand-type an audio path — take it from `provider.enumerate()`, which is the catalog.
 - `VideoClip.inPoint` is the **source trim** (offset into the file). `Timeline.inPoint/outPoint` is a
   separate **timeline range** that narrows the timeline's own start/end (see below) — it now bounds
   playback whether `loop` is on or off, not only when looping.
