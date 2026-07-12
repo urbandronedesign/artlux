@@ -44,6 +44,12 @@ src/renderer/public/mediapipe/
 # Generated documentation bundle (rebuild with `npm run docs:html`)
 docs/user-guide/artlux-user-guide.html
 
+# Throwaway verification harnesses (standalone Node frame-simulations of the engine clock, etc.).
+# There is no test runner in this repo, so subtle timing changes are PROVED with a sim that re-implements
+# the branch bodies and steps a fake `now`; the sim is a scratch artifact, its OUTPUT goes in the commit
+# message and the task report. Never committed — it would rot against the code it mirrors.
+scratch/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
