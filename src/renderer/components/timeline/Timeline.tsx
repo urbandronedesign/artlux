@@ -93,20 +93,6 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   const [pages, setPages] = useState(0); // infinite-timeline growth: content spans (pages+1) PAGE_SECS at least
   const [smEditorOpen, setSmEditorOpen] = useState(false);
 
-  // Mirror the selection into the render-free store a plugin panel (the audio mixer's clip inspector)
-  // subscribes to through host.show. An EFFECT, not a call inside setSelected: an updater is invoked
-  // twice under StrictMode and may be replayed, while an effect commits exactly once per committed
-  // selection. The store itself is idempotent, so a re-render with an unchanged selection wakes nobody.
-  // Nothing here enters the `Timeline` data type or App state — the selection stays ephemeral.
-  useEffect(() => {
-    if (!selected) { selection.setSelection(null); return; }
-    if (selectedSource === 'video') selection.setSelection({ kind: 'clip', id: selected });
-    else selection.setSelection({ kind: 'audioClip', id: selected, source: selectedSource });
-  }, [selected, selectedSource]);
-  // Unmounting the panel (dock ↔ fullscreen, or the timeline tab being left) must not strand a stale
-  // selection in a mixer that outlives it — an inspector would keep offering to edit a clip nobody can see.
-  useEffect(() => () => { selection.setSelection(null); }, []);
-
   const layers = timeline.layers;
   const dur = timeline.duration;
   const fps = timeline.fps ?? 30;
@@ -116,6 +102,36 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   const bedClips = audioProp?.mix.clips ?? [];
   const tlTracks = timelineAudioTracks(timeline);
   const tlClips = timelineAudioClips(timeline);
+
+  // Mirror the selection into the render-free store a plugin panel (the audio mixer's clip inspector)
+  // subscribes to through host.show. An EFFECT, not a call inside setSelected: an updater is invoked
+  // twice under StrictMode and may be replayed, while an effect commits exactly once per committed
+  // selection. The store itself is idempotent, so a re-render with an unchanged selection wakes nobody.
+  // Nothing here enters the `Timeline` data type or App state — the selection stays ephemeral.
+  // It sits BELOW the two containers on purpose: they are in its dep array, and a dep array is evaluated
+  // during render, so reading them from above would be a temporal-dead-zone throw on the FIRST render.
+  //
+  // PUBLISH ONLY A RESOLVABLE SELECTION. `selected` OUTLIVES A DOCUMENT REBIND — see onAudioRemoveClip
+  // below, which exists precisely because of it: select an audio clip on scene A's lane, let the FSM or
+  // the scheduler recall scene B, and `selected`/`selectedSource` still name a clip that is in NO array of
+  // the now-bound document. The on-screen highlight is already gone (AudioLane gets a selectedId it cannot
+  // match), but an unfiltered channel would keep telling a mixer that clip is live — and any edit it made
+  // would fire onChange(timeline) → setData → warmMedia + pruneStaleLayers + compileAutomation + a
+  // structured-clone postMessage to every projector port, on the bound document of a running show, for a
+  // change that lands nowhere. Filtering HERE fixes it once, instead of in every consumer that will ever
+  // subscribe. The store is idempotent, so the widened deps add zero wakeups.
+  useEffect(() => {
+    if (!selected) { selection.setSelection(null); return; }
+    if (selectedSource === 'video') {
+      selection.setSelection(timeline.clips.some(c => c.id === selected) ? { kind: 'clip', id: selected } : null);
+      return;
+    }
+    const pool = selectedSource === 'bed' ? bedClips : tlClips;
+    selection.setSelection(pool.some(c => c.id === selected) ? { kind: 'audioClip', id: selected, source: selectedSource } : null);
+  }, [selected, selectedSource, timeline.clips, bedClips, tlClips]);
+  // Unmounting the panel (dock ↔ fullscreen, or the timeline tab being left) must not strand a stale
+  // selection in a mixer that outlives it — an inspector would keep offering to edit a clip nobody can see.
+  useEffect(() => () => { selection.setSelection(null); }, []);
   // Infinite timeline: content width grows with the furthest content end AND the explored viewport
   // (pages bumped imperatively as the playhead/scroll approaches the right edge — never per frame).
   //

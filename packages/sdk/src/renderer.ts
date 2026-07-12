@@ -354,10 +354,26 @@ export interface ShowService<SM = unknown, Scene = unknown, Bank = unknown, Entr
   // timeline's own audio (Timeline.audio) can hold the same clip id, and the two commit through different
   // host calls at very different costs. An inspector that guessed would write to the wrong document.
   //
+  // THE UNION IS DISCRIMINATED ON PURPOSE — do not flatten it to `source?: 'bed' | 'timeline'`. With an
+  // OPTIONAL `source`, narrowing on `kind === 'audioClip'` still leaves `'bed' | 'timeline' | undefined`,
+  // and the natural `s.source ?? 'bed'` fallback COMPILES CLEAN while sending a scene-timeline clip's edit
+  // down the bed's commit path (host.audio.setMix). That mis-gains the bed — which survives every scene
+  // recall — permanently, under a live show. The type must make the guess unrepresentable, not merely
+  // discouraged by the paragraph above.
+  //
+  // THE ID RESOLVES IN THE BOUND DOCUMENT. The publisher (Timeline.tsx) filters the selection against the
+  // container it currently holds, so a selection that outlives a document rebind (select a clip on scene
+  // A's audio lane, recall scene B) is published as `null` rather than as an id that is in no clip. A
+  // consumer should still render nothing when a lookup misses — the bound document can change between the
+  // notification and the read — but it will not be handed a permanently dangling id to write through.
+  //
   // `subscribeSelection` fires immediately on subscribe (a panel opened mid-show sees the live selection)
   // and then only on a CHANGE — the store is idempotent, so a re-rendering Timeline does not spam it.
   // A window with no editor state (projector) always reads null and never fires.
-  getSelection(): { kind: 'clip' | 'audioClip'; id: string; source?: 'bed' | 'timeline' } | null;
+  getSelection():
+    | { kind: 'clip'; id: string }
+    | { kind: 'audioClip'; id: string; source: 'bed' | 'timeline' }
+    | null;
   subscribeSelection(cb: () => void): () => void;
   // Command surface — the host wires these to the same cueBus/timeline singletons OSC uses, so a
   // remote drives the show through the identical path (App stays the single writer of `playing`).

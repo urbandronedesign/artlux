@@ -30,11 +30,22 @@ const same = (a: TimelineSelection, b: TimelineSelection): boolean => {
 export function setSelection(s: TimelineSelection): void {
   if (same(current, s)) return;   // idempotent: Timeline re-renders constantly and must not spam the mixer
   current = s;
-  subs.forEach(cb => cb(current));
+  // ISOLATE THE SUBSCRIBERS. The house buses (cueBus, stateMachine, timeline) notify bare, but every one of
+  // those is core waking core. This is the first store whose subscribers are THIRD-PARTY PLUGIN code and
+  // whose notify site is a React effect — a subscriber that throws would propagate synchronously out of
+  // setSelection, out of Timeline's effect, and with no ErrorBoundary above Timeline React 19 unmounts the
+  // whole root: clicking a clip BLANKS THE EDITOR, in a venue, with nobody there. A bad plugin may break
+  // itself; it may not take the show's editor down with it.
+  subs.forEach(cb => {
+    try { cb(current); } catch (e) { console.error('[selection] subscriber threw', e); }
+  });
 }
 export function getSelection(): TimelineSelection { return current; }
 export function subscribe(cb: (s: TimelineSelection) => void): () => void {
   subs.add(cb);
-  cb(current);                    // fire immediately, so a panel opened mid-show sees the live selection
+  // Fire immediately, so a panel opened mid-show sees the live selection — guarded for the same reason the
+  // notify loop above is: this one runs inside the SUBSCRIBING panel's effect, where a throw is just as
+  // fatal to the root.
+  try { cb(current); } catch (e) { console.error('[selection] subscriber threw', e); }
   return () => { subs.delete(cb); };
 }
