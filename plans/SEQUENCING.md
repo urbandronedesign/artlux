@@ -165,6 +165,35 @@ test). Only the wave-independent ones are written ahead.
 | Wiring Rescue · Hello Projector · Patch & Prove (autopatch) | Wave 2 | fixture-segments · content-source + projector-blend · autopatch |
 | Audio tutorial · Motion-Graphics audio chapter | Wave 3 | the audio subsystem |
 
+## ⛔ THE WAVE 3 MERGE GATE — what must be true before `wave-3-audio` → `main`
+
+Wave 3 is the largest wave to date and the only one that adds a **non-Rust native module**. It is fully
+implemented and adversarially reviewed, and **it is not mergeable yet.** Four things must be true. Nothing
+else is on the critical path; everything else is post-merge.
+
+| # | Gate | Why it blocks the merge | Status |
+|---|------|--------------------------|--------|
+| **1** | **The build system builds the audio engine** | `npm run build:native` is **cargo-only**. The JUCE addon has only ever been built by hand (`cd native/audio-engine && npx cmake-js build`). CI runs `build:native`, so it doesn't build it either — and `extraResources` doesn't ship it. The loader **graceful-degrades silently**, so the app starts, the whole audio UI renders, and there is no sound and no error. **CI fires on `v*` tags and its release job publishes installers: tag `v0.22.0` today and you ship a complete audio UI with no sound in it.** Merging to `main` a tree that cannot build its own headline feature is the definition of a broken build system. | ⏳ in progress |
+| **2** | **It is documented** | `docs/DEVELOPMENT.md:32,:41` and `CLAUDE.md:55` all say `build:native` "builds both Rust crates" — wrong twice over (there are three, and the JUCE engine is not one of them). A fresh clone gets a silent app and no way to know why. Must also carry the two traps: `cargo` is not on PATH by default, and **the dev app must be CLOSED for any native rebuild** (a running app locks `audio_engine.node`, the link fails with LNK1104, and it *silently leaves the stale `.node` in place*, so a working fix looks broken). | ⏳ in progress |
+| **3** | **The live smoke test passes** | Wave B is code-complete, all four gates green, and adversarially reviewed to a verdict of *sound for an unattended installation* — but **no human has run it.** The tests that actually prove the wave are in [the Wave B plan](../docs/superpowers/plans/2026-07-12-audio-scoping-wave-b.md) §Verification. The one that matters most: a long bed + three scenes, GO between them, **the bed must not restart**. | ⏳ **user** |
+| **4** | **The JUCE / libspatialaudio licensing call is made** | JUCE is free under **$20k/yr revenue**; above it, **$800 perpetual Indie** — otherwise it is **AGPL, which is viral**. libspatialaudio is **LGPL-2.1** (dynamic-link or comply). This does not block the *merge*; it blocks the **first tag after audio is packaged**, which gate 1 makes possible. Decide it before it ambushes a release. Record the obligations in `README.md` / `NOTICE`. | ⏳ **user** |
+
+**What is NOT a merge blocker** (deliberately — do not let these grow into one):
+- **Wave 4** (undo → error containment). Pre-existing gaps, not Wave 3 regressions.
+- **P6** (multichannel/ASIO hardening, speaker layouts, headless audio wiring). Wave 3 ships stereo + binaural.
+- The two loose bugs Wave 4's grounding found (`IPC.WINDOW_COMMAND` is sender-blind → **the docs window's close
+  button closes the main editor window**; the two menus have already diverged).
+- The webgl-strict **Phase 2** decision (long-standing, gates two Wave 2 plans).
+
+### After the merge, in this order
+1. **Wave 4 — renderer robustness** (`timeline-undo` → `renderer-error-containment`). **The highest-value item
+   in the entire backlog for an unattended install: the watchdog cannot see a white screen.** A first-render
+   throw means the heartbeat never fires, so the watchdog never arms, and the venue sits dead until someone
+   drives there.
+2. **P6** — multichannel hardening (ASIO, speaker layouts) + headless audio wiring.
+3. The two loose bugs above, and the webgl-strict Phase 2 decision.
+4. **MIDI control** (independent, parallel-safe at any point).
+
 ## Verification gate (what "done, ready to test" means, per wave)
 
 Before I hand a wave to you:
