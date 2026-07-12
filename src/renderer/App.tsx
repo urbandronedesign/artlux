@@ -1471,11 +1471,22 @@ const App: React.FC = () => {
       triggerTransition: (id) => timelineEngine.triggerSmTransition(id),
       enterState: (id) => timelineEngine.enterSmState(id),
     },
-    // Global audio bed for the plugins/audio bed player (reads the live ref; fires on change) and its
-    // authoring UI (setMix replaces the bed; normalized on write like the load path).
+    // TWO AUDIO CONTAINERS, TWO CLOCKS (see docs/TIMELINE.md).
+    //   getMix()           — ProjectData.audio, THE BED. Rides the SHOW clock. Survives a scene recall.
+    //                        Reads the live ref; setMix replaces it, normalized on write like the load path.
+    //   getTimelineAudio() — the BOUND timeline's own Timeline.audio. Rides the PLAYHEAD, restarts with it.
+    //                        Read from the ENGINE, not from a render-assigned ref: a recall repoints the
+    //                        engine and mainSeeks the playhead SYNCHRONOUSLY, inside the frame whose React
+    //                        commit has not happened yet, and the audio driver ticks in that same frame.
+    //                        A ref would hand it the OUTGOING scene's clips against the INCOMING scene's
+    //                        playhead for a frame or two — a clip at t=0 would restart from its top: an
+    //                        audible click on every GO. See timeline.getBoundAudio()'s comment.
+    // Both re-fire the same `subscribe` set, so the driver re-syncs (loads/unloads sources) on either
+    // changing.
     audio: {
       getMix: () => audioMixRef.current,
       setMix: (mix) => setAudioMix(normalizeAudioMix(mix as Partial<AudioMix>)),
+      getTimelineAudio: () => timelineEngine.getBoundAudio() ?? { tracks: [], clips: [] },
       subscribe: (cb) => { audioSubs.current.add(cb); return () => { audioSubs.current.delete(cb); }; },
     },
   }), []);
@@ -1483,7 +1494,12 @@ const App: React.FC = () => {
   useEffect(() => { sceneSubs.current.forEach(cb => cb()); }, [scene3D]);
   useEffect(() => { settingsSubs.current.forEach(cb => cb()); }, [settings]);
   useEffect(() => { showSubs.current.forEach(cb => cb()); }, [scenes, cueBanks, stateMachine, schedule]);
-  useEffect(() => { audioSubs.current.forEach(cb => cb()); }, [audioMix]);
+  // The audio host fan-out fires on EITHER container changing: the bed (audioMix) or the BOUND timeline's
+  // own audio (activeTimeline). A scene recall changes activeTimeline, so the driver re-reads the incoming
+  // scene's audio and unloads the outgoing one's — which is exactly the restart-with-its-timeline
+  // semantics. (The driver re-reads the CONTAINER every frame; this fan-out is what makes it load and
+  // unload the engine-resident SOURCES. Both are needed.)
+  useEffect(() => { audioSubs.current.forEach(cb => cb()); }, [audioMix, activeTimeline]);
   // Track the live FSM state id + last-fired transition for the host `show.getStatus()` readback.
   useEffect(() => {
     const u1 = timelineEngine.subscribeSmState((id) => { currentSmStateRef.current = id; });

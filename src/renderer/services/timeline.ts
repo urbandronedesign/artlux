@@ -4,7 +4,7 @@ import * as contentSource from './contentSource';
 import { clipKindRegistry, videoCodecRegistry } from '../host/registries';
 import { automationTargetRegistry } from '../host/registries';
 import { sampleLane, type Cursor } from './automation';
-import type { AutomationLane, Keyframe } from '../types';
+import type { AutomationLane, Keyframe, TimelineAudio } from '../types';
 import type { AutomationTargetProvider } from '@artlux/sdk/renderer';
 import type { VideoCodecContribution } from '@artlux/sdk/renderer';
 import * as fsm from './stateMachine';
@@ -951,6 +951,22 @@ export const timeline = {
   getDuration(): number { return timelineDuration(data); },
   getEnd(): number { return timelineEnd(data); },
   getStart(): number { return timelineStart(data); },
+  // THE BOUND DOCUMENT'S OWN AUDIO — the container that rides the PLAYHEAD (unlike the bed, which rides
+  // the show clock). Read from `data`, i.e. from the ENGINE, NOT from React state, and that is the whole
+  // point of it existing:
+  //
+  //   A scene recall runs SYNCHRONOUSLY inside one rAF frame — swap() repoints `data` and mainSeeks the
+  //   playhead to the scene's in-point, and the audio driver's tick runs later IN THAT SAME FRAME (it is
+  //   a `subs` callback). App's `activeTimeline` is React state and does not exist until the commit, a
+  //   frame or more later. A driver reading the bound audio through a render-assigned ref would therefore
+  //   spend that frame reconciling the OUTGOING document's clips against the INCOMING document's playhead
+  //   — and since a recall lands the playhead on the scene's in-point (usually 0), an outgoing clip that
+  //   starts at 0 would be START-ED, from its top, for one or two frames, before syncLoaded caught up and
+  //   unloaded it. An audible click on every single GO. Sourcing it from `data` closes that window by
+  //   construction: the doc and the playhead always move together, because swap() moves both.
+  //
+  // May be undefined (a project saved before Timeline.audio existed) — the caller defaults it.
+  getBoundAudio(): TimelineAudio | undefined { return data.audio; },
   // The GLOBAL timeline document. `data` is always the BOUND doc, so this is the engine's only handle on
   // the global one — and the SHOW clock is bounded by it. Pushed by App on every global-timeline change.
   //

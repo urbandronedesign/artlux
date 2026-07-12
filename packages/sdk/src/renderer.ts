@@ -361,10 +361,20 @@ export interface ShowService<SM = unknown, Scene = unknown, Bank = unknown, Entr
 // bed player (plugins/audio) subscribes here and re-reads getMix() on change. Generic over the host
 // domain type (opaque here — the SDK never imports src/renderer/types.ts); App satisfies it structurally
 // with the real AudioMix.
-export interface AudioService<Mix = unknown> {
+//
+// TWO AUDIO CONTAINERS, TWO CLOCKS (see docs/TIMELINE.md and getStatus() above):
+//   getMix()           — ProjectData.audio, THE BED. Rides the SHOW clock. Survives a scene recall.
+//   getTimelineAudio() — the BOUND timeline's own Timeline.audio. Rides the PLAYHEAD, restarts with it.
+// The clock follows the CONTAINER, not the panel it happens to be drawn in.
+export interface AudioService<Mix = unknown, TlAudio = unknown> {
   getMix(): Mix;
   setMix(mix: Mix): void;                 // replace the bed (host normalizes) — the bed-authoring UI writes here
-  subscribe(cb: () => void): () => void;  // fires when the audio bed changes
+  /** The BOUND timeline's own audio ({tracks, clips}) — plays on the PLAYHEAD and restarts with its
+   *  timeline, unlike the bed. Reads the ENGINE's bound document, not React state, so it is correct on
+   *  the very frame a recall repoints the engine (App re-renders a frame later). Re-read on every
+   *  `subscribe` fire — and, in the driver, on every frame. */
+  getTimelineAudio(): TlAudio;
+  subscribe(cb: () => void): () => void;  // fires when EITHER container changes (the bed, or the bound timeline)
 }
 
 export interface RendererHostServices {
