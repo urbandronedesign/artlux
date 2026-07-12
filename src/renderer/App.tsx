@@ -38,7 +38,7 @@ import { dmxSignal } from './services/dmxSignal';
 import { perfMonitor } from './services/perfMonitor';
 import { getDrawable } from './services/surfaceMedia';
 import { timeline as timelineEngine, GLOBAL_POOL } from './services/timeline';
-import { usageForPath } from './services/assetLibrary';
+import { usageForPath, normPath, type ProjectRefs } from './services/assetLibrary';
 import { setCoreStateView } from './services/automationTargets.core';
 import * as timelinePreloader from './services/timelinePreloader';
 import { nextAccent, GLOBAL_ACCENT } from './sceneAccent';
@@ -197,6 +197,19 @@ const App: React.FC = () => {
     () => [timeline, ...scenes.map(s => s.timeline).filter((t): t is Timeline => !!t)],
     [timeline, scenes],
   );
+  // EVERY place an asset path can live, in one memo — the input to asset-usage counting (the badge in
+  // Media/AssetManager, the delete confirmation, and Relink's reference count). It must span the LIVE
+  // doc AND every captured scene's snapshot AND the audio bed: `count === 0` is what makes
+  // handleRemoveAsset skip its confirm dialog entirely, so a reference this list can't see is an asset
+  // deleted with no warning while it is still on air. Ids repeat across scenes (Capture Scene aliases
+  // them) — usageIndex dedupes with a Set. Memoized because MediaPanel is an always-mounted sidebar
+  // that rebuilds the index on every App state change.
+  const projectRefs = useMemo<ProjectRefs>(() => ({
+    surfaces: [surfaces, ...scenes.map(s => s.surfaces ?? [])].flat(),
+    scene3D: [scene3D, ...scenes.map(s => s.scene3D)],
+    timelines: allTimelines,
+    audioClips: audioMix.clips,
+  }), [surfaces, scenes, scene3D, allTimelines, audioMix]);
   // Live mirrors for []-deps engine subscriptions (FSM look-ahead preload) — see below.
   const scenesRef = useRef(scenes); scenesRef.current = scenes;
   const cueBanksRef = useRef(cueBanks); cueBanksRef.current = cueBanks;
@@ -1063,10 +1076,10 @@ const App: React.FC = () => {
   // from trackingTakes (and any clips referencing it). References to imported assets are left as-is.
   const handleRemoveAsset = (asset: AssetEntry) => {
       const usedTake = asset.type === 'take';
-      // Count references the SAME way the library badges do — across every timeline, not just the global
-      // one. This hand-rolled count used to scan `timeline.clips` alone, so an asset used only inside a
-      // scene's timeline was offered for deletion with no warning at all.
-      const refs = usageForPath(asset.path, { surfaces, scene3D, timelines: allTimelines }).count;
+      // Count references the SAME way the library badges do — across every surface list (live + each
+      // scene's look snapshot), every scene3D, every timeline and the audio bed. `refs === 0` short-
+      // circuits the confirm below, so anything this count can't see is deleted with no warning at all.
+      const refs = usageForPath(asset.path, projectRefs).count;
       if (refs > 0 && !window.confirm(`"${asset.name}" is used in ${refs} place(s). Remove it from the library anyway?`)) return;
       if (usedTake) {
           setTimeline(t => ({ ...t, trackingTakes: (t.trackingTakes ?? []).filter(r => r.id !== asset.id), clips: t.clips.filter(c => c.takeId !== asset.id) }));
@@ -1074,8 +1087,16 @@ const App: React.FC = () => {
           setAssets(prev => prev.filter(a => a.id !== asset.id));
       }
   };
-  // Relink: pick a replacement file (copied into assets/) and rewrite this asset + every reference
-  // at the old path to point at the new one.
+  // Relink: pick a replacement file (copied into assets/) and rewrite EVERY reference at the old path
+  // to point at the new one.
+  //
+  // "Every" is the whole job, and it used to mean only the live surfaces, the live scene3D and the
+  // GLOBAL timeline — there was no setScenes() anywhere in here. Scene timelines, scene LOOK snapshots
+  // (`scene.surfaces`) and scene 3D models kept the dead path, and handleRecallScene writes
+  // `scene.surfaces` straight back over the live ones — so the relink SILENTLY REVERTED itself on the
+  // next scene recall (under an FSM, within seconds), then persisted the dead path on the next save,
+  // and the clip played black. The reference count in both dialogs was computed the same partial way,
+  // so it under-reported too. Both now go through the same reference model the library badges use.
   const handleRelinkAsset = async (asset: AssetEntry) => {
       if (!currentProjectPath) return;
       const picked = await window.artlux?.importAssets?.(currentProjectPath, asset.type);
@@ -1083,24 +1104,34 @@ const App: React.FC = () => {
       if (!next) return;
       const oldPath = asset.path, newPath = next.path;
       const fileName = (p: string) => p.replace(/\\/g, '/').split('/').pop();
-      const refCount = asset.type === 'take'
-          ? timeline.clips.filter(c => c.path === oldPath || c.takeId === asset.id).length
-          : surfaces.filter(s => (s.content as { url?: string })?.url === oldPath).length
-              + timeline.clips.filter(c => c.path === oldPath).length
-              + (scene3D.models ?? []).filter(m => m.path === oldPath).length;
+      // The TRUE count — deduped exactly like the badge (Capture Scene aliases ids across scenes, so a
+      // raw tally would multiply one authored reference by the number of scenes it was cloned into).
+      const refCount = usageForPath(oldPath, projectRefs).count;
       if (!window.confirm(`Relink "${asset.name}"\n\nfrom:  ${fileName(oldPath)}\nto:    ${fileName(newPath)}\n\nThis updates ${refCount} reference${refCount === 1 ? '' : 's'} and can't be undone. Continue?`)) return;
-      if (asset.type === 'take') {
-          setTimeline(t => ({
-              ...t,
-              trackingTakes: (t.trackingTakes ?? []).map(r => r.id === asset.id ? { ...r, path: newPath } : r),
-              clips: t.clips.map(c => c.path === oldPath ? { ...c, path: newPath } : c),
-          }));
-      } else {
-          setAssets(prev => prev.map(a => a.id === asset.id ? { ...a, path: newPath, size: next.size } : a));
-          setSurfaces(prev => prev.map(s => ((s.content as { url?: string })?.url === oldPath ? { ...s, content: { ...s.content, url: newPath } } : s)));
-          setTimeline(t => ({ ...t, clips: t.clips.map(c => c.path === oldPath ? { ...c, path: newPath } : c) }));
-          setScene3D(s => ({ ...s, models: (s.models ?? []).map(m => m.path === oldPath ? { ...m, path: newPath } : m) }));
-      }
+      // Path equality is normalised (Windows backslashes + case), the same rule the usage count above
+      // matched with — or the count and the rewrite could disagree about what "the old path" is.
+      const isOld = (p: string | undefined | null): boolean => !!p && normPath(p) === normPath(oldPath);
+      const relinkSurfaces = (ss: Surface[]): Surface[] =>
+          ss.map(s => (isOld((s.content as { url?: string })?.url) ? { ...s, content: { ...s.content, url: newPath } } : s));
+      const relinkScene3D = (s: Scene3D): Scene3D =>
+          ({ ...s, models: (s.models ?? []).map(m => isOld(m.path) ? { ...m, path: newPath } : m) });
+      const relinkTimeline = (t: Timeline): Timeline => ({
+          ...t,
+          clips: t.clips.map(c => isOld(c.path) ? { ...c, path: newPath } : c),
+          // Takes are matched by id as well: a take's library entry IS its trackingTakes row.
+          trackingTakes: (t.trackingTakes ?? []).map(r => (r.id === asset.id || isOld(r.path)) ? { ...r, path: newPath } : r),
+      });
+      setAssets(prev => prev.some(a => a.id === asset.id) ? prev.map(a => a.id === asset.id ? { ...a, path: newPath, size: next.size } : a) : prev);
+      setSurfaces(prev => relinkSurfaces(prev));
+      setScene3D(s => relinkScene3D(s));
+      setTimeline(t => relinkTimeline(t));                                  // the GLOBAL timeline
+      setScenes(prev => prev.map(s => ({                                    // every scene: look + own timeline
+          ...s,
+          surfaces: s.surfaces ? relinkSurfaces(s.surfaces) : s.surfaces,
+          scene3D: s.scene3D ? relinkScene3D(s.scene3D) : s.scene3D,
+          timeline: s.timeline ? relinkTimeline(s.timeline) : s.timeline,
+      })));
+      setAudioMix(m => ({ ...m, clips: m.clips.map(c => isOld(c.path) ? { ...c, path: newPath } : c) })); // the audio bed
       window.alert(`Relinked "${asset.name}" — ${refCount} reference${refCount === 1 ? '' : 's'} updated.`);
   };
   // Set the selected surface's content to a video/image asset.
@@ -1177,6 +1208,15 @@ const App: React.FC = () => {
   }, []);
 
   // --- Timeline: feed the playback engine + bridge transport/data to the projector windows ---
+  //
+  // ⚠ DECLARATION ORDER IS LOAD-BEARING: THIS EFFECT MUST STAY *BEFORE* THE `setPlaying` EFFECT BELOW.
+  // React flushes effects in declaration order within a commit. The engine's setData() guard
+  // (clampPlayheadIntoDoc — "a document edit must never synthesise a transport event") is gated on the
+  // engine's own `playing` still being TRUE, and it only still is because setData runs BEFORE
+  // setPlaying(false) in the same flush. Move this effect below the setPlaying one and the guard stops
+  // firing — SILENTLY, with no type error and no test to catch it: the raw end-stop takes over again,
+  // the playhead jumps live on the projectors and an 'onTimelineEnd' edge fires from a text edit.
+  // Do not reorder. (Mirrored note on the setPlaying effect.)
   useEffect(() => {
       // Feed the editor-bound timeline to the engine ONLY when it is the pool currently playing live —
       // i.e. the editor binding matches the engine's active pool. A live GO can make a scene's pool
@@ -1203,6 +1243,10 @@ const App: React.FC = () => {
   }), []);
   // Start the tracking-take replay loop once (main window only).
   useEffect(() => { trackingPlayback.start(); }, []);
+  // ⚠ DECLARATION ORDER IS LOAD-BEARING: THIS EFFECT MUST STAY *AFTER* THE `setData` EFFECT ABOVE.
+  // Effects flush in declaration order. The engine's setData guard needs the engine's `playing` to be
+  // still true when the new document lands, so setData has to run first in the flush. Hoisting this one
+  // above it kills that guard silently. See the full note on the setData effect.
   useEffect(() => { timelineEngine.setPlaying(isVideoPlaying); }, [isVideoPlaying]);
   // The FSM control layer drives transport by emitting intents; App turns them into React state so
   // App stays the single writer of `playing` (the setPlaying effect above then drives the engine).
@@ -1799,7 +1843,7 @@ const App: React.FC = () => {
               <div className="flex-1 min-h-0">
                 {leftTab === 'media' ? (
                   <MediaPanel
-                    assets={assets} timeline={timeline} timelines={allTimelines} surfaces={surfaces} scene3D={scene3D}
+                    assets={assets} timeline={timeline} refs={projectRefs}
                     selectedSurfaceId={selectedSurfaceId} hasProjectFolder={!!currentProjectPath}
                     onImport={handleImportAssets} onRemoveAsset={handleRemoveAsset}
                     onRelinkAsset={handleRelinkAsset} onUseOnSurface={handleUseAssetOnSurface}
@@ -2182,8 +2226,8 @@ const App: React.FC = () => {
       )}
 
       <AssetManager
-        open={assetManagerOpen} onClose={() => setAssetManagerOpen(false)} timelines={allTimelines}
-        assets={assets} timeline={timeline} surfaces={surfaces} scene3D={scene3D}
+        open={assetManagerOpen} onClose={() => setAssetManagerOpen(false)} refs={projectRefs}
+        assets={assets} timeline={timeline}
         selectedSurfaceId={selectedSurfaceId} hasProjectFolder={!!currentProjectPath}
         onImport={handleImportAssets} onRemoveAsset={handleRemoveAsset} onRelinkAsset={handleRelinkAsset}
         onUseOnSurface={handleUseAssetOnSurface} onSelectSurface={handleSelectSurface}

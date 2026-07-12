@@ -1,16 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Film, Image as ImageIcon, Box, Music, FolderOpen, Link2, Trash2, Maximize2, MonitorPlay, Search } from 'lucide-react';
-import { AssetEntry, AssetType, Surface, Timeline } from '../types';
-import type { Scene3D } from '../../../shared/protocol';
+import { AssetEntry, AssetType, Timeline } from '../types';
 import { AssetChip } from './AssetChip';
-import { libraryItems, usageIndex, normPath } from '../services/assetLibrary';
+import { libraryItems, usageIndex, normPath, type ProjectRefs } from '../services/assetLibrary';
 
 interface Props {
   assets: AssetEntry[];
   timeline: Timeline;      // the GLOBAL doc — the take library lives on it (libraryItems)
-  timelines: Timeline[];   // EVERY timeline (global + each scene's) — usage counting must see them all
-  surfaces: Surface[];
-  scene3D?: Scene3D | null;
+  // EVERY place a path can be referenced (live + every scene's snapshot + every timeline + the audio
+  // bed). Built once in App; usage counting must see all of it or the badge under-reports and the
+  // delete confirmation never fires.
+  refs: ProjectRefs;
   selectedSurfaceId: string | null;
   hasProjectFolder: boolean;
   onImport: (type: AssetType) => void;
@@ -24,7 +24,7 @@ type Filter = 'all' | AssetType;
 
 // Left-sidebar media library. Lists imported assets + recorded takes; drag a tile onto the Stage
 // or the Timeline to place it. Import copies files into the project's assets/ folder.
-export const MediaPanel: React.FC<Props> = ({ assets, timeline, timelines, surfaces, scene3D, selectedSurfaceId, hasProjectFolder, onImport, onRemoveAsset, onRelinkAsset, onUseOnSurface, onOpenManager }) => {
+export const MediaPanel: React.FC<Props> = ({ assets, timeline, refs, selectedSurfaceId, hasProjectFolder, onImport, onRemoveAsset, onRelinkAsset, onUseOnSurface, onOpenManager }) => {
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -54,7 +54,7 @@ export const MediaPanel: React.FC<Props> = ({ assets, timeline, timelines, surfa
   // One index built per render (not one usageForPath() scan per asset) — MediaPanel is an
   // always-mounted sidebar, so this recomputes on every App state change; Capture Scene cloning the
   // timeline into each scene made the per-asset scan cost scale with (1 + #scenes).
-  const usage = useMemo(() => usageIndex({ surfaces, scene3D, timelines }), [surfaces, scene3D, timelines]);
+  const usage = useMemo(() => usageIndex(refs), [refs]);
   const usageOf = (a: AssetEntry) => usage.get(normPath(a.path))?.count ?? 0;
 
   const chip = (label: string, value: Filter, icon?: React.ReactNode) => (

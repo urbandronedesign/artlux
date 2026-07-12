@@ -61,12 +61,19 @@ export const AutomationTargetPicker: React.FC<Props> = ({ taken, anchor, onPick,
     return [...byGroup.entries()];
   }, [q]);
 
+  // BOTH LAYERS SIT ON THE `popover` TIER, not on local z-40/z-50. The portal above moves this out of
+  // the timeline panel and into the ROOT stacking context, where App's own overlays live — and the
+  // maximised-timeline wrapper is `fixed inset-0 z-50` there. A z-40 backdrop loses to it outright: the
+  // popover could not be dismissed (the backdrop was UNDER the wrapper) and the dismissal click fell
+  // through onto the timeline and seeked/scrubbed/deselected instead. F-maximise is the most likely
+  // place to author automation, so that was the common case. The box is painted over the backdrop by DOM
+  // order (equal z, later sibling wins) — keep it second.
   return createPortal(
     <>
-      <div className="fixed inset-0 z-40" onClick={onClose} />
+      <div className="fixed inset-0 z-popover" onClick={onClose} />
       <div
         ref={boxRef}
-        className="fixed z-50 flex flex-col rounded-lg border border-line-2 bg-surface-1 shadow-e3"
+        className="fixed z-popover flex flex-col rounded-lg border border-line-2 bg-surface-1 shadow-e3"
         style={{ left: pos.left, top: pos.top, width: W, maxHeight: MAX_H }}
         // The portal removes us from the scroller's DOM subtree (which kills the native wheel-zoom
         // listener). This stops React's SYNTHETIC wheel from travelling the React tree as well.

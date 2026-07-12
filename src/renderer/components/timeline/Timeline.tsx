@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { X, ChevronDown, Film, Plus, Save, ChevronLeft, ChevronRight } from 'lucide-react';
-import { Timeline as TL, VideoClip, VideoLayer, SurfaceContent, SourceType, StateMachine, defaultStateMachine, isContentClip, timelineEnd, type AssetEntry } from '../../types';
+import { Timeline as TL, VideoClip, VideoLayer, SurfaceContent, SourceType, StateMachine, defaultStateMachine, isContentClip, timelineEnd, timelineStart, hasTimelineRegion, type AssetEntry } from '../../types';
 import { timeline as engine } from '../../services/timeline';
 import { ContentEditor } from '../ContentEditor';
 import { GUTTER, RULER_H, LANE_H, MIN_LANE_H, MAX_LANE_H, PAGE_SECS, laneHeight, clamp, fmtTimecode } from './geometry';
@@ -342,9 +342,15 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   // pointerup. clientXToTime (not a fresh rect capture) is reused for the px→time conversion: it
   // already accounts for GUTTER and scrollLeft, and re-measures on every call, so it stays correct
   // even if the panel is scrolled mid-drag.
+  // Snapping here EXCLUDES the handle being dragged (the equivalent of the clip drag's excludeClipId):
+  // collectSnapPoints emits tl.inPoint/tl.outPoint, so without it the handle snapped to its OWN current
+  // position — an 8-pixel dead zone in which it simply would not move, then jumped. It also honours the
+  // toolbar's Snap toggle, which it never read.
   const regionCandidate = (edge: 'in' | 'out', raw: number) => {
-    const s = snap(raw, collectSnapPoints(timelineRef.current, engine.getPlayhead()), 8 / pxRef.current).t;
     const tl = timelineRef.current;
+    const s = snapRefEnabled.current
+      ? snap(raw, collectSnapPoints(tl, engine.getPlayhead(), undefined, edge), 8 / pxRef.current).t
+      : raw;
     if (edge === 'in') {
       const out = tl.outPoint;
       return clamp(s, 0, out != null ? out - 0.05 : Number.MAX_SAFE_INTEGER);
@@ -369,6 +375,16 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   };
   const regionInPoint = regionDrag?.edge === 'in' ? regionDrag.t : (timeline.inPoint ?? null);
   const regionOutPoint = regionDrag?.edge === 'out' ? regionDrag.t : (timeline.outPoint ?? null);
+  // The SHADED BAND on the ruler = the range the engine will actually play, drag-draft included. It used
+  // to require BOTH points and so drew nothing for the single-point regions the engine honours perfectly
+  // well (start = inPoint ?? 0, end = outPoint ?? Length) — one click of Set In puts you there. Asking
+  // timelineStart/timelineEnd instead of the raw fields also means a degenerate in/out point, which those
+  // two now ignore, doesn't paint a band over a region that does not exist.
+  const draftTimeline = useMemo(
+    () => ({ ...timeline, inPoint: regionInPoint, outPoint: regionOutPoint }),
+    [timeline, regionInPoint, regionOutPoint],
+  );
+  const bandOn = hasTimelineRegion(draftTimeline);
   // Stop goes through the SAME TransportIntent funnel the FSM and OSC use, so App stays the single
   // writer of `playing`. (A 'stop' intent has existed since OSC landed; no UI ever emitted one.)
   const stop = () => engine.dispatchTransportIntent({ kind: 'stop' });
@@ -598,7 +614,9 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
         tool={tool} onSetTool={setTool}
         snapEnabled={snapEnabled} onToggleSnap={() => setSnapEnabled(v => !v)}
         onAddMarker={addMarker} onSetIn={setIn} onSetOut={setOut}
-        hasRegion={timeline.inPoint != null && timeline.outPoint != null && timeline.outPoint > timeline.inPoint}
+        // EITHER point alone is a region — the engine honours it. Requiring both made the Loop tooltip
+        // lie ("loops the whole timeline") when only an in-point was set.
+        hasRegion={hasTimelineRegion(timeline)}
         onZoom={onZoom} onZoomFit={onZoomFit} onAddTrack={addLayer}
         loop={!!timeline.loop} onToggleLoop={toggleLoop}
         smEnabled={sm.enabled} onToggleSm={toggleSm} onEditLogic={() => setSmEditorOpen(true)}
@@ -619,6 +637,8 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
             <TimelineRuler
               pxPerSec={pxPerSec} width={Math.max(width, 100)} height={RULER_H} fps={fps}
               markers={timeline.markers ?? []} inPoint={regionInPoint} outPoint={regionOutPoint}
+              bandStart={bandOn ? timelineStart(draftTimeline) : null}
+              bandEnd={bandOn ? timelineEnd(draftTimeline) : null}
               onSeekDown={startSeekDrag}
               onMarkerSeek={(t) => engine.seek(t)}
               onMarkerDelete={(id) => onChange({ ...timeline, markers: (timeline.markers ?? []).filter(m => m.id !== id) })}

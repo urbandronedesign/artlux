@@ -1,9 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { X, Film, Image as ImageIcon, Box, Music, FolderOpen, Link2, Trash2, MonitorPlay, PackageCheck, Search } from 'lucide-react';
-import { AssetEntry, AssetType, Surface, Timeline } from '../types';
-import type { Scene3D } from '../../../shared/protocol';
+import { AssetEntry, AssetType, Timeline } from '../types';
 import { AssetChip } from './AssetChip';
-import { libraryItems, usageIndex, normPath, typeLabel } from '../services/assetLibrary';
+import { libraryItems, usageIndex, normPath, typeLabel, type ProjectRefs } from '../services/assetLibrary';
 import { useDraggableModal } from '../hooks/useDraggableModal';
 
 interface Props {
@@ -11,9 +10,10 @@ interface Props {
   onClose: () => void;
   assets: AssetEntry[];
   timeline: Timeline;      // the GLOBAL doc — the take library lives on it (libraryItems)
-  timelines: Timeline[];   // EVERY timeline (global + each scene's) — usage counting must see them all
-  surfaces: Surface[];
-  scene3D?: Scene3D | null;
+  // EVERY place a path can be referenced (live + every scene's snapshot + every timeline + the audio
+  // bed) — the usage index and the name lookups below both read it, so a row can be RESOLVED to a name
+  // even when the reference lives only in a captured scene.
+  refs: ProjectRefs;
   selectedSurfaceId: string | null;
   hasProjectFolder: boolean;
   onImport: (type: AssetType) => void;
@@ -39,10 +39,7 @@ export const AssetManager: React.FC<Props> = (p) => {
   const items = useMemo(() => libraryItems(p.assets, p.timeline), [p.assets, p.timeline]);
   // One index built per render instead of one usageForPath() scan per asset per grid cell — see
   // usageIndex's comment in assetLibrary.ts.
-  const usageMap = useMemo(
-    () => usageIndex({ surfaces: p.surfaces, scene3D: p.scene3D, timelines: p.timelines }),
-    [p.surfaces, p.scene3D, p.timelines],
-  );
+  const usageMap = useMemo(() => usageIndex(p.refs), [p.refs]);
 
   useEffect(() => {
     if (!p.open) return;
@@ -75,13 +72,19 @@ export const AssetManager: React.FC<Props> = (p) => {
   const selected = items.find(a => a.id === selectedId) ?? null;
   const usage = selected ? usageMap.get(normPath(selected.path)) ?? null : null;
 
-  const surfName = (id: string) => p.surfaces.find(s => s.id === id)?.name ?? id;
-  // Usage now spans every timeline, so a clip id can come from a scene's own doc — look through them all.
+  // Usage spans every timeline, every surface list and every scene3D, so an id can come from a captured
+  // scene rather than the live doc — resolve names across the same lists the index was built from, or a
+  // scene-only reference would render as a raw uuid.
+  const surfName = (id: string) => p.refs.surfaces.find(s => s.id === id)?.name ?? id;
   const clipName = (id: string) => {
-    for (const tl of p.timelines) { const c = tl.clips.find(cl => cl.id === id); if (c) return c.name; }
+    for (const tl of p.refs.timelines) { const c = tl.clips.find(cl => cl.id === id); if (c) return c.name; }
     return id;
   };
-  const modelName = (id: string) => p.scene3D?.models?.find(m => m.id === id)?.name ?? id;
+  const modelName = (id: string) => {
+    for (const sc of p.refs.scene3D) { const m = sc?.models?.find(mm => mm.id === id); if (m) return m.name; }
+    return id;
+  };
+  const audioClipName = (id: string) => p.refs.audioClips.find(c => c.id === id)?.name ?? id;
 
   const filterBtn = (label: string, value: Filter) => (
     <button onClick={() => setFilter(value)}
@@ -166,6 +169,9 @@ export const AssetManager: React.FC<Props> = (p) => {
                     ))}
                     {usage?.modelIds.map(id => (
                       <div key={`m${id}`} className="text-mini px-1.5 py-1 rounded bg-surface-2 text-fg-2 truncate">Scene model · {modelName(id)}</div>
+                    ))}
+                    {usage?.audioClipIds.map(id => (
+                      <div key={`a${id}`} className="text-mini px-1.5 py-1 rounded bg-surface-2 text-fg-2 truncate">Audio clip · {audioClipName(id)}</div>
                     ))}
                   </div>
                 </div>

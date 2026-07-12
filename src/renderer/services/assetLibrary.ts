@@ -1,9 +1,9 @@
 // Helpers for the managed media library. The library is the union of imported assets
-// (Timeline-independent video/image/model in ProjectData.assets) and recorded LiDAR takes
-// (Timeline.trackingTakes). Usage is computed by path equality against everywhere an asset path
-// can be referenced — surfaces, scene models, and clips on EVERY timeline (the global one plus each
-// scene's own; video + tracking).
-import type { AssetEntry, AssetType, Surface, Timeline, TrackingTakeRef } from '../types';
+// (Timeline-independent video/image/model/audio in ProjectData.assets) and recorded LiDAR takes
+// (Timeline.trackingTakes). Usage is computed by path equality against EVERY place an asset path can
+// be referenced: surfaces (live + every captured scene's look snapshot), scene3D models (same), clips
+// on every timeline (the global one plus each scene's own; video + tracking), and the audio bed's clips.
+import type { AssetEntry, AssetType, AudioClip, Surface, Timeline, TrackingTakeRef } from '../types';
 import type { Scene3D } from '../../../shared/protocol';
 import { SourceType } from '../types';
 
@@ -14,66 +14,76 @@ export interface AssetUsage {
   surfaceIds: string[];
   modelIds: string[];
   clipIds: string[];
+  audioClipIds: string[];
   count: number;
 }
 
+// EVERY place a path can live. This is what gates deletion (App.handleRemoveAsset only raises its
+// confirm dialog when `count > 0`), so anything missing from here is an asset the app will delete with
+// NO WARNING AT ALL — losing missing-file detection, Relink and Collect Assets coverage for a file that
+// is still on air.
 export interface ProjectRefs {
+  // The LIVE surfaces, followed by each captured Scene's `surfaces` look snapshot — flattened. Ids WILL
+  // repeat across these lists (see the Set dedupe in usageIndex).
   surfaces: Surface[];
-  scene3D?: Scene3D | null;
-  timelines: Timeline[];   // the GLOBAL timeline + every scene's own — an asset used only inside a
-                           // scene's timeline used to read as UNUSED, and that count gates deletion.
+  // The LIVE scene3D, followed by each Scene's own. Same aliasing, same dedupe.
+  scene3D: (Scene3D | null | undefined)[];
+  // The GLOBAL timeline + every scene's own — an asset used only inside a scene's timeline used to read
+  // as UNUSED.
+  timelines: Timeline[];
+  // The global audio bed's clips (AudioMix.clips). An audio file used only on the bed had no field to
+  // be counted in at all, so it read as 0 uses and was deleted silently.
+  audioClips: AudioClip[];
 }
 
 // Build a usage map for every distinct path referenced across the project in ONE pass over
-// surfaces/models/timelines, instead of one pass per asset. Panels that render usage for a whole
+// surfaces/models/timelines/audio, instead of one pass per asset. Panels that render usage for a whole
 // asset list (MediaPanel, AssetManager) should call this once per render and look each asset up in
 // the result, rather than calling usageForPath per asset — see those files for the useMemo wiring.
+//
+// EVERY id bucket is a Set. Capture Scene deep-clones the active timeline into a new scene
+// (`structuredClone(activeTimeline)` in App.handleCaptureScene, which PRESERVES ids) and stashes the
+// live `surfaces`/`scene3D` arrays onto the Scene BY REFERENCE (buildSceneSnapshot), so the same clip,
+// surface and model ids legitimately appear in the global doc AND in every scene captured from it.
+// Counting raw pushes would multiply one authored reference by (1 + #scenes) — an inflated badge, and
+// duplicate React keys in AssetManager's usage list. (This exact defect was found and fixed once for
+// clip ids in this branch; widening ProjectRefs to the scene snapshots re-exposes it for surfaces and
+// models, hence the Set on all four.)
 export function usageIndex(refs: ProjectRefs): Map<string, AssetUsage> {
-  const map = new Map<string, AssetUsage>();
-  const at = (key: string): AssetUsage => {
-    let u = map.get(key);
-    if (!u) { u = { surfaceIds: [], modelIds: [], clipIds: [], count: 0 }; map.set(key, u); }
-    return u;
+  type Buckets = { s: Set<string>; m: Set<string>; c: Set<string>; a: Set<string> };
+  const sets = new Map<string, Buckets>();
+  const at = (key: string): Buckets => {
+    let b = sets.get(key);
+    if (!b) { b = { s: new Set(), m: new Set(), c: new Set(), a: new Set() }; sets.set(key, b); }
+    return b;
   };
   for (const s of refs.surfaces) {
     const url = (s.content as { url?: string })?.url;
-    // Surfaces and scene3D are always the single CURRENT doc here (ProjectRefs has no per-scene
-    // surfaces/scene3D lists — only `timelines` is widened to span every scene), so unlike clips
-    // below there is no cross-scene cloning path that could hand us the same surface/model id twice.
-    // Capture Scene's buildSceneSnapshot() does stash `surfaces`/`scene3D` by reference onto each
-    // Scene, but usageForPath/usageIndex never read Scene.surfaces or Scene.scene3D — only the live
-    // ones passed in via ProjectRefs — so that aliasing is unreachable from here. No Set needed.
-    if (url) at(normPath(url)).surfaceIds.push(s.id);
+    if (url) at(normPath(url)).s.add(s.id);
   }
-  for (const m of refs.scene3D?.models ?? []) {
-    if (m.path) at(normPath(m.path)).modelIds.push(m.id);
+  for (const sc of refs.scene3D) {
+    for (const m of sc?.models ?? []) if (m.path) at(normPath(m.path)).m.add(m.id);
   }
-  // Clip ids DO need deduping: Capture Scene deep-clones the active timeline into a new scene
-  // (`structuredClone(activeTimeline)` in App.handleCaptureScene) and structuredClone preserves ids,
-  // so the same clip id legitimately appears in the global timeline AND every scene it was captured
-  // into. Lazy materialization can even leave scene.timeline.clips as the *same array object* as the
-  // global timeline's, until the scene's timeline is first edited. Collect ids into a Set per path so
-  // one authored clip that was cloned into N scenes is counted/rendered once, not N times.
-  const clipSets = new Map<string, Set<string>>();
   for (const tl of refs.timelines) {
-    for (const c of tl.clips ?? []) {
-      if (!c.path) continue;
-      const key = normPath(c.path);
-      let set = clipSets.get(key);
-      if (!set) { set = new Set<string>(); clipSets.set(key, set); }
-      set.add(c.id);
-    }
+    for (const c of tl.clips ?? []) if (c.path) at(normPath(c.path)).c.add(c.id);
   }
-  for (const [key, set] of clipSets) {
-    const u = at(key);
-    u.clipIds = Array.from(set);
+  for (const c of refs.audioClips) {
+    if (c.path) at(normPath(c.path)).a.add(c.id);
   }
-  // count is derived last so it reflects the deduped clip totals, not raw push counts.
-  for (const u of map.values()) u.count = u.surfaceIds.length + u.modelIds.length + u.clipIds.length;
+  const map = new Map<string, AssetUsage>();
+  for (const [key, b] of sets) {
+    const u: AssetUsage = {
+      surfaceIds: [...b.s], modelIds: [...b.m], clipIds: [...b.c], audioClipIds: [...b.a], count: 0,
+    };
+    // count is derived from the DEDUPED id lists, so it always equals the number of usage ROWS
+    // AssetManager renders — the count and the list it summarizes must never disagree.
+    u.count = u.surfaceIds.length + u.modelIds.length + u.clipIds.length + u.audioClipIds.length;
+    map.set(key, u);
+  }
   return map;
 }
 
-const EMPTY_USAGE: Readonly<AssetUsage> = { surfaceIds: [], modelIds: [], clipIds: [], count: 0 };
+const EMPTY_USAGE: Readonly<AssetUsage> = { surfaceIds: [], modelIds: [], clipIds: [], audioClipIds: [], count: 0 };
 
 // Where is this file path referenced across the project? Single-path convenience wrapper around
 // usageIndex — fine for one-off lookups (e.g. App.handleRemoveAsset's delete-confirm, which only
@@ -81,12 +91,11 @@ const EMPTY_USAGE: Readonly<AssetUsage> = { surfaceIds: [], modelIds: [], clipId
 // render (asset-list panels) should call usageIndex() once instead; see its comment for why.
 //
 // What COUNT means: this number answers "will deleting this asset break something?" for the
-// confirm-before-delete prompt (and the badge that hints at it). A clip that was cloned into N
-// scenes by Capture Scene is still the ONE clip the user placed — deleting the underlying file
-// breaks that one authored clip everywhere it was cloned, which reads to the user as "used in 1
+// confirm-before-delete prompt (and the badge that hints at it). A clip/surface/model that was cloned
+// into N scenes by Capture Scene is still the ONE thing the user placed — deleting the underlying file
+// breaks that one authored reference everywhere it was cloned, which reads to the user as "used in 1
 // place", not N. Counting deduped ids also keeps `count` equal to the number of usage ROWS
-// AssetManager renders (surfaceIds.length + modelIds.length + clipIds.length after dedup) — the
-// count and the list it summarizes must never disagree.
+// AssetManager renders — the count and the list it summarizes must never disagree.
 export function usageForPath(path: string, refs: ProjectRefs): AssetUsage {
   return usageIndex(refs).get(normPath(path)) ?? EMPTY_USAGE;
 }

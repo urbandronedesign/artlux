@@ -29,6 +29,14 @@ transport bar gains **Stop**, **Set In**, **Set Out**, and draggable loop-region
 > it never lowers a deliberately long Length. No project-file migration; the change is purely in
 > playback semantics. See [docs/TIMELINE.md](docs/TIMELINE.md).
 
+> ⚠ **If you opened AND saved a project with a pre-release Wave A build, check its Length fields.**
+> Those builds re-ran the back-compat raise on *every* load and then saved the raised value, so a
+> **deliberately short Length** (e.g. 8 s over a 20 s ambient bed) was silently rewritten to the content
+> end and persisted. The authored number is gone from the file — nothing can recover it, and no fix in
+> this release can. Re-enter the intended Length once; from this build on it round-trips (the timeline
+> now carries a `boundedDuration` marker, so the raise runs at most once per document, on files that
+> predate it).
+
 ## v0.21.0
 
 - **New: In-app Docs & Tutorials browser + illustrated example tutorials (`src/main/docs.ts`, `src/renderer/components/DocsBrowser.tsx`).** A **Help ▸ Docs & Tutorials** viewer — a dockable right-side panel that **detaches into its own window** — renders the shipped example/tutorial sets and the **illustrated user guide** as in-app markdown, with sibling **images loaded inline** (a main-side reader hands the sandboxed renderer image bytes over a traversal-guarded IPC, which wraps them in blob URLs) and **"open example"** links that load the `.artlux` straight into the editor. Bundled into packaged builds via `extraResources` (examples + user guide). Ships two openable **tutorial courses** — **LiDAR blob tracking** (feed → calibrate → replay, driven by a bundled synthetic emitter, no hardware) and the **state machine** (looping show → triggers → interactive installation) — each now illustrated with **self-contained SVG diagrams** (state graph, hub-and-spoke, tracking zones, merge-people). Adds new reference docs (**STATE-MACHINE, EFFECTS, CODECS, SPOUT**) and a **`plans/`** folder of implementation plans (incl. the native audio engine) with a dev-sequencing guide. `tsc` + `npm run build` clean; all 23 doc image references validated (resolve + read), docs-scan + traversal guard exercised, in-app visual test confirmed.

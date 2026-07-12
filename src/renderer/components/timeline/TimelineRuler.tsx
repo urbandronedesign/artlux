@@ -8,8 +8,14 @@ interface Props {
   height: number;
   fps: number;
   markers: Marker[];
+  // The HANDLES sit on the raw authored points (so a degenerate one can still be grabbed and dragged
+  // back), while the shaded BAND spans the range the engine will actually play — which Timeline.tsx
+  // resolves through timelineStart/timelineEnd, because either point alone is a valid region and a
+  // degenerate one is ignored. null/null ⇒ no region ⇒ no band.
   inPoint: number | null;
   outPoint: number | null;
+  bandStart: number | null;
+  bandEnd: number | null;
   onSeekDown: (e: React.PointerEvent) => void;
   onMarkerSeek: (time: number) => void;
   onMarkerDelete: (id: string) => void;
@@ -26,7 +32,7 @@ const shortTc = (t: number, fps: number) => {
   return s.startsWith('00:') ? s.slice(3) : s;
 };
 
-export const TimelineRuler: React.FC<Props> = ({ pxPerSec, width, height, fps, markers, inPoint, outPoint, onSeekDown, onMarkerSeek, onMarkerDelete, onMarkerNote, onMoveInDown, onMoveOutDown }) => {
+export const TimelineRuler: React.FC<Props> = ({ pxPerSec, width, height, fps, markers, inPoint, outPoint, bandStart, bandEnd, onSeekDown, onMarkerSeek, onMarkerDelete, onMarkerNote, onMoveInDown, onMoveOutDown }) => {
   const [editing, setEditing] = useState<{ id: string; note: string } | null>(null);
   const step = chooseTickStep(pxPerSec);
   const ticks: number[] = [];
@@ -35,9 +41,9 @@ export const TimelineRuler: React.FC<Props> = ({ pxPerSec, width, height, fps, m
 
   return (
     <div className="relative bg-surface-1/60 cursor-text border-b border-line-1" style={{ height, width }} onPointerDown={onSeekDown}>
-      {/* in/out range band */}
-      {inPoint != null && outPoint != null && outPoint > inPoint && (
-        <div className="absolute top-0 bottom-0 bg-accent/15 border-x border-accent/60 pointer-events-none" style={{ left: inPoint * pxPerSec, width: (outPoint - inPoint) * pxPerSec }} />
+      {/* the playable range — shaded. Either point alone produces one (see Props). */}
+      {bandStart != null && bandEnd != null && bandEnd > bandStart && (
+        <div className="absolute top-0 bottom-0 bg-accent/15 border-x border-accent/60 pointer-events-none" style={{ left: bandStart * pxPerSec, width: (bandEnd - bandStart) * pxPerSec }} />
       )}
       {/* handles: 8px hit area (w-2 -ml-1), the line itself stays 2px — a 2px target is unusable */}
       {inPoint != null && (

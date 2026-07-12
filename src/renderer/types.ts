@@ -411,10 +411,31 @@ export const defaultTimeline = (): Timeline => ({
 const finiteNum = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 const FALLBACK_DURATION = 60; // == defaultTimeline().duration
 
-export const timelineStart = (t: Timeline): number => Math.max(0, finiteNum(t.inPoint) ?? 0);
 // The "Length" field, coerced. NOT the playable end — an out-point overrides Length (use timelineEnd).
 // This is the guarded reader for anything that genuinely wants the document's Length (status readouts).
 export const timelineDuration = (t: Timeline): number => finiteNum(t.duration) ?? FALLBACK_DURATION;
+
+// The playable range's START. A DEGENERATE IN-POINT IS IGNORED, symmetric with the degenerate-out
+// guard in timelineEnd below — and for exactly the same reason.
+//
+// `End` seeks to the CONTENT end (which may lie past Length — scrubbing past the end is deliberately
+// supported), and `I` then sets the in-point there. On a Length-60 timeline that leaves inPoint = 70,
+// and timelineEnd's `Math.max(start + 0.1, duration)` floor turns the playable range into [70, 70.1):
+// Play advances three frames, the end-stop parks, App pauses; Play again re-seeks to 70 and repeats
+// forever. The floor exists SPECIFICALLY to stop a degenerate OUT-point wedging the transport that
+// way; without this it created the identical wedge for the IN-point case it never checked.
+//
+// An in-point past Length is only degenerate when nothing extends the end past it. An explicit
+// out-point DOES (an out-point overrides Length), so `in: 70, out: 90` on a Length-60 document is a
+// perfectly good region and is honoured — only an in-point with no out-point beyond it, sitting at or
+// past Length, is ignored (treated as ABSENT, like any other junk value). Nothing is destroyed: the
+// authored value stays in the document and on the ruler handle, so it can be dragged back.
+export const timelineStart = (t: Timeline): number => {
+  const start = Math.max(0, finiteNum(t.inPoint) ?? 0);
+  const out = finiteNum(t.outPoint);
+  if (out != null && out > start) return start; // a real region — the in-point bounds it
+  return start < timelineDuration(t) ? start : 0;
+};
 export const timelineEnd = (t: Timeline): number => {
   const start = timelineStart(t);
   const out = finiteNum(t.outPoint);
@@ -422,6 +443,16 @@ export const timelineEnd = (t: Timeline): number => {
   // transport at a single instant with no way to escape from the UI.
   if (out != null && out > start) return out;
   return Math.max(start + 0.1, timelineDuration(t));
+};
+// Does the engine actually HONOUR an in/out region on this document? The Loop tooltip and the ruler's
+// shaded band used to require BOTH points, but the clock honours either alone (start = inPoint ?? 0,
+// end = outPoint ?? Length) — and one click of the Set In button puts you there. Asks the guarded
+// readers rather than the raw fields, so a degenerate in/out point (ignored above) doesn't claim a
+// region that does not exist.
+export const hasTimelineRegion = (t: Timeline): boolean => {
+  const start = timelineStart(t);
+  const out = finiteNum(t.outPoint);
+  return start > 0 || (out != null && out > start);
 };
 
 // Coerce a persisted automation array: drop junk, default the curve, and SORT — the sampler's cursor
@@ -440,33 +471,41 @@ const normalizeAutomation = (a: unknown): AutomationLane[] => {
 
 // Coerce a persisted markers array the same way normalizeAutomation coerces lanes: a
 // present-but-wrong-shaped value (`"x"`, `{}`, a null slot) must not reach TimelineRuler's
-// unguarded `{markers.map(...)}` in the always-mounted Timeline panel. `id`/`color` are checked
-// as strings and `time` as a finite number — the fields TimelineRuler actually keys/positions
-// off of — mirroring normalizeAutomation's `id`/`targetPath` check.
+// unguarded `{markers.map(...)}` in the always-mounted Timeline panel. `id` is checked as a string
+// and `time` as a finite number — the fields TimelineRuler actually keys/positions off of —
+// mirroring normalizeAutomation's `id`/`targetPath` check.
+//
+// COERCE, DO NOT DROP (the rule stated a few lines below, for clips). `color` is COSMETIC: it picks
+// the marker triangle's fill and nothing else. Requiring it as a string, and dropping the whole entry
+// when it is missing, threw away the `id` and the `time` — the user's actual data — over a paint
+// value we can trivially default. normalizeAutomation already shows the shape (`curve: k.curve ??
+// 'linear'`). Default it to the same colour addMarker mints, so a hand-authored / tool-generated
+// project (exactly this sanitiser's stated threat model) loads its markers instead of losing them.
+const MARKER_COLOR = '#f5a623'; // == the colour Timeline.addMarker() assigns
 const normalizeMarkers = (m: unknown): Marker[] => {
   if (!Array.isArray(m)) return [];
-  return m.filter(
-    (x): x is Marker =>
-      !!x && typeof x === 'object' &&
-      typeof (x as Marker).id === 'string' &&
-      typeof (x as Marker).color === 'string' &&
-      Number.isFinite((x as Marker).time),
-  );
+  return (m as Partial<Marker>[]).flatMap(x => {
+    if (!x || typeof x !== 'object' || Array.isArray(x)) return [];
+    if (typeof x.id !== 'string' || !Number.isFinite(x.time)) return [];
+    return [{ ...x, id: x.id, time: x.time as number, color: typeof x.color === 'string' ? x.color : MARKER_COLOR }];
+  });
 };
 
 // Coerce a persisted trackingTakes array the same way. Consumers (TakesBin, assetLibrary) iterate
-// it unguarded. `duration` is checked finite because assetLibrary/TakesBin use it directly (e.g.
-// to size/label the take) without their own guard.
+// it unguarded. `id`/`path` must be strings and `duration` finite — assetLibrary/TakesBin use those
+// directly (to key, resolve and size the take) without their own guard.
+//
+// COERCE, DO NOT DROP, again: `name` is a LABEL. Dropping a take because it has no name threw away
+// its `path` and `duration` — i.e. the recording — over a caption. Default it to the file's basename,
+// which is what the user would have called it anyway.
+const takeName = (p: string): string => p.replace(/\\/g, '/').split('/').pop() || 'Take';
 const normalizeTrackingTakes = (tt: unknown): TrackingTakeRef[] => {
   if (!Array.isArray(tt)) return [];
-  return tt.filter(
-    (x): x is TrackingTakeRef =>
-      !!x && typeof x === 'object' &&
-      typeof (x as TrackingTakeRef).id === 'string' &&
-      typeof (x as TrackingTakeRef).name === 'string' &&
-      typeof (x as TrackingTakeRef).path === 'string' &&
-      Number.isFinite((x as TrackingTakeRef).duration),
-  );
+  return (tt as Partial<TrackingTakeRef>[]).flatMap(x => {
+    if (!x || typeof x !== 'object' || Array.isArray(x)) return [];
+    if (typeof x.id !== 'string' || typeof x.path !== 'string' || !Number.isFinite(x.duration)) return [];
+    return [{ ...x, id: x.id, path: x.path, duration: x.duration as number, name: typeof x.name === 'string' ? x.name : takeName(x.path) }];
+  });
 };
 
 // Sanitise a clip's numeric fields so junk (NaN, a string, Infinity) can never escape

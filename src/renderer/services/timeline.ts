@@ -302,6 +302,42 @@ function atEndBound(): boolean {
   return !data.loop && playhead >= timelineEnd(data) - frameSec(data) - 1e-6;
 }
 
+// REPOINTING `data` UNDER A LIVE PLAYHEAD MUST NEVER SYNTHESISE A TRANSPORT EVENT.
+//
+// The clock re-reads timelineEnd(data) every frame, so the instant `data` becomes a document whose end
+// is at or behind the current playhead, the very next frame takes the end-stop branch. That branch is
+// written for PLAYBACK reaching the end: it re-anchors originMs to the new (nearer) end, which drags
+// the playhead backwards live on the projectors, emits `pause`, and PULSES hitEnd — firing the FSM's
+// 'onTimelineEnd' edge and putting the wrong scene on stage, from something that was never playback.
+//
+// Two callers repoint `data`:
+//   • setData()  — a document EDIT (Length lowered, `O` at the playhead, the out-handle dragged left,
+//     fps changed).
+//   • swap(..., {transport:'preserve'}) — a UI CLICK (the scene pill → Global, deleting the authored
+//     scene) that repoints the engine at a DIFFERENT, possibly much shorter document while the show
+//     runs. setData's guard cannot cover this: swap() assigns `data` synchronously inside the click
+//     handler, while App's [activeTimeline] effect is a passive effect flushed in a scheduler task —
+//     an rAF frame can interleave, and that frame sees the raw end-stop.
+//
+// So handle it HERE, where we know it was an edit/swap and not playback:
+//   • mainSeek to the new last frame — re-anchors originMs AND re-baselines prevPlayhead, so the move
+//     is not read as a window the playhead traversed (no phantom atTime/onMarker/onClipEnd crossings).
+//   • latch the end WITHOUT pulsing hitEnd: the machine must never be advanced by an edit or a click.
+//     The latch also keeps the end-stop below from re-emitting while App's `playing` round-trips.
+//   • ask App to pause (the engine still never writes `playing` itself).
+// Ordering matters: mainSeek() CLEARS the latch, so it is re-set after.
+//
+// LOOP ON IS EXCLUDED, and must be: a looping clock has no end-stop — it WRAPS an out-of-range
+// playhead back into [start, end) on the next frame, emitting nothing and pulsing nothing (and it
+// re-baselines prevPlayhead itself). Pausing a looping show because its Length was shortened, or
+// because the operator clicked back to Global, would be a regression invented by this guard.
+function clampPlayheadIntoDoc(t: Timeline): void {
+  if (!playing || t.loop || playhead < timelineEnd(t)) return;
+  mainSeek(Math.max(timelineStart(t), timelineEnd(t) - frameSec(t)));
+  endLatched = true;
+  emitIntent({ kind: 'pause' });
+}
+
 
 // ── Automation ──────────────────────────────────────────────────────────────────────────────────
 // Lanes ride the Timeline, so they arrive with `data` for free — the ACTIVE timeline's lanes, layered
@@ -579,32 +615,9 @@ export const timeline = {
   setData(t: Timeline): void {
     data = t;
     if (external) return; // mirror windows don't decode — no blobs / video elements to manage
-    // A DOCUMENT EDIT MUST NEVER SYNTHESISE A TRANSPORT EVENT.
-    //
-    // The clock re-reads timelineEnd(data) every frame, so an edit that moves the end to or behind a
-    // LIVE playhead — Length lowered, `O` pressed at the playhead, the out-point handle dragged left,
-    // fps changed — makes the very next frame take the end-stop branch. That branch is written for
-    // PLAYBACK reaching the end: it re-anchors originMs to the new (nearer) end, which TELEPORTS the
-    // playhead backwards live on the projectors, emits `pause`, and pulses hitEnd — firing the FSM's
-    // 'onTimelineEnd' edge and putting the wrong scene on stage, from an edit.
-    //
-    // Handle it here instead, where we know it was an EDIT and not playback:
-    //   • mainSeek to the new last frame — re-anchors originMs AND re-baselines prevPlayhead, so the
-    //     move is not read as a window the playhead traversed (no phantom atTime/onMarker crossings).
-    //   • latch the end WITHOUT pulsing hitEnd: the machine must not be advanced by a text edit. The
-    //     latch also keeps the end-stop below from re-emitting while App's `playing` round-trips.
-    //   • ask App to pause (the engine still never writes `playing` itself).
-    // Ordering matters: mainSeek() CLEARS the latch, so it is re-set after.
-    //
-    // LOOP ON IS EXCLUDED, and must be: a looping clock has no end-stop — it WRAPS an out-of-range
-    // playhead back into [start, end) on the next frame, emitting nothing and pulsing nothing (and it
-    // re-baselines prevPlayhead itself). Pausing a looping show because its Length was shortened would
-    // be a regression invented by this guard, not a bug prevented by it.
-    if (playing && !t.loop && playhead >= timelineEnd(t)) {
-      mainSeek(Math.max(timelineStart(t), timelineEnd(t) - frameSec(t)));
-      endLatched = true;
-      emitIntent({ kind: 'pause' });
-    }
+    // A DOCUMENT EDIT MUST NEVER SYNTHESISE A TRANSPORT EVENT — the whole argument (and why the same
+    // treatment is applied to swap()'s 'preserve' path) lives on clampPlayheadIntoDoc above.
+    clampPlayheadIntoDoc(t);
     warmMedia(t);
     pruneStaleLayers(layerVideos, t);
     compileAutomation();
@@ -642,7 +655,16 @@ export const timeline = {
     // (hand-edit, bad import, plugin-written project — normalizeTimeline does not coerce it) would NaN the
     // whole clock: every activeClip(NaN) matches nothing, so the projectors and the LED output go black and
     // the transport stays dead until someone seeks.
+    //
+    // 'preserve' KEEPS THE CLOCK RUNNING ACROSS THE SWAP — and that is exactly how a UI click can drop a
+    // live playhead outside the incoming document (authoring a 600 s scene at 300 s, then clicking the
+    // pill back to the 60 s Global doc). setData's guard does NOT catch it: swap() assigns `data`
+    // synchronously inside the click handler, while App's [activeTimeline] effect is a passive effect
+    // flushed in a scheduler task — an rAF frame can interleave and hit the raw end-stop first, which
+    // would drag the playhead back live on the projectors AND pulse hitEnd, firing 'onTimelineEnd' from
+    // a mouse click. Same latch-WITHOUT-pulse treatment, applied where the repoint actually happens.
     if ((opts?.transport ?? 'restart') === 'restart') mainSeek(timelineStart(t));
+    else clampPlayheadIntoDoc(t);
     compileAutomation(); // AFTER the seek, so the first post-recall sample is taken at the new playhead
   },
   // The GLOBAL timeline's lanes, which run as a BASE under every scene (the global audio bed is global,

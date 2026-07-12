@@ -62,6 +62,17 @@ const NumField: React.FC<{
   const [draft, setDraft] = React.useState<string | null>(null);
   const draftRef = React.useRef<string | null>(null);
   const set = (v: string | null) => { draftRef.current = v; setDraft(v); };
+  // THE DOCUMENT CHANGED UNDER ME → DISCARD THE DRAFT.
+  //
+  // <TimelinePanel> carries no React `key`, so it does NOT remount when the bound scene changes — this
+  // component instance, and its draft, survive a document swap. The FSM hopping A→B mid-edit repoints
+  // `activeTimeline` at scene B's timeline while an unblurred draft of "90" is still sitting in the
+  // Length field: the field keeps showing 90 over B's authored Length of 5, and the next blur commits
+  // 90 into SCENE B — destroying its authored Length and persisting it, so B dwells 90 s and its
+  // onTimelineEnd hop is 85 s late. The timeline the operator meant to edit is never touched.
+  // Snapping to the incoming document's value is the correct read of "the thing I was editing is gone",
+  // and it is exactly what Escape already does.
+  React.useEffect(() => { set(null); }, [value]);
   const commit = () => {
     const d = draftRef.current;
     if (d == null) return;              // untouched, or already discarded/committed this tick
@@ -78,8 +89,13 @@ const NumField: React.FC<{
       onChange={(e) => set(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => {
-        if (e.key === 'Enter') e.currentTarget.blur();              // commits via onBlur
-        else if (e.key === 'Escape') { set(null); e.currentTarget.blur(); } // discard, then onBlur no-ops
+        // Both branches blur SYNCHRONOUSLY. useTimelineKeys listens on `window`, so it runs after this
+        // synthetic handler — by which time document.activeElement is <body> and its "don't fire while
+        // typing in an INPUT" guard no longer trips. Escape would therefore ALSO reach the timeline's
+        // global handler and switch the tool to Select; Enter is inert today but is one key binding away
+        // from the same trap. Stop the native event here so the window listener never sees it.
+        if (e.key === 'Enter') { e.stopPropagation(); e.currentTarget.blur(); }              // commits via onBlur
+        else if (e.key === 'Escape') { e.stopPropagation(); set(null); e.currentTarget.blur(); } // discard, then onBlur no-ops
       }}
       className={className}
     />
