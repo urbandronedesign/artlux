@@ -395,8 +395,41 @@ export const plugin: RendererPlugin = {
     // takes the audio lock, so re-sending an unchanged chain would tax the audio thread for nothing.
     // Only a LOADED clip can be pushed — the engine attaches these to a source it holds, so a push for an
     // id it hasn't loaded is silently dropped.
+    //
+    // BOTH ARE BOUNDED AT THE ENGINE DOOR, the same discipline boundGain already applies to gain, and for
+    // the same reason: `spatial` and `effects` are the two clip fields sanitizeAudioClip does NOT coerce
+    // (types.ts spreads `...c` and coerces start/duration/inPoint/gain/mute/fades — and nothing else), and
+    // the clips this driver reads come from the ENGINE's bound document, which may be a live in-memory
+    // Timeline that never passed through a normalizer at all. Now that the clip inspector can author these
+    // two fields on a SCENE's clip, they are also the two fields most likely to arrive hand-edited or badly
+    // imported. Two silent, permanent failures if they are not checked HERE:
+    //
+    //   · A NON-NUMBER coord (`"x": "3"`) fails native SetClipSpatial's IsNumber() guard (engine.cpp), so
+    //     the call is DROPPED — the clip plays dead-centre forever. And `sentSpatial` has already recorded
+    //     it as sent, so it is NEVER retried and nothing is ever logged.
+    //   · A NON-FINITE coord is WORSE, because NaN *is* a number: it sails straight through IsNumber(), and
+    //     toPolar() (engine.cpp) then computes `azimuth = atan2(-NaN, z)` = NaN, which poisons the ambisonic
+    //     encoder's coefficients. EVERY spatial clip is encoded into ONE SHARED B-format buffer
+    //     (SpatialBus::getNextAudioBlock, `encoder->ProcessAccumul(..., &bformat, ...)`), so one junk
+    //     coordinate on one unused clip takes the WHOLE spatial bus down with it — silence, or full-scale
+    //     noise, on the audio thread, in a venue. Same class as the `"solo": "false"` bug sanitizeAudioTrack
+    //     exists to kill, and with a bigger blast radius.
+    //
+    // COERCE, DO NOT DROP (the project's rule — the clip stays selectable and fixable): a malformed position
+    // reads as NO position, i.e. the clip is simply non-spatial, which is what `spatial: undefined` means at
+    // every other call site. A non-array chain reads as an EMPTY chain — which is also what the deliberately
+    // tolerant native parseEffects() would make of it, but the driver must not be the thing that RELIES on
+    // that, and `sentEffects` must key off what was actually pushed rather than off a junk payload.
+    const finiteVec3 = (s: BedClip['spatial']): BedClip['spatial'] =>
+      s && typeof s.x === 'number' && Number.isFinite(s.x)
+        && typeof s.y === 'number' && Number.isFinite(s.y)
+        && typeof s.z === 'number' && Number.isFinite(s.z) ? s : undefined;
+    const fxOf = (o: { effects?: AudioEffectSpec[] } | undefined): AudioEffectSpec[] => {
+      const fx = o?.effects;
+      return Array.isArray(fx) ? fx : [];
+    };
     const pushSpatial = (clip: BedClip) => {
-      const s = clip.spatial;
+      const s = finiteVec3(clip.spatial);
       const key = s ? `${s.x},${s.y},${s.z}` : '';
       if (sentSpatial.get(clip.id) === key) return;
       if (s) audioClient.setClipSpatial(clip.id, s.x, s.y, s.z);
@@ -404,7 +437,7 @@ export const plugin: RendererPlugin = {
       sentSpatial.set(clip.id, key);
     };
     const pushEffects = (clip: BedClip) => {
-      const fx = clip.effects ?? [];
+      const fx = fxOf(clip);
       const key = JSON.stringify(fx);
       if (sentEffects.get(clip.id) === key) return;
       audioClient.setClipEffects(clip.id, fx);
@@ -417,7 +450,9 @@ export const plugin: RendererPlugin = {
     const syncMaster = () => {
       const authored = bed.buses.find((b) => b.id === MASTER_BUS_ID);
       const master = authored ? applyBusLayers(authored) : undefined;
-      const mfx = master?.effects ?? [];
+      // fxOf, not `?? []` — the master BUS has no clip-grade normalizer either (normalizeAudioMix's buses
+      // are a shape guard; its own comment says so), and this one chain runs on EVERYTHING.
+      const mfx = fxOf(master);
       const mkey = JSON.stringify(mfx);
       if (sentMaster !== mkey) { audioClient.setMasterEffects(mfx); sentMaster = mkey; }
       // laneOvr ?? sceneFade ?? authored. NOTE the `authored === undefined` hole this leaves open: a project
