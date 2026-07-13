@@ -21,6 +21,10 @@ export const plugin: MainPlugin = {
     ));
     ipc.handle('audio:getDevices', () => engine.getDevices());
     ipc.handle('audio:getMeters', () => engine.getMeters());
+    // Is the native engine actually loaded? `available` was exported and unconsumed — the renderer had to
+    // INFER unavailability from configure() returning an empty device name. Mirrors calib:available and
+    // ndi:available. A missing engine is silent by construction; this is the only way to see it.
+    ipc.handle('audio:available', () => engine.available);
     ipc.handle('audio:loadClip', (id, path) => engine.loadClip(String(id), String(path)));
 
     // Fire-and-forget control (renderer send).

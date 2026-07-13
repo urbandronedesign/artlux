@@ -18,6 +18,10 @@ export const audioClient = {
   getMeters: (): Promise<Meters> =>
     (ipc?.invoke('audio:getMeters') as Promise<Meters>) ??
     Promise.resolve({ peak: 0, rms: 0, peakL: 0, peakR: 0, peaks: [], speakers: 0, masterFxChannels: 0, deviceChannels: 0, clipped: false }),
+  // Resolves false when the native addon is absent (or the bridge is dead — which also means no sound).
+  // Consumers must not raise an alarm on a REJECTION: only an explicit false lights a warning.
+  available: (): Promise<boolean> =>
+    (ipc?.invoke('audio:available') as Promise<boolean>) ?? Promise.resolve(false),
   loadClip: (id: string, path: string): Promise<ClipMeta | null> =>
     (ipc?.invoke('audio:loadClip', id, path) as Promise<ClipMeta | null>) ?? Promise.resolve(null),
   unloadClip: (id: string): void => { ipc?.send('audio:unloadClip', id); },
