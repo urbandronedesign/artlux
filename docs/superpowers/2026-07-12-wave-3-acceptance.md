@@ -62,7 +62,7 @@ fixed. **[WATCH]** = cannot be proven by hand in a smoke test; look for it in th
 The dev app must be **CLOSED** for any native step. A running app locks `audio_engine.node`; the link fails with
 `LNK1104` and **silently leaves the stale addon in place**, so a working fix looks broken.
 
-- [ ] **0.1 [BLOCKER]** — the tree builds, and it builds the audio engine.
+- [x] **0.1 [BLOCKER]** — the tree builds, and it builds the audio engine. ✅ **PASSED** (2026-07-13, `67ecdbf`)
   **DO:** with the app closed, run each; every one must exit 0.
   ```
   npx tsc -p tsconfig.json --noEmit
@@ -74,30 +74,60 @@ The dev app must be **CLOSED** for any native step. A running app locks `audio_e
   **EXPECT:** exit 0 everywhere; `showclock-sim` prints all PASS.
   **IF IT FAILS:** `build:audio` failing is **gate 1** — tell Claude the exact cmake/cmake-js error and whether
   the app was closed. (Gate 1, SEQUENCING.md.)
+  **RESULT:** all five exit 0; `build:audio` genuinely relinks the addon (`audio_engine.vcxproj ->
+  audio_engine.node`); `showclock-sim` prints **99/99 assertions PASS**.
 
-- [ ] **0.2 [BLOCKER]** — the packaged app has sound.
+- [x] **0.2 [BLOCKER]** — the packaged app has sound. ✅ **PASSED** (2026-07-13, heard by ear)
   **DO:** `npm run package`. Open the packaged app (not the dev app). Load a wav on the bed. Press Play.
-  **EXPECT:** you hear it. `package` is gated by `build-audio.cjs --check` — it must **refuse to build** if the
-  addon is missing rather than shipping a silent installer.
-  **IF IT FAILS (silently, i.e. it packages and there's no sound):** that is exactly the failure gate 1 exists to
-  stop — the loader graceful-degrades and you get a complete audio UI with no sound. Tell Claude: *"package
-  succeeded and the packaged app is silent"* + whether `resources/audio-engine.node` exists in the app folder.
+  **EXPECT:** you hear it.
+  ⚠ **This test's premise changed under `473d259`.** `package` is **no longer** gated by `build-audio.cjs
+  --check`; it now runs the **strict build** (`package: node scripts/build-audio.cjs && electron-vite build &&
+  electron-builder`). `--check` only asserted the addon EXISTS, never that it was CURRENT — so you could edit
+  `engine.cpp`, package, and ship the PREVIOUS engine. It cannot refuse to build any more; it builds.
+  **ALSO CHECK:** `resources/audio-engine.node` exists in the packaged app **and postdates the newest C++
+  source**. A binary older than `engine.cpp` is the silent-stale-engine failure wearing a passing grade.
+  **IF IT FAILS (silently, i.e. it packages and there's no sound):** the loader graceful-degrades and you get a
+  complete audio UI with no sound. Tell Claude: *"package succeeded and the packaged app is silent"*.
 
-- [ ] **0.3** — graceful degrade still degrades.
+- [x] **0.3** — graceful degrade still degrades. ✅ **PASSED** (2026-07-13) — **after a fix; it FAILED as first run.**
   **DO:** rename `audio-engine.node` away. Start the app.
   **EXPECT:** app starts, audio UI renders, no crash, and a **visible** notice that the engine is missing.
   **IF IT FAILS:** a crash is a blocker; a *silent* dead engine with no notice is gate 1's other half — report it.
+  **RESULT — this test did its job.** First run: no crash, audio UI rendered — and **no notice**. The only
+  warning in the app was an inline line inside **Settings ▸ Audio**, which you reach only by already suspecting
+  the answer. The mixer drew a complete, healthy-looking UI over a silent room: gate 1's other half, exactly.
+  **Root cause:** the renderer could not *ask* whether the engine had loaded. `audioManager` exported
+  `available` and **nothing consumed it**; the UI inferred a dead engine from `configure()` returning an empty
+  device string — a guess derived from a side effect.
+  **Fixed** (`1bd9d6d`, `073e336`, `67ecdbf`; spec:
+  `docs/superpowers/specs/2026-07-13-audio-engine-missing-notice-design.md`): an `audio:available` IPC probe
+  (mirroring `calib:available` / `ndi:available`), a **dismissible startup modal**, and a persistent amber
+  **`no audio engine`** badge in the Audio Bed panel header — because the modal is dismissible, and without the
+  badge the app would look healthy again the moment you closed it. **No "don't show again":** a warning you can
+  silence forever is how a machine ends up mute with nobody knowing.
+  **RE-TEST BOTH HALVES.** Engine hidden → modal + badge. Engine restored → **no** modal, **no** badge, sound
+  plays. A warning that is always on is as useless as one that never fires.
 
-- [ ] **0.4** — the source gates (`git grep`; every one must print **nothing**):
+- [x] **0.4** — the source gates. ✅ **PASSED** (2026-07-13)
+  ⚠ **Three of these gates were broken as written, and are corrected below.** Two matched **their own text in
+  this document** (they were unscoped, so `git grep` found the very lines that specify them). The third banned an
+  identifier that has since become load-bearing.
   ```
-  git grep -n "text-\[[0-9]" -- src/renderer/components/timeline/
-  git grep -n "text-\[[0-9]" -- plugins/audio/
-  git grep -n "transport: 'preserve'"
-  git grep -n "prevPlayhead" -- plugins/audio/
+  git grep -n "text-\[[0-9]" -- src/renderer/components/timeline/ plugins/audio/
+  git grep -n "transport: 'preserve'" -- src/ plugins/          # SCOPED: was matching this file
   git grep -n "getStatus().playhead" -- plugins/audio/
   git grep -n "'audio'" -- src/renderer/services/automationTargets.core.ts
-  git grep -n "only ever one running transport"
+  git grep -n "only ever one running transport" -- src/ plugins/  # SCOPED: was matching this file
   ```
+  ~~`git grep -n "prevPlayhead" -- plugins/audio/`~~ — **RETIRED. Do not restore it.** This gate was written when
+  the bed was the audio driver's only container, and it meant *"the bed must not ride the playhead."* Since
+  `Timeline.audio` became a **second** container (`f335263`, `06b5a9a`), a playhead-based seek test is not merely
+  legal but **required**: `plugins/audio/src/plugin.renderer.ts:675-687` keeps two, and they are what this suite
+  is built to prove — `showSeeked` (from `prevShowTime`) stops **only `bed.clips`**, `phSeeked` (from
+  `prevPlayhead`) stops **only `tlAudio.clips`**. That is the bed-rides-the-show-clock / scene-audio-rides-the-
+  playhead split behind tests 2.4, 3.2 and 4.5. Deleting `prevPlayhead` would stop a scene's own audio ever
+  resyncing on a scene scrub. **What the gate MEANT still holds** and is asserted by `getStatus().playhead`
+  above, plus `showclock-sim`'s row-4 driver assertion.
   *(Plan: Global Constraints "Verification reality"; Final gate #10.)*
 
 ---
