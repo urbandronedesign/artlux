@@ -351,6 +351,11 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   // Floating (non-blocking) window — draggable by its header so it can be moved clear of the Media library.
   const { positionerStyle, handleProps } = useDraggable();
 
+  // Defaults TRUE so no badge flashes while the probe is in flight. Only an explicit false lights it, and
+  // a rejection lights nothing — see the badge below.
+  const [engineUp, setEngineUp] = useState(true);
+  useEffect(() => { audioClient.available().then(setEngineUp).catch(() => {}); }, []);
+
   // Sync BOTH containers from the host (external edits / project load / a scene recall → a different bound
   // timeline). The fan-out fires on either one changing.
   useEffect(() => {
@@ -805,6 +810,16 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
               <span className="shrink-0 px-1.5 h-5 inline-flex items-center rounded bg-warn/15 text-warn text-micro whitespace-nowrap"
                 title="The global timeline's Length ran out (Loop off). The show clock is parked and the bed has stopped — this is not a fault. Raise the global Length, turn the global Loop on, or press Stop then Play.">
                 show ended
+              </span>
+            )}
+            {/* THE OTHER WAY THIS PANEL GOES SILENT-BUT-HEALTHY-LOOKING, and the worse one: there is no
+                engine at all. `show ended` above has a badge; a dead engine had NOTHING, and the mixer
+                drew a full, working-looking UI over a silent room. The startup modal is dismissible, so
+                without this badge the app would look healthy again the moment it was closed. 0.3. */}
+            {!engineUp && (
+              <span className="shrink-0 px-1.5 h-5 inline-flex items-center rounded bg-warn/15 text-warn text-micro whitespace-nowrap"
+                title="ArtLux started without its audio engine — there is no sound. Authoring and saving still work normally. Expected audio-engine.node in the app's resources; from source, run npm run build:audio.">
+                no audio engine
               </span>
             )}
           </div>

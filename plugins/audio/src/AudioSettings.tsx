@@ -31,6 +31,10 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
   const [devices, setDevices] = useState<string[]>([]);
   const [device, setDevice] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  // THE REAL SIGNAL. This used to be inferred from configure() returning an empty device name — a guess
+  // derived from a side effect, and the reason a dead engine was never surfaced anywhere an operator
+  // would look. Defaults true so the warning never flashes while the probe is in flight.
+  const [engineUp, setEngineUp] = useState(true);
   const [meter, setMeter] = useState<{ peaks: number[]; speakers: number }>({ peaks: [], speakers: 0 });
   const holds = useRef<number[]>([]);
 
@@ -41,6 +45,7 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
 
   useEffect(() => {
     let live = true;
+    audioClient.available().then((v) => { if (live) setEngineUp(v); }).catch(() => {});
     audioClient.getDevices().then((d) => { if (live) setDevices(d ?? []); }).catch(() => {});
     void apply(outCh, mode, layout); // idempotent engine-side; returns the open device
     return () => { live = false; };
@@ -65,7 +70,7 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
   const setMode = (m: OutputMode) => { patchCfg({ outputMode: m }); void apply(outCh, m, layout); };
   const setLayout = (l: SpeakerLayout) => { patchCfg({ speakerLayout: l }); void apply(outCh, mode, l); };
 
-  const available = !error && !!device;
+  const available = engineUp && !error;
   const pct = (v: number) => `${Math.min(100, Math.round(v * 100))}%`;
   const need = LAYOUTS.find((l) => l.id === layout)?.speakers ?? 2;
   const shortChannels = mode === 'speakers' && need > outCh;
