@@ -9,6 +9,18 @@
 //                structured-clone postMessage of the whole doc to every projector port).
 // Every callback carries `source` back to the parent for exactly that reason.
 //
+// WHOSE TRACK IS THIS? — `ownerName`, AND IT IS DRAWN, NEVER STORED. A `timeline` track lives in a document
+// that is either the global timeline or ONE scene's, and the mint site gives every container its own
+// `Audio 1` (the counter is per-container), so the name alone cannot tell two scenes apart. The gutter
+// therefore PREFIXES the row with the owning document's CURRENT name — and it stays a prefix, outside the
+// input, because baking it into `AudioTrack.name` would put it in the DOCUMENT, where two things rot it:
+//   · handleRenameScene (App) patches `scene.name` and nothing else — it never walks the scene's audio
+//     tracks — so `Scene 2 — Audio 1` survives the rename to `Foyer`, forever, in a file shipped to a venue.
+//   · handleCaptureScene deep-clones the bound timeline into a NEW scene — so duplicating `Scene 2` would
+//     open `Scene 3` full of tracks called `Scene 2 — Audio 1`: wrong on exactly the copy that needs the
+//     label most.
+// A drawn prefix is immune to both, because it is re-resolved from the live author context every render.
+//
 // DRAFT LOCALLY, COMMIT ONCE ON POINTERUP. Non-negotiable (see ClipBlock/AutomationLane): a commit per
 // pointermove re-enters App → setScenes/setAudioMix → engine.setData → warmMedia + pruneStaleLayers +
 // compileAutomation + a postMessage per projector, 60×/s — and setData can emit a `pause` intent, which
@@ -28,6 +40,11 @@ export interface AudioLaneProps {
   clips: AudioClip[];               // already filtered to this track, with the drag draft applied
   source: 'bed' | 'timeline';       // WHICH CONTAINER — decides the commit path and the clock label
   docKey: string;                   // identity of the BOUND document — see the draft discard below
+  // DISPLAY ONLY — the CURRENT name of the document that owns this track ('Global', or the bound scene's
+  // name). Drawn as a prefix in the gutter; NEVER written into AudioTrack.name (see the header). Absent for
+  // the bed, which belongs to the PROJECT and not to any timeline — labelling a bed track `Global` would be
+  // a lie about the one thing the badge below exists to tell (which clock it rides).
+  ownerName?: string;
   selectedId: string | null;
   tool: 'select' | 'blade';
   pxPerSec: number;
@@ -170,7 +187,7 @@ const AudioClipBlock: React.FC<{
 };
 
 export const AudioLane: React.FC<AudioLaneProps> = ({
-  track, clips, source, docKey, selectedId, tool, pxPerSec, width,
+  track, clips, source, docKey, ownerName, selectedId, tool, pxPerSec, width,
   onPatchTrack, onRemoveTrack, onStartDrag, onBlade, onRemoveClip, onSelect, onSeek, onDropAsset,
 }) => {
   const blade = tool === 'blade';
@@ -239,6 +256,16 @@ export const AudioLane: React.FC<AudioLaneProps> = ({
         style={{ width: GUTTER, height: AUDIO_LANE_H }}>
         <div className="flex items-center gap-1">
           <Music size={10} className="text-fg-3 shrink-0" />
+          {/* WHOSE TRACK — DRAWN, NOT STORED (see the header). It sits OUTSIDE the input on purpose: the
+              input's value is the document's `track.name`, and anything inside it would be committed by
+              commitName on the next blur — which is precisely the baked-in prefix this design rejects.
+              Truncated (the gutter is 188 px and the name is user text), with the full name in the title. */}
+          {source === 'timeline' && ownerName && (
+            <span className="text-micro text-fg-3 shrink-0 max-w-[56px] truncate"
+              title={`This track belongs to ${ownerName}'s own audio. The name is drawn here, never stored — rename the scene and this label follows it; duplicate the scene and the copy does NOT inherit the old name.`}>
+              {ownerName} —
+            </span>
+          )}
           {/* Draft on keystroke, commit on blur / Enter. ESCAPE ABANDONS — and it really does: `setName`
               clears the REF synchronously, so the blur() below (which fires onBlur → commitName inside
               this same call stack) reads null and commits nothing. See commitName. */}

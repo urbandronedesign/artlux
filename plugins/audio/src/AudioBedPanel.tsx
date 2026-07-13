@@ -75,6 +75,10 @@ interface Bus { id: string; name: string; gain?: number; effects?: Effect[] }
 interface Mix { tracks: Track[]; clips: Clip[]; buses: Bus[] }
 // The BOUND timeline's own audio — the same clip/track shapes, no buses (one output chain, project-global).
 interface TlAudio { tracks: Track[]; clips: Clip[] }
+// Just enough of core's `Scene` to put a NAME on the bound document (host.show.getScenes() is `unknown[]`
+// in the SDK — the host's domain types are opaque to a plugin, so this is restated structurally like Mix
+// and TlAudio above). Read for DISPLAY ONLY: the panel never writes a scene and never stores its name.
+interface SceneRef { id: string; name: string }
 // Which container a selected clip lives in. The union is the host's, restated structurally (the plugin
 // cannot import core's types) — and it is DISCRIMINATED for a reason: the two containers commit through
 // completely different paths, and a `source ?? 'bed'` guess would silently edit the bed, which survives
@@ -198,6 +202,13 @@ const emptyMix = (): Mix => ({ tracks: [], clips: [], buses: [] });
 // that has no audio at all. (The driver's EMPTY_CLIPS makes the same promise one layer down.)
 const EMPTY_TL: TlAudio = Object.freeze({ tracks: Object.freeze([]) as unknown as Track[], clips: Object.freeze([]) as unknown as Clip[] });
 const baseName = (p: string) => p.split(/[\\/]/).pop() ?? 'audio';
+// The BOUND document's scene name, or `null` for the global timeline (and for an activeSceneId with no
+// scene behind it — a miss must not silently become "Global"). DISPLAY ONLY; see `boundName` below.
+const sceneNameOf = (h: ReturnType<typeof getAudioHost>): string | null => {
+  const id = h?.show.getStatus().activeSceneId ?? null;
+  if (id == null) return null;
+  return (h!.show.getScenes() as SceneRef[]).find((s) => s.id === id)?.name || null;
+};
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 const g2 = (v: number) => v.toFixed(2);
 
@@ -241,6 +252,27 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   // but the WRITE TARGET does (that scene now materializes its own timeline on the first edit), which is
   // precisely a gesture the guard must abandon.
   const [boundDoc, setBoundDoc] = useState<string>(docKeyOf);
+  // THE BOUND SCENE'S NAME, RESOLVED AT DISPLAY TIME — `null` while the GLOBAL timeline is bound.
+  //
+  // This panel is the first surface in the app that renders TWO containers' track lists in one scroll, and
+  // the mint counter is per-container (both the bed and every scene start at `Audio 1`), so "Tracks — this
+  // timeline" over a column of `Audio 1, Audio 2` told the operator nothing about WHOSE they were.
+  //
+  // ⚠ RESOLVED, NEVER STORED. The alternative — baking the name into `AudioTrack.name` at the mint — rots
+  // twice over: core's handleRenameScene patches `scene.name` and never walks the scene's audio tracks, and
+  // handleCaptureScene structuredClones the timeline into a NEW scene (so the copy would carry the
+  // ORIGINAL's name). A name read fresh from getScenes() every poll is stale for at most one tick.
+  //
+  // No new host API: `getStatus().activeSceneId` names the bound document (the very ref patchTimelineClip
+  // routes off) and `getScenes()` carries the names. Refreshed on the 100 ms transport poll below, which
+  // already reads getStatus() — a rename is a label, not a guard, so a tick of lag costs nothing, and a
+  // setState with an unchanged string is a React bail-out.
+  //
+  // SEEDED FROM THE HOST, not from `null`: a panel OPENED while a scene is already bound would otherwise
+  // spend its first tick captioned "Tracks — Global" over that scene's tracks — the one caption this label
+  // must never show. (`transport` seeds sceneBound:false for the same tick, so the generic fallback would
+  // not catch it either; the seed is what makes the very first paint honest.)
+  const [boundName, setBoundName] = useState<string | null>(() => sceneNameOf(host));
   const peakHold = useRef(0);
   const holdL = useRef(0);
   const holdR = useRef(0);
@@ -310,6 +342,10 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
       setTransport({ playing: st.playing, showTime: st.showTime, showEnd: st.showEnd,
         sceneBound: st.activeSceneId != null, showEnded: st.showEnded });
       setBoundDoc(st.activeSceneId ?? '__global__');   // backstop for the fan-out (see boundDoc) — bails out unchanged
+      // The bound document's NAME, for the labels only (see boundName). This is also what carries a RENAME
+      // (handleRenameScene touches the scene and nothing else, so no audio fan-out fires for it) — which is
+      // exactly why the label is drawn from here and not baked into the document at the mint.
+      setBoundName(sceneNameOf(host));
     }, 100);
     return () => clearInterval(iv);
   }, [host]);
@@ -496,9 +532,13 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
     patchSelClip(id, { spatial: on ? { x: 0, y: 0, z: 1 } : undefined });
   };
 
+  // ⚠ `Audio N`, NOT `Track N` — AND IT MUST STAY THE SAME WORD CORE MINTS (Timeline.addAudioTrack). There
+  // are two doors onto the SAME bed (this button, and the gutter's + on the bed lanes), and they used to
+  // mint different words, so a bed built through both read `Track 1, Audio 2, Track 3`. `Audio` is the one
+  // that survives: a Timeline document already calls its VIDEO layers `Track N` (Timeline.addLayer).
   const addTrack = () => {
     const cur = mixRef.current;
-    commit({ ...cur, tracks: [...cur.tracks, { id: uid(), name: `Track ${cur.tracks.length + 1}`, gain: 1, mute: false }] });
+    commit({ ...cur, tracks: [...cur.tracks, { id: uid(), name: `Audio ${cur.tracks.length + 1}`, gain: 1, mute: false }] });
   };
   const removeTrack = (id: string) => {
     const cur = mixRef.current;
@@ -558,6 +598,13 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   // of a scene-authoring session. The container difference is now expressed where it actually lives: the
   // WRITE (selSource) and the RELEASE (releaseSel), not in a disabled attribute.
   const selTimeline = selSource === 'timeline';   // for the badge + the notes; NEVER for `disabled`
+
+  // The two shapes the bound document's name is spoken in. `boundName` is null for the global timeline —
+  // and also for the (impossible-but-cheap-to-survive) case of an activeSceneId with no scene behind it,
+  // where `transport.sceneBound` still says a scene is bound: fall back to the old generic phrase there
+  // rather than call it Global.
+  const boundTitle = boundName ?? (transport.sceneBound ? 'the bound scene' : 'Global');
+  const boundPhrase = boundName ? `the scene “${boundName}”` : transport.sceneBound ? 'the bound scene' : 'the global timeline';
 
   if (!host) return null;
   const pct = (v: number) => `${Math.min(100, Math.round(v * 100))}%`;
@@ -701,16 +748,22 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
               ) : mix.tracks.map((t) => trackRow(t, 'bed'))}
             </section>
 
+            {/* ⚠ THE HEADING NAMES THE DOCUMENT, AND IT NAMES IT AT DISPLAY TIME (see boundName). The two
+                lists in this column are the ONLY place in the app where two containers' tracks share a
+                scroll, and every container mints its own `Audio 1` — so "Tracks — this timeline" over an
+                `Audio 1` was the exact ambiguity the operator hit. The name is re-resolved every poll and
+                stored nowhere: rename the scene and this follows; duplicate it and the copy says its own
+                name, not the original's. */}
             <section className="space-y-1.5">
-              <h3 className="text-micro font-semibold text-fg-2 uppercase tracking-wider px-0.5"
+              <h3 className="text-micro font-semibold text-fg-2 uppercase tracking-wider px-0.5 truncate"
                 title={transport.sceneBound
-                  ? "The BOUND SCENE's own audio (Timeline.audio). It rides the PLAYHEAD and restarts with its timeline. Read-only here — edit it on its lane."
+                  ? `${boundPhrase}'s own audio (Timeline.audio). It rides the PLAYHEAD and restarts with its timeline. Read-only here — edit it on its lane.`
                   : "The GLOBAL timeline's own audio (Timeline.audio). It rides the PLAYHEAD and restarts with its timeline. Read-only here — edit it on its lane."}>
-                Tracks — this timeline
+                Tracks — {boundTitle}
               </h3>
               {tlAudio.tracks.length === 0 ? (
                 <p className="text-micro text-fg-3/70 italic px-0.5 py-2">
-                  {transport.sceneBound ? 'The bound scene' : 'The global timeline'} has no audio tracks of its own.
+                  Nothing yet — {boundPhrase} has no audio tracks of its own.
                 </p>
               ) : (
                 <>
@@ -765,9 +818,14 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
                     workaround at all. Everything below now writes. What is left to say is the DIVISION OF
                     LABOUR (this panel shapes; the lane places) and the CLOCK — and the clock is the part
                     nothing else on screen tells them. */}
+                {/* …and it NAMES the document, because this is the one panel that WRITES it. Every clip on
+                    screen while a scene is bound is a timeline clip (App withholds the bed lanes there), and
+                    a Capture-Scene clone gives two scenes byte-identical clip ids and names — so "the bound
+                    timeline" left the operator no way to see WHICH scene the reverb they are dialling is
+                    going into. Display-time, from getScenes(); never stored. */}
                 {selTimeline && (
                   <p className="px-2 py-1.5 rounded border border-line-1 bg-surface-2 text-micro text-fg-3">
-                    This clip belongs to the bound timeline, so it rides the PLAYHEAD and restarts whenever its
+                    This clip belongs to {boundPhrase}, so it rides the PLAYHEAD and restarts whenever that
                     timeline does — it is not on the show clock. Gain, mute, position and FX are yours here;
                     its placement, trim and fades live on its lane, and its TRACK's mute, solo and gain live in
                     that lane's gutter.

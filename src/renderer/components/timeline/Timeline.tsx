@@ -741,6 +741,18 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       onChangeRef.current({ ...t, audio: { tracks: timelineAudioTracks(t).filter(x => x.id !== id), clips: timelineAudioClips(t).filter(c => c.trackId !== id) } });
     }
   };
+  // ⚠ `Audio N`, AND THE SCENE'S NAME IS NOT IN IT. Two rules, both deliberate:
+  //   · THE WORD IS `Audio`, in BOTH containers and in BOTH surfaces (the mixer's own `+ Track` mints the
+  //     same string — AudioBedPanel.addTrack). It is NOT `Track`, because THIS DOCUMENT ALREADY MINTS
+  //     `Track N` FOR VIDEO LAYERS (addLayer, just above): a bed assembled half from the gutter and half
+  //     from the mixer used to read `Track 1, Audio 2`, and inside a timeline `Track 1` would name a video
+  //     layer and an audio track at once.
+  //   · THE OWNING STATE'S NAME IS NOT BAKED IN — `author.activeName` is right here and it is still not
+  //     used, because the mint would freeze it into the DOCUMENT: handleRenameScene never rewrites track
+  //     names (so it goes stale), and handleCaptureScene deep-clones the timeline into a NEW scene (so the
+  //     copy would open full of the ORIGINAL's name). The gutter draws the live name instead — AudioLane's
+  //     `ownerName`. The counter stays per-container, so two scenes both start at `Audio 1`; that is what
+  //     the drawn prefix is for.
   const addAudioTrack = (source: 'bed' | 'timeline') => {
     const track: AudioTrack = { id: crypto.randomUUID(), name: `Audio ${(source === 'bed' ? bedTracks.length : tlTracks.length) + 1}`, gain: 1, mute: false };
     if (source === 'bed') {
@@ -1241,7 +1253,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
               deep-clones) — so a rebind RECONCILES TO THE SAME COMPONENT INSTANCE and its gutter drafts
               (gain, name) survive it. `docKey` is what tells the lane to throw them away. See AudioLane. */}
           {tlTracks.map(t => (
-            <AudioLane key={`tl-${t.id}`} track={t} source="timeline" docKey={docKey}
+            <AudioLane key={`tl-${t.id}`} track={t} source="timeline" docKey={docKey} ownerName={author?.activeName ?? 'Global'}
               clips={tlClips.filter(c => c.trackId === t.id).map(c => (audioDraft?.source === 'timeline' && audioDraft.clip.id === c.id ? audioDraft.clip : c))}
               selectedId={selectedSource === 'timeline' ? selected : null} tool={tool} pxPerSec={pxPerSec} width={Math.max(width, 100)}
               onPatchTrack={(p) => patchAudioTrack('timeline', t.id, p)} onRemoveTrack={() => removeAudioTrack('timeline', t.id)}
