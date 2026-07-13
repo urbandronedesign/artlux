@@ -613,12 +613,27 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   // WRITE (selSource) and the RELEASE (releaseSel), not in a disabled attribute.
   const selTimeline = selSource === 'timeline';   // for the badge + the notes; NEVER for `disabled`
 
-  // The two shapes the bound document's name is spoken in. `boundName` is null for the global timeline —
-  // and also for the (impossible-but-cheap-to-survive) case of an activeSceneId with no scene behind it,
-  // where `transport.sceneBound` still says a scene is bound: fall back to the old generic phrase there
-  // rather than call it Global.
-  const boundTitle = boundName ?? (transport.sceneBound ? 'the bound scene' : 'Global');
-  const boundPhrase = boundName ? `the scene “${boundName}”` : transport.sceneBound ? 'the bound scene' : 'the global timeline';
+  // ── THE TWO SHAPES THE BOUND DOCUMENT'S NAME IS SPOKEN IN ────────────────────────────────────────────
+  // `boundName` is null for the global timeline — and also for the (impossible-but-cheap-to-survive) case
+  // of an activeSceneId with no scene behind it: fall back to the generic phrase there rather than call a
+  // bound scene "Global".
+  //
+  // ⚠ THE FALLBACK DISCRIMINATES ON `boundDoc`, NOT ON `transport.sceneBound`. They answer the same
+  // question — is a scene bound? — but they are refreshed by DIFFERENT CLOCKS, and mixing them makes the
+  // labels contradict each other for a tick. `boundName` and `boundDoc` are set from ONE getStatus() in
+  // the audio fan-out (the recall render itself); `transport.sceneBound` only refreshes on the 100 ms
+  // meter poll. So on an EXIT TO GLOBAL the fan-out cleared `boundName` to null in the same render that
+  // swapped `tlAudio` to the global document's tracks, while `sceneBound` was still true — and the heading
+  // read "Tracks — the bound scene" and the inspector said "This clip belongs to the bound scene" OVER THE
+  // GLOBAL TIMELINE'S CLIPS. Self-healing within a tick, and the WRITE was never wrong (patchTlClip routes
+  // off the live docKeyOf(), not off any of this) — but a label that names the wrong container over a live
+  // FX write is the exact ambiguity these strings were added to kill, and the fresh discriminator was
+  // already in hand. Both phrases now derive from the SAME read that produced the name they fall back for.
+  // (`seekLocked` below stays on `transport.sceneBound` on purpose: it is a GUARD on a control, not a
+  // label, and it is allowed to be conservative for a tick.)
+  const sceneBound = boundDoc !== '__global__';
+  const boundTitle = boundName ?? (sceneBound ? 'the bound scene' : 'Global');
+  const boundPhrase = boundName ? `the scene “${boundName}”` : sceneBound ? 'the bound scene' : 'the global timeline';
 
   if (!host) return null;
   const pct = (v: number) => `${Math.min(100, Math.round(v * 100))}%`;
@@ -780,7 +795,7 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
                   "<phrase>'s own audio" for the same reason: the phrase ends in a curly quote, and a
                   possessive hung off it read as part of the scene's name.) */}
               <h3 className="text-micro font-semibold text-fg-2 uppercase tracking-wider px-0.5 truncate"
-                title={transport.sceneBound
+                title={sceneBound
                   ? `The audio owned by ${boundPhrase} (Timeline.audio). It rides the PLAYHEAD and restarts with its timeline. Read-only here — edit it on its lane.`
                   : "The GLOBAL timeline's own audio (Timeline.audio). It rides the PLAYHEAD and restarts with its timeline. Read-only here — edit it on its lane."}>
                 Tracks — <span className="normal-case">{boundTitle}</span>

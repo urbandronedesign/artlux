@@ -117,6 +117,27 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   const docKey = author?.activeSceneId ?? '__global__';
   const docKeyRef = useRef(docKey); docKeyRef.current = docKey;
 
+  // The caption drawn on the BOUND DOCUMENT'S audio lanes (display only — see the AudioLane `ownerName`
+  // prop; it is never written into AudioTrack.name). Two rules, and both are load-bearing:
+  //
+  // 1. DISCRIMINATE ON `activeSceneId`, NOT ON THE NAME'S TRUTHINESS. It is the same string `docKey` routes
+  //    the write on, i.e. the WRITE TARGET. A scene IS bound iff that id is set, whatever its name says.
+  // 2. RESOLVE THE NAME OUT OF `author.scenes`, DO NOT CONSUME `author.activeName`. App pre-collapses that
+  //    field: it is `activeScene ? activeScene.name : 'Global'`, and `activeScene` is a `.find()` — so an
+  //    activeSceneId with no scene behind it hands us the literal string 'Global' for a state in which a
+  //    SCENE is bound. 'Global' is truthy, so no `|| 'Scene'` floor can catch it, and the scene's own lanes
+  //    would be captioned "Global —": the one caption this label exists to prevent, failing in the dangerous
+  //    direction (the operator reads it as "this sting is on the global timeline, it will be heard under
+  //    every scene"). Resolving here mirrors the mixer's `sceneNameFor` exactly (AudioBedPanel), so on a
+  //    nameless or unresolvable scene BOTH surfaces degrade to vague copy ("Scene" / "the bound scene")
+  //    instead of disagreeing about whose track this is. Invariant 6's rule — COERCE, DO NOT DROP — applied
+  //    to a label. (Not reachable today: handleRemoveScene clears the id and the loader picks the active id
+  //    out of the scenes it just loaded. Cheap to make unreachable BY CONSTRUCTION rather than by audit,
+  //    and there is no scene normalizer anywhere in the tree to make `name: string` a runtime guarantee.)
+  const audioOwnerName = author?.activeSceneId
+    ? (author.scenes.find(s => s.id === author.activeSceneId)?.name || 'Scene')
+    : 'Global';
+
   // The rendered track order = the bound document's, with the reorder draft applied. RESOLVED BY ID
   // AGAINST THE BOUND DOCUMENT on every render: if a recall rebinds mid-drag, the ids stop resolving and
   // the preview falls straight back to what is actually bound — a draft can never paint the outgoing
@@ -1253,19 +1274,14 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
               deep-clones) — so a rebind RECONCILES TO THE SAME COMPONENT INSTANCE and its gutter drafts
               (gain, name) survive it. `docKey` is what tells the lane to throw them away. See AudioLane.
 
-              ⚠ `ownerName` DISCRIMINATES ON `activeSceneId`, NOT ON THE NAME'S TRUTHINESS. `activeName` is
-              typed `string`, but the type LIES: App's loader casts `data.scenes` straight to `Scene[]` and
-              there is no scene normalizer anywhere, so a hand-edited or older project can carry a scene with
-              no `name`. The obvious `author?.activeName ?? 'Global'` would then caption THAT SCENE'S OWN
-              LANES "Global —" — the one caption this label exists to prevent, and it is the dangerous
-              direction: the operator reads it as "this sting is on the global timeline, it will be heard
-              under every scene". (An empty-string name failed the other way — falsy, so the chip silently
-              vanished.) Route on the SAME string docKey routes on — the WRITE TARGET — and let a nameless
-              scene degrade to a bare "Scene", exactly as the mixer's sceneNameOf degrades to "the bound
-              scene" on the same miss. The two surfaces must never disagree about whose track this is. */}
+              ⚠ `ownerName` IS `audioOwnerName` — resolved once, at the top of this component, off the
+              WRITE TARGET (`activeSceneId`) and out of `author.scenes`. It is deliberately NOT
+              `author.activeName`, which App has already collapsed to 'Global' on an unresolvable id. The
+              full reasoning is at the derivation; the short version is that no label on a bound scene's own
+              lanes may ever read "Global —". */}
           {tlTracks.map(t => (
             <AudioLane key={`tl-${t.id}`} track={t} source="timeline" docKey={docKey}
-              ownerName={author?.activeSceneId ? (author.activeName || 'Scene') : 'Global'}
+              ownerName={audioOwnerName}
               clips={tlClips.filter(c => c.trackId === t.id).map(c => (audioDraft?.source === 'timeline' && audioDraft.clip.id === c.id ? audioDraft.clip : c))}
               selectedId={selectedSource === 'timeline' ? selected : null} tool={tool} pxPerSec={pxPerSec} width={Math.max(width, 100)}
               onPatchTrack={(p) => patchAudioTrack('timeline', t.id, p)} onRemoveTrack={() => removeAudioTrack('timeline', t.id)}
