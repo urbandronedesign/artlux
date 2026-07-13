@@ -27,6 +27,13 @@ type CodecState = { path: string; canvas: CanvasImageSource | null; codecId: str
 type LayerVid = {
   el: HTMLVideoElement; clipId: string | null; srcPath: string | null;
   mode: 'video' | 'codec' | 'content' | null; codec: CodecState | null;
+  // THE LAST GOOD FRAME. A seeking <video> reports readyState < 2 and is not drawable — and the
+  // compositor clears then repaints from live drawables, so an undrawable element means BLACK, not a
+  // frozen picture. Nothing else in the main-window path retains a frame. We snapshot the element the
+  // moment before a seek destroys it, and draw this while the decoder catches up: a scrub then lags by
+  // a frame or two instead of strobing black. Only written when a seek is actually issued — idle pause
+  // and steady playback pay nothing for it.
+  hold?: HTMLCanvasElement | null;
   // 'content' mode: a generalized source clip (image/effect/camera/spout/ndi/dmx/tracking) is live
   // on this layer; pixels come from contentSource keyed by `layer:<id>`.
   content?: SurfaceContent; contentClipId?: string | null; contentLocalTime?: number;
@@ -194,10 +201,25 @@ function syncLayer(layerId: string, t: number): void {
   syncVideoLayer(lv, clip, t);
 }
 
+// Snapshot the element's current frame so we can keep showing it while a seek is in flight. Called
+// ONLY on the frames where we are about to issue a seek — i.e. never during idle pause, and only on a
+// real drift correction during playback. A no-op if there is nothing good to keep.
+function captureHold(lv: LayerVid): void {
+  const el = lv.el;
+  if (el.readyState < 2 || !el.videoWidth || !el.videoHeight) return;
+  if (!lv.hold) lv.hold = document.createElement('canvas');
+  if (lv.hold.width !== el.videoWidth || lv.hold.height !== el.videoHeight) {
+    lv.hold.width = el.videoWidth; lv.hold.height = el.videoHeight;
+  }
+  const ctx = lv.hold.getContext('2d');
+  if (!ctx) return;
+  try { ctx.drawImage(el, 0, 0); } catch { /* not drawable this frame — keep whatever we had */ }
+}
+
 function syncVideoLayer(lv: LayerVid, clip: VideoClip, t: number): void {
   if (lv.srcPath !== clip.path) {
     const url = getBlobUrl(clip.path);
-    if (url) { lv.el.src = url; lv.srcPath = clip.path; }
+    if (url) { lv.el.src = url; lv.srcPath = clip.path; lv.hold = null; } // a new FILE: the held frame is a lie
     else { ensureBlob(clip.path); return; } // not loaded yet
   }
   lv.clipId = clip.id;
@@ -205,8 +227,23 @@ function syncVideoLayer(lv: LayerVid, clip: VideoClip, t: number): void {
   const target = t - clip.start + clip.inPoint;
   if (lv.el.readyState >= 1) {
     const drift = Math.abs(lv.el.currentTime - target);
-    // Seek when scrubbing/paused, or when playback drifts too far (boundary/load).
-    if (!playing || drift > 0.25) { try { lv.el.currentTime = Math.max(0, target); } catch { /* ignore */ } }
+    // Seek when the element is NOT WHERE WE WANT IT — and only then. This used to read
+    // `if (!playing || drift > 0.25)`, which short-circuits: while paused, `drift` was never
+    // consulted, so EVERY rAF frame assigned `currentTime` — to the value the element already held.
+    // In Chromium an assignment starts a seek; the next one lands 16 ms later, before the previous can
+    // finish. The element never completed a seek, `seeking` never cleared, `readyState` never climbed
+    // back to 2 — so layerDrawable() (below) returned null, buildProgram() cleared and skipped the
+    // layer, and THE OUTPUT WENT BLACK ON PAUSE, on the main window and on every projector. It
+    // re-seeked 60×/s to where it already was and starved itself of the frame it had already decoded.
+    // (Measured: playhead 1.962, currentTime 1.962, seeking=true, readyState=1. See
+    // scratch/videoseek-sim.mjs, which reproduces the black and proves this predicate holds the frame.)
+    // Paused, the threshold is HALF A FRAME: below that the element is already showing the frame we
+    // want, and touching currentTime can only destroy it. A real scrub still moves the target by more
+    // than that, so scrubbing still seeks, frame-exactly, exactly as before.
+    if (drift > (playing ? 0.25 : frameSec(data) * 0.5)) {
+      captureHold(lv);   // keep the frame we are about to destroy — a seek makes the element undrawable
+      try { lv.el.currentTime = Math.max(0, target); } catch { /* ignore */ }
+    }
   }
   if (playing) { if (lv.el.paused) lv.el.play().catch(() => {}); }
   else if (!lv.el.paused) lv.el.pause();
@@ -736,12 +773,18 @@ function frame(now: number): void {
 }
 
 // The local (non-mirror) drawable for a layer: HAP canvas, generalized content, or the <video>.
+// ⚠ Returning null here is not "draw nothing" — buildProgram() has already CLEARED the canvas, so a
+// null is BLACK ON THE OUTPUT. A seeking <video> reports readyState < 2 and is undrawable, which is
+// why a scrub used to strobe black. Fall back to the last good frame (captureHold) rather than cutting
+// to black: the docs promise the output holds a picture, and a venue would rather see a frame one or
+// two late than a black projector. Only a layer with NO CLIP under the playhead is legitimately black.
 function layerDrawable(layerId: string): CanvasImageSource | null {
   const lv = layerVideos.get(layerId);
   if (!lv || !lv.clipId) return null;
   if (lv.mode === 'content') return lv.content ? contentSource.getDrawable(layerKey(layerId), lv.content, lv.contentLocalTime ?? 0) : null;
   if (lv.mode === 'codec') return lv.codec ? lv.codec.canvas : null;
-  return lv.mode === 'video' && lv.el.readyState >= 2 ? lv.el : null;
+  if (lv.mode !== 'video') return null;
+  return lv.el.readyState >= 2 ? lv.el : (lv.hold ?? null);
 }
 
 // Composite all contributing layers into the program canvas (bottom of the track list = back, top =
