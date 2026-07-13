@@ -173,6 +173,25 @@ Build this **once**. Half the tests need it. Keep it. Call it **`WAVE3-ACCEPT`**
 
 *This is the entire point of Wave 3B. If only one session survives, it is this one.*
 
+> ### ✅ SESSION 2 PASSED — 2026-07-13. All of 2.1 → 2.7, including 2.7 on a **windowed** projector output
+> (Outputs → display → *Windowed (this screen)* — no second monitor needed; `docs/CALIBRATION.md:99-107`).
+> **The bed does not restart.** Not on a GO, not through S-noTL ten times, not across six loop wraps of S1,
+> not across a 30 s pause. The picture and the scene's own beep restart underneath it, exactly as designed.
+> Run against the hand-authored `WAVE3-ACCEPT` fixture (see Session 1).
+>
+> **Two defects were found while running it. Neither is a bed defect; both are recorded below.**
+
+---
+
+## ⚠ FINDINGS FROM THE ACCEPTANCE RUN (2026-07-13)
+
+| # | Finding | Status |
+|---|---|---|
+| 1 | **A missing audio engine announced nothing.** Rename `audio-engine.node` away and the app degrades *perfectly* and says nothing — a healthy-looking mixer over a silent room. The only warning was buried in Settings ▸ Audio. **Root cause: the renderer could not *ask* whether the engine had loaded** — `audioManager` exported `available` and nothing consumed it; the UI inferred a dead engine from `configure()` returning an empty device string. | ✅ **FIXED** — `audio:available` IPC probe (mirroring `calib:`/`ndi:`), a dismissible startup modal, and a persistent `no audio engine` badge. `1bd9d6d`, `073e336`, `67ecdbf`. Spec: `specs/2026-07-13-audio-engine-missing-notice-design.md`. Test **0.3** now passes. |
+| 2 | **The picture went BLACK on pause, on stop, on a scrub and on a clip-position drag** — on the main window *and* every projector. **PRE-EXISTING, not Wave 3's** (byte-identical on `main`, blame `af8f727f`, 2026-06-22). Invisible until now because it only bites plain `<video>` clips — HAP and GPU-decoded MP4 take the codec path, which holds its frame. Meanwhile `docs/TIMELINE.md:99` promised *"the output doesn't cut to black."* | ✅ **FIXED** — `2fe6fb5`. Two defects, one cause: (a) a `!playing ||` short-circuit re-seeked the `<video>` **60×/s to the position it was already at**, so it never finished a seek and `readyState` never reached the `>= 2` the drawable gate demands; (b) **nothing retained a frame** — `buildProgram()` clears before compositing, so an undrawable layer is not *frozen*, it is *black*. Now: consult the drift in both states, and hold the last good frame across a seek. |
+| 3 | **Effects keep animating while the transport is PAUSED.** Pause the show and generative content carries on moving — so effects run on a clock that is not the transport's. Noticed as a contrast while diagnosing #2 (the effect surfaces were the only ones that did *not* go black). | 🔴 **OPEN — not investigated, not fixed.** Not a bed defect and not a blocker for Wave 3, but it is a real one: pausing a show should freeze the picture, and this is a clock that the wave which just straightened out every other clock did not touch. Decide before merge whether it blocks. |
+| 4 | **The `⏮`/`⏭` transport buttons were never built.** They are in the transport sketch (`plans/timeline-transport-and-audio-scoping.md:98`) but Wave A's plan narrowed to *"the three controls that never had a button: Stop, Set In, Set Out"* and they silently dropped out. Wave A passed its own acceptance because it did everything **its** plan asked. | 📋 **LOGGED** — `plans/transport-edit-point-navigation.md`, held on `feat-transport-skip` until Wave 3 merges (same file). Not a Wave 3 concern. |
+
 - [ ] **2.1 [BLOCKER] — the bed survives GO.** *(Plan T-A1 / reset-table row 4.)*
   **DO:** 1. Bind Global. 2. Play. 3. Let the bed reach **~0:45** — somewhere with an unmistakable melodic
   landmark. 4. GO on S1. Then S2. Then S3. Then S1 again. Keep going for a **full minute**, listening.
