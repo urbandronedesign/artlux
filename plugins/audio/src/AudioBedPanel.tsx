@@ -202,13 +202,18 @@ const emptyMix = (): Mix => ({ tracks: [], clips: [], buses: [] });
 // that has no audio at all. (The driver's EMPTY_CLIPS makes the same promise one layer down.)
 const EMPTY_TL: TlAudio = Object.freeze({ tracks: Object.freeze([]) as unknown as Track[], clips: Object.freeze([]) as unknown as Clip[] });
 const baseName = (p: string) => p.split(/[\\/]/).pop() ?? 'audio';
-// The BOUND document's scene name, or `null` for the global timeline (and for an activeSceneId with no
-// scene behind it — a miss must not silently become "Global"). DISPLAY ONLY; see `boundName` below.
-const sceneNameOf = (h: ReturnType<typeof getAudioHost>): string | null => {
-  const id = h?.show.getStatus().activeSceneId ?? null;
-  if (id == null) return null;
-  return (h!.show.getScenes() as SceneRef[]).find((s) => s.id === id)?.name || null;
+// The name of the scene `id` names, or `null` for the global timeline (id null) and for an id with no scene
+// behind it — A MISS MUST NOT SILENTLY BECOME "Global", it degrades to the generic phrase (see boundTitle).
+// The `|| null` also catches a scene whose `name` is empty or absent: App's loader casts `data.scenes` to
+// `Scene[]` with no normalizer, so the type's `name: string` is not a runtime guarantee. DISPLAY ONLY.
+const sceneNameFor = (h: ReturnType<typeof getAudioHost>, id: string | null): string | null => {
+  if (!h || id == null) return null;
+  return (h.show.getScenes() as SceneRef[]).find((s) => s.id === id)?.name || null;
 };
+// The same, resolving the bound document itself. Takes its own getStatus() — for the SEED only; the two
+// live callers already hold a status object and pass its id in, so the poll costs one getStatus(), not two.
+const sceneNameOf = (h: ReturnType<typeof getAudioHost>): string | null =>
+  sceneNameFor(h, h?.show.getStatus().activeSceneId ?? null);
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 const g2 = (v: number) => v.toFixed(2);
 
@@ -304,7 +309,15 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
       // The fan-out fires on `[audioMix, activeTimeline]` — so a recall that rebinds the bound document
       // wakes it in the recall render. A primitive setState with an unchanged value is a React bail-out, so
       // this costs nothing on the (far commoner) bed-only fire.
-      setBoundDoc(host.show.getStatus().activeSceneId ?? '__global__');
+      //
+      // ⚠ THE NAME REBINDS HERE TOO, NOT ONLY IN THE 100 ms POLL. This callback is where `tlAudio` swaps to
+      // the incoming scene's tracks — in the recall render. Leaving the name to the poll meant the heading,
+      // the empty note and the inspector's note kept saying the scene the operator just LEFT, over the
+      // tracks of the one they just entered, for up to a tick. Self-healing, but naming the wrong scene over
+      // a live FX write is the exact ambiguity this label exists to kill. One getStatus() feeds both.
+      const sid = host.show.getStatus().activeSceneId ?? null;
+      setBoundDoc(sid ?? '__global__');
+      setBoundName(sceneNameFor(host, sid));
     });
   }, [host]);
 
@@ -342,10 +355,11 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
       setTransport({ playing: st.playing, showTime: st.showTime, showEnd: st.showEnd,
         sceneBound: st.activeSceneId != null, showEnded: st.showEnded });
       setBoundDoc(st.activeSceneId ?? '__global__');   // backstop for the fan-out (see boundDoc) — bails out unchanged
-      // The bound document's NAME, for the labels only (see boundName). This is also what carries a RENAME
-      // (handleRenameScene touches the scene and nothing else, so no audio fan-out fires for it) — which is
-      // exactly why the label is drawn from here and not baked into the document at the mint.
-      setBoundName(sceneNameOf(host));
+      // The bound document's NAME, for the labels only (see boundName). A RECALL already rebinds it in the
+      // fan-out above (in the recall render); this poll is what carries a RENAME — handleRenameScene touches
+      // the scene and nothing else, so no audio fan-out fires for it — which is exactly why the label is
+      // drawn and not baked into the document at the mint. Off `st`, so the tick reads getStatus() ONCE.
+      setBoundName(sceneNameFor(host, st.activeSceneId ?? null));
     }, 100);
     return () => clearInterval(iv);
   }, [host]);
@@ -719,8 +733,12 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
             <div className="h-1.5 rounded bg-surface-3 overflow-hidden"><div className="h-full bg-accent transition-[width] duration-75" style={{ width: pct(meter.peakL) }} /></div>
             <div className="h-1.5 rounded bg-surface-3 overflow-hidden"><div className="h-full bg-accent transition-[width] duration-75" style={{ width: pct(meter.peakR) }} /></div>
           </div>
-          <button onClick={addTrack} title="Add a track to the BED"
-            className="shrink-0 inline-flex items-center gap-1 px-2 h-7 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 text-mini"><Plus size={12} /> Track</button>
+          {/* `+ Bed`, NOT `+ Track` — there are TWO track lists in the column below (the bed's and the bound
+              timeline's) and this button can only ever add to the first, so `Track` named neither. It is also
+              the SAME WORD the gutter's twin door uses for the same act (Timeline's `+ Bed`), and the same
+              word the section heading below uses. One act, one word, in both surfaces. */}
+          <button onClick={addTrack} title="Add a track to the BED (it rides the SHOW clock — a scene recall does not restart it)"
+            className="shrink-0 inline-flex items-center gap-1 px-2 h-7 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 text-mini"><Plus size={12} /> Bed</button>
           <button onClick={onClose} className="text-fg-3 hover:text-fg-1 ml-1"><X size={16} /></button>
         </div>
 
@@ -755,11 +773,17 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
                 stored nowhere: rename the scene and this follows; duplicate it and the copy says its own
                 name, not the original's. */}
             <section className="space-y-1.5">
+              {/* ⚠ THE NAME IS `normal-case`, THE LABEL IS NOT. The h3 is uppercase by house style, which is
+                  fine for the word "TRACKS" and a lie about a scene the user named `Foyer` — it is not called
+                  `FOYER`, and the same reasoning kept the name out of the clip badge. Caps the label, print
+                  the name as the user typed it. (The tooltip says "The audio owned by <phrase>" rather than
+                  "<phrase>'s own audio" for the same reason: the phrase ends in a curly quote, and a
+                  possessive hung off it read as part of the scene's name.) */}
               <h3 className="text-micro font-semibold text-fg-2 uppercase tracking-wider px-0.5 truncate"
                 title={transport.sceneBound
-                  ? `${boundPhrase}'s own audio (Timeline.audio). It rides the PLAYHEAD and restarts with its timeline. Read-only here — edit it on its lane.`
+                  ? `The audio owned by ${boundPhrase} (Timeline.audio). It rides the PLAYHEAD and restarts with its timeline. Read-only here — edit it on its lane.`
                   : "The GLOBAL timeline's own audio (Timeline.audio). It rides the PLAYHEAD and restarts with its timeline. Read-only here — edit it on its lane."}>
-                Tracks — {boundTitle}
+                Tracks — <span className="normal-case">{boundTitle}</span>
               </h3>
               {tlAudio.tracks.length === 0 ? (
                 <p className="text-micro text-fg-3/70 italic px-0.5 py-2">

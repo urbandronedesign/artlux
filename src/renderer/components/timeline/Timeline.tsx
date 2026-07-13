@@ -1251,9 +1251,21 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
           ))}
           {/* ⚠ THE KEY IS THE TRACK ID, AND A CLONED SCENE'S TRACK CARRIES THE SAME ONE (Capture Scene
               deep-clones) — so a rebind RECONCILES TO THE SAME COMPONENT INSTANCE and its gutter drafts
-              (gain, name) survive it. `docKey` is what tells the lane to throw them away. See AudioLane. */}
+              (gain, name) survive it. `docKey` is what tells the lane to throw them away. See AudioLane.
+
+              ⚠ `ownerName` DISCRIMINATES ON `activeSceneId`, NOT ON THE NAME'S TRUTHINESS. `activeName` is
+              typed `string`, but the type LIES: App's loader casts `data.scenes` straight to `Scene[]` and
+              there is no scene normalizer anywhere, so a hand-edited or older project can carry a scene with
+              no `name`. The obvious `author?.activeName ?? 'Global'` would then caption THAT SCENE'S OWN
+              LANES "Global —" — the one caption this label exists to prevent, and it is the dangerous
+              direction: the operator reads it as "this sting is on the global timeline, it will be heard
+              under every scene". (An empty-string name failed the other way — falsy, so the chip silently
+              vanished.) Route on the SAME string docKey routes on — the WRITE TARGET — and let a nameless
+              scene degrade to a bare "Scene", exactly as the mixer's sceneNameOf degrades to "the bound
+              scene" on the same miss. The two surfaces must never disagree about whose track this is. */}
           {tlTracks.map(t => (
-            <AudioLane key={`tl-${t.id}`} track={t} source="timeline" docKey={docKey} ownerName={author?.activeName ?? 'Global'}
+            <AudioLane key={`tl-${t.id}`} track={t} source="timeline" docKey={docKey}
+              ownerName={author?.activeSceneId ? (author.activeName || 'Scene') : 'Global'}
               clips={tlClips.filter(c => c.trackId === t.id).map(c => (audioDraft?.source === 'timeline' && audioDraft.clip.id === c.id ? audioDraft.clip : c))}
               selectedId={selectedSource === 'timeline' ? selected : null} tool={tool} pxPerSec={pxPerSec} width={Math.max(width, 100)}
               onPatchTrack={(p) => patchAudioTrack('timeline', t.id, p)} onRemoveTrack={() => removeAudioTrack('timeline', t.id)}

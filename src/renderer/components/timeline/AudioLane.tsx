@@ -259,11 +259,14 @@ export const AudioLane: React.FC<AudioLaneProps> = ({
           {/* WHOSE TRACK — DRAWN, NOT STORED (see the header). It sits OUTSIDE the input on purpose: the
               input's value is the document's `track.name`, and anything inside it would be committed by
               commitName on the next blur — which is precisely the baked-in prefix this design rejects.
-              Truncated (the gutter is 188 px and the name is user text), with the full name in the title. */}
+              Truncated (the gutter is 188 px and the name is user text), with the full name in the title —
+              and the SEPARATOR IS ITS OWN span: inside the truncating one, a long scene name ate the `—`
+              with the ellipsis and the prefix ran straight into the track's name as one word. */}
           {source === 'timeline' && ownerName && (
-            <span className="text-micro text-fg-3 shrink-0 max-w-[56px] truncate"
-              title={`This track belongs to ${ownerName}'s own audio. The name is drawn here, never stored — rename the scene and this label follows it; duplicate the scene and the copy does NOT inherit the old name.`}>
-              {ownerName} —
+            <span className="flex items-center gap-0.5 shrink-0 max-w-[56px] text-micro text-fg-3"
+              title={`This track belongs to ${ownerName}'s own audio. The name is drawn here, never stored — rename the scene and this label follows it; duplicate the scene and the copy does NOT inherit the old name. (A scene with no timeline of its own is bound to the GLOBAL one, so it shows the global timeline's tracks under its own name until the first edit forks them into the scene.)`}>
+              <span className="truncate">{ownerName}</span>
+              <span className="shrink-0">—</span>
             </span>
           )}
           {/* Draft on keystroke, commit on blur / Enter. ESCAPE ABANDONS — and it really does: `setName`
