@@ -12,6 +12,7 @@ import { UpdateNotice } from './components/UpdateNotice';
 import { autoPatch } from './services/addressing';
 import { TopBar } from './components/TopBar';
 import { About } from './components/About';
+import { AudioEngineMissing } from './components/AudioEngineMissing';
 import { RoutingModal } from './components/RoutingModal';
 import { InspectorPanel } from './components/InspectorPanel';
 import { ScenePanel } from './components/ScenePanel';
@@ -177,6 +178,10 @@ const App: React.FC = () => {
   const [currentProjectPath, setCurrentProjectPath] = useState<string | null>(null);
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
   const [aboutOpen, setAboutOpen] = useState(false);
+  // null = not probed yet, or the probe failed. ONLY an explicit false raises the alarm: a false "you have
+  // no sound" would be worse than the defect it reports.
+  const [audioAvailable, setAudioAvailable] = useState<boolean | null>(null);
+  const [audioWarnDismissed, setAudioWarnDismissed] = useState(false);
   const [openModals, setOpenModals] = useState<Set<string>>(new Set()); // plugin modal panels open by id
   const [update, setUpdate] = useState<UpdateEvent | null>(null);
   const [updateUserInitiated, setUpdateUserInitiated] = useState(false);
@@ -2009,6 +2014,14 @@ const App: React.FC = () => {
 
   // NVAPI hardware warp/blend: detect once on mount (false on the stub build / non-pro GPUs → GLSL path).
   useEffect(() => { window.artlux?.nvwarpAvailable?.().then(v => setNvAvailable(!!v)).catch(() => {}); }, []);
+  // The native audio engine graceful-degrades into PERFECT SILENCE, so nothing else in the app announces
+  // its absence — the mixer draws a healthy UI over a silent room. Probe once; an addon cannot appear
+  // mid-session. On rejection we stay `null` and say NOTHING. Wave 3 acceptance test 0.3.
+  useEffect(() => {
+      window.artlux?.pluginInvoke?.('audio:available')
+          .then(v => setAudioAvailable(!!v))
+          .catch(() => {});
+  }, []);
   // True when NVAPI owns this output's 2D geometry warp + edge blend (so the GLSL path must render flat to
   // avoid double-warp). Same predicate used by the apply reconciler and the content push — keep them in sync.
   const hwOwnsGeometry = (out: ProjectorOutput | undefined): boolean => {
@@ -2613,6 +2626,12 @@ const App: React.FC = () => {
 
       <Preferences open={prefsOpen} onClose={() => setPrefsOpen(false)} settings={settings} onChange={updateSettings} />
       <About open={aboutOpen} onClose={() => setAboutOpen(false)} info={appInfo} />
+      {/* No sound, and nothing else would have said so. Dismissible per launch — never permanently: the
+          Audio Bed panel keeps a `no audio engine` badge for as long as the state lasts. */}
+      <AudioEngineMissing
+          open={audioAvailable === false && !audioWarnDismissed}
+          onClose={() => setAudioWarnDismissed(true)}
+      />
       {/* Plugin modal panels (e.g. LiDAR OSC Monitor) — mounted only while open, toggled by menu action. */}
       {panelRegistry.byMount('modal').map((p) => openModals.has(p.id)
         ? <p.Component key={p.id} onClose={() => setOpenModals((s) => { const n = new Set(s); n.delete(p.id); return n; })} />
