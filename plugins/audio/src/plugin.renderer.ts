@@ -183,8 +183,12 @@ export const plugin: RendererPlugin = {
     let prevPlayhead = 0;   // the BOUND timeline's own audio rides the PLAYHEAD — its own seek test
     let prevWallMs = 0;
 
-    // Track lookup spans both containers. Ids are UUIDs, so "the bed's first, else the bound timeline's"
-    // is just "find it", not a precedence rule. (Solo/mute are NOT looked up through here — they are
+    // Track lookup spans both containers: "the bed's first, else the bound timeline's" is just "find it",
+    // not a precedence rule — but NOT because ids are globally unique. THEY ARE NOT: track ids alias across
+    // SCENES exactly as clip ids do (structuredClone copies them verbatim — see the ⚠ above). The lookup is
+    // unambiguous for a different reason: the BED's track ids and the BOUND timeline's are independently
+    // minted, and only ONE timeline is ever bound — so the two sets in front of us cannot overlap, and two
+    // scenes' track ids are never in the same lookup. (Solo/mute are NOT looked up through here — they are
     // container-scoped; see audibleIn.)
     const trackOfClip = (clip: BedClip): BedTrack | undefined =>
       bed.tracks.find((t) => t.id === clip.trackId) ?? tlAudio.tracks.find((t) => t.id === clip.trackId);
@@ -521,12 +525,21 @@ export const plugin: RendererPlugin = {
     // (Simulated: scratch/scene-recall-stale-chain.mjs prints the engine calls frame by frame, before and
     // after — 7 frames of the outgoing scene's reverb on a 130 ms decode, and none after.)
     //
-    // syncClips() is exactly "push the params of every clip the engine already holds", so calling it here
-    // costs one string compare per resident clip (both pushes are content-keyed) and re-sends NOTHING on a
-    // steady recall. It is NOT redundant with the `.then(syncClips)` below, which is kept: that one is what
-    // pushes the master chain and catches clips that only became resident during the pass. Nor is it
-    // redundant with syncLoaded's own per-clip push on decode — that one fires only for a clip it actually
-    // DECODED, and the aliased clip is precisely the one it skips.
+    // syncClips() is exactly "push the params of every clip the engine already holds, then the master
+    // chain", so calling it here costs one string compare per resident clip (every push is content-keyed)
+    // and re-sends NOTHING on a steady recall.
+    //
+    // It is NOT redundant with syncLoaded's own per-clip push on decode (`pushClipParams(eff(live))`): that
+    // one fires only for a clip syncLoaded actually DECODED, and the ALIASED clip — same id AND same path,
+    // therefore not stale, therefore never unloaded and never re-decoded — is precisely the one it skips.
+    // This synchronous call is the ONLY thing that corrects it before reconcile() restarts it, THIS frame.
+    //
+    // The trailing `.then(syncClips)` below is kept as BELT-AND-BRACES, and it is honest to say that it is
+    // now mostly redundant: syncClips ends in syncMaster(), so the synchronous call above has ALREADY
+    // pushed the master chain, and syncLoaded pushes each clip's params the instant that clip lands. What
+    // it still covers is a pass that returned early at the generation guard (`loadGen !== myGen`) — and it
+    // costs nothing, being content-keyed. What it does NOT cover is the aliased clip: DO NOT "simplify" by
+    // deleting the SYNCHRONOUS call and trusting the async one. That is precisely the bug described above.
     const pruneOrphans = () => {
       if (bed.clips === prevBedClips && tlAudio.clips === prevTlClips) return;
       prevBedClips = bed.clips; prevTlClips = tlAudio.clips;
