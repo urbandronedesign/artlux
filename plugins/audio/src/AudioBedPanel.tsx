@@ -217,6 +217,62 @@ const sceneNameOf = (h: ReturnType<typeof getAudioHost>): string | null =>
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 const g2 = (v: number) => v.toFixed(2);
 
+// ── THE DOCUMENT FIELDS THAT REACH THIS PANEL WITH NO NORMALIZER ──────────────────────────────────────
+// sanitizeAudioClip (types.ts) coerces start/duration/inPoint/sourceDuration/gain/mute/fadeIn/fadeOut and
+// spreads `...c` for everything else, so a CLIP's `spatial` and `effects` arrive EXACTLY as the project
+// file wrote them. normalizeAudioMix's buses are a SHAPE GUARD ONLY — its own comment says so — so a
+// BUS's `gain` and `effects` do too. Four fields, no coercion, straight off the document.
+//
+// THE DRIVER ALREADY KNOWS THIS and guards all four at the engine door (plugin.renderer.ts: finiteVec3,
+// fxOf, boundGain). The panel that RENDERS and AUTHORS them did not — and this is the worse place to
+// find out, because the failure is not a bad number reaching an amplifier, it is a TYPEERROR THROWN IN
+// THE RENDER OF A PLUGIN PANEL WITH NO ERRORBOUNDARY ABOVE IT: the project loads clean (invariant 6
+// holds — no white screen on load) and then OPENING THE AUDIO BED, or merely SELECTING a clip, is what
+// dies. EffectChain.tsx:118 already learned exactly this lesson for a bus's chain and wrote it down; the
+// lesson just never made it to the vector, the gain, or the write path.
+//
+// ⚠ `?? x` IS NOT THIS GUARD. It substitutes only null/undefined, so a hand-edited or tool-generated
+// `"effects": "x"` / `"gain": "1"` / `"spatial": true` sails straight through it — which is the whole
+// reason finiteNum and boolOrAbsent exist one layer up.
+
+// The panel's twin of types.ts's finiteNum: junk ⇒ ABSENT, and absent already means "the default" at every
+// call site (`?? 1`). NOT boundGain — that is the ENGINE's door and it CLAMPS; restating a clamp here would
+// print 1.50 over an authored 20 and tell the operator their document says something it does not. The
+// document keeps whatever it says (boundGain's own note); the panel's only job is to refuse to crash on a
+// value that is not a number at all. A finite gain — in range or not — displays exactly as it does today.
+const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
+
+// THE SAME PREDICATE AS THE DRIVER'S finiteVec3 — deliberately identical, not merely similar. A position is
+// a position only if ALL THREE axes are finite numbers; anything else is NO position, i.e. the clip is simply
+// non-spatial, which is what `spatial: undefined` means at every other call site.
+//
+// ⚠ IT MUST NOT BE THE ZERO-FILLING KIND OF COERCION (`{x: num(s.x) ?? 0, …}`) — that is the obvious fix and
+// it is the wrong one. `{"x":0,"z":1}` (no y) would then render a TICKED "Spatial" box with a dot on the pad,
+// while the DRIVER — which applies the strict test one layer down, and which is the authority on what is
+// actually audible — plays that clip FLAT. A panel that claims a spatialisation the engine is not performing
+// is the self-reporting-healthy failure this codebase kills on sight, and it is strictly worse than an honest
+// "Off". Sharing the predicate means the checkbox can never disagree with the sound. The repair is then the
+// obvious gesture and it is one click: tick the box, and setClipSpatialOn writes a clean {0,0,1} over the junk.
+//
+// Returns the value ITSELF when it is valid (never a rebuilt copy), so a sane document round-trips
+// byte-for-byte through the panel's writes — invariant 6, the same way finiteVec3 hands `s` back.
+const vec3 = (s: unknown): Spatial | undefined => {
+  const v = s as Partial<Spatial> | null | undefined;
+  return v && typeof v === 'object' && !Array.isArray(v)
+    && typeof v.x === 'number' && Number.isFinite(v.x)
+    && typeof v.y === 'number' && Number.isFinite(v.y)
+    && typeof v.z === 'number' && Number.isFinite(v.z)
+    ? (v as Spatial)
+    : undefined;
+};
+
+// A non-array chain reads as an EMPTY chain — the same fallback EffectChain makes for its own render and the
+// driver's fxOf makes for the engine. Needed on every RAW read of `effects`, and most of all on the ones that
+// feed releaseChangedFx: `prev.find(...)` on a string is "prev.find is not a function", thrown from a click
+// handler BEFORE the patch that would have repaired the document — so the junk chain is not merely broken,
+// it is UNREPAIRABLE, defeating the self-repair EffectChain.tsx:118 promises in its own comment.
+const fxOf = (fx: unknown): Effect[] => (Array.isArray(fx) ? (fx as Effect[]) : []);
+
 export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   const host = getAudioHost();
   // ── WHICH DOCUMENT IS BOUND, RIGHT NOW ───────────────────────────────────────────────────────────────
@@ -491,7 +547,9 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
 
   const setMasterGain = (g: number) => { releaseFade('audio.master.gain'); patchMaster({ gain: g }); };        // audio.master.gain
   const setMasterEffects = (fx: Effect[], touched?: FxParamRef) => {                                           // audio.master.fx.<fxId>.<key>
-    releaseChangedFx('audio.master', fx, mixRef.current.buses.find((b) => b.id === MASTER_BUS_ID)?.effects ?? [], touched);
+    // fxOf, not `?? []` — a BUS has no clip-grade normalizer at all (normalizeAudioMix's buses are a shape
+    // guard), so `effects` here can be a string, and `prev.find` on one throws from inside this click.
+    releaseChangedFx('audio.master', fx, fxOf(mixRef.current.buses.find((b) => b.id === MASTER_BUS_ID)?.effects), touched);
     patchMaster({ effects: fx });
   };
   const setTrackGain = (id: string, g: number) => { releaseFade(`audio.track.${id}.gain`); patchTrack(id, { gain: g }); }; // audio.track.<id>.gain
@@ -514,7 +572,11 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   const setClipEffects = (id: string, fx: Effect[], touched?: FxParamRef) => {               // audio.clip.<id>.fx.<fxId>.<key>
     // The diff+release is BED-ONLY (see releaseSel): a timeline clip has no fade layer over it, and its ids
     // alias into the bed's `audio.clip.<id>.*` namespace.
-    if (selSource === 'bed') releaseChangedFx(`audio.clip.${id}`, fx, mixRef.current.clips.find((c) => c.id === id)?.effects ?? [], touched);
+    // fxOf, not `?? []` — `effects` is one of the two clip fields sanitizeAudioClip does not coerce, and
+    // releaseChangedFx calls `prev.find(...)` on this. A junk chain threw HERE, before the patch below that
+    // would have written a real array back — so the chain EffectChain politely rendered as empty could never
+    // actually be repaired: every add threw on the way to the fix.
+    if (selSource === 'bed') releaseChangedFx(`audio.clip.${id}`, fx, fxOf(mixRef.current.clips.find((c) => c.id === id)?.effects), touched);
     patchSelClip(id, { effects: fx });
   };
   // A spatial AXIS is fadeable (audio.clip.<id>.spatial.<x|y|z>); the spatial FLAG is not — turning it on
@@ -526,7 +588,13 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   // POINTERUP, so its closure is as old as the pointerdown; if the clip's spatial was turned off (or the
   // clip removed, or its document rebound) in between, the lookup misses and the write is DROPPED rather
   // than resurrecting a container the operator just deleted.
-  const spatialOf = (id: string): Spatial | undefined => selClipIn(id)?.spatial;
+  // COERCED AT THE READ (vec3), not handed over raw: `{ ...cur, x, z }` below would otherwise SPREAD a
+  // partial/junk vector straight back into the document, where the driver's finiteVec3 then makes the clip
+  // permanently non-spatial while the panel's own checkbox went on insisting it was spatial. Sharing the
+  // predicate with the driver means a junk vector reads as "not spatial" here too — so the pad is not even
+  // rendered, these writers cannot be reached for it, and the one gesture that IS offered (tick the box)
+  // writes a clean {0,0,1}. Whatever they do write is a fully-formed vec3, by construction.
+  const spatialOf = (id: string): Spatial | undefined => vec3(selClipIn(id)?.spatial);
   const setClipSpatialXZ = (id: string, x: number, z: number) => {
     const cur = spatialOf(id); if (!cur) return;
     releaseSel(`audio.clip.${id}.spatial.x`); releaseSel(`audio.clip.${id}.spatial.z`);
@@ -648,7 +716,12 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   // resets BOTH clocks — App's stop handler seeks the bound doc to its in-point AND showSeeks the global.)
   const seekLocked = transport.sceneBound;
   const seekLockTitle = 'Scrub Global to move the bed — a seek inside a scene does not move the show clock.';
-  const spatial = selClip?.spatial;
+  // ⚠ vec3, NOT the raw field. `!!spatial` gates the whole positioner block below, and `spatial.y` feeds a
+  // Fader whose readout is `v.toFixed(1)` — so a `"spatial": true` or a y-less `{"x":0,"z":1}` loaded clean,
+  // passed the truthy gate, and threw `undefined.toFixed` IN RENDER the moment the clip was SELECTED. No
+  // ErrorBoundary sits above a plugin panel: that is a white-screened Audio Bed, mid-show, from a click.
+  // (`padX ?? 0` did not save it either — `??` does not catch a present-but-non-numeric `"0"`.)
+  const spatial = vec3(selClip?.spatial);
   const padX = padDraft?.x ?? spatial?.x ?? 0;
   const padZ = padDraft?.z ?? spatial?.z ?? 0;
 
@@ -925,8 +998,10 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
                     source in a room and then the room is placed with it — which is what you want. */}
                 <section className="rounded border border-line-1 bg-surface-2 p-2 space-y-2">
                   <div className="flex items-center gap-1.5">
-                    <Sliders size={12} className={selClip.effects?.length ? 'text-accent' : 'text-fg-3'} />
-                    <span className="text-micro font-semibold text-fg-2 uppercase tracking-wider">FX{selClip.effects?.length ? ` (${selClip.effects.length})` : ''}</span>
+                    {/* fxOf, so the COUNT is the count of the chain actually rendered below: `"effects":"abc"`
+                        has a truthy `.length` of 3 and used to badge "FX (3)" over an empty chain. */}
+                    <Sliders size={12} className={fxOf(selClip.effects).length ? 'text-accent' : 'text-fg-3'} />
+                    <span className="text-micro font-semibold text-fg-2 uppercase tracking-wider">FX{fxOf(selClip.effects).length ? ` (${fxOf(selClip.effects).length})` : ''}</span>
                   </div>
                   {/* No `disabled` — the chain is live against BOTH containers now. The engine has exactly two
                       insert points and one of them is the clip; a container whose clips could not take that
@@ -934,7 +1009,7 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
                       `docKey` guards the PARAM FADERS inside it: an FX knob is a split gesture like any
                       other, and EffectChain keys its rows on `fx.id` — which Capture Scene aliases too — so
                       a recall mid-drag does not even remount the row. See gestureDocKey. */}
-                  <EffectChain scope="clip" effects={selClip.effects ?? []} docKey={gestureDocKey}
+                  <EffectChain scope="clip" effects={fxOf(selClip.effects)} docKey={gestureDocKey}
                     onChange={(fx, touched) => setClipEffects(selClip.id, fx, touched)} />
                 </section>
               </>
@@ -949,10 +1024,16 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
           <div className="h-9 px-3 flex items-center gap-2">
             <span className="text-mini font-semibold text-fg-2 shrink-0">Master</span>
             <button onClick={() => setOpenMaster(!openMaster)} title="Master effects"
-              className={`inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 text-micro ${master.effects?.length ? 'text-accent' : 'text-fg-3 hover:text-fg-1'}`}>
-              <Sliders size={11} /> FX{master.effects?.length ? ` (${master.effects.length})` : ''}
+              className={`inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 text-micro ${fxOf(master.effects).length ? 'text-accent' : 'text-fg-3 hover:text-fg-1'}`}>
+              <Sliders size={11} /> FX{fxOf(master.effects).length ? ` (${fxOf(master.effects).length})` : ''}
             </button>
-            <Fader value={master.gain ?? 1} min={0} max={1.5} step={0.01}
+            {/* ⚠ num(), not a bare `?? 1`. THIS STRIP RENDERS UNCONDITIONALLY — it is not behind a selection —
+                and a bus's gain has NO normalizer (normalizeAudioMix's buses are a shape guard, its own
+                comment says so). `??` does not catch a present-but-non-numeric `"gain": "1"`, which then went
+                straight into g2 → `"1".toFixed(2)` → TypeError in render. That one did not need a clip
+                selected or a panel scrolled: it white-screened the Audio Bed ON OPEN. The driver has guarded
+                this same read since 643d3c5 (boundGain, at the engine door); the fader beside it had not. */}
+            <Fader value={num(master.gain) ?? 1} min={0} max={1.5} step={0.01}
               ariaLabel="master gain"
               title={(v) => `master gain ${g2(v)}`}
               onCommit={setMasterGain}
@@ -971,7 +1052,7 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
           </div>
           {openMaster && (
             <div className="px-3 pb-2">
-              <EffectChain scope="master" effects={master.effects ?? []} onChange={setMasterEffects} />
+              <EffectChain scope="master" effects={fxOf(master.effects)} onChange={setMasterEffects} />
             </div>
           )}
         </div>
