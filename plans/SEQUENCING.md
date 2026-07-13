@@ -149,6 +149,25 @@ and an additive `ProjectData.midiBindings?`), otherwise plugin-local — so it b
 being external-control front-ends; its continuous-CC → param path also gains audio targets once Wave 3's
 `audio.*` `paramPath` namespace lands (a synergy, not a dependency).
 
+## Independent track — Transport prev/next edit point (small; land after Wave 3)
+
+[transport-edit-point-navigation](transport-edit-point-navigation.md) — the `⏮`/`⏭` buttons from the transport
+sketch. **Not a bug: a gap between two plans.** The sketch
+([timeline-transport-and-audio-scoping.md:98](timeline-transport-and-audio-scoping.md)) drew four transport
+buttons; Wave A's execution plan opened with *"add the three controls that never had a button: Stop, Set In,
+Set Out"* and the two skip buttons never entered the task list. Wave A then passed its own acceptance, because
+it did everything **its** plan asked. Found 2026-07-13 while running the Wave 3 acceptance script.
+
+It is half a day and 🟢 low risk, but it **must not be smuggled onto `wave-3-audio`**: that branch is mid-
+acceptance (Session 2 — *the bed never restarts* — passed 2026-07-13), it touches the same
+`TimelineToolbar.tsx`, and nothing about it came out of the audio work. Land it on `feat-transport-skip`
+**after** Wave 3 merges. Two hard constraints from the plan's §4, both of which are Wave-3-shaped:
+
+- the seek **must** go through `engine.seek()`, so it inherits the show-clock identity (a seek moves the bed
+  **only** while the global doc is bound) rather than reintroducing that bug in a new place;
+- the **bed's** clips are **not** edit points — the bed rides the show clock, not the playhead, so seeking the
+  playhead to a bed clip edge is a category error that looks right on Global and is nonsense inside a scene.
+
 ## Tutorials & docs (interleaved with the waves)
 
 The example/tutorial sets mostly **shadow a wave** — each documents a subsystem a wave changes, so it is
@@ -193,7 +212,9 @@ else is on the critical path; everything else is post-merge.
    drives there.
 2. **P6** — multichannel hardening (ASIO, speaker layouts) + headless audio wiring.
 3. The two loose bugs above, and the webgl-strict Phase 2 decision.
-4. **MIDI control** (independent, parallel-safe at any point).
+4. **[Transport prev/next edit point](transport-edit-point-navigation.md)** (`feat-transport-skip`) — half a day,
+   🟢 low. Held only because it touches `TimelineToolbar.tsx`, which Wave 3 is still sitting on.
+5. **MIDI control** (independent, parallel-safe at any point).
 
 ## Verification gate (what "done, ready to test" means, per wave)
 
@@ -230,6 +251,7 @@ Keep `main` buildable + `tsc`-clean at all times. Never push to a remote or skip
 | 3 | `wave-3-audio` (in flight, unmerged) | audio-engine (P0→P6) + transport-and-scoping (supersedes P5) + asset-paths | ◑ **in progress** — **P0–P4 shipped** (JUCE/libspatialaudio addon, bed, ambisonic + spatial UI, juce_dsp FX, the core automation-curve engine). **Wave A shipped + live-tested 2026-07-12** (bounded clock, working Loop, Stop/in/out, `onTimelineEnd`, scene-vs-global legibility) — 4 blockers + an 11-item punch list found by adversarial review and fixed. **Next: asset-paths → Wave B → P6.** |
 | — | `feat-docs-browser` | docs-browser (independent, parallel-safe) | ☑ **shipped v0.21.0** — reader + detachable window + inline user-guide images + tutorial SVG diagrams; bundled into packaged builds via `extraResources` (23/23 image refs validated, tsc+build clean, in-app visual test confirmed). Getting-started fold-in still pending. |
 | 4 | `wave-4-robustness` | timeline-undo → renderer-error-containment | ☐ not started (Drafts — both plans written 2026-07-12, surfaced by Wave B's adversarial review). **`timeline-undo` first** (the last-good-document edge). Highest-value single item in the whole backlog for an unattended install: **the watchdog cannot see a white screen.** |
+| — | `feat-transport-skip` | transport-edit-point-navigation | ☐ not started (Draft — plan written 2026-07-13). The `⏮`/`⏭` buttons were **in the Wave A sketch and never entered the Wave A plan**; the capability (prev/next edit point) does not exist at all. Held until `wave-3-audio` merges — same file. |
 | — | `feat-midi-control` | midi-control (independent, parallel-safe) | ☐ not started (Draft — plan written) |
 | — | (content, no branch gate) | LiDAR + state-machine tutorial sets | ☑ drafted; **SVG diagrams added** (state-graph, hub-and-spoke, tracking-zones, merge-people) — all 23 doc image refs resolve + read, 4/4 SVGs valid; needs in-app open test |
 
