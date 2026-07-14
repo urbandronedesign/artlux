@@ -268,15 +268,34 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, pl
           <path d={path} fill="none" stroke={lane.color ?? 'currentColor'} className="text-accent" strokeWidth={1.5} />
         </svg>
         {/* keyframes */}
-        {kfs.map((k, i) => (
-          <div key={i} onPointerDown={dragKf(i)}
-            onContextMenu={(e) => { e.preventDefault(); removeKf(i); }}
-            onClick={(e) => { if (e.altKey) { e.stopPropagation(); removeKf(i); } }}
-            onDoubleClick={(e) => { e.stopPropagation(); cycleCurve(i); }}
-            title={`${fmt(k.v)} @ ${k.t.toFixed(2)}s · ${k.curve ?? 'linear'}\ndrag to move (shift = value only, alt = time only) · double-click: curve · right-click: delete`}
-            className={`absolute w-[9px] h-[9px] -ml-[4.5px] -mt-[4.5px] rotate-45 cursor-pointer ${sel === i ? 'bg-fg-1 border border-fg-1' : 'bg-accent border border-accent'}`}
-            style={{ left: k.t * pxPerSec, top: valueToY(k.v) }} />
-        ))}
+        {kfs.map((k, i) => {
+          // Shown while this key is being DRAGGED or is selected (`sel` is set on pointerdown and persists),
+          // and on hover. The wrapper's box is 0×0, so it is not a hit target and cannot steal the body's
+          // click-to-seek or double-click-to-add; only the diamond and the (inert) label are.
+          const active = sel === i;
+          const flip = k.t * pxPerSec > width - 70;   // near the right edge — put the label on the other side
+          return (
+            <div key={i} className="absolute group" style={{ left: k.t * pxPerSec, top: valueToY(k.v) }}>
+              {/* ⚠ THE VALUE, WHERE THE OPERATOR IS LOOKING — AND THE `title` BELOW IS NOT A SUBSTITUTE.
+                  A native tooltip needs a still hover of about a second, and THE BROWSER SUPPRESSES IT
+                  OUTRIGHT ONCE A DRAG BEGINS — so the number was guaranteed to be missing at the one moment
+                  it matters: while you are setting it. You dragged a diamond up and down and simply could
+                  not see what level you were writing. This is a real element, so it survives the drag; it
+                  reads `k.v`, which is the DRAFT while dragging (`kfs = draft ?? lane.keyframes`), so it
+                  tracks the thumb. The time comes with it because a drag moves both axes at once. */}
+              <span
+                className={`absolute top-0 -translate-y-1/2 ${flip ? 'right-2' : 'left-2'} z-10 px-1 rounded border border-line-1 bg-surface-0/95 text-micro leading-tight text-fg-1 tabular-nums whitespace-nowrap pointer-events-none transition-opacity ${active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                {fmt(k.v)} <span className="text-fg-3">· {k.t.toFixed(2)}s</span>
+              </span>
+              <div onPointerDown={dragKf(i)}
+                onContextMenu={(e) => { e.preventDefault(); removeKf(i); }}
+                onClick={(e) => { if (e.altKey) { e.stopPropagation(); removeKf(i); } }}
+                onDoubleClick={(e) => { e.stopPropagation(); cycleCurve(i); }}
+                title={`${fmt(k.v)} @ ${k.t.toFixed(2)}s · ${k.curve ?? 'linear'}\ndrag to move (shift = value only, alt = time only) · double-click: curve · right-click: delete`}
+                className={`absolute left-0 top-0 -ml-[4.5px] -mt-[4.5px] w-[9px] h-[9px] rotate-45 cursor-pointer ${active ? 'bg-fg-1 border border-fg-1' : 'bg-accent border border-accent'}`} />
+            </div>
+          );
+        })}
       </div>
     </div>
   );
