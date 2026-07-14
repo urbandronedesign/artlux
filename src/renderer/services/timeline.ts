@@ -1058,13 +1058,28 @@ export const timeline = {
   // backward move, the audio driver reads it as a seek, and the bed hard-cuts (and then STOPS, because
   // isShowAtEndBound() is now true). That is correct — you just told the show it is over — but it is not
   // a no-op.
+  //
+  // ⚠ WHEN LOOPING, WRAP — DO NOT REWIND. The overrun branch used to send the show clock to `ga`, the
+  // region start. But the PLAYHEAD is not rewound: setData's clampPlayheadIntoDoc RETURNS EARLY on a
+  // looping doc, so the playhead is left where it was and the next rAF wraps it MODULO
+  // (`t = (t - ga) % (gb - ga) + ga`). Shorten Length from 60 to 40 at playhead 45 and you get
+  // playhead = 5 while showTime = 0 — and both then free-run over the same region with the same period,
+  // so the five-second offset NEVER CLOSES. It opened on the GLOBAL PILL: the one and only state where
+  // clocksCoincident() asserts the two clocks are the same number. Land the show clock exactly where the
+  // playhead is about to land, by wrapping it the same way. (Loop OFF is unchanged: park one frame before
+  // the end. An underrun is unchanged: clamp up to the in-point.)
   setGlobalDoc(t: Timeline): void {
     globalDoc = t;
     if (external) return;
     const ga = timelineStart(globalDoc), gb = timelineEnd(globalDoc);
     if (showTime < ga) showSeekInternal(ga);
     else if (showTime >= gb) {
-      showSeekInternal(globalDoc.loop ? ga : Math.max(ga, gb - frameSec(globalDoc)));
+      const span = gb - ga;
+      showSeekInternal(
+        globalDoc.loop && span > 0
+          ? ((showTime - ga) % span) + ga           // wrap, exactly as the playhead is about to
+          : Math.max(ga, gb - frameSec(globalDoc)), // not looping: park one frame before the end
+      );
     }
   },
   // THE SHOW CLOCK, in seconds. Always 0 in mirror windows (they never run it).
