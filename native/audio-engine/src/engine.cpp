@@ -558,6 +558,27 @@ public:
       return {}; // already open on exactly this config — don't interrupt playback
     }
 
+    // ⚠ A FAILED RECONFIGURE MUST NOT LEAVE THE ROOM SILENT. Task 3 made this reachable: configure() used
+    // to only ever open the OS default (which essentially never errors); pinning a named device/type/rate/
+    // buffer is exactly what makes "the operator asked for a combination the device won't grant" something
+    // that gets clicked — a buffer size WASAPI Exclusive won't grant at the requested rate, an unsupported
+    // sample rate, a device that vanished between enumeration and open. So before tearing down a device
+    // that IS working, snapshot exactly what "working" means — the live driver type and the live
+    // AudioDeviceSetup — so a failed open below can put the OLD one straight back instead of leaving
+    // `opened` false with nothing registered to the callback. This MUST be captured before any mutation:
+    // setCurrentAudioDeviceType() a few lines down changes what getCurrentAudioDeviceType() reports, and
+    // closeAudioDevice() does not preserve it for us. Only meaningful when a device was actually open —
+    // `opened` is already the corrected ground truth for that (the dead-device check above ran first).
+    const bool hadGoodDevice = opened;
+    juce::String prevType;
+    juce::AudioDeviceManager::AudioDeviceSetup prevSetup;
+    int prevActualChannels = 0;
+    if (hadGoodDevice) {
+      prevType = deviceManager.getCurrentAudioDeviceType();
+      deviceManager.getAudioDeviceSetup(prevSetup);
+      prevActualChannels = lastOpened.channels; // what the bus was ACTUALLY configured for, not what was asked
+    }
+
     if (opened) { deviceManager.removeAudioCallback(&player); player.setSource(nullptr); deviceManager.closeAudioDevice(); opened = false; }
 
     // First call: initialise() is what builds the device-type list that setCurrentAudioDeviceType() needs.
@@ -580,7 +601,39 @@ public:
     setup.outputChannels.clear();
     setup.outputChannels.setRange(0, ch, true);
     juce::String err = deviceManager.setAudioDeviceSetup(setup, true);
-    if (err.isNotEmpty()) return err;
+    if (err.isNotEmpty()) {
+      // Nothing was open before this call (first-ever configure, or the previous device had already died —
+      // see the dead-device invalidation above) — there is no "last known good" to roll back to.
+      if (!hadGoodDevice) return err;
+
+      // ⚠ ROLL BACK, NOT DOWN. Put the previous type + setup straight back — the SAME open sequence the
+      // success path below uses, just with the OLD numbers — so the show keeps making sound. None of this
+      // runs under `bus.lock`: it is JS/native-thread work, exactly like the open attempt above and the
+      // teardown before it. See SpatialBus::addClip's comment block for why a blocking device open under
+      // the audio lock is the one bug this engine cannot afford to repeat.
+      if (deviceManager.getCurrentAudioDeviceType() != prevType)
+        deviceManager.setCurrentAudioDeviceType(prevType, true);
+      const juce::String rollbackErr = deviceManager.setAudioDeviceSetup(prevSetup, true);
+      if (rollbackErr.isNotEmpty())
+        return "requested device failed to open (" + err + ") AND the previous device could not be "
+               "restored (" + rollbackErr + ") — audio is now silent, a restart is required";
+
+      int restoredActual = prevActualChannels;
+      if (auto* dev = deviceManager.getCurrentAudioDevice())
+        restoredActual = juce::jmax(1, dev->getActiveOutputChannels().countNumberOfSetBits());
+      bus.setOutputChannels(restoredActual);   // BEFORE setSource — see the success path below
+      if (!readThread.isThreadRunning()) readThread.startThread();
+      player.setSource(&metering);
+      deviceManager.addAudioCallback(&player);
+      opened = true;
+      // openedType/openedName/openedChannels/openedRate/openedBuffer/lastOpened are DELIBERATELY left
+      // untouched here: the failed attempt never reached the point (below) where they get overwritten, so
+      // they still describe exactly the setup we just put back. Rewriting them to the REQUESTED (failed)
+      // setup would make the guard above believe that setup is live — the operator's next attempt to fix
+      // it would then take the early return and do nothing, the same trap the dead-device invalidation
+      // above exists to avoid.
+      return err; // the requested setup still failed — the caller (and the Preferences panel) must know
+    }
 
     // The device can open with FEWER channels than we asked for (8 on a stereo card gives 2), and at a
     // different rate/buffer than requested. The master chain must be built for what we ACTUALLY got, or it
@@ -603,11 +656,6 @@ public:
     openedChannels = ch; openedType = c.type; openedName = c.name;
     openedRate = c.sampleRate; openedBuffer = c.bufferSize;
     lastOpened = out;
-    return {};
-  }
-
-  juce::String currentDeviceName() {
-    if (auto* dev = deviceManager.getCurrentAudioDevice()) return dev->getName();
     return {};
   }
 
