@@ -104,10 +104,11 @@ let originMs = 0;
 // anchor cannot carry two times that are REQUIRED to diverge — and divergence is the whole point: a
 // scene recall mainSeeks the playhead to the scene's in-point, and the bed must not hear it.
 //
-// WHILE GLOBAL IS BOUND (the pill) THE TWO ARE THE SAME NUMBER. That identity is maintained by seek(),
-// which tests clocksCoincident() — and NOT isGlobalDocBound(), which is a question about the DOCUMENT and
-// is true in a state where the clocks are deliberately MINUTES apart (a scene with no timeline of its own).
-// Both predicates exist, both are correct for their own question, and swapping them is a bug: read them.
+// WHILE GLOBAL IS BOUND (the pill) THE TWO ARE THE SAME NUMBER. That identity is maintained by seek(), which
+// tests clocksCoincident(). There used to be a second predicate here — isGlobalDocBound() — because a scene
+// with no timeline of its own bound the GLOBAL doc under a scene's pool key, so "which document is bound"
+// and "are the clocks equal" could disagree. That state was deleted on 2026-07-14 (Scene.timeline is now
+// required), and the two questions collapsed into one. See clocksCoincident().
 //
 // THE SHOW CLOCK IS SILENT. It NEVER emits a TransportIntent and NEVER pulses hitEnd: the bed wrapping
 // is not a show event, and firing 'onTimelineEnd' off it would advance the state machine behind the
@@ -378,47 +379,32 @@ function showAtEndBound(): boolean {
   return !globalDoc.loop && showTime >= timelineEnd(globalDoc) - frameSec(globalDoc) - 1e-6;
 }
 
-// IS THE BOUND DOCUMENT THE GLOBAL ONE? Not the same question as "is Global bound" — and getting them
-// confused is a real bug. `activeKey === GLOBAL_POOL` is true only when the operator is on the Global
-// pill. But a scene with NO TIMELINE OF ITS OWN plays the GLOBAL DOC under its own pool key
-// (App.tsx: `const tl = scene.timeline ? normalizeTimeline(scene.timeline) : timeline`), so `data`
-// IS globalDoc while activeKey is the scene's id. In that state:
-//   · the global timeline's lanes are `data.automation` — they must still ride the SHOW clock (they are
-//     the base layer; a lane on audio.master.gain restarting from 0 on every GO would snap the bed's
-//     level while the bed itself plays serenely on);
-//   · the ruler the operator scrubs IS the global timeline, so a seek must move the bed with it.
-// Identity, not the key. Re-evaluated on every call — App pushes globalDoc from an effect declared
-// beside setBaseAutomation, which flushes BEFORE the setData effect, so the reference is never stale.
-function isGlobalDocBound(): boolean {
-  return activeKey === GLOBAL_POOL || data === globalDoc;
-}
-
-// ARE THE TWO CLOCKS THE SAME NUMBER? A DIFFERENT QUESTION FROM isGlobalDocBound(), AND THE TWO ARE NOT
-// INTERCHANGEABLE — seek() used to ask the wrong one, and it restarted the bed.
+// IS THE GLOBAL PILL BOUND? One question, one test — but it took deleting a state to get here.
 //
-// isGlobalDocBound() answers "WHICH DOCUMENT is bound" — which is exactly right for deciding which CLOCK a
-// LANE RIDES (a lane of the global doc is a BASE lane, so it rides the show clock, wherever that doc is
-// bound). It says NOTHING about the two clocks being EQUAL, and App.tsx says so in as many words at the
-// timelineBedProp gate.
+// There used to be TWO functions, and the file carried forty lines arguing that they were different
+// questions that must never be confused:
 //
-// Under a TIMELINE-LESS SCENE (`const tl = scene.timeline ? … : timeline`, a supported legacy/imported
-// shape — types.ts: "absent → uses the shared global timeline") the global doc IS bound, under the scene's
-// pool key, via swap(scene.id, tl, {transport:'restart'}): mainSeek puts the PLAYHEAD back to 0 while
-// showClock defaults to 'preserve' and the bed rolls on. playhead = 0:00, showTime = 4:05 — DIVERGED, ON
-// PURPOSE (that divergence is the whole point of the show clock). isGlobalDocBound() is true there.
+//   isGlobalDocBound()  = `activeKey === GLOBAL_POOL || data === globalDoc`   — WHICH DOCUMENT is bound.
+//                         Decided which CLOCK an automation lane rides.
+//   clocksCoincident()  = `activeKey === GLOBAL_POOL`                         — are the two clocks EQUAL.
+//                         Decided whether a seek may drag the show clock with it.
 //
-// So a seek gated on isGlobalDocBound() would drag showTime to a SCENE-RELATIVE number: an FSM `seek` /
-// `jumpMarker` entry action, or an OSC /transport/seek, on entry to such a state sets showTime := 10 — a
-// four-minute BACKWARD jump, which the audio driver reads as a seek (SEEK_THRESHOLD 0.2 s) and answers by
-// stopping every sounding bed clip and restarting it from 0:10. The 20-minute ambient bed jumps back to its
-// top on every entry to that state, forever, in an empty room. That is the bug the split exists to kill,
-// reached through the seek door.
+// They differed in exactly ONE state: a scene with NO TIMELINE OF ITS OWN, which bound the GLOBAL doc under
+// the scene's pool key — so `data === globalDoc` was true while `activeKey` was the scene's id. That state
+// was deleted on 2026-07-14 (Scene.timeline is now required, types.ts). A scene's document is always
+// `normalizeTimeline(scene.timeline)`, a freshly minted object, so `data === globalDoc` can now ONLY be true
+// on the Global pill — which makes the two tests provably identical, and the distinction they were drawing
+// vanishes with the state that made it necessary.
 //
-// The clocks are coincident in exactly ONE state: the Global pill. It is the only one no restart-swap has
-// pulled apart ('reconverge' snaps the playhead onto the show clock on the way in; both clocks then run off
-// the same wall clock against the same document bounds, so they stay equal). It is also the condition the
-// mixer's own seek lock already uses (AudioBedPanel: `sceneBound = activeSceneId != null`) and the condition
-// App uses to decide whether the bed's lanes may be DRAWN against the ruler at all. Same rule, one place.
+// The argument the deleted comments were making is still worth keeping, because it is why the SEEK gate must
+// be this and not something looser: on the Global pill, and only there, no restart-swap has pulled the clocks
+// apart ('reconverge' snaps the playhead onto the show clock on the way in), so both run off the same wall
+// clock against the same document bounds and stay equal. Anywhere else they are diverged ON PURPOSE — that
+// divergence IS the show clock — and a seek that dragged showTime to a scene-relative number would hurl a
+// 20-minute ambient bed back to its top on every entry to that state, forever, in an empty room.
+//
+// Same rule as the mixer's own seek lock (AudioBedPanel: `sceneBound = activeSceneId != null`) and the same
+// rule App uses to decide whether the bed's lanes may be drawn against the ruler at all. One place.
 function clocksCoincident(): boolean {
   return activeKey === GLOBAL_POOL;
 }
@@ -509,13 +495,22 @@ function compileAutomation(): void {
   // stack on itself when it happens to be the active one.
   const active = data.automation ?? [];
   const activePaths = new Set(active.map(l => l.targetPath));
-  // TAG BY DOCUMENT, NOT BY LIST. Which LIST a lane came from does not tell you which CLOCK it rides —
-  // because the GLOBAL DOC can be bound under a SCENE's pool key (a scene with no timeline of its own).
-  // There, `active` IS the global timeline's lanes and `base` filters itself down to [] (every base lane
-  // is shadowed BY ITSELF), so a list-derived tag would put every global lane on the scene clock — and a
-  // lane driving audio.master.gain would snap the bed's level to its t=0 value on every GO, while the bed
-  // plays on. Ask the DOCUMENT.
-  const onGlobalDoc = isGlobalDocBound();
+  // WHICH CLOCK DOES A LANE RIDE? A lane of the GLOBAL doc is a BASE lane and rides the SHOW clock (it is
+  // the base layer under every scene, like the bed). A lane of a SCENE's doc rides the PLAYHEAD.
+  //
+  // THIS IS SOUND ONLY BECAUSE OF AN INVARIANT, so state it: A SCENE'S `automation` NEVER HOLDS A LANE
+  // COPIED FROM THE GLOBAL TIMELINE. Break it and the copy is tagged 'scene' AND shadows the real base lane
+  // by targetPath on the very next line — so the genuine show-clock lane is DELETED from this compile and
+  // replaced by a playhead-riding impostor. That was a merge blocker: a house fade on audio.master.gain
+  // jumped +9.6 dB in one frame on a GO, and the scene's copy was persisted, so it recurred forever.
+  //
+  // Two writers used to break it, and BOTH are now structurally impossible rather than guarded:
+  //   · a timeline-less scene materialised a copy of the global doc on its first edit — that state is gone
+  //     (Scene.timeline is required, types.ts);
+  //   · Capture Scene deep-cloned the bound doc, automation and all — it now strips `automation` (App.tsx).
+  // No fix HERE could ever have worked: by the time we run, a copied lane is byte-identical to one the
+  // operator drew on the scene. The fact that told them apart was destroyed by the writer.
+  const onGlobalDoc = clocksCoincident();
   const base = onGlobalDoc ? [] : baseAutomation.filter(l => !activePaths.has(l.targetPath));
   // Tag each lane with the clock it rides BEFORE the concat — afterwards there is no way to tell them
   // apart. When the global doc is bound, `base` is empty (the global timeline IS the base and must not
@@ -1005,14 +1000,10 @@ export const timeline = {
     // without any of them knowing the show clock exists. Once they have DIVERGED, a seek moves the playhead
     // only: seeking a scene must not move the bed.
     //
-    // ⚠ clocksCoincident(), NOT isGlobalDocBound() — the full argument is on clocksCoincident() itself. The
-    // short version: isGlobalDocBound() asks WHICH DOCUMENT is bound, and a scene with NO TIMELINE OF ITS
-    // OWN binds the GLOBAL doc under its own pool key with transport:'restart' — playhead back to 0, show
-    // clock (correctly) preserved at 4:05. The doc is "bound"; the clocks are four minutes apart. Gating on
-    // the DOCUMENT there would hurl showTime to a scene-relative number and hard-restart the 20-minute bed
-    // on every entry to that state. The clocks are equal in exactly one state — the Global pill — and that
-    // is what clocksCoincident() means. (isGlobalDocBound() keeps its own, correct job: which clock a LANE
-    // rides — see compileAutomation.)
+    // ⚠ clocksCoincident() — the full argument is on the function itself. The clocks are equal in exactly
+    // one state, the Global pill; everywhere else they are diverged ON PURPOSE, and that divergence IS the
+    // show clock. A seek gated on anything looser would drag showTime to a scene-relative number and
+    // hard-restart a 20-minute bed on every entry to that scene.
     //
     // It has to be HERE, not in App: Timeline.tsx's seekTo() calls engine.seek() DIRECTLY (it does not go
     // through the TransportIntent funnel), so a rule living only in App's seek handler would let a ruler

@@ -3,7 +3,7 @@ import { StateMachine, SmState, SmTransition, SmRegion, SmAction, SmActionKind, 
 import { timeline as engine } from '../../services/timeline';
 import { X, Plus, Star, Trash2, ArrowRight, Wand2, SquareDashed, Film } from 'lucide-react';
 
-export interface SceneRef { id: string; name: string; hasTimeline?: boolean; clipCount?: number }
+export interface SceneRef { id: string; name: string; clipCount?: number }
 export interface CueRef { id: string; name: string }
 
 interface Props {
@@ -341,10 +341,10 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
                       <span className="text-micro font-medium leading-tight px-1 truncate max-w-[60px]">{s.name.toUpperCase()}</span>
                       {s.lockSec != null && <span className={`text-micro ${isInit ? 'text-black/70' : 'text-fg-3'}`}>[{s.lockSec}]</span>}
                       {scene && <span className={`inline-flex items-center gap-0.5 text-micro ${isInit ? 'text-black/70' : 'text-accent'}`}><Film size={8} /> {scene.name}</span>}
-                      {/* Per-state timeline build status: empty vs populated vs using the shared global. */}
-                      {scene && (scene.hasTimeline
-                        ? <span className={`text-micro ${isInit ? 'text-black/60' : 'text-fg-3'}`}>{scene.clipCount ? `${scene.clipCount} clip${scene.clipCount === 1 ? '' : 's'}` : 'empty'}</span>
-                        : <span className={`text-micro italic ${isInit ? 'text-black/50' : 'text-fg-4'}`}>↩ global</span>)}
+                      {/* Per-state timeline build status: empty vs populated. The third case — "↩ global",
+                          a scene with no timeline of its own — was deleted on 2026-07-14: every scene owns
+                          one now (types.ts), so there is no such state left to label. */}
+                      {scene && <span className={`text-micro ${isInit ? 'text-black/60' : 'text-fg-3'}`}>{scene.clipCount ? `${scene.clipCount} clip${scene.clipCount === 1 ? '' : 's'}` : 'empty'}</span>}
                       {/* link nub */}
                       <div title="Drag onto another state to connect" onPointerDown={(e) => beginLink(e, s.id)}
                         className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-accent border border-surface-0 cursor-crosshair" />

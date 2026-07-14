@@ -766,7 +766,14 @@ const App: React.FC = () => {
   // --- Scenes (look snapshots) ---
   // Capture the visible state — surfaces, fixtures, brightness, groups, 3D scene, projector
   // outputs — but not the timeline/assets (playing transport + media library) or rig wiring.
-  const buildSceneSnapshot = (): Omit<Scene, 'id' | 'name' | 'fadeSec'> => ({
+  //
+  // ⚠ `timeline` IS OMITTED FROM THE TYPE, AND THAT IS LOAD-BEARING. This used to say
+  // `Omit<Scene, 'id' | 'name' | 'fadeSec'>`, which claimed the snapshot DOES carry a timeline — a lie the
+  // comment above already contradicted, and one that only compiled because Scene.timeline was optional.
+  // Making the field required exposed it. It must stay omitted: handleUpdateScene does
+  // `{ ...s, ...buildSceneSnapshot() }`, so a snapshot carrying a timeline would make "Update Scene"
+  // CLOBBER the scene's own timeline with whatever is currently bound.
+  const buildSceneSnapshot = (): Omit<Scene, 'id' | 'name' | 'fadeSec' | 'timeline'> => ({
     surfaces,
     fixtures: fixtures.map(f => ({ ...f, colorData: [] })),
     globalBrightness,
@@ -854,10 +861,13 @@ const App: React.FC = () => {
     setActiveSceneId(scene.id);
   };
   // Warm-swap the playback engine to a scene's timeline, preloading its media first (hitless), and
-  // bridge the new timeline to the projector windows. Keyed by scene.id (a per-scene pool) even when
-  // the scene has no timeline yet (plays global content) so activePoolKey stays == activeSceneId.
+  // bridge the new timeline to the projector windows. Keyed by scene.id (a per-scene pool), so
+  // activePoolKey stays == activeSceneId.
   const swapTimelineForScene = (scene: Scene) => {
-    const tl = scene.timeline ? normalizeTimeline(scene.timeline) : timeline;
+    // Every scene owns a timeline (types.ts). This used to fall back to the GLOBAL doc when a scene had
+    // none — which is what made `data === globalDoc` true under a scene's pool key, and is the entire
+    // reason isGlobalDocBound() had to exist as a question distinct from clocksCoincident().
+    const tl = normalizeTimeline(scene.timeline);
     timelinePreloader.warm(scene.id, tl);
     timelineEngine.swap(scene.id, tl, { transport: 'restart', holdMs: (scene.fadeSec ?? 0) * 1000 });
     for (const port of projectorPortsRef.current.values()) port.postMessage({ t: 'timeline', timeline: tl });
@@ -934,9 +944,12 @@ const App: React.FC = () => {
   //  1. IT ROUTES OFF THE SAME BINDING handleTimelineChange DOES. Active scene → that scene's own timeline;
   //     none → the global one. Anything that just called setTimeline would edit the GLOBAL document while a
   //     scene is on screen, and the operator's reverb would then be heard under EVERY scene.
-  //  2. A SCENE WITH NO TIMELINE OF ITS OWN MATERIALIZES ONE — from the document it is actually bound to
-  //     (`activeTimeline` = scene.timeline ?? the global doc, :207). That is core's lazy-materialize
-  //     contract (enterAuthor, :874). Skip it and the first FX edit under such a scene lands in Global.
+  //  2. (RETIRED 2026-07-14.) This rule used to read: "A SCENE WITH NO TIMELINE OF ITS OWN MATERIALIZES ONE
+  //     — from the document it is actually bound to (`activeTimeline` = scene.timeline ?? the global doc)."
+  //     It was the THIRD writer of the lane-clock blocker: a mixer FX tweak from the audio plugin
+  //     materialised a scene timeline out of the GLOBAL doc — automation lanes and all — with no core
+  //     timeline edit anywhere. Every scene now owns a timeline (types.ts), so there is nothing to
+  //     materialise from and the rule has no subject.
   //  3. THE ID RESOLVES IN THE BOUND DOCUMENT ONLY, AND A MISS IS A DROP — never a search across scenes.
   //     handleCaptureScene deep-clones the bound timeline (structuredClone, :773 — ids and all), so two
   //     scenes hold BYTE-IDENTICAL clip ids: `scenes.flatMap(s => s.timeline?.audio?.clips)` would match in
@@ -960,8 +973,8 @@ const App: React.FC = () => {
     setScenes(prev => {
       const i = prev.findIndex(s => s.id === sceneId);
       if (i < 0) return prev;
-      const next = applied(prev[i].timeline ?? timelineRef.current);        // rule 2 — materialize from the bound doc
-      if (!next) return prev;                                               // rule 3 — not this document's clip
+      const next = applied(prev[i].timeline);                              // the scene OWNS its timeline (rule 2, retired)
+      if (!next) return prev;                                              // rule 3 — not this document's clip
       const out = prev.slice();
       out[i] = { ...prev[i], timeline: next };
       return out;
@@ -975,7 +988,7 @@ const App: React.FC = () => {
     activeAccent: activeScene?.accent ?? GLOBAL_ACCENT,
     index: activeScene ? scenes.findIndex(s => s.id === activeScene.id) : -1,
     total: scenes.length,
-    scenes: scenes.map(s => ({ id: s.id, name: s.name, accent: s.accent, hasTimeline: !!s.timeline, clipCount: s.timeline?.clips.length ?? 0 })),
+    scenes: scenes.map(s => ({ id: s.id, name: s.name, accent: s.accent, clipCount: s.timeline.clips.length })),
     onSelect: (sid: string | null) => { if (sid) enterAuthor(sid); else exitToGlobal(); },
     onSave: handleSaveState,
     onPrev: () => authorStep(-1),
@@ -991,23 +1004,22 @@ const App: React.FC = () => {
   // clip drawn at "0:30" on a scene ruler would be a lie about when it is heard. The panel shows the
   // `♪ BED mm:ss` readout instead, and the mixer keeps the (time-independent) faders reachable.
   //
-  // ⚠ THE GATE IS `activeSceneId`, AND IT IS *NOT* `timelineEngine.isGlobalDocBound()`. DO NOT "FIX" IT.
+  // ⚠ THE GATE IS `activeSceneId`. DO NOT "FIX" IT into something that asks about the DOCUMENT.
   //
-  // The tempting argument: a scene with NO timeline of its own binds the GLOBAL doc (swapTimelineForScene:
-  // `const tl = scene.timeline ? … : timeline`), so isGlobalDocBound() is true there, so the ruler must be
-  // honest, so the bed's lanes should be drawn. THE MIDDLE STEP IS FALSE. isGlobalDocBound() decides which
-  // clock a lane RIDES and whether a seek MOVES BOTH clocks — it does not assert that the two clocks are
-  // EQUAL. The recall that bound that scene went through swap(scene.id, tl, {transport:'restart'}), which
-  // does `mainSeek(timelineStart(t))` — resetting the PLAYHEAD — while showClock defaults to 'preserve'
-  // and the bed rolls serenely on. So the instant a timeline-less scene is recalled, playhead = 0:00 and
-  // showTime = 4:05: DIVERGED, deliberately (that divergence IS Task 3 — the bed no longer restarts on a
-  // scene recall). DC6b says so itself: "under a timeline-less scene the global picture restarts while the
-  // global curves continue on the show clock."
+  // The bed rides the SHOW clock and the ruler shows the PLAYHEAD. Recalling any scene goes through
+  // swap(scene.id, tl, {transport:'restart'}), which does `mainSeek(timelineStart(t))` — resetting the
+  // playhead — while showClock defaults to 'preserve' and the bed rolls serenely on. So the instant a scene
+  // is recalled, playhead = 0:00 and showTime = 4:05: DIVERGED, deliberately. That divergence IS the show
+  // clock; it is the whole point of the wave.
   //
-  // Draw the bed there and a clip that is AUDIBLE RIGHT NOW is painted four minutes to the right of the
-  // playhead — the precise lie this `undefined` exists to prevent. `activeSceneId == null` (the Global
-  // pill) is the only state in which no restart-swap has pulled the two apart. The mixer keeps the
-  // (time-independent) faders reachable meanwhile, and the ♪ BED readout says where the bed actually is.
+  // Draw the bed against the ruler there and a clip that is AUDIBLE RIGHT NOW is painted four minutes to the
+  // right of the playhead — the precise lie this `undefined` exists to prevent. `activeSceneId == null` (the
+  // Global pill) is the only state in which no restart-swap has pulled the two clocks apart. The mixer keeps
+  // the (time-independent) faders reachable meanwhile, and the ♪ BED readout says where the bed actually is.
+  //
+  // (This block used to argue at length against a SECOND predicate, isGlobalDocBound(), which was true under
+  // a scene with no timeline of its own. That state was deleted on 2026-07-14 and the predicate collapsed
+  // into clocksCoincident(). The conclusion is unchanged; the trap it warned about no longer has a door.)
   //
   // setAudioMix does NOT normalize (host.audio.setMix does); the lane's commits go through the same guard.
   const timelineBedProp = useMemo(
@@ -1182,7 +1194,12 @@ const App: React.FC = () => {
       const loadedScenes: Scene[] = rawScenes.map(s => {
         const accent = s.accent ?? nextAccent(usedAccents, s.id);
         usedAccents.push(accent);
-        return { ...s, accent, timeline: s.timeline ? normalizeTimeline(s.timeline) : undefined };
+        // EVERY SCENE OWNS A TIMELINE — and this is the door where that becomes true. The loader used to
+        // PRESERVE an absent timeline (`: undefined`), which is how a legacy/imported file kept the
+        // timeline-less shape alive. normalizeTimeline already takes `undefined` and returns a complete
+        // Timeline, so an old scene simply gets an empty one here. Without this line the required field on
+        // Scene would be a lie at runtime: tsc would believe it, and the app would hold undefined.
+        return { ...s, accent, timeline: normalizeTimeline(s.timeline) };
       });
       setScenes(loadedScenes);
       // Cue banks: use saved banks, else synthesize Bank 1 and place existing scenes in row 0 so
@@ -1224,7 +1241,7 @@ const App: React.FC = () => {
       const currentScene = loadedScenes.find(s => s.id === initialSceneId) ?? loadedScenes[0] ?? null;
       setActiveSceneId(currentScene?.id ?? null);
       const curKey = currentScene ? currentScene.id : GLOBAL_POOL;
-      const curTl = currentScene?.timeline ? normalizeTimeline(currentScene.timeline) : tl;
+      const curTl = currentScene ? normalizeTimeline(currentScene.timeline) : tl;
       timelineEngine.setGlobalDoc(tl);   // BEFORE the swap — swap's showClock:'reset' reads globalDoc
                                          // synchronously, and the [timeline] effect above is passive.
       // A SCENE/CUE FADE LAYER IS SHOW STATE, NOT DOCUMENT STATE — drop it, or the OUTGOING project's fades
@@ -1378,7 +1395,7 @@ const App: React.FC = () => {
       // recall / removeScene / exitToGlobal / createState / applyProjectData, none of which run here. Open a
       // project with states, then New Project, and:
       //   · `activeScene` → null ⇒ `activeTimeline` = the GLOBAL doc, and the setData effect's pool guard
-      //     passes on the STALE key ⇒ the engine believes the global doc is bound (isGlobalDocBound()) and
+      //     passes on the STALE key ⇒ the engine believes the global doc is bound (clocksCoincident()) and
       //     tags every global lane `'show'` — while the PLAYHEAD is still parked wherever the departed
       //     scene left it and only `showTime` was reset. Clips, curves and the bed run at three times.
       //   · handleTimelineChange sees `activeSceneId` truthy and maps over an EMPTY scenes array ⇒ every
@@ -1557,7 +1574,7 @@ const App: React.FC = () => {
           ...s,
           surfaces: s.surfaces ? relinkSurfaces(s.surfaces) : s.surfaces,
           scene3D: s.scene3D ? relinkScene3D(s.scene3D) : s.scene3D,
-          timeline: s.timeline ? relinkTimeline(s.timeline) : s.timeline,
+          timeline: relinkTimeline(s.timeline),
       })));
       setAudioMix(m => ({ ...m, clips: m.clips.map(c => isOld(c.path) ? { ...c, path: newPath } : c) })); // the audio bed
       window.alert(`Relinked "${asset.name}" — ${refCount} reference${refCount === 1 ? '' : 's'} updated.`);
@@ -1749,7 +1766,7 @@ const App: React.FC = () => {
       else if (i.kind === 'loop') {
         const key = timelineEngine.activePoolKey();
         const owner = key !== GLOBAL_POOL ? scenesRef.current.find(s => s.id === key) : undefined;
-        if (owner?.timeline) setScenes(prev => prev.map(s => (s.id === key && s.timeline ? { ...s, timeline: { ...s.timeline, loop: i.loopOn } } : s)));
+        if (owner) setScenes(prev => prev.map(s => (s.id === key ? { ...s, timeline: { ...s.timeline, loop: i.loopOn } } : s)));
         else setTimeline(t => ({ ...t, loop: i.loopOn }));
       }
   }), []);

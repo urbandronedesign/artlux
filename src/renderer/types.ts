@@ -1027,7 +1027,24 @@ export interface Scene {
   groups?: FixtureGroup[];
   scene3D?: Scene3D;
   projectorOutputs?: ProjectorOutput[];
-  timeline?: Timeline;         // per-state timeline; absent → uses the shared global timeline
+  // EVERY SCENE OWNS A TIMELINE. This was `timeline?: Timeline` — "absent → uses the shared global
+  // timeline" — and that shape was deleted on 2026-07-14. It caused two merge blockers and it was not a
+  // feature: NOTHING in the UI could create one (handleCreateState calls defaultTimeline(), handleCaptureScene
+  // clones), so it existed only in a hand-written file, while the scene pill carried a read-only "plays
+  // global" label for a state the operator could not produce. Nor was it what it looked like: an absent
+  // timeline did not mean "leave the transport alone", it meant "bind the global doc and RESTART its playhead
+  // at 0". Nobody designed that; it fell out of the data model.
+  //
+  // The blockers: a timeline-less scene MATERIALISED a copy of the global doc on its first ordinary edit
+  // (even pressing Loop), and that copy carried the global doc's `automation` array — which compileAutomation
+  // then retagged from the SHOW clock to the SCENE clock, while ALSO shadowing the real base lane by
+  // targetPath (timeline.ts:519). A house fade on audio.master.gain jumped +9.6 dB in one frame, and the
+  // materialised timeline was persisted, so it recurred on every GO thereafter.
+  //
+  // Required, so neither can happen: there is no timeline-less scene to materialise from.
+  // If a scene that does not touch the transport is ever wanted, design it explicitly
+  // (Scene.transport: 'restart' | 'preserve') with a real, named control the operator can see.
+  timeline: Timeline;
   accent?: string;             // stable identity colour (node/pill/border/strip/cell) — see accentPalette
   // AUDIO PARAMS THIS SCENE RECALLS — an explicit list, NOT a snapshot of the mix.
   //

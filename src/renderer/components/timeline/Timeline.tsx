@@ -59,7 +59,7 @@ export interface AuthorContext {
   activeAccent: string;                         // identity colour of the active context
   index: number;                                // 0-based position of the active scene (−1 for global)
   total: number;                                // number of scenes (for "State N of M")
-  scenes: { id: string; name: string; accent?: string; hasTimeline: boolean; clipCount?: number }[];
+  scenes: { id: string; name: string; accent?: string; clipCount?: number }[];
   onSelect: (sceneId: string | null) => void;   // enter author for a scene, or null → global
   onSave: () => void;                           // Save to State (re-capture look)
   onPrev: () => void;                           // ◂ Prev state
@@ -1164,11 +1164,13 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
                     className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-mini text-left hover:bg-surface-2 ${author.activeSceneId === s.id ? 'bg-surface-2' : ''}`}>
                     <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: s.accent ?? '#8b94a3' }} />
                     <span className="flex-1 text-fg-1 truncate">{s.name}</span>
-                    {s.hasTimeline && <Film size={11} className="text-fg-3 shrink-0" />}
-                    {/* A scene with no timeline of its own silently plays the GLOBAL one (swapTimelineForScene) —
-                        a genuinely surprising rule that appeared nowhere in the UI. */}
+                    <Film size={11} className="text-fg-3 shrink-0" />
+                    {/* This used to read "plays global" for a scene with no timeline of its own — a label for
+                        a state the operator could not create, describing a rule that appeared nowhere else in
+                        the UI. The old comment here called it "a genuinely surprising rule". Both the rule and
+                        the label are gone: every scene owns a timeline (types.ts, 2026-07-14). */}
                     <span className="ml-auto text-micro text-fg-3 shrink-0">
-                      {s.hasTimeline ? `${s.clipCount ?? 0} clip${(s.clipCount ?? 0) === 1 ? '' : 's'}` : 'plays global'}
+                      {`${s.clipCount ?? 0} clip${(s.clipCount ?? 0) === 1 ? '' : 's'}`}
                     </span>
                   </button>
                 ))}
@@ -1362,7 +1364,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
 
       {smEditorOpen && (
         <StateGraphEditor sm={sm} markers={timeline.markers ?? []} layers={layers}
-          scenes={author ? author.scenes.map(s => ({ id: s.id, name: s.name, hasTimeline: s.hasTimeline, clipCount: s.clipCount })) : scenes}
+          scenes={author ? author.scenes.map(s => ({ id: s.id, name: s.name, clipCount: s.clipCount })) : scenes}
           cues={cues}
           onChange={setStateMachine} onClose={() => setSmEditorOpen(false)}
           onEditTimeline={author ? author.onSelect : undefined} />

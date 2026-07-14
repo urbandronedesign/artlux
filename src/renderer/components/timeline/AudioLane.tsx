@@ -264,7 +264,7 @@ export const AudioLane: React.FC<AudioLaneProps> = ({
               with the ellipsis and the prefix ran straight into the track's name as one word. */}
           {source === 'timeline' && ownerName && (
             <span className="flex items-center gap-0.5 shrink-0 max-w-[56px] text-micro text-fg-3"
-              title={`This track belongs to ${ownerName}'s own audio. The name is drawn here, never stored — rename the scene and this label follows it; duplicate the scene and the copy does NOT inherit the old name. (A scene with no timeline of its own is bound to the GLOBAL one, so it shows the global timeline's tracks under its own name until the first edit forks them into the scene.)`}>
+              title={`This track belongs to ${ownerName}'s own audio. The name is drawn here, never stored — rename the scene and this label follows it; duplicate the scene and the copy does NOT inherit the old name.`}>
               <span className="truncate">{ownerName}</span>
               <span className="shrink-0">—</span>
             </span>
