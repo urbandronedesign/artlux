@@ -356,21 +356,18 @@ lives in Session 4 because that is where the automation tests are, but if you on
   warm in the OS page cache** (GO to a scene, leave, come back — the second entry should be the quiet one).
   That discriminates a remaining lock-hold from a plain decode-latency gap, which is a different bug.
 
-- [ ] **2.10 [UNVERIFIED — needs a device you can take away] — kill the audio output device, mid-show.**
-  *(Task 9. `5eb821d`. **NOT a merge blocker — see the box below.**)*
+- [x] **2.10 ✅ PASSED (2026-07-14) — kill the audio output device, mid-show.** *(Task 9. `5eb821d`.)*
 
-  > ### ⚠ THIS TEST HAS NEVER BEEN RUN, AND THE MERGE PROCEEDED ANYWAY. HERE IS EXACTLY WHY.
-  > The author had **no audio interface they could physically disconnect** (2026-07-14). The decision to merge
-  > without it rests on one property, and if that property is ever falsified this reasoning is void:
-  > **the engine change is a strict no-op while a device is alive.** It is one line —
-  > `if (deviceManager.getCurrentAudioDevice() == nullptr) opened = false;` — and on a working rig that
-  > pointer is never null, so `opened` is never touched and `configure()` behaves exactly as it did before.
-  > The renderer half cannot false-alarm either: **every** degraded read of `deviceLive` defaults to **true**
-  > (no addon, dead bridge, old main process, and a `!== false` test rather than a bare read), so a missing
-  > field or a failed poll lights *nothing*.
-  > **What is unverified is the RECOVERY path, not the running-show path.** The risk of merging is that a dead
-  > device stays as badly handled as it is on `main` today — not that a working one breaks.
-  > **Run this the first day hardware is available.**
+  > ### ✅ PASSED — and it was run **without any audio interface at all.**
+  > This test was written expecting a USB device to unplug, and the author had none. It nearly shipped
+  > unverified, on a written-out argument that the engine change was *"a strict no-op while a device is
+  > alive"* — sound reasoning, and still no substitute for running the thing.
+  > **It did not need hardware.** Windows ▸ Settings ▸ System ▸ Sound ▸ *All sound devices* ▸ **Don't allow**
+  > drives `getCurrentAudioDevice()` to `nullptr` down the **identical** code path an unplugged cable takes,
+  > and it is reversible in one click. **The badge appeared, Preferences stopped claiming the engine was
+  > active and named the device it had lost, and Reconnect restored sound with no restart.**
+  > **The lesson worth keeping:** "I don't have the hardware" was never the real blocker — not looking for a
+  > way to fake it was.
 
   **DO — and you do NOT need a USB interface for this.** Windows will take the device away for you:
   **Settings ▸ System ▸ Sound ▸ All sound devices ▸ <your current output> ▸ Don't allow.** That makes
