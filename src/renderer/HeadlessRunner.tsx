@@ -43,13 +43,20 @@ export const HeadlessRunner: React.FC<{ projectPath: string | null }> = ({ proje
       let gb = 1;
       const prefs = await window.artlux?.getPrefs?.();
       const path = projectPath || prefs?.lastProjectPath;
+      // AppSettings is THE MACHINE, not the show (see the header on AppSettings in types.ts) — that holds
+      // here too. A headless/broadcast node reads its Art-Net target and output config from `Prefs.appSettings`
+      // (this machine's own persisted settings), never from the project file: the project used to carry a
+      // `settings` copy of its own, so loading a show authored on a different rig would silently repoint this
+      // node's DMX output at the AUTHOR's Art-Net subnet. `ProjectData.settings` no longer exists at all
+      // (removed P6/Task 2) — legacy files may still have the key on disk, and it is ignored here exactly as
+      // App.tsx's applyProjectData ignores it.
+      if (prefs?.appSettings) s = { ...DEFAULTS, ...(prefs.appSettings as Partial<AppSettings>) };
       if (path) {
         const data = await window.artlux?.loadProjectPath?.(path);
         if (data) {
           if (Array.isArray(data.fixtures)) fx = (data.fixtures as Fixture[]).map((f) => ({ ...f, colorData: [] }));
           if (Array.isArray((data as any).surfaces)) surf = (data as any).surfaces as Surface[];
           if (Array.isArray((data as any).controllers)) ctrls = (data as any).controllers as Controller[];
-          if (data.settings) s = { ...DEFAULTS, ...(data.settings as Partial<AppSettings>) };
           if (typeof data.globalBrightness === 'number') gb = data.globalBrightness;
         }
       }

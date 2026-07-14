@@ -543,7 +543,8 @@ export interface ProjectData {
   fixtures: unknown[];
   surfaces?: unknown[];     // Surface[] (renderer type) — carries VIDEO/IMAGE asset urls
   controllers?: unknown[];
-  settings: unknown;
+  // `settings` REMOVED (P6): AppSettings is the machine, not the show — it lives in Prefs.appSettings.
+  // Legacy files still carry the key; it is ignored on load. See App.tsx applyProjectData.
   globalBrightness: number;
   groups: unknown[];
   scenes: unknown[];

@@ -1186,7 +1186,6 @@ const App: React.FC = () => {
       surfaces,
       fixtures,
       controllers,
-      settings,
       reserveLockedRanges: patchPolicy.reserveLockedRanges,
       globalBrightness,
       groups,
@@ -1216,7 +1215,15 @@ const App: React.FC = () => {
           // garbage — coerce it back to undefined so Stage's `segments.map` can't throw on load.
           setFixtures(data.fixtures.map((f: any) => ({ ...f, colorData: [], surfaceId: f.surfaceId ?? surf[0]?.id, segments: Array.isArray(f.segments) ? f.segments : undefined })));
       }
-      if (data?.settings) setSettings(prev => ({ ...prev, ...data.settings }));
+      // ── A PROJECT DOES NOT RECONFIGURE THE BUILDING ────────────────────────────────────────────────
+      // `settings` is NOT read from the file, and `buildProjectData` no longer writes it. AppSettings is
+      // the MACHINE — the sound card, the Art-Net target, the OSC port — and `Prefs.appSettings` already
+      // persists it per-machine. Carrying a second copy in the .artlux meant OPENING A SHOW REPATCHED THE
+      // VENUE: a project authored in binaural/2ch flipped an octagon/8ch rig to a headphone mix, and
+      // :2411 wrote that back to prefs so it stuck.
+      //
+      // Legacy files still HAVE a `settings` key. It is deliberately ignored — that is the fix, not an
+      // oversight. The one show-scoped field it used to hold is rescued by readPatchPolicy() below.
       setPatchPolicy(readPatchPolicy(data));
       if (typeof data?.globalBrightness === 'number') setGlobalBrightness(data.globalBrightness);
       setControllers(Array.isArray(data?.controllers) ? data.controllers : []);
@@ -1391,10 +1398,15 @@ const App: React.FC = () => {
   // them clean. The two functions are two halves of one contract — and they had drifted badly.
   //
   // The old comment here said *"Keeps settings/scene3D/timeline (matches prior New behavior)."* It names
-  // three fields. **Only `settings` is right** — and it earns its exemption honestly: OPEN *merges* it
-  // (`{...prev, ...data.settings}`) rather than replacing it, because it is the audio device and the OSC
-  // port, i.e. the machine, not the show. `scene3D` and `timeline` are the show, and keeping them meant a
-  // brand-new project opened holding the last one.
+  // three fields. **Only `settings` is right** — and at the time this comment was written it earned its
+  // exemption honestly: OPEN *merged* it (`{...prev, ...data.settings}`) rather than replacing it, because
+  // it is the audio device and the OSC port, i.e. the machine, not the show. `scene3D` and `timeline` are
+  // the show, and keeping them meant a brand-new project opened holding the last one.
+  //
+  // P6 (Task 2) removed that merge outright: `settings` is now the ONE field that never round-trips
+  // through this contract at all — `buildProjectData` doesn't write it and `applyProjectData` doesn't read
+  // it, so there is nothing here for `resetToNewProject` to reset or return. See AppSettings' header in
+  // types.ts and `ProjectData.settings`'s tombstone in shared/protocol.ts.
   //
   // ⚠ IT RETURNS THE OVERRIDES, AND THAT IS THE POINT. `buildProjectData()` reads REACT STATE, and the
   // caller runs it in the SAME SYNCHRONOUS HANDLER as this function — so none of the setStates below have

@@ -951,6 +951,14 @@ export interface Surface {
   content: SurfaceContent;
 }
 
+// ── THE MACHINE, NOT THE SHOW ───────────────────────────────────────────────────────────────────────
+// AppSettings describes THIS COMPUTER and THIS BUILDING: the sound card, the Art-Net target, the OSC
+// listener, the output gamma. It is persisted in `Prefs.appSettings` (per-machine) and is **NEVER written
+// to a project file** — opening a show must not repatch the venue. (It used to be written to both, and the
+// file's copy won: a project authored in binaural/2ch flipped an octagon rig to a headphone mix.)
+//
+// Adding a field here? Ask whose data it is. If the answer is "the show's", it belongs in ProjectData —
+// as `reserveLockedRanges` now does.
 export interface AppSettings {
   artNetIp: string;
   artNetPort: number;
@@ -974,6 +982,11 @@ export interface AppSettings {
   // Namespace for plugin-private settings that don't warrant a core field. A plugin keys by its id
   // (`settings.plugins?.['my-plugin']`) and owns the shape. Cross-app persisted settings that the host
   // also reads (like mp4WebCodecs) stay top-level core fields; this is for genuinely plugin-local prefs.
+  //
+  // ⚠ MACHINE-SCOPED, like everything else in AppSettings: this namespace is NOT persisted to a project
+  // file. Its three consumers today are all hardware/network prefs — `audio` (the output device),
+  // `show-control` (the LAN port + PIN), `mediapipe` (the camera). A plugin needing PER-PROJECT data puts
+  // it in ProjectData, not here; anything left here does not travel with the show.
   plugins?: Record<string, unknown>;
 }
 
