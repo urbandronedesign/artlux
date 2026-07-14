@@ -55,7 +55,7 @@ enabled when something is playable). Live sources (camera, Spout, NDI, DMX‑in)
 
 > **Tip:** for **Video** and **Image** you don't have to browse each time — import once into the
 > **Media** library and **drag a tile onto the surface** (or select the surface and click **Use**).
-> See [Projects, media & broadcast](10-projects-media-broadcast.md).
+> See [Projects, media & broadcast](11-projects-media-broadcast.md).
 
 ---
 
@@ -67,7 +67,7 @@ projector and map it onto the real floor/wall at 1:1. Inspector options include 
 a zone border + grid + U/V arrows), and a **Background** timeline layer drawn under the blobs.
 
 **Calibrate a projection (1:1):** point a projector at the tracking surface (see
-[Projector outputs](07-projector-outputs.md)), tick **Calibrate**, use **Outputs ▸ Align** to drag the
+[Projector outputs](08-projector-outputs.md)), tick **Calibrate**, use **Outputs ▸ Align** to drag the
 projected border onto the real edges, then have someone stand at a known spot and toggle
 **Flip/Rotate** until their marker lands on them. Turn **Calibrate** off for the show.
 

@@ -41,7 +41,7 @@ Two tabs at the top of the left column:
 - **Scene** (shown above) — the **Surfaces** list and the **Fixtures** list (grouped under layers),
   plus **Groups** and **Global Params** (LED Brightness, Projector Brightness) at the bottom. Add
   items with **+**, double‑click to rename, hover a row for delete/reorder actions.
-- **Media** — the project's [media library](10-projects-media-broadcast.md): import, preview, and
+- **Media** — the project's [media library](11-projects-media-broadcast.md): import, preview, and
   drag video / images / models / takes onto the Stage or Timeline.
 
 Hide the whole panel with the toggle at the **left end of the status bar**.
@@ -54,7 +54,7 @@ Hide the whole panel with the toggle at the **left end of the status bar**.
   toolbar has **zoom**, a **grid** toggle (with grid size), a **snap (magnet)** toggle, a
   **split‑view** toggle, and **reset view**.
 - The **3D Scene** shares the center as a split pane (drag the divider). It previews your fixtures in
-  real‑world space, lit by live output colors. See [3D scene](08-3d-scene.md).
+  real‑world space, lit by live output colors. See [3D scene](09-3d-scene.md).
 
 ---
 

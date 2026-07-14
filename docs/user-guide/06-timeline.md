@@ -62,4 +62,4 @@ editor). It's **disabled by default**. When enabled it can drive the transport a
 Turn it off any time to return to fully manual control. The Play/Pause button always reflects the real
 state, whether you or the machine changed it. See [TIMELINE.md](../TIMELINE.md).
 
-➡ Next: [Projector outputs](07-projector-outputs.md)
+➡ Next: [Audio](07-audio.md)

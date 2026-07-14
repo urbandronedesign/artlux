@@ -61,10 +61,10 @@ the global behaviour:
 
 The defaults every fixture falls back to: protocol, output on/off, target IP, port, broadcast, and
 **Discover devices** (scan for Art‑Net nodes). Engine settings (FPS, keep‑alive, ArtSync, Gamma) live
-just below. See [Preferences & monitoring](11-preferences-monitoring.md).
+just below. See [Preferences & monitoring](12-preferences-monitoring.md).
 
 > **Sanity check:** if nothing lights up, confirm the chain — surface has content, a fixture is over it
 > and **Mapping ▸ Surface** is set, the fixture is patched (Auto‑patch), and DMX output is enabled with
-> the right IP/protocol. Verify packets in the [DMX Monitor](11-preferences-monitoring.md#dmx-monitor).
+> the right IP/protocol. Verify packets in the [DMX Monitor](12-preferences-monitoring.md#dmx-monitor).
 
 ➡ Next: [Color, effects, groups & scenes](05-color-effects-groups-scenes.md)

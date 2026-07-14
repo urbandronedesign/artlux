@@ -62,12 +62,13 @@ Save with **Ctrl/Cmd+S**.
 | 4 | [Patching & routing](04-patching-and-routing.md) | Auto‑patch, the Routing sheet, controllers, overrides |
 | 5 | [Color, effects, groups & scenes](05-color-effects-groups-scenes.md) | Inspector params, effects, groups, scenes, cue banks |
 | 6 | [Timeline](06-timeline.md) | Clips, tracks, markers, Takes, the state machine |
-| 7 | [Projector outputs](07-projector-outputs.md) | The Outputs panel, corner‑pin, warp, soft‑edge, NDI out |
-| 8 | [3D scene](08-3d-scene.md) | The split‑pane 3D view, outliner, gizmos, models & planes |
-| 9 | [Calibration](09-calibration.md) | The structured‑light & auto‑align projector calibration wizard |
-| 10 | [Projects, media & broadcast](10-projects-media-broadcast.md) | Projects‑as‑folders, the Media library, Asset Manager, show mode |
-| 11 | [Preferences & monitoring](11-preferences-monitoring.md) | Preferences, the DMX & OSC monitors, Prometheus/Grafana |
-| 12 | [Keyboard & mouse reference](12-keyboard-reference.md) | Every shortcut, by context |
+| 7 | [Audio](07-audio.md) | The Audio Bed mixer, the bed vs a scene's own sound, spatial audio, FX, automation |
+| 8 | [Projector outputs](08-projector-outputs.md) | The Outputs panel, corner‑pin, warp, soft‑edge, NDI out |
+| 9 | [3D scene](09-3d-scene.md) | The split‑pane 3D view, outliner, gizmos, models & planes |
+| 10 | [Calibration](10-calibration.md) | The structured‑light & auto‑align projector calibration wizard |
+| 11 | [Projects, media & broadcast](11-projects-media-broadcast.md) | Projects‑as‑folders, the Media library, Asset Manager, show mode |
+| 12 | [Preferences & monitoring](12-preferences-monitoring.md) | Preferences, the DMX & OSC monitors, Prometheus/Grafana |
+| 13 | [Keyboard & mouse reference](13-keyboard-reference.md) | Every shortcut, by context |
 
 For engine internals and protocol details, see the other files in [`docs/`](../) (ARCHITECTURE,
 SURFACES, OUTPUTS, LEDMAP, NDI, TIMELINE, ASSETS, CALIBRATION, OSC, MONITORING).

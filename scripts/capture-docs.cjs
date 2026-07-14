@@ -39,13 +39,23 @@ function buildDemoProject() {
     const logo = path.join(imgDir, 'logo.png');
     fs.copyFileSync(path.join(ROOT, 'build', 'icon.png'), logo);
 
+    // AUDIO for the Audio Bed shot (user-guide §7). Copied out of the committed audio example set — the
+    // same door `logo` uses, and for the same reason: the demo project lives in the OS temp dir, so its
+    // asset paths must be ABSOLUTE. Without this the mixer captures EMPTY, which would document nothing.
+    const audDir = path.join(dir, 'assets', 'audio');
+    fs.mkdirSync(audDir, { recursive: true });
+    const bedWav = path.join(audDir, 'bed-count.wav');
+    const stingWav = path.join(audDir, 'sting-main.wav');
+    fs.copyFileSync(path.join(ROOT, 'examples/audio/assets/audio/bed-count.wav'), bedWav);
+    fs.copyFileSync(path.join(ROOT, 'examples/audio/assets/audio/sting-main.wav'), stingWav);
+
     const sId = 'srf-logo', fxId = 'srf-fx';
     const stripId = 'fix-strip', matrixId = 'fix-matrix';
     const ctrlId = 'ctrl-main';
     const layA = 'lay-a', layB = 'lay-b';
 
     const project = {
-        version: '1.1',
+        version: '1.2',
         timestamp: '2026-06-30T00:00:00.000Z',
         surfaces: [
             { id: sId, name: 'Logo Wall', x: 0.05, y: 0.10, width: 0.42, height: 0.52, rotation: 0, zIndex: 0,
@@ -76,7 +86,22 @@ function buildDemoProject() {
         },
         globalBrightness: 1,
         groups: [ { id: 'grp-all', name: 'All Fixtures', fixtureIds: [matrixId, stripId] } ],
-        scenes: [ { id: 'scn-a', name: 'Look A', fadeSec: 0, surfaces: [], fixtures: [], globalBrightness: 1, groups: [] } ],
+        // ⚠ EVERY SCENE OWNS A TIMELINE. `Scene.timeline` became REQUIRED on 2026-07-14 — the timeline-less
+        // scene ("plays the global one") was the root of two automation-clock blockers and the shape was
+        // DELETED. This demo carried the old shape; the loader would have silently defaulted it, but seeding
+        // a deleted shape from our own screenshot harness is how a dead shape stays alive.
+        // The scene also owns a STING on its own audio — which is the whole point of §7: a scene's audio
+        // restarts on every recall, while the bed does not.
+        scenes: [ { id: 'scn-a', name: 'Look A', fadeSec: 0, surfaces: [], fixtures: [], globalBrightness: 1, groups: [],
+            timeline: {
+                layers: [], clips: [], duration: 20, fps: 30, markers: [],
+                inPoint: null, outPoint: null, loop: false, trackingTakes: [],
+                audio: {
+                    tracks: [ { id: 'atr-sting', name: 'Sting', gain: 1, mute: false } ],
+                    clips: [ { id: 'acl-sting', trackId: 'atr-sting', name: 'sting-main', path: stingWav,
+                               start: 0, duration: 1.6, inPoint: 0, sourceDuration: 1.6, gain: 0.5, mute: false } ],
+                },
+            } } ],
         cueBanks: [ { id: 'bank-1', name: 'Bank 1', rows: 8, cols: 16, cues: [], sceneCells: [ { col: 0, sceneId: 'scn-a' } ] } ],
         scene3D: {
             models: [ { id: 'mdl-screen', name: 'Screen 1', kind: 'plane', path: '', position: { x: 0, y: 1.2, z: -1.0 },
@@ -99,9 +124,36 @@ function buildDemoProject() {
             inPoint: 0, outPoint: 16, loop: true,
             stateMachine: { enabled: false, states: [], transitions: [], initialStateId: null },
             trackingTakes: [],
+            // An automation lane on the house level, so the timeline shot shows a real curve and the Audio
+            // Bed's master fader shows its `LANE` badge — which is precisely what §7 is about.
+            automation: [
+                { id: 'lane-master', targetPath: 'audio.master.gain', enabled: true, height: 64, color: '#f59e0b',
+                  keyframes: [ { t: 0, v: 1, curve: 'linear' }, { t: 8, v: 1, curve: 'linear' },
+                               { t: 12, v: 0.35, curve: 'linear' }, { t: 22, v: 0.35, curve: 'linear' },
+                               { t: 27, v: 1, curve: 'linear' } ] },
+            ],
+        },
+        // THE BED (ProjectData.audio) — one per project, rides the SHOW clock, survives a scene recall.
+        // Two tracks, because the mixer's whole shape only reads once there is more than one.
+        audio: {
+            tracks: [
+                { id: 'atr-bed', name: 'Bed', gain: 1, mute: false },
+                { id: 'atr-room', name: 'Room', gain: 0.7, mute: false },
+            ],
+            clips: [
+                { id: 'acl-bed', trackId: 'atr-bed', name: 'bed-count', path: bedWav,
+                  start: 0, duration: 30, inPoint: 0, sourceDuration: 36, gain: 1, mute: false },
+            ],
+            buses: [
+                { id: 'master', name: 'Master', gain: 1,
+                  effects: [ { id: 'fx-comp', type: 'compressor',
+                               params: { thresholdDb: -12, ratio: 3, attackMs: 8, releaseMs: 140, makeupDb: 1.5 } } ] },
+            ],
         },
         assets: [
             { id: 'ast-logo', name: 'logo.png', type: 'image', path: logo, width: 512, height: 512, addedAt: '2026-06-30T00:00:00.000Z' },
+            { id: 'ast-bed', name: 'bed-count.wav', type: 'audio', path: bedWav, addedAt: '2026-06-30T00:00:00.000Z' },
+            { id: 'ast-sting', name: 'sting-main.wav', type: 'audio', path: stingWav, addedAt: '2026-06-30T00:00:00.000Z' },
         ],
         projectorOutputs: [
             { surfaceId: sId, enabled: false, displayId: null,
@@ -389,6 +441,43 @@ async function main() {
         // 17. About (Help ▸ About ArtLux)
         await safeShoot(page, '17-about.png', async () => { await menuAction(page, 'Help', 'About ArtLux'); });
         await escClose(page);
+
+        // 18. Audio Bed — the mixer (View ▸ Audio Bed…), for user-guide §7.
+        //
+        // A plugin modal, opened from the View menu — the same door as the OSC Monitor above, and it is
+        // captured the same way. It renders WITHOUT the native audio addon: plugin.renderer.ts registers the
+        // panel unconditionally, before the main-window gate, so a capture run on a machine with no
+        // audio_engine.node still gets a complete, correct mixer (it will simply carry a `no audio engine`
+        // badge — which is itself worth showing, and is exactly what the chapter documents).
+        await sleep(400);   // let the About modal finish unmounting — menuAction is flaky over a closing dialog
+        await safeShoot(page, '18-audio-bed.png', async () => { await menuAction(page, 'View', 'Audio Bed'); });
+        await escClose(page);
+        await sleep(300);
+
+        // ── 19. THE CLIP INSPECTOR — NOT CAPTURED, AND HERE IS EXACTLY WHY ───────────────────────────────
+        //
+        // §7 would be better with a second shot showing the inspector filled in (gain, the spatial positioner
+        // pad, the insert chain). It is NOT here, and this is deliberately a comment rather than a
+        // permanently-failing safeShoot(): `safeShoot` swallows a failure with a ✗ and carries on, so a
+        // context that can never succeed becomes a line of output nobody reads. (That is precisely how
+        // `11c-outputs-expanded.png` and `12-3d-scene.png` spent months being "written by the script" and not
+        // existing on disk.) A shot that cannot be taken should not pretend to be a shot that failed.
+        //
+        // WHAT IT WOULD TAKE. The inspector follows the TIMELINE SELECTION, so the sequence has to be:
+        // open the Timeline dock → bind the GLOBAL document → maximize (F) → click the bed's clip → open the
+        // panel. Three of those four are hostile to a script:
+        //
+        //   · A SCENE IS BOUND ON LOAD (applyProjectData binds the first one), and while a scene is bound THE
+        //     BED'S LANES ARE NOT DRAWN AT ALL — by design, because the ruler belongs to that scene's playhead
+        //     and the bed does not ride it. So the clip is not merely off-screen; it does not exist to click.
+        //   · The Global pill is a DROPDOWN (`title="Choose which timeline to edit"`), not a button — and it
+        //     only renders when the panel is handed an `author` prop, which it is not in every dock state.
+        //   · A bare clickText('Global') matches "GLOBAL PARAMS" in the left panel and binds nothing.
+        //
+        // Every one of those is a real behaviour the chapter documents, which is a good sign for the app and
+        // a bad one for the harness. Worth doing; not worth blocking the chapter on. The single 18-audio-bed
+        // shot already carries the headline — two containers, the read-only scene tracks, the show clock, and
+        // the master fader greyed out under its LANE badge.
 
         // 18. Dedicated 3D-scene shot for the user guide (§8, which otherwise reuses 00-main-editor).
         //     Select a fixture so the W/E/R transform gizmo shows in 3D, then clip to the in-window r3f

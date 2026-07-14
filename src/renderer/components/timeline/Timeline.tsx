@@ -1162,9 +1162,15 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
             <span className="text-fg-1 font-medium max-w-[160px] truncate">{author.activeName}</span>
             <ChevronDown size={12} className="text-fg-3" />
           </button>
+          {/* ⚠ "used by states without their own" DESCRIBED A SHAPE THAT NO LONGER EXISTS. A scene could once
+              have NO timeline and fall back to this one; that state was the root of two automation-clock
+              blockers and was DELETED on 2026-07-14 (`Scene.timeline` is required). Every scene owns a
+              timeline, so nothing "falls back" here any more. What the global document IS now is the SHOW's
+              own timeline — the base layer whose automation lanes keep driving underneath every scene, and
+              the ruler the audio bed rides. Say that instead. */}
           {authoring
             ? <span className="text-micro text-fg-3">its own timeline · {timeline.clips.length} clip{timeline.clips.length === 1 ? '' : 's'}</span>
-            : <span className="text-micro text-fg-3">shared default — used by states without their own</span>}
+            : <span className="text-micro text-fg-3">the SHOW's timeline — its lanes drive underneath every scene</span>}
 
           {/* Author strip — the trigger→build→save→continue loop (only while authoring a state). */}
           {authoring && (
