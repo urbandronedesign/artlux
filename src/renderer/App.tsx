@@ -785,7 +785,24 @@ const App: React.FC = () => {
     const id = generateId();
     // A fresh capture takes the currently-bound timeline as its own (deep-cloned so later edits to
     // other timelines don't mutate it); the snapshot itself is look-only so Update never clobbers it.
-    setScenes([...scenes, { id, name: `Scene ${scenes.length + 1}`, fadeSec: 0, ...buildSceneSnapshot(), timeline: structuredClone(activeTimeline), accent: nextAccent(scenes.map(s => s.accent), id) }]);
+    //
+    // ⚠ AUTOMATION IS DELIBERATELY NOT CLONED — this is a merge blocker, and the reachable one.
+    //
+    // On the Global pill `activeTimeline` IS the global doc, so a naive structuredClone handed the new scene
+    // a COPY of every BASE lane. compileAutomation decides a lane's clock by which document holds it, so the
+    // copy was retagged from the SHOW clock to the SCENE clock — AND it shadowed the real base lane by
+    // targetPath (timeline.ts:519), deleting the genuine show-clock lane from the compile entirely. A house
+    // fade on audio.master.gain therefore SNAPPED BACK TO ITS t=0 VALUE on every recall of that scene:
+    // measured at +9.6 dB in a single frame, in front of an audience. And the clone was persisted, so it
+    // recurred on every GO, in that project, forever.
+    //
+    // NOTHING IS LOST BY STRIPPING. With `automation: []` no scene lane shadows anything, so timeline.ts:519
+    // hands back EVERY global lane tagged 'show'. The house fade keeps riding the show clock exactly as it
+    // did — as the BASE LAYER, which is what baseAutomation is for. We remove the impostor, not the curve.
+    // (A lane the operator actually draws ON this scene still rides the playhead and still shadows a global
+    // lane on the same target — see scratch/laneclock-sim.mjs, which pins both.)
+    const timeline: Timeline = { ...structuredClone(activeTimeline), automation: [] };
+    setScenes([...scenes, { id, name: `Scene ${scenes.length + 1}`, fadeSec: 0, ...buildSceneSnapshot(), timeline, accent: nextAccent(scenes.map(s => s.accent), id) }]);
   };
   // Re-capture current LOOK into an existing scene (keeps id/name/fadeSec/timeline) — MadMapper
   // "Update Scene". buildSceneSnapshot is look-only, so a scene's own timeline is never clobbered.
