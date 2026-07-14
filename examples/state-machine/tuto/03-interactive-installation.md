@@ -83,7 +83,7 @@ the room. That's your installation, remote-controlled.
    (`Attract A` / `Attract B`) inside the region, ping-ponging on `afterDelay`, each with manual arrows
    to the performances — the hub becomes a mini timed loop (Chapter 1) that's still interruptible.
 4. **Unattended deployment.** Save your project, then launch it headless/broadcast so it runs on boot
-   with no editor — see the app's **headless** mode in [`README.md`](../../../README.md) and the
+   with no editor — see the app's **headless** mode in [`FEATURES.md`](../../../docs/FEATURES.md) and the
    [show-control tablet + scheduler](../../../docs/SHOW-CONTROL.md) for touch control and time-of-day
    automation.
 

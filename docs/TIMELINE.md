@@ -169,6 +169,12 @@ The transport carries **two derived times**. There is still exactly **one** runn
 new is a second *time value* riding the same clock, because a scene recall must restart the picture
 **without restarting the music**.
 
+> **This section exists because of audio, and it is the half of the story that lives here.** The other half —
+> which container a sound goes in, and therefore which of these two clocks it rides — is
+> **[AUDIO.md](AUDIO.md)**. If you are here because something restarted (or *didn't*) when you fired a cue,
+> that is the page you want. To *hear* the difference in about four minutes, open
+> **[`examples/audio/`](../examples/audio/README.md)**.
+
 | | `playhead` — the SCENE clock | `showTime` — the SHOW clock |
 |---|---|---|
 | drives | the BOUND timeline's video, its own `Timeline.audio`, its automation lanes, the state machine | the global audio bed (`ProjectData.audio`) and the GLOBAL timeline's automation (the base layer) |

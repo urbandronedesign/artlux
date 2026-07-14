@@ -97,6 +97,13 @@
         "to": "examples"
       },
       {
+        "from": "docs",
+        "to": "docs",
+        "filter": [
+          "*.md"
+        ]
+      },
+      {
         "from": "docs/user-guide",
         "to": "docs/user-guide"
       }
