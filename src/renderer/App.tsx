@@ -1039,6 +1039,18 @@ const App: React.FC = () => {
   // into clocksCoincident(). The conclusion is unchanged; the trap it warned about no longer has a door.)
   //
   // setAudioMix does NOT normalize (host.audio.setMix does); the lane's commits go through the same guard.
+  // THE BASE LAYER, FOR THE PANEL TO DRAW. The global timeline's lanes keep driving their parameters
+  // underneath every scene (setBaseAutomation, above) — but the panel only ever saw the BOUND document, so
+  // the instant a scene was recalled they vanished from the screen while they carried on moving the master.
+  // Until now that was masked by a bug: Capture Scene cloned the global lanes INTO the scene, so something
+  // was on screen — the wrong lane, on the wrong clock. Stripping that clone (the blocker) fixes the data
+  // and empties the panel, so this closes the gap our own fix opened.
+  //
+  // EMPTY ON THE GLOBAL PILL: there the bound doc IS the base, and drawing it would duplicate every lane.
+  const baseAutomationProp = useMemo(
+    () => (activeSceneId ? (timeline.automation ?? []) : []),
+    [activeSceneId, timeline.automation],
+  );
   const timelineBedProp = useMemo(
     () => (activeSceneId ? undefined : { mix: audioMix, onChangeMix: (m: AudioMix) => setAudioMix(normalizeAudioMix(m)) }),
     [activeSceneId, audioMix],
@@ -2569,7 +2581,7 @@ const App: React.FC = () => {
                     timelineMax ? (
                         <div className="h-full flex items-center justify-center text-fg-3 text-mini italic">Timeline maximized — press F or the restore button to dock it</div>
                     ) : (
-                        <TimelinePanel timeline={activeTimeline} onChange={handleTimelineChange} author={timelineAuthor} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} onToggleMax={() => setTimelineMax(true)} projectPath={currentProjectPath} onRegisterAsset={handleRegisterAsset} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} audio={timelineBedProp} />
+                        <TimelinePanel timeline={activeTimeline} onChange={handleTimelineChange} author={timelineAuthor} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} onToggleMax={() => setTimelineMax(true)} projectPath={currentProjectPath} onRegisterAsset={handleRegisterAsset} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} audio={timelineBedProp} baseAutomation={baseAutomationProp} />
                     )
                 ) : dockTab === DockTab.SCENES ? (
                     <CueBankPanel
@@ -2777,7 +2789,7 @@ const App: React.FC = () => {
 
       {timelineMax && (
         <div className="fixed inset-0 z-50 bg-surface-0 flex flex-col">
-          <TimelinePanel timeline={activeTimeline} onChange={handleTimelineChange} author={timelineAuthor} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} maximized onToggleMax={() => setTimelineMax(false)} projectPath={currentProjectPath} onRegisterAsset={handleRegisterAsset} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} audio={timelineBedProp} />
+          <TimelinePanel timeline={activeTimeline} onChange={handleTimelineChange} author={timelineAuthor} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} maximized onToggleMax={() => setTimelineMax(false)} projectPath={currentProjectPath} onRegisterAsset={handleRegisterAsset} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} audio={timelineBedProp} baseAutomation={baseAutomationProp} />
         </div>
       )}
 

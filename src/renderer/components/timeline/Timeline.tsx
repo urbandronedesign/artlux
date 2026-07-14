@@ -18,6 +18,10 @@ import { AutomationLane, AUTO_LANE_H } from './AutomationLane';
 import { AutomationTargetPicker } from './AutomationTargetPicker';
 import { automationTargetRegistry } from '../../host/registries';
 import type { AutomationLane as AutoLane } from '../../types';
+
+// A lane as the PANEL sees it. `origin` is where the lane LIVES (and therefore which clock it rides);
+// `shadowed` means a scene lane owns the same targetPath, so this global one is not applying right now.
+type PanelLane = { lane: AutoLane; origin: 'scene' | 'global'; shadowed: boolean };
 import type { AutomationTargetDef } from '@artlux/sdk/renderer';
 import { TakesBin } from './TakesBin';
 import { trackingRecorder, trackingTake } from '@artlux/plugin-lidar-tracking';
@@ -51,6 +55,11 @@ interface Props {
   // ABSENT while a scene is bound (App decides): the two clocks have diverged and drawing the bed against
   // a scene-relative ruler would be a lie. The header shows a `♪ BED mm:ss` readout instead.
   audio?: { mix: AudioMix; onChangeMix: (m: AudioMix) => void };
+  // THE GLOBAL TIMELINE'S LANES — the BASE LAYER, riding the SHOW clock underneath whatever is bound.
+  // They keep driving their parameters through every scene recall (App.tsx: setBaseAutomation), so the panel
+  // must draw them or the operator sees an empty automation area while a house fade slides the master.
+  // EMPTY ON THE GLOBAL PILL, where the bound doc IS the base — drawing it there would duplicate every lane.
+  baseAutomation?: AutoLane[];
 }
 
 export interface AuthorContext {
@@ -71,7 +80,7 @@ export interface AuthorContext {
 // (top-bar play) drives the engine — the playback clock. Edits commit to project state via
 // onChange; the live playhead/time are read from the engine render-free. Layout is a single
 // vertical scroller with a sticky track-header gutter and a sticky timecode ruler.
-export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, onStateMachineChange, playing, onTogglePlay, maximized = false, onToggleMax, projectPath, onRegisterAsset, scenes = [], cues = [], author, audio: audioProp }) => {
+export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, onStateMachineChange, playing, onTogglePlay, maximized = false, onToggleMax, projectPath, onRegisterAsset, scenes = [], cues = [], author, audio: audioProp, baseAutomation = [] }) => {
   const [pxPerSec, setPxPerSec] = useState(40);
   const [pillOpen, setPillOpen] = useState(false); // scene/state selector dropdown
   const [selected, setSelected] = useState<string | null>(null);
@@ -82,6 +91,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   const [pickerAt, setPickerAt] = useState<{ x: number; y: number } | null>(null); // automation picker anchor
   const [defsTick, setDefsTick] = useState(0);           // forces a target re-enumeration (~1 Hz)
   const [autoPlayhead, setAutoPlayhead] = useState(0);   // ~10 Hz playhead for the lanes' live readouts
+  const [autoShowTime, setAutoShowTime] = useState(0);   // ...and the SHOW clock, which a BASE lane rides
   const [tool, setTool] = useState<'select' | 'blade'>('select');
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [draft, setDraft] = useState<VideoClip | null>(null);
@@ -301,6 +311,27 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
 
   // --- automation lanes ---
   const lanes: AutoLane[] = timeline.automation ?? [];
+
+  // THE PANEL MUST SHOW WHAT IS ACTUALLY DRIVING THE PARAMETERS — not only the lanes of the BOUND document.
+  //
+  // A GLOBAL lane keeps running underneath every scene: it is the BASE LAYER (App.tsx setBaseAutomation),
+  // riding the SHOW clock, exactly like the audio bed. But `timeline` here is the bound doc, so the moment a
+  // scene is recalled the global lanes VANISH FROM THE SCREEN while they carry on moving the master. Until
+  // now that was hidden by a bug — Capture Scene cloned the global lanes into the scene, so SOMETHING was on
+  // screen (the wrong lane, on the wrong clock: the blocker). Stripping the clone fixes the data and leaves
+  // the panel blank while a house fade slides the master with no visible cause. So this closes a gap our own
+  // fix opened.
+  //
+  // ⚠ SHADOWING IS THE PART THAT MATTERS. timeline.ts:519 drops a base lane when a scene lane owns the same
+  // targetPath — the base one is NOT applying. Drawing both without saying so would show two lanes each
+  // claiming to drive master gain, which is WORSE than showing none. A shadowed base lane must render as
+  // shadowed. That makes the precedence rule ("a scene lane beats a global lane on the same parameter")
+  // visible for the first time; before this it lived only in the engine and in a comment.
+  const ownPaths = useMemo(() => new Set(lanes.map(l => l.targetPath)), [lanes]);
+  const panelLanes: PanelLane[] = useMemo(() => [
+    ...lanes.map(lane => ({ lane, origin: 'scene' as const, shadowed: false })),
+    ...baseAutomation.map(lane => ({ lane, origin: 'global' as const, shadowed: ownPaths.has(lane.targetPath) })),
+  ], [lanes, baseAutomation, ownPaths]);
   // Resolve each lane's target definition (label / range / units / log axis) from whichever provider
   // owns its path head. A lane whose target has vanished resolves to undefined and renders as such —
   // it is never dropped, because that would silently discard the user's work.
@@ -359,7 +390,10 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   // render-free (it writes styles directly), so sample it at ~10 Hz here rather than re-rendering the
   // whole timeline every frame.
   useEffect(() => {
-    const iv = setInterval(() => setAutoPlayhead(engine.getPlayhead()), 100);
+    // A base lane rides the SHOW clock, not the playhead. Sampling it at the playhead would print a number
+    // that is not the number being applied — the very disease this wave exists to kill. Same interval, no
+    // second timer.
+    const iv = setInterval(() => { setAutoPlayhead(engine.getPlayhead()); setAutoShowTime(engine.getShowTime()); }, 100);
     const dv = setInterval(() => setDefsTick(t => t + 1), 1000); // re-enumerate targets (the bed can change)
     return () => { clearInterval(iv); clearInterval(dv); };
   }, []);
@@ -1293,19 +1327,26 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
 
           {/* Automation lanes — keyframe curves over the same time axis. Like StateLane they are not
               VideoLayers (they hold keyframes, not clips), so they mount here rather than in layers.map. */}
-          {lanes.map((lane) => (
+          {panelLanes.map(({ lane, origin, shadowed }) => (
             <AutomationLane
-              key={lane.id}
+              key={`${origin}:${lane.id}`}
               lane={lane}
               def={laneDefs.get(lane.targetPath)}
               pxPerSec={pxPerSec}
               width={Math.max(width, 100)}
-              playhead={autoPlayhead}
+              origin={origin}
+              shadowed={shadowed}
+              // A BASE lane rides the SHOW clock. Handing it the playhead would print a number that is not
+              // the number the engine is applying — the exact disease this wave exists to kill.
+              playhead={origin === 'global' ? autoShowTime : autoPlayhead}
               docKey={docKey}
               onSnap={(t) => snap(t, collectSnapPoints(timelineRef.current, engine.getPlayhead()), 8 / pxRef.current).t}
               onSeek={seekTo}
-              onChange={(next) => patchLane(lane.id, next)}
-              onRemove={() => patchLane(lane.id, null)}
+              // A global lane is READ-ONLY from a scene. It lives on the Global pill — and patchLane resolves
+              // by id out of the BOUND document, so a write from here would silently find nothing anyway.
+              // Passing no handlers is what makes it inert, structurally rather than by a disabled flag.
+              onChange={origin === 'global' ? undefined : (next) => patchLane(lane.id, next)}
+              onRemove={origin === 'global' ? undefined : () => patchLane(lane.id, null)}
             />
           ))}
 

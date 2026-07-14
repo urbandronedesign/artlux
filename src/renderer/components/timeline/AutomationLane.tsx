@@ -22,15 +22,28 @@ interface Props {
   def?: AutomationTargetDef;       // absent ⇒ the target no longer exists (clip deleted, plugin off)
   pxPerSec: number;
   width: number;
+  // WHICH CLOCK THIS LANE'S TIME AXIS IS. A 'scene' lane gets the playhead; a 'global' (BASE) lane gets the
+  // SHOW clock, because that is what the engine samples it on. The caller picks — see Timeline.tsx.
   playhead: number;
+  // WHERE THE LANE LIVES. 'global' = a lane of the GLOBAL timeline, drawn here because it is the base layer
+  // and it is STILL DRIVING this parameter underneath the bound scene. Without it the panel would be blank
+  // while a house fade slid the master with no visible cause.
+  origin: 'scene' | 'global';
+  // A scene lane owns the same targetPath, so timeline.ts:519 has filtered this base lane OUT: it is not
+  // applying. Draw it as overridden, or the operator sees two lanes both claiming the same parameter.
+  shadowed: boolean;
   docKey: string;                  // identity of the BOUND document — see the discard below
-  onChange: (lane: Lane) => void;
-  onRemove: () => void;
+  // ABSENT ⇒ READ-ONLY. A global lane is edited on the Global pill, where it lives; patchLane resolves by id
+  // out of the BOUND document, so a write from a scene would silently find nothing. No handler, no edit —
+  // structurally, not by a disabled flag someone can forget to check.
+  onChange?: (lane: Lane) => void;
+  onRemove?: () => void;
   onSnap: (t: number) => number;   // reuse the timeline's snapping
   onSeek: (clientX: number) => void;
 }
 
-export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, playhead, docKey, onChange, onRemove, onSnap, onSeek }) => {
+export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, playhead, origin, shadowed, docKey, onChange, onRemove, onSnap, onSeek }) => {
+  const readOnly = !onChange;
   const bodyRef = useRef<HTMLDivElement>(null);
   const [draft, setDraft] = useState<Keyframe[] | null>(null);
   const draftRef = useRef<Keyframe[] | null>(null);
@@ -99,11 +112,14 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, pl
   // user's work), but it can't be drawn against an axis it no longer has.
   if (!def) {
     return (
-      <div className="flex border-b border-line-1 bg-surface-1/40">
+      <div className={`flex border-b border-line-1 bg-surface-1/40 ${origin === 'global' ? 'opacity-60' : ''}`}>
         <div className="sticky left-0 z-20 shrink-0 bg-surface-1 border-r border-line-1 flex items-center gap-1.5 px-2" style={{ width: GUTTER, height: 28 }}>
           <AlertTriangle size={12} className="text-warn shrink-0" />
           <span className="text-micro text-fg-3 truncate" title={lane.targetPath}>target missing</span>
-          <button onClick={onRemove} className="ml-auto text-fg-3 hover:text-danger"><Trash2 size={12} /></button>
+          {origin === 'global' && <span className="shrink-0 px-1 rounded bg-surface-2 text-micro text-fg-2" title="This lane belongs to the GLOBAL timeline. Switch to the Global pill to delete it.">GLOBAL</span>}
+          {/* No dead button: `onRemove` is absent on a global lane, so React would render a Trash icon that
+              silently does nothing when clicked. Hide it — the operator deletes it on the Global pill. */}
+          {!readOnly && <button onClick={onRemove} className="ml-auto text-fg-3 hover:text-danger"><Trash2 size={12} /></button>}
         </div>
         <div className="relative text-micro text-fg-3/70 italic px-2 flex items-center" style={{ width, height: 28 }}>
           {lane.targetPath} — the clip or effect it drives is gone. The curve is kept; delete the lane to discard it.
@@ -112,9 +128,19 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, pl
     );
   }
 
-  const commit = (next: Keyframe[]) => onChange({ ...lane, keyframes: next.slice().sort((a, b) => a.t - b.t) });
+  // ⚠ THE READ-ONLY GUARD IS EXPLICIT, AND IT HAS TO BE — THERE IS NO COMPILER BEHIND IT.
+  // `onChange` is optional (absent ⇒ a GLOBAL lane, seen from a scene, which is edited on the Global pill).
+  // This repo does NOT enable `strict` / `strictNullChecks` (tsconfig.json), so tsc will happily compile
+  // `onChange(...)` on a possibly-undefined prop and say nothing. Every write path therefore checks for
+  // itself: without these guards, dragging a keyframe on a global lane would call `undefined(...)` and take
+  // the whole timeline panel down with it. "No handler ⇒ structurally inert" is only true under strictNullChecks.
+  const commit = (next: Keyframe[]) => {
+    if (!onChange) return;
+    onChange({ ...lane, keyframes: next.slice().sort((a, b) => a.t - b.t) });
+  };
 
   const dragKf = (i: number) => (e: React.PointerEvent) => {
+    if (readOnly) return;       // a global lane is not draggable from a scene
     if (e.button !== 0) return; // middle-drag pans the timeline
     e.stopPropagation();
     e.preventDefault();
@@ -158,6 +184,7 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, pl
   };
 
   const addAt = (e: React.MouseEvent) => {
+    if (readOnly) return;   // see the note on commit(): no strictNullChecks, so every write path guards itself
     const el = bodyRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
@@ -167,12 +194,14 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, pl
   };
 
   const removeKf = (i: number) => {
+    if (readOnly) return;
     if (lane.keyframes.length <= 1) return; // a lane always holds at least one key — remove the lane instead
     commit(lane.keyframes.filter((_, j) => j !== i));
   };
 
   // Clicking a segment cycles the LEFT key's curve. Order: linear → hold → bezier.
   const cycleCurve = (i: number) => {
+    if (readOnly) return;
     const k = lane.keyframes[i];
     const next: Keyframe['curve'] = k.curve === 'linear' ? 'hold' : k.curve === 'hold' ? 'bezier' : 'linear';
     commit(lane.keyframes.map((x, j) => (j === i ? { ...x, curve: next, ...(next === 'bezier' ? BEZ_DEFAULT : {}) } : x)));
@@ -181,24 +210,51 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, pl
   const live = kfs.length ? sampleLane(kfs, playhead, { i: -1 }, log) : def.def;
   const fmt = (v: number) => `${(def.step ?? 0) >= 1 ? Math.round(v) : Number(v.toFixed(2))}${def.unit ? ` ${def.unit}` : ''}`;
 
+  // A GLOBAL lane seen from a scene is dimmed; a SHADOWED one (a scene lane owns the same targetPath, so
+  // timeline.ts:519 has filtered this one out of the compile) is dimmed harder and struck through. That
+  // second state is the whole point: without it the operator would see two lanes both claiming to drive the
+  // master, with nothing saying which one wins — worse than seeing none.
+  const dim = origin === 'global' ? (shadowed ? 'opacity-30' : 'opacity-60') : '';
+
   return (
-    <div className={`flex border-b border-line-1 ${enabled ? 'bg-surface-1/40' : 'bg-surface-1/20'}`}>
+    <div className={`flex border-b border-line-1 ${enabled ? 'bg-surface-1/40' : 'bg-surface-1/20'} ${dim}`}>
       {/* gutter */}
       <div className="sticky left-0 z-20 shrink-0 bg-surface-1 border-r border-line-1 flex flex-col justify-center gap-0.5 px-2 py-1" style={{ width: GUTTER, height: h }}>
         <div className="flex items-center gap-1">
-          <button onClick={() => onChange({ ...lane, enabled: !enabled })}
-            title={enabled ? 'Lane ON — it owns this parameter (click to release it back to manual)' : 'Lane OFF — the parameter is manual again'}
-            className={enabled ? 'text-accent' : 'text-fg-3 hover:text-fg-1'}>
+          <button onClick={() => onChange?.({ ...lane, enabled: !enabled })} disabled={readOnly}
+            title={readOnly
+              ? 'This lane belongs to the GLOBAL timeline — switch to the Global pill to change it.'
+              : enabled ? 'Lane ON — it owns this parameter (click to release it back to manual)' : 'Lane OFF — the parameter is manual again'}
+            className={`${enabled ? 'text-accent' : 'text-fg-3'} ${readOnly ? 'cursor-default' : 'hover:text-fg-1'}`}>
             {enabled ? <Zap size={11} /> : <ZapOff size={11} />}
           </button>
-          <span className="text-micro text-fg-1 truncate" title={lane.targetPath}>{def.label}</span>
-          <button onClick={() => commit([...lane.keyframes.filter(k => Math.abs(k.t - playhead) > 0.001), { t: Math.max(0, playhead), v: quant(live), curve: 'linear' }])}
-            title="Add a keyframe at the playhead, holding the current value" className="ml-auto text-fg-3 hover:text-fg-1">
-            <Diamond size={11} />
-          </button>
-          <button onClick={onRemove} title="Remove lane" className="text-fg-3 hover:text-danger"><Trash2 size={11} /></button>
+          <span className={`text-micro truncate ${shadowed ? 'text-fg-3 line-through' : 'text-fg-1'}`} title={lane.targetPath}>{def.label}</span>
+          {/* WHY THIS LANE IS ON SCREEN AT ALL. It is not this scene's — it belongs to the GLOBAL timeline and
+              rides the SHOW clock, and it is what is moving this parameter underneath the scene. Say so, or the
+              operator watches their master slide with no visible cause. */}
+          {origin === 'global' && (
+            <span
+              className={`shrink-0 px-1 rounded bg-surface-2 text-micro ${shadowed ? 'text-fg-3 line-through' : 'text-fg-2'}`}
+              title={shadowed
+                ? 'GLOBAL lane — it rides the SHOW clock and normally runs underneath every scene. But THIS SCENE has its own lane on the same parameter, which overrides it, so right now the global one is NOT applying.'
+                : 'GLOBAL lane — it belongs to the global timeline and rides the SHOW clock, so it keeps running underneath every scene. This is what is driving the parameter. Edit it on the Global pill.'}>
+              GLOBAL
+            </span>
+          )}
+          {!readOnly && (
+            <>
+              <button onClick={() => commit([...lane.keyframes.filter(k => Math.abs(k.t - playhead) > 0.001), { t: Math.max(0, playhead), v: quant(live), curve: 'linear' }])}
+                title="Add a keyframe at the playhead, holding the current value" className="ml-auto text-fg-3 hover:text-fg-1">
+                <Diamond size={11} />
+              </button>
+              <button onClick={onRemove} title="Remove lane" className="text-fg-3 hover:text-danger"><Trash2 size={11} /></button>
+            </>
+          )}
         </div>
         <div className="text-micro leading-none text-fg-3 truncate" title={def.group}>{def.group}</div>
+        {/* The readout is sampled at whichever clock the CALLER handed us as `playhead` — the SHOW clock for a
+            global lane, the playhead for a scene lane — so it prints the number the engine is actually
+            applying, not a number computed against the wrong axis. */}
         <div className="text-micro leading-none text-fg-2 tabular-nums">{fmt(live)}</div>
       </div>
 
