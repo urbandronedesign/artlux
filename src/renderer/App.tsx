@@ -1378,7 +1378,29 @@ const App: React.FC = () => {
       }];
       return { surfaces: surf, fixtures: fix, cueBanks: [defaultCueBank(generateId())] };
   };
-  // Reset app state to a clean project. Keeps settings/scene3D/timeline (matches prior New behavior).
+  // Reset app state to a clean project — and HAND BACK the document that describes it.
+  //
+  // ── THE CONTRACT, AND IT IS ALREADY WRITTEN DOWN IN THIS FILE ────────────────────────────────────────
+  // `applyProjectData` IS THE DEFINITION OF DOCUMENT STATE: whatever OPEN restores from a file is, by
+  // construction, part of the show. So NEW must reset every one of those fields, and must write every one of
+  // them clean. The two functions are two halves of one contract — and they had drifted badly.
+  //
+  // The old comment here said *"Keeps settings/scene3D/timeline (matches prior New behavior)."* It names
+  // three fields. **Only `settings` is right** — and it earns its exemption honestly: OPEN *merges* it
+  // (`{...prev, ...data.settings}`) rather than replacing it, because it is the audio device and the OSC
+  // port, i.e. the machine, not the show. `scene3D` and `timeline` are the show, and keeping them meant a
+  // brand-new project opened holding the last one.
+  //
+  // ⚠ IT RETURNS THE OVERRIDES, AND THAT IS THE POINT. `buildProjectData()` reads REACT STATE, and the
+  // caller runs it in the SAME SYNCHRONOUS HANDLER as this function — so none of the setStates below have
+  // applied to that closure yet, and every field the caller does not explicitly override is written into the
+  // brand-new file WITH THE OUTGOING SHOW'S VALUE. That override list used to live in `handleNewProject`,
+  // separately, and it HAS NOW FAILED THREE TIMES: the cue grid and the state machine were each patched in
+  // after the fact, and when the user ran acceptance test 2.8c on 2026-07-14 the **bed, the schedule, the
+  // timeline and the 3D scene were all still leaking into the new project file** — including the bed's clip
+  // paths, still pointing into the OLD project's folder, beside an empty asset library. A list you have to
+  // *remember* to extend is a list that will drift again. It is returned from the function that does the
+  // resetting, so it cannot.
   const resetToNewProject = (st: ReturnType<typeof makeNewProjectState>) => {
       recordHistory();
       setSurfaces(st.surfaces);
@@ -1408,10 +1430,44 @@ const App: React.FC = () => {
       //     the fresh .artlux, its clip paths pointing into the OLD project's folder, beside an empty asset
       //     library. The same defect as the cue grid above, one field over.
       // Found by three independent finders in the merge review.
-      setAudioMix(defaultAudioMix());
+      //
+      // ⚠⚠ AND `setAudioMix` ALONE WAS NOT ENOUGH — IT LEFT THE CLICK. This is what acceptance test 2.8c
+      // heard on 2026-07-14. The two host reads are ASYMMETRIC, and that asymmetry IS the bug:
+      //     getTimelineAudio: () => timelineEngine.getBoundAudio()   ← the ENGINE. Synchronously fresh.
+      //     getMix:           () => audioMixRef.current              ← a ref written IN RENDER. A frame behind.
+      // This function mutates the ENGINE synchronously (the swap below parks showTime at 0 — a huge BACKWARD
+      // jump) but the BED asynchronously (setAudioMix is a setState). So on the very next driver tick the
+      // driver sees THE NEW CLOCK AND THE OLD BED: its seek detector fires, and it RESTARTS every outgoing
+      // clip whose window contains 0. A frame or two later React commits the empty mix and it all hard-stops.
+      // That burst — the departed show's music, from its top, for ~16 ms — is the click.
+      //
+      // The comment above already described this exact mechanism. The first fix reset the STATE and did not
+      // reset the REF, so it closed the *permanent* half and left a one-frame hole. The ref is written HERE,
+      // SYNCHRONOUSLY, and BEFORE the swap — the same idiom AudioBedPanel's `mixRef` already uses and
+      // documents ("EVERY write path patches from this ref, never from the React `mix`, which is a render
+      // behind"). The seek then lands on an empty bed and there is nothing left to restart.
+      const emptyMix = defaultAudioMix();
+      audioMixRef.current = emptyMix;   // ⚠ SYNCHRONOUS. The driver reads THIS, not the state. Do not remove.
+      setAudioMix(emptyMix);
       // The wall-clock scheduler belongs to the show that is ending, too — it was living on in memory AND
       // being written into the new file, for a show whose scenes no longer exist.
       setSchedule([]);
+      // ⚠ THE GLOBAL TIMELINE — THE BIGGEST SURVIVOR OF ALL, AND THE ONE THE USER ACTUALLY SAW.
+      //
+      // `setTimeline` appeared NOWHERE in this function. The outgoing show's ENTIRE global document — every
+      // layer, every clip (pointing at an asset library `setAssets([])` has just emptied), its `Timeline.audio`,
+      // and its AUTOMATION LANES — survived New Project intact, and `buildProjectData()` wrote all of it into
+      // the brand-new file. The user's report, verbatim: *"we still have the master fader automation, in the
+      // global timeline."*
+      //
+      // It is also HALF THE CLICK'S VOLUME. A surviving `audio.master.gain` lane rides the SHOW clock, and the
+      // swap below resets that clock to 0 — so the lane re-samples at the TOP of its ramp and the master SNAPS
+      // UP, in one frame, underneath the restarting bed. How loud depends on how far down the ramp the operator
+      // had got: +3.5 dB at 0:20, **+21.6 dB at 0:55**. It is the same failure mode as the +9.6 dB merge blocker,
+      // arriving through a different door — there, Capture Scene CLONED a lane; here, New Project failed to
+      // DELETE one.
+      const emptyTl = defaultTimeline();
+      setTimeline(emptyTl);
       setSelectedFixtureId(null);
       setSelectedFixtureIds([]);
       setSelectedSurfaceId(null);
@@ -1445,9 +1501,15 @@ const App: React.FC = () => {
       // start (re-anchoring originMs AND re-baselining prevPlayhead, so no phantom crossing window opens and
       // hitEnd is never pulsed), and showClock:'reset' showSeeks the SHOW clock to the same place. One call,
       // both clocks, and the identity the bare showSeek quietly broke is real again.
-      timelineEngine.swap(GLOBAL_POOL, timeline, { transport: 'restart', showClock: 'reset' });
+      //
+      // ⚠ setGlobalDoc FIRST, AND WITH THE **FRESH** DOC — exactly as applyProjectData does, and for exactly
+      // the reason it states there: `showClock: 'reset'` reads `globalDoc` SYNCHRONOUSLY to find the in-point
+      // to park at, while the `[timeline]` effect that would otherwise publish it is passive (post-commit).
+      // Without this line the swap would reset the show clock to the DEPARTED show's in-point.
+      timelineEngine.setGlobalDoc(emptyTl);
+      timelineEngine.swap(GLOBAL_POOL, emptyTl, { transport: 'restart', showClock: 'reset' });
       if (departed) timelineEngine.releasePool(departed); // free the departed scene's decoders (it is no longer active)
-      for (const port of projectorPortsRef.current.values()) port.postMessage({ t: 'timeline', timeline });
+      for (const port of projectorPortsRef.current.values()) port.postMessage({ t: 'timeline', timeline: emptyTl });
       // …and it drops the SCENE/CUE FADE LAYER, for the same reason OPEN does (see applyProjectData). It is
       // SHOW state, not document state, and a plugin's layer is module-level — so without this a master or
       // track fade from the OUTGOING show survives into the new one and keeps shadowing its authored mix,
@@ -1458,6 +1520,26 @@ const App: React.FC = () => {
       // into the new project. Read that comment; this is the same trap.
       transitions.cancel();
       for (const p of automationTargetRegistry.all()) p.releaseAllFades?.();
+      // ── THE LAST FOUR SURVIVORS ──────────────────────────────────────────────────────────────────────
+      // Nobody had noticed these; they are the same bug as the timeline, a few fields over, and the test is
+      // mechanical: applyProjectData RESTORES all four from the file (:1216, :1299-:1301), which is what makes
+      // them document state. A New Project therefore opened with the last show's 3D models (their .glb paths
+      // pointing into a folder this project has no assets from), its house brightness, and its projector
+      // tuning — and wrote every one of them into the fresh file.
+      setScene3D(defaultScene3D());
+      setGlobalBrightness(1);
+      setProjectorFpsCap(0);
+      setProjectorBrightness(1);
+      // ── AND THE DOCUMENT THAT DESCRIBES ALL OF IT (see the header) ───────────────────────────────────
+      // Every field buildProjectData() writes, except `version`/`timestamp` (minted fresh on each save) and
+      // `settings` (the machine, not the show). If you add a field to buildProjectData, add it here — tsc will
+      // NOT catch its absence, because this is a widening spread into an `any`-shaped payload.
+      return {
+          surfaces: st.surfaces, fixtures: st.fixtures, controllers: [], groups: [], scenes: [],
+          cueBanks: st.cueBanks, stateMachine: defaultStateMachine(), projectorOutputs: [], assets: [],
+          timeline: emptyTl, audio: emptyMix, schedule: [], scene3D: defaultScene3D(),
+          globalBrightness: 1, projectorFpsCap: 0, projectorBrightness: 1,
+      };
   };
 
   // New Project always creates a *folder* (project.artlux + assets/ tree) and prompts where to put
@@ -1466,12 +1548,17 @@ const App: React.FC = () => {
       const res = await window.artlux?.newProjectFolder?.();
       if (!res) return; // user cancelled the folder dialog → keep the current project
       const st = makeNewProjectState();
-      resetToNewProject(st);
-      // Save from the fresh values directly — setState above hasn't applied to this closure yet. That
-      // includes `stateMachine` AND `cueBanks`: resetToNewProject cleared both, but buildProjectData() still
-      // reads the OUTGOING show's graph and grid out of this closure, and every node/cell in them points at
-      // a sceneId that `scenes: []` just deleted. Override them here, exactly like `scenes`.
-      const data = { ...buildProjectData(), surfaces: st.surfaces, fixtures: st.fixtures, controllers: [], groups: [], scenes: [], cueBanks: st.cueBanks, stateMachine: defaultStateMachine(), projectorOutputs: [], assets: [] };
+      // Save from the fresh values directly — setState above hasn't applied to THIS closure yet, so
+      // buildProjectData() still reads the OUTGOING show out of it, field by field.
+      //
+      // ⚠ THE OVERRIDE LIST IS NO LONGER MAINTAINED HERE, AND THAT IS THE FIX. It used to be written out
+      // by hand at this call site, and it drifted from the function it was supposed to mirror THREE TIMES —
+      // the cue grid and the state machine were each patched in after the fact, and the bed, the schedule,
+      // the timeline and the 3D scene were STILL leaking into the new file when the user ran acceptance test
+      // 2.8c. resetToNewProject now returns the clean document itself: the code that resets a field and the
+      // code that writes it out are the same code, so they cannot disagree again.
+      const clean = resetToNewProject(st);
+      const data = { ...buildProjectData(), ...clean };
       const path = await window.artlux?.saveProject?.(data, res.projectFile);
       if (path) { setCurrentProjectPath(path); refreshRecents(); }
   };
