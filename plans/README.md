@@ -95,6 +95,65 @@ renders unconditionally, and an edit landing somewhere it cannot be taken back f
 > is in **[docs/TIMELINE.md](../docs/TIMELINE.md#the-show-clock-wave-b--one-transport-two-playheads)**; read
 > it before touching `mainSeek`, `swap()` or `frame()`.
 
+### Wave 4's backlog, part 2 — the merge review's deferred findings (2026-07-14)
+
+The **16-agent adversarial review of the full `wave-3-audio` merge diff** confirmed **39 findings**. The user
+triaged the merge bar to *"Wave 3's own defects + the effect clock"* ([the merge-blocker
+plan](../docs/superpowers/plans/2026-07-14-wave-3-merge-blockers.md), gate 6 in
+[SEQUENCING](SEQUENCING.md#-the-wave-3-merge-gate)). **These are the ones that were deliberately left out.**
+They are written down here so that "not a merge blocker" cannot quietly become "forgotten". Each is
+*confirmed* — verified by three adversarial lenses that were told to default to REFUTED.
+
+**Blocker, and PRE-EXISTING (not a Wave 3 regression — it is why it did not gate the merge):**
+- `services/timeline.ts:876` — **a layer goes black forever after a scene round-trip.** `swap()` releases the
+  contentSource for layers the incoming timeline lacks, but leaves the outgoing pool's `LayerVid.content`
+  set. A pool promoted again refuses to re-acquire, because it believes it already holds the content. Recall
+  scene A → scene B → scene A and a layer is simply gone, for the rest of the session.
+
+**Unattended-install rot (the class this project keeps re-learning):**
+- `hooks/useHistory.ts:47` — every **automated** GO (FSM, scheduler, OSC) and every cue fire pushes an
+  **uncapped deep JSON copy of the entire project** onto the undo stack. Nobody pressed anything. Six hours
+  unattended is a leak, and [timeline-undo](timeline-undo.md) is the plan that already owns this edge.
+- `components/timeline/audioPeaks.ts:86/91` — waveform peaks decode the **whole** audio file in the renderer
+  with **no size cap**; and a transient decode failure becomes a **permanent session-lifetime blacklist**
+  with nothing on screen to say so.
+
+**Silent corruption / silent wrong output:**
+- `services/projectFolder.ts:365/374` — **Collect Assets** silently leaves any file whose extension is not in
+  `ASSET_CATEGORIES` pointing at the authoring machine, and folds a **failed copy** into the same `skipped`
+  counter as a deliberate no-op. The operator is told the project is portable. It is not.
+- `components/timeline/Timeline.tsx:458/546` — **left-trim** clamps `start` at 0 but keeps growing
+  `duration`, on both video and audio clips.
+- `services/transitions.ts:136` — a **GO during a running core fade** snaps the output to the *outgoing*
+  fade's endpoint for one frame.
+- `native/audio-engine/src/engine.cpp:208` — non-spatial clips are summed into **every** device output
+  channel.
+- `native/audio-engine/src/engine.cpp:309` — `setMasterGain` clamps with `juce::jlimit`, which **passes NaN
+  through unchanged.**
+
+**The UI claims something the engine is not doing** — the house rule this codebase kills on sight, and the
+merge fixed only two of its four instances:
+- `App.tsx:285` — `compileAutomation` re-runs when the **audio** target set changes but never when the
+  **core** one does, so **a lane the engine has DROPPED still renders with a full curve and a ticking
+  readout, driving nothing.** The readout is a UI *re-computation*, not a report from the engine — which is
+  the actual root cause, and the real cure: **the engine should report the value it applied.** *(Task 7 shipped
+  the smaller UI fix the user chose. It does not cure this.)*
+- `plugins/audio/src/AudioBedPanel.tsx` — **the same readback hole that Task 13 closed for the three gains is
+  still open on `spatial.x/y/z` and on every FX param.** A lane on a reverb's wet mix, or on a source's
+  position, moves the sound and does not move the control. Root cause and remedy are identical
+  (`drivenSnapshot()` already exports what is needed; each site needs one `drivenOn(...)` read); the surfaces
+  are `SpatialPad` and `EffectChain` rather than `Fader`, which is the only reason they were not done at once.
+
+**Build / toolchain:**
+- `package.json:24` — `npm run package` builds the **audio** engine but neither builds nor checks the **three
+  Rust** addons. (Gate 2's disease, one script over.)
+- **`tsconfig.json` has no `strict`.** `strictNullChecks` is **off**, so *no optional-prop design in this
+  codebase has a compiler behind it.* This is not a style note: during Task 7, `tsc --noEmit` returned **0
+  errors on code that would have crashed the timeline panel** — an optional `onChange` called as
+  `undefined(...)`. Every read-only-by-absent-handler pattern in the tree is currently guarded by hand, or
+  not at all. Turning `strict` on is a wave of its own; **until then, treat a green `tsc` as weaker evidence
+  than it looks.**
+
 ## Cross-cutting hazards (every implementer must respect these)
 
 - **Persisted-field normalize defaults.** Plans 5, 6, 7 (and optionally 10) add fields that ride inside the

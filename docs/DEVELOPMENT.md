@@ -96,10 +96,14 @@ Addon older than the source → **your last build never linked.** Almost always 
 running: MSVC fails `LNK1104`, `build:audio` exits non-zero, and the previous `.node` stays on disk.
 Confirm nothing holds it (`tasklist /FI "IMAGENAME eq electron.exe"` → *No tasks*), then rebuild.
 
-**4. Packaging does not rebuild the engine.** `npm run package` runs `build-audio.cjs --check`, which
-only asserts `native/audio-engine/audio_engine.node` **exists** — it does not check freshness and does
-not build. If `engine.cpp` changed, run `npm run build:audio` *before* packaging or you ship the old
-engine. (CI is immune: the runner starts from a clean clone with no addon at all.)
+**4. Packaging DOES rebuild the engine.** `npm run package` runs `scripts/build-audio.cjs` with **no
+`--check`** — the addon is compiled from source as part of every package, so you do **not** need to run
+`npm run build:audio` first. (`build:native` still calls it with `--optional`, so a Rust-only build does
+not hard-fail on a machine with no C++ toolchain. CI starts from a clean clone with no addon at all.)
+
+> This entry said the exact opposite until 2026-07-14, and had done since `473d259` changed the
+> behaviour and left the document describing the old one. If you are reading a stale checkout, trust
+> `package.json`, not this file.
 
 ### Scripts
 | Script | What |
