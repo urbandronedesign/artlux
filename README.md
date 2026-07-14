@@ -151,28 +151,43 @@ publishes a Release.
 
 ## Licensing
 
-> ### ⚠ UNRESOLVED — and it gates the first release, not the next commit.
+**ArtLux is a non-commercial project, built and maintained for education and research.** It is not sold, it
+is not licensed for a fee, and it generates no revenue. Full third-party inventory: **[`NOTICE`](NOTICE)**.
 
-ArtLux links two third-party libraries into the audio engine, and **the licence election has not been made:**
+That context matters, and it is worth being precise about *why*:
 
-| Dependency | Version | Terms |
-|---|---|---|
-| **JUCE** | 8.0.14 | Free while revenue is under **US$20k/yr**. Above that: **US$800 perpetual Indie**. **Otherwise it is AGPL-3.0 — which is viral**, and would reach the whole application. |
-| **libspatialaudio** | 0.4.0 | **LGPL-2.1** — dynamic-link, or comply. |
+| | |
+|---|---|
+| **Building and running it locally** | Raises essentially nothing. Use JUCE and libspatialaudio, do research, teach with it. |
+| **Publishing an installer** | Raises **everything below.** This is *distribution*, and it is what copyleft attaches to. |
 
-**What exists today: nothing.** No `LICENSE` file. No `NOTICE`. No `license` field in `package.json`. The
-only record of the obligation anywhere in the repo is one row in
-[`plans/SEQUENCING.md`](plans/SEQUENCING.md) (merge gate 4), still marked *pending*.
+**And distribution is already wired:** `extraResources` ships `audio-engine.node` — with **JUCE 8.0.14** and
+**libspatialaudio 0.4.0** compiled into it — inside every installer, and pushing a **`v*` tag** runs a CI
+matrix that **publishes a GitHub Release**. Nothing stands between this repo and a public binary except that
+nobody has pushed a tag.
 
-**This does not block development and it does not block the merge.** It blocks **distribution** — and
-distribution is one `git push --tags` away, which is why it is written here and not filed quietly.
+### What is unresolved
 
-**Three things have to happen, in this order, and the first is a decision only the project owner can make:**
+- **The JUCE licence has not been elected.** JUCE is dual-licensed — a commercial tier, or **AGPLv3**, which
+  is strong copyleft and would reach *this entire application* on distribution. Being educational and
+  non-commercial affects **which tier applies**; it does not remove the need to pick one. **JUCE's terms
+  change between major versions — read them at [juce.com](https://juce.com), and do not trust any figure
+  quoted in this repository.**
+- **`JUCE_DISPLAY_SPLASH_SCREEN=0` is set** (`native/audio-engine/CMakeLists.txt`). That flag is
+  **licence-gated**: disabling JUCE's splash is permitted under AGPL and under paid tiers, and historically
+  **not** under the free tier. It was set for engineering reasons — the addon is headless and has no window
+  to draw one in — with **no licence decision behind it.** It needs reconciling with whichever tier is chosen.
+- **libspatialaudio is LGPL-2.1 and is *statically* linked.** LGPL allows that, but a static link carries a
+  **relinking obligation** a dynamic link does not. Not yet addressed.
+- **ArtLux has no `LICENSE` file**, so it is "all rights reserved" by default. Coherent for a private research
+  project; **incoherent with electing JUCE's AGPL option**, which would require this application to be offered
+  under AGPL-compatible terms.
 
-1. **Elect a JUCE path** — stay under the revenue threshold, buy the Indie licence, or accept AGPL and open
-   the whole application under it. *This is a business decision, not an engineering one.*
-2. **Add a `LICENSE`** for ArtLux itself (constrained by 1 — AGPL is not a free choice if it is elected).
-3. **Add a `NOTICE`** recording JUCE, libspatialaudio, and NDI, and add a `license` field to `package.json`.
+> **None of this blocks development, and none of it blocks the merge.** It blocks the **first published
+> release** — which is one `git push --tags` away. Settle it before you tag, not after.
+>
+> *Nothing here is legal advice. It is an engineer's inventory of what is linked, what is loaded, and what has
+> not been decided — written down so the decision gets made on purpose.*
 
 ### macOS install note
 
