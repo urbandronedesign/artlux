@@ -104,6 +104,27 @@ ok(readPatchPolicy({ reserveLockedRanges: false, settings: { reserveLockedRanges
 ok(readPatchPolicy(null).reserveLockedRanges === false,
    'null data ⇒ false, not a throw');
 
+// ── THE GUARD THAT MAKES THIS A FAILING TEST ──────────────────────────────────────────────────────────
+// The model above is self-contained, so it passes the moment it is written — it pins the migration table,
+// but on its own it would never go red and the house rule is "watch it FAIL first". These assertions read
+// the real source (precedent: scratch/atomicsave-sim.mjs) and are RED until Steps 3-4 land.
+import { readFileSync } from 'node:fs';
+
+const types = readFileSync('src/renderer/types.ts', 'utf-8');
+const appSettings = types.slice(types.indexOf('export interface AppSettings'));
+const appSettingsBody = appSettings.slice(0, appSettings.indexOf('}'));
+
+console.log('\n the source — RED until the implementation lands');
+ok(/export interface PatchPolicy/.test(types), 'types.ts exports PatchPolicy');
+ok(/export function readPatchPolicy/.test(types), 'types.ts exports readPatchPolicy()');
+ok(!/reserveLockedRanges/.test(appSettingsBody),
+   'AppSettings no longer carries reserveLockedRanges — it is the show\'s, not the machine\'s');
+
+const addr = readFileSync('src/renderer/services/addressing.ts', 'utf-8');
+ok(/policy: PatchPolicy/.test(addr),
+   'autoPatch takes a REQUIRED PatchPolicy',
+   'an all-optional type would structurally accept AppSettings and read undefined forever');
+
 console.log(fail === 0 ? '\n patchpolicy-sim: ALL PASS\n' : `\n patchpolicy-sim: ${fail} FAILED\n`);
 process.exit(fail === 0 ? 0 : 1);
 ```
@@ -111,8 +132,9 @@ process.exit(fail === 0 ? 0 : 1);
 - [ ] **Step 2: Run it — it must FAIL**
 
 Run: `node scratch/patchpolicy-sim.mjs`
+Expected: the six model assertions pass (they pin the migration table); **the four `the source` assertions FAIL** — `PatchPolicy` and `readPatchPolicy` do not exist yet, `AppSettings` still carries the field, and `autoPatch` still takes `AppSettings`. **That red is the point.** If it is green, you have not written the guard.
 
-It will **PASS**, because the model is self-contained. That is expected and it is **not** the test's point: this sim pins the migration table *before* you write the real `readPatchPolicy`, so the implementation has a spec to match rather than the other way round. **Copy the model verbatim into `types.ts` in Step 3 — if you find yourself editing the sim to match the code, you have inverted the test.**
+**Copy the model verbatim into `types.ts` in Step 3 — if you find yourself editing the sim to match the code, you have inverted the test.**
 
 - [ ] **Step 3: Add `PatchPolicy` + `readPatchPolicy` and remove the field from `AppSettings`**
 
@@ -554,14 +576,33 @@ ok(sameChannels(A, B) === true,
 ok(sameSetup(A, B) === false,
    'NEW guard: the setup differs ⇒ reopen');
 
+// ── THE GUARD THAT MAKES THIS A FAILING TEST ──────────────────────────────────────────────────────────
+// The model above is self-contained and would never go red. These read the real engine and are RED until
+// Steps 3-5 land (precedent: scratch/atomicsave-sim.mjs).
+import { readFileSync } from 'node:fs';
+const eng = readFileSync('native/audio-engine/src/engine.cpp', 'utf-8');
+
+console.log('\n the source — RED until the implementation lands');
+ok(!/initialiseWithDefaultDevices/.test(eng),
+   'configure() no longer opens the OS DEFAULT device');
+ok(!/removeDuplicates/.test(eng),
+   'listOutputDevices() no longer flattens the driver type away');
+ok(/setCurrentAudioDeviceType/.test(eng) && /setAudioDeviceSetup/.test(eng),
+   'the engine selects a NAMED device on a NAMED driver type');
+ok(/openedName/.test(eng) && /openedRate/.test(eng),
+   'the idempotence guard keys on the WHOLE setup',
+   'keyed on channels alone, switching device would take the early return and do NOTHING');
+
 console.log(fail === 0 ? '\n devicesetup-sim: ALL PASS\n' : `\n devicesetup-sim: ${fail} FAILED\n`);
 process.exit(fail === 0 ? 0 : 1);
 ```
 
-- [ ] **Step 2: Run it**
+- [ ] **Step 2: Run it — it must FAIL**
 
 Run: `node scratch/devicesetup-sim.mjs`
-Expected: **ALL PASS.** This sim's job is to pin the contract — in particular the **idempotence-guard trap**: `engine.cpp:547` returns early when only the *channel count* matches, so a device picker built on top of it would appear to work and **change nothing**. That is the bug this sim exists to prevent you shipping.
+Expected: the model assertions pass; **the four `the source` assertions FAIL.** That red is the point.
+
+The model's job is to pin the contract — in particular the **idempotence-guard trap**: `engine.cpp:547` returns early when only the *channel count* matches, so a device picker built on top of it would appear to work and **change nothing**. That is the bug this sim exists to stop you shipping.
 
 - [ ] **Step 3: Rewrite `Engine::configure`**
 
@@ -1091,14 +1132,28 @@ ok(toneDirect(4)[4] === 1 && toneDirect(4).filter((v) => v > 0).length === 1,
 ok(toneViaDecoder(0)[4] === 1,
    'a tone through the decoder would light channel 4 when you asked for 0 — proving nothing about the wiring');
 
+// ── THE GUARD THAT MAKES THIS A FAILING TEST ──────────────────────────────────────────────────────────
+// The model above is self-contained and would never go red. These read the real engine and are RED until
+// Steps 3-4 land (precedent: scratch/atomicsave-sim.mjs).
+import { readFileSync } from 'node:fs';
+const eng = readFileSync('native/audio-engine/src/engine.cpp', 'utf-8');
+
+console.log('\n the source — RED until the implementation lands');
+ok(/void setPatch/.test(eng), 'the Bus exposes setPatch()');
+ok(/void setTestTone/.test(eng), 'the Bus exposes setTestTone()');
+ok(/exports\.Set\("setTestTone"/.test(eng), 'setTestTone is exported to JS');
+// The 1:1 write is the defect. After the fix the speaker loop must go through the patch.
+ok(/patch\[\(size_t\) s\]/.test(eng),
+   'the speaker write goes THROUGH the patch, not 1:1');
+
 console.log(fail === 0 ? '\n speakerpatch-sim: ALL PASS\n' : `\n speakerpatch-sim: ${fail} FAILED\n`);
 process.exit(fail === 0 ? 0 : 1);
 ```
 
-- [ ] **Step 2: Run it**
+- [ ] **Step 2: Run it — it must FAIL**
 
 Run: `node scratch/speakerpatch-sim.mjs`
-Expected: **ALL PASS** — it pins the patch semantics, the sanitiser, and the one rule that makes the tone worth anything.
+Expected: the model assertions pass (they pin the patch semantics, the sanitiser, and the one rule that makes the tone worth anything); **the four `the source` assertions FAIL.** That red is the point.
 
 - [ ] **Step 3: Patch + tone in the `Bus`**
 
