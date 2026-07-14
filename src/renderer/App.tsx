@@ -1351,6 +1351,21 @@ const App: React.FC = () => {
       setCueBanks(st.cueBanks);
       setProjectorOutputs([]);
       setAssets([]);
+      // ⚠ AND THE BED. This function reasons carefully about what is SHOW state and what is DOCUMENT state
+      // — it drops the fade layer below on exactly that grounds — and still left behind the most audible
+      // show state there is. `setAudioMix` appeared NOWHERE in it, so audioMixRef kept the outgoing show's
+      // bed, with two teeth:
+      //   · AUDIBLE — the swap below parks showTime at 0 with showClock:'reset'. That is a large BACKWARD
+      //     jump, which the driver reads as a seek, so every bed clip whose window contains 0 RESTARTS.
+      //     Show A's music played out of the speakers underneath a brand-new empty project.
+      //   · CORRUPTING — buildProjectData() reads audioMix, so the old show's bed was written verbatim into
+      //     the fresh .artlux, its clip paths pointing into the OLD project's folder, beside an empty asset
+      //     library. The same defect as the cue grid above, one field over.
+      // Found by three independent finders in the merge review.
+      setAudioMix(defaultAudioMix());
+      // The wall-clock scheduler belongs to the show that is ending, too — it was living on in memory AND
+      // being written into the new file, for a show whose scenes no longer exist.
+      setSchedule([]);
       setSelectedFixtureId(null);
       setSelectedFixtureIds([]);
       setSelectedSurfaceId(null);
