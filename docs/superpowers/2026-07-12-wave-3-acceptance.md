@@ -156,10 +156,17 @@ Build this **once**. Half the tests need it. Keep it. Call it **`WAVE3-ACCEPT`**
    `scene-sfx.wav` on **its own** `Timeline.audio` lane at its 0:00.
 4. **S2** — its own timeline, different picture, different length.
 5. **S3** — its own timeline, different picture. (Uses `c.png` in its look snapshot — see the table.)
-6. **S-noTL** — a scene with **NO timeline of its own**. The pill will read *"plays global"*. (Easiest route:
-   capture a scene, then delete the `"timeline"` key from that scene in the saved `.artlux`. The loader
-   deliberately preserves its absence.)
-7. **Save.** Keep a **stopwatch** (your phone) at hand — several tests are "did it keep time".
+6. ~~**S-noTL** — a scene with **NO timeline of its own**.~~ ⚠ **DELETED 2026-07-14 — THIS SHAPE NO LONGER
+   EXISTS.** The merge review found that a timeline-less scene was the root of **two automation-clock
+   blockers**, and the cure was to delete the state: `Scene.timeline` is now **required** (merge-blocker plan,
+   task 5). You cannot author one, and the loader defaults a missing timeline to an **empty** one.
+   **If your fixture predates 2026-07-14 it still carries S-noTL** — recalling it now gives you an empty
+   timeline and a **black output**, which is correct and will look like a bug. **Delete the scene:** Scenes
+   tab → hover its cell → trash. (All four tests that used S-noTL have been rewritten: **2.2, 3.5, 4.5, 4.7**.)
+7. **A global automation lane on the master.** Bind **Global**, open the timeline's automation lane for
+   `audio.master.gain`, and draw a **slow ramp down** across the first ~60 s. This is what tests 2.8 and 4.7
+   ride, and it is the single highest-value thing in the fixture: it is the lane the +9.6 dB blocker moved.
+8. **Save.** Keep a **stopwatch** (your phone) at hand — several tests are "did it keep time".
 
 **Where you can SEE the show clock** — you will need these constantly:
 - Timeline toolbar: **`♪ BED m:ss`** — appears **only while a scene is bound**.
@@ -180,6 +187,17 @@ Build this **once**. Half the tests need it. Keep it. Call it **`WAVE3-ACCEPT`**
 > Run against the hand-authored `WAVE3-ACCEPT` fixture (see Session 1).
 >
 > **Two defects were found while running it. Neither is a bed defect; both are recorded below.**
+>
+> ### ⚠ AND THIS ✅ IS STALE — SESSION 2 MUST BE RE-RUN (2026-07-14).
+> That run is a true record of the code **as it was on 2026-07-13**. It is not evidence about the code you are
+> about to merge. The merge review changed the scene model underneath this session: `Scene.timeline` became
+> **required** (task 5), Capture Scene stopped cloning the global automation lanes (task 6), `swapTimelineForScene`
+> and `clocksCoincident()` were rewritten, and `setGlobalDoc` was fixed for a Length edit that split the two
+> clocks (task 4). **Every one of those is on the recall path this session tests.** The bed's own mechanism
+> (`showTime`) was not touched and the property should hold — but "should hold" is what a ✅ is supposed to
+> replace. **2.2 no longer tests what it used to test** (its subject was deleted; see below), and **the run
+> above never exercised Capture Scene with a live global lane, which is where the +9.6 dB blocker actually
+> lived.** Re-run 2.1 → 2.8. It is 45 minutes.
 
 ---
 
@@ -189,7 +207,7 @@ Build this **once**. Half the tests need it. Keep it. Call it **`WAVE3-ACCEPT`**
 |---|---|---|
 | 1 | **A missing audio engine announced nothing.** Rename `audio-engine.node` away and the app degrades *perfectly* and says nothing — a healthy-looking mixer over a silent room. The only warning was buried in Settings ▸ Audio. **Root cause: the renderer could not *ask* whether the engine had loaded** — `audioManager` exported `available` and nothing consumed it; the UI inferred a dead engine from `configure()` returning an empty device string. | ✅ **FIXED** — `audio:available` IPC probe (mirroring `calib:`/`ndi:`), a dismissible startup modal, and a persistent `no audio engine` badge. `1bd9d6d`, `073e336`, `67ecdbf`. Spec: `specs/2026-07-13-audio-engine-missing-notice-design.md`. Test **0.3** now passes. |
 | 2 | **The picture went BLACK on pause, on stop, on a scrub and on a clip-position drag** — on the main window *and* every projector. **PRE-EXISTING, not Wave 3's** (byte-identical on `main`, blame `af8f727f`, 2026-06-22). Invisible until now because it only bites plain `<video>` clips — HAP and GPU-decoded MP4 take the codec path, which holds its frame. Meanwhile `docs/TIMELINE.md:99` promised *"the output doesn't cut to black."* | ✅ **FIXED** — `2fe6fb5`. Two defects, one cause: (a) a `!playing ||` short-circuit re-seeked the `<video>` **60×/s to the position it was already at**, so it never finished a seek and `readyState` never reached the `>= 2` the drawable gate demands; (b) **nothing retained a frame** — `buildProgram()` clears before compositing, so an undrawable layer is not *frozen*, it is *black*. Now: consult the drift in both states, and hold the last good frame across a seek. |
-| 3 | **Effects keep animating while the transport is PAUSED.** Pause the show and generative content carries on moving — so effects run on a clock that is not the transport's. Noticed as a contrast while diagnosing #2 (the effect surfaces were the only ones that did *not* go black). | 🔴 **OPEN — not investigated, not fixed.** Not a bed defect and not a blocker for Wave 3, but it is a real one: pausing a show should freeze the picture, and this is a clock that the wave which just straightened out every other clock did not touch. Decide before merge whether it blocks. |
+| 3 | **Effects keep animating while the transport is PAUSED.** Pause the show and generative content carries on moving — so effects run on a clock that is not the transport's. Noticed as a contrast while diagnosing #2 (the effect surfaces were the only ones that did *not* go black). | ✅ **FIXED 2026-07-14 — `07ae260`** (merge-blocker task 10; the user put it *on* the merge bar). `surfaceMedia.ts:47` handed an effect surface `performance.now()/1000` — **raw wall time**. It never read the transport at all. The `isPlaying` gate existed but only ever reached the video codecs; an effect is driven by the `timeSec` argument, and wall time does not stop. `contentSource.ts:179` documented it as deliberate — *"clip-local for timeline clips, wall-clock for surfaces"* — which is the wrong call for a show-control app and incoherent with a wave whose whole purpose was one transport. Effects now ride the **SHOW clock** (so a GO does not restart an ambient background, exactly like the bed). ⚠ **Half the fix is the projector:** `getShowTime()` is 0 in a mirror window, so changing only `surfaceMedia` would have **frozen every projector effect at zero** — strictly worse than the bug. The show clock is now streamed over the transport bridge (`setExternalShowTime`), so the preview and the audience are in phase. **Test 2.8b.** |
 | 4 | **The `⏮`/`⏭` transport buttons were never built.** They are in the transport sketch (`plans/timeline-transport-and-audio-scoping.md:98`) but Wave A's plan narrowed to *"the three controls that never had a button: Stop, Set In, Set Out"* and they silently dropped out. Wave A passed its own acceptance because it did everything **its** plan asked. | 📋 **LOGGED** — `plans/transport-edit-point-navigation.md`, held on `feat-transport-skip` until Wave 3 merges (same file). Not a Wave 3 concern. |
 
 - [ ] **2.1 [BLOCKER] — the bed survives GO.** *(Plan T-A1 / reset-table row 4.)*
@@ -202,15 +220,24 @@ Build this **once**. Half the tests need it. Keep it. Call it **`WAVE3-ACCEPT`**
   clock — this is the original bug and Wave 3 does not merge. Tell Claude: *which* GO (first? every one?), and
   whether `♪ BED` reset with it or kept climbing (that discriminates the clock from the driver).
 
-- [ ] **2.2 [BLOCKER] — the same, into the timeline-less scene.** *(Plan T-D4 / T7b / DC6b.)*
-  **DO:** bed at ~1:30. GO to **S-noTL**. Leave it. GO back to Global. Repeat **ten times**.
-  **EXPECT:** the music never restarts, not once. The global *picture* does restart each time (documented
-  asymmetry, known issue #6 — judge whether you can live with it). Scrubbing the ruler under S-noTL **does** move
-  the bed (it is the global document).
-  **IF IT FAILS:** this is the one state where the global *document* is bound but the two clocks are minutes
-  apart. If entering S-noTL hurls the bed back, the code asked "is the global doc bound?" where it should have
-  asked "do the clocks coincide?" — an unattended install would restart its bed on every entry to that state
-  forever. Tell Claude: *"S-noTL restarts the bed; S1 does not."*
+- [ ] **2.2 — the timeline-less scene is GONE, and an old project carrying one loads sanely.** *(Merge-blocker
+  plan, task 5. Replaces the old 2.2, which tested a shape that no longer exists.)*
+  **WHY THIS CHANGED.** The old 2.2 asked whether entering a **timeline-less scene** restarted the bed — the one
+  state in which the global *document* was bound while the two clocks stood minutes apart. It passed. But the
+  merge review found that this state was **the root of two automation-clock blockers**: any lane copied into a
+  scene from the global timeline got retagged to the scene clock *and* shadowed the real base lane by
+  `targetPath`, so a house fade on `audio.master.gain` **snapped +9.6 dB on every GO and persisted to disk**.
+  No fix in `timeline.ts` could work — by the time it ran, the impostor was byte-identical to a lane the
+  operator had drawn. **So the state was deleted.** `Scene.timeline` is required; two of the three writers that
+  could break the invariant are now structurally impossible.
+  **DO:** try to make a scene with no timeline. You can't — Capture Scene always mints one. Then open a
+  **pre-2026-07-14 project** that still has an S-noTL scene (your old fixture will do) and recall it.
+  **EXPECT:** it loads without error and the scene recalls to an **empty timeline** (black output). It does
+  **not** crash, and it does **not** silently start playing the global timeline. Delete the scene and re-save.
+  **IF IT FAILS:** a white screen or a load error here means the loader's `normalizeTimeline(s.timeline)`
+  default is not holding. Tell Claude what the console says.
+  **THE PROPERTY THE OLD 2.2 PROTECTED — "the bed does not restart on a recall" — is still fully covered**, by
+  2.1 and 2.3 against S1/S2/S3. Nothing was lost by deleting this test; a reachable hazard was.
 
 - [ ] **2.3 [BLOCKER] — a scene's loop wrap does not touch the bed.** *(T-A2 / row 7.)*
   **DO:** GO to S1 (Loop ON, 20 s). Let it wrap **six times**, listening.
@@ -245,6 +272,69 @@ Build this **once**. Half the tests need it. Keep it. Call it **`WAVE3-ACCEPT`**
   **DO:** open a projector output window. Re-run 2.1.
   **EXPECT:** the projector stays phase-locked through every GO and every loop wrap. No new stutter, no snap.
   Audio still comes only from the main window.
+
+---
+
+## SESSION 2b — The merge review's regressions (30 min) — **ADDED 2026-07-14**
+
+*The 16-agent review of the merge diff confirmed **39 findings**. These are the ones the user put on the merge
+bar, and they are the tests that did not exist when Session 2 was first run. **The headline one is 4.7** — it
+lives in Session 4 because that is where the automation tests are, but if you only have ten minutes, run 4.7.*
+
+- [ ] **2.8 [BLOCKER] — the mixer shows what is SOUNDING.** *(Merge-blocker plan, task 13. **Found by the user
+  during the 4.7 run**, which is the best possible provenance for a UI defect.)*
+  **DO:** with the global master lane ramping (fixture item 7), open the **Audio Bed** and watch the **master
+  fader** while the ramp descends.
+  **EXPECT:** the thumb **slides down with the sound**, greyed out, wearing a **`LANE`** badge. Grab it — it
+  **refuses**. Switch the lane off (the ⚡ in its timeline gutter) and it comes **back to life** at the authored
+  value. Now do the same with a **scene/cue fade** on the master instead of a lane: the thumb follows, badge
+  reads **`FADE`**, and it **stays grabbable** — moving it *takes the parameter back*.
+  **WHY IT MATTERS:** the driver plays `lane ?? fade ?? authored`; the panel drew `authored` and nothing else.
+  A house fade slid the room to 0.32 and **the fader sat frozen at 1.00** — a panel asserting a level the engine
+  was not playing. It also made every takeover a **jump**: nudging that frozen fader committed from *the thumb*,
+  slamming the house 0.2 → 1.05 in one frame (**+14.4 dB**) from the single most natural gesture there is.
+  **IF IT FAILS:** tell Claude which fader (master / track / clip) and whether the badge appeared at all.
+  *(**Passed live 2026-07-14** on the master.)*
+
+- [ ] **2.8b [BLOCKER] — PAUSE FREEZES THE PICTURE, and the projector agrees.** *(Task 10 — this is FINDINGS #3,
+  which sat 🔴 OPEN through the whole first acceptance run.)*
+  **DO:** put a **generative effect** on a surface (Surfaces → content → an effect, not a video). Play. **Pause.**
+  Then **scrub**. Then **Stop**. Then open a **windowed projector** showing the same surface and watch both at
+  once.
+  **EXPECT:** pause **freezes** the effect dead. A scrub **moves** it. Stop returns it to its t=0 state. And the
+  Stage preview and the projector are **in phase** — the operator sees what the audience sees.
+  **WHY IT MATTERS:** the effect was handed **raw wall-clock time** and never read the transport at all. Worse,
+  each window ran *its own* `performance.now()`, whose epoch is that window's navigation start — so the same
+  effect sat at a **different phase** in the preview than on the projector, permanently.
+  **IF IT FAILS:** if the projector's effect is **frozen at zero** while the preview animates, the show clock is
+  not reaching the mirror over the transport bridge — tell Claude, this is the half of the fix that matters.
+
+- [ ] **2.8c [BLOCKER] — File ▸ New Project makes the room go SILENT.** *(Task 3.)*
+  **DO:** with the bed **playing audibly**, File ▸ New Project.
+  **EXPECT:** **silence, immediately.** An empty mixer. **Listen for a click, not just for silence** — a hard
+  cut is a fault too. Then save the new project and inspect the `.artlux`: `audio` must be empty and there must
+  be **no clip paths pointing into the old project's folder**.
+  **WHY IT MATTERS:** New Project reset everything *except* `audioMix` and `schedule`. The outgoing show's bed
+  kept sounding into the new empty project **and was written verbatim into the fresh file**, with its clip paths
+  still aimed at the old project's assets. Three independent reviewers found this one.
+
+- [ ] **2.8d — a corrupt `effects` field does not kill the app on load.** *(Task 2.)*
+  **DO:** in a saved `.artlux`, hand-edit an audio clip's `"effects"` from `[...]` to `{"0": {...}}` (the
+  array→object corruption this repo has already shipped once — the `segments` repair). Also try `"effects": "x"`.
+  Load it.
+  **EXPECT:** it **loads**. The chain reads as empty. No white screen.
+  **WHY IT MATTERS:** `enumerate()` iterated `effects` with a bare `for..of`, and **nothing sanitized that
+  field**. It runs on **every project load and every GO**. And a *string* is iterable — so `"reverb"` did not
+  crash, it silently emitted **six automation targets with null ids**.
+
+- [ ] **2.8e — an interrupted save does not destroy the show it is replacing.** *(Task 1. Hard to stage; do it
+  once.)*
+  **DO:** open a project you do not mind losing. Fill the disk, or kill the app process **during** a save.
+  **EXPECT:** the original `.artlux` is **intact**. At worst there is a leftover `.tmp` beside it.
+  **WHY IT MATTERS:** `writeJson` was a bare `writeFileSync` straight onto the target — and `writeFileSync`'s
+  **first act is to TRUNCATE the file to zero bytes**, before a single byte of the new project is written. A
+  crash, a power cut, a full disk or an AV lock in that window left the operator's project as `{\n  "name": `.
+  It is now tmp + atomic rename.
 
 ---
 
@@ -289,8 +379,14 @@ fail and the failure is audible. *(Plan Group B; DC2/DC2b/DC3/DC4; rows 8, 9, 11
   **EXPECT:** the bed **hard-cuts and stops**. The show is over. It must **not buzz**, must **not pause the
   transport**, and the **state machine must not move** — no hop, no `onTimelineEnd`, no phantom recall.
   **This is not a bug — it is the accepted breaking change**, and it is in the CHANGELOG. You are testing that it
-  is *clean*, not that it doesn't happen. Repeat with **S-noTL** bound (the nastiest reachable form).
-  **IF IT FAILS:** an FSM hop here is a blocker (it means an *edit* can advance an unattended show).
+  is *clean*, not that it doesn't happen. ~~Repeat with **S-noTL** bound (the nastiest reachable form).~~
+  **Now repeat with GLOBAL bound and Loop ON** — that is the nastiest *reachable* form since S-noTL was deleted,
+  and the merge review found a **blocker** in it (task 4): shortening the Length below the playhead while Loop
+  is on re-anchored `showTime` to the region start while the playhead wrapped **modulo**, permanently splitting
+  the two clocks **in the one state where the code asserts they are the same number**. Expect them to stay
+  locked: the toolbar's `♪` and the Audio Bed's `♪` must read the **same** number afterwards.
+  **IF IT FAILS:** an FSM hop here is a blocker (it means an *edit* can advance an unattended show). Two `♪`
+  readouts that disagree while Global is bound is *also* a blocker — tell Claude both numbers.
 
 - [ ] **3.6 — global Loop ON: the bed wraps WITH the show.** *(T-B5 / T9 / DC4 / row 8.)*
   **DO:** Global Length **60 s**, Loop **ON**. Play. Let it lap **four times**, stopwatch in hand. Keep the
@@ -354,8 +450,10 @@ fail and the failure is audible. *(Plan Group B; DC2/DC2b/DC3/DC4; rows 8, 9, 11
   **DO:** bind S1, playing, bed at ~1:40. Scrub S1's ruler around.
   **EXPECT:** the picture moves. **The bed does not move at all** and does not glitch. `♪ BED` keeps climbing
   from 1:40.
-  Then repeat with **S-noTL** bound and trigger a seek (scrub, OSC, or an FSM `seek` entry action). **Still no
-  movement in the bed.**
+  ~~Then repeat with **S-noTL** bound~~ — that shape is gone (see 2.2). **Every** scene now owns a timeline, so
+  the case this clause singled out *is* the main body of this test. Repeat it with **S2** and **S3** instead,
+  and trigger the seek by **OSC or an FSM `seek` entry action** as well as by hand — the point was never the
+  scene, it was that a seek arriving from a source that is not the operator's mouse must be gated the same way.
 
 - [ ] **4.6 ⚠ — the Audio panel's scrub slider and SkipBack are DISABLED while a scene is bound.** *(T-D3 /
   Task 3 Step 3.)*
@@ -366,13 +464,31 @@ fail and the failure is audible. *(Plan Group B; DC2/DC2b/DC3/DC4; rows 8, 9, 11
   **WHY:** an enabled slider there would seek the **scene** while displaying the **show** — an operator nudging a
   control in the *Audio* panel would recall the picture to an arbitrary point mid-show.
 
-- [ ] **4.7 — a global automation curve does not snap under a timeline-less scene.** *(T-D4 / DC6b.)*
-  **DO:** put an automation lane on the **global** timeline driving `audio.master.gain` (a slow ramp). Play, bed
-  to ~1:00, GO to **S-noTL**.
-  **EXPECT:** the bed does not restart **and the master-gain curve does not snap back to t=0** — it continues on
-  the show clock.
-  **IF IT FAILS:** if the master gain snaps while the bed plays on at 4:30, lanes are being tagged by list instead
-  of by document.
+- [ ] **4.7 [BLOCKER] — a global automation curve does not snap when you CAPTURE A SCENE.** *(T-D4 / DC6b.
+  **Rewritten 2026-07-14: this test existed, and it would not have caught the bug.** It pointed at S-noTL —
+  a shape you had to hand-edit a `.artlux` to create. The **reachable** door was Capture Scene, a button in the
+  UI, in a project made today. The merge review found it; this test had been passing over it.)*
+  **DO:** 1. Bind **Global**. 2. Draw a lane on `audio.master.gain` — a **slow ramp down** over ~60 s. 3. Play,
+  and let the master get visibly and *audibly* partway down the ramp (~0:20, gain around 0.3). 4. **Capture
+  Scene** (Scenes tab → 📷 Scene). 5. **GO** on the scene you just captured.
+  **EXPECT:** the house level **does not move**. The ramp carries on descending, smoothly, on the show clock,
+  exactly as if you had not recalled anything. The **Audio Bed's master fader follows it down**, greyed out,
+  wearing a **`LANE`** badge.
+  **IF IT FAILS — THIS IS THE MERGE BLOCKER, AND IT IS AUDIBLE.** The master **snaps back up** on the GO — from
+  ~0.32 to ~0.97, in **one frame**: a **+9.6 dB jump**, in a venue, on a cue. It then does it on *every* GO, and
+  the wrong value is **written to disk**. Root cause: Capture Scene `structuredClone`d the global automation
+  lanes into the scene, where they were retagged to the *scene* clock (which resets on a recall) *and* shadowed
+  the genuine base lane by `targetPath`. Tell Claude: *"the master snaps on GO after Capture Scene."*
+  *(Fixed by merge-blocker tasks 5 + 6. **Passed live 2026-07-14** — this is the test the user ran first.)*
+
+- [ ] **4.7b — and the operator can SEE which lane is driving the master.** *(Merge-blocker plan, task 7 + 13.)*
+  **DO:** with the scene from 4.7 still bound, look at the **timeline panel** and the **Audio Bed**.
+  **EXPECT:** the timeline draws the **global** lane even though a scene is bound — **dimmed, badged `GLOBAL`,
+  read-only**, with its readout sampling the **show** clock. (Before, it vanished from the screen while it went
+  on moving the master, and the operator had no way to see what was driving their house level.) Now add a lane
+  on the **scene** driving the *same* `audio.master.gain`: the GLOBAL one must go **struck through** — the
+  engine has filtered it out by `targetPath` and it is no longer applying. Two lanes, and it is unambiguous
+  which one wins. The Audio Bed's master fader tracks whichever one is live.
 
 - [ ] **4.8 — editing a SCENE's document does not move the bed.** *(T11 / row 11.)*
   **DO:** S1 bound and playing, bed at ~2:00. Edit S1's Length below its playhead; press **O** (Set Out); change
