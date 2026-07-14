@@ -539,7 +539,22 @@ public:
   struct OpenedCfg { juce::String deviceName, deviceType; double sampleRate = 0; int bufferSize = 0; int channels = 0; };
 
   juce::String configure(const DeviceCfg& c, OpenedCfg& out) {
-    // Decode mode/layout is applied live (decoder-only) — changing it never reopens the device.
+    // Decode mode/layout is applied live (decoder-only) — changing it never reopens the device, so this
+    // MUST run before every guard below: none of them (dead-device check, idempotence guard, the
+    // snapshot block) is about the decoder, and a mode/layout-only change (same device, different
+    // mode/layout) has to take effect even when — ESPECIALLY when — one of those guards ends this call
+    // early without touching the device at all. That is deliberate and load-bearing; do not "clean up"
+    // this ordering by moving it after the guards.
+    //
+    // ⚠ BUT THAT MEANS IT MUST BE ROLLED BACK, TOO. bus.setMode() rebuilds the ambisonic decoder — speaker
+    // count, speakerBuf/speakerPtrs — for the REQUESTED layout immediately, SYNCHRONOUSLY, before we know
+    // whether the requested DEVICE below will even open. If the open fails and the rollback block further
+    // down puts the OLD device back, the decoder must be put back to the OLD mode/layout as well — or the
+    // restored device plays through a decode built for the layout that just failed to open (wrong speaker
+    // count, content routed to the wrong channels). Nothing else catches this: `opened`/`deviceLive` only
+    // know about the device, and the masterFxChannels/deviceChannels diagnostic in GetMeters only checks
+    // the POST-decode chain's width against the device — never the decode's mode/layout itself. See the
+    // rollback block below, where prevMode/prevLayout are applied via a second bus.setMode() call.
     bus.setMode(c.mode, c.layout);
     const int ch = juce::jlimit(1, 64, c.channels);
 
@@ -554,6 +569,10 @@ public:
     // this early return and CHANGED NOTHING. The picker would have looked wired and been inert.
     if (opened && ch == openedChannels && c.type == openedType && c.name == openedName
         && c.sampleRate == openedRate && c.bufferSize == openedBuffer) {
+      // The device didn't change, but bus.setMode() above may have — this is exactly how a mode/layout-only
+      // change takes effect (see the comment above it). Record it, or a later rollback would read a STALE
+      // openedMode/openedLayout (from before THIS call) instead of the one now actually live.
+      openedMode = c.mode; openedLayout = c.layout;
       out = lastOpened;
       return {}; // already open on exactly this config — don't interrupt playback
     }
@@ -573,10 +592,21 @@ public:
     juce::String prevType;
     juce::AudioDeviceManager::AudioDeviceSetup prevSetup;
     int prevActualChannels = 0;
+    OutMode prevMode = OutMode::Binaural;
+    juce::String prevLayout { "stereo" };
     if (hadGoodDevice) {
       prevType = deviceManager.getCurrentAudioDeviceType();
       deviceManager.getAudioDeviceSetup(prevSetup);
       prevActualChannels = lastOpened.channels; // what the bus was ACTUALLY configured for, not what was asked
+      // prevMode/prevLayout come from openedMode/openedLayout, NOT from the bus: bus.setMode(c.mode,
+      // c.layout) at the very top of this call has ALREADY overwritten the bus's mode/layout with the
+      // REQUESTED (possibly-failing) values, so by the time we get here the bus itself can no longer tell
+      // us what was live. openedMode/openedLayout are the engine's own record of the last mode/layout a
+      // successful bus.setMode() call left in place — tracked in lockstep with openedType/openedName
+      // (both here and at the idempotence-guard's early return above), and, like them, deliberately left
+      // untouched on the rollback path below so they keep describing whatever ends up actually live.
+      prevMode = openedMode;
+      prevLayout = openedLayout;
     }
 
     if (opened) { deviceManager.removeAudioCallback(&player); player.setSource(nullptr); deviceManager.closeAudioDevice(); opened = false; }
@@ -622,16 +652,24 @@ public:
       if (auto* dev = deviceManager.getCurrentAudioDevice())
         restoredActual = juce::jmax(1, dev->getActiveOutputChannels().countNumberOfSetBits());
       bus.setOutputChannels(restoredActual);   // BEFORE setSource — see the success path below
+      // Put the DECODE back too. bus.setMode(c.mode, c.layout) at the top of this call already rebuilt the
+      // ambisonic decoder for the layout that just failed to open — the device being restored above was
+      // never opened with that layout; it was opened (and is being put back) with prevMode/prevLayout. Skip
+      // this and the restored device would be live and audible but decoding into the WRONG mode/layout —
+      // looks wired, meters normally (masterFxChannels/deviceChannels only check the POST-decode chain's
+      // width against the device, never the decode itself), and is silently wrong. Decoder-only, so — like
+      // the call at the top of configure() — this cannot fail and does not touch the device.
+      bus.setMode(prevMode, prevLayout);
       if (!readThread.isThreadRunning()) readThread.startThread();
       player.setSource(&metering);
       deviceManager.addAudioCallback(&player);
       opened = true;
-      // openedType/openedName/openedChannels/openedRate/openedBuffer/lastOpened are DELIBERATELY left
-      // untouched here: the failed attempt never reached the point (below) where they get overwritten, so
-      // they still describe exactly the setup we just put back. Rewriting them to the REQUESTED (failed)
-      // setup would make the guard above believe that setup is live — the operator's next attempt to fix
-      // it would then take the early return and do nothing, the same trap the dead-device invalidation
-      // above exists to avoid.
+      // openedType/openedName/openedChannels/openedRate/openedBuffer/openedMode/openedLayout/lastOpened
+      // are DELIBERATELY left untouched here: the failed attempt never reached the point (below) where
+      // they get overwritten, so they still describe exactly the setup — and now, the decode — we just put
+      // back. Rewriting them to the REQUESTED (failed) setup would make the guard above believe that setup
+      // is live — the operator's next attempt to fix it would then take the early return and do nothing,
+      // the same trap the dead-device invalidation above exists to avoid.
       return err; // the requested setup still failed — the caller (and the Preferences panel) must know
     }
 
@@ -655,6 +693,7 @@ public:
     opened = true;
     openedChannels = ch; openedType = c.type; openedName = c.name;
     openedRate = c.sampleRate; openedBuffer = c.bufferSize;
+    openedMode = c.mode; openedLayout = c.layout;
     lastOpened = out;
     return {};
   }
@@ -780,6 +819,15 @@ private:
   juce::String openedType, openedName;
   double openedRate = 0;
   int openedBuffer = 0;
+  // The last mode/layout a SUCCESSFUL bus.setMode() call left in place — i.e. the decode that matches
+  // whatever device is actually live. Tracked the same way as openedType/openedName (updated at the same
+  // two sites: the idempotence-guard early return and the full open-success path; deliberately untouched
+  // on the rollback path) so configure()'s rollback block has somewhere safe to read a PREVIOUS mode/layout
+  // from — the bus's own mode/layout members are not safe to read there, because the unconditional
+  // bus.setMode(c.mode, c.layout) at the top of configure() has already overwritten them with the
+  // REQUESTED (possibly-failing) values by the time the rollback block runs.
+  OutMode openedMode = OutMode::Binaural;
+  juce::String openedLayout { "stereo" };
   OpenedCfg lastOpened;
 };
 
