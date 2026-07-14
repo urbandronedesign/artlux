@@ -388,6 +388,10 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   // a rejection lights nothing — see the badge below.
   const [engineUp, setEngineUp] = useState(true);
   useEffect(() => { audioClient.available().then(setEngineUp).catch(() => {}); }, []);
+  // ⚠ AND THE OTHER WAY THE ROOM GOES SILENT, WHICH `engineUp` CANNOT SEE. The addon stays perfectly loaded
+  // when the audio interface is UNPLUGGED — so `available()` keeps saying yes while there is no device and
+  // no sound. Two failures, two questions, two badges. Defaults TRUE for the same reason as above.
+  const [deviceLive, setDeviceLive] = useState(true);
 
   // Sync BOTH containers from the host (external edits / project load / a scene recall → a different bound
   // timeline). The fan-out fires on either one changing.
@@ -438,7 +442,11 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
         setMeter({ peak: peakHold.current, rms: m.rms, peakL: holdL.current, peakR: holdR.current });
         if (m.clipped) clipUntil.current = Date.now() + 1500; // engine-latched: catches every block, not 1 in 10
         setClipping(Date.now() < clipUntil.current);
-      }).catch(() => {});
+        // ⚠ `!== false`, NOT a bare assignment. An OLD main process (or any degraded read) hands back a
+        // meters object with no `deviceLive` at all — `undefined` is falsy, and a bare setDeviceLive(m.deviceLive)
+        // would light a "no output device" alarm over a perfectly healthy rig. Only an EXPLICIT false lights it.
+        setDeviceLive(m.deviceLive !== false);
+      }).catch(() => {});   // a rejected poll lights NOTHING — see the badge
       // THE BED RIDES THE SHOW CLOCK — st.showTime, and NEVER the BOUND DOCUMENT'S PLAYHEAD (the other
       // number on this status object). Mirroring that one here was a LIE about the bed the moment a scene
       // was bound: the readout and the scrub slider would show the SCENE's time while the bed played on at
@@ -881,6 +889,20 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
               <span className="shrink-0 px-1.5 h-5 inline-flex items-center rounded bg-warn/15 text-warn text-micro whitespace-nowrap"
                 title="ArtLux started without its audio engine — there is no sound. Authoring and saving still work normally. Expected audio-engine.node in the app's resources; from source, run npm run build:audio.">
                 no audio engine
+              </span>
+            )}
+            {/* THE THIRD WAY THIS PANEL GOES SILENT-BUT-HEALTHY-LOOKING, AND THE ONE THAT HAPPENS IN A VENUE.
+                The engine is loaded, the mixer is live, the transport is running — and the AUDIO INTERFACE IS
+                GONE (a bumped USB cable, a driver reload, a Windows power cycle on the device). `engineUp`
+                above cannot see it: the addon is still perfectly loaded, so `available()` says yes. Until now
+                the ONLY symptom was silence, and Preferences actively said "engine active" and NAMED the dead
+                device. The meters keep polling, so this clears by itself the moment a device is back.
+                DANGER-coloured, not warn: the other two badges mean "you cannot make sound"; this one means
+                "your show is running and the room cannot hear it." */}
+            {!deviceLive && (
+              <span className="shrink-0 px-1.5 h-5 inline-flex items-center rounded bg-danger/15 text-danger text-micro whitespace-nowrap"
+                title="THE AUDIO OUTPUT DEVICE IS GONE — the room is silent, and the show is still running. Usually a bumped USB cable or a driver reload. Reconnect it, then open Preferences ▸ Audio and pick it again; sound returns with no restart. (ArtLux will not do this for you — it does not re-open a device on its own.)">
+                <AlertTriangle size={10} className="mr-1" /> no output device
               </span>
             )}
           </div>

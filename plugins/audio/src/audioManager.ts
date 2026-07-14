@@ -16,6 +16,14 @@ export interface Meters {
   // LATCHED in the engine and cleared on read: true if ANY block clipped since the last poll. `peak` is
   // one block's peak and we poll at ~10 Hz, so a clip indicator derived from it would miss most clipping.
   clipped: boolean;
+  // ⚠ IS THERE A DEVICE — **NOT** "did the addon load", which is what `audio:available` answers.
+  // Unplug the interface and the .node stays perfectly loaded, so `available` stays true and Preferences went
+  // on printing "engine active · output device: <the dead one>" over a silent room. This is the ground truth,
+  // read from JUCE's getCurrentAudioDevice() on the poll that already runs. `false` here ⇒ THERE IS NO SOUND.
+  //
+  // Defaults TRUE at every degraded read (see getMeters below): a missing addon is a different failure with
+  // its own badge, and lighting BOTH would tell the operator two things are broken when one is.
+  deviceLive: boolean;
 }
 
 // One effect node, as the engine wants it. Mirrors AudioEffect in src/renderer/types.ts — `params` are
@@ -100,6 +108,11 @@ export function stopAll(): void { native?.stopAll(); }
 export function getMeters(): Meters {
   return native
     ? native.getMeters()
-    : { peak: 0, rms: 0, peakL: 0, peakR: 0, peaks: [], speakers: 0, masterFxChannels: 0, deviceChannels: 0, clipped: false };
+    // ⚠ `deviceLive: true` WITH NO ADDON AT ALL, AND THAT IS DELIBERATE. There is obviously no device here —
+    // but "the addon did not load" is a DIFFERENT failure with its OWN badge (`no audio engine`, and a
+    // startup modal). Reporting `false` too would light BOTH, telling the operator two things are broken
+    // when one is, and pointing them at a USB cable when the actual problem is a missing build. Each badge
+    // answers exactly one question. See Meters.deviceLive.
+    : { peak: 0, rms: 0, peakL: 0, peakR: 0, peaks: [], speakers: 0, masterFxChannels: 0, deviceChannels: 0, clipped: false, deviceLive: true };
 }
 export function close(): void { native?.close(); }

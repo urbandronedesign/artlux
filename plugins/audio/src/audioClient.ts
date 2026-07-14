@@ -17,7 +17,10 @@ export const audioClient = {
     (ipc?.invoke('audio:getDevices') as Promise<string[]>) ?? Promise.resolve([]),
   getMeters: (): Promise<Meters> =>
     (ipc?.invoke('audio:getMeters') as Promise<Meters>) ??
-    Promise.resolve({ peak: 0, rms: 0, peakL: 0, peakR: 0, peaks: [], speakers: 0, masterFxChannels: 0, deviceChannels: 0, clipped: false }),
+    // `deviceLive: true` on a dead BRIDGE, for the same reason audioManager's no-addon fallback does it: a
+    // dead bridge is not a dead audio interface, and pointing the operator at their USB cable when the
+    // problem is elsewhere is worse than saying nothing. Each badge answers exactly one question.
+    Promise.resolve({ peak: 0, rms: 0, peakL: 0, peakR: 0, peaks: [], speakers: 0, masterFxChannels: 0, deviceChannels: 0, clipped: false, deviceLive: true }),
   // Resolves false when the native addon is absent (or the bridge is dead — which also means no sound).
   // Consumers must not raise an alarm on a REJECTION: only an explicit false lights a warning.
   available: (): Promise<boolean> =>

@@ -2,6 +2,7 @@
 // field is rendered (binaural HRTF for headphones, or a decode to a real speaker layout), a live
 // per-channel meter, and the detected output devices. Talks to the main-process engine via audioClient.
 import React, { useEffect, useRef, useState } from 'react';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { audioClient } from './audioClient';
 import type { OutputMode, SpeakerLayout } from './audioManager';
 
@@ -35,6 +36,12 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
   // derived from a side effect, and the reason a dead engine was never surfaced anywhere an operator
   // would look. Defaults true so the warning never flashes while the probe is in flight.
   const [engineUp, setEngineUp] = useState(true);
+  // ⚠ A DIFFERENT QUESTION FROM `engineUp`, AND THE ONE THAT ACTUALLY HAPPENS IN A VENUE. `available()`
+  // reports only that the .node LOADED — and the addon stays perfectly loaded when the audio interface is
+  // UNPLUGGED. So this panel used to print "Native JUCE + ambisonic engine active · output device: <name>"
+  // over a silent room, NAMING A DEVICE THAT WAS PHYSICALLY GONE. Read from JUCE's getCurrentAudioDevice()
+  // and carried on the meters poll below, which already runs at 10 Hz. Defaults true (no flash on startup).
+  const [deviceLive, setDeviceLive] = useState(true);
   const [meter, setMeter] = useState<{ peaks: number[]; speakers: number }>({ peaks: [], speakers: 0 });
   const holds = useRef<number[]>([]);
 
@@ -58,7 +65,11 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
         const peaks = m.peaks ?? [];
         holds.current = peaks.map((v, i) => Math.max((holds.current[i] ?? 0) * 0.92, v));
         setMeter({ peaks: holds.current.slice(), speakers: m.speakers ?? 0 });
-      }).catch(() => {});
+        // `!== false`, never a bare assignment: an old main process hands back a meters object with no
+        // `deviceLive` field at all, and `undefined` is falsy — a bare read would raise a "no output device"
+        // alarm over a perfectly healthy rig. Only an EXPLICIT false lights it.
+        setDeviceLive(m.deviceLive !== false);
+      }).catch(() => {});   // a rejected poll lights nothing
     }, 100);
     return () => clearInterval(iv);
   }, []);
@@ -70,7 +81,10 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
   const setMode = (m: OutputMode) => { patchCfg({ outputMode: m }); void apply(outCh, m, layout); };
   const setLayout = (l: SpeakerLayout) => { patchCfg({ speakerLayout: l }); void apply(outCh, mode, l); };
 
-  const available = engineUp && !error;
+  // `available` is GONE, and its removal is the fix. It was `engineUp && !error` — a single boolean standing
+  // in for a question that has THREE answers (no addon / no device / running), and it collapsed the one that
+  // matters in a venue into the one that never happens on a working install. The status block below asks the
+  // three questions separately. Do not reintroduce a single "is audio ok" flag: there isn't one.
   const pct = (v: number) => `${Math.min(100, Math.round(v * 100))}%`;
   const need = LAYOUTS.find((l) => l.id === layout)?.speakers ?? 2;
   const shortChannels = mode === 'speakers' && need > outCh;
@@ -79,10 +93,46 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
     <div className="space-y-4">
       <div>
         <div className="text-mini font-semibold text-fg-2 mb-1">Engine</div>
-        {available ? (
-          <div className="text-mini text-fg-3">Native JUCE + ambisonic engine active · output device: <span className="text-fg-1">{device || 'default'}</span></div>
-        ) : (
+        {/* ── THREE STATES, NOT TWO. The missing third one is the one that happens in a venue. ──────────
+            This block used to ask ONE question — "did the addon load?" — and answer it with a sentence about
+            the DEVICE. So when the audio interface was unplugged it went on printing "engine active · output
+            device: Focusrite Scarlett 2i2", naming hardware that was physically gone, over a silent room,
+            with the show still running. The operator's diagnosis, from the only screen that claims to know,
+            was "the audio engine is fine."
+            `!deviceLive` is checked FIRST because it is the more specific failure: with no addon there is
+            also no device, and telling someone to check their USB cable when the real problem is a missing
+            build would send them to the wrong end of the room. */}
+        {!engineUp ? (
           <div className="text-mini text-warn">Audio engine unavailable{error ? ` — ${error}` : ''}. Playback is disabled.</div>
+        ) : !deviceLive ? (
+          <div className="space-y-1.5">
+            <div className="text-mini text-danger flex items-center gap-1.5">
+              <AlertTriangle size={12} className="shrink-0" />
+              <span><strong>The output device is gone — the room is silent.</strong></span>
+            </div>
+            <div className="text-micro text-fg-3">
+              The engine is loaded and the show is still running, but the audio interface it was playing
+              through has disappeared — usually a bumped USB cable, a driver reload, or Windows power-cycling
+              the device. <strong className="text-fg-2">ArtLux will not re-open it on its own.</strong>
+            </div>
+            <div className="text-micro text-fg-3">
+              Reconnect the interface, then press Reconnect. Sound returns with no restart.
+            </div>
+            {/* THE RECOVERY GESTURE, WHICH DID NOT EXIST. configure() takes (channels, mode, layout) and opens
+                the DEFAULT device — there is no device picker anywhere in this panel, so "just pick it again"
+                was never actually possible. The only lever an operator had was to change the channel count and
+                change it back, and even THAT did nothing until the `opened` guard learned to invalidate itself
+                (engine.cpp). This button is that lever, named. */}
+            <button onClick={() => void apply(outCh, mode, layout)}
+              className="inline-flex items-center gap-1.5 px-2 h-7 rounded border border-danger/40 bg-danger/10 text-danger text-mini hover:bg-danger/20">
+              <RefreshCw size={12} /> Reconnect
+            </button>
+            {error && <div className="text-micro text-warn">Last attempt failed — {error}</div>}
+          </div>
+        ) : error ? (
+          <div className="text-mini text-warn">Audio engine unavailable — {error}. Playback is disabled.</div>
+        ) : (
+          <div className="text-mini text-fg-3">Native JUCE + ambisonic engine active · output device: <span className="text-fg-1">{device || 'default'}</span></div>
         )}
       </div>
 

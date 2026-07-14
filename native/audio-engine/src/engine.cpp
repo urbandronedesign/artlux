@@ -530,6 +530,20 @@ public:
     // Decode mode/layout is applied live (decoder-only) — changing it never reopens the device.
     bus.setMode(mode, layout);
     const int ch = juce::jlimit(1, 64, outputChannels);
+    // ⚠ THE DEVICE CAN DIE UNDER US, AND `opened` DOES NOT KNOW.
+    //
+    // `opened` is set true when configure() succeeds and false only when configure() ITSELF tears the
+    // device down. NOTHING sets it false when the HARDWARE GOES AWAY — a bumped USB cable, a driver
+    // reload, a Windows power-management cycle on the interface. JUCE knows perfectly well
+    // (getCurrentAudioDevice() returns nullptr); the engine simply never asked.
+    //
+    // So: the room goes silent, JUCE does not recover on its own, and the operator does the one thing the
+    // UI offers — Preferences ▸ Audio ▸ pick the interface again — and the guard below TAKES THE EARLY
+    // RETURN AND DOES NOTHING, because the channel count still matches. The only recovery gesture in the
+    // application is inert, and the only way back is a restart. In a venue, mid-show.
+    //
+    // One line. Ask the device manager instead of a stale bool, and a re-pick actually re-opens.
+    if (deviceManager.getCurrentAudioDevice() == nullptr) opened = false;
     if (opened && ch == openedChannels) return {}; // already open on this config — don't interrupt playback
     if (opened) { deviceManager.removeAudioCallback(&player); player.setSource(nullptr); deviceManager.closeAudioDevice(); opened = false; }
     juce::String err = deviceManager.initialiseWithDefaultDevices(0, ch);
@@ -553,6 +567,19 @@ public:
     if (auto* dev = deviceManager.getCurrentAudioDevice()) return dev->getName();
     return {};
   }
+
+  // ⚠ IS THERE A DEVICE — WHICH IS NOT THE SAME QUESTION AS "DID THE ADDON LOAD".
+  //
+  // The UI's only probe was `audio:available`, and it reports ONLY whether the .node loaded. The addon is
+  // still perfectly loaded when the interface is unplugged, so Preferences went on printing
+  //     "Native JUCE + ambisonic engine active · output device: Focusrite Scarlett 2i2"
+  // over a silent room, NAMING A DEVICE THAT WAS PHYSICALLY GONE. That is the same self-reporting-healthy
+  // failure the missing-engine notice fixed in Session 0 — fixed once, in one place, and the lesson never
+  // reached the device layer.
+  //
+  // Rides the meters poll, which already runs at 10 Hz and already crosses IPC (see GetMeters). No new
+  // channel, no new timer.
+  bool deviceLive() { return deviceManager.getCurrentAudioDevice() != nullptr; }
 
   juce::StringArray listOutputDevices() {
     juce::StringArray names;
@@ -826,6 +853,10 @@ static Napi::Value GetMeters(const Napi::CallbackInfo& info) {
   obj.Set("masterFxChannels", Napi::Number::New(env, e.masterFxChannels()));
   obj.Set("deviceChannels", Napi::Number::New(env, e.deviceChannels()));
   obj.Set("clipped", Napi::Boolean::New(env, e.takeClipped())); // latched since the last poll, then cleared
+  // IS THERE STILL A DEVICE. Rides this poll (already 10 Hz, already across IPC) rather than opening a new
+  // channel — and it is a DIFFERENT QUESTION from `audio:available`, which reports only that the .node
+  // loaded. The addon stays loaded when the interface is unplugged; the sound does not. See Engine::deviceLive.
+  obj.Set("deviceLive", Napi::Boolean::New(env, e.deviceLive()));
   return obj;
 }
 
