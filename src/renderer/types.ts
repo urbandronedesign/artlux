@@ -1011,12 +1011,20 @@ export interface FixtureGroup {
   fixtureIds: string[];
 }
 
-// A named snapshot of the look (instant recall). Captures the visible state — surfaces,
-// fixtures, brightness, groups, 3D scene and projector outputs — and MAY now own its own
-// `timeline` (per-state decoupled NLE): when present, recalling the scene warm-swaps the
-// playback engine to it; when absent the scene falls back to the shared ProjectData.timeline.
-// Recall snaps instantly in v1; `fadeSec` is stored for a future crossfade engine. Every field
-// beyond fixtures/globalBrightness is optional so older minimal scenes still load.
+// A named snapshot of the look (instant recall). Captures the visible state — surfaces, fixtures,
+// brightness, groups, 3D scene and projector outputs — and it ALWAYS OWNS ITS OWN `timeline` (a
+// per-scene decoupled NLE): recalling the scene warm-swaps the playback engine to it.
+//
+// ⚠ THIS COMMENT USED TO SAY THE OPPOSITE, and it contradicted the field's own comment thirteen lines
+// below for four days. It said the scene "MAY now own its own timeline … when absent the scene falls back
+// to the shared ProjectData.timeline", and that fallback SHAPE WAS DELETED on 2026-07-14 (see `timeline`
+// below — it was the root of two automation-clock blockers). A stale header on a persisted type is worse
+// than a stale doc: it is what the docs get written FROM, and docs/SCENES.md and docs/SCENE-TIMELINES.md
+// both copied it faithfully.
+//
+// Recall snaps instantly in v1; `fadeSec` is stored for a future crossfade engine. Every field beyond
+// fixtures/globalBrightness/timeline is optional so older minimal scenes still load — and a scene loaded
+// WITHOUT a timeline (a pre-2026-07-14 file) is given an empty one by the loader, never a fallback.
 export interface Scene {
   id: string;
   name: string;

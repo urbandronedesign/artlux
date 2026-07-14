@@ -40,6 +40,7 @@ talks to its own main-process half). All are handed to the plugin in its `activa
 | `sceneViz` | `SceneVizContribution` | A react-three-fiber overlay mounted inside the editor's 3D `<Canvas>`. | lidar (blob markers) |
 | `videoCodecs` | `VideoCodecContribution` | A pluggable decoder for non-`<video>` file content (`canDecode`/`probe`/`openSurface`/`surfaceFrame`/`layerFrame`/`thumbnail`/…). | hap, mp4 |
 | `projectorPanels` | `ProjectorPanelContribution` | A full-window React overlay mounted **in projector output windows** (pattern/crosshair/render), with a bidirectional bridge. | calibration |
+| `automationTargets` | `AutomationTargetProvider` | **Publishes automatable parameters into the core curve engine** — `enumerate()` the targets a plugin owns, `write()`/`writeFade()` the two override layers, `release()`/`releaseFade()` to hand a path back, `get()` (authored) / `getLive()` (what is actually sounding). This is how an audio lane on the timeline is *the same object* as any other lane. ⚠ Undocumented here until 2026-07-14 — the table listed 8 of the 9 registries. | audio |
 | `settings` | `SettingsSection` | A Preferences section (`{settings, onChange}` Component). The persisted field stays core; only the editor moves. | mp4 (Video) |
 | `panels` | `PanelContribution` | A host-mounted UI panel. **Only `mount:'modal'`** today — a dialog toggled by a `menuAction`; host mounts it while open and passes `onClose`. | lidar (OSC Monitor) |
 

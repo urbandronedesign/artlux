@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+### ⚠ BREAKING (project files) — `Scene.timeline` is now REQUIRED
+
+A Scene could once have **no** `timeline` and fall back to the shared global one. **That shape is gone.**
+It was never reachable from the UI (nothing could create one), and it was the root of **two
+automation-clock blockers**: a lane copied into a scene got retagged to the *scene* clock **and** shadowed
+the genuine base lane by `targetPath` — so a house fade on `audio.master.gain` **snapped +9.6 dB in one
+frame on every GO**, and the wrong value was persisted to disk. No fix inside the engine could work: by the
+time it ran, the impostor lane was byte-identical to one the operator had drawn. So the *state* was deleted,
+which makes two of the three writers that could break the invariant **structurally impossible**.
+
+**What happens to an existing project:** it **loads**. A timeline-less scene is given an **empty** timeline
+by the loader. It does **not** fall back to the global one — so such a scene now recalls to a **black
+output** instead of silently playing the global timeline. **Delete the scene, or give it content.** Nothing
+else about the file changes, and nothing is lost on save.
+
+*(Also breaking, from Wave B: asset paths are now written per-container — every scene's timeline and the
+audio bed included — which makes a saved project **forward-incompatible** with builds before Wave 3.)*
+
+---
+
 **Timeline transport — Length bounds playback again (Wave A).** Reverts the v0.12.0 unbounded-clock
 change: `Timeline.duration` (the **Length** field) is once more the end of the timeline, and the
 transport bar gains **Stop**, **Set In**, **Set Out**, and draggable loop-region handles on the ruler.

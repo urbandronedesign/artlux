@@ -69,15 +69,33 @@ Full reset table (every transport event × both clocks): **[TIMELINE.md → The 
 ```ts
 Scene {
   …look fields (surfaces, fixtures, globalBrightness, groups, scene3D, projectorOutputs)…
-  timeline?: Timeline;   // per-state timeline; absent → uses the shared global timeline
+  timeline: Timeline;    // REQUIRED — every scene owns one. (Was `timeline?`; see the box below.)
   accent?: string;       // stable identity colour (node/pill/border/strip/cell) — see sceneAccent.ts
 }
 ```
 
-- **Additive, zero migration.** `Timeline` itself is unchanged and carries **no id** — pools are keyed
-  by `scene.id` (sentinel `'__global__'` for the shared fallback). A scene without `timeline` behaves
-  exactly as before. `applyProjectData` normalizes each loaded `scene.timeline` with
-  `normalizeTimeline()` and assigns an accent to scenes that lack one.
+> ### ⚠ `timeline` WAS OPTIONAL. THE OPTIONAL SHAPE WAS DELETED ON 2026-07-14, AND MOST OF THIS DOCUMENT
+> ### WAS WRITTEN AROUND IT.
+> A scene with **no** timeline ("plays the global one") was the root of **two automation-clock blockers**:
+> a lane copied into a scene got retagged to the *scene* clock **and** shadowed the genuine base lane by
+> `targetPath`, so a house fade on `audio.master.gain` **snapped +9.6 dB on every GO** and was persisted.
+> No fix inside `timeline.ts` could work — by the time it ran, the impostor was byte-identical to a lane
+> the operator had drawn. **So the state was deleted**, which makes two of the three writers that could
+> break the invariant *structurally impossible*.
+>
+> **What that means for this document:** the two-predicate section below is **historical**.
+> `isGlobalDocBound()` **no longer exists** — the two questions collapsed into one, and only
+> `clocksCoincident()` survives. `activeTimeline` is no longer `activeScene?.timeline ?? timeline`.
+> Anywhere below that reasons about "a scene with no timeline", read it as a record of why the shape is
+> gone, not as a description of the code.
+>
+> **Loading an older project is safe:** a timeline-less scene is given an **empty** timeline. It does not
+> fall back to the global one.
+
+- **Additive, zero migration *for the look*.** `Timeline` itself is unchanged and carries **no id** —
+  pools are keyed by `scene.id` (sentinel `'__global__'` for the global document). `applyProjectData`
+  normalizes each loaded `scene.timeline` with `normalizeTimeline()` — which turns a **missing** one into
+  an empty timeline rather than preserving its absence — and assigns an accent to scenes that lack one.
 - **Persistence is free.** `scenes` already rides in `buildProjectData`/`applyProjectData` /
   `ProjectData.scenes`; a scene's `timeline` saves with it. No `ProjectData` shape change.
 - **`buildSceneSnapshot` is look-only.** It deliberately does **not** include `timeline`, so

@@ -201,21 +201,27 @@ crossing-detects on it: `fsm.tick()` runs on `playhead` alone, deliberately.)
    operator's back. "Silent" is not "invisible": the park is published on `getStatus().showEnded`, because
    a consumer riding a **frozen** clock has to know it is frozen (the audio driver stops the bed on it —
    reconciling a live driver against a frozen clock does not go silent, it *buzzes*).
-3. **TWO PREDICATES, TWO QUESTIONS — and swapping them is a bug.**
-   - **`isGlobalDocBound()`** = `activeKey === GLOBAL_POOL || data === globalDoc` — *which **document** is
-     bound.* A scene with **no timeline of its own** plays the GLOBAL document under its own pool key, and
-     there `data.automation` **is** the base layer. This is the right question for **which clock a LANE
-     RIDES** (`compileAutomation`): a lane of the global doc is a base lane and rides the **show** clock,
-     wherever that doc happens to be bound. Ask the **document**, not the key.
-   - **`clocksCoincident()`** = `activeKey === GLOBAL_POOL` — *are `playhead` and `showTime` **the same
-     number**.* This is the right question for **whether a seek MOVES BOTH CLOCKS** (`seek()`). It is
-     **narrower**, and it must be: a timeline-less scene is bound with `transport:'restart'` (playhead → 0)
-     and the default `showClock:'preserve'` (bed rolls on) — the **document** is bound, the **clocks are
-     minutes apart**. Gating the seek on the document there hurls `showTime` to a scene-relative number and
-     **hard-restarts the bed on every entry to that state**. The Global pill is the only state no
-     restart-swap has pulled apart — which is also why `App.tsx` gates the bed's *lanes* on `activeSceneId`.
+3. **ONE PREDICATE — `clocksCoincident()` = `activeKey === GLOBAL_POOL`.** *Are `playhead` and `showTime`
+   the same number?* It gates **whether a seek moves both clocks** (`seek()`) **and which clock a lane
+   rides** (`compileAutomation`). Those used to be two questions, asked by two functions, and the second
+   function is gone.
 
-   `isGlobalDocBound()` **does not assert that the two clocks are equal.** It never did.
+   > ### ⚠ THIS INVARIANT USED TO SAY "TWO PREDICATES, TWO QUESTIONS — AND SWAPPING THEM IS A BUG."
+   > The other predicate was **`isGlobalDocBound()`** = `activeKey === GLOBAL_POOL || data === globalDoc` —
+   > *which **document** is bound* — and it existed for exactly one reason: **a scene with no timeline of
+   > its own played the GLOBAL document under its own pool key**, so "the global doc is bound" and "the
+   > clocks agree" could come apart. **That shape was deleted on 2026-07-14** (`Scene.timeline` is now
+   > required — see [SCENES.md](SCENES.md)), and with it the only state the two questions could disagree in.
+   >
+   > **The predicate was not merely redundant — it was the blocker.** `compileAutomation` decided a lane's
+   > clock by *document identity*, which is sound only under an unstated invariant: *a scene's automation
+   > must never hold a lane copied from the global timeline*. **Three writers broke it** (Capture Scene's
+   > `structuredClone`, the lazy fork, the plugin door), and a copied lane was then tagged `'scene'` **and**
+   > shadowed the genuine base lane by `targetPath` — so a house fade on `audio.master.gain` **snapped
+   > +9.6 dB in one frame on every GO**, and persisted to disk. No fix inside this file could work: by the
+   > time it ran, the impostor was byte-identical to a lane the operator had drawn.
+   >
+   > `isGlobalDocBound()` is **deleted**. The two questions collapsed into one. Do not reintroduce it.
 
 ### The two audio containers — the clock follows the CONTAINER
 
@@ -255,7 +261,7 @@ clips.
 |---|---|---|---|---|
 | 1 | **Stop** (`{kind:'stop'}`) | → the **BOUND** doc's start | **RESET to `globalStart`** — `getStart()` is the *bound* doc's start, and while a scene is bound that number means nothing to the bed | an explicit `showSeek(getGlobalStart())` in App's `stop` intent handler |
 | 2 | **Seek while GLOBAL is bound** — the pill (ruler scrub, `seekTo`, automation-lane click, Home/End, OSC, `host.show.transport`) | jumps | **MOVES to the same value** (the identity) | inside `seek()`: `if (!external && clocksCoincident()) showSeekInternal(clamped)` |
-| 3 | **Seek while ANY SCENE is bound** — *its own* timeline **or the global doc under its pool key** (a timeline-less scene) | jumps | **DOES NOT MOVE** | the same `if` — it simply does not fire. ⚠ **The timeline-less case is why the test is `clocksCoincident()` and not `isGlobalDocBound()`:** the *document* is bound but the clocks are minutes apart (`restart` reset the playhead; `preserve` left the bed running), so tracking the seek would hurl `showTime` to a scene-relative number and **hard-restart the bed on every entry to that state** |
+| 3 | **Seek while ANY SCENE is bound** (every scene owns a timeline) | jumps | **DOES NOT MOVE** | the same `if` — it simply does not fire. *(This row used to carve out "or the global doc under its pool key — a timeline-less scene", and cited that case as the reason the test is `clocksCoincident()` rather than `isGlobalDocBound()`. **That shape was deleted on 2026-07-14** and `isGlobalDocBound()` with it; see invariant 3 above. The rule is unchanged — a seek inside a scene never moves the show clock — but the exotic state it was defending against no longer exists.)* |
 | 4 | **Scene recall / GO / cueBus / FSM hop / `enterAuthor` / `fireColumn`** | → the scene's in-point | **NEVER RESET** — *the defining requirement* | `swap`'s default `showClock:'preserve'`; `mainSeek` never touches `showOriginMs` |
 | 5 | **Exit to Global** (pill → Global) | **RECONVERGES: `playhead := showTime`** | does not move | `swap(..., {transport:'reconverge'})`. Normally `showTime` is inside `[globalStart, globalEnd)` ⇒ nothing to clamp, **no `pause`**. ⚠ **Exception:** a **parked** show clock is at `globalEnd − 1/fps`, one frame inside the end, and `mainSeek` *clears* `endLatched` — so the raw end-stop would pulse `hitEnd` two frames later and fire `onTimelineEnd` **from a mouse click**. The arm therefore re-applies the latch: `endLatched = true` + a `pause` intent, **without pulsing `hitEnd`** |
 | 6 | **Scene deleted while bound** | as row 5 | as row 5 | `'reconverge'` |
