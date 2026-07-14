@@ -336,6 +336,42 @@ lives in Session 4 because that is where the automation tests are, but if you on
   crash, a power cut, a full disk or an AV lock in that window left the operator's project as `{\n  "name": `.
   It is now tmp + atomic rename.
 
+### The two native-engine tests — **THE ONLY THINGS LEFT ON THE MERGE BAR**
+
+*Both need real hardware and real ears. No sim can close either.*
+
+- [ ] **2.9 [BLOCKER] — the bed does not CLICK on a GO.** *(Merge-blocker plan, task 8. `23cb500`.)*
+  **DO:** a long bed, playing, **loud enough to hear detail**. Three scenes, each with **its own audio clip**
+  on its `Timeline.audio` (that is what forces a decode on entry). **GO between them ten times**, listening to
+  the bed — not to the stings.
+  **EXPECT:** the bed runs through all ten **without a click, a gap, a tick or a dropout**. Nothing.
+  **WHY IT MATTERS:** `addClip` called `AudioTransportSource::prepareToPlay` **while holding the audio lock**,
+  and that call **blocks on disk** — it prefills 0.25 s of audio on a background reader thread and spins in
+  5 ms sleeps until it lands. The audio thread reaches its own callback only by taking that same lock, so it
+  produced **no samples at all** for the whole prefill. At 48 kHz/512 the deadline is 10.7 ms; even a **warm,
+  page-cached read blows it**. The signal then resumed mid-waveform — a step discontinuity, which is broadband.
+  That is the click. And the driver has **no audio preload tier**, so a scene's sting is decoded **on entry,
+  every entry** — one blocking prepare under the audio lock **on every GO, all night.**
+  **IF IT FAILS:** tell Claude whether the click is on **every** GO or only on scenes whose audio is **not yet
+  warm in the OS page cache** (GO to a scene, leave, come back — the second entry should be the quiet one).
+  That discriminates a remaining lock-hold from a plain decode-latency gap, which is a different bug.
+
+- [ ] **2.10 [BLOCKER] — pull the USB cable out of the audio interface, mid-show.** *(Task 9. `5eb821d`.)*
+  **DO:** show running, bed audible, **physically unplug** the interface. Watch the **Audio Bed** header and
+  open **Preferences ▸ Audio**. Then **plug it back in** and press **Reconnect**.
+  **EXPECT:** within ~100 ms a red **`no output device`** badge appears in the Audio Bed. Preferences says
+  **"The output device is gone — the room is silent"** and offers a **Reconnect** button. Press it (after
+  replugging) and **sound returns with no restart**; the badge clears by itself.
+  **WHY IT MATTERS:** `configure()`'s guard keyed on an `opened` bool that **nothing ever set false when the
+  device died**, so the room went silent, JUCE did not recover, and the app **could not be recovered without a
+  restart**. Meanwhile Preferences printed *"Native JUCE + ambisonic engine active · output device: <the dead
+  one>"* — because its only probe reported whether the **`.node` had loaded**, which is a different question
+  entirely. And the fix's own design assumed a device picker **that does not exist**: `configure()` opens the
+  *default* device and the panel lists devices read-only, so the Reconnect button had to be **built**.
+  **⚠ IT DOES NOT AUTO-RECOVER, AND THE BADGE IS NOT A CURE.** Nothing polls `configure()`. In an attended show
+  that is fine. **In an unattended install nobody is there to press Reconnect, and the room stays silent until
+  someone visits.** Auto-recovery is logged to Wave 4. Do not let this test's pass be read as more than it is.
+
 ---
 
 ## SESSION 3 — The show's length: park, wrap, hard-cut (40 min)

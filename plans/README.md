@@ -111,6 +111,16 @@ They are written down here so that "not a merge blocker" cannot quietly become "
   scene A → scene B → scene A and a layer is simply gone, for the rest of the session.
 
 **Unattended-install rot (the class this project keeps re-learning):**
+- **THE AUDIO ENGINE DOES NOT RE-OPEN A DEAD DEVICE ON ITS OWN** *(opened 2026-07-14 by merge task 9 —
+  deliberately, and it must not be mistaken for a leftover)*. That task made a dead output device **visible**
+  (a `no output device` badge, an honest Preferences panel) and **recoverable** (a Reconnect button, plus the
+  `opened`-guard invalidation that makes a re-configure actually re-open). It did **not** make it *automatic*:
+  `configure()` is called from exactly two places — plugin activation and the Preferences panel — and nothing
+  polls it. **In an attended show that is fine. In an unattended install nobody is there to press Reconnect,
+  and the room is silent until someone visits — which is precisely the deployment this app exists for.**
+  Auto-recovery is a real design (retry backoff; *which* device to re-open when the default has changed; what
+  to do when it returns with a different channel count; how not to fight a device that is legitimately absent)
+  and it needs one. `scratch/devicedeath-sim.mjs` asserts the gap so a passing badge cannot be read as a cure.
 - `hooks/useHistory.ts:47` — every **automated** GO (FSM, scheduler, OSC) and every cue fire pushes an
   **uncapped deep JSON copy of the entire project** onto the undo stack. Nobody pressed anything. Six hours
   unattended is a leak, and [timeline-undo](timeline-undo.md) is the plan that already owns this edge.
