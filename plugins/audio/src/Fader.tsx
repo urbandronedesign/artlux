@@ -75,6 +75,25 @@ export const Fader: React.FC<FaderProps> = ({
   // this component on the effect's id (EffectChain) or on nothing at all (the clip's gain/height), and
   // Capture Scene aliases those ids too, so a rebind does NOT remount the fader and does NOT clear its draft.
   const gestureDoc = useRef<string | null>(null);
+  // ⚠ `disabled` IS NOW DYNAMIC, AND IT CAN FLIP UNDER A LIVE POINTER.
+  //
+  // It used to be static per instance (a timeline row is read-only for its whole life; master and clip gain
+  // had none at all). The mixer now disables a fader the moment an AUTOMATION LANE takes its path — and the
+  // FSM, the scheduler and an OSC/tablet GO all recall scenes ON SCHEDULE, mid-drag, with nobody watching.
+  // So a gesture that opened on a live fader can find itself on a DEAD one before the operator lets go.
+  //
+  // MIRRORED DURING RENDER, NOT IN AN EFFECT, AND THE TIMING IS THE WHOLE POINT: the browser blurs a focused
+  // input the instant React writes `disabled` to the DOM — during the commit phase, BEFORE any effect runs —
+  // and that blur calls commit() below. Only a ref written in the render body is already true by then.
+  const disabledRef = useRef(disabled);
+  disabledRef.current = disabled;
+  // …and if no blur arrives to close the gesture (the input was never focused), the draft would sit in state
+  // and REAPPEAR ON THE THUMB the moment the lane released it — minutes later, a value nobody typed, which
+  // the next blur would then commit. Drop it when the control dies.
+  React.useEffect(() => {
+    if (!disabled) return;
+    draftRef.current = null; gestureDoc.current = null; setDraft(null);
+  }, [disabled]);
   const set = (v: number | null) => {
     // A gesture OPENS on its first draft (a plain click fires no `input` event and opens nothing).
     if (v !== null && draftRef.current === null) gestureDoc.current = docKey ? docKey() : null;
@@ -107,6 +126,11 @@ export const Fader: React.FC<FaderProps> = ({
     set(null);
     gestureDoc.current = null;
     if (d === null) return;
+    // A LANE TOOK THE PATH MID-GESTURE → the control is DEAD → ABANDON, exactly as a rebind does below.
+    // The house rule (see docKey): losing an edit the operator must redo is the cheap failure. Committing
+    // would write their half-finished drag into the document as the authored value — a number they never
+    // released the thumb on, silently persisted, and revealed only when the lane is switched off later.
+    if (disabledRef.current) return;
     if (docKey && doc !== docKey()) return;   // a recall rebound the panel mid-gesture → ABANDON
     onCommit(d);
   };

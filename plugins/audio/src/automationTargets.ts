@@ -124,6 +124,54 @@ export const autoOrFadeMasterGain = (): number | undefined => layered(`${NS}.mas
 export const hasAnyOverride = (ownerId: string): boolean =>
   (byOwner.get(ownerId)?.size ?? 0) > 0 || (fadeByOwner.get(ownerId)?.size ?? 0) > 0;
 
+// ── THE SAME READ, FOR THE SURFACE THAT HAS TO *DRAW* IT ────────────────────────────────────────────
+// THE MIXER RENDERED THE AUTHORED VALUE AND NOTHING ELSE. The driver plays `lane ?? fade ?? authored`
+// (plugin.renderer.ts) and the panel's faders drew `mix.buses[master].gain` — the DOCUMENT — so a house
+// fade slid the room from 1.0 to 0.32 while the master fader sat frozen at 1.00. The panel was not merely
+// uninformative: it ASSERTED A LEVEL THE ENGINE WAS NOT PLAYING, which is the self-reporting-healthy
+// failure this codebase kills on sight (AudioBedPanel's own words, about a different field).
+//
+// Fader.tsx:87 already said it out loud — "the fader can sit at 1.00 over a 0.2 room" — and fixed only the
+// WRITE half (a gesture is always a takeover). This is the READ half.
+//
+// TWO READERS, ONE RULE, AND THEY MAY NEVER DRIFT:
+//   · layered()        — the DRIVER's hot path. Per clip, per frame. Allocates nothing, and must not.
+//   · drivenSnapshot() — the MIXER's 100 ms poll. Allocates one small Map; at 10 Hz nobody cares.
+// scratch/faderreadback-sim.mjs asserts, exhaustively over both maps, that they agree on every path.
+export type DrivenBy = 'lane' | 'fade';
+/** What the ENGINE is applying to a path, and WHICH LAYER is applying it. */
+export interface Driven { by: DrivenBy; value: number }
+
+// A SHARED FROZEN EMPTY, never a fresh `new Map()`: this lands in the panel's React state on every poll,
+// and the un-automated case is the overwhelmingly common one. Same reference ⇒ setState bails out ⇒ no
+// re-render. A fresh map per tick would re-render the whole mixer 10×/s for a show with no automation.
+const NOTHING_DRIVEN: ReadonlyMap<string, Driven> = new Map();
+
+/**
+ * Every path the engine is currently DRIVING, with the layer that owns it. The mixer polls this and draws
+ * the value it finds instead of the authored one, so the thumb IS the level in the room.
+ *
+ * ⚠ THE LAYER NAME IS NOT DECORATION — IT DECIDES WHETHER THE CONTROL IS DEAD.
+ *   · 'fade' — a scene/cue fade. A manual move is a REAL takeover and it WORKS: the mixer's onCommit calls
+ *     releaseFade(), which drops both halves (the layer entry AND the leg). The fader stays LIVE.
+ *   · 'lane' — an automation lane. A manual move is SILENTLY SHADOWED: only the automation engine may drop
+ *     a lane (Fader.tsx:89), so the write lands in the document, changes nothing audible, and is overwritten
+ *     on the next frame. The fader must go READ-ONLY, or it tells its second lie of the day.
+ *
+ * ⚠ THESE ARE BED PATHS. `audio.clip.<id>` / `audio.track.<id>` name the BED (readMix enumerates the bed and
+ * only the bed), and clip/track ids ALIAS across containers — Capture Scene structuredClones the timeline —
+ * so a caller rendering a TIMELINE row must not look its ids up in here. It would resolve, against the wrong
+ * container, and paint a bed lane's value onto a timeline fader. This is the same gate releaseSel makes on
+ * the write side, for the same reason, and it belongs to the CALLER: this map cannot know who is asking.
+ */
+export function drivenSnapshot(): ReadonlyMap<string, Driven> {
+  if (ovr.size === 0 && fade.size === 0) return NOTHING_DRIVEN;
+  const out = new Map<string, Driven>();
+  for (const [path, value] of fade) out.set(path, { by: 'fade', value });   // fade first…
+  for (const [path, value] of ovr) out.set(path, { by: 'lane', value });    // …lane laid OVER it.
+  return out;   // ORDER IS THE PRIORITY — the same rule layered() and applyClipLayers() both encode.
+}
+
 // One layer's worth of clip leaves, laid over `clip`. Called TWICE per clip (fade, then lane) — the SECOND
 // call wins on any path both layers hold, which IS the priority rule.
 function applyClipPaths<T extends OvClip>(clip: T, paths: Set<string> | undefined, values: Map<string, number>): T {

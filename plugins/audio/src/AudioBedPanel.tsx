@@ -66,7 +66,7 @@ import { audioClient } from './audioClient';
 import { EffectChain, type Effect, type FxParamRef } from './EffectChain';
 import { Fader } from './Fader';
 import { MASTER_BUS_ID } from './effectDefs';
-import { releaseFade } from './automationTargets';
+import { releaseFade, drivenSnapshot, type Driven } from './automationTargets';
 
 interface Spatial { x: number; y: number; z: number }
 interface Clip { id: string; trackId: string; name: string; path: string; start: number; duration: number; inPoint: number; sourceDuration?: number; gain?: number; mute?: boolean; spatial?: Spatial; effects?: Effect[] }
@@ -195,6 +195,25 @@ const TrackName: React.FC<{ value: string; disabled?: boolean; title?: string; o
   );
 };
 
+// WHO IS DRIVING THIS CONTROL — and, for a lane, WHY IT IS DEAD. Drawn beside any fader whose value is
+// coming from a layer above the document, because until now the ONLY way to discover that was to notice the
+// room did not match the number.
+//
+// The two layers differ in the one way the operator cares about — whether they can take the parameter back:
+//   · FADE — yes, and the gesture is the obvious one. onCommit → releaseFade() drops the layer AND the leg.
+//   · LANE — no. Only the automation engine may drop a lane (Fader.tsx:89), so a move would land in the
+//     document, change nothing audible, and be overwritten on the next frame. The fader is disabled and this
+//     badge is the whole explanation the operator gets — so it has to name the remedy, not just the state.
+const DriveBadge: React.FC<{ d: Driven }> = ({ d }) => (
+  <span
+    className={`shrink-0 px-1 rounded text-micro uppercase tracking-wider ${d.by === 'lane' ? 'bg-accent/15 text-accent' : 'bg-surface-3 text-fg-2'}`}
+    title={d.by === 'lane'
+      ? 'An automation LANE owns this parameter. What you see is what the engine is playing — and it is why this fader is read-only: a move here would be silently overwritten on the next frame. To take it back, switch off the lane in the timeline (the ⚡ button in its gutter).'
+      : 'A scene or cue FADE is holding this parameter. What you see is what the engine is playing, and it PERSISTS after the fade lands. The fader still works — move it to take the parameter back.'}>
+    {d.by}
+  </span>
+);
+
 const uid = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `a-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
 const emptyMix = (): Mix => ({ tracks: [], clips: [], buses: [] });
 // A SHARED FROZEN FALLBACK, never a fresh literal: it lands in React state and feeds a useMemo dep, so a
@@ -300,6 +319,20 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   // is looping underneath — so without this the panel shows a lit Play button over a frozen readout and dead
   // meters, and the only diagnosis available to a venue tech is "the audio engine crashed". See the badge.
   const [transport, setTransport] = useState({ playing: false, showTime: 0, showEnd: 0, sceneBound: false, showEnded: false });
+  // ── WHAT THE ENGINE IS ACTUALLY PLAYING, PER PATH ────────────────────────────────────────────────────
+  // Every fader below used to render the DOCUMENT's value. The driver plays `lane ?? fade ?? authored`
+  // (plugin.renderer.ts), so a house fade slid the master from 1.0 to 0.32 and THE FADER NEVER MOVED —
+  // a panel asserting a level the engine was not playing, which is the exact self-reporting-healthy
+  // failure this file kills on sight two hundred lines up (see the `vec3` note). Fader.tsx:87 had already
+  // written the bug down ("the fader can sit at 1.00 over a 0.2 room") and fixed only the WRITE half.
+  //
+  // Polled on the meter tick below (10 Hz — the same rate the meters move, and plenty for a fade), never
+  // subscribed: `ovr` is rewritten by the automation engine EVERY FRAME, so a subscription would re-render
+  // this panel 60×/s for the entire length of every fade in the show.
+  //
+  // Empty ⇒ drivenSnapshot() hands back a SHARED frozen map, so this setState bails out and a project with
+  // no automation at all pays nothing.
+  const [drive, setDrive] = useState<ReadonlyMap<string, Driven>>(drivenSnapshot);
   const [error, setError] = useState<string | null>(null);
   const [openMaster, setOpenMaster] = useState(false);
   // The spatial pad's in-flight drag (invariant 7). LOCAL state — a draft is not a document.
@@ -421,6 +454,8 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
       // the scene and nothing else, so no audio fan-out fires for it — which is exactly why the label is
       // drawn and not baked into the document at the mint. Off `st`, so the tick reads getStatus() ONCE.
       setBoundName(sceneNameFor(host, st.activeSceneId ?? null));
+      // What the engine is applying to each automatable path, so the faders can DRAW it (see `drive`).
+      setDrive(drivenSnapshot());
     }, 100);
     return () => clearInterval(iv);
   }, [host]);
@@ -493,6 +528,16 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   // the BED's namespace: because clip ids ALIAS across containers, releasing one for a timeline clip could
   // drop a LIVE fade on a real bed clip that happens to share the id. Silence here is not laziness.
   const releaseSel = (path: string) => { if (selSource === 'bed') releaseFade(path); };
+  // ⚠ THE READ-SIDE TWIN OF releaseSel, AND IT NEEDS THE SAME GATE FOR EXACTLY THE SAME REASON.
+  // `drive` is keyed by BED paths — the audio automation provider enumerates the BED and only the bed
+  // (automationTargets readMix), so a Timeline.audio clip or track has no lane and no fade over it, ever.
+  // But clip and track ids ALIAS across the two containers (Capture Scene structuredClones the bound
+  // timeline into a scene, ids verbatim), so looking a TIMELINE row's id up in this map RESOLVES — against
+  // the wrong container. The fader would draw a BED lane's value, the badge would name a lane that does not
+  // exist for it, and it would go READ-ONLY for that phantom lane. `bed` ⇒ read it; anything else ⇒ nobody
+  // is driving this control, which is the truth.
+  const drivenOn = (source: 'bed' | 'timeline' | null, path: string): Driven | undefined =>
+    (source === 'bed' ? drive.get(path) : undefined);
 
   // ---- THE AUTHORED WRITES. Every one names its PATH. -------------------------------------------------
   // Once the scene/cue fade layer exists the driver reads `laneOverride ?? sceneFade ?? authored`, and a
@@ -685,6 +730,9 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   // of a scene-authoring session. The container difference is now expressed where it actually lives: the
   // WRITE (selSource) and the RELEASE (releaseSel), not in a disabled attribute.
   const selTimeline = selSource === 'timeline';   // for the badge + the notes; NEVER for `disabled`
+  // What the ENGINE is playing for the selected clip's gain. BED clips only — a timeline clip has no lane
+  // and no fade over it, and its id aliases into the bed's namespace (see drivenOn).
+  const selGainDrive = selClip ? drivenOn(selSource, `audio.clip.${selClip.id}.gain`) : undefined;
 
   // ── THE TWO SHAPES THE BOUND DOCUMENT'S NAME IS SPOKEN IN ────────────────────────────────────────────
   // `boundName` is null for the global timeline — and also for the (impossible-but-cheap-to-survive) case
@@ -729,10 +777,16 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   const spatial = vec3(selClip?.spatial);
   const padX = padDraft?.x ?? spatial?.x ?? 0;
   const padZ = padDraft?.z ?? spatial?.z ?? 0;
+  // What the ENGINE is playing for the house level. The master bus is PROJECT-GLOBAL — one output chain —
+  // so this path names one thing and cannot alias across containers; it needs no drivenOn gate.
+  const masterDrive = drive.get('audio.master.gain');
 
   const trackRow = (t: Track, source: 'bed' | 'timeline') => {
     const ro = source === 'timeline';
     const roTitle = "Read-only here — edit this track on its timeline lane (the gutter carries its name, mute, solo and gain). It rides the PLAYHEAD and restarts with its timeline.";
+    // What the ENGINE is playing for this track's gain. BED tracks only — a timeline track's id aliases into
+    // the bed's namespace and would resolve against the wrong container (see drivenOn).
+    const drv = drivenOn(source, `audio.track.${t.id}.gain`);
     return (
       <div key={t.id} onDrop={ro ? undefined : onDrop(t.id)} onDragOver={ro ? undefined : allowDrop}
         className={`px-2 py-1.5 rounded border border-line-1 ${t.solo ? 'bg-accent/5' : 'bg-surface-2'} ${t.mute ? 'opacity-60' : ''} ${ro ? 'border-dashed' : ''}`}>
@@ -754,9 +808,16 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
             className={`shrink-0 disabled:opacity-40 disabled:cursor-not-allowed ${t.solo ? 'text-accent' : 'text-fg-3 hover:text-fg-1'}`}>
             <Headphones size={12} />
           </button>
-          <Fader value={t.gain ?? 1} min={0} max={1.5} step={0.01} disabled={ro}
+          {drv && <DriveBadge d={drv} />}
+          {/* `drv?.value ?? …` — THE LEVEL IN THE ROOM, not the level in the file. Disabled under a LANE,
+              because a move there is silently overwritten on the next frame; live under a FADE, because
+              there a move is a real takeover (setTrackGain → releaseFade). See DriveBadge. */}
+          <Fader value={drv?.value ?? t.gain ?? 1} min={0} max={1.5} step={0.01} disabled={ro || drv?.by === 'lane'}
             ariaLabel={`${t.name} gain`}
-            title={(v) => (ro ? roTitle : `gain ${g2(v)}`)}
+            title={(v) => (ro ? roTitle
+              : drv?.by === 'lane' ? `gain ${g2(v)} — an automation lane owns this. Switch the lane off in the timeline to take it back.`
+              : drv ? `gain ${g2(v)} — a scene/cue fade is holding this. Move the fader to take it back.`
+              : `gain ${g2(v)}`)}
             onCommit={(g) => setTrackGain(t.id, g)}
             className="flex-1 min-w-0"
             readout={g2} readoutClassName="text-micro text-fg-3 tabular-nums w-8 text-right shrink-0" />
@@ -959,13 +1020,17 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
                   </p>
                 )}
 
-                {/* gain */}
+                {/* gain — THE LEVEL IN THE ROOM, not the level in the file. See DriveBadge / drivenOn. */}
                 <div className="flex items-center gap-2">
                   <span className="text-micro text-fg-3 w-16 shrink-0">gain</span>
-                  <Fader value={selClip.gain ?? 1} min={0} max={1.5} step={0.01}
+                  {selGainDrive && <DriveBadge d={selGainDrive} />}
+                  <Fader value={selGainDrive?.value ?? selClip.gain ?? 1} min={0} max={1.5} step={0.01}
+                    disabled={selGainDrive?.by === 'lane'}
                     ariaLabel="clip gain"
                     docKey={gestureDocKey}
-                    title={(v) => `gain ${g2(v)}`}
+                    title={(v) => (selGainDrive?.by === 'lane' ? `gain ${g2(v)} — an automation lane owns this. Switch the lane off in the timeline to take it back.`
+                      : selGainDrive ? `gain ${g2(v)} — a scene/cue fade is holding this. Move the fader to take it back.`
+                      : `gain ${g2(v)}`)}
                     onCommit={(g) => setClipGain(selClip.id, g)}
                     className="flex-1 min-w-0"
                     readout={g2} readoutClassName="text-micro text-fg-2 tabular-nums w-16 text-right shrink-0" />
@@ -1048,9 +1113,18 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
                 straight into g2 → `"1".toFixed(2)` → TypeError in render. That one did not need a clip
                 selected or a panel scrolled: it white-screened the Audio Bed ON OPEN. The driver has guarded
                 this same read since 643d3c5 (boundGain, at the engine door); the fader beside it had not. */}
-            <Fader value={num(master.gain) ?? 1} min={0} max={1.5} step={0.01}
+            {/* THE HEADLINE CASE. `audio.master.gain` is precisely what a scene recall exists to fade and
+                what an operator puts a lane on — so this is the fader that spent Wave 3 frozen at 1.00 over
+                a room the engine had slid to 0.32. It draws the DRIVEN value now (see `drive`).
+                No container gate: the master bus is PROJECT-GLOBAL (one output chain), so `audio.master.gain`
+                names one thing and cannot alias — unlike the clip and track paths above. */}
+            {masterDrive && <DriveBadge d={masterDrive} />}
+            <Fader value={masterDrive?.value ?? num(master.gain) ?? 1} min={0} max={1.5} step={0.01}
+              disabled={masterDrive?.by === 'lane'}
               ariaLabel="master gain"
-              title={(v) => `master gain ${g2(v)}`}
+              title={(v) => (masterDrive?.by === 'lane' ? `master gain ${g2(v)} — an automation lane owns the house level. Switch the lane off in the timeline to take it back.`
+                : masterDrive ? `master gain ${g2(v)} — a scene/cue fade is holding the house level. Move the fader to take it back.`
+                : `master gain ${g2(v)}`)}
               onCommit={setMasterGain}
               className="w-40"
               readout={g2} readoutClassName="text-micro text-fg-3 w-8 tabular-nums" />
