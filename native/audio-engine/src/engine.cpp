@@ -526,40 +526,83 @@ public:
   Engine() : metering(bus, meterPeak, meterRms, meterCh, meterClipped) {}
   ~Engine() { closeDevice(); }
 
-  juce::String configure(int outputChannels, OutMode mode, const juce::String& layout) {
+  struct DeviceCfg {
+    juce::String type;    // '' = keep the current device type
+    juce::String name;    // '' = that type's default device
+    int channels = 2;
+    double sampleRate = 0; // 0 = the device's default
+    int bufferSize = 0;    // 0 = the device's default
+    OutMode mode = OutMode::Binaural;
+    juce::String layout { "stereo" };
+  };
+
+  struct OpenedCfg { juce::String deviceName, deviceType; double sampleRate = 0; int bufferSize = 0; int channels = 0; };
+
+  juce::String configure(const DeviceCfg& c, OpenedCfg& out) {
     // Decode mode/layout is applied live (decoder-only) — changing it never reopens the device.
-    bus.setMode(mode, layout);
-    const int ch = juce::jlimit(1, 64, outputChannels);
-    // ⚠ THE DEVICE CAN DIE UNDER US, AND `opened` DOES NOT KNOW.
-    //
-    // `opened` is set true when configure() succeeds and false only when configure() ITSELF tears the
-    // device down. NOTHING sets it false when the HARDWARE GOES AWAY — a bumped USB cable, a driver
-    // reload, a Windows power-management cycle on the interface. JUCE knows perfectly well
-    // (getCurrentAudioDevice() returns nullptr); the engine simply never asked.
-    //
-    // So: the room goes silent, JUCE does not recover on its own, and the operator does the one thing the
-    // UI offers — Preferences ▸ Audio ▸ pick the interface again — and the guard below TAKES THE EARLY
-    // RETURN AND DOES NOTHING, because the channel count still matches. The only recovery gesture in the
-    // application is inert, and the only way back is a restart. In a venue, mid-show.
-    //
-    // One line. Ask the device manager instead of a stale bool, and a re-pick actually re-opens.
+    bus.setMode(c.mode, c.layout);
+    const int ch = juce::jlimit(1, 64, c.channels);
+
+    // ⚠ THE DEVICE CAN DIE UNDER US, AND `opened` DOES NOT KNOW. Nothing sets it false when the HARDWARE
+    // goes away — a bumped USB cable, a driver reload, a Windows power-management cycle. JUCE knows
+    // (getCurrentAudioDevice() returns nullptr); the engine simply never asked. Without this line the
+    // Reconnect button takes the early return below and does nothing, and the only way back is a restart.
     if (deviceManager.getCurrentAudioDevice() == nullptr) opened = false;
-    if (opened && ch == openedChannels) return {}; // already open on this config — don't interrupt playback
+
+    // ⚠ THE GUARD KEYS ON THE WHOLE SETUP, NOT JUST THE CHANNEL COUNT. It used to compare `ch` alone —
+    // so SWITCHING DEVICE at the same channel count (the entire point of a device picker) would have hit
+    // this early return and CHANGED NOTHING. The picker would have looked wired and been inert.
+    if (opened && ch == openedChannels && c.type == openedType && c.name == openedName
+        && c.sampleRate == openedRate && c.bufferSize == openedBuffer) {
+      out = lastOpened;
+      return {}; // already open on exactly this config — don't interrupt playback
+    }
+
     if (opened) { deviceManager.removeAudioCallback(&player); player.setSource(nullptr); deviceManager.closeAudioDevice(); opened = false; }
-    juce::String err = deviceManager.initialiseWithDefaultDevices(0, ch);
+
+    // First call: initialise() is what builds the device-type list that setCurrentAudioDeviceType() needs.
+    if (!initialised) {
+      deviceManager.initialise(0, ch, nullptr, true);
+      initialised = true;
+    }
+    if (c.type.isNotEmpty() && c.type != deviceManager.getCurrentAudioDeviceType())
+      deviceManager.setCurrentAudioDeviceType(c.type, true);
+
+    juce::AudioDeviceManager::AudioDeviceSetup setup;
+    deviceManager.getAudioDeviceSetup(setup);
+    setup.outputDeviceName = c.name;      // '' ⇒ the type's default device
+    setup.inputDeviceName = {};
+    setup.sampleRate = c.sampleRate;      // 0 ⇒ device default
+    setup.bufferSize = c.bufferSize;      // 0 ⇒ device default
+    setup.useDefaultInputChannels = false;
+    setup.inputChannels.clear();
+    setup.useDefaultOutputChannels = false;
+    setup.outputChannels.clear();
+    setup.outputChannels.setRange(0, ch, true);
+    juce::String err = deviceManager.setAudioDeviceSetup(setup, true);
     if (err.isNotEmpty()) return err;
-    // The device can open with FEWER channels than we asked for (8 on a stereo card gives 2). The master
-    // chain must be built for what we actually got, or it would see a channel-count mismatch every block
-    // and pass dry. Push it BEFORE addAudioCallback — that's what triggers prepareToPlay, which builds it.
+
+    // The device can open with FEWER channels than we asked for (8 on a stereo card gives 2), and at a
+    // different rate/buffer than requested. The master chain must be built for what we ACTUALLY got, or it
+    // sees a channel-count mismatch every block and passes dry. Push it BEFORE addAudioCallback — that is
+    // what triggers prepareToPlay, which builds it.
     int actual = ch;
-    if (auto* dev = deviceManager.getCurrentAudioDevice())
+    if (auto* dev = deviceManager.getCurrentAudioDevice()) {
       actual = juce::jmax(1, dev->getActiveOutputChannels().countNumberOfSetBits());
+      out.deviceName = dev->getName();
+      out.sampleRate = dev->getCurrentSampleRate();
+      out.bufferSize = dev->getCurrentBufferSizeSamples();
+    }
+    out.deviceType = deviceManager.getCurrentAudioDeviceType();
+    out.channels = actual;
     bus.setOutputChannels(actual);
     if (!readThread.isThreadRunning()) readThread.startThread();
     player.setSource(&metering);
     deviceManager.addAudioCallback(&player);
     opened = true;
-    openedChannels = ch;
+    openedChannels = ch; openedType = c.type; openedName = c.name;
+    openedRate = c.sampleRate; openedBuffer = c.bufferSize;
+    lastOpened = out;
     return {};
   }
 
@@ -581,13 +624,25 @@ public:
   // channel, no new timer.
   bool deviceLive() { return deviceManager.getCurrentAudioDevice() != nullptr; }
 
-  juce::StringArray listOutputDevices() {
-    juce::StringArray names;
+  struct DeviceEntry { juce::String type, name; bool isDefault; };
+
+  // ⚠ NO NAME-LEVEL DEDUPE. One physical interface is enumerated under FOUR driver types — WASAPI shared,
+  // WASAPI exclusive, WASAPI shared-low-latency, DirectSound — all under the SAME NAME. The old dedupe
+  // collapsed them into one row and threw away the only thing that told them apart, which is why EXCLUSIVE
+  // MODE — the thing that delivers discrete 8-channel output on Windows — was already compiled in, already
+  // enumerated, and completely unreachable.
+  std::vector<DeviceEntry> listOutputDevices() {
+    std::vector<DeviceEntry> out;
     juce::OwnedArray<juce::AudioIODeviceType> types;
     deviceManager.createAudioDeviceTypes(types);
-    for (auto* t : types) { t->scanForDevices(); names.addArray(t->getDeviceNames(false)); }
-    names.removeDuplicates(false);
-    return names;
+    for (auto* t : types) {
+      t->scanForDevices();
+      const auto names = t->getDeviceNames(false);
+      const int def = t->getDefaultDeviceIndex(false);
+      for (int i = 0; i < names.size(); ++i)
+        out.push_back({ t->getTypeName(), names[i], i == def });
+    }
+    return out;
   }
 
   bool loadClip(const std::string& id, const juce::String& path, Clip*& out, juce::String& err) {
@@ -673,6 +728,11 @@ private:
   juce::TimeSliceThread readThread { "artlux-audio-read" };
   bool opened = false;
   int openedChannels = 0;
+  bool initialised = false;
+  juce::String openedType, openedName;
+  double openedRate = 0;
+  int openedBuffer = 0;
+  OpenedCfg lastOpened;
 };
 
 std::unique_ptr<Engine> gEngine;
@@ -685,24 +745,53 @@ static Napi::String JuceVersion(const Napi::CallbackInfo& info) {
   return Napi::String::New(info.Env(), juce::SystemStats::getJUCEVersion().toStdString());
 }
 
-// configure(outputChannels, mode?, layout?) — mode: 'binaural' (default, headphones) | 'speakers'.
-// layout (speakers mode): stereo | quad | 5.0 | 5.1 | 7.0 | 7.1 | hexagon | octagon | cube.
+// configure(cfg) — cfg: { deviceType?, deviceName?, channels?, sampleRate?, bufferSize?, mode?, layout? }
+// Returns the setup ACTUALLY OPENED: { deviceName, deviceType, sampleRate, bufferSize, channels }. It can
+// differ from what was asked (a stereo card asked for 8ch reports 2 back) and the UI must show what it GOT.
 static Napi::Value Configure(const Napi::CallbackInfo& info) {
   auto env = info.Env();
-  const int outCh = info.Length() > 0 && info[0].IsNumber() ? info[0].As<Napi::Number>().Int32Value() : 2;
-  const std::string modeStr = info.Length() > 1 && info[1].IsString() ? info[1].As<Napi::String>().Utf8Value() : "binaural";
-  const std::string layout = info.Length() > 2 && info[2].IsString() ? info[2].As<Napi::String>().Utf8Value() : "stereo";
-  const OutMode mode = (modeStr == "speakers") ? OutMode::Speakers : OutMode::Binaural;
-  juce::String err = ensureEngine().configure(outCh, mode, juce::String(layout));
+  Napi::Object o = info.Length() > 0 && info[0].IsObject() ? info[0].As<Napi::Object>() : Napi::Object::New(env);
+  const auto str = [&](const char* k, const char* dflt) -> std::string {
+    return o.Has(k) && o.Get(k).IsString() ? o.Get(k).As<Napi::String>().Utf8Value() : std::string(dflt);
+  };
+  const auto num = [&](const char* k, double dflt) -> double {
+    return o.Has(k) && o.Get(k).IsNumber() ? o.Get(k).As<Napi::Number>().DoubleValue() : dflt;
+  };
+  Engine::DeviceCfg cfg;
+  cfg.type = juce::String(str("deviceType", ""));
+  cfg.name = juce::String(str("deviceName", ""));
+  cfg.channels = (int) num("channels", 2);
+  cfg.sampleRate = num("sampleRate", 0);
+  cfg.bufferSize = (int) num("bufferSize", 0);
+  cfg.mode = (str("mode", "binaural") == "speakers") ? OutMode::Speakers : OutMode::Binaural;
+  cfg.layout = juce::String(str("layout", "stereo"));
+
+  Engine::OpenedCfg got;
+  juce::String err = ensureEngine().configure(cfg, got);
   if (err.isNotEmpty()) { Napi::Error::New(env, ("audio configure failed: " + err).toStdString()).ThrowAsJavaScriptException(); return env.Null(); }
-  return Napi::String::New(env, ensureEngine().currentDeviceName().toStdString());
+
+  auto r = Napi::Object::New(env);
+  r.Set("deviceName", Napi::String::New(env, got.deviceName.toStdString()));
+  r.Set("deviceType", Napi::String::New(env, got.deviceType.toStdString()));
+  r.Set("sampleRate", Napi::Number::New(env, got.sampleRate));
+  r.Set("bufferSize", Napi::Number::New(env, got.bufferSize));
+  r.Set("channels", Napi::Number::New(env, got.channels));
+  return r;
 }
 
+// getDevices() → [{ type, name, isDefault }]. One physical device appears once PER DRIVER TYPE — that is
+// the point, not a bug: the type is what decides whether you get discrete multichannel.
 static Napi::Value GetDevices(const Napi::CallbackInfo& info) {
   auto env = info.Env();
-  const auto names = ensureEngine().listOutputDevices();
-  auto arr = Napi::Array::New(env, (size_t) names.size());
-  for (int i = 0; i < names.size(); ++i) arr.Set((uint32_t) i, Napi::String::New(env, names[i].toStdString()));
+  const auto devs = ensureEngine().listOutputDevices();
+  auto arr = Napi::Array::New(env, devs.size());
+  for (size_t i = 0; i < devs.size(); ++i) {
+    auto d = Napi::Object::New(env);
+    d.Set("type", Napi::String::New(env, devs[i].type.toStdString()));
+    d.Set("name", Napi::String::New(env, devs[i].name.toStdString()));
+    d.Set("isDefault", Napi::Boolean::New(env, devs[i].isDefault));
+    arr.Set((uint32_t) i, d);
+  }
   return arr;
 }
 
