@@ -10,7 +10,8 @@ yourself in about four minutes.
 
 ## 1. Open it and listen
 
-**File ▸ Open…** → `01-the-bed.artlux`. Open the **Audio Bed** panel (`Ctrl+B`) and the **Timeline** panel.
+**File ▸ Open…** → `01-the-bed.artlux`. Open the **Audio Bed** panel (**View ▸ Audio Bed…**) and the
+**Timeline** panel (bottom dock).
 
 Press **Play** (`Space`).
 

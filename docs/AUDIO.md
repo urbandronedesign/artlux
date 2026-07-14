@@ -6,7 +6,8 @@ automated by the same curve engine that drives everything else. The engine is a 
 **libspatialaudio** ambisonics — every source is a *point in a field*, encoded into a shared B-format bus
 and decoded to headphones (HRTF binaural) or to a real speaker array.
 
-Shipped in **Wave 3** (`v0.22.0`). For the hands-on course, start at
+Shipped in **Wave 3**. **Not yet released** — it sits under `## Unreleased` in
+[CHANGELOG.md](../CHANGELOG.md); `package.json` is still at `v0.21.0`. For the hands-on course, start at
 **[`examples/audio/`](../examples/audio/README.md)** — five ready-to-open projects and a six-chapter
 tutorial.
 
@@ -28,22 +29,30 @@ tutorial.
 
 ```
 native/audio-engine/
-  src/engine.cpp        the whole engine: SpatialBus (ambisonic encode → binaural/speaker decode),
-                        Clip (transport + encoder + effect chain), master chain + fader, metering,
-                        device management, and the N-API surface
-  CMakeLists.txt        JUCE + libspatialaudio, fetched at configure time
+  src/engine.cpp        the transport + the bus: SpatialBus (ambisonic encode → binaural/speaker decode),
+                        Clip (transport + encoder + chain), the master fader, metering, device
+                        management, and the N-API surface
+  src/effects.h         the DSP: GainFx / FilterFx / ReverbFx / DelayFx / CompFx, and EffectChain.
+                        build() ALLOCATES (JS thread, never under the lock); setParams()/process() are
+                        allocation-free and run under it. `buildable()` is where a master reverb is
+                        refused — read its header comment before touching anything in here.
+  CMakeLists.txt        JUCE 8 + libspatialaudio, fetched at configure time
                         → build with `npm run build:audio`  ⚠ THE DEV APP MUST BE CLOSED
 
-plugins/audio/          the audio subsystem is A PLUGIN. Core knows nothing about sound.
+plugins/audio/src/      the audio subsystem is A PLUGIN. Core knows nothing about sound.
   plugin.main.ts        main-process side: the IPC handlers (audio:configure/getMeters/loadClip/…)
   plugin.renderer.ts    THE DRIVER — the frame loop that turns "where is the show" into engine calls
   audioManager.ts       the addon loader (load-or-null: no addon ⇒ perfect silence, never a crash)
   audioClient.ts        the renderer's typed IPC client
+  audioHost.ts          the host handle, set once by the driver — how the provider and the mixer reach
+                        host.audio / host.show without a prop drill
   AudioBedPanel.tsx     THE MIXER — bed tracks, the bound timeline's tracks, the clip inspector, master
   AudioSettings.tsx     Preferences ▸ Audio — device, channels, binaural/speakers, per-channel meters
   EffectChain.tsx       the insert-chain editor (used at both scopes)
   Fader.tsx             one fader. Drafts locally, commits once. Read it before touching any control.
-  automationTargets.ts  the audio automation PROVIDER: enumerate() the targets, apply() the values
+  automationTargets.ts  the audio automation PROVIDER: enumerate() the targets; write() / writeFade()
+                        the two override layers; release() / releaseFade() to hand a path back;
+                        get() (authored) and getLive() (what is actually sounding)
   effectDefs.ts         the FX catalog (types, params, ranges) — one source of truth for UI + engine
 
 src/renderer/components/timeline/
@@ -62,17 +71,35 @@ is in `plugins/audio/`.
 ```
  AudioClip (a file, trimmed, with a gain and a fade)
     │
-    ├─ insert chain  (AudioClip.effects)          ← "this voice is in a small room"
-    │
-    ├─ spatial?  ──yes──▶  ambisonic ENCODER  ──▶  shared B-format bus  ──▶  DECODER
-    │                      (mono, placed at x/y/z)                          binaural (HRTF)
-    │                                                                       or speaker array
-    └─ no ────────────────▶  summed straight through  ─────────────────────────┐
-                                                                               ▼
-                                                          master insert chain (AudioBus.effects)
-                                                                               │
-                                                                      master fader → device
+    ├─ SPATIAL ──▶ fold to MONO ──▶ insert chain (1 ch) ──▶ ambisonic ENCODER ──┐
+    │              ⚠ mono FIRST      (AudioClip.effects)     placed at x/y/z    │
+    │                                                                    shared B-format bus
+    │                                                                           │
+    │                                                                        DECODER
+    │                                                              binaural (HRTF) │ speaker array
+    │                                                                              │
+    └─ NOT SPATIAL ──▶ insert chain (2 ch) ──▶ summed straight through ────────────┤
+                                                                                   ▼
+                                                            master insert chain (AudioBus.effects)
+                                                                                   │
+                                                                          master fader → device
 ```
+
+### ⚠ The downmix comes BEFORE the chain, and that is a correctness fix, not an optimisation
+
+A spatial clip's chain is **mono (1 ch)**. A flat clip's is **stereo (2 ch)**. The engine folds a spatial
+source to mono *first* and only then runs its inserts — and the reason is worth knowing, because the obvious
+ordering is a trap:
+
+> **`juce::dsp::Reverb` in stereo deliberately DE-correlates L and R** — that decorrelation is what makes it
+> sound wide. And the very next thing the engine does to a spatial clip is **fold it to mono**. Run the
+> reverb first and you would be **comb-filtering that decorrelated field against itself.** So: downmix,
+> *then* process. (`native/audio-engine/src/effects.h`, header comment.)
+
+This is also why the **Spatial checkbox is not automatable** while the three position **axes** are: flipping
+it changes the chain's channel count (2 ⇔ 1) and **forces a full rebuild** — and a rebuild allocates, which
+must never happen on the audio thread. You can fly a source across the room sixty times a second. You cannot
+rebuild its DSP graph sixty times a second.
 
 ### There are exactly TWO insert points, and there never will be a third
 
@@ -98,9 +125,14 @@ This is the standard **object-audio** convention, and it is forced by the engine
 
 ## The mixer, and where each control actually lives
 
-The **Audio Bed** panel (`Ctrl+B`, or the ♪ button) is the mixer. It answers *"how loud, what does it sound
+The **Audio Bed** panel — **View ▸ Audio Bed…** — is the mixer. It answers *"how loud, what does it sound
 like"*. The **timeline lanes** answer *"when"*. The split is not taste — it falls straight out of the two
 insert points above.
+
+> It is a **plugin modal**, registered with `menuAction: 'audio-bed'` (`plugin.renderer.ts`), and that
+> registration is **unconditional** — the panel opens and renders even when the native addon failed to load.
+> It will simply have nothing to make sound with, and it says so (see the badges below). **There is no
+> keyboard shortcut for it.**
 
 | You want to… | Do it |
 |---|---|
@@ -179,36 +211,47 @@ When a layer owns a fader it says so:
 - **Output:** Preferences ▸ Audio — 1/2/4/6/8 channels, **binaural** (HRTF, for headphones) or a **speaker
   layout** (the mode for an installation). The device may open with *fewer* channels than you asked for; the
   master chain is built for what you actually got, and the panel tells you.
-- **No addon ⇒ perfect silence, never a crash.** `audioManager` is load-or-null. Authoring, saving and every
-  other output (DMX, projectors, OSC) keep working. A **`no audio engine`** badge and a startup notice say so
-   — because *silence with a UI that says everything is fine* is the failure this subsystem takes most
-  seriously.
-- **The device can die under you** (a bumped USB cable, a driver reload). A red **`no output device`** badge
-  appears, Preferences says so and names what it lost, and **Reconnect** restores sound with no restart.
-  ⚠ **It does not re-open a device by itself** — in an unattended install nobody is there to press Reconnect.
-  Tracked for Wave 4.
+### Three silences, three badges, three different fixes
+
+*Silence with a UI that says everything is fine* is the failure this subsystem takes most seriously. So every
+way the room can go quiet has its own badge in the Audio Bed header, and they must never be confused.
+
+| Badge | What it means | Fix |
+|---|---|---|
+| **`no audio engine`** (amber) | The native addon did **not load**. `audioManager` is load-or-null, so authoring, saving, DMX, projectors and OSC all keep working — there is simply nothing to make sound with. A startup notice says so too. | Built from source: `npm run build:audio`, **with the app closed**. |
+| **`no output device`** (red) | The engine is loaded and the show is running, but **the audio interface has gone** — a bumped USB cable, a driver reload, Windows power-cycling the device. | Reconnect it, then **Preferences ▸ Audio ▸ Reconnect**. Sound returns with no restart. ⚠ **ArtLux does not re-open a device by itself** — in an unattended install nobody is there to press it. Tracked for Wave 4. |
+| **`show ended`** (amber) | **Not a fault — the show is over.** The global timeline's Length ran out with **Loop off**, so the show clock **parked** and the driver correctly stopped the bed. But the transport still reports *playing* (a scene may be looping underneath), the Play button stays lit, and the readout freezes over a silent room. **This is the one an unattended install hits first** — the default project is 60 s with Loop **off**, so it reaches the end in one minute. | Raise the global **Length**, turn global **Loop** on, or **Stop → Play**. An installation's global timeline should essentially always loop. |
 
 ---
 
 ## Invariants (break these and it is audible)
 
-1. **Never block the audio thread.** The audio callback reaches the mixer only by taking `SpatialBus::lock`,
-   so *anything* slow done while holding that lock is a dropout — and a dropout resuming mid-waveform is a
-   step discontinuity, which is broadband. It is a **click**. `AudioTransportSource::prepareToPlay()` blocks
-   on **disk** (it prefills 0.25 s and spins until the reader lands) and `stop()` blocks for up to a second.
-   **Both happen outside the lock.** At 48 kHz / 512 the deadline is 10.7 ms — even a warm, page-cached read
-   blows it.
-2. **The bed rides `showTime`. Never the playhead.** Mirroring the bound document's playhead into anything
-   bed-related is a lie the moment a Scene is bound.
-3. **A fader drafts locally and commits once** (`Fader.tsx`). One commit is a full document write plus an
-   engine re-sync; doing that per `pointermove` is 60 of them a second on a live show.
-4. **A gesture can outlive its document.** Seconds pass between a pointerdown and its commit, and a recall in
-   that window rebinds the document underneath. Capture Scene makes the ids **byte-identical**, so every
-   id-keyed guard *resolves* — against the wrong scene. Continuous controls are keyed on `docKey`
-   (identity, never value) and **abandon** rather than write into the scene that is now on the projectors.
-5. **Clamp at the engine door, never in the normalizer.** A clamp on load would be persisted on the next save
-   and silently rewrite the author's value. The document keeps whatever it says; the *amplifier* gets a number
-   that is in range (`boundGain`).
+> **These are NAMED, not numbered — deliberately.** The codebase already cites numbered invariants
+> (*"Invariant 7"*, *"invariant 6"*) in dozens of source comments, and those numbers come from the Wave-3
+> plans, not from any list in `docs/`. A fresh 1–5 here would collide head-on: what a reader would call
+> "AUDIO.md invariant 3" is what forty source comments already call **invariant 7**. Where a rule *is* one of
+> the project's numbered ones, the number is given.
+
+- **Never block the audio thread.** The audio callback reaches the mixer only by taking `SpatialBus::lock`, so
+  *anything* slow done while holding that lock is a dropout — and a dropout resuming mid-waveform is a step
+  discontinuity, which is broadband. It is a **click**. `AudioTransportSource::prepareToPlay()` blocks on
+  **disk** (it prefills 0.25 s and spins until the reader lands); `stop()` blocks for up to a second; and
+  `EffectChain::build()` **allocates**. **All three happen outside the lock.** At 48 kHz / 512 the deadline is
+  **10.7 ms** — even a warm, page-cached read blows it.
+- **The bed rides `showTime`. Never the playhead.** Mirroring the bound document's playhead into anything
+  bed-related is a lie the moment a Scene is bound.
+- **Draft locally, commit once — *this is the project's invariant 7*** (`Fader.tsx`, and every continuous
+  control in the timeline). One commit is a full document write, an engine re-sync (a lock per clip) and a
+  recompile of every automation lane; doing that per `pointermove` is sixty of them a second on a live show.
+- **A gesture can outlive its document.** Seconds pass between a pointerdown and its commit, and a recall in
+  that window rebinds the document underneath. Capture Scene makes the ids **byte-identical**, so every
+  id-keyed guard *resolves* — against the wrong scene. Continuous controls are keyed on `docKey` (identity,
+  never value) and **abandon** rather than write into the scene that is now on the projectors.
+- **Coerce, do not drop — *this is the project's invariant 6***. A junk field in a `.artlux` must not delete
+  the operator's work and must not crash the app. It reads as its default.
+- **Clamp at the engine door, never in the normalizer.** A clamp on load would be persisted on the next save
+  and would silently rewrite the author's value. The document keeps whatever it says; the *amplifier* gets a
+  number that is in range (`boundGain`).
 
 ---
 

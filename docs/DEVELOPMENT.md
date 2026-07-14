@@ -49,7 +49,7 @@ engine dangerously easy to miss, so the build system treats it this way:
 |------|--------------------------------------|
 | `npm run build:native` | **Warns loudly, continues.** A cargo-only contributor is not blocked, but is told audio is dead. |
 | `npm run build:audio` | **Hard fails.** |
-| `npm run package` / `package:dir` | **Hard fails** (`--check` guard) — an installer can never be cut without an engine. |
+| `npm run package` / `package:dir` | **Hard fails** — an installer can never be cut without an engine. ⚠ It **rebuilds** it: both run `scripts/build-audio.cjs` with **no flags**, a full strict build. It is *not* a `--check`, and the difference matters — `--check` only asserts the addon **exists** and says nothing about whether it is **current**, so a stale engine would sail straight into an installer. (This row said `--check` until 2026-07-14; commit `473d259` changed the behaviour and left both this table and the note further down describing the old contract.) |
 | CI (`.github/workflows/build.yml`) | **Hard fails** — a tagged release cannot ship a silent audio UI. |
 
 Unlike `ndi.node`/`calib.node`, the addon is **not** a committed prebuilt: it is platform-specific,

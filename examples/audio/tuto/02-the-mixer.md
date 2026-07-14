@@ -10,7 +10,7 @@ The Audio Bed panel answers **"how loud, and what does it sound like."** The tim
 
 ## 1. The anatomy
 
-Open the **Audio Bed** (`Ctrl+B`). Four regions:
+Open the **Audio Bed** (**View ▸ Audio Bed…**). Four regions:
 
 ```
 ┌─ header ─────────────────────────────────────────────────────────────────┐

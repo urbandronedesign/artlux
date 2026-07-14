@@ -79,8 +79,8 @@ to disagree.
 
 ## Before you start
 
-1. **Open the Audio Bed panel** — `Ctrl+B`, or the **♪** button in the timeline toolbar. Keep it open; every
-   chapter uses it.
+1. **Open the Audio Bed panel** — **View ▸ Audio Bed…**. Keep it open; every chapter uses it. (There is no
+   keyboard shortcut for it — if you were told there was, that was wrong.)
 2. **Check you have sound.** If the Audio Bed header shows a **`no audio engine`** badge, ArtLux started
    without its native audio addon and there will be **silence, with everything else working normally**.
    Built from source, that addon is a separate step: `npm run build:audio`, **with the app closed**

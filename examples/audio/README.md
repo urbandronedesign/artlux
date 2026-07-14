@@ -24,8 +24,8 @@ in the usual way: each look is a built-in GPU **effect** (no video or image file
 ## How to open
 
 In ArtLux: **File ▸ Open…** (`Ctrl+O`) → pick a `.artlux` file. These are single-file projects — use
-**Open…**, not *Open Project Folder…*. Then open the **Audio Bed** panel (`Ctrl+B`, or the **♪** button in
-the timeline toolbar) and the **Timeline** panel (bottom dock).
+**Open…**, not *Open Project Folder…*. Then open the **Audio Bed** panel (**View ▸ Audio Bed…**) and the
+**Timeline** panel (bottom dock).
 
 **No sound at all?** Look for a **`no audio engine`** badge in the Audio Bed header. Built from source, the
 native engine is a separate step — `npm run build:audio`, **with the app closed**. See
