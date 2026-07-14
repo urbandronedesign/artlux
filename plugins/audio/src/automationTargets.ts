@@ -36,6 +36,33 @@ interface OvBus { id: string; effects?: OvEffect[] }
 const NS = 'audio';
 export const AUDIO_NS = NS;
 
+// A DOCUMENT IS NOT A TYPE. `effects` is one of the two fields NO sanitizer coerces (sanitizeAudioClip
+// spreads ...c and touches only start/duration/inPoint/sourceDuration/gain/mute/fades), and a PLUGIN can
+// write a clip through patchTimelineClip, which does `{...c, ...patch}` and never sees a sanitizer at all.
+// So this module must assume nothing about the shape of what it is handed.
+//
+// enumerate() is called from compileAutomation on EVERY project load and EVERY GO, with no try/catch. A
+// bare `for..of` over a non-iterable there is a CRASH ON LOAD — the app is dead before the operator sees a
+// pixel. And not throwing is not the same as being fine: a STRING is iterable, so `for (const fx of
+// 'reverb')` walks its CHARACTERS and silently emits six targets whose id is undefined.
+//
+// The array->object corruption this guards (`"effects": {"0": {...}}`) is not hypothetical — this repo has
+// already shipped it once; see the `segments` repair in applyProjectData.
+function effectsOf(x: { effects?: unknown }): Effect[] {
+  if (!Array.isArray(x.effects)) return [];
+  return x.effects.filter((fx): fx is Effect =>
+    !!fx && typeof fx === 'object'
+    && typeof (fx as Effect).id === 'string'
+    && typeof (fx as Effect).type === 'string');
+}
+
+// Same rule for the OVERRIDE path, where an fx chain is only ever mapped, never read for its type.
+// `Array.isArray`, NOT truthiness: `{}` is truthy and `{}.map` is not a function — which is how a CUE
+// firing an fx param could crash the frame loop with no automation lane anywhere in the document.
+function ovEffectsOf(x: { effects?: unknown }): OvEffect[] | undefined {
+  return Array.isArray(x.effects) ? (x.effects.filter(fx => !!fx && typeof fx === 'object') as OvEffect[]) : undefined;
+}
+
 const readMix = (): Mix => (getAudioHost()?.audio.getMix() as Mix) ?? { tracks: [], clips: [], buses: [] };
 
 // ── The live override layer ─────────────────────────────────────────────────────────────────────
@@ -102,7 +129,7 @@ export const hasAnyOverride = (ownerId: string): boolean =>
 function applyClipPaths<T extends OvClip>(clip: T, paths: Set<string> | undefined, values: Map<string, number>): T {
   if (!paths || paths.size === 0) return clip;
   let spatial = clip.spatial;
-  let effects = clip.effects;
+  let effects = ovEffectsOf(clip); // NOT clip.effects — `{}` is truthy and `{}.map` is not a function
   for (const path of paths) {
     const v = values.get(path);
     if (v === undefined) continue;
@@ -120,7 +147,7 @@ function applyClipPaths<T extends OvClip>(clip: T, paths: Set<string> | undefine
 /** Same, for the master bus. */
 function applyBusPaths<T extends OvBus>(bus: T, paths: Set<string> | undefined, values: Map<string, number>): T {
   if (!paths || paths.size === 0) return bus;
-  let effects = bus.effects;
+  let effects = ovEffectsOf(bus); // NOT bus.effects — see applyClipPaths
   for (const path of paths) {
     const v = values.get(path);
     if (v === undefined) continue;
@@ -226,7 +253,7 @@ export const audioAutomationProvider: AutomationTargetProvider = {
           out.push({ path: `${NS}.clip.${c.id}.spatial.${ax}`, label: `Position ${ax.toUpperCase()}`, group: g, ...POS, def: c.spatial[ax] ?? 0 });
         }
       }
-      for (const fx of c.effects ?? []) {
+      for (const fx of effectsOf(c)) {
         const def = defOf(fx.type);
         if (!def) continue;
         for (const p of def.params) {
@@ -241,7 +268,7 @@ export const audioAutomationProvider: AutomationTargetProvider = {
     }
     const master = mix.buses.find(b => b.id === MASTER_BUS_ID);
     out.push({ path: `${NS}.master.gain`, label: 'Gain', group: 'Master', ...GAIN, def: master?.gain ?? 1 });
-    for (const fx of master?.effects ?? []) {
+    for (const fx of master ? effectsOf(master) : []) {
       const def = defOf(fx.type);
       if (!def) continue;
       for (const p of def.params) {

@@ -573,6 +573,27 @@ const sanitizeClip = (c: VideoClip): VideoClip => ({
 // boolOrAbsent is the boolean twin of finiteNum: a real boolean survives byte-for-byte (an authored
 // `false` stays `false`, so load(save(x)) === x), and anything else becomes ABSENT, which reads as
 // "not muted" at every call site. Coerce to absent, do not drop the clip.
+// AN INSERT CHAIN IS AN ARRAY OR IT IS NOTHING. `effects` was the one field on a clip that this sanitizer
+// spread straight through (`...c`), so whatever the file held reached the readers verbatim — and the audio
+// plugin's enumerate() iterated it with a bare `for..of`, from compileAutomation, on EVERY project load and
+// EVERY GO, with no try/catch. `"effects": {"0": {…}}` is therefore a CRASH ON LOAD: the app is dead before
+// the operator sees a pixel. That array→object corruption is not hypothetical — this repo has already
+// shipped it once (see the `segments` repair in applyProjectData).
+//
+// And not-throwing is not the same as being fine: a STRING is iterable, so `for (const fx of "reverb")`
+// walks its CHARACTERS and silently emits six targets with an undefined id.
+//
+// Coerce, but do NOT eat the operator's work: an fx with an id and a type keeps its params untouched, and a
+// null slot is filtered out of an otherwise-good chain rather than condemning the whole chain.
+export const sanitizeEffects = (v: unknown): AudioEffect[] | undefined => {
+  if (!Array.isArray(v)) return undefined;
+  const out = v.filter((fx): fx is AudioEffect =>
+    !!fx && typeof fx === 'object'
+    && typeof (fx as AudioEffect).id === 'string'
+    && typeof (fx as AudioEffect).type === 'string');
+  return out.length ? out : undefined;
+};
+
 export const sanitizeAudioClip = (c: AudioClip): AudioClip => ({
   ...c,
   start: finiteNum(c.start) ?? 0,
@@ -583,6 +604,7 @@ export const sanitizeAudioClip = (c: AudioClip): AudioClip => ({
   mute: boolOrAbsent(c.mute),
   fadeIn: finiteNum(c.fadeIn) ?? undefined,
   fadeOut: finiteNum(c.fadeOut) ?? undefined,
+  effects: sanitizeEffects(c.effects),
 });
 
 // A TRACK's numbers need the same guard as a clip's — and this is not theoretical. The driver
@@ -841,11 +863,16 @@ export const normalizeAudioMix = (a: Partial<AudioMix> | null | undefined): Audi
   return {
     tracks: inner.tracks,
     clips: inner.clips,
-    // Buses stay a shape guard (no numeric coercion here yet): a bus's `gain` is read through
-    // masterBus()/`?? 1` and its effect params are a Record the plugin owns. Junk THERE is a separate
-    // hole from the one this task closes; it is not widened by anything in Wave B.
+    // A bus's `gain` is still only a shape guard — it is read through masterBus()/`?? 1`, so junk there is
+    // survivable. Its `effects` is NOT: the comment here used to call that "a separate hole… not widened by
+    // anything in Wave B", and it was right about the provenance and wrong about the consequence. The audio
+    // plugin's enumerate() iterates the MASTER bus's chain with a bare `for..of`, from compileAutomation, on
+    // every project load and every GO — so `"effects": {"0": {…}}` on the master bus is a CRASH ON LOAD,
+    // exactly as it is on a clip. Same coercion, same reason. (The readers are hardened too — a plugin can
+    // write a bus the sanitizer never sees — but the door is where it belongs.)
     buses: (Array.isArray(a.buses) ? a.buses : [])
-      .filter((b): b is AudioBus => !!b && typeof b === 'object' && !Array.isArray(b)),
+      .filter((b): b is AudioBus => !!b && typeof b === 'object' && !Array.isArray(b))
+      .map((b): AudioBus => ({ ...b, effects: sanitizeEffects(b.effects) })),
   };
 };
 
