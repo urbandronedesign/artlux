@@ -32,9 +32,9 @@ block with decisions a human must make before building.
 
 ---
 
-## Shipped & merged (archived)
+## Shipped (archived)
 
-Seven plans have landed on `main` and moved to [`archive/`](archive/). Full per-wave record in
+**Eleven** plans are complete and have moved to [`archive/`](archive/). Full per-wave record in
 [SEQUENCING.md](SEQUENCING.md#status-tracker).
 
 | Plan | Lifts | Status |
@@ -46,20 +46,20 @@ Seven plans have landed on `main` and moved to [`archive/`](archive/). Full per-
 | [Auto-patch collision detection](archive/autopatch-collision-detection.md) | #6 Patch & Prove | ✅ merged — detector + reservation (Phase C split-brain deferred) |
 | [Schedule/show engine under `--headless`](archive/headless-plugin-host.md) | #10 Ship It | ✅ merged — schedule-fire runtime-verified |
 | [In-app docs browser](archive/docs-browser.md) | (net-new) | ✅ shipped v0.21.0 |
+| [Watchdog relaunch throttle](archive/watchdog-relaunch-throttle.md) | #10 Ship It | ✅ **merged 2026-07-11** (Wave 0) — `minRelaunchGapSec` pacing + the Preferences field. *(This row said "not started" until 2026-07-14, three days after it merged.)* |
+| [Show-control tablet parity](archive/show-control-tablet-parity.md) | #7 Operator Remote | ✅ **merged 2026-07-11** (Wave 0) — tablet multi-bank + per-cue fire + Kick hard-cuts SSE. *(Same — this table was never updated when Wave 0 landed.)* |
+| [Timeline transport + global/scene scoping + audio scene binding](archive/timeline-transport-and-audio-scoping.md) | (net-new, Wave 3) | ◑ **COMPLETE — lands with `wave-3-audio`.** Wave A live-tested on hardware; Wave B = the show clock, audio lanes, the mixer, audio on scenes/cues. **Supersedes P5** of `audio-engine.md`. |
+| [Asset paths: scenes + audio bed](archive/asset-paths-scenes-and-audio.md) | #9 Pack & Hand Off | ◑ **COMPLETE — lands with `wave-3-audio`.** `mapAssetPaths` → per-container visitors over the top level, **every scene**, and the bed. ⚠ Makes a saved project **forward-incompatible** with older builds. |
 
 ## Active plans
 
 | Plan | Lifts (tutorial set) | Placement | Risk | Status |
 |------|----------------------|-----------|------|--------|
-| [Watchdog relaunch throttle](watchdog-relaunch-throttle.md) | #10 Ship It | **Core** | 🟢 Low | Wave 0 — not started |
-| [Show-control tablet parity](show-control-tablet-parity.md) | #7 Operator Remote | **Plugin** | 🟡 Med | Wave 0 — not started |
 | [Content source-region (crop)](content-source-region.md) | #5 Hello Projector | **Core** | 🟡 Med | held behind webgl-strict Phase 2 |
 | [Projector blend preview + phase-lock](projector-blend-preview.md) | #5 Hello Projector | **Hybrid** | 🟡 Med | held (loosely gated on webgl-strict) |
 | [WebGL strict per-surface sampling](webgl-strict-per-surface-sampling.md) | #1 Composite Stage | **Core** | 🟡 Med | **Phase 1 shipped** (banner + force-WebGL + GPU settings); **Phase 2 deferred — open GitHub decision issue** |
 | [MIDI controller support](midi-control.md) | (net-new) | **Plugin** | 🟡 Med | not started (Draft) |
 | [Native audio engine](audio-engine.md) | (net-new, Wave 3) | **Hybrid** | 🔴 High | **P0–P4 shipped** on `wave-3-audio` (bed, spatial, FX, automation); **P5 shipped as Wave B** (its §WS6 was **wrong** and is corrected in place); P6 last |
-| [Timeline transport + global/scene scoping + audio scene binding](timeline-transport-and-audio-scoping.md) | (net-new, Wave 3) | **Hybrid** | 🟠 Med-High | **Wave A shipped + live-tested 2026-07-12**; **Wave B landed on `wave-3-audio` 2026-07-12** — the show clock, audio lanes, the mixer, audio on scenes/cues. **Live smoke test pending**; not merged. Execution plan: **[2026-07-12-audio-scoping-wave-b.md](../docs/superpowers/plans/2026-07-12-audio-scoping-wave-b.md)** |
-| [Asset paths: scenes + audio bed](asset-paths-scenes-and-audio.md) | #9 Pack & Hand Off | **Core** | 🟠 Med | **Shipped** as Wave B Task 1 (`mapAssetPaths` → per-container visitors over the top level, **every scene**, and the bed). ⚠ It makes a saved project **forward-incompatible** with older builds — see [CHANGELOG](../CHANGELOG.md) |
 | [Transport: prev/next edit point](transport-edit-point-navigation.md) | (net-new; Wave A leftover) | **Core** | 🟢 Low | Draft — the `⏮`/`⏭` buttons are **in the transport sketch and were never built**: Wave A's plan narrowed to "the three controls that never had a button" and the two skip buttons dropped out between the drawing and the plan. The *capability* is missing too — there is **no prev/next navigation of any kind** in the timeline. Land **after** `wave-3-audio` merges (it touches `TimelineToolbar.tsx`) |
 | [Timeline undo](timeline-undo.md) | (net-new, Wave 4) | **Core** | 🟡 Med | Draft — **there is no undo for any timeline edit**, and the show engine (FSM/OSC/cues/scheduler) pushes history entries **no human made** onto an **uncapped** stack |
 | [Renderer error containment](renderer-error-containment.md) | #10 Ship It | **Core** | 🟠 Med | Draft — **the watchdog is blind to a white screen.** A first-render throw means the heartbeat never fires, so the watchdog **never arms** and an unattended install sits dead until someone drives to the venue |

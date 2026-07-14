@@ -1313,7 +1313,7 @@ Then **open it in the app and re-save it**, to confirm it round-trips through th
 
 - [ ] **Step 2: Rewrite the script**
 
-- **Fixture section (~line 159):** delete the `S-noTL` bullet. Replace it with a note: *"Every scene owns its own timeline. The 'plays global' shape was deleted on 2026-07-14 — see [the merge-blocker plan](plans/2026-07-14-wave-3-merge-blockers.md), Task 5 — because it caused two clock blockers and nothing in the UI could create it."*
+- **Fixture section (~line 159):** delete the `S-noTL` bullet. Replace it with a note: *"Every scene owns its own timeline. The 'plays global' shape was deleted on 2026-07-14 — see the merge-blocker plan (`docs/superpowers/plans/2026-07-14-wave-3-merge-blockers.md`), Task 5 — because it caused two clock blockers and nothing in the UI could create it."*
 - **Test 2.2:** rewrite to recall **S3** (which owns a timeline but has no audio of its own) ten times. The bed must not restart. Note in the record that the original 2.2 passed against `S-noTL` **before** the shape was deleted, and that the property is now covered here.
 - **Sessions 3, 4, 5:** every *"repeat with S-noTL bound"* / *"the nastiest reachable form"* instruction is retired. Substitute **S1** (looping, with its own audio on `Timeline.audio`) — that is now the sharpest case, because it exercises both audio containers on both clocks at once.
 - **Session 3's seek test (~line 357):** keep it. Rewrite the target to **S1**. The hazard it guards — *"an FSM `seek` / OSC `/transport/seek` on entry to a state sets `showTime := 10`"* — is still real; it just no longer needs the deleted shape to reach it.

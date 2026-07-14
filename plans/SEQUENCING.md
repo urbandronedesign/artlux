@@ -38,7 +38,7 @@ before audio's additive apply-hook. `types.ts` (5 plans) and `paramPath.ts` (3) 
 
 **Why `asset-paths ──▶ Wave B` is hard, not cosmetic.** Wave B adds `Timeline.audio` — a new
 path-bearing container on **every** timeline (the global one *and* each scene's).
-[asset-paths-scenes-and-audio](asset-paths-scenes-and-audio.md) restructures `projectFolder.mapAssetPaths`
+[asset-paths-scenes-and-audio](archive/asset-paths-scenes-and-audio.md) restructures `projectFolder.mapAssetPaths`
 from an inline walker into per-container visitors applied to both the top level and each scene. Build
 Wave B first and the audio path field gets added to the one branch that exists today
 (`projectFolder.ts:67`, which also **skips an audio-only timeline entirely**), scene timelines stay
@@ -50,28 +50,28 @@ is never visited at all, so bed paths save absolute and Collect Assets neither c
 
 ### Wave 0 — Quick isolated wins · branch `wave-0-quick-wins`
 Zero shared-file overlap with anything; fast confidence-builders.
-1. [watchdog-relaunch-throttle](watchdog-relaunch-throttle.md) — `watchdog.ts`, `Preferences.tsx` (isolated)
-2. [show-control-tablet-parity](show-control-tablet-parity.md) — `plugins/show-control/*` only (isolated)
+1. [watchdog-relaunch-throttle](archive/watchdog-relaunch-throttle.md) — `watchdog.ts`, `Preferences.tsx` (isolated)
+2. [show-control-tablet-parity](archive/show-control-tablet-parity.md) — `plugins/show-control/*` only (isolated)
 
 ### Wave 1 — Foundation hardening · branch `wave-1-foundation`
 Each hardens code a later wave (or audio) builds on. Suggested intra-wave order minimizes `Stage.tsx` churn:
 1. [webgl-strict-per-surface-sampling](webgl-strict-per-surface-sampling.md) — render backend parity *(unblocks Wave 2 render plans)*
-2. [dmx-io-fidelity](dmx-io-fidelity.md) — `Stage.tsx` dest/wire path *(unblocks autopatch)*
-3. [cue-authoring-robustness](cue-authoring-robustness.md) — fixes `paramPath.setIn` + recall/cue path *(unblocks audio)*
-4. [asset-ops-safety](asset-ops-safety.md) — hardens `projectFolder.ts` asset pipeline *(unblocks audio asset category)*
-5. [headless-plugin-host](headless-plugin-host.md) — restructures the headless entry *(unblocks audio headless phase)*
+2. [dmx-io-fidelity](archive/dmx-io-fidelity.md) — `Stage.tsx` dest/wire path *(unblocks autopatch)*
+3. [cue-authoring-robustness](archive/cue-authoring-robustness.md) — fixes `paramPath.setIn` + recall/cue path *(unblocks audio)*
+4. [asset-ops-safety](archive/asset-ops-safety.md) — hardens `projectFolder.ts` asset pipeline *(unblocks audio asset category)*
+5. [headless-plugin-host](archive/headless-plugin-host.md) — restructures the headless entry *(unblocks audio headless phase)*
 
 ### Wave 2 — Render & output build-out · branch `wave-2-render-output`
 Consume Wave 1's hardened render/dest paths.
-1. [fixture-segments-finish](fixture-segments-finish.md) — render-path; no hard dep but co-located to batch `Stage.tsx`/`WebGPUMapper` churn
+1. [fixture-segments-finish](archive/fixture-segments-finish.md) — render-path; no hard dep but co-located to batch `Stage.tsx`/`WebGPUMapper` churn
 2. [content-source-region](content-source-region.md) — **after** webgl-strict
 3. [projector-blend-preview](projector-blend-preview.md) — **after** webgl-strict
-4. [autopatch-collision-detection](autopatch-collision-detection.md) — **after** dmx-io-fidelity
+4. [autopatch-collision-detection](archive/autopatch-collision-detection.md) — **after** dmx-io-fidelity
 
 ### Wave 3 — Audio subsystem · branch `wave-3-audio` (large — the whole wave lives on one long-running branch)
 The [audio engine](audio-engine.md), landed on the now-hardened foundations. **Two plans govern this wave:**
 `audio-engine.md` for P0–P4 and P6, and
-[timeline-transport-and-audio-scoping](timeline-transport-and-audio-scoping.md), which **supersedes P5**
+[timeline-transport-and-audio-scoping](archive/timeline-transport-and-audio-scoping.md), which **supersedes P5**
 and prepends a net-new **Wave A** (the transport work P5 turned out to be blocked on). The revised
 internal order — *the ✅ phases are on the branch, unmerged*:
 
@@ -80,10 +80,10 @@ internal order — *the ✅ phases are on the branch, unmerged*:
 3. ✅ **P2** — ambisonic bus + libspatialaudio (binaural first, then speaker decode) + spatial UI
 4. ✅ **P3** — effect chains (juce_dsp) + effect params
 5. ✅ **P4** — the core **automation-curve engine** + timeline automation lanes
-6. ✅ **Wave A** *(net-new — [transport plan](timeline-transport-and-audio-scoping.md))* — the transport bar,
+6. ✅ **Wave A** *(net-new — [transport plan](archive/timeline-transport-and-audio-scoping.md))* — the transport bar,
    `Length` becomes a real end, `Loop` works on first press, the `onTimelineEnd` FSM trigger, global-vs-scene
    legibility + the OSC loop bug. **Live-tested on hardware 2026-07-12 — passed.**
-7. ⏳ **asset-paths** *(net-new — [asset-paths plan](asset-paths-scenes-and-audio.md))* — `mapAssetPaths` becomes
+7. ⏳ **asset-paths** *(net-new — [asset-paths plan](archive/asset-paths-scenes-and-audio.md))* — `mapAssetPaths` becomes
    per-container visitors applied to the top level **and each scene**, and starts visiting the bed.
    **Sequenced here deliberately: it is a hard prerequisite for Wave B** (see the dependency graph above),
    and it fixes a portability bug the already-shipped P1–P4 bed introduced.
@@ -134,7 +134,7 @@ not), which is the cross-cutting hazard the README warns about, already realised
 
 ## Independent track — Docs browser (parallel-safe)
 
-[docs-browser](docs-browser.md) — an in-app, detachable markdown viewer for the examples/tutorials + user
+[docs-browser](archive/docs-browser.md) — an in-app, detachable markdown viewer for the examples/tutorials + user
 guide. It touches **no wave subsystem** (build config, a new window entry, a markdown dep, additive
 menu/IPC), so it can be built on its own branch `feat-docs-browser` **in parallel with any wave** and
 merged whenever tested. Recommended alongside Wave 0/1 so the tutorials become viewable in-app early.
@@ -153,7 +153,7 @@ being external-control front-ends; its continuous-CC → param path also gains a
 
 [transport-edit-point-navigation](transport-edit-point-navigation.md) — the `⏮`/`⏭` buttons from the transport
 sketch. **Not a bug: a gap between two plans.** The sketch
-([timeline-transport-and-audio-scoping.md:98](timeline-transport-and-audio-scoping.md)) drew four transport
+([timeline-transport-and-audio-scoping.md:98](archive/timeline-transport-and-audio-scoping.md)) drew four transport
 buttons; Wave A's execution plan opened with *"add the three controls that never had a button: Stop, Set In,
 Set Out"* and the two skip buttons never entered the task list. Wave A then passed its own acceptance, because
 it did everything **its** plan asked. Found 2026-07-13 while running the Wave 3 acceptance script.

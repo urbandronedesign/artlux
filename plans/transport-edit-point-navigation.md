@@ -6,7 +6,7 @@
 
 ## 1. The limitation today
 
-The transport bar sketched in [timeline-transport-and-audio-scoping.md:98](timeline-transport-and-audio-scoping.md) has **four** transport buttons:
+The transport bar sketched in [timeline-transport-and-audio-scoping.md:98](archive/timeline-transport-and-audio-scoping.md) has **four** transport buttons:
 
 ```
  ⏮ ⏸ ⏹ ⏭ │ ⟳ Loop │ [I] [O] │ 00:00:33.19 / 00:01:00.00    transport — what is playing
@@ -107,7 +107,7 @@ Nothing to migrate. The feature is derived entirely from data every project alre
 
 | Concern | Assessment |
 |---|---|
-| **The playhead must never enter React state** | The panel would re-render 60×/s. Wave A's plan calls this out explicitly ([:106](timeline-transport-and-audio-scoping.md)). The handler reads `timelineRef.current` and `engine.getPlayhead()` **at click time** — nothing is memoized into render state and the edit-point list is never held across frames. **This is the only way to get this wrong.** |
+| **The playhead must never enter React state** | The panel would re-render 60×/s. Wave A's plan calls this out explicitly ([:106](archive/timeline-transport-and-audio-scoping.md)). The handler reads `timelineRef.current` and `engine.getPlayhead()` **at click time** — nothing is memoized into render state and the edit-point list is never held across frames. **This is the only way to get this wrong.** |
 | **Recomputing `editPoints()` per click** | O(n log n) over clips+markers, on a pointer event. A 500-clip timeline is microseconds. Do **not** "optimise" this into a `useMemo` keyed on the timeline — that reintroduces the re-render hazard above for no measurable gain. |
 | Seek semantics under a bound scene | Free, and correct, **because** we go through `engine.seek()` (§4c). The risk is entirely in *not* doing that. |
 | Interaction with Wave 3's show clock | None, provided §4b (exclude bed clips) and §4c (use `engine.seek()`) hold. Both are one-liners and both are testable. |

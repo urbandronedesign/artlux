@@ -16,29 +16,29 @@ It is not. It visits exactly four places:
 
 | Visited | Line |
 |---|---|
-| `data.surfaces[].content.url` (VIDEO/IMAGE) | [:45-53](../src/main/projectFolder.ts#L45) |
-| `data.scene3D.models[].path` | [:56-62](../src/main/projectFolder.ts#L56) |
-| `data.timeline.clips[].path` + `.content.url`, `data.timeline.trackingTakes[].path` | [:66-78](../src/main/projectFolder.ts#L66) |
-| `data.assets[].path` (the managed library) | [:81-83](../src/main/projectFolder.ts#L81) |
+| `data.surfaces[].content.url` (VIDEO/IMAGE) | [:45-53](../../src/main/projectFolder.ts#L45) |
+| `data.scene3D.models[].path` | [:56-62](../../src/main/projectFolder.ts#L56) |
+| `data.timeline.clips[].path` + `.content.url`, `data.timeline.trackingTakes[].path` | [:66-78](../../src/main/projectFolder.ts#L66) |
+| `data.assets[].path` (the managed library) | [:81-83](../../src/main/projectFolder.ts#L81) |
 
 **It never visits `data.scenes[]`, and it never visits `data.audio`.** Both hold asset paths:
 
-- **`Scene`** ([types.ts:801-813](../src/renderer/types.ts#L801)) carries its own **`surfaces?: Surface[]`** (each with `content.url`), its own **`scene3D?: Scene3D`** (models with `path`), and its own **`timeline?: Timeline`** (clips with `path` / `content.url`, plus `trackingTakes`). Every one of those is a collectable asset reference, and every one is invisible to the visitor.
-- **`ProjectData.audio`** ([protocol.ts:555](../../shared/protocol.ts#L555)) is an `AudioMix` whose clips carry **`path`** ([types.ts:648](../src/renderer/types.ts#L648)) — a field whose own comment reads *"audio file (absolute in memory, **relative on disk — like every asset path**)"*. **That comment is false.** Nothing relativizes it. The audio bed shipped in Wave 3 (P0–P4) and its paths have never been on the portability path at all.
+- **`Scene`** ([types.ts:801-813](../../src/renderer/types.ts#L801)) carries its own **`surfaces?: Surface[]`** (each with `content.url`), its own **`scene3D?: Scene3D`** (models with `path`), and its own **`timeline?: Timeline`** (clips with `path` / `content.url`, plus `trackingTakes`). Every one of those is a collectable asset reference, and every one is invisible to the visitor.
+- **`ProjectData.audio`** ([protocol.ts:555](../../../shared/protocol.ts#L555)) is an `AudioMix` whose clips carry **`path`** ([types.ts:648](../../src/renderer/types.ts#L648)) — a field whose own comment reads *"audio file (absolute in memory, **relative on disk — like every asset path**)"*. **That comment is false.** Nothing relativizes it. The audio bed shipped in Wave 3 (P0–P4) and its paths have never been on the portability path at all.
 
 Three consumers ride this one function, so all three inherit the hole:
 
 | Consumer | Call site | What breaks |
 |---|---|---|
-| `relativizeAssets` — **on save** | [persistence.ts:76](../src/main/persistence.ts#L76) | Scene and audio paths are **never made relative**, so they are saved **absolute**, baked to the authoring machine. |
-| `resolveAssets` — **on load** | [persistence.ts:93,100](../src/main/persistence.ts#L93) | A relative scene/audio path is never made absolute. (Latent today only because nothing writes one — see below.) |
-| `collectInto` — **Collect Assets** (in place + to a folder) | [ipc.ts:86,88](../src/main/ipc.ts#L86) → [projectFolder.ts:202-256](../src/main/projectFolder.ts#L202) | Scene-only and audio-only assets are **not copied**, and — the sharp part — **not rewritten either**. |
+| `relativizeAssets` — **on save** | [persistence.ts:76](../../src/main/persistence.ts#L76) | Scene and audio paths are **never made relative**, so they are saved **absolute**, baked to the authoring machine. |
+| `resolveAssets` — **on load** | [persistence.ts:93,100](../../src/main/persistence.ts#L93) | A relative scene/audio path is never made absolute. (Latent today only because nothing writes one — see below.) |
+| `collectInto` — **Collect Assets** (in place + to a folder) | [ipc.ts:86,88](../../src/main/ipc.ts#L86) → [projectFolder.ts:202-256](../../src/main/projectFolder.ts#L202) | Scene-only and audio-only assets are **not copied**, and — the sharp part — **not rewritten either**. |
 
 ### The failure that actually bites
 
 **Collect Assets reports success and still ships a broken project.**
 
-`collectInto` runs `mapAssetPaths` twice: a discovery pass that copies each unique source into `assets/` ([:212-229](../src/main/projectFolder.ts#L212)), then a rewrite pass that repoints references at the copies ([:232](../src/main/projectFolder.ts#L232)). Because the managed library **is** visited, a file that has a library entry **does get copied** into `assets/`. But the scene's own clip — the thing that actually plays it — is never visited, so it is **never repointed**. The result:
+`collectInto` runs `mapAssetPaths` twice: a discovery pass that copies each unique source into `assets/` ([:212-229](../../src/main/projectFolder.ts#L212)), then a rewrite pass that repoints references at the copies ([:232](../../src/main/projectFolder.ts#L232)). Because the managed library **is** visited, a file that has a library entry **does get copied** into `assets/`. But the scene's own clip — the thing that actually plays it — is never visited, so it is **never repointed**. The result:
 
 - Collect says *"copied 12"*. The file is genuinely sitting in `assets/video/`.
 - The scene's clip still points at `D:\stock\loop.mp4` on the author's machine.
@@ -145,17 +145,17 @@ if (out.audio) out.audio = mapAudio(out.audio, map);
 ```
 
 **Aliasing is already safe, and it is worth knowing why.** `buildSceneSnapshot` stashes `surfaces` **by reference** and `handleCaptureScene` does `structuredClone(activeTimeline)` — so the *same path string* legitimately appears in a dozen places, and a scene's `timeline` may even be the *same object* as the global one. That is fine on all three consumers:
-- `collectInto`'s `remap` is keyed by **path string**, so a file referenced twelve times is copied **once** ([:213](../src/main/projectFolder.ts#L213)).
+- `collectInto`'s `remap` is keyed by **path string**, so a file referenced twelve times is copied **once** ([:213](../../src/main/projectFolder.ts#L213)).
 - Every `map` in play is **idempotent**: `relativize` no-ops on an already-relative path (`isAbsolute` is false), `resolve` no-ops on an already-absolute one, and the collect-rewrite's `remap.get(p) ?? p` no-ops on a path already pointing into `assets/`.
 So visiting the same object twice cannot double-apply. (It does mean the *output* holds two distinct objects where the input held one shared reference — irrelevant, since the value is immediately serialised to JSON.)
 
 ### WS3 · Make `missing` honest
 
-`CollectResult.missing` ([protocol.ts:567](../../shared/protocol.ts#L567)) is populated inside the discovery pass ([:219](../src/main/projectFolder.ts#L219)), so widening the visitor fixes it for free — a scene-only asset that has vanished from disk will now be reported. **Verify this explicitly** rather than assuming it; the renderer surfaces `missing` to the user and it is the only signal they get.
+`CollectResult.missing` ([protocol.ts:567](../../../shared/protocol.ts#L567)) is populated inside the discovery pass ([:219](../../src/main/projectFolder.ts#L219)), so widening the visitor fixes it for free — a scene-only asset that has vanished from disk will now be reported. **Verify this explicitly** rather than assuming it; the renderer surfaces `missing` to the user and it is the only signal they get.
 
 ### WS4 · Correct the lying comment
 
-[types.ts:648](../src/renderer/types.ts#L648) — `AudioClip.path`'s *"relative on disk — like every asset path"* becomes true only when WS2 lands. Until then it is a trap for the next reader. Land them together.
+[types.ts:648](../../src/renderer/types.ts#L648) — `AudioClip.path`'s *"relative on disk — like every asset path"* becomes true only when WS2 lands. Until then it is a trap for the next reader. Land them together.
 
 ## ⚠️ Breaking changes (warn loudly)
 
@@ -173,11 +173,11 @@ The diff is small and confined to one file, but that file is on the path of **ev
 3. **The double-visit in `collectInto` is load-bearing.** The discovery pass and the rewrite pass must walk the *same* set of paths, or a file gets copied and never repointed (which is precisely today's bug, one level up). Both go through `mapAssetPaths`, so they stay in step by construction — do not "optimise" one of them into a bespoke walk.
 4. **Scale.** With N scenes each holding a full surfaces + timeline snapshot, the visitor now walks ~N× more objects, twice per Collect. This is a save-time operation on data already being serialised to JSON; not a concern, but do not add a per-path `statSync` inside the visitor.
 
-Blast radius, grepped: `relativizeAssets`/`resolveAssets` ([persistence.ts:76,93,100](../src/main/persistence.ts#L76)), `collectAssets`/`collectAssetsToFolder` ([ipc.ts:86,88](../src/main/ipc.ts#L86)), and the renderer's two Collect entry points ([App.tsx:1036,1051](../src/renderer/App.tsx#L1036)). No plugin consumes any of them.
+Blast radius, grepped: `relativizeAssets`/`resolveAssets` ([persistence.ts:76,93,100](../../src/main/persistence.ts#L76)), `collectAssets`/`collectAssetsToFolder` ([ipc.ts:86,88](../../src/main/ipc.ts#L86)), and the renderer's two Collect entry points ([App.tsx:1036,1051](../../src/renderer/App.tsx#L1036)). No plugin consumes any of them.
 
 ## Migration & back-compat
 
-No migration needed and none possible: an old project's absolute scene paths remain valid absolute paths and load unchanged. They are converted to relative on the next save, silently and correctly, provided the asset lives inside the project folder. An asset *outside* the folder stays absolute (that is `relativizeAssets`'s existing contract, [:97-99](../src/main/projectFolder.ts#L97)) until the user runs Collect.
+No migration needed and none possible: an old project's absolute scene paths remain valid absolute paths and load unchanged. They are converted to relative on the next save, silently and correctly, provided the asset lives inside the project folder. An asset *outside* the folder stays absolute (that is `relativizeAssets`'s existing contract, [:97-99](../../src/main/projectFolder.ts#L97)) until the user runs Collect.
 
 ## Verification (repo patterns — no unit runner)
 
@@ -209,6 +209,6 @@ Then the fixture + the folder-move test, which is the only thing that actually p
 ## Open questions
 
 1. **How do we handle the forward-compat break?** Accept + changelog is the honest minimum. Is a `ProjectData.version` bump worth it *purely* as a marker, given nothing reads it today? Or do we care about downgrade at all?
-2. **Can a `CueEntry` carry an asset path?** `CueEntry.value` is `number | string | boolean | null` ([types.ts:822-823](../src/renderer/types.ts#L822)) and its `path` is a `paramPath` dot-path. If `surfaces.<id>.content.url` is reachable through `setByPath` and offerable by the cue picker, then **cues are a fifth blind spot** and belong in this fix. The cue picker enumerates numeric/fadeable leaves, so it is *probably* unreachable — **verify before closing this out** rather than assuming.
-3. **Plugin-contributed content types.** `SurfaceContent.type` is an open union ([types.ts:174](../src/renderer/types.ts#L174)) and `mapSurfaces` only maps `VIDEO`/`IMAGE`. A plugin content type carrying a file path is not collected. Pre-existing and out of scope here, but it is the same class of bug and the registry gives us somewhere to put a seam if a plugin ever needs one.
+2. **Can a `CueEntry` carry an asset path?** `CueEntry.value` is `number | string | boolean | null` ([types.ts:822-823](../../src/renderer/types.ts#L822)) and its `path` is a `paramPath` dot-path. If `surfaces.<id>.content.url` is reachable through `setByPath` and offerable by the cue picker, then **cues are a fifth blind spot** and belong in this fix. The cue picker enumerates numeric/fadeable leaves, so it is *probably* unreachable — **verify before closing this out** rather than assuming.
+3. **Plugin-contributed content types.** `SurfaceContent.type` is an open union ([types.ts:174](../../src/renderer/types.ts#L174)) and `mapSurfaces` only maps `VIDEO`/`IMAGE`. A plugin content type carrying a file path is not collected. Pre-existing and out of scope here, but it is the same class of bug and the registry gives us somewhere to put a seam if a plugin ever needs one.
 4. **`Timeline.audio` (Wave B).** The [timeline/audio scoping plan](timeline-transport-and-audio-scoping.md) adds a per-timeline audio container. `mapTimeline` must grow to visit it when it lands — one more reason the timeline walker must exist in exactly one place. Leave a comment there pointing at it.

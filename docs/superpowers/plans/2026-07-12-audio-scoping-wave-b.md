@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
-> **Ground truth:** [`.superpowers/sdd/wave-b-ground-truth.md`](../../../.superpowers/sdd/wave-b-ground-truth.md) — six agents read the code and mapped every surface this touches. Where the design spec ([`plans/timeline-transport-and-audio-scoping.md`](../../../plans/timeline-transport-and-audio-scoping.md)) disagrees with it, **the ground truth wins**. Every `file:line` in this plan came from it or was re-verified by reading the file.
+> **Ground truth:** [`.superpowers/sdd/wave-b-ground-truth.md`](../../../.superpowers/sdd/wave-b-ground-truth.md) — six agents read the code and mapped every surface this touches. Where the design spec ([`plans/timeline-transport-and-audio-scoping.md`](../../../plans/archive/timeline-transport-and-audio-scoping.md)) disagrees with it, **the ground truth wins**. Every `file:line` in this plan came from it or was re-verified by reading the file.
 
 **Goal:** The global audio bed keeps playing, uninterrupted, across scene recalls — because it rides its own **show clock**. Audio becomes a first-class timeline lane (drag, trim, blade, fade handles) instead of a numeric `@ N s` field. The Audio Bed panel becomes a real **mixer** whose clip inspector follows the timeline selection. And scenes/cues can recall audio parameters with a fade, where an automation lane always wins.
 
@@ -132,7 +132,7 @@ Branch `wave-3-audio`. Commit after every task. Do **not** merge to `main` — t
 
 Also note the guard at `projectFolder.ts:67` — `if (tl && (Array.isArray(tl.clips) || Array.isArray(tl.trackingTakes)))` — **skips an audio-only timeline entirely**, and an audio-only timeline is now an authorable shape (Wave A removed `normalizeTimeline`'s `if (!Array.isArray(t.layers)) return base;` bail; see the comment at `types.ts:537-540`).
 
-Full context: [`plans/asset-paths-scenes-and-audio.md`](../../../plans/asset-paths-scenes-and-audio.md).
+Full context: [`plans/asset-paths-scenes-and-audio.md`](../../../plans/archive/asset-paths-scenes-and-audio.md).
 
 **Files:**
 - Modify: `src/main/projectFolder.ts` — `mapAssetPaths` and its comment header (**lines 38-86**)
@@ -3332,7 +3332,7 @@ git grep -n "parts\[0\] === 'surfaces' ? 'surf' : 'fix'"            # must print
 > P5 therefore required: a head-aware `pathLeaf`, an `AUDIO_FADEABLE` leaf set, a registry-driven cue picker,
 > a `writeFade` member on the SDK's `AutomationTargetProvider`, and a **second override layer** in the audio
 > plugin read *under* the automation one. See
-> [2026-07-12-audio-scoping-wave-b.md](../docs/superpowers/plans/2026-07-12-audio-scoping-wave-b.md), Task 9.
+> Task 9 of this plan (below).
 
 Also fix **`plans/audio-engine.md:68`**'s companion claim that per-frame audio fades apply *"at the existing hook (Stage.tsx)"* — **there is no audio sink in Stage's `tick()`**; the `eff*` values feed only the LED mapper and the composite. The sink is the **audio driver's own `eff`/`effGain`** pull-through.
 
@@ -3346,7 +3346,7 @@ Under `## Unreleased`, after the Wave A block:
 - **The show clock.** The global audio bed (`ProjectData.audio`) and the global timeline's automation now
   ride a second derived time, `showTime`, which a scene recall does **not** reset. A five-minute ambient
   bed plays continuously across every GO while the picture restarts. There is still exactly one transport
-  (one `playing`, one rAF, one `<video>` pool) — see [docs/TIMELINE.md](docs/TIMELINE.md) for the full
+  (one `playing`, one rAF, one `<video>` pool) — see [docs/TIMELINE.md](../../TIMELINE.md) for the full
   reset table. **Leaving a scene reconverges**: the playhead snaps to the show clock, so the picture
   rejoins the bed. (Clicking the scene pill back to Global used to *stop the transport* and kill the bed.)
 - **The global timeline's Length is the SHOW's length.** The bed is bounded by it: with the global Loop on,

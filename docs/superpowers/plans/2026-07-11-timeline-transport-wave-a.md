@@ -4,7 +4,7 @@
 
 **Goal:** Make the timeline's transport controls tell the truth — `Length` becomes the real end of the timeline, `Loop` works on first press, Stop and in/out are reachable without a hidden keyboard shortcut — and make the global-vs-scene timeline model visible instead of merely correct.
 
-**Architecture:** Wave A is **core-only, no audio**. It is the first half of [`plans/timeline-transport-and-audio-scoping.md`](../../../plans/timeline-transport-and-audio-scoping.md); Wave B (show clock, audio lanes, mixer, scene binding) lands after a live checkpoint. Three of the five user asks turn out to be *already-built-but-inert* controls, so most of this plan is making existing data (`Timeline.duration`, `.inPoint`, `.outPoint`, `.loop`) actually govern the clock, plus surfacing it.
+**Architecture:** Wave A is **core-only, no audio**. It is the first half of [`plans/timeline-transport-and-audio-scoping.md`](../../../plans/archive/timeline-transport-and-audio-scoping.md); Wave B (show clock, audio lanes, mixer, scene binding) lands after a live checkpoint. Three of the five user asks turn out to be *already-built-but-inert* controls, so most of this plan is making existing data (`Timeline.duration`, `.inPoint`, `.outPoint`, `.loop`) actually govern the clock, plus surfacing it.
 
 **Tech Stack:** Electron 42 · React 19 · TypeScript (strict) · Tailwind (design tokens only) · `requestAnimationFrame` engine in `src/renderer/services/timeline.ts`.
 
