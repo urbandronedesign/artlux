@@ -121,6 +121,12 @@ They are written down here so that "not a merge blocker" cannot quietly become "
   Auto-recovery is a real design (retry backoff; *which* device to re-open when the default has changed; what
   to do when it returns with a different channel count; how not to fight a device that is legitimately absent)
   and it needs one. `scratch/devicedeath-sim.mjs` asserts the gap so a passing badge cannot be read as a cure.
+  **⚠ AND THE FIX THAT SHIPPED WAS NEVER RUN ON HARDWARE.** Acceptance test **2.10** is the only merge-bar test
+  that has not been executed — the author had no audio interface to disconnect (2026-07-14). It merged on the
+  strength of one property: *the engine change is a strict no-op while a device is alive.* **Run 2.10 before
+  designing the auto-recovery on top of it**, and note that it needs **no USB interface** — Windows ▸ Sound ▸
+  *All sound devices* ▸ *Don't allow* takes the device away down the identical `getCurrentAudioDevice() ==
+  nullptr` path. If 2.10 fails, the auto-recovery design has the wrong foundation.
 - `hooks/useHistory.ts:47` — every **automated** GO (FSM, scheduler, OSC) and every cue fire pushes an
   **uncapped deep JSON copy of the entire project** onto the undo stack. Nobody pressed anything. Six hours
   unattended is a leak, and [timeline-undo](timeline-undo.md) is the plan that already owns this edge.

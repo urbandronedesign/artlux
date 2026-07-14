@@ -356,12 +356,35 @@ lives in Session 4 because that is where the automation tests are, but if you on
   warm in the OS page cache** (GO to a scene, leave, come back — the second entry should be the quiet one).
   That discriminates a remaining lock-hold from a plain decode-latency gap, which is a different bug.
 
-- [ ] **2.10 [BLOCKER] — pull the USB cable out of the audio interface, mid-show.** *(Task 9. `5eb821d`.)*
-  **DO:** show running, bed audible, **physically unplug** the interface. Watch the **Audio Bed** header and
-  open **Preferences ▸ Audio**. Then **plug it back in** and press **Reconnect**.
+- [ ] **2.10 [UNVERIFIED — needs a device you can take away] — kill the audio output device, mid-show.**
+  *(Task 9. `5eb821d`. **NOT a merge blocker — see the box below.**)*
+
+  > ### ⚠ THIS TEST HAS NEVER BEEN RUN, AND THE MERGE PROCEEDED ANYWAY. HERE IS EXACTLY WHY.
+  > The author had **no audio interface they could physically disconnect** (2026-07-14). The decision to merge
+  > without it rests on one property, and if that property is ever falsified this reasoning is void:
+  > **the engine change is a strict no-op while a device is alive.** It is one line —
+  > `if (deviceManager.getCurrentAudioDevice() == nullptr) opened = false;` — and on a working rig that
+  > pointer is never null, so `opened` is never touched and `configure()` behaves exactly as it did before.
+  > The renderer half cannot false-alarm either: **every** degraded read of `deviceLive` defaults to **true**
+  > (no addon, dead bridge, old main process, and a `!== false` test rather than a bare read), so a missing
+  > field or a failed poll lights *nothing*.
+  > **What is unverified is the RECOVERY path, not the running-show path.** The risk of merging is that a dead
+  > device stays as badly handled as it is on `main` today — not that a working one breaks.
+  > **Run this the first day hardware is available.**
+
+  **DO — and you do NOT need a USB interface for this.** Windows will take the device away for you:
+  **Settings ▸ System ▸ Sound ▸ All sound devices ▸ <your current output> ▸ Don't allow.** That makes
+  `getCurrentAudioDevice()` return `nullptr` — **the identical code path** an unplugged cable takes — and it
+  is reversible in one click (*Allow*). With an interface, just pull the cable.
+  **DO:** show running, bed audible. Kill the device. Watch the **Audio Bed** header and open
+  **Preferences ▸ Audio**. Then restore the device and press **Reconnect**.
   **EXPECT:** within ~100 ms a red **`no output device`** badge appears in the Audio Bed. Preferences says
-  **"The output device is gone — the room is silent"** and offers a **Reconnect** button. Press it (after
-  replugging) and **sound returns with no restart**; the badge clears by itself.
+  **"The output device is gone — the room is silent"**, *names the device it lost*, and offers a **Reconnect**
+  button. Press it (after restoring the device) and **sound returns with no restart**; the badge clears by
+  itself on the next meter tick.
+  **ALSO CHECK THE OTHER SENTENCE.** On a machine that has **never** had an output device, Preferences must say
+  **"No audio output device — there is no sound"** — *not* "gone", and *not* a word about USB cables. Sending
+  someone hunting for a cable that never existed is its own small lie.
   **WHY IT MATTERS:** `configure()`'s guard keyed on an `opened` bool that **nothing ever set false when the
   device died**, so the room went silent, JUCE did not recover, and the app **could not be recovered without a
   restart**. Meanwhile Preferences printed *"Native JUCE + ambisonic engine active · output device: <the dead

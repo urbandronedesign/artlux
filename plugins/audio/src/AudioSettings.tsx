@@ -106,17 +106,36 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
           <div className="text-mini text-warn">Audio engine unavailable{error ? ` — ${error}` : ''}. Playback is disabled.</div>
         ) : !deviceLive ? (
           <div className="space-y-1.5">
+            {/* ⚠ "GONE" AND "NEVER THERE" ARE DIFFERENT SENTENCES, AND ONLY THIS PANEL CAN TELL THEM APART.
+                `device` holds the name of the last device we successfully OPENED, and `apply()` never clears
+                it on failure — so a non-empty name means we HAD one and lost it. Empty means configure() has
+                never succeeded on this machine: there is no audio hardware (a DMX-only or headless install is
+                a real deployment for this app). Printing "usually a bumped USB cable" at someone whose machine
+                has no sound card at all sends them hunting for a cable that never existed. The Audio Bed's
+                badge stays the neutral "no output device", which is true either way; this panel knows more,
+                so it says more. */}
             <div className="text-mini text-danger flex items-center gap-1.5">
               <AlertTriangle size={12} className="shrink-0" />
-              <span><strong>The output device is gone — the room is silent.</strong></span>
+              <span><strong>{device
+                ? 'The output device is gone — the room is silent.'
+                : 'No audio output device — there is no sound.'}</strong></span>
             </div>
             <div className="text-micro text-fg-3">
-              The engine is loaded and the show is still running, but the audio interface it was playing
-              through has disappeared — usually a bumped USB cable, a driver reload, or Windows power-cycling
-              the device. <strong className="text-fg-2">ArtLux will not re-open it on its own.</strong>
+              {device ? (
+                <>The engine is loaded and the show is still running, but <span className="text-fg-2">{device}</span> —
+                the interface it was playing through — has disappeared. Usually a bumped USB cable, a driver
+                reload, or Windows power-cycling the device.{' '}
+                <strong className="text-fg-2">ArtLux will not re-open it on its own.</strong></>
+              ) : (
+                <>The engine is loaded, but no output device could be opened on this machine. Authoring, saving
+                and every non-audio output (DMX, projectors, OSC) work normally — there is simply nowhere to
+                send sound.</>
+              )}
             </div>
             <div className="text-micro text-fg-3">
-              Reconnect the interface, then press Reconnect. Sound returns with no restart.
+              {device
+                ? 'Reconnect the interface, then press Reconnect. Sound returns with no restart.'
+                : 'Connect an output device, then press Reconnect.'}
             </div>
             {/* THE RECOVERY GESTURE, WHICH DID NOT EXIST. configure() takes (channels, mode, layout) and opens
                 the DEFAULT device — there is no device picker anywhere in this panel, so "just pick it again"
