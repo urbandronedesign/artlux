@@ -65,6 +65,28 @@ sparse + ArtSync) and falls back to TS `artnet.ts`/`sacn.ts`. `discovery.ts` doe
 `input.ts` captures incoming Art-Net/sACN. `spoutManager.ts` loads `spout-receiver.node` and streams
 512² frames to the renderer.
 
+## Audio (`native/audio-engine/` + `plugins/audio/`) — the second native language
+The **only non-Rust native module**: a **C++17 / JUCE 8 / libspatialaudio** N-API addon
+(`audio_engine.node`, built by CMake — *not* cargo). It is **object-based and spatialised**: every source
+is a point in an ambisonic field, encoded into one shared B-format bus and decoded either **binaurally**
+(HRTF, headphones) or to a **speaker array**.
+
+**Core owns the documents; the plugin owns the sound.** `ProjectData.audio` (the bed) and `Timeline.audio`
+(a timeline's own audio) are core types that core persists and normalizes and *never listens to*. Everything
+audible lives in `plugins/audio/`, which registers an `automationTargets` provider (see
+[SDK.md](SDK.md)) so an audio lane on the timeline is **the same object** as any other automation lane.
+
+**Two containers, two clocks** — the invariant the whole subsystem turns on: the **bed** rides the **SHOW
+clock** and a scene recall does not touch it; a timeline's **own** audio rides the **playhead** and restarts
+with it. See **[AUDIO.md](AUDIO.md)** for the signal path, the two insert points, the automation target
+grammar, the three-layer read order (`lane ?? fade ?? authored`) and the real-time invariants — chiefly
+*never block the audio thread*, because a dropout resuming mid-waveform is a step discontinuity, which is a
+**click**.
+
+**Graceful degrade:** the loader is load-or-null. With no addon the app starts, the entire audio UI renders,
+and there is **perfect silence** — announced by a `no audio engine` badge, because *silence with a UI that
+says everything is fine* is the failure this subsystem takes most seriously.
+
 ## IPC (`shared/protocol.ts`)
 Fire-and-forget `.on`/`.send`: `dmx:configure`, `dmx:frame`, `dmx:status`, `dmx:stats`,
 `input:configure`/`input:frame`, `spout:configure`/`spout:frame`, `menu:action`, `app:open-external`.

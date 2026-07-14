@@ -39,6 +39,8 @@ a project-level state machine, scenes/cues, OSC control, and a 3D simulator.
 | NDI network video | [docs/NDI.md](docs/NDI.md) |
 | Spout (Windows GPU video receive) | [docs/SPOUT.md](docs/SPOUT.md) |
 | Video codecs (HAP, MP4/WebCodecs) | [docs/CODECS.md](docs/CODECS.md) |
+| **AUDIO — the subsystem** (the bed vs a scene's own sound, **two clocks**, ambisonics + HRTF, insert chains, automation, the invariants) | **[docs/AUDIO.md](docs/AUDIO.md)** · hands-on: [examples/audio/tuto/](examples/audio/tuto/README.md) |
+| Audio engine (JUCE addon) — build, and **"no sound?"** | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md#the-audio-ui-is-all-there-and-nothing-plays--no-sound) |
 | OSC control + LiDAR tracking protocol | [docs/OSC.md](docs/OSC.md), [docs/TRACKING_SYNC.md](docs/TRACKING_SYNC.md), [docs/TRACKING_TAKES.md](docs/TRACKING_TAKES.md) |
 | Camera pose tracking (MediaPipe BlazePose) | [docs/MEDIAPIPE.md](docs/MEDIAPIPE.md) |
 | Augmenta optical tracking (OSC v2) | [docs/AUGMENTA.md](docs/AUGMENTA.md) |
@@ -53,6 +55,10 @@ a project-level state machine, scenes/cues, OSC control, and a 3D simulator.
 ```bash
 npm install
 npm run build:native          # Rust crates → native/*/*.node (gitignored). Also: build:ndi / build:calib / build:nvwarp
+npm run build:audio           # JUCE audio engine (native/audio-engine, cmake-js). REQUIRED for sound: plugins/audio
+                              # graceful-degrades, so without it the audio UI renders and plays NOTHING, silently.
+                              # build:native runs it too but only WARNS on failure; package + CI are strict.
+                              # Close the app first — a running Electron locks the .node (LNK1104 → stale addon).
 npm run dev                   # electron-vite dev + launch the app (hot-reloads the renderer)
 ```
 - **Typecheck (do this — there's no test suite):** `npx tsc -p tsconfig.json --noEmit` (checks the whole tree).

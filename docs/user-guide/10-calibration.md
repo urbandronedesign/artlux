@@ -1,7 +1,7 @@
-# 9. Projector calibration
+# 10. Projector calibration
 
 Calibration recovers a projector's **lens + position** so the 3D scene can be projected onto the real
-surface at 1:1. You launch it from the [Outputs panel](07-projector-outputs.md): enable an output, then
+surface at 1:1. You launch it from the [Outputs panel](08-projector-outputs.md): enable an output, then
 click the **Calibrate** (target) icon on that row.
 
 > **Hardware required:** calibration needs a **camera**, a **projector**, and (ideally) a darkened
@@ -52,4 +52,4 @@ projector **gamma**. Full details, the optimization passes (ArUco one‑click re
 colour/black match), and troubleshooting are in [CALIBRATION.md](../CALIBRATION.md) and
 [CALIB-OPTIMIZATIONS.md](../CALIB-OPTIMIZATIONS.md).
 
-➡ Next: [Projects, media & broadcast](10-projects-media-broadcast.md)
+➡ Next: [Projects, media & broadcast](11-projects-media-broadcast.md)

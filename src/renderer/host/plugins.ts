@@ -8,9 +8,10 @@
 import {
   contentSourceRegistry, clipKindRegistry, projectorChannelRegistry,
   settingsSectionRegistry, panelRegistry, sceneVizRegistry, projectorPanelRegistry,
-  videoCodecRegistry,
+  videoCodecRegistry, automationTargetRegistry,
 } from './registries';
 import { timeline } from '../services/timeline';
+import { coreAutomationProvider } from '../services/automationTargets.core';
 import { perfMonitor } from '../services/perfMonitor';
 import type { RendererPlugin, RendererPluginContext, PluginIpc, RendererHostServices } from '@artlux/sdk/renderer';
 import { plugin as lidarTracking } from '@artlux/plugin-lidar-tracking';
@@ -22,8 +23,9 @@ import { plugin as mp4 } from '@artlux/plugin-mp4';
 import { plugin as mediapipe } from '@artlux/plugin-mediapipe';
 import { plugin as augmenta } from '@artlux/plugin-augmenta';
 import { plugin as showControl } from '@artlux/plugin-show-control/renderer';
+import { plugin as audio } from '@artlux/plugin-audio/renderer';
 
-const FIRST_PARTY: RendererPlugin[] = [lidarTracking, ndi, calibration, spout, hap, mp4, mediapipe, augmenta, showControl];
+const FIRST_PARTY: RendererPlugin[] = [lidarTracking, ndi, calibration, spout, hap, mp4, mediapipe, augmenta, showControl, audio];
 
 let activated = false;
 
@@ -38,9 +40,21 @@ const NOOP_HOST: RendererHostServices = {
   show: {
     getStateMachine: () => ({}), getScenes: () => [], getCueBanks: () => [], getSchedule: () => [],
     setFsmEnabled: () => {}, setSchedule: () => {}, subscribe: () => () => {},
-    getStatus: () => ({ playing: false, playhead: 0, duration: 0, currentStateId: null, stateElapsedSec: 0, activeSceneId: null, lastFiredTransitionId: null }),
+    getStatus: () => ({ playing: false, playhead: 0, showTime: 0, duration: 0, showEnd: 0, showEnded: false, currentStateId: null, stateElapsedSec: 0, activeSceneId: null, lastFiredTransitionId: null }),
+    // No editor state here ⇒ no timeline, no selection. Never fires.
+    getSelection: () => null, subscribeSelection: () => () => {},
     recallScene: () => {}, fireCue: () => {}, fireColumn: () => {}, transport: () => {},
     triggerTransition: () => {}, enterState: () => {},
+    // No transport here ⇒ no fades to drop a leg from. Inert, like the rest of this host.
+    dropFadeLeg: () => {},
+  },
+  // No editor state here ⇒ no document to write. Both writers are inert: `setMix` (the bed) and
+  // `patchTimelineClip` (one clip in the bound timeline's own audio) drop on the floor, exactly like
+  // `patch` on the other services above.
+  audio: {
+    getMix: () => ({ tracks: [], clips: [], buses: [] }), setMix: () => {},
+    getTimelineAudio: () => ({ tracks: [], clips: [] }), patchTimelineClip: () => {},
+    subscribe: () => () => {},
   },
 };
 
@@ -62,6 +76,7 @@ function makeContext(win: 'main' | 'projector', host: RendererHostServices): Ren
     sceneViz: sceneVizRegistry,
     projectorPanels: projectorPanelRegistry,
     videoCodecs: videoCodecRegistry,
+    automationTargets: automationTargetRegistry,
     ipc,
     onPlayhead: (cb) => timeline.subscribe(cb),
     // ~1 Hz poll adapter over perfMonitor (which is polled, not observable) — mirrors onPlayhead.
@@ -76,6 +91,9 @@ function makeContext(win: 'main' | 'projector', host: RendererHostServices): Ren
 export function activateRendererPlugins(win: 'main' | 'projector', host: RendererHostServices = NOOP_HOST): void {
   if (activated) return;
   activated = true;
+  // Core's own automation namespaces (surfaces / fixtures / globalBrightness) register alongside the
+  // plugins' — the automation engine doesn't privilege core, it just resolves a path's head to an owner.
+  automationTargetRegistry.register(coreAutomationProvider);
   const ctx = makeContext(win, host);
   for (const p of FIRST_PARTY) {
     try { p.activate(ctx); } catch (e) { console.error(`[plugins] ${p.manifest.id} activate failed`, e); }

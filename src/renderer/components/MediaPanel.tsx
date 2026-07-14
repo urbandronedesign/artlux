@@ -1,15 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Film, Image as ImageIcon, Box, FolderOpen, Link2, Trash2, Maximize2, MonitorPlay, Search } from 'lucide-react';
-import { AssetEntry, AssetType, Surface, Timeline } from '../types';
-import type { Scene3D } from '../../../shared/protocol';
+import { Film, Image as ImageIcon, Box, Music, FolderOpen, Link2, Trash2, Maximize2, MonitorPlay, Search } from 'lucide-react';
+import { AssetEntry, AssetType, Timeline } from '../types';
 import { AssetChip } from './AssetChip';
-import { libraryItems, usageForPath, normPath } from '../services/assetLibrary';
+import { libraryItems, usageIndex, normPath, type ProjectRefs } from '../services/assetLibrary';
 
 interface Props {
   assets: AssetEntry[];
-  timeline: Timeline;
-  surfaces: Surface[];
-  scene3D?: Scene3D | null;
+  timeline: Timeline;      // the GLOBAL doc — the take library lives on it (libraryItems)
+  // EVERY place a path can be referenced (live + every scene's snapshot + every timeline + the audio
+  // bed). Built once in App; usage counting must see all of it or the badge under-reports and the
+  // delete confirmation never fires.
+  refs: ProjectRefs;
   selectedSurfaceId: string | null;
   hasProjectFolder: boolean;
   onImport: (type: AssetType) => void;
@@ -23,7 +24,7 @@ type Filter = 'all' | AssetType;
 
 // Left-sidebar media library. Lists imported assets + recorded takes; drag a tile onto the Stage
 // or the Timeline to place it. Import copies files into the project's assets/ folder.
-export const MediaPanel: React.FC<Props> = ({ assets, timeline, surfaces, scene3D, selectedSurfaceId, hasProjectFolder, onImport, onRemoveAsset, onRelinkAsset, onUseOnSurface, onOpenManager }) => {
+export const MediaPanel: React.FC<Props> = ({ assets, timeline, refs, selectedSurfaceId, hasProjectFolder, onImport, onRemoveAsset, onRelinkAsset, onUseOnSurface, onOpenManager }) => {
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -50,7 +51,11 @@ export const MediaPanel: React.FC<Props> = ({ assets, timeline, surfaces, scene3
     (!query || a.name.toLowerCase().includes(query.toLowerCase())));
 
   const selected = items.find(a => a.id === selectedId) ?? null;
-  const usageOf = (a: AssetEntry) => usageForPath(a.path, { surfaces, scene3D, timeline }).count;
+  // One index built per render (not one usageForPath() scan per asset) — MediaPanel is an
+  // always-mounted sidebar, so this recomputes on every App state change; Capture Scene cloning the
+  // timeline into each scene made the per-asset scan cost scale with (1 + #scenes).
+  const usage = useMemo(() => usageIndex(refs), [refs]);
+  const usageOf = (a: AssetEntry) => usage.get(normPath(a.path))?.count ?? 0;
 
   const chip = (label: string, value: Filter, icon?: React.ReactNode) => (
     <button onClick={() => setFilter(value)}
@@ -73,6 +78,7 @@ export const MediaPanel: React.FC<Props> = ({ assets, timeline, surfaces, scene3
         <button onClick={() => onImport('video')} disabled={!hasProjectFolder} title="Import video" className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40"><Film size={12} /></button>
         <button onClick={() => onImport('image')} disabled={!hasProjectFolder} title="Import image" className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40"><ImageIcon size={12} /></button>
         <button onClick={() => onImport('model')} disabled={!hasProjectFolder} title="Import 3D model" className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40"><Box size={12} /></button>
+        <button onClick={() => onImport('audio')} disabled={!hasProjectFolder} title="Import audio" className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40"><Music size={12} /></button>
       </div>
       {!hasProjectFolder && (
         <div className="px-2 py-1 text-micro text-warn border-b border-line-1">Create a project folder (File → New Project) to import media.</div>
@@ -85,6 +91,7 @@ export const MediaPanel: React.FC<Props> = ({ assets, timeline, surfaces, scene3
         {chip('Image', 'image', <ImageIcon size={10} />)}
         {chip('Model', 'model', <Box size={10} />)}
         {chip('Take', 'take')}
+        {chip('Audio', 'audio', <Music size={10} />)}
         <div className="flex items-center gap-1 ml-auto bg-surface-2 border border-line-1 rounded px-1 h-5">
           <Search size={10} className="text-fg-3" />
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="search"

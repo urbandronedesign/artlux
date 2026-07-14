@@ -1,4 +1,4 @@
-# 7. Projector outputs
+# 8. Projector outputs
 
 Send any surface fullscreen to a physical display with geometry correction. Open the **Outputs** panel
 from the title‑bar **Outputs** icon. Each surface gets a row.
@@ -60,8 +60,8 @@ Per output (in the expanded row):
   Outputs otherwise render at native resolution with anti‑aliasing.
 
 For a precise lens+pose solve (so the 3D scene maps onto the real surface), use the
-[calibration wizard](09-calibration.md). Hardware acceleration (NVAPI scanout warp/blend) is used
+[calibration wizard](10-calibration.md). Hardware acceleration (NVAPI scanout warp/blend) is used
 automatically on supported NVIDIA pro GPUs — see [NVWARP.md](../NVWARP.md). More in
 [OUTPUTS.md](../OUTPUTS.md).
 
-➡ Next: [3D scene](08-3d-scene.md)
+➡ Next: [3D scene](09-3d-scene.md)

@@ -23,7 +23,10 @@ export interface ProjectorRender {
 export type MainToProjector =
   | { t: 'config'; surface: Surface; playing: boolean; render: ProjectorRender } // geometry + look
   | { t: 'timeline'; timeline: Timeline }                     // for LAYER content
-  | { t: 'transport'; playing: boolean; playhead: number }    // ~30 fps clock
+  // ~30 fps clock. showTime rides along because an EFFECT SURFACE is drawn against the SHOW clock
+  // (surfaceMedia.getDrawable), and a mirror window does not RUN that clock — it is told it. Without it,
+  // every generative surface on every projector would be frozen at 0.
+  | { t: 'transport'; playing: boolean; playhead: number; showTime: number }
   | { t: 'brightness'; value: number }                        // projector-content master brightness (live drag)
   | { t: 'edit'; on: boolean }                                // toggle corner-pin / mesh editing
   | { t: 'frame'; bitmap: ImageBitmap }                       // streamed source frame (camera/Spout/DMX-in/NDI + video/layer, decoded once in main)

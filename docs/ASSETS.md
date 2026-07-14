@@ -16,7 +16,7 @@ Assets) rather than replacing it.
 ## Data model
 
 ```ts
-type AssetType = 'video' | 'image' | 'model' | 'take';
+type AssetType = 'video' | 'image' | 'model' | 'take' | 'audio';   // 'audio' added in Wave 3
 interface AssetEntry {            // shared/protocol.ts (re-exported from renderer types)
   id: string; name: string; type: AssetType;
   path: string;                   // assets/<cat>/<file> (absolute in memory, relative on disk)

@@ -6,14 +6,20 @@ import { VideoClip } from '../../types';
 const EPS = 1e-4;
 const uid = () => crypto.randomUUID();
 
+// The blade and the lift are structurally generic over "a clip on a time axis": they only ever read
+// id/start/duration/inPoint. AudioClip satisfies that — it calls its owner `trackId`, not `layerId`, but
+// neither of these two functions reads the owner. rippleDelete and bladeAt DO read `layerId` and stay
+// VideoClip-typed: audio has no ripple and no playhead-blade in Wave B.
+export interface TimeClip { id: string; start: number; duration: number; inPoint: number }
+
 // Split a clip at absolute timeline time t into two clips sharing the source. No-op if t isn't
 // strictly inside the clip.
-export function splitClipAt(clips: VideoClip[], clipId: string, t: number): VideoClip[] {
+export function splitClipAt<T extends TimeClip>(clips: T[], clipId: string, t: number): T[] {
   const c = clips.find(x => x.id === clipId);
   if (!c || t <= c.start + EPS || t >= c.start + c.duration - EPS) return clips;
   const leftDur = t - c.start;
-  const left: VideoClip = { ...c, duration: leftDur };
-  const right: VideoClip = { ...c, id: uid(), start: t, inPoint: c.inPoint + leftDur, duration: c.duration - leftDur };
+  const left: T = { ...c, duration: leftDur };
+  const right: T = { ...c, id: uid(), start: t, inPoint: c.inPoint + leftDur, duration: c.duration - leftDur };
   return clips.flatMap(x => (x.id === clipId ? [left, right] : [x]));
 }
 
@@ -28,7 +34,7 @@ export function bladeAt(clips: VideoClip[], t: number, layerId?: string): VideoC
 }
 
 // Remove a clip, leaving a gap.
-export function liftDelete(clips: VideoClip[], clipId: string): VideoClip[] {
+export function liftDelete<T extends TimeClip>(clips: T[], clipId: string): T[] {
   return clips.filter(c => c.id !== clipId);
 }
 

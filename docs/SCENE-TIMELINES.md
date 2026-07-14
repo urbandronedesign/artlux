@@ -19,28 +19,83 @@ migration**). Shipped after v0.19.2 — commit `c85483e`.
   `activeSceneId` and the engine's active pool in **lockstep**, so the thing you edit is the thing that
   plays, everywhere (main window + projector windows + broadcast).
 
-### Invariant: one timeline is live at a time
+### Invariant: one transport, two playheads
 
-There is only ever **one running transport, one set of decoding `<video>`s, one set of acquired live
-sources.** We never composite or run two timelines. Even the recall crossfade uses a single transport
-(the incoming timeline plays; the outgoing is a *frozen last frame* that fades out via the existing
-look fade). Everything else is idle or a cheap warm standby. This invariant is what makes the whole
-resource model tractable — everything below follows from it.
+There is only ever **one running transport** — one `playing` flag, one `requestAnimationFrame` loop, one
+set of decoding `<video>`s, one set of acquired live sources. We never composite or run two timelines.
+Even the recall crossfade uses a single transport (the incoming timeline plays; the outgoing is a
+*frozen last frame* that fades out via the existing look fade). Everything else is idle or a cheap warm
+standby. This invariant is what makes the whole resource model tractable — everything below follows
+from it.
+
+What that one transport carries is **two derived times** (Wave B):
+
+| | `playhead` — the SCENE clock | `showTime` — the SHOW clock |
+|---|---|---|
+| drives | the BOUND timeline's video, its own `Timeline.audio`, its automation lanes, the state machine | the global audio bed (`ProjectData.audio`) and the GLOBAL timeline's automation (the base layer) |
+| bounded by | the BOUND doc's `[timelineStart, timelineEnd)` | the GLOBAL doc's `[timelineStart, timelineEnd)` |
+| on a scene recall | **RESETS** to the scene's in-point | **NEVER RESETS** — the bed plays on |
+| on exit to Global | **RECONVERGES**: `playhead := showTime` | unchanged |
+| on a seek | always moves | only while **Global is bound** (the pill) — i.e. only while the two clocks are the **same number** |
+| anchor | `originMs` | `showOriginMs` |
+
+**While Global is bound (the pill) the two are the same number** — an identity the engine maintains inside
+`seek()` by testing `clocksCoincident()` (`activeKey === GLOBAL_POOL`). They diverge the moment **any** scene
+is bound: **the scene restarts, the bed rolls on.** This does not break the one-transport rule — there is
+still exactly one `playing`, one rAF, one `<video>` pool. A second *time value* rides the same clock.
+
+> ⚠ **TWO PREDICATES. DO NOT SWAP THEM.**
+> - `isGlobalDocBound()` = `activeKey === GLOBAL_POOL || data === globalDoc` — **which DOCUMENT is bound.**
+>   A scene with **no timeline of its own** binds the GLOBAL document under its own pool key
+>   (`handleRecallScene`), and the lanes in `data.automation` there *are* the base layer — so they ride the
+>   **show clock**. That is `compileAutomation`'s question, and this is the right answer to it.
+> - `clocksCoincident()` = `activeKey === GLOBAL_POOL` — **are the two clocks EQUAL.** That is `seek()`'s
+>   question. Under a timeline-less scene the document is bound but the clocks are **minutes apart**
+>   (`transport:'restart'` reset the playhead; `showClock:'preserve'` left the bed running), so a seek that
+>   tracked the *document* would drag `showTime` to a scene-relative number and **hard-restart the bed on
+>   every entry to that state** — the exact bug the show clock exists to prevent, through the seek door.
+>
+> `isGlobalDocBound()` says which clock a **lane** rides. It has never asserted that the clocks are equal.
+
+**The show clock is silent.** It never emits a `TransportIntent` and never pulses `hitEnd`: the bed
+wrapping is not a show event, and firing `onTimelineEnd` from it would advance the state machine behind
+the operator's back. It only wraps (global loop on) or parks (global loop off) — and the park is
+*published*, not inferred: `getStatus().showEnded`.
+
+Full reset table (every transport event × both clocks): **[TIMELINE.md → The show clock](TIMELINE.md#the-show-clock-wave-b--one-transport-two-playheads)**.
 
 ## Data model (`src/renderer/types.ts`)
 
 ```ts
 Scene {
   …look fields (surfaces, fixtures, globalBrightness, groups, scene3D, projectorOutputs)…
-  timeline?: Timeline;   // per-state timeline; absent → uses the shared global timeline
+  timeline: Timeline;    // REQUIRED — every scene owns one. (Was `timeline?`; see the box below.)
   accent?: string;       // stable identity colour (node/pill/border/strip/cell) — see sceneAccent.ts
 }
 ```
 
-- **Additive, zero migration.** `Timeline` itself is unchanged and carries **no id** — pools are keyed
-  by `scene.id` (sentinel `'__global__'` for the shared fallback). A scene without `timeline` behaves
-  exactly as before. `applyProjectData` normalizes each loaded `scene.timeline` with
-  `normalizeTimeline()` and assigns an accent to scenes that lack one.
+> ### ⚠ `timeline` WAS OPTIONAL. THE OPTIONAL SHAPE WAS DELETED ON 2026-07-14, AND MOST OF THIS DOCUMENT
+> ### WAS WRITTEN AROUND IT.
+> A scene with **no** timeline ("plays the global one") was the root of **two automation-clock blockers**:
+> a lane copied into a scene got retagged to the *scene* clock **and** shadowed the genuine base lane by
+> `targetPath`, so a house fade on `audio.master.gain` **snapped +9.6 dB on every GO** and was persisted.
+> No fix inside `timeline.ts` could work — by the time it ran, the impostor was byte-identical to a lane
+> the operator had drawn. **So the state was deleted**, which makes two of the three writers that could
+> break the invariant *structurally impossible*.
+>
+> **What that means for this document:** the two-predicate section below is **historical**.
+> `isGlobalDocBound()` **no longer exists** — the two questions collapsed into one, and only
+> `clocksCoincident()` survives. `activeTimeline` is no longer `activeScene?.timeline ?? timeline`.
+> Anywhere below that reasons about "a scene with no timeline", read it as a record of why the shape is
+> gone, not as a description of the code.
+>
+> **Loading an older project is safe:** a timeline-less scene is given an **empty** timeline. It does not
+> fall back to the global one.
+
+- **Additive, zero migration *for the look*.** `Timeline` itself is unchanged and carries **no id** —
+  pools are keyed by `scene.id` (sentinel `'__global__'` for the global document). `applyProjectData`
+  normalizes each loaded `scene.timeline` with `normalizeTimeline()` — which turns a **missing** one into
+  an empty timeline rather than preserving its absence — and assigns an accent to scenes that lack one.
 - **Persistence is free.** `scenes` already rides in `buildProjectData`/`applyProjectData` /
   `ProjectData.scenes`; a scene's `timeline` saves with it. No `ProjectData` shape change.
 - **`buildSceneSnapshot` is look-only.** It deliberately does **not** include `timeline`, so
@@ -90,7 +145,7 @@ New API on the exported `timeline`:
 | Method | Purpose |
 |---|---|
 | `warmPool(poolKey, tl)` | Pre-warm a scene's timeline into a **standby** pool: shared media by path + a paused `<video>` per layer **pre-rolled to the timeline's first frame** (`readyState ≥ 2` before the swap → no black/partial first frame). |
-| `swap(poolKey, tl, {transport, holdMs})` | Promote a pool to ACTIVE. Pauses the outgoing pool (kept warm), releases orphaned live sources, prunes stale layers, and by default **restarts at the first frame** (`transport:'restart'` → `seek(tl.inPoint ?? 0)`). Cold fallback re-warms inline if the pool wasn't pre-warmed. |
+| `swap(poolKey, tl, {transport, showClock, holdMs})` | Promote a pool to ACTIVE. Pauses the outgoing pool (kept warm), releases orphaned live sources, prunes stale layers, and by default **restarts at the first frame** (`transport:'restart'` → `seek(tl.inPoint ?? 0)`). `transport:'reconverge'` instead snaps the playhead **onto the show clock** (used when returning to Global — see below); it replaced the old `'preserve'`. `showClock` defaults to **`'preserve'`** (the bed rolls on); only project open passes `'reset'`. Cold fallback re-warms inline if the pool wasn't pre-warmed. |
 | `releasePool(poolKey)` | Demote a standby pool to COLD — tears down its `<video>`s + codec/content it uniquely holds. Never drops the ACTIVE pool or `GLOBAL_POOL`. |
 | `warmPoolKeys()` / `activePoolKey()` | Introspection for the preloader's LRU budget + the App guard. |
 
@@ -105,6 +160,23 @@ are near-no-ops (they consume streamed frames), so per-scene pools are a **main-
 **every** trigger — manual GO, cueBus, FSM entry (including *re-entry* of the same state), author-mode
 Next — starts the state identically. State entry is **idempotent and repeatable**, which matters for a
 show where the machine re-enters a state many times.
+
+**The bed does not restart with it.** A recall resets the *playhead* only; `showTime` is untouched
+(`swap`'s default `showClock:'preserve'`), so the global audio bed and the global timeline's automation
+play straight through the GO. That is the single defining requirement of Wave B.
+
+### Leaving a scene RECONVERGES the picture onto the bed
+
+Clicking the pill back to **Global** (and deleting the bound scene) swaps with `transport:'reconverge'`:
+the playhead **snaps to `showTime`**, so the picture rejoins the bed that never stopped, instead of
+restarting the global timeline from its in-point under a bed that is four minutes in. It does not pause
+(the old `'preserve'` path ran `clampPlayheadIntoDoc`, which emitted a `pause` intent → the transport
+stopped and the bed with it).
+
+One exception, and it is deliberate: if the show clock is **parked** at the global end (global Loop off,
+the show ran out), reconverge lands on the last frame and re-applies the end latch — `endLatched = true`
+plus a `pause` intent, **without pulsing `hitEnd`**. The show genuinely is over; the machine must not be
+advanced by a mouse click (invariant: a document swap never pulses `hitEnd`).
 
 ## Preloader & tiered residency (`src/renderer/services/timelinePreloader.ts`)
 

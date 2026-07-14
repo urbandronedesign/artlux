@@ -10,7 +10,7 @@ to `127.0.0.1` (harmless loopback) so nothing is transmitted to real fixtures un
 | Project | What it demonstrates | Runs on open? |
 |---|---|---|
 | [`01-hello-state-machine.artlux`](01-hello-state-machine.artlux) | states, Scene binding, initial state, `afterDelay`, looping, crossfade | **Yes** — auto-loops (wall clock), no Play needed |
-| [`02-triggers-and-actions.artlux`](02-triggers-and-actions.artlux) | all five triggers, the two clocks, entry actions, lock time, regions | Waits for a **manual** trigger, then plays through |
+| [`02-triggers-and-actions.artlux`](02-triggers-and-actions.artlux) | five of the six triggers (all but `onTimelineEnd`), the two clocks, entry actions, lock time, regions | Waits for a **manual** trigger, then plays through |
 | [`03-interactive-installation.artlux`](03-interactive-installation.artlux) | hub-and-spoke, manual + **OSC** triggers, auto-return dwell, blackout | **Yes** — sits in the attract loop; trigger the spokes by hand/OSC |
 
 ## How to open

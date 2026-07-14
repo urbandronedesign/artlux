@@ -9,6 +9,7 @@ import { livePreview } from '../services/livePreview';
 import * as surfaceMedia from '../services/surfaceMedia';
 import * as contentSource from '../services/contentSource';
 import * as transitions from '../services/transitions';
+import * as automationOverlay from '../services/automationOverlay';
 import { resolveDest, destKey } from '../services/addressing';
 import { perfMonitor } from '../services/perfMonitor';
 
@@ -130,6 +131,7 @@ export const Stage: React.FC<StageProps> = ({
   const recordBackend = (b: 'webgpu' | 'webgl') => { try { localStorage.setItem('artlux.activeBackend', b); } catch { /* ignore */ } };
   const brightnessRef = useRef(globalBrightness);
   useEffect(() => { brightnessRef.current = globalBrightness; }, [globalBrightness]);
+  const lastPreviewBrightness = useRef(-1); // so the CSS var is written only when it actually moves
 
   // Output gamma LUT (applied during universe packing). Identity when gamma=1.
   const gammaLut = useMemo(() => {
@@ -285,18 +287,38 @@ export const Stage: React.FC<StageProps> = ({
       if (fitUpdate) { surfacesRef.current = fitUpdate; onUpdateSurfaces(fitUpdate); }
     }
 
-    // Render-free fade overrides: an active scene/cue transition lays interpolated values over the
-    // committed state each frame so the fade animates without a React re-render (idle ⇒ pass-through).
-    const fade = transitions.sample(performance.now());
+    // Render-free overrides, laid over the committed state each frame so they animate at display rate
+    // without a React re-render (idle ⇒ pass-through). ORDER MATTERS:
+    //   ① automation — a keyframe lane owns its path outright, so it is the BASE.
+    //   ② the scene/cue fade — it runs ON TOP, and for an automated path it re-reads its destination
+    //      from ① (transitions.toDynamic), so a recall glides onto the curve instead of snapping to a
+    //      stale value. Get this order backwards and every automated param jumps the instant a scene
+    //      is recalled. See the precedence note in transitions.ts.
     let effSurfaces = surfacesRef.current;
     let effFixtures = fixturesRef.current;
     let effBrightness = livePreview.brightness;
+    // Read the dirty flags BEFORE the isActive() check, not inside it: releasing the last lane empties
+    // the overlay, so isActive() is already false on the frame the authored value must be re-uploaded.
+    // Guarding the read on it would leave the GPU holding the last automated value for good.
+    let geomDirty = automationOverlay.geometryAnimating();
+    let paramsDirty = automationOverlay.paramsAnimating();
+    automationOverlay.consumeDirty();
+    if (automationOverlay.isActive()) {
+        const v = automationOverlay.apply({ surfaces: effSurfaces, fixtures: effFixtures, globalBrightness: effBrightness });
+        effSurfaces = v.surfaces; effFixtures = v.fixtures; effBrightness = v.globalBrightness;
+    }
+    const fade = transitions.sample(performance.now());
     if (fade) {
         const v = fade.apply({ surfaces: effSurfaces, fixtures: effFixtures, globalBrightness: effBrightness });
         effSurfaces = v.surfaces; effFixtures = v.fixtures; effBrightness = v.globalBrightness;
-        // Geometry fades change LED↔surface UV mapping → rebuild the GPU LED buffers this frame.
-        if (fade.geometryAnimating) mapper.current.updateMapping?.(effFixtures, effSurfaces);
+        if (fade.geometryAnimating) geomDirty = true;
     }
+    // Geometry moves change the LED↔surface UV mapping → rebuild the GPU LED buffers this frame.
+    if (geomDirty) mapper.current.updateMapping?.(effFixtures, effSurfaces);
+    // Non-geometry fixture params (intensity/speed) otherwise reach the GPU only through a React effect
+    // keyed on committed state — which a render-free override never touches. Without this, an automated
+    // intensity would animate everywhere EXCEPT the LEDs.
+    else if (paramsDirty) mapper.current.updateParams?.(effFixtures);
 
     // Composite every surface's content into the 512² canvas (z-order). Fixtures
     // sample this composite (S1); strict per-surface sampling arrives in S3.
@@ -346,6 +368,13 @@ export const Stage: React.FC<StageProps> = ({
         // Pull brightness from the live channel each frame so slider drags affect output
         // immediately without committing React state (which would re-render the whole app).
         mapper.current.setBrightness(effBrightness);
+        // The preview canvas dims through a CSS var that livePreview owns — and a render-free override
+        // never goes through livePreview. Without this the LEDs would dim while the preview stayed bright,
+        // so the preview would lie about what is actually leaving the machine.
+        if (effBrightness !== lastPreviewBrightness.current) {
+          lastPreviewBrightness.current = effBrightness;
+          document.documentElement.style.setProperty('--preview-brightness', String(effBrightness));
+        }
         // WebGPU samples each fixture strictly from its linked surface; the WebGL
         // fallback samples the composite preview canvas.
         if (mapper.current.perSurface && mapper.current.renderSurfaces) {

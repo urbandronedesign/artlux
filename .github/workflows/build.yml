@@ -3,6 +3,11 @@ name: Build
 # Per-platform native prebuilds + packaged apps. Each OS runner builds the Rust
 # napi addon natively (so the bundled output-engine.node matches the platform)
 # and produces an installer via electron-builder.
+#
+# It also builds the C++ JUCE audio engine (native/audio-engine) on each runner — see the
+# "Build audio engine" step. That build is MANDATORY here: plugins/audio graceful-degrades when
+# the addon is missing, so a release cut without it would ship a full audio UI that makes NO SOUND,
+# silently. If the audio engine fails to build, the release must fail with it.
 
 on:
   workflow_dispatch:
@@ -38,13 +43,32 @@ jobs:
             native/ndi/target
           key: ${{ matrix.os }}-cargo-${{ hashFiles('native/output-engine/Cargo.lock', 'native/spout-receiver/Cargo.lock', 'native/ndi/Cargo.lock') }}
 
+      # JUCE's Linux build needs ALSA (juce_audio_devices) and the X11 dev headers that juce_core /
+      # juce_events reference. CMake (3.31) and GCC are already on the ubuntu image; Windows
+      # (CMake + MSVC v143) and macOS (CMake + Apple Clang) images need nothing extra.
+      # Not needed: libcurl (JUCE_USE_CURL=0) or webkit (JUCE_WEB_BROWSER=0) — see CMakeLists.txt.
+      - name: Install JUCE Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libx11-dev libxext-dev \
+            libxrandr-dev libxinerama-dev libxcursor-dev libfreetype-dev libfontconfig1-dev
+
       - name: Install dependencies
         run: npm ci
 
       # NDI: native/ndi/ndi.node is a committed prebuilt (Windows, built against the NDI SDK),
-      # so CI doesn't build it — build:native covers output-engine + spout only.
+      # so CI doesn't build it — build:native covers output-engine + spout + hap only.
       - name: Build native engine
         run: npm run build:native
+
+      # The JUCE audio engine, built STRICTLY (build:native only warns, so it cannot be relied on to
+      # fail the job). This compiles native/audio-engine with cmake-js and copies the addon to
+      # native/audio-engine/audio_engine.node, which electron-builder ships as `audio-engine.node`.
+      # It also installs native/audio-engine's own deps: that dir is not an npm workspace, so the
+      # root `npm ci` above does NOT provide cmake-js / node-addon-api.
+      - name: Build audio engine (JUCE)
+        run: npm run build:audio
 
       - name: Build app (main/preload/renderer)
         run: npm run build

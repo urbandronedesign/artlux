@@ -25,20 +25,93 @@ so there is no separate window or bridge. Separate **projector output** windows
 - **Rust** toolchain (`rustup`, stable) for the native addons — MSVC on Windows.
   - The Spout addon (`native/spout-receiver`) builds the vendored Spout2 C++ SDK on Windows (needs
     the MSVC C++ build tools); it compiles to no-op stubs on macOS/Linux.
+- **CMake ≥ 3.23 + a C++17 toolchain** — only for the JUCE **audio engine** (`native/audio-engine`,
+  the one non-Rust native module). Optional for day-to-day work: without it everything builds and
+  runs, you just get no sound (see below). MSVC on Windows, Xcode CLT on macOS, and on Linux the
+  JUCE dev packages: `libasound2-dev libx11-dev libxext-dev libxrandr-dev libxinerama-dev
+  libxcursor-dev libfreetype-dev libfontconfig1-dev`.
 
 ## Install & run
 ```bash
 npm install
-npm run build:native   # builds both Rust crates → native/*/*.node (gitignored)
+npm run build:native   # 3 Rust crates → native/*/*.node (gitignored), then the audio engine (optional, warns)
+npm run build:audio    # just the JUCE audio engine — REQUIRED for sound
 npm run dev            # launch the Electron app (electron-vite dev)
 ```
+
+### Audio engine (`native/audio-engine`) — mandatory to ship, optional to develop
+JUCE + libspatialaudio, built with **cmake-js**, not cargo. `plugins/audio` **graceful-degrades**: if
+`audio_engine.node` is absent the app still starts and the whole audio UI still renders — with **no
+sound and no error**, only `[audio] native engine unavailable` in the console. That makes a missing
+engine dangerously easy to miss, so the build system treats it this way:
+
+| Path | Behaviour if the engine won't build |
+|------|--------------------------------------|
+| `npm run build:native` | **Warns loudly, continues.** A cargo-only contributor is not blocked, but is told audio is dead. |
+| `npm run build:audio` | **Hard fails.** |
+| `npm run package` / `package:dir` | **Hard fails** — an installer can never be cut without an engine. ⚠ It **rebuilds** it: both run `scripts/build-audio.cjs` with **no flags**, a full strict build. It is *not* a `--check`, and the difference matters — `--check` only asserts the addon **exists** and says nothing about whether it is **current**, so a stale engine would sail straight into an installer. (This row said `--check` until 2026-07-14; commit `473d259` changed the behaviour and left both this table and the note further down describing the old contract.) |
+| CI (`.github/workflows/build.yml`) | **Hard fails** — a tagged release cannot ship a silent audio UI. |
+
+Unlike `ndi.node`/`calib.node`, the addon is **not** a committed prebuilt: it is platform-specific,
+so every machine and every CI runner builds its own. It is gitignored (`*.node`).
+
+> **Close the app before rebuilding.** A running Electron holds `audio_engine.node`; the link fails
+> (`LNK1104` on Windows) and **silently leaves the stale addon in place**, so you debug code that
+> isn't loaded. Stop `npm run dev` and kill stray `electron` processes first.
+
+### "The audio UI is all there and nothing plays" — no sound?
+There is no error dialog and no red UI: the loader degrades to a no-op by design, so a missing **or
+stale** engine looks exactly like a bug in your code. Work the list in order.
+
+**1. Read the log — in the terminal, not DevTools.** `audioManager` runs in the **main process**
+(the addon is loaded with `createRequire`), so its lines go to the console running `npm run dev`.
+The renderer DevTools console will never show them. You get exactly one of:
+
+| Line (`plugins/audio/src/audioManager.ts`) | Means |
+|---|---|
+| `[audio] native engine loaded (JUCE 8.0.14)` | An addon loaded. **This does not mean it is current** — go to step 3. |
+| `[audio] native engine unavailable — audio disabled` | No addon found or loaded. Step 2. |
+| `[audio] native engine load failed at <path> <err>` | The file **exists** but `require()` threw — ABI/arch mismatch, missing runtime DLL. |
+
+The `load failed` warning is only printed for a path that **exists**. A file that is simply absent
+logs nothing per-path — you just get `unavailable`. So *`unavailable` with no per-path error means
+the addon isn't there at all*, not that it failed to load.
+
+**2. Does the addon exist?** The loader probes, in order (`audioManager.ts:61-65`):
+```
+<resourcesPath>/audio-engine.node                     # packaged (extraResources; note the HYPHEN)
+native/audio-engine/build/Release/audio_engine.node   # dev — the raw cmake-js output (UNDERSCORE)
+native/audio-engine/audio_engine.node                 # the copy scripts/build-audio.cjs makes
+```
+None present → `npm run build:audio` (needs CMake ≥ 3.23 + a C++17 toolchain; see Prerequisites).
+
+**3. Is it NEWER than `native/audio-engine/src/engine.cpp`?** This is the one that wastes an
+afternoon: a stale addon **loads fine and logs `native engine loaded`**, so success and staleness are
+indistinguishable in the log. If you edited `engine.cpp` and nothing changed, compare mtimes:
+```powershell
+Get-Item native/audio-engine/build/Release/audio_engine.node, native/audio-engine/src/engine.cpp |
+  Select-Object Name, LastWriteTime
+```
+Addon older than the source → **your last build never linked.** Almost always because the app was
+running: MSVC fails `LNK1104`, `build:audio` exits non-zero, and the previous `.node` stays on disk.
+Confirm nothing holds it (`tasklist /FI "IMAGENAME eq electron.exe"` → *No tasks*), then rebuild.
+
+**4. Packaging DOES rebuild the engine.** `npm run package` runs `scripts/build-audio.cjs` with **no
+`--check`** — the addon is compiled from source as part of every package, so you do **not** need to run
+`npm run build:audio` first. (`build:native` still calls it with `--optional`, so a Rust-only build does
+not hard-fail on a machine with no C++ toolchain. CI starts from a clean clone with no addon at all.)
+
+> This entry said the exact opposite until 2026-07-14, and had done since `473d259` changed the
+> behaviour and left the document describing the old one. If you are reading a stale checkout, trust
+> `package.json`, not this file.
 
 ### Scripts
 | Script | What |
 |--------|------|
 | `npm run dev` | dev server + Electron |
 | `npm run build` | build main + preload + renderer bundles |
-| `npm run build:native` | cargo build both crates + copy to `*.node` |
+| `npm run build:native` | cargo build the 3 Rust crates + copy to `*.node`, then the audio engine (warns, non-fatal) |
+| `npm run build:audio` | cmake-js build the JUCE audio engine → `native/audio-engine/audio_engine.node` (strict) |
 | `npm run gen:icon` | regenerate `build/icon.{png,ico}` + favicon from `build/icon.svg` |
 | `npm run package` | full installers (electron-builder) |
 | `npm run package:dir` | unpacked app (fast local smoke test) |
@@ -133,7 +206,11 @@ dmgs need a one-time Gatekeeper bypass: right-click → Open → "Open Anyway", 
 - Commit messages via PowerShell here-strings break on embedded `"` — keep commit bodies quote-free.
 - **Rebuilding a native addon while the app runs fails `EBUSY`** (Electron holds `*.node`). Stop dev +
   kill stray `electron` first, then `npm run build:native` (or build the one crate +
-  `node scripts/copy-native.cjs`).
+  `node scripts/copy-native.cjs`). For the **audio engine** the same lock surfaces as MSVC `LNK1104`,
+  and the failed link **leaves the previous `audio_engine.node` in place** — so the app keeps loading
+  the STALE engine and your change appears to do nothing. Confirm with
+  `tasklist /FI "IMAGENAME eq electron.exe"` before `npm run build:audio`. If audio is dead or acting
+  stale, work the checklist in [No sound?](#the-audio-ui-is-all-there-and-nothing-plays--no-sound).
 - **Camera / mic surfaces** need the main process to grant the `'media'` permission
   (`session.setPermissionRequestHandler` + `setPermissionCheckHandler` in `src/main/index.ts`); without
   it `getUserMedia` is denied and the live source stays blank. The renderer logs the exact failure as
@@ -142,7 +219,15 @@ dmgs need a one-time Gatekeeper bypass: right-click → Open → "Open Anyway", 
   `systemPreferences.askForMediaAccess`; on Windows, enable Settings → Privacy → Camera for desktop apps.
 
 ## CI notes
-`.github/workflows/build.yml` installs Rust, runs `build:native` (both crates; Windows builds the real
-Spout addon, others stub), `build`, then `electron-builder`. The cargo cache covers both crate
-`target/` dirs. Pinned actions currently emit Node-20 deprecation warnings (non-blocking; bump majors
-when convenient).
+`.github/workflows/build.yml` installs Rust, runs `build:native` (the Rust crates; Windows builds the
+real Spout addon, others stub), then `build:audio` (the JUCE engine — **strict**, so a release can
+never ship the audio UI without sound), `build`, then `electron-builder`. The cargo cache covers the
+crate `target/` dirs; the audio engine is not cached (it FetchContent-clones JUCE + libspatialaudio,
+costing a few minutes per runner on a tagged release — correctness over speed).
+
+Runner toolchains: **windows-latest** (CMake + MSVC v143) and **macos-latest** (CMake + Apple Clang)
+already have everything. **ubuntu-latest** has CMake + GCC but needs the JUCE dev packages, installed
+by the `Install JUCE Linux dependencies` step (ALSA for `juce_audio_devices` + X11/freetype headers).
+`npm ci` at the root does **not** install `native/audio-engine`'s deps (it is not an npm workspace) —
+`scripts/build-audio.cjs` installs them itself. Pinned actions currently emit Node-20 deprecation
+warnings (non-blocking; bump majors when convenient).

@@ -20,6 +20,12 @@ export function mimeForPath(path: string): string {
     case 'webp': return 'image/webp';
     case 'bmp': return 'image/bmp';
     case 'svg': return 'image/svg+xml';
+    case 'wav': return 'audio/wav';
+    case 'aiff': case 'aif': return 'audio/aiff';
+    case 'flac': return 'audio/flac';
+    case 'ogg': return 'audio/ogg';
+    case 'mp3': return 'audio/mpeg';
+    case 'aac': case 'm4a': return 'audio/aac';
     default: return 'application/octet-stream';
   }
 }

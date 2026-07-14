@@ -298,8 +298,10 @@ content at a **Layer** to show it.
 - **Tracks** — mute / solo / lock / show-hide, recolor, reorder (drag the grip), and resize height
   from the track header.
 
-**Infinite timeline & looping:** the playhead runs unbounded — build sequences as long as you like.
-Looping is off by default; toggle **Loop** (**Shift+L**) to repeat the **in/out** region.
+**Length & looping:** the **Length** field (toolbar) is the end of the timeline — playback stops and
+holds on the last frame when it gets there. Looping is off by default; toggle **Loop** (**Shift+L**) to
+repeat the **in/out** region, or the whole timeline if no region is set. **Stop**, **Set In**/**Set
+Out** buttons and draggable ruler handles set the region without needing the **I**/**O** keys.
 
 **Navigation:** **mouse wheel** zooms toward the cursor, **Shift+wheel** scrolls horizontally, and
 **middle-button drag** pans in any direction.
@@ -321,9 +323,10 @@ See [TRACKING_TAKES.md](TRACKING_TAKES.md) for details.
 **Edit logic** button opens its editor). It's **disabled by default**. When enabled it can drive the
 transport automatically: build a graph of **states** (each can *play / pause / stop / seek / set loop
 / jump to a marker* on entry) connected by **transitions** that fire **manually** (buttons on the
-state lane) or automatically **after a delay**, **at a time**, **on a marker**, or **when a clip
-ends**. Turn it off any time to return to fully manual control. (The app's Play/Pause button always
-reflects the real state, whether you or the machine changed it.)
+state lane) or automatically **after a delay**, **at a time**, **on a marker**, **when a clip ends**,
+or **when the timeline ends** (the trigger to reach for when the whole show should advance
+unattended). Turn it off any time to return to fully manual control. (The app's Play/Pause button
+always reflects the real state, whether you or the machine changed it.)
 
 ---
 

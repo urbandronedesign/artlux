@@ -1,0 +1,83 @@
+ArtLux — THIRD-PARTY NOTICES
+============================
+
+ArtLux is a NON-COMMERCIAL project, built and maintained for EDUCATION AND RESEARCH.
+It is not sold, not licensed for a fee, and generates no revenue.
+
+This file records the third-party software ArtLux uses, and — importantly — distinguishes
+the two kinds of use, because they carry very different obligations:
+
+  · LINKED INTO A BINARY WE DISTRIBUTE   → copyleft obligations attach.
+  · LOADED AT RUNTIME / NOT REDISTRIBUTED → they generally do not.
+
+--------------------------------------------------------------------------------------
+1. COMPILED AND LINKED INTO `audio-engine.node` (shipped inside every installer)
+--------------------------------------------------------------------------------------
+
+  JUCE 8.0.14                       https://juce.com  ·  https://github.com/juce-framework/JUCE
+    Modules used: juce_audio_devices, juce_audio_formats, juce_audio_basics, juce_dsp,
+    juce_core, juce_events.
+
+    ⚠ LICENCE ELECTION NOT YET MADE — SEE THE OPEN QUESTIONS BELOW.
+    JUCE is dual-licensed: a commercial licence, or the GNU AGPLv3. The AGPL option is
+    strong copyleft and, if elected, reaches this entire application when it is
+    DISTRIBUTED. ArtLux's non-commercial, educational nature affects WHICH commercial
+    tier (if any) applies; it does not, by itself, remove the obligation to pick one.
+
+  libspatialaudio 0.4.0             https://github.com/videolabs/libspatialaudio
+    Ambisonic encoding + binaural (HRTF) and speaker-array decoding.
+    Licence: LGPL-2.1-or-later.
+    ⚠ It is STATICALLY LINKED into `audio-engine.node`. LGPL permits this, but a static
+    link carries obligations a dynamic link does not: recipients must be able to relink
+    the work against a modified libspatialaudio (typically satisfied by providing the
+    object files, or by switching to a dynamic link). This has not been addressed.
+
+  HRTF/SOFA data shipped with libspatialaudio may carry its own terms. Not yet reviewed.
+
+--------------------------------------------------------------------------------------
+2. LOADED AT RUNTIME — NOT redistributed by us
+--------------------------------------------------------------------------------------
+
+  NDI® SDK / Runtime                https://ndi.video
+    NDI® is a registered trademark of Vizrt NDI AB. ArtLux does not bundle the NDI
+    runtime; the user installs it. The `ndi.node` addon links the NDI SDK's import
+    library only.
+
+--------------------------------------------------------------------------------------
+3. THE APPLICATION ITSELF
+--------------------------------------------------------------------------------------
+
+  Electron, React, TypeScript, Vite, Tailwind CSS, react-three-fiber, and the Rust
+  crates used by the output engine — all permissively licensed (MIT / Apache-2.0 / BSD).
+  See `package.json` and each crate's `Cargo.toml`.
+
+--------------------------------------------------------------------------------------
+OPEN QUESTIONS  —  these are unresolved, and they are recorded here rather than assumed
+--------------------------------------------------------------------------------------
+
+  (a) WHICH JUCE LICENCE. Not elected. JUCE's terms change between major versions and
+      must be read at https://juce.com — do not rely on this file, or on any figure
+      quoted elsewhere in this repository, for them.
+
+  (b) `JUCE_DISPLAY_SPLASH_SCREEN=0` IS SET (native/audio-engine/CMakeLists.txt).
+      Disabling JUCE's splash screen is a LICENCE-GATED act: it is permitted under the
+      AGPL option and under paid tiers, and historically NOT under JUCE's free tier,
+      which required the splash to be shown. This flag was set for engineering reasons
+      (the addon is headless and has no window to draw one in) with no licence decision
+      behind it. It must be reconciled with whichever tier is chosen.
+
+  (c) THE LGPL STATIC-LINK RELINKING OBLIGATION for libspatialaudio (see above).
+
+  (d) ARTLUX'S OWN LICENCE. There is no LICENSE file, so the work is "all rights
+      reserved" by default. That is coherent for a private research project. It is NOT
+      coherent with electing JUCE's AGPL option, which would require this application to
+      be offered under AGPL-compatible terms when distributed.
+
+  (e) DISTRIBUTION IS ALREADY WIRED. `package.json`'s `extraResources` ships
+      `audio-engine.node` into every installer, and pushing a `v*` tag runs a CI matrix
+      that PUBLISHES A GITHUB RELEASE. Building and running locally raises none of the
+      above. PUBLISHING A RELEASE raises all of it.
+
+  ⚠ Nothing in this file is legal advice. It is an engineer's inventory of what is
+    linked, what is loaded, and what has not been decided — written down so the decision
+    is made deliberately rather than discovered after a tag is pushed.

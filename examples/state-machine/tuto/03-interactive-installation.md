@@ -83,7 +83,7 @@ the room. That's your installation, remote-controlled.
    (`Attract A` / `Attract B`) inside the region, ping-ponging on `afterDelay`, each with manual arrows
    to the performances — the hub becomes a mini timed loop (Chapter 1) that's still interruptible.
 4. **Unattended deployment.** Save your project, then launch it headless/broadcast so it runs on boot
-   with no editor — see the app's **headless** mode in [`README.md`](../../../README.md) and the
+   with no editor — see the app's **headless** mode in [`FEATURES.md`](../../../docs/FEATURES.md) and the
    [show-control tablet + scheduler](../../../docs/SHOW-CONTROL.md) for touch control and time-of-day
    automation.
 
@@ -92,8 +92,9 @@ the room. That's your installation, remote-controlled.
 The installation pattern is a **hub** (unattended attract) with **spokes** (triggered performances)
 that **auto-return** via `afterDelay`, a **held blackout** released manually, **lock time** as a
 debounce, and **OSC** so external hardware drives the show. With Chapters 1–3 you have the whole state
-machine: **states bound to scenes**, **five triggers across two clocks**, **entry actions**, **lock
-time**, **regions**, and **remote control**.
+machine: **states bound to scenes**, **six triggers across two clocks** (Chapter 2 walks five of them;
+the sixth, `onTimelineEnd`, is in the reference doc), **entry actions**, **lock time**, **regions**, and
+**remote control**.
 
 ## Where next
 

@@ -1,4 +1,4 @@
-# 8. 3D scene
+# 9. 3D scene
 
 The **3D Scene** lays out fixtures in real‑world space and previews the show in 3D — handy for venue
 design and client previews. It lives as a **split pane** beside the Stage (toggle it with the
@@ -53,4 +53,4 @@ live tracking in 3D.
 
 See [SCENES.md](../SCENES.md) for the full 3D model.
 
-➡ Next: [Calibration](09-calibration.md)
+➡ Next: [Calibration](10-calibration.md)

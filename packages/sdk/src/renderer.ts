@@ -57,6 +57,104 @@ export interface ClipKindRegistry<Clip = unknown> {
   get(kind: string): ClipKindContribution<Clip> | undefined;
 }
 
+// ─── Automation target contribution ───────────────────────────────────────────────────────
+// A NAMESPACE of automatable parameters. An automation lane addresses one parameter by dot-path; the
+// host resolves the path by its HEAD (the first segment) and hands it to the provider that owns that
+// namespace. Everything after the head is the PROVIDER'S OWN GRAMMAR — core never parses it. That is
+// what lets the audio plugin expose `audio.clip.<id>.fx.<effectId>.cutoff` without core knowing what a
+// filter is, and what keeps the core automation engine generic enough for fixtures/surfaces to use too.
+export interface AutomationTargetDef {
+  path: string;    // full dot-path, e.g. 'audio.clip.c7.fx.e2.cutoff'
+  label: string;   // 'Cutoff'
+  group: string;   // section heading in the picker, e.g. 'Bed ▸ Rain ▸ Filter'
+  min: number;
+  max: number;
+  def: number;
+  step?: number;   // smallest meaningful change — ALSO the sampler's change-detect epsilon
+  unit?: string;
+  log?: boolean;   // log response: the lane's Y AXIS and its interpolation both run in log space
+}
+export interface AutomationTargetProvider {
+  /**
+   * The path HEADS this provider owns — e.g. ['audio'], or core's ['surfaces','fixtures','globalBrightness'].
+   * One owner per head; a provider may own several (paramPath's grammar already spans three).
+   */
+  namespaces: string[];
+  /** Everything automatable right now (the bed changes as clips are added) — drives the target picker. */
+  enumerate(): AutomationTargetDef[];
+  /** The AUTHORED value (what the slider last wrote), used to seed a new lane. */
+  get(path: string): number | undefined;
+  /**
+   * Push a sampled value. CALLED FROM INSIDE THE rAF FRAME LOOP, so the contract is strict:
+   * it MUST NOT touch React state, MUST NOT write the persisted document, and MUST NOT allocate.
+   * Write to a LIVE OVERRIDE layer you own — the authored value in the project stays untouched, which
+   * is what lets a lane be disabled and the fader snap straight back to what the user actually set.
+   */
+  write(path: string, value: number): void;
+  /** A lane stopped owning this path (disabled, deleted, or dropped by a scene swap) — return it to manual. */
+  release(path: string): void;
+  /** Optional: called once per frame AFTER all writes, so a provider can flush coalesced changes. */
+  frameEnd?(): void;
+
+  /**
+   * Optional: A SCENE OR CUE FADE writes here — a layer SEPARATE from the automation override above.
+   *
+   * Two writers, two maps, and the separation is load-bearing:
+   *   · A LANE MUST ALWAYS WIN over a scene fade. Providers implement that by READ ORDER — the value the
+   *     provider hands the engine is `laneOverride ?? fadeOverride ?? authored`. No owns() query is needed
+   *     and none exists: core cannot see inside a plugin's override layer, by design.
+   *   · A lane's release() must never delete a live fade. Sharing one map would make it do exactly that,
+   *     and would put two writers in a last-writer-wins race every frame.
+   *
+   * SAME CONTRACT AS write(): called from inside a rAF frame loop. MUST NOT touch React state, MUST NOT
+   * write the persisted document, and MUST NOT push to a device/engine directly — the consumer PULLS the
+   * value through on its own next read. (A direct push would be overwritten by the authored value on the
+   * same frame by whatever re-reads the document each frame — an audible flutter, not a silent bug.)
+   *
+   * A fade's value PERSISTS after the fade completes: it IS the recalled scene's state for that param,
+   * held outside the saved document exactly as the automation override is. A later recall overwrites it.
+   * WHICH IS EXACTLY WHY releaseFade() BELOW IS NOT OPTIONAL IN PRACTICE — see it.
+   */
+  writeFade?(path: string, value: number): void;
+
+  /**
+   * Optional: HAND THE PATH BACK. A MANUAL write to the authored value (an operator moving a fader) is a
+   * TAKEOVER — the fade layer for that path must be dropped, or the value the user just set is SHADOWED BY
+   * A DEAD FADE FOREVER.
+   *
+   * This is not hypothetical, it is the default outcome of the layer above. A fade's value persists, and
+   * the driver reads `laneOvr ?? fade ?? authored` — so the instant ANY scene or cue touches
+   * `audio.master.gain`, the mixer's master fader stops doing anything at all, for the rest of the session
+   * and across every project opened in it. An automation lane does not have this bug precisely because it
+   * HAS a release, and this codebase already names the failure: a dropped target "must be handed back to
+   * manual control, or the target would be STRANDED at the outgoing curve's last value forever".
+   */
+  releaseFade?(path: string): void;
+
+  /**
+   * Optional: drop EVERY fade. The host calls this through the automation-target registry when a project is
+   * OPENED or RESET — a fade layer is show state, not document state, and a stale master fade from the
+   * previous project must not clamp the new one's output.
+   */
+  releaseAllFades?(): void;
+
+  /**
+   * Optional: the EFFECTIVE value of a path — `laneOverride ?? fadeOverride ?? authored`.
+   *
+   * `get()` returns the AUTHORED value on purpose (it seeds a new lane's first keyframe, so creating a
+   * lane never changes the sound). A FADE'S `from` MUST NOT USE IT: scene A fades the master 1.0 → 0.2;
+   * scene B later fades it → 0.5; built from `get()`, B's leg starts at the AUTHORED 1.0 and frame 1 of
+   * the fade slams the master to FULL LEVEL before gliding down. A full-scale pop on the second and every
+   * subsequent audio recall of the show. Fades read getLive(); lane seeding still reads get().
+   */
+  getLive?(path: string): number | undefined;
+}
+export interface AutomationTargetRegistry {
+  register(p: AutomationTargetProvider): void;
+  get(namespace: string): AutomationTargetProvider | undefined;
+  all(): AutomationTargetProvider[];
+}
+
 // ─── Video codec contribution ─────────────────────────────────────────────────────────────
 // A pluggable video decoder for file content the browser `<video>` can't play (HAP; later DXV, or a
 // native-decode MP4). The host dispatches a matching file path to the first codec whose `canDecode`
@@ -278,11 +376,58 @@ export interface ShowService<SM = unknown, Scene = unknown, Bank = unknown, Entr
   setSchedule(entries: Entry[]): void;
   subscribe(cb: () => void): () => void;
   // Live transport + FSM status for a remote's status display (polled by the plugin).
+  //
+  // TWO PLAYHEADS, ONE TRANSPORT. `playhead` is the BOUND document's time (it restarts when a scene is
+  // recalled). `showTime` is the SHOW clock — the time the global audio bed rides, which a scene recall
+  // does NOT reset. Anything describing the BED must read showTime; anything describing the picture on
+  // the bound timeline must read playhead. See docs/TIMELINE.md.
+  //
+  // `showEnd` is the SHOW's length (the GLOBAL doc's playable end) — `duration` is the BOUND doc's, and
+  // while a scene is bound that number means nothing to the bed.
+  //
+  // `showEnded` says the show clock is PARKED at showEnd (global loop off, the show ran out). It is NOT
+  // derivable from `playing`: a scene looping underneath keeps the transport running. A consumer that
+  // reconciles against showTime MUST check it — reconciling against a FROZEN clock is not a no-op, it is
+  // a defect (the audio driver's drift re-lock would re-seek every sounding clip back to the same source
+  // offset every ~50 ms, forever: a buzz, not silence).
+  //
+  // A mirror/projector window runs NO show clock: `showTime` is always 0 and `showEnded` always false
+  // there (`showEnd` still reads the global document's length). Nothing show-clock-driven exists in a
+  // projector — the audio driver early-returns for non-main windows — so this is a floor, not a lie.
   getStatus(): {
-    playing: boolean; playhead: number; duration: number;
+    playing: boolean; playhead: number; showTime: number; duration: number;
+    showEnd: number; showEnded: boolean;
     currentStateId: string | null; stateElapsedSec: number;
     activeSceneId: string | null; lastFiredTransitionId: string | null;
   };
+  // The timeline's live selection (ephemeral — never persisted, never in the document, never React state
+  // in between). A panel with an inspector that FOLLOWS what the operator clicked subscribes here.
+  //
+  // `source` says WHICH audio container an audioClip belongs to: the bed (ProjectData.audio) and the bound
+  // timeline's own audio (Timeline.audio) can hold the same clip id, and the two commit through different
+  // host calls at very different costs. An inspector that guessed would write to the wrong document.
+  //
+  // THE UNION IS DISCRIMINATED ON PURPOSE — do not flatten it to `source?: 'bed' | 'timeline'`. With an
+  // OPTIONAL `source`, narrowing on `kind === 'audioClip'` still leaves `'bed' | 'timeline' | undefined`,
+  // and the natural `s.source ?? 'bed'` fallback COMPILES CLEAN while sending a scene-timeline clip's edit
+  // down the bed's commit path (host.audio.setMix). That mis-gains the bed — which survives every scene
+  // recall — permanently, under a live show. The type must make the guess unrepresentable, not merely
+  // discouraged by the paragraph above.
+  //
+  // THE ID RESOLVES IN THE BOUND DOCUMENT. The publisher (Timeline.tsx) filters the selection against the
+  // container it currently holds, so a selection that outlives a document rebind (select a clip on scene
+  // A's audio lane, recall scene B) is published as `null` rather than as an id that is in no clip. A
+  // consumer should still render nothing when a lookup misses — the bound document can change between the
+  // notification and the read — but it will not be handed a permanently dangling id to write through.
+  //
+  // `subscribeSelection` fires immediately on subscribe (a panel opened mid-show sees the live selection)
+  // and then only on a CHANGE — the store is idempotent, so a re-rendering Timeline does not spam it.
+  // A window with no editor state (projector) always reads null and never fires.
+  getSelection():
+    | { kind: 'clip'; id: string }
+    | { kind: 'audioClip'; id: string; source: 'bed' | 'timeline' }
+    | null;
+  subscribeSelection(cb: () => void): () => void;
   // Command surface — the host wires these to the same cueBus/timeline singletons OSC uses, so a
   // remote drives the show through the identical path (App stays the single writer of `playing`).
   recallScene(ref: string): void;                 // scene id or name
@@ -291,6 +436,87 @@ export interface ShowService<SM = unknown, Scene = unknown, Bank = unknown, Entr
   transport(intent: { kind: 'play' | 'pause' | 'stop' | 'seek' | 'loop'; sec?: number; loopOn?: boolean }): void;
   triggerTransition(id: string): void;            // manual FSM transition by id
   enterState(id: string): void;                   // jump directly to a state by id
+
+  /**
+   * A MANUAL TAKEOVER OF A FADED PARAM — remove `path` from any IN-FLIGHT scene/cue fade.
+   *
+   * The provider half of a takeover (AutomationTargetProvider.releaseFade) drops the path from the
+   * provider's own fade layer. THAT IS NOT ENOUGH ON ITS OWN, and the gap is not a small one: while a fade
+   * is live the host re-writes EVERY faded path through writeFade() on EVERY FRAME. A release that does not
+   * also reach the host is therefore undone within 16 ms, and then made PERMANENT when the leg lands on its
+   * endpoint and persists there — so the operator's move is erased and the param is stranded at the
+   * outgoing scene's value with the control reading as if it had worked. (Scene A fades the master to 0.2
+   * over 5 s; two seconds in — exactly when an operator reaches for it — they pull the fader up; without
+   * this the house still slides to 0.2 and STAYS.)
+   *
+   * So a provider's releaseFade() MUST call this. It is on the host contract, not the provider one,
+   * because the animation is the HOST's: a plugin cannot reach into it. Both halves, or neither works.
+   *
+   * Dropping a leg does NOT finalize it (that would write the very value being taken over) and does NOT
+   * complete the fade — the fade's OTHER legs keep animating untouched. Unknown/idle paths are a no-op.
+   * Inert in windows with no transport (projector), which run no fades to begin with.
+   */
+  dropFadeLeg(path: string): void;
+}
+
+// Read-only view of the persisted global audio bed (ProjectData.audio → AudioMix). The playhead-driven
+// bed player (plugins/audio) subscribes here and re-reads getMix() on change. Generic over the host
+// domain type (opaque here — the SDK never imports src/renderer/types.ts); App satisfies it structurally
+// with the real AudioMix.
+//
+// TWO AUDIO CONTAINERS, TWO CLOCKS (see docs/TIMELINE.md and getStatus() above):
+//   getMix()           — ProjectData.audio, THE BED. Rides the SHOW clock. Survives a scene recall.
+//   getTimelineAudio() — the BOUND timeline's own Timeline.audio. Rides the PLAYHEAD, restarts with it.
+// The clock follows the CONTAINER, not the panel it happens to be drawn in.
+//
+// TWO CONTAINERS, TWO WRITERS, AND THEY ARE DELIBERATELY DIFFERENT SHAPES — `setMix` replaces the bed
+// (App owns that document outright); `patchTimelineClip` patches ONE clip, BY ID, in whichever document
+// core has bound right now (the caller cannot name it). See patchTimelineClip for why the symmetric
+// `setTimelineAudio(container)` is not offered.
+export interface AudioService<Mix = unknown, TlAudio = unknown, TlClip = unknown> {
+  getMix(): Mix;
+  setMix(mix: Mix): void;                 // replace the bed (host normalizes) — the bed-authoring UI writes here
+  /** The BOUND timeline's own audio ({tracks, clips}) — plays on the PLAYHEAD and restarts with its
+   *  timeline, unlike the bed. Reads the ENGINE's bound document, not React state, so it is correct on
+   *  the very frame a recall repoints the engine (App re-renders a frame later). Re-read on every
+   *  `subscribe` fire — and, in the driver, on every frame. */
+  getTimelineAudio(): TlAudio;
+
+  /**
+   * THE SECOND WRITER — patch ONE clip inside the BOUND timeline's own audio (gain, mute, spatial, FX).
+   *
+   * TWO CONTAINERS, TWO WRITERS, AND THEY ARE NOT SYMMETRIC — read this before reaching for `setMix`.
+   *
+   *   · `setMix(mix)` replaces THE BED wholesale. The bed is ProjectData.audio: ONE document, owned by
+   *     App, never rebound. Handing back a whole container is safe there.
+   *   · THIS replaces nothing and names no document. `Timeline.audio` is CORE's document and WHICH ONE it
+   *     is changes under you: the global timeline, or the timeline of whichever scene is bound right now.
+   *     A `setTimelineAudio(whole container)` would be the obvious symmetric API and it is a trap — the
+   *     caller builds the container from a snapshot it read a render ago, so it CLOBBERS any lane edit
+   *     (placement / trim / fades) landed since, and it hands the host a payload with NO OWNER IDENTITY,
+   *     leaving the host to GUESS which document to write it into. Hence: id-addressed, one clip, a patch.
+   *
+   * THE CALLER MAY NOT NAME A SCENE, AND THAT IS THE POINT. The host resolves `clipId` inside the BOUND
+   * document ONLY and writes it back through the same owner-router every other timeline edit goes through
+   * (the active scene's own timeline, else the global one; a scene with no timeline of its own materializes
+   * one on this write, exactly as core does). Clip ids ALIAS ACROSS SCENES — "Capture Scene" deep-clones
+   * the bound timeline, ids and all, so two scenes hold BYTE-IDENTICAL clip ids — so an API that let a
+   * caller (or the host) SEARCH for a matching id would write scene A's reverb into scene B on the very
+   * first duplicate, silently, in a venue. **If `clipId` is not in the bound document, the write is
+   * DROPPED.** A recall that lands between the gesture and the commit therefore loses the edit, which is
+   * correct: the operator is no longer looking at that clip.
+   *
+   * NOT AN AUTOMATION TARGET. `Timeline.audio` is outside the audio automation provider's world (it
+   * enumerates the BED's tracks/clips/master only), so a clip patched here has no lane and no scene/cue
+   * fade over it: callers must NOT pair this with releaseFade()/dropFadeLeg() the way the bed's writes do.
+   *
+   * COSTLY — INVARIANT 7 IS NOT OPTIONAL HERE. One call is a core document commit: engine.setData →
+   * clampPlayheadIntoDoc + warmMedia + pruneStaleLayers + compileAutomation, PLUS a structured-clone
+   * postMessage of the WHOLE document to EVERY projector port. A continuous control (a fader, a pad, an FX
+   * param) must draft locally and call this ONCE, on release — never per pointermove.
+   */
+  patchTimelineClip(clipId: string, patch: Partial<TlClip>): void;
+  subscribe(cb: () => void): () => void;  // fires when EITHER container changes (the bed, or the bound timeline)
 }
 
 export interface RendererHostServices {
@@ -299,6 +525,7 @@ export interface RendererHostServices {
   projectors: ProjectorsService;
   settings: SettingsService;
   show: ShowService;
+  audio: AudioService;
 }
 
 // ─── Renderer plugin context ────────────────────────────────────────────────────────────────
@@ -314,6 +541,7 @@ export interface RendererPluginContext<C = unknown, SurfaceT = unknown, Clip = u
   sceneViz: SceneVizRegistry;
   projectorPanels: ProjectorPanelRegistry;
   videoCodecs: VideoCodecRegistry;
+  automationTargets: AutomationTargetRegistry;
   ipc: PluginIpc;
   // Subscribe to the timeline engine's coalesced per-frame playhead (seconds). Returns unsub.
   onPlayhead(cb: (playheadSec: number) => void): () => void;

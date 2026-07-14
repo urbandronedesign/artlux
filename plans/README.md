@@ -32,9 +32,9 @@ block with decisions a human must make before building.
 
 ---
 
-## Shipped & merged (archived)
+## Shipped (archived)
 
-Seven plans have landed on `main` and moved to [`archive/`](archive/). Full per-wave record in
+**Eleven** plans are complete and have moved to [`archive/`](archive/). Full per-wave record in
 [SEQUENCING.md](SEQUENCING.md#status-tracker).
 
 | Plan | Lifts | Status |
@@ -46,18 +46,23 @@ Seven plans have landed on `main` and moved to [`archive/`](archive/). Full per-
 | [Auto-patch collision detection](archive/autopatch-collision-detection.md) | #6 Patch & Prove | ✅ merged — detector + reservation (Phase C split-brain deferred) |
 | [Schedule/show engine under `--headless`](archive/headless-plugin-host.md) | #10 Ship It | ✅ merged — schedule-fire runtime-verified |
 | [In-app docs browser](archive/docs-browser.md) | (net-new) | ✅ shipped v0.21.0 |
+| [Watchdog relaunch throttle](archive/watchdog-relaunch-throttle.md) | #10 Ship It | ✅ **merged 2026-07-11** (Wave 0) — `minRelaunchGapSec` pacing + the Preferences field. *(This row said "not started" until 2026-07-14, three days after it merged.)* |
+| [Show-control tablet parity](archive/show-control-tablet-parity.md) | #7 Operator Remote | ✅ **merged 2026-07-11** (Wave 0) — tablet multi-bank + per-cue fire + Kick hard-cuts SSE. *(Same — this table was never updated when Wave 0 landed.)* |
+| [Timeline transport + global/scene scoping + audio scene binding](archive/timeline-transport-and-audio-scoping.md) | (net-new, Wave 3) | ◑ **COMPLETE — lands with `wave-3-audio`.** Wave A live-tested on hardware; Wave B = the show clock, audio lanes, the mixer, audio on scenes/cues. **Supersedes P5** of `audio-engine.md`. |
+| [Asset paths: scenes + audio bed](archive/asset-paths-scenes-and-audio.md) | #9 Pack & Hand Off | ◑ **COMPLETE — lands with `wave-3-audio`.** `mapAssetPaths` → per-container visitors over the top level, **every scene**, and the bed. ⚠ Makes a saved project **forward-incompatible** with older builds. |
 
 ## Active plans
 
 | Plan | Lifts (tutorial set) | Placement | Risk | Status |
 |------|----------------------|-----------|------|--------|
-| [Watchdog relaunch throttle](watchdog-relaunch-throttle.md) | #10 Ship It | **Core** | 🟢 Low | Wave 0 — not started |
-| [Show-control tablet parity](show-control-tablet-parity.md) | #7 Operator Remote | **Plugin** | 🟡 Med | Wave 0 — not started |
 | [Content source-region (crop)](content-source-region.md) | #5 Hello Projector | **Core** | 🟡 Med | held behind webgl-strict Phase 2 |
 | [Projector blend preview + phase-lock](projector-blend-preview.md) | #5 Hello Projector | **Hybrid** | 🟡 Med | held (loosely gated on webgl-strict) |
 | [WebGL strict per-surface sampling](webgl-strict-per-surface-sampling.md) | #1 Composite Stage | **Core** | 🟡 Med | **Phase 1 shipped** (banner + force-WebGL + GPU settings); **Phase 2 deferred — open GitHub decision issue** |
 | [MIDI controller support](midi-control.md) | (net-new) | **Plugin** | 🟡 Med | not started (Draft) |
-| [Native audio engine](audio-engine.md) | (net-new, Wave 3) | **Hybrid** | 🔴 High | not started (Draft) |
+| [Native audio engine](audio-engine.md) | (net-new, Wave 3) | **Hybrid** | 🔴 High | **P0–P4 shipped** on `wave-3-audio` (bed, spatial, FX, automation); **P5 shipped as Wave B** (its §WS6 was **wrong** and is corrected in place); P6 last |
+| [Transport: prev/next edit point](transport-edit-point-navigation.md) | (net-new; Wave A leftover) | **Core** | 🟢 Low | Draft — the `⏮`/`⏭` buttons are **in the transport sketch and were never built**: Wave A's plan narrowed to "the three controls that never had a button" and the two skip buttons dropped out between the drawing and the plan. The *capability* is missing too — there is **no prev/next navigation of any kind** in the timeline. Land **after** `wave-3-audio` merges (it touches `TimelineToolbar.tsx`) |
+| [Timeline undo](timeline-undo.md) | (net-new, Wave 4) | **Core** | 🟡 Med | Draft — **there is no undo for any timeline edit**, and the show engine (FSM/OSC/cues/scheduler) pushes history entries **no human made** onto an **uncapped** stack |
+| [Renderer error containment](renderer-error-containment.md) | #10 Ship It | **Core** | 🟠 Med | Draft — **the watchdog is blind to a white screen.** A first-render throw means the heartbeat never fires, so the watchdog **never arms** and an unattended install sits dead until someone drives to the venue |
 
 ## Net-new subsystems (beyond limitation-lifts)
 
@@ -71,9 +76,98 @@ shipped in v0.21.0.)
 
 ## Sequencing
 
-Build order + git workflow live in **[SEQUENCING.md](SEQUENCING.md)** — the canonical source. Waves 1 + 2 are
-shipped (see the archived plans above); **Wave 0** (watchdog + show-control tablet parity) and **Wave 3**
-(audio) remain, plus the webgl-strict **Phase 2** decision that gates content-source-region + projector-blend.
+Build order + git workflow live in **[SEQUENCING.md](SEQUENCING.md)** — the canonical source. Waves 0–2 are
+merged. **Wave 3 (audio) is in flight on `wave-3-audio` and is not merged:** P0–P4, the transport plan's
+Wave A (live-tested 2026-07-12), asset-paths, and **Wave B — audio scoping, the show clock** (landed
+2026-07-12, live smoke test pending) are on the branch. **P6 remains.** The webgl-strict **Phase 2**
+decision still gates content-source-region + projector-blend.
+
+**Wave 4 — renderer robustness** ([timeline-undo](timeline-undo.md) → [renderer-error-containment](renderer-error-containment.md))
+was **surfaced by Wave B's adversarial review**, which passed the branch but named both as structural gaps that
+belong in their own wave rather than being smuggled into an audio one. They are the structural answer to a class
+of defect this project has now fixed one instance at a time, three times: a data bug reaching a component that
+renders unconditionally, and an edit landing somewhere it cannot be taken back from. Undo goes first — see the
+[dependency graph](SEQUENCING.md#dependency-graph-the-hard-land-after-edges).
+
+> **Wave B introduced a new engine invariant — *one transport, two playheads*.** The transport carries a
+> second derived time (`showTime`, the SHOW clock) that a scene recall does **not** reset, so the audio bed
+> plays through a GO while the picture restarts. The full reset table (every transport event × both clocks)
+> is in **[docs/TIMELINE.md](../docs/TIMELINE.md#the-show-clock-wave-b--one-transport-two-playheads)**; read
+> it before touching `mainSeek`, `swap()` or `frame()`.
+
+### Wave 4's backlog, part 2 — the merge review's deferred findings (2026-07-14)
+
+The **16-agent adversarial review of the full `wave-3-audio` merge diff** confirmed **39 findings**. The user
+triaged the merge bar to *"Wave 3's own defects + the effect clock"* ([the merge-blocker
+plan](../docs/superpowers/plans/2026-07-14-wave-3-merge-blockers.md), gate 6 in
+[SEQUENCING](SEQUENCING.md#-the-wave-3-merge-gate)). **These are the ones that were deliberately left out.**
+They are written down here so that "not a merge blocker" cannot quietly become "forgotten". Each is
+*confirmed* — verified by three adversarial lenses that were told to default to REFUTED.
+
+**Blocker, and PRE-EXISTING (not a Wave 3 regression — it is why it did not gate the merge):**
+- `services/timeline.ts:876` — **a layer goes black forever after a scene round-trip.** `swap()` releases the
+  contentSource for layers the incoming timeline lacks, but leaves the outgoing pool's `LayerVid.content`
+  set. A pool promoted again refuses to re-acquire, because it believes it already holds the content. Recall
+  scene A → scene B → scene A and a layer is simply gone, for the rest of the session.
+
+**Unattended-install rot (the class this project keeps re-learning):**
+- **THE AUDIO ENGINE DOES NOT RE-OPEN A DEAD DEVICE ON ITS OWN** *(opened 2026-07-14 by merge task 9 —
+  deliberately, and it must not be mistaken for a leftover)*. That task made a dead output device **visible**
+  (a `no output device` badge, an honest Preferences panel) and **recoverable** (a Reconnect button, plus the
+  `opened`-guard invalidation that makes a re-configure actually re-open). It did **not** make it *automatic*:
+  `configure()` is called from exactly two places — plugin activation and the Preferences panel — and nothing
+  polls it. **In an attended show that is fine. In an unattended install nobody is there to press Reconnect,
+  and the room is silent until someone visits — which is precisely the deployment this app exists for.**
+  Auto-recovery is a real design (retry backoff; *which* device to re-open when the default has changed; what
+  to do when it returns with a different channel count; how not to fight a device that is legitimately absent)
+  and it needs one. `scratch/devicedeath-sim.mjs` asserts the gap so a passing badge cannot be read as a cure.
+  ✅ **The foundation is verified.** Acceptance test **2.10** passed on 2026-07-14 (Windows ▸ Sound ▸ *Don't
+  allow* — no USB interface needed; it drives `getCurrentAudioDevice()` to `nullptr` down the identical path):
+  the badge appears, Preferences names the device it lost, and **Reconnect restores sound with no restart**.
+  So the *detection* and the *manual recovery* both work, and an auto-recovery design can be built on them
+  with confidence. **What is still missing is the "auto".**
+- `hooks/useHistory.ts:47` — every **automated** GO (FSM, scheduler, OSC) and every cue fire pushes an
+  **uncapped deep JSON copy of the entire project** onto the undo stack. Nobody pressed anything. Six hours
+  unattended is a leak, and [timeline-undo](timeline-undo.md) is the plan that already owns this edge.
+- `components/timeline/audioPeaks.ts:86/91` — waveform peaks decode the **whole** audio file in the renderer
+  with **no size cap**; and a transient decode failure becomes a **permanent session-lifetime blacklist**
+  with nothing on screen to say so.
+
+**Silent corruption / silent wrong output:**
+- `services/projectFolder.ts:365/374` — **Collect Assets** silently leaves any file whose extension is not in
+  `ASSET_CATEGORIES` pointing at the authoring machine, and folds a **failed copy** into the same `skipped`
+  counter as a deliberate no-op. The operator is told the project is portable. It is not.
+- `components/timeline/Timeline.tsx:458/546` — **left-trim** clamps `start` at 0 but keeps growing
+  `duration`, on both video and audio clips.
+- `services/transitions.ts:136` — a **GO during a running core fade** snaps the output to the *outgoing*
+  fade's endpoint for one frame.
+- `native/audio-engine/src/engine.cpp:208` — non-spatial clips are summed into **every** device output
+  channel.
+- `native/audio-engine/src/engine.cpp:309` — `setMasterGain` clamps with `juce::jlimit`, which **passes NaN
+  through unchanged.**
+
+**The UI claims something the engine is not doing** — the house rule this codebase kills on sight, and the
+merge fixed only two of its four instances:
+- `App.tsx:285` — `compileAutomation` re-runs when the **audio** target set changes but never when the
+  **core** one does, so **a lane the engine has DROPPED still renders with a full curve and a ticking
+  readout, driving nothing.** The readout is a UI *re-computation*, not a report from the engine — which is
+  the actual root cause, and the real cure: **the engine should report the value it applied.** *(Task 7 shipped
+  the smaller UI fix the user chose. It does not cure this.)*
+- `plugins/audio/src/AudioBedPanel.tsx` — **the same readback hole that Task 13 closed for the three gains is
+  still open on `spatial.x/y/z` and on every FX param.** A lane on a reverb's wet mix, or on a source's
+  position, moves the sound and does not move the control. Root cause and remedy are identical
+  (`drivenSnapshot()` already exports what is needed; each site needs one `drivenOn(...)` read); the surfaces
+  are `SpatialPad` and `EffectChain` rather than `Fader`, which is the only reason they were not done at once.
+
+**Build / toolchain:**
+- `package.json:24` — `npm run package` builds the **audio** engine but neither builds nor checks the **three
+  Rust** addons. (Gate 2's disease, one script over.)
+- **`tsconfig.json` has no `strict`.** `strictNullChecks` is **off**, so *no optional-prop design in this
+  codebase has a compiler behind it.* This is not a style note: during Task 7, `tsc --noEmit` returned **0
+  errors on code that would have crashed the timeline panel** — an optional `onChange` called as
+  `undefined(...)`. Every read-only-by-absent-handler pattern in the tree is currently guarded by hand, or
+  not at all. Turning `strict` on is a wave of its own; **until then, treat a green `tsc` as weaker evidence
+  than it looks.**
 
 ## Cross-cutting hazards (every implementer must respect these)
 

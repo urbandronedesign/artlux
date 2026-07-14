@@ -3,9 +3,9 @@
 The **state machine** (a.k.a. the *Show machine* / FSM) is an optional, always-available **finite-state
 graph over your Scenes**. Each **state** binds a Scene (recalled on entry) and/or runs transport
 actions; **transitions** move between states when a **trigger** fires (a delay elapses, the playhead
-crosses a time/marker, a clip ends, or you fire it by hand/OSC). It turns a pile of looks into a
-**show that runs itself** — a timed sequence, an unattended attract loop, or a live-triggered
-installation.
+crosses a time/marker, a clip ends, the timeline reaches its end, or you fire it by hand/OSC). It turns
+a pile of looks into a **show that runs itself** — a timed sequence, an unattended attract loop, or a
+live-triggered installation.
 
 It is modelled on **AutomataUI** (nodes = looks, edges = transitions, a "lock time" dwell and a
 "transition time" crossfade, resizable "region" group-boxes), adapted so **a node *is* a Scene**.
@@ -77,7 +77,7 @@ SmTransition {
   c1?, c2?: {x,y};               // bezier control handles (curved edge — cosmetic)
 }
 
-SmTrigger { kind: 'manual'|'afterDelay'|'atTime'|'onMarker'|'onClipEnd';
+SmTrigger { kind: 'manual'|'afterDelay'|'atTime'|'onMarker'|'onClipEnd'|'onTimelineEnd';
             seconds?, time?, markerId?, layerId? }
 
 SmAction  { kind: 'play'|'pause'|'stop'|'seek'|'setLoop'|'jumpMarker'|'recallScene'|'fireCue';
@@ -102,7 +102,8 @@ The runtime evaluates them in array order and fires **at most one per frame** (n
 | `afterDelay` | `seconds` have elapsed since the state was entered | `seconds` | **wall clock** — advances even while the transport is **stopped** |
 | `atTime` | the **playhead** crosses absolute `time` | `time` (s) | **playhead** — only while playing |
 | `onMarker` | the **playhead** crosses timeline marker `markerId` | `markerId` | **playhead** |
-| `onClipEnd` | the active clip on track `layerId` **ends** (a gap appears under the playhead) | `layerId` | **playhead** |
+| `onClipEnd` | the active clip on track `layerId` **ends** (a gap appears under the playhead) | `layerId` | **playhead** — **does not fire** for a clip that runs to the end of the timeline: the non-looping end-stop parks the playhead *inside* that clip (no gap ever opens), so a final, full-length clip never fires this. Use `onTimelineEnd` for "the show finished". |
+| `onTimelineEnd` | the bound timeline reaches its **end** while playing and **not looping** | — | **playhead** — a loop wrap is **not** an end and does not fire it |
 
 ### The dual-clock rule (the #1 gotcha)
 
@@ -111,9 +112,32 @@ There are **two clocks**, and which one a trigger uses decides whether you must 
 - **`afterDelay` runs off a standalone wall clock** (`ctx.nowSec`). It ticks **regardless of the
   transport** — so a delay-only graph loops the instant you open the project, no Play needed. This is
   why [template 1](../examples/state-machine/01-hello-state-machine.artlux) auto-runs.
-- **`atTime` / `onMarker` / `onClipEnd` follow the timeline playhead.** They only advance while the
-  transport is **playing**, so a graph that uses them needs something to start playback — usually a
-  `play` **entry action** on an upstream state (see [template 2](../examples/state-machine/02-triggers-and-actions.artlux)).
+- **`atTime` / `onMarker` / `onClipEnd` / `onTimelineEnd` follow the timeline playhead.** They only
+  advance while the transport is **playing**, so a graph that uses them needs something to start
+  playback — usually a `play` **entry action** on an upstream state (see [template 2](../examples/state-machine/02-triggers-and-actions.artlux)).
+  One `play` on the state that starts the show is **enough**: see the auto-advance rule below.
+  `onTimelineEnd` is the odd one out among these four: `atTime`/`onMarker`/`onClipEnd` are **crossing**
+  tests over the `prev → current` playhead window, while a clean stop at the end crosses nothing — the
+  engine hands `onTimelineEnd` a one-frame edge instead (`ctx.atEnd`), latched so it fires exactly once
+  per end-stop.
+
+### `onTimelineEnd` and the transport (auto-advance)
+
+Reaching the end of a non-looping timeline normally **pauses** the transport. When an `onTimelineEnd`
+transition fires on that same frame, it does not: the engine holds the pause back until the machine has
+had its turn, and **cancels it if entering the destination state put the clock back in motion** — which
+a state with a **bound scene** always does (the recall restarts its timeline at frame 0), and which a
+scene-less state does if it carries a `play` **entry action**. So:
+
+- **A → (onTimelineEnd) → B, both bound to scenes:** B's timeline simply plays on. The transport never
+  stops, the timecode keeps running, and B's own `onTimelineEnd` fires in turn. **You do not need a
+  `play` entry action on B** — a chain of scene-bound states auto-advances unattended off the single
+  `play` that started it.
+- **A → (onTimelineEnd) → C, where C has no bound scene:** give C a `play` entry action if you want the
+  show to keep running; without one the transport pauses on A's last frame (which is the honest report:
+  nothing restarted the clock). C's `play` re-seeks to the timeline's in-point and continues.
+- **Loop ON never fires it.** A wrap is not an end. A state whose scene loops will sit there until some
+  *other* trigger (`afterDelay`, `manual`, `atTime`, OSC) moves the machine on.
 
 Playhead crossings use a `prev → current` window that survives loop/seek wraps; a deliberate `seek`
 re-anchors `prev` so one jump doesn't fire every intermediate trigger along the way.
@@ -203,8 +227,8 @@ is an AutomataUI-style node canvas + an inspector.
 each action edits its own params).
 
 **Inspector (transition selected)** — the `from → to` label · **Trigger** kind + its params
-(`afterDelay` seconds, `atTime` time, `onMarker` marker, `onClipEnd` track) · **Transition time**
-(`fadeSec`).
+(`afterDelay` seconds, `atTime` time, `onMarker` marker, `onClipEnd` track, `onTimelineEnd` — no
+params, shown as an italic hint) · **Transition time** (`fadeSec`).
 
 Live feedback: the **initial** state is the cyan *Init* node, the **current/active** state gets an
 orange ring, and a firing edge **flashes red** — all driven render-free from the engine.
@@ -278,7 +302,7 @@ manual transitions for touch control, plus a scheduler that can drive the machin
 | Pattern | Shape | Template |
 |---|---|---|
 | **Timed loop** | states chained by `afterDelay`, last → first | [01-hello-state-machine](../examples/state-machine/01-hello-state-machine.artlux) |
-| **Trigger cookbook** | one linear tour of all five trigger kinds + entry actions | [02-triggers-and-actions](../examples/state-machine/02-triggers-and-actions.artlux) |
+| **Trigger cookbook** | one linear tour of five of the six trigger kinds (all but `onTimelineEnd`) + entry actions | [02-triggers-and-actions](../examples/state-machine/02-triggers-and-actions.artlux) |
 | **Hub-and-spoke installation** | an attract hub, manual/OSC spokes that auto-return after a dwell | [03-interactive-installation](../examples/state-machine/03-interactive-installation.artlux) |
 
 **"From any state" transitions.** The FSM has no global/wildcard edge — a transition always leaves one

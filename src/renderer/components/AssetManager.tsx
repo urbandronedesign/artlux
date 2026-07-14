@@ -1,18 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { X, Film, Image as ImageIcon, Box, FolderOpen, Link2, Trash2, MonitorPlay, PackageCheck, Search } from 'lucide-react';
-import { AssetEntry, AssetType, Surface, Timeline } from '../types';
-import type { Scene3D } from '../../../shared/protocol';
+import { X, Film, Image as ImageIcon, Box, Music, FolderOpen, Link2, Trash2, MonitorPlay, PackageCheck, Search } from 'lucide-react';
+import { AssetEntry, AssetType, Timeline, timelineAudioClips } from '../types';
 import { AssetChip } from './AssetChip';
-import { libraryItems, usageForPath, normPath, typeLabel } from '../services/assetLibrary';
+import { libraryItems, usageIndex, normPath, typeLabel, type ProjectRefs } from '../services/assetLibrary';
 import { useDraggableModal } from '../hooks/useDraggableModal';
 
 interface Props {
   open: boolean;
   onClose: () => void;
   assets: AssetEntry[];
-  timeline: Timeline;
-  surfaces: Surface[];
-  scene3D?: Scene3D | null;
+  timeline: Timeline;      // the GLOBAL doc — the take library lives on it (libraryItems)
+  // EVERY place a path can be referenced (live + every scene's snapshot + every timeline + the audio
+  // bed) — the usage index and the name lookups below both read it, so a row can be RESOLVED to a name
+  // even when the reference lives only in a captured scene.
+  refs: ProjectRefs;
   selectedSurfaceId: string | null;
   hasProjectFolder: boolean;
   onImport: (type: AssetType) => void;
@@ -36,6 +37,9 @@ export const AssetManager: React.FC<Props> = (p) => {
   const [missing, setMissing] = useState<Set<string>>(new Set());
 
   const items = useMemo(() => libraryItems(p.assets, p.timeline), [p.assets, p.timeline]);
+  // One index built per render instead of one usageForPath() scan per asset per grid cell — see
+  // usageIndex's comment in assetLibrary.ts.
+  const usageMap = useMemo(() => usageIndex(p.refs), [p.refs]);
 
   useEffect(() => {
     if (!p.open) return;
@@ -66,11 +70,31 @@ export const AssetManager: React.FC<Props> = (p) => {
     (filter === 'all' || a.type === filter) &&
     (!query || a.name.toLowerCase().includes(query.toLowerCase())));
   const selected = items.find(a => a.id === selectedId) ?? null;
-  const usage = selected ? usageForPath(selected.path, { surfaces: p.surfaces, scene3D: p.scene3D, timeline: p.timeline }) : null;
+  const usage = selected ? usageMap.get(normPath(selected.path)) ?? null : null;
 
-  const surfName = (id: string) => p.surfaces.find(s => s.id === id)?.name ?? id;
-  const clipName = (id: string) => p.timeline.clips.find(c => c.id === id)?.name ?? id;
-  const modelName = (id: string) => p.scene3D?.models?.find(m => m.id === id)?.name ?? id;
+  // Usage spans every timeline, every surface list and every scene3D, so an id can come from a captured
+  // scene rather than the live doc — resolve names across the same lists the index was built from, or a
+  // scene-only reference would render as a raw uuid.
+  const surfName = (id: string) => p.refs.surfaces.find(s => s.id === id)?.name ?? id;
+  const clipName = (id: string) => {
+    for (const tl of p.refs.timelines) { const c = tl.clips.find(cl => cl.id === id); if (c) return c.name; }
+    return id;
+  };
+  const modelName = (id: string) => {
+    for (const sc of p.refs.scene3D) { const m = sc?.models?.find(mm => mm.id === id); if (m) return m.name; }
+    return id;
+  };
+  // An audio usage row can be a BED clip (refs.audioClips) or a clip on any timeline's OWN audio
+  // (Timeline.audio — Wave B put those ids in the same `audioClipIds` bucket), so resolve across BOTH
+  // lists the index was built from. Resolving only the bed made a stem used solely inside a scene's
+  // Timeline.audio render as a raw uuid — an unidentifiable row in the very audit that justifies the
+  // irreversible Delete/Relink click.
+  const audioClipName = (id: string) => {
+    const bed = p.refs.audioClips.find(c => c.id === id);
+    if (bed) return bed.name;
+    for (const tl of p.refs.timelines) { const c = timelineAudioClips(tl).find(cl => cl.id === id); if (c) return c.name; }
+    return id;
+  };
 
   const filterBtn = (label: string, value: Filter) => (
     <button onClick={() => setFilter(value)}
@@ -90,6 +114,7 @@ export const AssetManager: React.FC<Props> = (p) => {
             <button onClick={() => p.onImport('video')} disabled={!p.hasProjectFolder} className="inline-flex items-center gap-1 px-2 h-7 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40 text-mini"><Film size={12} /> Video</button>
             <button onClick={() => p.onImport('image')} disabled={!p.hasProjectFolder} className="inline-flex items-center gap-1 px-2 h-7 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40 text-mini"><ImageIcon size={12} /> Image</button>
             <button onClick={() => p.onImport('model')} disabled={!p.hasProjectFolder} className="inline-flex items-center gap-1 px-2 h-7 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40 text-mini"><Box size={12} /> Model</button>
+            <button onClick={() => p.onImport('audio')} disabled={!p.hasProjectFolder} className="inline-flex items-center gap-1 px-2 h-7 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40 text-mini"><Music size={12} /> Audio</button>
           </div>
           <button onClick={p.onConsolidate} disabled={!p.hasProjectFolder} title="Copy every asset into the project folder + relink"
             className="inline-flex items-center gap-1 px-2 h-7 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40 text-mini ml-auto"><PackageCheck size={13} /> Consolidate</button>
@@ -100,7 +125,7 @@ export const AssetManager: React.FC<Props> = (p) => {
           {/* grid */}
           <div className="flex-1 min-w-0 flex flex-col border-r border-line-1">
             <div className="px-3 py-2 flex items-center gap-1 border-b border-line-1">
-              {filterBtn('All', 'all')}{filterBtn('Video', 'video')}{filterBtn('Image', 'image')}{filterBtn('Model', 'model')}{filterBtn('Take', 'take')}
+              {filterBtn('All', 'all')}{filterBtn('Video', 'video')}{filterBtn('Image', 'image')}{filterBtn('Model', 'model')}{filterBtn('Take', 'take')}{filterBtn('Audio', 'audio')}
               <div className="flex items-center gap-1 ml-auto bg-surface-2 border border-line-1 rounded px-1.5 h-6">
                 <Search size={11} className="text-fg-3" />
                 <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="search" className="bg-transparent outline-none text-mini w-32 text-fg-1" />
@@ -110,7 +135,7 @@ export const AssetManager: React.FC<Props> = (p) => {
               {filtered.length === 0 ? <div className="text-fg-3 italic px-1 py-2">No media.</div> : (
                 <div className="grid grid-cols-4 gap-3">
                   {filtered.map(a => (
-                    <AssetChip key={a.id} asset={a} usageCount={usageForPath(a.path, { surfaces: p.surfaces, scene3D: p.scene3D, timeline: p.timeline }).count}
+                    <AssetChip key={a.id} asset={a} usageCount={usageMap.get(normPath(a.path))?.count ?? 0}
                       missing={missing.has(normPath(a.path))} selected={selectedId === a.id} onClick={() => setSelectedId(a.id)} />
                   ))}
                 </div>
@@ -154,6 +179,9 @@ export const AssetManager: React.FC<Props> = (p) => {
                     ))}
                     {usage?.modelIds.map(id => (
                       <div key={`m${id}`} className="text-mini px-1.5 py-1 rounded bg-surface-2 text-fg-2 truncate">Scene model · {modelName(id)}</div>
+                    ))}
+                    {usage?.audioClipIds.map(id => (
+                      <div key={`a${id}`} className="text-mini px-1.5 py-1 rounded bg-surface-2 text-fg-2 truncate">Audio clip · {audioClipName(id)}</div>
                     ))}
                   </div>
                 </div>

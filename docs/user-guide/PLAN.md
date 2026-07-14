@@ -39,12 +39,13 @@ captured by driving the running app.
 - `04-patching-and-routing.md` — auto-patch, Routing sheet, controllers, per-fixture overrides
 - `05-color-effects-groups-scenes.md` — Inspector params, effects, groups, scenes, cue banks
 - `06-timeline.md` — clips, tracks, markers, Takes strip, state machine + graph editor
-- `07-projector-outputs.md` — Outputs panel, corner-pin align, Bézier warp, soft-edge, NDI out
-- `08-3d-scene.md` — split-pane 3D, outliner, gizmos, models/planes
-- `09-calibration.md` — Calibration Wizard (structured light) + Auto-Align (markerless), camera workspace
-- `10-projects-media-broadcast.md` — projects-as-folders, Media library, Asset Manager, broadcast mode
-- `11-preferences-monitoring.md` — Preferences tabs, DMX/OSC Monitor, Prometheus/Grafana metrics
-- `12-keyboard-reference.md` — consolidated keyboard & mouse reference
+- `07-audio.md` — the Audio Bed mixer, the bed vs a scene's own audio (two clocks), spatial audio + FX, automation
+- `08-projector-outputs.md` — Outputs panel, corner-pin align, Bézier warp, soft-edge, NDI out
+- `09-3d-scene.md` — split-pane 3D, outliner, gizmos, models/planes
+- `10-calibration.md` — Calibration Wizard (structured light) + Auto-Align (markerless), camera workspace
+- `11-projects-media-broadcast.md` — projects-as-folders, Media library, Asset Manager, broadcast mode
+- `12-preferences-monitoring.md` — Preferences tabs, DMX/OSC Monitor, Prometheus/Grafana metrics
+- `13-keyboard-reference.md` — consolidated keyboard & mouse reference
 
 ## Per-page template
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Box, Film, Image as ImageIcon, Radio, AlertTriangle } from 'lucide-react';
+import { Box, Film, Image as ImageIcon, Radio, Music, AlertTriangle } from 'lucide-react';
 import { AssetEntry } from '../types';
 import { getThumb, onThumb } from '../services/thumbnailCache';
 import { ensureBlobUrl, mimeForPath } from '../services/mediaCache';
@@ -66,9 +66,10 @@ export const AssetChip: React.FC<Props> = ({ asset, usageCount, missing, selecte
         {asset.type === 'image' && <ImageThumb path={asset.path} />}
         {asset.type === 'take' && <BlobSparkline path={asset.path} inPoint={0} clipDuration={asset.durationSec ?? 1} widthPx={160} heightPx={90} />}
         {asset.type === 'model' && <Box size={26} className="text-fg-3" />}
+        {asset.type === 'audio' && <Music size={26} className="text-fg-3" />}
         {/* type glyph */}
         <span className="absolute top-1 left-1 text-fg-2/90 drop-shadow">
-          {asset.type === 'video' ? <Film size={11} /> : asset.type === 'image' ? <ImageIcon size={11} /> : asset.type === 'take' ? <Radio size={11} /> : <Box size={11} />}
+          {asset.type === 'video' ? <Film size={11} /> : asset.type === 'image' ? <ImageIcon size={11} /> : asset.type === 'take' ? <Radio size={11} /> : asset.type === 'audio' ? <Music size={11} /> : <Box size={11} />}
         </span>
         {missing && <span className="absolute top-1 right-1 text-warn" title="Missing on disk"><AlertTriangle size={12} /></span>}
         {!missing && (

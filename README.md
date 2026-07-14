@@ -15,8 +15,13 @@ a MadMapper-class tool for driving RGB/RGBW LED rigs. Sample color from video, i
 camera, incoming DMX, or a **Spout** stream; lay fixtures out in 2D (and 3D); and stream the
 result to your hardware over **Art-Net** or **sACN/E1.31** with a native, threaded output engine.
 
+It also plays the **sound**. A native **JUCE + ambisonics** engine puts every source at a *point in the
+room*, decodes it to headphones (HRTF) or a real speaker array, and rides the **same transport** as the
+picture — so a cue restarts the visuals without ever stuttering the house music.
+
 It runs as a native **Electron** desktop app with a **WebGPU** compute pixel-mapper (WebGL
-fallback) and a **Rust** output engine (napi-rs) that owns UDP transmission on a dedicated thread.
+fallback), a **Rust** output engine (napi-rs) that owns UDP transmission on a dedicated thread, and a
+**C++** audio engine (JUCE + libspatialaudio).
 
 ## Features
 
@@ -33,6 +38,11 @@ fallback) and a **Rust** output engine (napi-rs) that owns UDP transmission on a
 - **Native output** — Art-Net + sACN over UDP from a Rust send thread (pacer, keep-alive, sparse,
   **ArtSync**).
 - **Art-Net device discovery** — ArtPoll/ArtPollReply; pick a controller instead of typing its IP.
+- **Spatial audio, on the show's clock** — a native **JUCE + libspatialaudio** engine: every source is a
+  point in an **ambisonic** field, decoded **binaurally** (HRTF) or to a **speaker array**. Two containers on
+  two clocks — a project-wide **bed** that a cue never restarts, and a Scene's **own** audio that always does.
+  Insert chains (reverb / filter / delay / compressor), a mixer, and full **automation** of gain and position.
+  ▶ [docs/AUDIO.md](docs/AUDIO.md) · [a six-chapter tutorial](examples/audio/tuto/README.md).
 - **Headless mode** — run the compute + output engine with no UI to save resources.
 - **Projects & rigs** — native save/load (`.artlux`), auto-restore on launch, recent files, and a
   reusable patch/wiring/routing **rig** export (`.artrig`).
@@ -42,14 +52,36 @@ See **[docs/FEATURES.md](docs/FEATURES.md)** for a usage guide.
 
 ## Run locally
 
-**Prerequisites:** [Node.js](https://nodejs.org/) and the [Rust toolchain](https://rustup.rs/)
-(MSVC on Windows) to build the native engine.
+**Prerequisites** — there are **two** native toolchains, because there are two native languages:
+
+| For | You need |
+|---|---|
+| **Node / Electron** | [Node.js](https://nodejs.org/) **20+** |
+| The **Rust** addons (output engine, Spout, HAP) | the [Rust toolchain](https://rustup.rs/) — **MSVC** on Windows |
+| The **C++ audio engine** (JUCE + libspatialaudio) | **CMake ≥ 3.23** and a **C++17** compiler (MSVC on Windows / clang / gcc). CMake fetches JUCE 8.0.14 and libspatialaudio 0.4.0 at configure time — the first build downloads them. On Linux, JUCE also wants the usual ALSA/X11 dev packages. |
 
 ```bash
 npm install
-npm run build:native   # Rust output engine + Spout receiver + NDI (stub) -> .node addons
+npm run build:native   # 3 Rust addons (output-engine, spout-receiver, hap) + the audio engine (optional)
+npm run build:audio    # the JUCE audio engine on its own — STRICT (fails loudly)
 npm run dev            # launch the Electron app
 ```
+
+> ### ⚠ Two traps, and both of them look like "it just doesn't work".
+>
+> **1. No audio engine ⇒ a silent app that reports nothing is wrong.** `build:native` calls the audio build
+> with `--optional`, so on a machine with no C++ toolchain it **warns and carries on** — deliberately, so a
+> Rust-only contributor is not blocked. The app then starts, **the entire audio UI renders**, and there is no
+> sound. It is not silent about it (a **`no audio engine`** badge and a startup notice), but if you skipped
+> the warning you will not connect the two. **`npm run build:audio` is the strict build** — run it and read
+> what it says.
+>
+> **2. A running app LOCKS the addon, and a failed link leaves the STALE one on disk.** If ArtLux is open,
+> MSVC cannot overwrite `audio_engine.node`: the link fails with **`LNK1104`**, the build exits non-zero —
+> **and the previous `.node` is still sitting there.** So a build you *think* succeeded silently ships the old
+> engine, and a correct fix looks broken. **Close the app before any native rebuild.** If you edited
+> `engine.cpp` and nothing changed, compare mtimes — see
+> [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md#no-sound).
 
 **NDI (Windows):** the real NDI addon (`native/ndi/ndi.node`) is **committed as a prebuilt**, built
 once against the [NDI 6 SDK](https://ndi.video/for-developers/ndi-sdk/) — so CI and end users **don't
@@ -62,9 +94,15 @@ the updated `ndi.node`. Full setup + usage + architecture: [docs/NDI.md](docs/ND
 
 ```bash
 npm run build          # main + preload + renderer bundles
-npm run package        # installers (electron-builder)
-npm run package:dir    # unpacked app for a quick smoke test
+npm run package        # installers — REBUILDS the audio engine first (strict), then electron-builder
+npm run package:dir    # the same, unpacked, for a quick smoke test
 ```
+
+**Packaging rebuilds the C++ audio engine and hard-fails without it** — `package` runs
+`scripts/build-audio.cjs` with no flags. That is on purpose: the loader graceful-degrades to *silence*, so an
+installer cut without an engine would ship a complete, working-looking audio UI that makes no sound. It must
+be impossible to cut one by accident. (The **Rust** addons are *not* rebuilt by `package` — run
+`npm run build:native` yourself if you changed them.)
 
 ### Headless
 
@@ -78,7 +116,8 @@ Runs only the Stage compute + output loop in an invisible, GPU-backed window. Se
 ## Tech stack
 
 Electron · React 19 · TypeScript · Vite · Tailwind CSS · WebGPU (WebGL fallback) ·
-react-three-fiber · Rust (napi-rs) · Art-Net + sACN/E1.31
+react-three-fiber · Rust (napi-rs) · **C++17 (CMake / cmake-js) · JUCE 8 · libspatialaudio** ·
+Art-Net + sACN/E1.31
 
 ## Documentation
 
@@ -87,7 +126,8 @@ react-three-fiber · Rust (napi-rs) · Art-Net + sACN/E1.31
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — **how the app works today** (canonical).
 - [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) — setup, build, test, release, gotchas.
 - [docs/FEATURES.md](docs/FEATURES.md) — feature/usage guide.
-- [examples/](examples/README.md) — **openable template projects + written tutorials** (start with the [state-machine course](examples/state-machine/tuto/README.md)).
+- [examples/](examples/README.md) — **openable template projects + written tutorials** (start with the [audio course](examples/audio/tuto/README.md) or the [state-machine course](examples/state-machine/tuto/README.md)).
+- [docs/AUDIO.md](docs/AUDIO.md) — **spatialised, show-synchronised audio**: the bed vs a scene's own sound, two clocks, ambisonics + HRTF, insert chains, automation.
 - [docs/STATE-MACHINE.md](docs/STATE-MACHINE.md) — the project **state machine** (a "Show" graph over scenes: states, triggers, actions).
 - [docs/EFFECTS.md](docs/EFFECTS.md) — built-in **effects & palettes** reference (generative, media-free content).
 - [docs/ASSETS.md](docs/ASSETS.md) — media library & asset management (import, usage, relink, consolidate).
@@ -103,6 +143,52 @@ react-three-fiber · Rust (napi-rs) · Art-Net + sACN/E1.31
 Pushing a `v*` tag triggers a GitHub Actions matrix build that produces per-OS installers and
 publishes a Release.
 
+> ## 🛑 DO NOT PUSH A `v*` TAG UNTIL THE LICENSING BELOW IS SETTLED.
+> Every installer bundles `audio-engine.node`, which has **JUCE** and **libspatialaudio** linked into it
+> (`extraResources`, `package.json`). This repo currently has **no `LICENSE`, no `NOTICE`, and no `license`
+> field in `package.json`** — so the tag workflow is the only thing standing between here and a **publicly
+> distributed binary carrying two copyleft dependencies with no notice.** See **Licensing** below.
+
+## Licensing
+
+**ArtLux is a non-commercial project, built and maintained for education and research.** It is not sold, it
+is not licensed for a fee, and it generates no revenue. Full third-party inventory: **[`NOTICE`](NOTICE)**.
+
+That context matters, and it is worth being precise about *why*:
+
+| | |
+|---|---|
+| **Building and running it locally** | Raises essentially nothing. Use JUCE and libspatialaudio, do research, teach with it. |
+| **Publishing an installer** | Raises **everything below.** This is *distribution*, and it is what copyleft attaches to. |
+
+**And distribution is already wired:** `extraResources` ships `audio-engine.node` — with **JUCE 8.0.14** and
+**libspatialaudio 0.4.0** compiled into it — inside every installer, and pushing a **`v*` tag** runs a CI
+matrix that **publishes a GitHub Release**. Nothing stands between this repo and a public binary except that
+nobody has pushed a tag.
+
+### What is unresolved
+
+- **The JUCE licence has not been elected.** JUCE is dual-licensed — a commercial tier, or **AGPLv3**, which
+  is strong copyleft and would reach *this entire application* on distribution. Being educational and
+  non-commercial affects **which tier applies**; it does not remove the need to pick one. **JUCE's terms
+  change between major versions — read them at [juce.com](https://juce.com), and do not trust any figure
+  quoted in this repository.**
+- **`JUCE_DISPLAY_SPLASH_SCREEN=0` is set** (`native/audio-engine/CMakeLists.txt`). That flag is
+  **licence-gated**: disabling JUCE's splash is permitted under AGPL and under paid tiers, and historically
+  **not** under the free tier. It was set for engineering reasons — the addon is headless and has no window
+  to draw one in — with **no licence decision behind it.** It needs reconciling with whichever tier is chosen.
+- **libspatialaudio is LGPL-2.1 and is *statically* linked.** LGPL allows that, but a static link carries a
+  **relinking obligation** a dynamic link does not. Not yet addressed.
+- **ArtLux has no `LICENSE` file**, so it is "all rights reserved" by default. Coherent for a private research
+  project; **incoherent with electing JUCE's AGPL option**, which would require this application to be offered
+  under AGPL-compatible terms.
+
+> **None of this blocks development, and none of it blocks the merge.** It blocks the **first published
+> release** — which is one `git push --tags` away. Settle it before you tag, not after.
+>
+> *Nothing here is legal advice. It is an engineer's inventory of what is linked, what is loaded, and what has
+> not been decided — written down so the decision gets made on purpose.*
+
 ### macOS install note
 
 ArtLux is **ad-hoc signed but not notarized** (no Apple Developer account), so macOS Gatekeeper
@@ -117,5 +203,10 @@ This is a one-time step per install. (Builds are Apple Silicon / arm64.)
 
 ### Acknowledgements
 
-NDI® is a registered trademark of Vizrt NDI AB. NDI support uses the free NDI® SDK / Runtime
+**NDI®** is a registered trademark of Vizrt NDI AB. NDI support uses the free NDI® SDK / Runtime
 (<https://ndi.video>). Install the NDI Runtime / NDI Tools to enable NDI send + receive.
+*NDI is loaded at runtime and is not linked into any binary here.*
+
+**JUCE** (<https://juce.com>) and **libspatialaudio** (<https://github.com/videolabs/libspatialaudio>) are
+**compiled and linked into `audio-engine.node`**, which ships inside every installer — an obligation of a
+different kind from NDI's, and one this repo has not yet discharged. See **[Licensing](#licensing)**.

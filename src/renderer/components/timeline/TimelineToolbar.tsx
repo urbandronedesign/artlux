@@ -1,10 +1,29 @@
 import React from 'react';
-import { Play, Pause, Plus, ZoomIn, ZoomOut, Maximize, Minimize, Scan, Scissors, MousePointer2, Magnet, Flag, Repeat, Workflow } from 'lucide-react';
+import { Play, Pause, Plus, ZoomIn, ZoomOut, Maximize, Minimize, Scan, Scissors, MousePointer2, Magnet, Flag, Repeat, Workflow, Square, LogIn, LogOut, AlertTriangle } from 'lucide-react';
+import { fmtClock } from './geometry';
 
 interface Props {
   playing: boolean;
   onTogglePlay: () => void;
+  onStop: () => void;
+  onSetIn: () => void;
+  onSetOut: () => void;
+  hasRegion: boolean;   // an in/out region exists — Loop honours it instead of [0, Length)
   timeRef: React.RefObject<HTMLSpanElement>;
+  // The audio bed's position (the SHOW clock) while a scene is bound and its lanes are therefore not
+  // drawn. Painted imperatively by Timeline.tsx's engine subscription — never React state (invariant 3).
+  bedTimeRef?: React.RefObject<HTMLSpanElement>;
+  // Content authored past the document's LENGTH, and the one-click fix (Length → the content end). Absent
+  // ⇒ nothing overruns. An audio clip does NOT extend Length, so without this the operator's only clue
+  // that a clip will never be heard is that it is silent.
+  //
+  // `length`, NOT the playable end: an out-point OVERRIDES Length, and a deliberately narrowed loop
+  // region is not an overrun (see Timeline.tsx's `lengthEnd`). The fix raises Length and NEVER touches
+  // the in/out region — say so, because the operator is about to click it on a live show.
+  overrun?: { at: number; length: number; onFix: () => void };
+  // Identity of the timeline currently BOUND to the editor (a scene id, or the global sentinel). The
+  // number fields hold an uncommitted draft; this is what tells them the document swapped under them.
+  docKey: string;
   duration: number;
   onChangeDuration: (d: number) => void;
   fps: number;
@@ -30,14 +49,109 @@ const TBtn: React.FC<{ active?: boolean; title: string; onClick: () => void; chi
   <button title={title} onClick={onClick} className={`p-1.5 rounded-sm ${active ? 'bg-accent text-black' : 'bg-surface-2 text-fg-2 hover:text-fg-1'}`}>{children}</button>
 );
 
-export const TimelineToolbar: React.FC<Props> = ({ playing, onTogglePlay, timeRef, duration, onChangeDuration, fps, onChangeFps, tool, onSetTool, snapEnabled, onToggleSnap, onAddMarker, onZoom, onZoomFit, onAddTrack, loop, onToggleLoop, smEnabled, onToggleSm, onEditLogic, maximized, onToggleMax }) => (
+// A number field that holds a local DRAFT and commits on BLUR / ENTER only — never per keystroke.
+//
+// Length and FPS are LIVE TRANSPORT inputs: the engine re-reads timelineEnd(data) and fps every frame.
+// Committed per keystroke, every transient value you type is published THROUGH the running show —
+// retyping 600 → 900 commits `duration = 9` on the first keystroke, and select-all + Delete commits the
+// empty string's fallback of 1. Either one puts the end behind a live playhead, which used to teleport
+// the playhead backwards on the projectors, stop the transport, and pulse the state machine's
+// 'onTimelineEnd' edge — the wrong scene on stage, from a text edit. (services/timeline.ts's setData
+// now also refuses to let a document edit fire that edge; this is the other half: don't publish an edit
+// the user hasn't finished making.) Same rule the loop-region drag already follows: hold a draft,
+// commit once. Escape reverts. `null` draft ⇒ not editing ⇒ the prop is shown, so a clamped or rejected
+// entry visibly snaps back.
+//
+// The draft is mirrored in a REF because Enter blurs (committing via onBlur) and Escape blurs after
+// discarding: both run before React re-renders, so a state-only draft would still read its pre-discard
+// value in the onBlur closure and commit the very edit the user just cancelled.
+const NumField: React.FC<{
+  value: number;
+  docKey: string;   // identity of the BOUND document — see the discard effect below
+  onCommit: (n: number) => void;
+  min: number;
+  max?: number;
+  step?: number;
+  integer?: boolean;
+  className: string;
+}> = ({ value, docKey, onCommit, min, max, step = 1, integer, className }) => {
+  const [draft, setDraft] = React.useState<string | null>(null);
+  const draftRef = React.useRef<string | null>(null);
+  const set = (v: string | null) => { draftRef.current = v; setDraft(v); };
+  // THE DOCUMENT CHANGED UNDER ME → DISCARD THE DRAFT.
+  //
+  // <TimelinePanel> carries no React `key`, so it does NOT remount when the bound scene changes — this
+  // component instance, and its draft, survive a document swap. The FSM hopping A→B mid-edit repoints
+  // `activeTimeline` at scene B's timeline while an unblurred draft of "90" is still sitting in the
+  // Length field: the field keeps showing 90 over B's authored Length of 5, and the next blur commits
+  // 90 into SCENE B — destroying its authored Length and persisting it, so B dwells 90 s and its
+  // onTimelineEnd hop is 85 s late. The timeline the operator meant to edit is never touched.
+  // Snapping to the incoming document's value is the correct read of "the thing I was editing is gone",
+  // and it is exactly what Escape already does.
+  //
+  // DEPEND ON `docKey`, NOT ONLY ON `value`. Keying the discard on the value alone fixes nothing in the
+  // case that actually happens: Capture Scene deep-clones the timeline, so a scene's Length usually
+  // EQUALS the global doc's, and `fps` is 30 in virtually every document ever made. Same value ⇒ the
+  // effect never fires ⇒ the draft survives the very swap it exists to catch. `docKey` changes on every
+  // rebind regardless of the numbers, so the discard is driven by "which document am I editing", which
+  // is the actual question.
+  React.useEffect(() => { set(null); }, [value, docKey]);
+  const commit = () => {
+    const d = draftRef.current;
+    if (d == null) return;              // untouched, or already discarded/committed this tick
+    set(null);
+    const raw = integer ? parseInt(d, 10) : parseFloat(d);
+    if (!Number.isFinite(raw)) return;  // empty / garbage — keep the last good value
+    const n = Math.max(min, max != null ? Math.min(max, raw) : raw);
+    if (n !== value) onCommit(n);
+  };
+  return (
+    <input
+      type="number" min={min} max={max} step={step}
+      value={draft ?? String(value)}
+      onChange={(e) => set(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        // Both branches blur SYNCHRONOUSLY. useTimelineKeys listens on `window`, so it runs after this
+        // synthetic handler — by which time document.activeElement is <body> and its "don't fire while
+        // typing in an INPUT" guard no longer trips. Escape would therefore ALSO reach the timeline's
+        // global handler and switch the tool to Select; Enter is inert today but is one key binding away
+        // from the same trap. Stop the native event here so the window listener never sees it.
+        if (e.key === 'Enter') { e.stopPropagation(); e.currentTarget.blur(); }              // commits via onBlur
+        else if (e.key === 'Escape') { e.stopPropagation(); set(null); e.currentTarget.blur(); } // discard, then onBlur no-ops
+      }}
+      className={className}
+    />
+  );
+};
+const NUM_INPUT = 'bg-surface-0 border border-line-1 rounded px-1.5 py-0.5 text-right num text-mini focus:border-accent focus:outline-none';
+
+export const TimelineToolbar: React.FC<Props> = ({ playing, onTogglePlay, onStop, timeRef, bedTimeRef, overrun, docKey, duration, onChangeDuration, fps, onChangeFps, tool, onSetTool, snapEnabled, onToggleSnap, onAddMarker, onSetIn, onSetOut, hasRegion, onZoom, onZoomFit, onAddTrack, loop, onToggleLoop, smEnabled, onToggleSm, onEditLogic, maximized, onToggleMax }) => (
   <div className="shrink-0 flex items-center gap-2 px-3 h-9 border-b border-line-1 bg-surface-1">
+    {/* ── transport: what is PLAYING ── */}
     <TBtn active={playing} title="Play / Pause (Space)" onClick={onTogglePlay}>
       {playing ? <Pause size={13} fill="currentColor" /> : <Play size={13} fill="currentColor" />}
     </TBtn>
-    <TBtn active={loop} title="Loop in/out region (Shift+L)" onClick={onToggleLoop}><Repeat size={13} /></TBtn>
+    <TBtn title="Stop — pause and return to the in-point" onClick={onStop}><Square size={13} fill="currentColor" /></TBtn>
+    <TBtn active={loop} title={hasRegion ? 'Loop the in/out region (Shift+L)' : 'Loop the whole timeline, 0 → Length (Shift+L)'} onClick={onToggleLoop}>
+      <Repeat size={13} />
+    </TBtn>
+    <TBtn title="Set in-point at the playhead (I)" onClick={onSetIn}><LogIn size={13} /></TBtn>
+    <TBtn title="Set out-point at the playhead (O)" onClick={onSetOut}><LogOut size={13} /></TBtn>
     <span ref={timeRef} className="num text-mini text-fg-1 tabular-nums w-44">00:00:00:00 / 00:00:00:00</span>
+    {bedTimeRef && (
+      <span ref={bedTimeRef} className="text-micro text-fg-3 tabular-nums shrink-0"
+        title="The audio bed's position — the SHOW clock. It does not restart when a scene is recalled, which is why its lanes are not drawn against this scene's ruler.">♪ BED 0:00</span>
+    )}
+    {overrun && (
+      <button onClick={overrun.onFix}
+        title={`Content runs to ${fmtClock(overrun.at)} but Length is ${fmtClock(overrun.length)}, so it will never be heard or seen. Click to set Length to ${fmtClock(overrun.at)}. Your in/out region is not touched.`}
+        className="shrink-0 inline-flex items-center gap-1 px-1.5 h-5 rounded bg-warn/15 text-warn text-micro">
+        <AlertTriangle size={10} /> past the end — Length → {fmtClock(overrun.at)}
+      </button>
+    )}
 
+    {/* ── tools: what I am DOING ── */}
     <div className="w-px h-5 bg-line-1 mx-0.5" />
     <TBtn active={tool === 'select'} title="Select tool (V)" onClick={() => onSetTool('select')}><MousePointer2 size={13} /></TBtn>
     <TBtn active={tool === 'blade'} title="Blade tool (B)" onClick={() => onSetTool('blade')}><Scissors size={13} /></TBtn>
@@ -48,16 +162,15 @@ export const TimelineToolbar: React.FC<Props> = ({ playing, onTogglePlay, timeRe
     <TBtn active={smEnabled} title="State machine: enable control layer" onClick={onToggleSm}><Workflow size={13} /></TBtn>
     <button onClick={onEditLogic} className="px-2 py-1 rounded-sm bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3 text-mini">Edit logic</button>
 
+    {/* ── document + view: what I am EDITING ── */}
     <div className="ml-auto flex items-center gap-2">
       <div className="flex items-center gap-1">
         <span className="text-fg-3 text-micro">FPS</span>
-        <input type="number" min={1} max={120} step={1} value={fps} onChange={(e) => onChangeFps(Math.max(1, Math.min(120, parseInt(e.target.value) || 30)))}
-          className="w-11 bg-surface-0 border border-line-1 rounded px-1.5 py-0.5 text-right num text-mini focus:border-accent focus:outline-none" />
+        <NumField value={fps} docKey={docKey} onCommit={onChangeFps} min={1} max={120} step={1} integer className={`w-11 ${NUM_INPUT}`} />
       </div>
       <div className="flex items-center gap-1">
-        <span className="text-fg-3 text-micro">Length</span>
-        <input type="number" min={1} step={1} value={duration} onChange={(e) => onChangeDuration(Math.max(1, parseFloat(e.target.value) || 1))}
-          className="w-14 bg-surface-0 border border-line-1 rounded px-1.5 py-0.5 text-right num text-mini focus:border-accent focus:outline-none" />
+        <span className="text-fg-3 text-micro" title="The end of the timeline. Playback stops here — or loops, if Loop is on. Committed on Enter / when you leave the field.">Length</span>
+        <NumField value={duration} docKey={docKey} onCommit={onChangeDuration} min={1} step={1} className={`w-14 ${NUM_INPUT}`} />
         <span className="text-fg-3 text-micro">s</span>
       </div>
       <div className="flex items-center gap-1">

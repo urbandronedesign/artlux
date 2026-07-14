@@ -519,7 +519,7 @@ export const defaultScene3D = (): Scene3D => ({
 // A managed media library entry. Files are copied into the project's assets/<cat>/ on import
 // (path is relative on disk, resolved absolute on load like every other asset path). Recorded
 // LiDAR takes are entries of type 'take' (path = the .lblob sidecar). Unused entries persist.
-export type AssetType = 'video' | 'image' | 'model' | 'take';
+export type AssetType = 'video' | 'image' | 'model' | 'take' | 'audio';
 export interface AssetEntry {
   id: string;
   name: string;
@@ -530,6 +530,7 @@ export interface AssetEntry {
   fps?: number;            // take
   width?: number;          // video / image
   height?: number;
+  channels?: number;       // audio channel count
   addedAt?: string;        // ISO timestamp
 }
 
@@ -551,7 +552,8 @@ export interface ProjectData {
   timeline?: unknown; // Timeline (renderer type) — video-layer NLE
   stateMachine?: unknown; // StateMachine (renderer type) — project-level show graph over scenes
   schedule?: unknown[]; // ScheduleEntry[] (@artlux/plugin-show-control) — in-project wall-clock triggers
-  assets?: AssetEntry[]; // managed media library (video/image/model/take)
+  audio?: unknown; // AudioMix (renderer type) — global audio bed (Wave 3); normalizeAudioMix() on read
+  assets?: AssetEntry[]; // managed media library (video/image/model/take/audio)
   projectorOutputs?: ProjectorOutput[]; // per-surface fullscreen projector mappings
   projectorFpsCap?: number; // performance mode: cap projector output fps (0 = uncapped/vsync)
   projectorBrightness?: number; // master brightness of projected content (1 = full)

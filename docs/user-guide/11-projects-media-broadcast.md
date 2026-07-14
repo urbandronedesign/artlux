@@ -1,4 +1,4 @@
-# 10. Projects, media library & broadcast mode
+# 11. Projects, media library & broadcast mode
 
 ## Projects are folders
 
@@ -61,4 +61,4 @@ mode used by automation.
 
 **Help ▸ Check for Updates…** — Windows/Linux auto‑update; macOS prompts you to download.
 
-➡ Next: [Preferences & monitoring](11-preferences-monitoring.md)
+➡ Next: [Preferences & monitoring](12-preferences-monitoring.md)

@@ -2,6 +2,104 @@
 
 ## Unreleased
 
+### ⚠ BREAKING (project files) — `Scene.timeline` is now REQUIRED
+
+A Scene could once have **no** `timeline` and fall back to the shared global one. **That shape is gone.**
+It was never reachable from the UI (nothing could create one), and it was the root of **two
+automation-clock blockers**: a lane copied into a scene got retagged to the *scene* clock **and** shadowed
+the genuine base lane by `targetPath` — so a house fade on `audio.master.gain` **snapped +9.6 dB in one
+frame on every GO**, and the wrong value was persisted to disk. No fix inside the engine could work: by the
+time it ran, the impostor lane was byte-identical to one the operator had drawn. So the *state* was deleted,
+which makes two of the three writers that could break the invariant **structurally impossible**.
+
+**What happens to an existing project:** it **loads**. A timeline-less scene is given an **empty** timeline
+by the loader. It does **not** fall back to the global one — so such a scene now recalls to a **black
+output** instead of silently playing the global timeline. **Delete the scene, or give it content.** Nothing
+else about the file changes, and nothing is lost on save.
+
+*(Also breaking, from Wave B: asset paths are now written per-container — every scene's timeline and the
+audio bed included — which makes a saved project **forward-incompatible** with builds before Wave 3.)*
+
+---
+
+**Timeline transport — Length bounds playback again (Wave A).** Reverts the v0.12.0 unbounded-clock
+change: `Timeline.duration` (the **Length** field) is once more the end of the timeline, and the
+transport bar gains **Stop**, **Set In**, **Set Out**, and draggable loop-region handles on the ruler.
+
+- **Length bounds playback.** `start = inPoint ?? 0`, `end = outPoint ?? duration`. With **Loop** on,
+  playback wraps `[start, end)` — including with **no in/out region set**, in which case it loops the
+  whole timeline (previously Loop needed a region, settable only via the undocumented `I`/`O` keys).
+  With Loop off, the playhead now **stops and holds on the last frame** at the end (instead of running
+  on unbounded into black), and the engine emits a `pause` transport intent — App remains the sole
+  writer of `playing`. Seeking past the end is still allowed; only *playback* is bounded.
+- **New state-machine trigger: `onTimelineEnd`.** Fires once when the bound timeline reaches its end
+  while playing and not looping; a loop wrap does not fire it. This is what lets a scene auto-advance
+  unattended — see [docs/STATE-MACHINE.md](docs/STATE-MACHINE.md).
+- **`onClipEnd` narrowed — re-author affected projects.** Because the playhead now parks *inside* the
+  final clip at the end-stop (so the output holds a picture instead of cutting to black), a clip that
+  runs all the way to the end of the timeline never opens a gap, and `onClipEnd` no longer fires for it.
+  **If a project used `onClipEnd` on a final, full-length clip as its "show over" signal, that
+  transition will stop firing — switch it to `onTimelineEnd`.** A clip that ends *before* the timeline
+  does is unaffected.
+- **Transport bar:** new **Stop** (returns to the in-point, not hard 0), **Set In**, **Set Out**
+  buttons; the loop region's edges are now draggable on the ruler.
+
+> Old projects may hold clips past their Length (legitimate under the old unbounded rule).
+> `normalizeTimeline` raises `duration` to the content end **at load**, once, so none of them truncate —
+> it never lowers a deliberately long Length. No project-file migration; the change is purely in
+> playback semantics. See [docs/TIMELINE.md](docs/TIMELINE.md).
+
+> ⚠ **If you opened AND saved a project with a pre-release Wave A build, check its Length fields.**
+> Those builds re-ran the back-compat raise on *every* load and then saved the raised value, so a
+> **deliberately short Length** (e.g. 8 s over a 20 s ambient bed) was silently rewritten to the content
+> end and persisted. The authored number is gone from the file — nothing can recover it, and no fix in
+> this release can. Re-enter the intended Length once; from this build on it round-trips (the timeline
+> now carries a `boundedDuration` marker, so the raise runs at most once per document, on files that
+> predate it).
+
+**Audio scoping — the bed no longer restarts on every scene recall (Wave B).** *One transport, two playheads.*
+
+- **The show clock.** The global audio bed (`ProjectData.audio`) and the global timeline's automation now
+  ride a second derived time, `showTime`, which a scene recall does **not** reset. A five-minute ambient
+  bed plays continuously across every GO while the picture restarts. There is still exactly one transport
+  (one `playing`, one rAF, one `<video>` pool) — see [docs/TIMELINE.md](docs/TIMELINE.md) for the full
+  reset table. **Leaving a scene reconverges**: the playhead snaps to the show clock, so the picture
+  rejoins the bed. (Clicking the scene pill back to Global used to *stop the transport* and kill the bed.)
+- **The global timeline's Length is the SHOW's length.** The bed is bounded by it: with the global Loop on,
+  the bed wraps with the show; **with it off, the bed ends at the global Length and stays silent** until
+  you Stop and Play (or press Play again, or lengthen the timeline). **Set the global Length to cover your
+  show.** ⚠ And note the edit case: **shortening the global Length below where the show has already
+  reached ends the show immediately — the bed hard-cuts and stops.** That is honest ("you just told the
+  show it is 60 s long, and it is now over"), but it is not a no-op, and it happens with **no dialog**.
+- **Audio lanes.** Audio is authored on a timeline lane — drag, trim, blade, snap, waveforms, and **fadeIn /
+  fadeOut corner handles** (which the driver now honours; the two fields have been persisted and silently
+  ignored since Wave 3). The Audio Bed panel's `@ N s` numeric placement field is **removed** — the lane
+  replaces it. **`AudioTrack.solo` is honoured too** (also silently ignored until now).
+- **`Timeline.audio` — every timeline gets its own audio.** Additive, normalize-defaulted. It rides the
+  **playhead** and restarts with its timeline — unlike the bed. The clock follows the *container*, not the
+  ruler the lane is drawn next to.
+- **The Audio Bed panel is now a mixer**: track faders + mute/solo, the master strip, and a clip inspector
+  that follows the timeline selection.
+- **Scenes and cues can recall audio params, with a fade** (`audio.master.gain`, clip/track gains, spatial
+  position, effect params — continuous leaves only). **An automation lane always wins over a scene fade**,
+  and disabling the lane hands the param to the fade, not back to the authored value. A manual fader move
+  is a **takeover** — it releases that path's fade, so the mixer never goes dead after a recall.
+- **Fixed: `Collect Assets` shipped a broken project.** `mapAssetPaths` never visited `data.scenes[]` or
+  `data.audio`, so a file referenced only from a scene or only from the bed was **not copied, not rewritten,
+  and not even reported as missing** — Collect said "copied 12" and the venue machine played nothing.
+- **Fixed: the cue picker could not add an audio param at all** (`captureEntry` bailed on the `undefined`
+  that `getByPath` returns for any `audio.*` path), and `labelForPath` rendered `audio.master.gain` as
+  `fix · gain`.
+
+> ⚠ **FORWARD-COMPAT:** a project saved by this build **will not fully load on an older one.** Scene and
+> audio-bed asset paths are now relativized on save (they were written absolute, baked to the authoring
+> machine); an older build's `resolveAssets` does not visit them and will never make them absolute again —
+> so on an older build those scenes/bed clips resolve to nothing and play silence/black. **No schema
+> version distinguishes the two** — `ProjectData.version` is *written* (`'1.2'`) but **read by nothing**,
+> so there is no guard and no warning: the old build just opens the file and quietly comes up short.
+> Back up before downgrading. Backward-compat is unaffected: old projects load exactly as they do today
+> (absolute paths still resolve) and are converted on the first save.
+
 ## v0.21.0
 
 - **New: In-app Docs & Tutorials browser + illustrated example tutorials (`src/main/docs.ts`, `src/renderer/components/DocsBrowser.tsx`).** A **Help ▸ Docs & Tutorials** viewer — a dockable right-side panel that **detaches into its own window** — renders the shipped example/tutorial sets and the **illustrated user guide** as in-app markdown, with sibling **images loaded inline** (a main-side reader hands the sandboxed renderer image bytes over a traversal-guarded IPC, which wraps them in blob URLs) and **"open example"** links that load the `.artlux` straight into the editor. Bundled into packaged builds via `extraResources` (examples + user guide). Ships two openable **tutorial courses** — **LiDAR blob tracking** (feed → calibrate → replay, driven by a bundled synthetic emitter, no hardware) and the **state machine** (looping show → triggers → interactive installation) — each now illustrated with **self-contained SVG diagrams** (state graph, hub-and-spoke, tracking zones, merge-people). Adds new reference docs (**STATE-MACHINE, EFFECTS, CODECS, SPOUT**) and a **`plans/`** folder of implementation plans (incl. the native audio engine) with a dev-sequencing guide. `tsc` + `npm run build` clean; all 23 doc image references validated (resolve + read), docs-scan + traversal guard exercised, in-app visual test confirmed.

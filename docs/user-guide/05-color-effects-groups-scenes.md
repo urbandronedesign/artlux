@@ -14,7 +14,7 @@ states with groups, scenes and the cue grid.
   independent of LED brightness.
 - **Output gamma** (Preferences ▸ *Engine*) — global non‑linear brightness correction (1.0–3.0).
 - **Per‑projector gamma & soft‑edge** — set independently per output (see
-  [Projector outputs](07-projector-outputs.md)).
+  [Projector outputs](08-projector-outputs.md)).
 
 ---
 
@@ -26,7 +26,7 @@ run a built‑in generative effect with a color **palette**, **Speed** and **Int
 effect) and a **Split** button so multi‑segment fixtures can run a different effect per segment.
 
 In the demo, the "FX Panel" surface runs a rainbow effect — you can see it sampled by the LED strip in
-the [DMX Monitor](11-preferences-monitoring.md#dmx-monitor).
+the [DMX Monitor](12-preferences-monitoring.md#dmx-monitor).
 
 ---
 

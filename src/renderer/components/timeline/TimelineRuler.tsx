@@ -8,12 +8,32 @@ interface Props {
   height: number;
   fps: number;
   markers: Marker[];
+  // The HANDLES sit on the raw authored points (so a degenerate one can still be grabbed and dragged
+  // back), while the shaded BAND spans the range the engine will actually play — which Timeline.tsx
+  // resolves through timelineStart/timelineEnd, because either point alone is a valid region and a
+  // degenerate one is ignored. null/null ⇒ no region ⇒ no band.
   inPoint: number | null;
   outPoint: number | null;
+  bandStart: number | null;
+  bandEnd: number | null;
+  // Content authored past the document's LENGTH (Timeline.tsx's `overrunAt`, banded from `lengthEnd`). An
+  // audio clip does not extend Length, and a video clip past a deliberately-short Length is honoured as
+  // authored — so either way this content will never be heard or seen. Both null ⇒ nothing overruns ⇒ no
+  // band.
+  //
+  // NOT banded from the playable end: an out-point overrides Length, and hatching a deliberately narrowed
+  // LOOP REGION as if it were broken content is a false alarm on a normal authoring workflow.
+  overrunFrom: number | null;
+  overrunTo: number | null;
   onSeekDown: (e: React.PointerEvent) => void;
   onMarkerSeek: (time: number) => void;
   onMarkerDelete: (id: string) => void;
   onMarkerNote: (id: string, note: string) => void;
+  // Region-handle grab. Deliberately just a pointerdown forward — Timeline.tsx owns the whole drag
+  // (window listeners, snapping, draft state, commit-on-up), same as onSeekDown above. The ruler
+  // itself carries no time math beyond px→sec for layout and stays pure props-in.
+  onMoveInDown: (e: React.PointerEvent) => void;
+  onMoveOutDown: (e: React.PointerEvent) => void;
 }
 
 const shortTc = (t: number, fps: number) => {
@@ -21,7 +41,7 @@ const shortTc = (t: number, fps: number) => {
   return s.startsWith('00:') ? s.slice(3) : s;
 };
 
-export const TimelineRuler: React.FC<Props> = ({ pxPerSec, width, height, fps, markers, inPoint, outPoint, onSeekDown, onMarkerSeek, onMarkerDelete, onMarkerNote }) => {
+export const TimelineRuler: React.FC<Props> = ({ pxPerSec, width, height, fps, markers, inPoint, outPoint, bandStart, bandEnd, overrunFrom, overrunTo, onSeekDown, onMarkerSeek, onMarkerDelete, onMarkerNote, onMoveInDown, onMoveOutDown }) => {
   const [editing, setEditing] = useState<{ id: string; note: string } | null>(null);
   const step = chooseTickStep(pxPerSec);
   const ticks: number[] = [];
@@ -30,12 +50,31 @@ export const TimelineRuler: React.FC<Props> = ({ pxPerSec, width, height, fps, m
 
   return (
     <div className="relative bg-surface-1/60 cursor-text border-b border-line-1" style={{ height, width }} onPointerDown={onSeekDown}>
-      {/* in/out range band */}
-      {inPoint != null && outPoint != null && outPoint > inPoint && (
-        <div className="absolute top-0 bottom-0 bg-accent/15 border-x border-accent/60 pointer-events-none" style={{ left: inPoint * pxPerSec, width: (outPoint - inPoint) * pxPerSec }} />
+      {/* the playable range — shaded. Either point alone produces one (see Props). */}
+      {bandStart != null && bandEnd != null && bandEnd > bandStart && (
+        <div className="absolute top-0 bottom-0 bg-accent/15 border-x border-accent/60 pointer-events-none" style={{ left: bandStart * pxPerSec, width: (bandEnd - bandStart) * pxPerSec }} />
       )}
-      {inPoint != null && <div className="absolute top-0 bottom-0 w-0.5 bg-accent pointer-events-none" style={{ left: inPoint * pxPerSec }} title="In" />}
-      {outPoint != null && <div className="absolute top-0 bottom-0 w-0.5 bg-accent pointer-events-none" style={{ left: outPoint * pxPerSec }} title="Out" />}
+      {/* Content past the END — authored but unplayable. Distinct from the playable band above, and never
+          a pointer target: the fix is the one-click badge in the toolbar, not a drag. */}
+      {overrunFrom != null && overrunTo != null && overrunTo > overrunFrom && (
+        <div className="absolute top-0 bottom-0 bg-warn/10 border-l border-warn/50 pointer-events-none"
+          style={{ left: overrunFrom * pxPerSec, width: (overrunTo - overrunFrom) * pxPerSec }} />
+      )}
+      {/* handles: 8px hit area (w-2 -ml-1), the line itself stays 2px — a 2px target is unusable */}
+      {inPoint != null && (
+        <div onPointerDown={onMoveInDown} title="In — drag to move"
+          className="absolute top-0 bottom-0 w-2 -ml-1 cursor-ew-resize z-10 flex justify-center group"
+          style={{ left: inPoint * pxPerSec }}>
+          <div className="w-0.5 h-full bg-accent group-hover:w-1 transition-[width]" />
+        </div>
+      )}
+      {outPoint != null && (
+        <div onPointerDown={onMoveOutDown} title="Out — drag to move"
+          className="absolute top-0 bottom-0 w-2 -ml-1 cursor-ew-resize z-10 flex justify-center group"
+          style={{ left: outPoint * pxPerSec }}>
+          <div className="w-0.5 h-full bg-accent group-hover:w-1 transition-[width]" />
+        </div>
+      )}
 
       {ticks.map((t, i) => (
         <div key={i} className="absolute top-0 bottom-0 border-l border-line-1/60 pointer-events-none" style={{ left: t * pxPerSec }}>

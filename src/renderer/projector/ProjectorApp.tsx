@@ -139,6 +139,8 @@ export const ProjectorApp: React.FC = () => {
         } else if (m.t === 'transport') {
           playingRef.current = m.playing;
           engine.setPlaying(m.playing); engine.seek(m.playhead);
+          // A mirror is TOLD the show clock, never derives it — an effect SURFACE is drawn against it.
+          engine.setExternalShowTime(m.showTime);
           const s = surfaceRef.current;
           if (s) syncSurfaces(SELF_RENDER.has(s.content.type) ? [s] : [], m.playing);
         } else if (m.t === 'brightness') {

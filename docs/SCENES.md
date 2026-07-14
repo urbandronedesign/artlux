@@ -72,13 +72,25 @@ rig wiring:
 | `groups` | |
 | `scene3D` | |
 | `projectorOutputs` (corner-pin / warp / soft-edge) | |
-| `timeline` *(optional — per-state decoupled NLE)* | |
+| `timeline` **(REQUIRED — a per-scene decoupled NLE)** | |
 
-Every field beyond `fixtures`/`globalBrightness` is optional, so projects saved with the older
-minimal Scene shape still load and recall (fixtures + brightness).
+Every field beyond `fixtures` / `globalBrightness` / `timeline` is optional, so projects saved with the
+older minimal Scene shape still load and recall (fixtures + brightness).
 
-> **Per-scene timelines.** A Scene *may* now own its own `timeline`; recalling it **warm-swaps** the
-> playback engine to that timeline (scenes without one fall back to the shared global timeline). This is
+> ### ⚠ `timeline` is REQUIRED. It was optional, and that shape was **deleted**.
+> A Scene could once have **no** `timeline` and "fall back to the shared global one". That state was the
+> root of **two automation-clock blockers** — a lane copied into a scene was retagged to the *scene* clock
+> *and* shadowed the real base lane, so a house fade on `audio.master.gain` **snapped +9.6 dB on every GO
+> and persisted to disk**. It was also never a feature: **nothing in the UI could create one.** It was
+> deleted on **2026-07-14**, which makes two of the three writers that could break the invariant
+> *structurally impossible*.
+>
+> **Opening an older project is safe** — the loader gives a timeline-less scene an **empty** timeline. It
+> does **not** fall back to the global one, so a scene saved under the old shape recalls to a black output
+> rather than silently playing the global timeline. Delete it, or give it content.
+
+> **Per-scene timelines.** Every Scene owns its own `timeline`; recalling it **warm-swaps** the
+> playback engine to that timeline. This is
 > the seam that turns Scenes into fully decoupled *states* you author one at a time. Full design —
 > engine pools, the current-scene binding, the preloader, and the authoring-loop UX — is in
 > [SCENE-TIMELINES.md](SCENE-TIMELINES.md). (`buildSceneSnapshot` stays look-only, so **Update Scene**
@@ -129,8 +141,8 @@ The **GO** button in the Scenes & Cues panel.
 The control-layer FSM ([services/stateMachine.ts](../src/renderer/services/stateMachine.ts), see
 [TIMELINE.md](TIMELINE.md)) gains a new **state-entry action: `recallScene`**. Add it to a state in
 the state-graph editor and pick a scene. When the FSM enters that state — via any trigger
-(`atTime`, `onMarker`, `onClipEnd`, `afterDelay`, `manual`) — the scene fires. This lets a timed
-show recall looks as it plays. The action stores the scene **id**.
+(`atTime`, `onMarker`, `onClipEnd`, `onTimelineEnd`, `afterDelay`, `manual`) — the scene fires. This
+lets a timed show recall looks as it plays. The action stores the scene **id**.
 
 ### 3. OSC
 Under the control prefix (default `/artlux`), resolve by scene **id or name**:

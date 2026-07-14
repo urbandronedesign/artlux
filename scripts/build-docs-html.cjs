@@ -18,9 +18,14 @@ const REPO_DOCS = 'https://github.com/urbandronedesign/artlux/blob/main/docs';
 const PAGES = [
     'README.md', '01-interface-tour.md', '02-surfaces-and-content.md', '03-fixtures.md',
     '04-patching-and-routing.md', '05-color-effects-groups-scenes.md', '06-timeline.md',
-    '07-projector-outputs.md', '08-3d-scene.md', '09-calibration.md',
-    '10-projects-media-broadcast.md', '11-preferences-monitoring.md', '12-keyboard-reference.md',
+    '07-audio.md',
+    '08-projector-outputs.md', '09-3d-scene.md', '10-calibration.md',
+    '11-projects-media-broadcast.md', '12-preferences-monitoring.md', '13-keyboard-reference.md',
 ];
+// ⚠ THIS LIST IS HAND-MAINTAINED AND IT FAILS SILENTLY. A page missing from it is simply ABSENT from the
+// built HTML — no error, no warning. (The in-app docs browser does NOT share this list: src/main/docs.ts
+// sorts the directory alphabetically, so it picks up a new chapter on its own. The two can therefore
+// disagree, and only this one will be wrong.) Add every new chapter here.
 
 const slug = (s) => s.toLowerCase().replace(/<[^>]+>/g, '').replace(/&[^;]+;/g, '')
     .replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');

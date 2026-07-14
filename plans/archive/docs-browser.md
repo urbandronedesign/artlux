@@ -4,7 +4,7 @@
 
 ## Context — why this, and the decided route
 
-ArtLux has **no real in-app documentation today**: "getting started" is hardcoded prose in [helpContent.ts:14](../src/renderer/help/helpContent.ts#L14) shown as plain `<p>` in the bespoke docked `HelpPanel`, and the About dialog's "Docs" button opens *external* GitHub ([About.tsx:16,32](../src/renderer/components/About.tsx#L16)). Meanwhile we are producing example/tutorial **sets** under `examples/` (state-machine exists; LiDAR next; the rest interleaved per [SEQUENCING.md](SEQUENCING.md)). Users should **read and run** those tutorials *inside* ArtLux.
+ArtLux has **no real in-app documentation today**: "getting started" is hardcoded prose in [helpContent.ts:14](../src/renderer/help/helpContent.ts#L14) shown as plain `<p>` in the bespoke docked `HelpPanel`, and the About dialog's "Docs" button opens *external* GitHub ([About.tsx:16,32](../src/renderer/components/About.tsx#L16)). Meanwhile we are producing example/tutorial **sets** under `examples/` (state-machine exists; LiDAR next; the rest interleaved per [SEQUENCING.md](../SEQUENCING.md)). Users should **read and run** those tutorials *inside* ArtLux.
 
 **Decided route (with the user):** a **docked side panel** (like `HelpPanel`) that renders the docs tree + markdown, with a **"detach" button** that pops the same content into a standalone window; scope = **examples/tutorials + the `docs/user-guide/` pages**; **interactive** — inline images and "open this example" links that load the referenced `.artlux` straight into the app. This feature is **independent of every dev-plan wave** (it reads whatever markdown exists and touches no wave subsystem), so it is safe to build in parallel and never breaks as tutorials are rewritten.
 

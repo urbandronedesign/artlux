@@ -1,4 +1,4 @@
-# 12. Keyboard & mouse reference
+# 13. Keyboard & mouse reference
 
 Typing in a text field suppresses these shortcuts. On macOS, **Ctrl** = **Cmd**.
 

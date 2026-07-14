@@ -9,7 +9,9 @@ import { StateMachine, SmState, SmTransition, SmAction, Marker } from '../types'
 //
 // Clock: `afterDelay` runs off a standalone wall clock (ctx.nowSec) so it advances even when the
 // timeline transport is stopped; `atTime`/`onMarker`/`onClipEnd` use the timeline playhead and only
-// fire when it advances.
+// fire when it advances. `onTimelineEnd` is the odd one out: every other playhead trigger is a
+// CROSSING, and a clean stop at the end crosses nothing — so the engine hands it to us as a
+// one-frame edge (ctx.atEnd) instead of a time we could test.
 
 export type TransportIntent =
   | { kind: 'play' }
@@ -25,6 +27,7 @@ export interface SmContext {
   recallScene: (sceneId: string, fadeSec?: number) => void; // recall a Scene by id (fade overrides default)
   fireCue: (cueId: string) => void;       // fire a granular Cue by id (routed via cueBus to App)
   nowSec: number;                          // monotonic wall clock (seconds) — drives afterDelay
+  atEnd: boolean;                          // the timeline reached its end THIS frame (see 'onTimelineEnd')
 }
 
 let currentStateId: string | null = null;
@@ -104,8 +107,28 @@ function triggerFires(tr: SmTransition, fromState: SmState | undefined, playhead
     }
     case 'atTime': return g.time != null && crossed(g.time, prev, playhead);
     case 'onMarker': { const m = ctx.markers.find(mk => mk.id === g.markerId); return !!m && crossed(m.time, prev, playhead); }
+    // A GAP appeared on the layer: a clip was live under prev and none is under cur.
+    //
+    // DELIBERATE: this does NOT fire for the layer's last clip when the clip runs to the END of a
+    // non-looping timeline. The end-stop parks the playhead on the LAST FRAME (end - 1/fps), which is
+    // still INSIDE that clip — by design: parking exactly on `end` leaves no clip under the playhead and
+    // the show would end on black (see timeline.ts's park). So no gap ever opens, and firing here would
+    // be asserting "the clip ended" while its final frame is still on the projectors and the LED output.
+    // "The show finished" is a different event and now has its own trigger: use 'onTimelineEnd', which
+    // fires on exactly that frame. (A clip that ends BEFORE the timeline does still fires this normally.)
+    // Firing both on one frame would also be a footgun: tick() takes at most ONE transition per frame,
+    // so an author with both out of one state would get whichever came first in `transitions`.
     case 'onClipEnd': return !!g.layerId && ctx.clipActive(g.layerId, prev) && !ctx.clipActive(g.layerId, playhead);
+    // The single frame the bound timeline reached its end while playing and not looping (a loop wrap is
+    // not an end). Set by the engine's end-stop; a one-frame pulse, so this can't re-fire while parked.
+    case 'onTimelineEnd': return ctx.atEnd;
   }
+  // Exhaustiveness: a new SmTriggerKind that forgets its case above becomes a COMPILE error here rather
+  // than a trigger that silently never fires. The runtime `return false` still stands — a project file
+  // can carry a kind this build doesn't know (hand-edit, newer version), and an unknown trigger must be
+  // INERT, never truthy.
+  const unhandled: never = g.kind;
+  void unhandled;
   return false;
 }
 

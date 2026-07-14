@@ -28,6 +28,9 @@ const sdkAliases = [
   // Show-control spans both processes (HTTP/SSE server in main + UI in renderer) → explicit subpaths.
   { find: '@artlux/plugin-show-control/main', replacement: resolve(__dirname, 'plugins/show-control/src/main.ts') },
   { find: '@artlux/plugin-show-control/renderer', replacement: resolve(__dirname, 'plugins/show-control/src/renderer.ts') },
+  // Audio spans both processes (native JUCE engine in main + settings/driver in renderer) → explicit subpaths.
+  { find: '@artlux/plugin-audio/main', replacement: resolve(__dirname, 'plugins/audio/src/main.ts') },
+  { find: '@artlux/plugin-audio/renderer', replacement: resolve(__dirname, 'plugins/audio/src/renderer.ts') },
 ];
 
 export default defineConfig({

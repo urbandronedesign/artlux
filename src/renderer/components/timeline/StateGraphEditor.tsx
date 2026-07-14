@@ -3,7 +3,7 @@ import { StateMachine, SmState, SmTransition, SmRegion, SmAction, SmActionKind, 
 import { timeline as engine } from '../../services/timeline';
 import { X, Plus, Star, Trash2, ArrowRight, Wand2, SquareDashed, Film } from 'lucide-react';
 
-export interface SceneRef { id: string; name: string; hasTimeline?: boolean; clipCount?: number }
+export interface SceneRef { id: string; name: string; clipCount?: number }
 export interface CueRef { id: string; name: string }
 
 interface Props {
@@ -28,7 +28,7 @@ const R = 34;                 // state node radius
 const D = R * 2;
 const CW = 2600, CH = 1700;   // canvas coordinate space
 const ACTION_KINDS: SmActionKind[] = ['play', 'pause', 'stop', 'seek', 'setLoop', 'jumpMarker', 'recallScene', 'fireCue'];
-const TRIGGER_KINDS: SmTriggerKind[] = ['manual', 'afterDelay', 'atTime', 'onMarker', 'onClipEnd'];
+const TRIGGER_KINDS: SmTriggerKind[] = ['manual', 'afterDelay', 'atTime', 'onMarker', 'onClipEnd', 'onTimelineEnd'];
 const uid = () => crypto.randomUUID();
 
 type Vec = { x: number; y: number };
@@ -341,10 +341,10 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
                       <span className="text-micro font-medium leading-tight px-1 truncate max-w-[60px]">{s.name.toUpperCase()}</span>
                       {s.lockSec != null && <span className={`text-micro ${isInit ? 'text-black/70' : 'text-fg-3'}`}>[{s.lockSec}]</span>}
                       {scene && <span className={`inline-flex items-center gap-0.5 text-micro ${isInit ? 'text-black/70' : 'text-accent'}`}><Film size={8} /> {scene.name}</span>}
-                      {/* Per-state timeline build status: empty vs populated vs using the shared global. */}
-                      {scene && (scene.hasTimeline
-                        ? <span className={`text-micro ${isInit ? 'text-black/60' : 'text-fg-3'}`}>{scene.clipCount ? `${scene.clipCount} clip${scene.clipCount === 1 ? '' : 's'}` : 'empty'}</span>
-                        : <span className={`text-micro italic ${isInit ? 'text-black/50' : 'text-fg-4'}`}>↩ global</span>)}
+                      {/* Per-state timeline build status: empty vs populated. The third case — "↩ global",
+                          a scene with no timeline of its own — was deleted on 2026-07-14: every scene owns
+                          one now (types.ts), so there is no such state left to label. */}
+                      {scene && <span className={`text-micro ${isInit ? 'text-black/60' : 'text-fg-3'}`}>{scene.clipCount ? `${scene.clipCount} clip${scene.clipCount === 1 ? '' : 's'}` : 'empty'}</span>}
                       {/* link nub */}
                       <div title="Drag onto another state to connect" onPointerDown={(e) => beginLink(e, s.id)}
                         className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-accent border border-surface-0 cursor-crosshair" />
@@ -430,9 +430,14 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
                     onChange={(v) => patchTransition(selTrans.id, { trigger: { ...selTrans.trigger, markerId: v } })} />
                 )}
                 {selTrans.trigger.kind === 'onClipEnd' && (
-                  <SelectField label="Track" value={selTrans.trigger.layerId ?? ''} options={layers.map(l => ({ v: l.id, l: l.name }))}
-                    onChange={(v) => patchTransition(selTrans.id, { trigger: { ...selTrans.trigger, layerId: v } })} />
+                  <>
+                    <SelectField label="Track" value={selTrans.trigger.layerId ?? ''} options={layers.map(l => ({ v: l.id, l: l.name }))}
+                      onChange={(v) => patchTransition(selTrans.id, { trigger: { ...selTrans.trigger, layerId: v } })} />
+                    <div className="text-fg-3 italic">A clip that runs to the end of the timeline never opens a gap — use onTimelineEnd for &lsquo;the show finished&rsquo;.</div>
+                  </>
                 )}
+                {/* onTimelineEnd takes no parameter — it fires on the frame the timeline ends. */}
+                {selTrans.trigger.kind === 'onTimelineEnd' && <div className="text-fg-3 italic">Fires when the timeline reaches its end with Loop OFF. A loop wrap is not an end.</div>}
                 {selTrans.trigger.kind === 'manual' && <div className="text-fg-3 italic">Fires from the state-lane button, Ctrl+click on the edge, or OSC.</div>}
                 <NumField label="Transition time (s) — scene crossfade on arrival" value={selTrans.fadeSec ?? 0} onChange={(v) => patchTransition(selTrans.id, { fadeSec: v || undefined })} />
               </div>

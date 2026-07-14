@@ -1,5 +1,5 @@
 import { app, dialog, type BrowserWindow } from 'electron';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { ProjectData, RigData, Prefs, OpenProjectResult } from '../../shared/protocol';
 import { relativizeAssets, resolveAssets } from './projectFolder';
@@ -50,11 +50,26 @@ function readJson<T>(path: string): T | null {
   }
 }
 
+// ATOMIC REPLACE, NOT A TRUNCATING WRITE. writeFileSync's first act is openSync(path, 'w') — it TRUNCATES
+// the target to zero bytes before a single byte of the new project is written. So a save that fails DURING
+// the write (a full disk, an antivirus scanner grabbing the file, a power cut) does not leave the operator
+// their old project: it leaves a stub. `{\n  "name": ` and nothing else. The show is gone.
+//
+// Wave 3 did not cause this — but it lengthened the write window considerably by growing the document
+// (audioMix, Timeline.audio, and an automation array on every timeline).
+//
+// Write a sibling temp file, then rename over the target: rename() on the same volume is atomic on NTFS,
+// so what is on disk is only ever the whole old project or the whole new one. Note the failure is still
+// REPORTED — an atomic save that silently swallowed ENOSPC would be its own kind of lie.
 function writeJson(path: string, data: unknown): boolean {
+  const tmp = path + '.tmp';
   try {
-    writeFileSync(path, JSON.stringify(data, null, 2), 'utf-8');
+    writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf-8');
+    renameSync(tmp, path);
     return true;
   } catch (e) {
+    // The target was never opened, so the old project is intact. Don't leave the half-written temp behind.
+    try { if (existsSync(tmp)) unlinkSync(tmp); } catch { /* best effort — the save has already failed */ }
     console.error('[persistence] write failed', path, e);
     return false;
   }

@@ -44,5 +44,22 @@ export function getContentAspect(s: Surface): number | null {
 export function getDrawable(s: Surface): Drawable | null {
   if (s.content.type === SourceType.LAYER) return timeline.getLayerDrawable(s.content.layerId);
   if (s.content.type === SourceType.PROGRAM) return timeline.getProgramDrawable();
-  return contentSource.getDrawable(s.id, s.content, performance.now() / 1000);
+  // ⚠ THE SHOW CLOCK — NOT `performance.now()`.
+  //
+  // A generative surface used to be handed raw wall time, so it NEVER READ THE TRANSPORT: pausing the show
+  // did not freeze the picture, and a seek did not move it. The isPlaying gate above (syncSurfaces ->
+  // contentSource.setPlaying) only ever reached the video codecs — an EFFECT is driven by this `timeSec`
+  // argument, and wall time does not stop. contentSource.ts documented it as intentional ("clip-local for
+  // timeline clips, wall-clock for surfaces"); it is the wrong call for a show-control app, and incoherent
+  // with a wave whose whole purpose was to put everything on one transport.
+  //
+  // Why the SHOW clock and not the playhead: a surface belongs to the SHOW, not to whichever document is
+  // bound. showTime survives a scene recall (exactly like the audio bed), so an ambient effect running
+  // behind the show keeps running through a GO instead of snapping back to zero. Pause freezes it, a seek
+  // scrubs it, Stop resets it.
+  //
+  // MIRROR WINDOWS DO NOT RUN THIS CLOCK — they are TOLD it, over the transport bridge (see
+  // timeline.setExternalShowTime). Without that half, this line would freeze every projector effect at 0,
+  // which is worse than the bug it fixes.
+  return contentSource.getDrawable(s.id, s.content, timeline.getShowTime());
 }

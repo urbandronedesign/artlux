@@ -1,5 +1,5 @@
 import { dialog, type BrowserWindow } from 'electron';
-import { copyFileSync, existsSync, mkdirSync, statSync } from 'node:fs';
+import { closeSync, copyFileSync, existsSync, mkdirSync, openSync, readSync, statSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { basename, dirname, extname, isAbsolute, join, relative, sep } from 'node:path';
 import type { ProjectData, CollectResult, NewProjectFolder, AssetEntry, AssetType } from '../../shared/protocol';
@@ -16,12 +16,13 @@ const ASSET_CATEGORIES: Record<string, string[]> = {
   video: ['mp4', 'webm', 'mov', 'mkv'],
   models: ['glb', 'gltf'],
   images: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'],
+  audio: ['wav', 'aiff', 'aif', 'flac', 'ogg'], // native JUCE decode (mp3/aac gated on extra codecs)
   tracking: ['lblob'], // recorded LiDAR-blob takes
 };
 
 // Library asset type → assets/ sub-folder (category).
 const TYPE_CATEGORY: Record<AssetType, string> = {
-  video: 'video', image: 'images', model: 'models', take: 'tracking',
+  video: 'video', image: 'images', model: 'models', take: 'tracking', audio: 'audio',
 };
 
 function categoryFor(path: string): string | null {
@@ -35,46 +36,121 @@ const isFilePath = (s: unknown): s is string =>
   typeof s === 'string' && s.length > 0 && !/^(blob:|https?:|data:)/i.test(s);
 
 // ---- The single source of truth for where asset paths live in a project ----------
-// Visits every asset path string, replacing it with map(value) (return the same string
-// to leave it unchanged). Mutates a shallow-cloned copy so the input isn't touched.
-function mapAssetPaths(data: ProjectData, map: (path: string) => string): ProjectData {
+// Visits every asset path string, replacing it with map(value) (return the same string to leave it
+// unchanged). Mutates a shallow-cloned copy so the input isn't touched.
+//
+// EXPRESSED AS PER-CONTAINER VISITORS ON PURPOSE. A Scene is a full look snapshot with its OWN
+// surfaces, scene3D and timeline — every one of them carrying collectable paths. Written inline (as
+// this used to be), the moment scenes needed the timeline walker too there would be TWO lists of
+// "where paths live", and the next field added to Timeline would be remembered in one and forgotten
+// in the other. (Wave B adds Timeline.audio — see mapTimeline.)
+//
+// EVERY HELPER MUST BE TOTAL OVER GARBAGE. This runs on every load of a possibly hand-edited file:
+// `scenes` may be `{}`, a scene may be `null`, a scene's `timeline` may be a string, `audio.clips` may
+// be a number. It must NEVER throw. (The renderer's sibling, normalizeTimeline, had FOUR separate
+// crash-on-load paths of exactly this shape.) The main process deliberately does not import renderer
+// types — ProjectData.scenes is `unknown[]` and `audio` is `unknown` — hence the `any` casts, matching
+// the file's existing style.
+type PathMap = (path: string) => string;
+
+// Surfaces: VIDEO/IMAGE content.url (skip blob:/http:/data: live urls — isFilePath).
+function mapSurfaces(surfaces: unknown, map: PathMap): unknown {
+  if (!Array.isArray(surfaces)) return surfaces;
+  return surfaces.map((s: any) => {
+    const c = s?.content;
+    if (c && (c.type === 'VIDEO' || c.type === 'IMAGE') && isFilePath(c.url)) {
+      return { ...s, content: { ...c, url: map(c.url) } };
+    }
+    return s;
+  });
+}
+
+// 3D scene: mesh model paths (planes have path '' → skipped by isFilePath's empty check).
+function mapScene3D(scene3D: unknown, map: PathMap): unknown {
+  const s3d = scene3D as any;
+  if (!s3d || typeof s3d !== 'object' || Array.isArray(s3d) || !Array.isArray(s3d.models)) return scene3D;
+  return {
+    ...s3d,
+    models: s3d.models.map((m: any) => (isFilePath(m?.path) ? { ...m, path: map(m.path) } : m)),
+  };
+}
+
+// Timeline: video clip paths + generalized content-clip urls + the recorded tracking-take library
+// (.lblob sidecars). Both placed clips and unplaced bin takes carry collectable paths, so map them
+// together.
+//
+// ⚠ WAVE B adds `Timeline.audio` (per-timeline audio clips). Its clips' `path` is mapped HERE — this
+// one function is what makes relativize/resolve/collect all see it, on the global timeline AND on
+// every scene's, because mapAssetPaths calls it from both places. Adding it is ONE line next to the
+// others below (`if (t.audio) next.audio = mapAudio(t.audio, map);`) and nothing else: there is
+// deliberately NO "nothing path-bearing" early bail here. An earlier draft bailed out when a timeline
+// had neither `clips` nor `trackingTakes` arrays — which is exactly the shape of a music-only scene
+// (defaultTimeline() mints `clips: []`, and an audio-only timeline has no takes), so its audio paths
+// would have been silently skipped by relativize, resolve AND collect: a silent bed in the venue with
+// nothing in CollectResult.missing to warn anyone. Each field guards itself instead; the cost of the
+// bail's absence is one shallow spread for an empty timeline, on load/save only.
+function mapTimeline(tl: unknown, map: PathMap): unknown {
+  const t = tl as any;
+  if (!t || typeof t !== 'object' || Array.isArray(t)) return tl;
+  const next = { ...t };
+  if (Array.isArray(t.clips)) next.clips = t.clips.map((c: any) => {
+    let n = isFilePath(c?.path) ? { ...c, path: map(c.path) } : c;
+    // Generalized content clips carry the collectable file on content.url (Image/Video sources).
+    const cu = c?.content?.url;
+    if ((c?.content?.type === 'VIDEO' || c?.content?.type === 'IMAGE') && isFilePath(cu)) {
+      n = { ...n, content: { ...n.content, url: map(cu) } };
+    }
+    return n;
+  });
+  if (Array.isArray(t.trackingTakes)) {
+    next.trackingTakes = t.trackingTakes.map((r: any) => (isFilePath(r?.path) ? { ...r, path: map(r.path) } : r));
+  }
+  // This timeline's OWN audio (Wave B) — same clip shape as the bed, same visitor. The guard only
+  // short-circuits mapAudio(undefined) for a pre-Wave-B file on the way IN; it is not a promise that the
+  // key stays absent — normalizeTimeline() mints `audio: {tracks:[],clips:[]}` on load, so every project
+  // this build SAVES carries the key on every timeline. mapAudio is itself total over garbage anyway (a
+  // string, a number, `{clips: null}` come back untouched).
+  if (t.audio !== undefined) next.audio = mapAudio(t.audio, map);
+  return next;
+}
+
+// An AudioMix's clips (the global bed today; a timeline's own audio in Wave B — same shape, same
+// visitor). AudioClip.path's own comment claims it is "relative on disk — like every asset path";
+// until this landed nothing made it so: the bed's paths were written ABSOLUTE, baked to the authoring
+// machine, never resolved on load, and never copied or reported missing by Collect Assets.
+function mapAudio(audio: unknown, map: PathMap): unknown {
+  const a = audio as any;
+  if (!a || typeof a !== 'object' || Array.isArray(a) || !Array.isArray(a.clips)) return audio;
+  return {
+    ...a,
+    clips: a.clips.map((c: any) => (isFilePath(c?.path) ? { ...c, path: map(c.path) } : c)),
+  };
+}
+
+function mapAssetPaths(data: ProjectData, map: PathMap): ProjectData {
   const out: ProjectData = { ...data };
 
-  // Surfaces: VIDEO/IMAGE content.url (skip blob:/http: live urls).
-  if (Array.isArray(out.surfaces)) {
-    out.surfaces = out.surfaces.map((s: any) => {
-      const c = s?.content;
-      if (c && (c.type === 'VIDEO' || c.type === 'IMAGE') && isFilePath(c.url)) {
-        return { ...s, content: { ...c, url: map(c.url) } };
-      }
-      return s;
+  out.surfaces = mapSurfaces(out.surfaces, map) as ProjectData['surfaces'];
+  out.scene3D = mapScene3D(out.scene3D, map) as ProjectData['scene3D'];
+  out.timeline = mapTimeline(out.timeline, map) as ProjectData['timeline'];
+
+  // Scenes: each is a full look snapshot with its own surfaces, scene3D and timeline. Missing this is
+  // why Collect Assets shipped a folder whose scenes pointed at the author's D: drive — and why a file
+  // referenced ONLY from a scene was never copied AND never named in CollectResult.missing, because
+  // `missing` is populated from this very visitor (see collectInto's discovery pass).
+  if (Array.isArray(out.scenes)) {
+    out.scenes = out.scenes.map((sc: any) => {
+      if (!sc || typeof sc !== 'object' || Array.isArray(sc)) return sc;
+      const next = { ...sc };
+      if (sc.surfaces !== undefined) next.surfaces = mapSurfaces(sc.surfaces, map);
+      if (sc.scene3D !== undefined) next.scene3D = mapScene3D(sc.scene3D, map);
+      if (sc.timeline !== undefined) next.timeline = mapTimeline(sc.timeline, map);
+      return next;
     });
   }
 
-  // 3D scene: mesh model paths (planes have path '' → skipped by the empty check).
-  if (out.scene3D && Array.isArray(out.scene3D.models)) {
-    out.scene3D = {
-      ...out.scene3D,
-      models: out.scene3D.models.map((m: any) =>
-        isFilePath(m?.path) ? { ...m, path: map(m.path) } : m),
-    };
-  }
-
-  // Timeline: video clip paths + the recorded tracking-take library (.lblob sidecars). Both placed
-  // clips and unplaced bin takes carry collectable paths, so map them together.
-  const tl = out.timeline as any;
-  if (tl && (Array.isArray(tl.clips) || Array.isArray(tl.trackingTakes))) {
-    const next = { ...tl };
-    if (Array.isArray(tl.clips)) next.clips = tl.clips.map((c: any) => {
-      let n = isFilePath(c?.path) ? { ...c, path: map(c.path) } : c;
-      // Generalized content clips carry the collectable file on content.url (Image/Video sources).
-      const cu = c?.content?.url;
-      if ((c?.content?.type === 'VIDEO' || c?.content?.type === 'IMAGE') && isFilePath(cu)) n = { ...n, content: { ...n.content, url: map(cu) } };
-      return n;
-    });
-    if (Array.isArray(tl.trackingTakes)) next.trackingTakes = tl.trackingTakes.map((r: any) => (isFilePath(r?.path) ? { ...r, path: map(r.path) } : r));
-    out.timeline = next;
-  }
+  // The global audio bed (Wave 3) — ProjectData.audio.
+  if (out.audio !== undefined) out.audio = mapAudio(out.audio, map);
 
   // Managed asset library: every entry's path (incl. unused entries).
   if (Array.isArray(out.assets)) {
@@ -138,7 +214,69 @@ export async function pickProjectFolder(win: BrowserWindow | null): Promise<stri
   return projectFile;
 }
 
-// Pick a unique destination filename inside destDir, reusing an existing identically-sized file.
+// Are these two files byte-for-byte the same? Read in bounded chunks, comparing as we go.
+//
+// THIS IS THE IDENTITY TEST FOR ASSET DE-DUPLICATION AND IT MUST BE EXACT. It used to be
+// "same basename, same byte size", which is a lottery for compressed media and a CERTAINTY for
+// uncompressed audio: a WAV's size is a pure function of duration x rate x channels x depth, so
+// two different 16.000 s 48k/24-bit stereo stems both called `loop.wav` are byte-size-identical
+// EVERY time. uniqueDest declared them the same file, skipped the copy, and remapped the second
+// clip onto the first stem's bytes — Scene B playing Room A's loop, with Collect Assets reporting
+// `copied: 1, missing: []`. A clean bill of health, forever. Never weaken this back to a heuristic:
+// a false positive here is a silent, self-certifying wrong-asset-on-stage.
+//
+// Cost: nothing at all unless a candidate ALREADY collides on name AND size (the only case that
+// ever reached the old test). Then it is one sequential read of each, short-circuited at the first
+// differing byte — a mismatched pair of large videos costs one chunk, not one file. A true match
+// reads both in full, which is still strictly cheaper than the copyFileSync it saves. Chunked, not
+// readFileSync: a 3 GB capture is not hypothetical, and readFileSync would allocate it (and throws
+// outright past Node's max buffer length).
+const CMP_CHUNK = 1 << 20; // 1 MiB
+
+// Fill buf from fd, looping until it is full or EOF; returns the byte count (< buf.length only at
+// EOF). readSync is allowed to come back short of what was asked for, so the two files must be
+// filled to a common length before their chunks can be compared — a raw single readSync each would
+// let a short read on one side alone report two identical files as different.
+function readFull(fd: number, buf: Buffer): number {
+  let off = 0;
+  while (off < buf.length) {
+    const n = readSync(fd, buf, off, buf.length - off, null);
+    if (n <= 0) break;
+    off += n;
+  }
+  return off;
+}
+
+function sameContent(a: string, b: string): boolean {
+  let fa = -1;
+  let fb = -1;
+  try {
+    fa = openSync(a, 'r');
+    fb = openSync(b, 'r');
+    const ba = Buffer.allocUnsafe(CMP_CHUNK);
+    const bb = Buffer.allocUnsafe(CMP_CHUNK);
+    for (;;) {
+      const na = readFull(fa, ba);
+      const nb = readFull(fb, bb);
+      if (na !== nb) return false;              // one ended early — different files
+      if (na === 0) return true;                // both hit EOF with everything matched
+      if (ba.compare(bb, 0, nb, 0, na) !== 0) return false;
+    }
+  } catch (e) {
+    // Unreadable / vanished / locked. Fail towards a fresh copy: a duplicated file on disk is a
+    // wasted megabyte, a wrongly-reused one is the wrong stem in the room.
+    console.error('[projectFolder] content compare failed', a, b, e);
+    return false;
+  } finally {
+    if (fa >= 0) closeSync(fa);
+    if (fb >= 0) closeSync(fb);
+  }
+}
+
+// Pick a unique destination filename inside destDir, reusing an existing file only when it is
+// byte-for-byte the SAME FILE (the ten-scenes-one-asset case must not copy ten times). Size is kept
+// as the cheap pre-filter — different sizes can never be the same file, so no bytes are read — but it
+// is a filter, not the verdict. See sameContent.
 function uniqueDest(destDir: string, srcPath: string): { dest: string; reused: boolean } {
   const ext = extname(srcPath);
   const stem = basename(srcPath, ext);
@@ -146,7 +284,9 @@ function uniqueDest(destDir: string, srcPath: string): { dest: string; reused: b
   let candidate = join(destDir, stem + ext);
   let n = 0;
   while (existsSync(candidate)) {
-    if (statSync(candidate).size === srcSize) return { dest: candidate, reused: true };
+    if (statSync(candidate).size === srcSize && sameContent(candidate, srcPath)) {
+      return { dest: candidate, reused: true };
+    }
     n += 1;
     candidate = join(destDir, `${stem}-${n}${ext}`);
   }
@@ -203,25 +343,34 @@ function collectInto(root: string, data: ProjectData): CollectResult {
   const assetsDir = join(root, 'assets');
 
   const remap = new Map<string, string>(); // source path -> collected absolute path
-  const missing: string[] = [];
+  const missing = new Set<string>();       // deduped: one line per FILE in the operator's report
   let copied = 0;
   let skipped = 0;
 
   // First pass: discover unique source paths and copy them in.
+  //
+  // Every branch MUST record the source in `remap` (mapping it to itself when it stays external), or
+  // the `remap.has(p)` guard below never fires for it and the SAME file is re-counted once per
+  // reference. Scenes snapshot the surfaces/clips that reference a path, so one file is reached N+1
+  // times in an N-scene show: without this, three genuinely missing files in a 20-scene show became a
+  // 60-line window.alert (App.tsx pours `missing.join('\n')` into it) and `skipped` reported a number
+  // that was a multiple of the truth. Mapping a source to itself is a no-op in the rewrite pass, and
+  // the library-entry loop below already ignores anything outside assets/.
   mapAssetPaths(data, (p) => {
     if (remap.has(p)) return p; // already handled this source
     const abs = isAbsolute(p) ? p : join(root, p);
     // Already inside assets/ → nothing to do.
     if (isInside(assetsDir, abs)) { remap.set(p, abs); skipped += 1; return p; }
     const cat = categoryFor(abs);
-    if (!cat) { skipped += 1; return p; }            // unknown type — leave external
-    if (!existsSync(abs)) { missing.push(abs); skipped += 1; return p; }
+    if (!cat) { remap.set(p, p); skipped += 1; return p; }            // unknown type — leave external
+    if (!existsSync(abs)) { remap.set(p, p); missing.add(abs); skipped += 1; return p; }
     try {
       const { dest, reused } = uniqueDest(join(assetsDir, cat), abs);
       if (!reused) { copyFileSync(abs, dest); copied += 1; }
       remap.set(p, dest);
     } catch (e) {
       console.error('[projectFolder] copy failed', abs, e);
+      remap.set(p, p);
       skipped += 1;
     }
     return p;
@@ -233,7 +382,7 @@ function collectInto(root: string, data: ProjectData): CollectResult {
   // Ensure every collected media file has a library entry, so it shows in the Media tab. Clips and
   // surfaces can reference files that were never imported (e.g. dragged straight onto the timeline);
   // without this they play but stay invisible in the library. Takes live in trackingTakes, not here.
-  const CAT_TYPE: Record<string, AssetType> = { video: 'video', images: 'image', models: 'model' };
+  const CAT_TYPE: Record<string, AssetType> = { video: 'video', images: 'image', models: 'model', audio: 'audio' };
   const norm = (p: string) => (p || '').replace(/\\/g, '/').toLowerCase();
   const have = new Set<string>((out.assets ?? []).map((a) => norm(a?.path)));
   const added: AssetEntry[] = [];
@@ -251,7 +400,7 @@ function collectInto(root: string, data: ProjectData): CollectResult {
   }
   if (added.length) out.assets = [...(out.assets ?? []), ...added];
 
-  return { data: out, copied, skipped, missing };
+  return { data: out, copied, skipped, missing: [...missing] };
 }
 
 // In-place: collect into the project's own folder (the destructive path — the renderer confirms first).

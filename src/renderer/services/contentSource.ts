@@ -176,7 +176,27 @@ export function setPlaying(p: boolean): void {
 }
 
 // Drawable for `key`'s content this frame, or null if not ready. `timeSec` drives generative EFFECT
-// content (clip-local for timeline clips, wall-clock for surfaces). LAYER is handled by the caller.
+// content. LAYER is handled by the caller.
+//
+// ⚠ `timeSec` IS A TRANSPORT TIME. IT USED TO BE WALL TIME FOR SURFACES, AND THIS COMMENT SAID SO.
+//
+// It read: *"clip-local for timeline clips, wall-clock for surfaces"* — and the wall-clock half was the
+// bug, not the contract. A surface's effect was handed `performance.now()/1000`, so it NEVER READ THE
+// TRANSPORT: pausing the show did not freeze the picture, a seek did not move it, and each window ran its
+// own epoch, so the operator's preview and the audience's projector sat at different phases *permanently*.
+// Fixed 2026-07-14 (`surfaceMedia.ts`): a surface's effect now rides the **SHOW clock** — pause freezes it,
+// a seek scrubs it, Stop resets it, and a scene recall does NOT restart it (an ambient background belongs
+// to the show, exactly like the audio bed).
+//
+// ⚠⚠ AND THIS IS A PLUGIN-FACING CONTRACT, WHICH IS WHY IT MATTERS MORE THAN AN INTERNAL COMMENT.
+// `getDrawable` is the `ContentSourceProvider` API (see the registry below): the meaning of the `timeSec`
+// a third-party provider receives changed from wall time to show time. Any provider that assumed a
+// monotonic, never-pausing clock — and the old comment told them to — is now wrong in a way nothing will
+// warn them about. Callers:
+//   · timeline clips  → clip-local time (unchanged)
+//   · surfaces        → the SHOW clock (`timeline.getShowTime()`), NOT wall time
+// It is currently documented nowhere else; docs/SDK.md and docs/PLUGINS.md describe getDrawable without
+// naming a clock at all. They should.
 export function getDrawable(key: string, content: SurfaceContent, timeSec: number): Drawable | null {
   switch (content.type) {
     case SourceType.VIDEO: {

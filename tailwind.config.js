@@ -37,13 +37,20 @@ module.exports = {
       // Named stacking tiers — values preserve ArtLux's existing global overlay order
       // (see the App.tsx z-[100]/z-[110] coordination comment), so migrating z-[NNN]
       // onto these is a pure rename. Local within-panel layering keeps Tailwind z-10..z-50.
-      // Ascending: stage guides < stage overlays < calib camera < calib panel < menubar
-      // < open menu flyout < modal < toast.
+      // Ascending: stage guides < stage overlays < calib camera < calib panel < popover
+      // < menubar < open menu flyout < modal < toast.
       zIndex: {
         'stage-guide': '60',
         'stage-overlay': '100',
         'calib-camera': '110',
         'calib-panel': '120',
+        // A popover PORTALLED to document.body (the timeline's automation-target picker). It leaves its
+        // panel's DOM subtree, so it lands in the ROOT stacking context and a local z-10..z-50 no longer
+        // means anything: the maximised-timeline wrapper is `fixed inset-0 z-50` there, and at z-40 the
+        // picker's click-outside backdrop simply lost to it — the popover would not dismiss, and the
+        // dismissal click fell THROUGH onto the timeline and seeked/scrubbed underneath. Above every
+        // app-level `fixed z-50`, below the menubar and modals.
+        popover: '130',
         menubar: '150',
         'menu-flyout': '160',
         modal: '200',
