@@ -241,10 +241,53 @@ public:
   }
 
   // ── Control (all take the lock, so they can't race the audio thread) ──────────────────────────
+  //
+  // ── Adding: PREPARE NEVER UNDER THE LOCK ──────────────────────────────────────────────────────
+  // The same disease as stop() below, and the same cure — and the rule was already written down, in
+  // capitals, THREE LINES FURTHER ON. Somebody diagnosed it exactly, fixed stop(), and left addClip.
+  //
+  // AudioTransportSource::prepareToPlay() does not merely set a few fields. It asks its
+  // BufferingAudioSource to PREFILL THE READ-AHEAD BUFFER — 0.25 s of audio, decoded FROM DISK on the
+  // background reader thread — and then SPINS, Thread::sleep(5) at a time, until that thread reports
+  // ready. The audio callback reaches getNextAudioBlock ONLY by taking `lock`, so for the whole prefill
+  // it cannot produce one sample: the device gets silence, and the signal then resumes at whatever value
+  // it had reached. A step discontinuity is broadband. That is the CLICK.
+  //
+  // At 48 kHz / 512 the audio thread's deadline is 10.7 ms. A WARM, page-cached read already blows it
+  // (~12 ms, one block missed); a typical read misses three; a cold read off a spinning disk or a network
+  // share misses eleven. And this is the HOTTER of the two paths: the driver has no audio preload tier
+  // (plugin.renderer.ts says so in as many words), so a scene's sting is decoded ON ENTRY, EVERY ENTRY —
+  // one blocking prepare under the audio lock ON EVERY GO, all night, in an unattended install.
+  //
+  // The clip is not in `clips` yet, so the audio thread cannot reach it: PREPARING IT NEEDS NO LOCK AT
+  // ALL. Only the snapshot and the insert do, and both are O(1) with no I/O.
+  //
+  // ⚠ AND THE OBVIOUS FIX OPENS A RACE THAT MUST BE CLOSED. prepareToPlay() above re-prepares every clip
+  // IN THE MAP (:140) — and a device re-open (a USB bump, a driver reload, an output-mode change) lands
+  // exactly there. Fire it while we are preparing outside the lock and OUR CLIP IS NOT IN THE MAP YET, so
+  // it is missed; we would then insert a clip prepared for 512@48k into an engine now running 256@44.1k.
+  // So the insert RE-CHECKS the device and prepares again if it moved. It compares the SETTINGS, not a
+  // generation counter, deliberately: a re-open that lands on the same block size and sample rate leaves
+  // our preparation perfectly valid, and there is nothing to redo.
   void addClip(const std::string& id, std::unique_ptr<Clip> clip) {
-    const juce::ScopedLock sl(lock);
-    if (prepared) clip->transport->prepareToPlay(maxBlock, sampleRate);
-    clips[id] = std::move(clip);
+    for (;;) {
+      bool wasPrepared; int block; double rate;
+      {
+        const juce::ScopedLock sl(lock);
+        wasPrepared = prepared; block = maxBlock; rate = sampleRate;
+      }
+      // ⚠ THE BLOCKING CALL, WITH NO LOCK HELD. This line is the entire fix. Do not hoist it into a
+      // ScopedLock scope "for symmetry with the other control calls" — the symmetry is the bug.
+      if (wasPrepared) clip->transport->prepareToPlay(block, rate);
+      {
+        const juce::ScopedLock sl(lock);
+        if (prepared == wasPrepared && maxBlock == block && sampleRate == rate) {
+          clips[id] = std::move(clip);   // the device did not move under us — commit
+          return;
+        }
+      }
+      // It did move. Drop the lock and prepare again against its new settings.
+    }
   }
   // ── Stopping: NEVER under the lock ────────────────────────────────────────────────────────────
   // AudioTransportSource::stop() BLOCKS. It sets playing=false and then spins — up to 500 × 2 ms —
