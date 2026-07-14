@@ -1,4 +1,4 @@
-import type { Fixture, Controller, AppSettings, OutputProtocol } from '../types';
+import type { Fixture, Controller, OutputProtocol, PatchPolicy } from '../types';
 
 // Automatic DMX patch (S5). Packs each fixture's channels sequentially per
 // controller: starting at the controller's startUniverse + channel 1, consuming
@@ -69,11 +69,11 @@ export function findCollisions(spans: Span[]): Array<[string, string]> {
 export function autoPatch(
   fixtures: Fixture[],
   controllers: Controller[],
-  settings?: AppSettings,
+  policy: PatchPolicy,
   defaultControllerId?: string,
 ): Fixture[] {
   const ctrlById = new Map(controllers.map((c) => [c.id, c]));
-  const reserve = settings?.reserveLockedRanges ?? false;
+  const reserve = policy.reserveLockedRanges;
 
   // The packing bucket a fixture belongs to — the SAME rule for locked and auto fixtures, so a
   // locked fixture's reserved range lands in the exact bucket the auto fixtures on its controller

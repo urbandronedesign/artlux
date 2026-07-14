@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, normalizeCueBanks, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, timelineAudioTracks, sceneAudioEntries, cueEntries, isAddressableEntry, type AudioClip, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType } from './types';
+import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, normalizeCueBanks, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, timelineAudioTracks, sceneAudioEntries, cueEntries, isAddressableEntry, type AudioClip, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType, type PatchPolicy, readPatchPolicy } from './types';
 import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge, WINDOWED_DISPLAY } from '../../shared/protocol';
 import type { ProjectorCalibration } from '../../shared/protocol';
 import { CalibWizard, AutoAlignWizard, calibCapture as cam, measureGamma, calibWorkspace } from '@artlux/plugin-calibration/renderer';
@@ -137,6 +137,9 @@ const App: React.FC = () => {
   ]);
   const [selectedSurfaceId, setSelectedSurfaceId] = useState<string | null>(null);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  // Patch policy — SHOW state (it addresses this project's fixtures), not machine state. It used to live in
+  // AppSettings, which no longer travels in the project file.
+  const [patchPolicy, setPatchPolicy] = useState<PatchPolicy>({ reserveLockedRanges: false });
   const [isVideoPlaying, setIsVideoPlaying] = useState(true);
   const [globalBrightness, setGlobalBrightness] = useState(1.0);
   const [groups, setGroups] = useState<FixtureGroup[]>([]);
@@ -587,13 +590,13 @@ const App: React.FC = () => {
       colorData: [],
       surfaceId: selectedSurfaceId ?? surfaces[0]?.id,
     };
-    setFixtures(autoPatch([...fixtures, fx], controllers, settings));
+    setFixtures(autoPatch([...fixtures, fx], controllers, patchPolicy));
     handleSelectFixture(newId);
   };
 
   const handleRemoveFixture = (id: string) => {
     recordHistory();
-    setFixtures(autoPatch(fixtures.filter(f => f.id !== id), controllers, settings));
+    setFixtures(autoPatch(fixtures.filter(f => f.id !== id), controllers, patchPolicy));
     setSelectedFixtureIds(prev => prev.filter(x => x !== id));
     if (selectedFixtureId === id) setSelectedFixtureId(null);
   };
@@ -604,12 +607,12 @@ const App: React.FC = () => {
     recordHistory();
     const mapped = fixtures.map(f => f.id === id ? { ...f, ...updates } : f);
     const repatch = REPATCH_KEYS.some(k => k in updates);
-    const next = repatch ? autoPatch(mapped, controllers, settings) : mapped;
+    const next = repatch ? autoPatch(mapped, controllers, patchPolicy) : mapped;
     dropTakenOverLegs({ surfaces, fixtures, globalBrightness }, { surfaces, fixtures: next, globalBrightness });
     setFixtures(next);
   };
 
-  const handleAutoPatch = () => setFixtures(autoPatch(fixtures, controllers, settings));
+  const handleAutoPatch = () => setFixtures(autoPatch(fixtures, controllers, patchPolicy));
 
   // --- Controllers (output devices) ---
   const handleAddController = () => {
@@ -621,12 +624,12 @@ const App: React.FC = () => {
   const handleUpdateController = (id: string, patch: Partial<Controller>) => {
     const next = controllers.map(c => c.id === id ? { ...c, ...patch } : c);
     setControllers(next);
-    if ('startUniverse' in patch) setFixtures(autoPatch(fixtures, next, settings));
+    if ('startUniverse' in patch) setFixtures(autoPatch(fixtures, next, patchPolicy));
   };
   const handleRemoveController = (id: string) => {
     const next = controllers.filter(c => c.id !== id);
     setControllers(next);
-    setFixtures(autoPatch(fixtures.map(f => f.controllerId === id ? { ...f, controllerId: undefined } : f), next, settings));
+    setFixtures(autoPatch(fixtures.map(f => f.controllerId === id ? { ...f, controllerId: undefined } : f), next, patchPolicy));
   };
 
   const handleRenameFixture = (id: string, newName: string) => {
@@ -1184,6 +1187,7 @@ const App: React.FC = () => {
       fixtures,
       controllers,
       settings,
+      reserveLockedRanges: patchPolicy.reserveLockedRanges,
       globalBrightness,
       groups,
       scenes,
@@ -1213,6 +1217,7 @@ const App: React.FC = () => {
           setFixtures(data.fixtures.map((f: any) => ({ ...f, colorData: [], surfaceId: f.surfaceId ?? surf[0]?.id, segments: Array.isArray(f.segments) ? f.segments : undefined })));
       }
       if (data?.settings) setSettings(prev => ({ ...prev, ...data.settings }));
+      setPatchPolicy(readPatchPolicy(data));
       if (typeof data?.globalBrightness === 'number') setGlobalBrightness(data.globalBrightness);
       setControllers(Array.isArray(data?.controllers) ? data.controllers : []);
       setGroups(Array.isArray(data?.groups) ? data.groups : []);
@@ -1530,6 +1535,9 @@ const App: React.FC = () => {
       setGlobalBrightness(1);
       setProjectorFpsCap(0);
       setProjectorBrightness(1);
+      // The patch policy is show state too (see the PatchPolicy header in types.ts) — reset it with the
+      // rest, or a brand-new project would inherit the outgoing show's "reserve locked ranges" flag.
+      setPatchPolicy({ reserveLockedRanges: false });
       // ── AND THE DOCUMENT THAT DESCRIBES ALL OF IT (see the header) ───────────────────────────────────
       // Every field buildProjectData() writes, except `version`/`timestamp` (minted fresh on each save) and
       // `settings` (the machine, not the show). If you add a field to buildProjectData, add it here — tsc will
@@ -1538,7 +1546,7 @@ const App: React.FC = () => {
           surfaces: st.surfaces, fixtures: st.fixtures, controllers: [], groups: [], scenes: [],
           cueBanks: st.cueBanks, stateMachine: defaultStateMachine(), projectorOutputs: [], assets: [],
           timeline: emptyTl, audio: emptyMix, schedule: [], scene3D: defaultScene3D(),
-          globalBrightness: 1, projectorFpsCap: 0, projectorBrightness: 1,
+          globalBrightness: 1, projectorFpsCap: 0, projectorBrightness: 1, reserveLockedRanges: false,
       };
   };
 
@@ -2866,12 +2874,14 @@ const App: React.FC = () => {
           surfaces={surfaces}
           controllers={controllers}
           settings={settings}
+          patchPolicy={patchPolicy}
           onUpdateFixture={handleUpdateFixture}
           onAddController={handleAddController}
           onUpdateController={handleUpdateController}
           onRemoveController={handleRemoveController}
           onAutoPatch={handleAutoPatch}
           onUpdateSettings={updateSettings}
+          onUpdatePatchPolicy={(p) => setPatchPolicy(prev => ({ ...prev, ...p }))}
       />
 
       {timelineMax && (
