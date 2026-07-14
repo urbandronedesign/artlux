@@ -1551,9 +1551,11 @@ const App: React.FC = () => {
       // rest, or a brand-new project would inherit the outgoing show's "reserve locked ranges" flag.
       setPatchPolicy({ reserveLockedRanges: false });
       // ── AND THE DOCUMENT THAT DESCRIBES ALL OF IT (see the header) ───────────────────────────────────
-      // Every field buildProjectData() writes, except `version`/`timestamp` (minted fresh on each save) and
-      // `settings` (the machine, not the show). If you add a field to buildProjectData, add it here — tsc will
-      // NOT catch its absence, because this is a widening spread into an `any`-shaped payload.
+      // Every field buildProjectData() writes, except `version`/`timestamp` (minted fresh on each save).
+      // buildProjectData() no longer writes `settings` at all (the machine, not the show — see AppSettings'
+      // header) so there is nothing left to except for it. If you add a field to buildProjectData, add it
+      // here too — tsc will NOT catch its absence, because this is a widening spread into an `any`-shaped
+      // payload. This list has already drifted from buildProjectData three times; don't make it four.
       return {
           surfaces: st.surfaces, fixtures: st.fixtures, controllers: [], groups: [], scenes: [],
           cueBanks: st.cueBanks, stateMachine: defaultStateMachine(), projectorOutputs: [], assets: [],
@@ -2385,6 +2387,12 @@ const App: React.FC = () => {
       const mode = HEADLESS ? 'headless' : 'broadcast';
       (async () => {
           const prefs = await window.artlux?.getPrefs?.();
+          // AppSettings is the MACHINE — the sound card, the Art-Net target, the OSC port — and prefs are where
+          // it lives. Broadcast/headless never restored it: it used to arrive (wrongly) inside the project file,
+          // and now that a project no longer carries it, THIS IS THE ONLY SOURCE. Without it the show machine
+          // runs on DEFAULT_SETTINGS — Art-Net unicast to 127.0.0.1, and audio falling back to binaural/2ch on
+          // whatever rig is actually plugged in. This is the one mode a venue actually runs.
+          if (prefs?.appSettings) setSettings(s => ({ ...s, ...(prefs.appSettings as Partial<AppSettings>) }));
           const path = QUERY_PROJECT || prefs?.lastProjectPath;
           if (!path) { console.warn(`[${mode}] no project to load`); return; }
           const data = await window.artlux?.loadProjectPath?.(path);
@@ -2396,7 +2404,7 @@ const App: React.FC = () => {
 
   // Restore persisted prefs (settings + master brightness + recents + last project) on launch.
   useEffect(() => {
-      if (SHOW_ENGINE) return; // broadcast/headless own project loading (above); no editor prefs/layout to restore
+      if (SHOW_ENGINE) return; // broadcast/headless restore AppSettings themselves (above, before project load); the rest of this effect is editor-only UI state (layout, recents, templates) that show mode has no use for
       (async () => {
           const prefs = await window.artlux?.getPrefs?.();
           if (!prefs) return;
