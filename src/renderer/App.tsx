@@ -1994,7 +1994,7 @@ const App: React.FC = () => {
           const now = performance.now();
           if (now - last < 33) return;
           last = now;
-          const msg = { t: 'transport' as const, playing: timelineEngine.isPlaying(), playhead };
+          const msg = { t: 'transport' as const, playing: timelineEngine.isPlaying(), playhead, showTime: timelineEngine.getShowTime() };
           for (const port of projectorPortsRef.current.values()) port.postMessage(msg);
       });
       return () => unsub();

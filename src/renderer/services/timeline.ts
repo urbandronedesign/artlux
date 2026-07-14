@@ -715,6 +715,18 @@ function frame(now: number): void {
       } else {
         showOriginMs = now - showTime * 1000; // keep the anchor live while paused so resume is seamless
       }
+    } else if (playing) {
+      // ── MIRROR WINDOWS: THE SHOW CLOCK IS TOLD, NOT RUN ──────────────────────────────────────────────
+      // A projector does not derive showTime — it receives it over the transport bridge at ~30 Hz
+      // (setExternalShowTime, below) and INTERPOLATES between messages here, so a 60 fps effect surface does
+      // not judder at half the frame rate. Each bridge message re-anchors showOriginMs, so it cannot drift.
+      //
+      // No clamping, no wrap, no end-stop, no intent: the main window has already applied every one of those
+      // and sent us the answer. This arm exists purely so a generative surface has a coherent time axis on
+      // the projector — before Task 10 an effect surface there ran on the window's OWN performance.now(),
+      // whose epoch is that window's navigation start, so the audience saw a different phase from the
+      // operator's preview, permanently.
+      showTime = Math.max(0, (now - showOriginMs) / 1000);
     }
     // Automation: sample the lanes and push what moved. Deliberately NOT a subscribe() callback — `subs`
     // is insertion-ordered and the audio driver is one of them, so a late subscriber's values would land
@@ -1073,8 +1085,25 @@ export const timeline = {
       );
     }
   },
-  // THE SHOW CLOCK, in seconds. Always 0 in mirror windows (they never run it).
+  // THE SHOW CLOCK, in seconds. In a MIRROR window this is the number the bridge last told us (plus the
+  // frame-loop's interpolation), not a number this window derived — see setExternalShowTime.
   getShowTime(): number { return showTime; },
+  // TELL A MIRROR WINDOW THE SHOW CLOCK. The counterpart to showSeek(), which deliberately REFUSES in a
+  // mirror (`if (!external)`): a projector must never MOVE the show, only be told where it is. Called from
+  // the transport bridge at ~30 Hz alongside setPlaying/seek; the frame loop interpolates between messages
+  // so a 60 fps effect surface does not judder, and re-anchoring here on every message means it cannot drift.
+  //
+  // WITHOUT THIS, an effect surface on a projector would be frozen at 0: getShowTime() used to be
+  // "always 0 in mirror windows", and surfaceMedia now reads it. It also fixes something that was ALWAYS
+  // broken — each window ran its own performance.now(), whose epoch is that window's navigation start, so
+  // the same generative effect sat at a different phase on the audience's projector than in the operator's
+  // preview, and the drift was permanent.
+  setExternalShowTime(sec: number): void {
+    if (!external) return;                        // the main window DERIVES this clock; it is not told it
+    const s = Number.isFinite(sec) ? Math.max(0, sec) : 0;
+    showTime = s;
+    showOriginMs = performance.now() - s * 1000;  // re-anchor, so the interpolation continues from here
+  },
   getGlobalStart(): number { return timelineStart(globalDoc); },
   getGlobalEnd(): number { return timelineEnd(globalDoc); },
   // THE PARK, PUBLISHED. The audio driver MUST be able to ask this: a parked show clock is a FROZEN
