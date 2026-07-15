@@ -64,13 +64,39 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 target_compile_definitions(${PROJECT_NAME} PRIVATE
   JUCE_USE_CURL=0
   JUCE_WEB_BROWSER=0
-  JUCE_ASIO=0
   JUCE_USE_FLAC=1
   JUCE_USE_OGGVORBIS=1
   JUCE_MODAL_LOOPS_PERMITTED=0
   JUCE_DISPLAY_SPLASH_SCREEN=0
   DONT_SET_USING_JUCE_NAMESPACE=1
 )
+
+# ── ASIO: OFF by default, and that is a decision, not an oversight ───────────────────────────────────
+# ASIO needs the Steinberg ASIO SDK, which is NOT redistributable and carries its own licence — it cannot
+# be vendored here, and CI cannot fetch it. On top of that we have no ASIO hardware to test against, and
+# this project ships nothing it cannot hear.
+#
+# WASAPI *exclusive* mode is compiled in unconditionally and is what delivers discrete multichannel output
+# on Windows (see AudioSettings' device picker, which groups devices by driver type). ASIO buys lower
+# latency, which a show bed does not need.
+#
+# To build with ASIO: download the SDK, then
+#     cmake -DARTLUX_ENABLE_ASIO=ON -DASIO_SDK_DIR=C:/path/to/asiosdk/common
+# See docs/DEVELOPMENT.md ▸ ASIO. NOTE: doing so adds a THIRD licence obligation (Steinberg's) to a build
+# that already carries JUCE's — which is NOT YET ELECTED (see NOTICE) — and libspatialaudio's LGPL.
+option(ARTLUX_ENABLE_ASIO "Build with ASIO support (requires the Steinberg ASIO SDK)" OFF)
+set(ASIO_SDK_DIR "" CACHE PATH "Path to the ASIO SDK 'common' directory")
+
+if(ARTLUX_ENABLE_ASIO)
+  if(NOT ASIO_SDK_DIR OR NOT EXISTS "${ASIO_SDK_DIR}/iasiodrv.h")
+    message(FATAL_ERROR "ARTLUX_ENABLE_ASIO=ON but ASIO_SDK_DIR does not contain iasiodrv.h. See docs/DEVELOPMENT.md.")
+  endif()
+  target_compile_definitions(${PROJECT_NAME} PRIVATE JUCE_ASIO=1)
+  target_include_directories(${PROJECT_NAME} PRIVATE ${ASIO_SDK_DIR})
+  message(STATUS "ArtLux: ASIO ENABLED — this adds Steinberg's licence terms to this build.")
+else()
+  target_compile_definitions(${PROJECT_NAME} PRIVATE JUCE_ASIO=0)
+endif()
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
   ${CMAKE_JS_LIB}
