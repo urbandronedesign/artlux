@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+### ⚠ BREAKING (project files) — a project no longer reconfigures the machine that opens it
+
+`AppSettings` — the audio output device, the Art-Net target, the OSC listen port — is the **machine**, not
+the show, and is **no longer written into `.artlux` files** (it already persisted per-machine in
+`Prefs.appSettings`). Previously, opening a show authored on another computer overwrote the local audio and
+network configuration and made it stick: a project authored in binaural/2 ch would flip an octagon/8 ch venue
+rig to a headphone mix the instant it loaded, with no dialog, and the machine stayed that way afterward.
+
+**What happens to an existing project:** it **loads** unaffected. The file's old `settings` key, if present,
+is still readable but is now deliberately **ignored on load** — this machine's own configuration is never
+overwritten by a project's copy. The one show-scoped field that key used to carry —
+`reserveLockedRanges`, the DMX patch policy — has moved into the project file proper
+(`ProjectData.reserveLockedRanges`) and is **migrated automatically** from the legacy key on first load.
+Nothing is lost and no action is needed. Nothing else about the file changes.
+
 ### ⚠ BREAKING (project files) — `Scene.timeline` is now REQUIRED
 
 A Scene could once have **no** `timeline` and fall back to the shared global one. **That shape is gone.**

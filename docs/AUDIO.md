@@ -224,6 +224,75 @@ way the room can go quiet has its own badge in the Audio Bed header, and they mu
 
 ---
 
+## Devices and speakers
+
+Preferences ▸ Audio (`AudioSettings.tsx`) picks **which device the engine opens** and how the decoded field
+reaches the room. Two things about that panel decide whether an install is discrete multichannel or a stereo
+downmix wearing a multichannel layout, and one thing about it is machine state that a show file must never carry.
+
+### Shared vs Exclusive Mode — only one of them is the multichannel path
+
+On Windows, one physical interface appears **twice** in the device dropdown, grouped by **driver type**: once
+under **Windows Audio** (shared) and once under **Windows Audio (Exclusive Mode)**. They are the same card,
+opened two different ways —
+
+| | Shared (`Windows Audio`) | Exclusive Mode |
+|---|---|---|
+| Routes through | the Windows mixer | nothing — ArtLux owns the device outright |
+| Channels you actually get | usually **stereo**, whatever the card can do | the card's **real, discrete** channel count |
+| Right for | a laptop check, headphones, sharing the box with other apps | **the eight-speaker rig** |
+
+**For a multichannel installation, pick the interface listed under Exclusive Mode.** Shared mode will accept
+an 8-channel request without complaint and hand back stereo — no error, no warning — which is exactly why
+the panel never trusts what was asked for.
+
+### The panel reports what was OPENED, not what was asked for
+
+`configure()` — and the **"Open:"** line under the device picker — always reflects what the device **actually
+gave you**: `Open: <device> · 2 ch · 48.0 kHz · 256 samples`. A stereo card asked for 8 channels opens with 2,
+and that line says so; the channel/rate/buffer buttons above it are the *request*, not the result. When
+commissioning a rig, that line is the one to believe.
+
+### The speaker patch
+
+In Speaker-layout mode, each speaker in the layout gets a **patch**: a dropdown (`Speaker N → Channel …`)
+naming which of the device's actual output channels that speaker's decoded signal comes out of. Ambisonic
+decode order and the physical wiring of a ring are two different orderings, and the patch is where the gap
+between them is closed. Two speakers pointed at the same device channel raises an inline warning — the
+engine remaps the collision to a free channel rather than dropping either speaker.
+
+### Speaker check — and why the tone bypasses the decoder *and* the master fader
+
+The **Speaker check** block (Speaker-layout mode only) holds a per-speaker button: hold it and pink noise
+plays from exactly the device channel that speaker is currently patched to; release it and it stops.
+`setTestTone(deviceChannel, gain)` writes that noise **straight onto a device channel**, upstream of both the
+ambisonic decoder and the master fader (`Bus::setTestTone`, `native/audio-engine/src/engine.cpp` — written
+before metering, so the signal that lights the meter is the signal in the room). That is deliberate, not an
+oversight:
+
+- **It tests the wiring, not the decode.** A silent Speaker 3 means the fault is between the device and the
+  cabinet, not in the ambisonic math — the tone never touches the decoder that math runs.
+- **The house fader cannot silence it.** A commissioning tone that the master could mute would be useless for
+  telling "the fader is stuck at zero" apart from "the wire is dead."
+
+### `AppSettings` is the machine — it does not travel in the `.artlux`
+
+The output device, driver type, sample rate, buffer size, speaker patch, Art-Net target and OSC port all live
+in `AppSettings`, which is **machine state**, not show state: it persists per-machine in prefs and is **no
+longer written into project files**. Opening a project authored on a different computer leaves the local
+device, patch and network configuration untouched. This is load-bearing for anyone deploying a show — commission
+the venue machine once, and every project opened on it plays through the rig you patched, never through
+whatever the authoring laptop happened to have set. See the CHANGELOG's Breaking entry for what happens to a
+legacy `.artlux` that still carries the old `settings` key.
+
+### ASIO
+
+Off by default, behind a build flag — WASAPI exclusive mode (above) is the supported multichannel path. See
+[DEVELOPMENT.md → ASIO (optional)](DEVELOPMENT.md#asio-optional) for the build flag and why it isn't on by
+default.
+
+---
+
 ## Invariants (break these and it is audible)
 
 > **These are NAMED, not numbered — deliberately.** The codebase already cites numbered invariants
