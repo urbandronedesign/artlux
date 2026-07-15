@@ -41,5 +41,8 @@ export const audioClient = {
   setClipEffects: (id: string, effects: AudioEffectSpec[]): void => { ipc?.send('audio:setClipEffects', id, effects); },
   setMasterEffects: (effects: AudioEffectSpec[]): void => { ipc?.send('audio:setMasterEffects', effects); },
   setMasterGain: (gain: number): void => { ipc?.send('audio:setMasterGain', gain); },
+  // Commissioning only. Pink noise straight onto a DEVICE CHANNEL, bypassing the decoder and the master
+  // fader. deviceChannel < 0 stops it. Never call this from the playhead tick.
+  setTestTone: (deviceChannel: number, gain = 0.5): void => { ipc?.send('audio:setTestTone', deviceChannel, gain); },
   stopAll: (): void => { ipc?.send('audio:stopAll'); },
 };

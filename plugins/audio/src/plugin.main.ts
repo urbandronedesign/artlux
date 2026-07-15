@@ -1,7 +1,7 @@
 // audio — main-process activation. Owns the native JUCE engine (via audioManager) and exposes it to
 // the renderer over the generic plugin bridge:
 //   renderer → main : audio:configure/getDevices/getMeters/loadClip (invoke, need a reply)
-//                     audio:unloadClip/playClip/stopClip/setClipGain/stopAll (send, fire-and-forget)
+//                     audio:unloadClip/playClip/stopClip/setClipGain/setTestTone/stopAll (send, fire-and-forget)
 // The engine graceful-degrades: if the .node is missing every handler is a harmless no-op.
 
 import type { MainPlugin, MainPluginContext } from '@artlux/sdk/main';
@@ -37,6 +37,8 @@ export const plugin: MainPlugin = {
     ipc.on('audio:setClipEffects', (id, fx) => engine.setClipEffects(String(id), Array.isArray(fx) ? (fx as engine.AudioEffectSpec[]) : []));
     ipc.on('audio:setMasterEffects', (fx) => engine.setMasterEffects(Array.isArray(fx) ? (fx as engine.AudioEffectSpec[]) : []));
     ipc.on('audio:setMasterGain', (g) => engine.setMasterGain(g == null ? 1 : Number(g)));
+    // Commissioning tone. deviceChannel < 0 turns it off; see audioManager.setTestTone.
+    ipc.on('audio:setTestTone', (ch, g) => engine.setTestTone(Number(ch) ?? -1, g == null ? 0.5 : Number(g)));
     ipc.on('audio:stopAll', () => engine.stopAll());
   },
 

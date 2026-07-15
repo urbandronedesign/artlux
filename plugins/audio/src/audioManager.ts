@@ -50,6 +50,12 @@ export interface DeviceCfg {
   bufferSize?: number;
   mode?: OutputMode;
   layout?: SpeakerLayout;
+  // Decoder speaker → device channel, e.g. patch[2] = 5 means "decoder speaker 3 comes out of device
+  // channel 6". Live and decoder-only (engine.cpp Bus::setPatch) — changing it never reopens the device.
+  // Absent/short ⇒ identity for the missing slots. The native sanitiser REMAPS (never drops) a duplicate
+  // destination, so two speakers pointed at the same channel are silently moved apart — see
+  // AudioSettings.tsx's inline warning, which tells the operator that before the engine does it for them.
+  patch?: number[];
 }
 // What the engine ACTUALLY OPENED — not what we asked for. A stereo card asked for 8 channels reports 2
 // back. The UI must render THIS, or Preferences describes a rig that does not exist.
@@ -78,6 +84,9 @@ interface NativeAudio {
   // Insert chain on the decoded output. 'reverb' nodes are dropped by the engine (see AudioEffectType).
   setMasterEffects(effects: AudioEffectSpec[]): void;
   setMasterGain(gain: number): void;
+  // Commissioning only. Pink noise straight onto a DEVICE CHANNEL, bypassing the decoder and the master
+  // fader (engine.cpp Bus::setTestTone). deviceChannel < 0 turns it off.
+  setTestTone(deviceChannel: number, gain: number): void;
   stopAll(): void;
   getMeters(): Meters;
   close(): void;
@@ -123,6 +132,7 @@ export function clearClipSpatial(id: string): void { native?.clearClipSpatial(id
 export function setClipEffects(id: string, effects: AudioEffectSpec[]): void { native?.setClipEffects(id, effects); }
 export function setMasterEffects(effects: AudioEffectSpec[]): void { native?.setMasterEffects(effects); }
 export function setMasterGain(gain: number): void { native?.setMasterGain(gain); }
+export function setTestTone(deviceChannel: number, gain: number): void { native?.setTestTone(deviceChannel, gain); }
 export function stopAll(): void { native?.stopAll(); }
 export function getMeters(): Meters {
   return native

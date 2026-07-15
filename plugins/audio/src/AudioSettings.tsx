@@ -10,6 +10,25 @@ import type { DeviceEntry, OpenedCfg, OutputMode, SpeakerLayout } from './audioM
 interface AudioCfg {
   outputChannels?: number; outputMode?: OutputMode; speakerLayout?: SpeakerLayout;
   deviceType?: string; deviceName?: string; sampleRate?: number; bufferSize?: number;
+  // Decoder speaker → device channel (Speaker check below). Absent/short slots default to identity
+  // (speaker N → channel N). Persisted machine-scoped, same as the rest of this cfg (Task 2).
+  speakerPatch?: number[];
+}
+
+// Does any device channel repeat among the first `need` speakers? The native sanitiser (engine.cpp
+// Bus::setPatch) no longer DROPS a speaker on a duplicate — it REMAPS the collision to a free channel,
+// silently overriding whatever the operator picked. This can't be replicated pixel-for-pixel in the UI
+// (the remap depends on the FULL 64-slot pass, not just the speakers this layout uses), so it isn't
+// attempted here: this predicate only tells the operator their two dropdowns currently agree, so the
+// engine is about to move one of them.
+function hasDuplicateChannel(patch: number[] | undefined, need: number): boolean {
+  const seen = new Set<number>();
+  for (let s = 0; s < need; s++) {
+    const dst = patch?.[s] ?? s;
+    if (seen.has(dst)) return true;
+    seen.add(dst);
+  }
+  return false;
 }
 
 const SAMPLE_RATES = [0, 44100, 48000, 88200, 96000];
@@ -54,12 +73,16 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
   const [deviceLive, setDeviceLive] = useState(true);
   const [meter, setMeter] = useState<{ peaks: number[]; speakers: number }>({ peaks: [], speakers: 0 });
   const holds = useRef<number[]>([]);
+  // Which Speaker check button is currently held, for its highlight — not the tone state itself (the
+  // engine has no "which speaker" concept, only setTestTone(deviceChannel, gain)).
+  const [tone, setTone] = useState<number | null>(null);
 
   const apply = (c: AudioCfg) =>
     audioClient.configure({
       deviceType: c.deviceType, deviceName: c.deviceName,
       channels: c.outputChannels ?? 2, sampleRate: c.sampleRate ?? 0, bufferSize: c.bufferSize ?? 0,
       mode: c.outputMode ?? 'binaural', layout: c.speakerLayout ?? 'stereo',
+      patch: c.speakerPatch,
     })
       .then((got) => { setOpened(got); setDevice(got.deviceName); setError(null); })
       .catch((e) => setError(String(e?.message ?? e)));
@@ -88,6 +111,9 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
     return () => clearInterval(iv);
   }, []);
 
+  // A panel closed mid-hold would leave pink noise playing in the room with nothing on screen to stop it.
+  useEffect(() => () => { audioClient.setTestTone(-1, 0); }, []);
+
   const patchCfg = (p: AudioCfg) =>
     onChange({ plugins: { ...(settings?.plugins ?? {}), audio: { ...cfg, ...p } } });
 
@@ -106,6 +132,7 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
   const pct = (v: number) => `${Math.min(100, Math.round(v * 100))}%`;
   const need = LAYOUTS.find((l) => l.id === layout)?.speakers ?? 2;
   const shortChannels = mode === 'speakers' && need > outCh;
+  const patchDuplicate = mode === 'speakers' && hasDuplicateChannel(cfg.speakerPatch, need);
 
   // ── OPTION VALUES ARE INDICES, NOT `${type} ${name}` STRINGS ────────────────────────────────────────
   // Driver type names and device names ROUTINELY CONTAIN SPACES — "Windows Audio (Exclusive Mode)",
@@ -269,6 +296,63 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
           </div>
         )}
       </div>
+
+      {mode === 'speakers' && (
+        <div>
+          <div className="text-mini font-semibold text-fg-2 mb-1">Speaker check</div>
+          {/* ── COMMISSIONING, AND IT IS THE FIRST HOUR OF EVERY INSTALL ────────────────────────────────
+              Hold a speaker to hear pink noise from exactly that one output, then set which device channel
+              it should come out of. The tone bypasses the ambisonic decoder entirely — it is testing the
+              WIRING, not the decode. */}
+          <div className="text-micro text-fg-3 mb-1.5">
+            Hold a speaker to hear it. Set the channel each speaker is actually wired to — the ring is
+            rarely patched in order.
+          </div>
+          {patchDuplicate && (
+            <div className="text-micro text-warn mb-1.5">
+              Two speakers are set to the same channel — the engine will move one.
+            </div>
+          )}
+          <div className="space-y-0.5">
+            {Array.from({ length: need }).map((_, s) => {
+              const patch = cfg.speakerPatch ?? [];
+              const dst = patch[s] ?? s;
+              return (
+                <div key={s} className="flex items-center gap-1.5">
+                  <button
+                    onPointerDown={() => { setTone(s); audioClient.setTestTone(dst, 0.5); }}
+                    onPointerUp={() => { setTone(null); audioClient.setTestTone(-1, 0); }}
+                    onPointerLeave={() => { setTone(null); audioClient.setTestTone(-1, 0); }}
+                    className={`px-2 h-6 rounded text-mini border tabular-nums ${tone === s ? 'bg-accent text-black border-transparent' : 'bg-surface-2 text-fg-2 border-line-1 hover:text-fg-1'}`}
+                  >
+                    Speaker {s + 1}
+                  </button>
+                  <span className="text-micro text-fg-3">→</span>
+                  <select
+                    value={dst}
+                    onChange={(e) => {
+                      const next = Array.from({ length: need }, (_, i) => patch[i] ?? i);
+                      next[s] = Number(e.target.value);
+                      patchAndApply({ speakerPatch: next });
+                    }}
+                    className="bg-surface-2 border border-line-1 rounded px-1.5 h-6 text-mini text-fg-1 outline-none tabular-nums"
+                  >
+                    {Array.from({ length: opened?.channels ?? outCh }).map((_, c) => (
+                      <option key={c} value={c}>Channel {c + 1}</option>
+                    ))}
+                  </select>
+                </div>
+              );
+            })}
+          </div>
+          <button
+            onClick={() => patchAndApply({ speakerPatch: Array.from({ length: need }, (_, i) => i) })}
+            className="mt-1.5 px-2 h-6 rounded text-mini border bg-surface-2 text-fg-2 border-line-1 hover:text-fg-1"
+          >
+            Reset to 1:1
+          </button>
+        </div>
+      )}
 
       <div>
         <div className="text-mini font-semibold text-fg-2 mb-1">Output channels</div>
