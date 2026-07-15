@@ -114,7 +114,7 @@ Blast radius (grepped): `timeline.ts` `frame()` (new per-frame automation sample
 2. **New C++/JUCE toolchain × 3 OSes** — build/ABI friction (EBUSY-class rebuild pain, on top of the existing Rust flow); the single biggest engineering cost.
 3. **The automation-curve engine is itself a large new core subsystem** (data model + sampler + editor UI) with value beyond audio.
 4. **Licensing gate** (JUCE dual-license election — see [`NOTICE`](../NOTICE) / juce.com) + **LGPL compliance** (libspatialaudio linkage).
-5. **Headless audio** — headless boots the full App ([main/index.ts](../src/main/index.ts)) with `?headless=1`; the plugin host activates as `'main'` and the audio plugin opens the device on activation, same as any other window. **Verified in P6.**
+5. **Headless audio** — headless boots the full App ([main/index.ts](../src/main/index.ts)) with `?headless=1`; the plugin host activates as `'main'` and the audio plugin opens the device on activation, same as any other window (and P6's settings-subscribe fix makes it open the machine's real layout, not binaural/2ch). **The code path is wired; audible confirmation on hardware is a pending P6 acceptance check — not yet heard.**
 Singleton/barrel hazard applies to `plugins/audio`. WebGPU/WebGL parity: N/A.
 
 ## Migration & back-compat
