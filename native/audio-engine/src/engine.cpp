@@ -154,6 +154,33 @@ public:
   }
   int speakerCount() { const juce::ScopedLock sl(lock); return nSpeakers; }
 
+  // Decoder speaker index → DEVICE CHANNEL. A venue's ring is almost never wired 1:1, and there is no
+  // ladder in the audio callback. Sanitised on the way in: an out-of-range or duplicated entry keeps
+  // identity, so a hand-edited prefs file can never make the callback write past the buffer.
+  void setPatch(const std::vector<int>& p) {
+    const juce::ScopedLock sl(lock);
+    patch.assign(kMaxSpeakers, -1);
+    std::vector<bool> used(kMaxSpeakers, false);
+    for (int s = 0; s < kMaxSpeakers; ++s) {
+      const int v = s < (int) p.size() ? p[(size_t) s] : s;
+      if (v >= 0 && v < kMaxSpeakers && !used[(size_t) v]) { patch[(size_t) s] = v; used[(size_t) v] = true; }
+    }
+    for (int s = 0; s < kMaxSpeakers; ++s)                       // anything rejected falls back to a free channel
+      if (patch[(size_t) s] < 0 && !used[(size_t) s]) { patch[(size_t) s] = s; used[(size_t) s] = true; }
+  }
+
+  // ⚠ THE TONE BYPASSES THE DECODER, AND THAT IS THE ENTIRE POINT. It is written straight onto a DEVICE
+  // CHANNEL, after the decode and after the master chain. A tone routed through the ambisonic encoder
+  // would prove the DECODER works — which we already know — and prove nothing about the PATCH, which is
+  // the thing being commissioned. A test tone that routes through the thing under test is not a test.
+  //
+  // It is written BEFORE metering (the metering source wraps this bus), so the operator sees the channel
+  // light up in Preferences — which is how the rig is verified with no hardware at all.
+  void setTestTone(int deviceChannel, float g) {
+    const juce::ScopedLock sl(lock);
+    toneCh = deviceChannel; toneGain = g;
+  }
+
   void releaseResources() override {
     const juce::ScopedLock sl(lock);
     prepared = false;
@@ -226,9 +253,11 @@ public:
         for (int s = 0; s < nSpeakers; ++s)
           std::fill(speakerBuf[(size_t) s].begin(), speakerBuf[(size_t) s].begin() + n, 0.0f);
         decoder.Process(&bformat, (unsigned) n, speakerPtrs.data());
-        const int m = juce::jmin(nSpeakers, outCh); // never write past the device's channels
-        for (int s = 0; s < m; ++s)
-          info.buffer->addFrom(s, info.startSample, speakerBuf[(size_t) s].data(), n);
+        for (int s = 0; s < nSpeakers; ++s) {
+          const int dst = (s < (int) patch.size()) ? patch[(size_t) s] : s;   // decoder speaker → device channel
+          if (dst >= 0 && dst < outCh)                                        // never write past the device
+            info.buffer->addFrom(dst, info.startSample, speakerBuf[(size_t) s].data(), n);
+        }
       }
     }
 
@@ -238,6 +267,20 @@ public:
     if (masterChain != nullptr) masterChain->process(mblock);
     juce::dsp::ProcessContextReplacing<float> mctx(mblock);
     masterGain.process(mctx); // post-insert fader, SmoothedValue-ramped ⇒ click-free
+
+    // ── TEST TONE: post-everything, straight onto a device channel ──────────────────────────────────
+    // Deliberately AFTER the master fader: a commissioning tone that the house fader can silence is a tone
+    // that will have you checking a speaker cable while the software is muting it.
+    if (toneCh >= 0 && toneCh < outCh && toneGain > 0.0f) {
+      float* d = info.buffer->getWritePointer(toneCh, info.startSample);
+      for (int i = 0; i < n; ++i) {
+        const float w = toneRng.nextFloat() * 2.0f - 1.0f;   // white
+        pinkB0 = 0.99765f * pinkB0 + w * 0.0990460f;         // → pink (Kellet). Broadband: a speaker is far
+        pinkB1 = 0.96300f * pinkB1 + w * 0.2965164f;         //   easier to localise by ear than a sine, and
+        pinkB2 = 0.57000f * pinkB2 + w * 1.0526913f;         //   a sine can null against a room mode.
+        d[i] += (pinkB0 + pinkB1 + pinkB2 + w * 0.1848f) * 0.2f * toneGain;
+      }
+    }
   }
 
   // ── Control (all take the lock, so they can't race the audio thread) ──────────────────────────
@@ -461,6 +504,13 @@ private:
   std::vector<std::vector<float>> speakerBuf;
   std::vector<float*> speakerPtrs;
 
+  static constexpr int kMaxSpeakers = 64;   // configure() clamps channels to 64; the patch must cover it
+  std::vector<int> patch;                   // decoder speaker → device channel (identity by default)
+  int toneCh = -1;                          // -1 = off
+  float toneGain = 0.0f;
+  float pinkB0 = 0, pinkB1 = 0, pinkB2 = 0; // Paul Kellet's economy pink filter — no allocation, no state reset needed
+  juce::Random toneRng;
+
   // Master insert chain + fader, applied post-decode. `outChannels` is what the device ACTUALLY opened
   // with (Engine::configure reads it back from the device — asking for 8 on a stereo card gives 2), and
   // the master chain is built for exactly that. `observedCh` is what the audio thread really sees: if it
@@ -534,6 +584,7 @@ public:
     int bufferSize = 0;    // 0 = the device's default
     OutMode mode = OutMode::Binaural;
     juce::String layout { "stereo" };
+    std::vector<int> patch;   // decoder speaker → device channel (empty ⇒ identity)
   };
 
   struct OpenedCfg { juce::String deviceName, deviceType; double sampleRate = 0; int bufferSize = 0; int channels = 0; };
@@ -556,6 +607,7 @@ public:
     // the POST-decode chain's width against the device — never the decode's mode/layout itself. See the
     // rollback block below, where prevMode/prevLayout are applied via a second bus.setMode() call.
     bus.setMode(c.mode, c.layout);
+    bus.setPatch(c.patch);   // live, decoder-only — changing the patch never reopens the device
     const int ch = juce::jlimit(1, 64, c.channels);
 
     // ⚠ THE DEVICE CAN DIE UNDER US, AND `opened` DOES NOT KNOW. Nothing sets it false when the HARDWARE
@@ -787,6 +839,7 @@ public:
   void setClipEffects(const std::string& id, std::vector<EffectSpec> specs) { bus.applyEffects(id, std::move(specs)); }
   void setMasterEffects(std::vector<EffectSpec> specs) { bus.applyEffects({}, std::move(specs)); } // {} ⇒ master
   void setMasterGain(float g) { bus.setMasterGain(g); }
+  void setTestTone(int ch, float g) { bus.setTestTone(ch, g); }
   void stopAll() { bus.stopAll(); }
 
   float peak() const { return meterPeak.load(); }
@@ -861,6 +914,11 @@ static Napi::Value Configure(const Napi::CallbackInfo& info) {
   cfg.bufferSize = (int) num("bufferSize", 0);
   cfg.mode = (str("mode", "binaural") == "speakers") ? OutMode::Speakers : OutMode::Binaural;
   cfg.layout = juce::String(str("layout", "stereo"));
+  if (o.Has("patch") && o.Get("patch").IsArray()) {
+    auto a = o.Get("patch").As<Napi::Array>();
+    for (uint32_t i = 0; i < a.Length(); ++i)
+      cfg.patch.push_back(a.Get(i).IsNumber() ? a.Get(i).As<Napi::Number>().Int32Value() : (int) i);
+  }
 
   Engine::OpenedCfg got;
   juce::String err = ensureEngine().configure(cfg, got);
@@ -1018,6 +1076,16 @@ static Napi::Value SetMasterGain(const Napi::CallbackInfo& info) {
   return info.Env().Undefined();
 }
 
+// setTestTone(deviceChannel, gain) — deviceChannel < 0 turns it off. Pink noise, straight onto a DEVICE
+// CHANNEL, bypassing the decoder and the master fader (see Bus::setTestTone).
+static Napi::Value SetTestTone(const Napi::CallbackInfo& info) {
+  auto env = info.Env();
+  const int ch = info.Length() > 0 && info[0].IsNumber() ? info[0].As<Napi::Number>().Int32Value() : -1;
+  const double g = info.Length() > 1 && info[1].IsNumber() ? info[1].As<Napi::Number>().DoubleValue() : 0.5;
+  ensureEngine().setTestTone(ch, (float) g);
+  return env.Undefined();
+}
+
 static Napi::Value StopAll(const Napi::CallbackInfo& info) { ensureEngine().stopAll(); return info.Env().Undefined(); }
 
 static Napi::Value GetMeters(const Napi::CallbackInfo& info) {
@@ -1101,6 +1169,7 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("setClipEffects", Napi::Function::New(env, SetClipEffects));
   exports.Set("setMasterEffects", Napi::Function::New(env, SetMasterEffects));
   exports.Set("setMasterGain", Napi::Function::New(env, SetMasterGain));
+  exports.Set("setTestTone", Napi::Function::New(env, SetTestTone));
   exports.Set("stopAll", Napi::Function::New(env, StopAll));
   exports.Set("getMeters", Napi::Function::New(env, GetMeters));
   exports.Set("close", Napi::Function::New(env, Close));
