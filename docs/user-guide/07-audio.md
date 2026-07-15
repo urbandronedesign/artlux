@@ -129,6 +129,35 @@ channels than you ask for — the panel tells you, and the master chain is built
 
 ---
 
+## Commissioning a speaker rig
+
+*For a real installation — not headphones. Do this once, standing in the room, with the speakers wired up.*
+
+1. Open **Preferences ▸ Audio**.
+2. In the **Output device** list, find your interface **under Exclusive Mode** — it's listed twice, once
+   plain and once as *"(Exclusive Mode)."* Pick the Exclusive Mode one. The plain entry usually squashes
+   everything down to two speakers no matter how many you have; Exclusive Mode is the one that gives you
+   every speaker separately.
+3. Set **Output channels** to however many speakers you actually have (an eight-speaker ring is **8**).
+4. Under **Spatial output**, choose **Speaker layout**, then pick the layout that matches how the speakers
+   are arranged in the room (an eight-speaker ring is **Octagon**).
+5. Check the **"Open:"** line under the device picker. It should show the same channel count you just set.
+   If it shows fewer, the interface couldn't actually give you that many — try a different entry in the
+   list.
+6. A **Speaker check** block appears. **Hold** the **Speaker 1** button — you should hear a hiss from
+   exactly one speaker in the room.
+   - Wrong speaker, or nothing at all? Use the dropdown next to that button to try another channel, then
+     hold it again. Keep trying channels until the *right* speaker hisses.
+7. **Repeat for every speaker**, working your way around the room, until each one answers to its own button.
+8. If a warning says two speakers are set to the same channel, fix it — two speakers can't share one wire.
+
+⚠ This only needs doing **once per machine**. It's saved to this computer, not to the show file — opening a
+different project here won't undo it, and taking this project to another computer won't carry it along. See
+[AUDIO.md → Devices and speakers](../AUDIO.md#devices-and-speakers) for what's actually happening under the
+hood.
+
+---
+
 **Learn it by ear:** the [`examples/audio/`](../../examples/audio/README.md) set has **five openable projects**
 and a **six-chapter tutorial**. Its demo bed **counts out loud**, one beep per second — so *"a cue does not
 restart the music"* is something you **hear**, not something you take on trust. Full reference:

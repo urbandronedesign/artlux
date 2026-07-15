@@ -138,12 +138,10 @@ function createWindow(): void {
     // electron-vite provides the dev server URL; fall back to the built file.
     const devUrl = process.env['ELECTRON_RENDERER_URL'];
     if (HEADLESS) {
-        // Headless now boots the FULL App entry (index.html) with ?headless=1, exactly like
-        // broadcast — so the plugin host + show engine + schedule tick + media playback all run
-        // (the old headless.html/HeadlessRunner fork had none of that). App gates on HEADLESS to
-        // suppress projector/NDI output, keeping headless = hidden compute + Art-Net only.
-        // (headless.html/HeadlessRunner.tsx are retained as dead code for one release: a one-line
-        //  revert of this branch restores the old entry if an install regresses. Delete in a follow-up.)
+        // Headless boots the FULL App entry (index.html) with ?headless=1, exactly like
+        // broadcast — so the plugin host + show engine + schedule tick + media playback all run.
+        // App gates on HEADLESS to suppress projector/NDI output, keeping headless = hidden
+        // compute + Art-Net only.
         const query = { headless: '1', project: PROJECT_PATH };
         if (devUrl) {
             const qs = new URLSearchParams(query).toString();

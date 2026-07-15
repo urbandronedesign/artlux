@@ -5,16 +5,17 @@
 import type { PluginIpc } from '@artlux/sdk/renderer';
 // TYPE-only import: audioManager has top-level side effects (createRequire + loadNative). Importing a
 // VALUE from it would drag node:module into the renderer bundle.
-import type { AudioEffectSpec, ClipMeta, Meters, OutputMode, SpeakerLayout } from './audioManager';
+import type { AudioEffectSpec, ClipMeta, DeviceCfg, DeviceEntry, Meters, OpenedCfg } from './audioManager';
 
 let ipc: PluginIpc | null = null;
 export function setIpc(i: PluginIpc): void { ipc = i; }
 
 export const audioClient = {
-  configure: (outputChannels: number, mode: OutputMode = 'binaural', layout: SpeakerLayout = 'stereo'): Promise<string> =>
-    (ipc?.invoke('audio:configure', outputChannels, mode, layout) as Promise<string>) ?? Promise.resolve(''),
-  getDevices: (): Promise<string[]> =>
-    (ipc?.invoke('audio:getDevices') as Promise<string[]>) ?? Promise.resolve([]),
+  configure: (cfg: DeviceCfg): Promise<OpenedCfg> =>
+    (ipc?.invoke('audio:configure', cfg) as Promise<OpenedCfg>) ??
+    Promise.resolve({ deviceName: '', deviceType: '', sampleRate: 0, bufferSize: 0, channels: 0 }),
+  getDevices: (): Promise<DeviceEntry[]> =>
+    (ipc?.invoke('audio:getDevices') as Promise<DeviceEntry[]>) ?? Promise.resolve([]),
   getMeters: (): Promise<Meters> =>
     (ipc?.invoke('audio:getMeters') as Promise<Meters>) ??
     // `deviceLive: true` on a dead BRIDGE, for the same reason audioManager's no-addon fallback does it: a
@@ -40,5 +41,8 @@ export const audioClient = {
   setClipEffects: (id: string, effects: AudioEffectSpec[]): void => { ipc?.send('audio:setClipEffects', id, effects); },
   setMasterEffects: (effects: AudioEffectSpec[]): void => { ipc?.send('audio:setMasterEffects', effects); },
   setMasterGain: (gain: number): void => { ipc?.send('audio:setMasterGain', gain); },
+  // Commissioning only. Pink noise straight onto a DEVICE CHANNEL, bypassing the decoder and the master
+  // fader. deviceChannel < 0 stops it. Never call this from the playhead tick.
+  setTestTone: (deviceChannel: number, gain = 0.5): void => { ipc?.send('audio:setTestTone', deviceChannel, gain); },
   stopAll: (): void => { ipc?.send('audio:stopAll'); },
 };

@@ -543,7 +543,8 @@ export interface ProjectData {
   fixtures: unknown[];
   surfaces?: unknown[];     // Surface[] (renderer type) — carries VIDEO/IMAGE asset urls
   controllers?: unknown[];
-  settings: unknown;
+  // `settings` REMOVED (P6): AppSettings is the machine, not the show — it lives in Prefs.appSettings.
+  // Legacy files still carry the key; it is ignored on load. See App.tsx applyProjectData.
   globalBrightness: number;
   groups: unknown[];
   scenes: unknown[];
@@ -557,6 +558,7 @@ export interface ProjectData {
   projectorOutputs?: ProjectorOutput[]; // per-surface fullscreen projector mappings
   projectorFpsCap?: number; // performance mode: cap projector output fps (0 = uncapped/vsync)
   projectorBrightness?: number; // master brightness of projected content (1 = full)
+  reserveLockedRanges?: boolean; // patch policy: pack auto fixtures AROUND locked ranges (was AppSettings)
 }
 
 // Result of a "Collect Assets" run.

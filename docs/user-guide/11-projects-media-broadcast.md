@@ -2,8 +2,14 @@
 
 ## Projects are folders
 
-ArtLux projects store **everything** — surfaces, fixtures, controllers, settings, brightness, groups,
+ArtLux projects store **the show** — surfaces, fixtures, controllers, brightness, groups,
 scenes, cue banks, the 3D scene, the timeline, the media library, and projector outputs.
+
+> **What a project does *not* store: the machine.** Your **Preferences** — the audio output device, the
+> Art‑Net target IP, the OSC port — belong to *this computer*, not the show, and live per‑machine
+> (they are not written into the `.artlux`). So a project authored on your laptop opens on the venue's
+> show machine **without** overriding its sound card or network setup. Carry the show; the building keeps
+> its own wiring. (Older projects that still carry a `settings` block have it ignored on load.)
 
 - **New Project** (**Ctrl/Cmd+N**) prompts for a **location** and creates a project **folder** —
   `project.artlux` plus an `assets/{video,images,models,tracking}/` tree — and saves immediately, so

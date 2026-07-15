@@ -951,6 +951,14 @@ export interface Surface {
   content: SurfaceContent;
 }
 
+// ── THE MACHINE, NOT THE SHOW ───────────────────────────────────────────────────────────────────────
+// AppSettings describes THIS COMPUTER and THIS BUILDING: the sound card, the Art-Net target, the OSC
+// listener, the output gamma. It is persisted in `Prefs.appSettings` (per-machine) and is **NEVER written
+// to a project file** — opening a show must not repatch the venue. (It used to be written to both, and the
+// file's copy won: a project authored in binaural/2ch flipped an octagon rig to a headphone mix.)
+//
+// Adding a field here? Ask whose data it is. If the answer is "the show's", it belongs in ProjectData —
+// as `reserveLockedRanges` now does.
 export interface AppSettings {
   artNetIp: string;
   artNetPort: number;
@@ -971,14 +979,41 @@ export interface AppSettings {
   // Video decode
   mp4WebCodecs?: boolean; // decode .mp4/.m4v via the WebCodecs plugin (frame-accurate; no HW-session cap)
                           // instead of the default <video> element. Off by default → unchanged behaviour.
-  // Patch policy
-  reserveLockedRanges?: boolean; // auto-patch packs auto fixtures AROUND locked ranges instead of
-                                 // through them. Off by default → today's addresses are byte-stable;
-                                 // turning it on re-addresses auto fixtures on the next patch (opt-in).
   // Namespace for plugin-private settings that don't warrant a core field. A plugin keys by its id
   // (`settings.plugins?.['my-plugin']`) and owns the shape. Cross-app persisted settings that the host
   // also reads (like mp4WebCodecs) stay top-level core fields; this is for genuinely plugin-local prefs.
+  //
+  // ⚠ MACHINE-SCOPED, like everything else in AppSettings: this namespace is NOT persisted to a project
+  // file. Its three consumers today are all hardware/network prefs — `audio` (the output device),
+  // `show-control` (the LAN port + PIN), `mediapipe` (the camera). A plugin needing PER-PROJECT data puts
+  // it in ProjectData, not here; anything left here does not travel with the show.
   plugins?: Record<string, unknown>;
+}
+
+// ── PATCH POLICY — the ONE show-scoped field that used to live in AppSettings ────────────────────────
+// AppSettings is THE MACHINE (see its own header) and is no longer written to a project file. This flag
+// is not the machine: it governs how THIS PROJECT'S auto fixtures are addressed around its locked ranges,
+// so it must travel WITH the show or the same rig patches differently on a different laptop.
+//
+// ⚠ `reserveLockedRanges` is REQUIRED here, and that is load-bearing. autoPatch() used to take
+// `settings?: AppSettings`. An all-OPTIONAL policy type would structurally accept an AppSettings that no
+// longer has the field — every call site would still compile, the flag would read `undefined` forever,
+// and tsc would stay green. `strict` is off in this repo; a green tsc is weaker evidence than it looks.
+// Required ⇒ the compiler names every call site.
+export interface PatchPolicy {
+  reserveLockedRanges: boolean;
+}
+
+// The new field wins; LEGACY projects carried the flag inside `data.settings`, which is no longer read
+// (see App.tsx applyProjectData). Absent ⇒ false, the documented default.
+export function readPatchPolicy(data: any): PatchPolicy {
+  const legacy = data?.settings?.reserveLockedRanges;
+  return {
+    reserveLockedRanges:
+      typeof data?.reserveLockedRanges === 'boolean' ? data.reserveLockedRanges
+      : typeof legacy === 'boolean' ? legacy
+      : false,
+  };
 }
 
 export enum ViewMode {

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo } from 'react';
 import { X, Plus, Trash2, Lock, Unlock, Hash, AlertTriangle } from 'lucide-react';
-import { Fixture, Surface, Controller, AppSettings } from '../types';
+import { Fixture, Surface, Controller, AppSettings, PatchPolicy } from '../types';
 import { Button } from './ui';
 import { useDraggableModal } from '../hooks/useDraggableModal';
 import { fixtureSpans, findCollisions } from '../services/addressing';
@@ -12,12 +12,14 @@ interface Props {
   surfaces: Surface[];
   controllers: Controller[];
   settings: AppSettings;
+  patchPolicy: PatchPolicy;
   onUpdateFixture: (id: string, updates: Partial<Fixture>) => void;
   onAddController: () => void;
   onUpdateController: (id: string, patch: Partial<Controller>) => void;
   onRemoveController: (id: string) => void;
   onAutoPatch: () => void;
   onUpdateSettings: (patch: Partial<AppSettings>) => void;
+  onUpdatePatchPolicy: (p: Partial<PatchPolicy>) => void;
 }
 
 const cell = 'w-full bg-surface-0 border border-line-1 rounded-sm px-1 py-0.5 text-fg-1 text-mini focus:border-accent focus:outline-none disabled:opacity-40';
@@ -25,8 +27,8 @@ const cell = 'w-full bg-surface-0 border border-line-1 rounded-sm px-1 py-0.5 te
 // Routing spreadsheet: manage controllers + patch every fixture (surface link,
 // controller, universe/address, channels) in one grid.
 export const RoutingModal: React.FC<Props> = ({
-  open, onClose, fixtures, surfaces, controllers, settings,
-  onUpdateFixture, onAddController, onUpdateController, onRemoveController, onAutoPatch, onUpdateSettings,
+  open, onClose, fixtures, surfaces, controllers, settings, patchPolicy,
+  onUpdateFixture, onAddController, onUpdateController, onRemoveController, onAutoPatch, onUpdateSettings, onUpdatePatchPolicy,
 }) => {
   useEffect(() => {
     if (!open) return;
@@ -82,7 +84,7 @@ export const RoutingModal: React.FC<Props> = ({
               </span>
             )}
             <label className="flex items-center gap-1 text-mini text-fg-2 cursor-pointer select-none" title="Auto-patch packs auto fixtures AROUND locked ranges instead of through them. Turning this on re-addresses auto fixtures on the next patch — re-upload to hardware after.">
-              <input type="checkbox" checked={settings.reserveLockedRanges ?? false} onChange={(e) => onUpdateSettings({ reserveLockedRanges: e.target.checked })} className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0" />
+              <input type="checkbox" checked={patchPolicy.reserveLockedRanges} onChange={(e) => onUpdatePatchPolicy({ reserveLockedRanges: e.target.checked })} className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0" />
               Reserve locked
             </label>
             <Button variant="primary" size="sm" onClick={onAutoPatch}><Hash size={13} /> Auto-patch</Button>

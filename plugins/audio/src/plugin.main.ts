@@ -1,7 +1,7 @@
 // audio — main-process activation. Owns the native JUCE engine (via audioManager) and exposes it to
 // the renderer over the generic plugin bridge:
 //   renderer → main : audio:configure/getDevices/getMeters/loadClip (invoke, need a reply)
-//                     audio:unloadClip/playClip/stopClip/setClipGain/stopAll (send, fire-and-forget)
+//                     audio:unloadClip/playClip/stopClip/setClipGain/setTestTone/stopAll (send, fire-and-forget)
 // The engine graceful-degrades: if the .node is missing every handler is a harmless no-op.
 
 import type { MainPlugin, MainPluginContext } from '@artlux/sdk/main';
@@ -14,11 +14,9 @@ export const plugin: MainPlugin = {
     const { ipc } = ctx;
 
     // Reply channels (renderer invoke). configure/loadClip may throw in the addon → the invoke rejects.
-    ipc.handle('audio:configure', (ch, mode, layout) => engine.configure(
-      typeof ch === 'number' ? ch : 2,
-      (mode === 'speakers' ? 'speakers' : 'binaural'),
-      (typeof layout === 'string' ? layout : 'stereo') as engine.SpeakerLayout,
-    ));
+    // configure(cfg) — the WHOLE setup in one object (type, device, channels, rate, buffer, mode, layout).
+    // Returns what was ACTUALLY opened, which can differ from what was asked.
+    ipc.handle('audio:configure', (cfg) => engine.configure((cfg ?? {}) as engine.DeviceCfg));
     ipc.handle('audio:getDevices', () => engine.getDevices());
     ipc.handle('audio:getMeters', () => engine.getMeters());
     // Is the native engine actually loaded? `available` was exported and unconsumed — the renderer had to
@@ -39,6 +37,8 @@ export const plugin: MainPlugin = {
     ipc.on('audio:setClipEffects', (id, fx) => engine.setClipEffects(String(id), Array.isArray(fx) ? (fx as engine.AudioEffectSpec[]) : []));
     ipc.on('audio:setMasterEffects', (fx) => engine.setMasterEffects(Array.isArray(fx) ? (fx as engine.AudioEffectSpec[]) : []));
     ipc.on('audio:setMasterGain', (g) => engine.setMasterGain(g == null ? 1 : Number(g)));
+    // Commissioning tone. deviceChannel < 0 turns it off; see audioManager.setTestTone.
+    ipc.on('audio:setTestTone', (ch, g) => engine.setTestTone(ch == null ? -1 : Number(ch), g == null ? 0.5 : Number(g)));
     ipc.on('audio:stopAll', () => engine.stopAll());
   },
 

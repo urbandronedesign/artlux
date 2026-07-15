@@ -124,7 +124,10 @@ public:
     bformat.Configure(kAmbiOrder, true, (unsigned) blockSize);
     unsigned tail = 0;
     binauralOk = binaural.Configure(kAmbiOrder, true, (unsigned) sr, (unsigned) blockSize, tail);
-    configureDecoder();
+    // Build + install back-to-back, under this lock: safe here (and necessary — see the invariant note on
+    // setMode below) because this runs OFF the audio thread with the callback not yet attached. setMode,
+    // which runs WHILE the callback IS attached, builds outside the lock instead.
+    installDecode(buildDecode(layout, blockSize, sr));
 
     // Every chain is rebuilt from its specs: sample rate and block size may both have changed, and the
     // filter/delay/reverb states are sized from them.
@@ -146,13 +149,89 @@ public:
 
   // Switch how the B-format is rendered (binaural HRTF ↔ speaker-layout decode). Live: only the decoder
   // is reconfigured, so changing it never reopens the device or interrupts playback.
+  //
+  // Three phases, same shape as applyEffects below (read that function's comment — the order IS the
+  // design): decide under the lock, BUILD OUTSIDE it, swap under it again.
+  //
+  // ⚠ THE CHANGE-GUARD IS HALF THE VALUE ON ITS OWN. configure()'s idempotence guard calls
+  // bus.setMode(c.mode, c.layout) on EVERY call — including ones that change nothing about the device at
+  // all (an operator re-picking the same device/layout in Preferences, or any redundant configure()). Mode
+  // and layout are now a routine operator gesture (the P6 device picker), not a one-off — so without this
+  // guard, EVERY such call rebuilt the decoder (Configure() allocates internally, and speakerBuf.assign()
+  // below is a real heap allocation) WHILE HOLDING THE SAME LOCK the audio callback takes for the whole
+  // block, on every call, whether or not anything actually changed. Only an ACTUAL change proceeds past it.
   void setMode(OutMode m, const juce::String& layoutName) {
-    const juce::ScopedLock sl(lock);
-    mode = m;
-    layout = layoutName;
-    if (prepared) configureDecoder();
+    int block = 0;
+    double sr = 0.0;
+    {
+      const juce::ScopedLock sl(lock);
+      if (prepared && m == mode && layoutName == layout) return; // nothing changed — no rebuild, no allocation
+      mode = m;
+      layout = layoutName;
+      if (!prepared) return; // no device yet — prepareToPlay will build the decoder when one opens
+      block = maxBlock;
+      sr = sampleRate;
+    }
+    // OUTSIDE the lock: build the new decoder + speaker buffers for the (now-live) layout. `layout` is not
+    // re-read here on purpose — nothing else on this single N-API thread can change it before the swap
+    // below runs, so the value just written above is still exactly what was requested.
+    DecodeBuild built = buildDecode(layoutName, block, sr); // ← the expensive part, OUTSIDE the lock
+    DecodeBuild old;                                        // destroyed when this scope ends — outside the lock
+    {
+      const juce::ScopedLock sl(lock);
+      old = installDecode(std::move(built));
+    }
   }
   int speakerCount() { const juce::ScopedLock sl(lock); return nSpeakers; }
+
+  // Decoder speaker index → DEVICE CHANNEL. A venue's ring is almost never wired 1:1, and there is no
+  // ladder in the audio callback. Sanitised on the way in: an out-of-range OR DUPLICATED entry (two
+  // speakers CAN be pointed at the same channel — persisted prefs can be hand-edited, and the per-speaker
+  // channel dropdowns in Preferences let an operator pick the same channel twice) is never silently
+  // dropped — every slot is guaranteed a distinct device channel, so the result is ALWAYS a full
+  // permutation of [0..kMaxSpeakers).
+  void setPatch(const std::vector<int>& p) {
+    const juce::ScopedLock sl(lock);
+    patch.assign(kMaxSpeakers, -1);
+    patchUsed.assign(kMaxSpeakers, false);   // member, not a local — see the declaration: no allocation
+                                              // under `lock` once the vector has grown to size once
+    for (int s = 0; s < kMaxSpeakers; ++s) {
+      const int v = s < (int) p.size() ? p[(size_t) s] : s;
+      if (v >= 0 && v < kMaxSpeakers && !patchUsed[(size_t) v]) { patch[(size_t) s] = v; patchUsed[(size_t) v] = true; }
+    }
+    // Anything still unfilled here was REJECTED by the pass above — out of range, or a duplicate whose
+    // value an earlier slot already claimed. It must still land on SOME device channel: leaving it at -1
+    // silently drops that decoder speaker (the write site skips a -1, so it's memory-safe, but the speaker
+    // goes SILENT with no diagnostic) and breaks the "always a valid permutation" guarantee above.
+    //
+    // This can NOT fall back to `patch[s] = s` (a slot's own index) — that index may already be claimed by
+    // a slot the pass above legitimately honoured. E.g. input [2, 2]: slot 0 claims channel 2 first, so
+    // when slot 2 is considered its own index (2) is already taken; `patch[2] = 2` would just be rejected
+    // again by `used[2]`, and the old code left it at -1 there — that was the bug. Instead walk a cursor
+    // forward over the channels the pass above left genuinely FREE and hand out the next one. This always
+    // terminates with every slot filled and the whole array a permutation: the pass above claims at most
+    // one channel per slot, there are exactly kMaxSpeakers slots and kMaxSpeakers channels, so a still-
+    // unfilled slot always means an as-yet-unclaimed channel exists for the cursor to find.
+    int freeCh = 0;
+    for (int s = 0; s < kMaxSpeakers; ++s) {
+      if (patch[(size_t) s] >= 0) continue;
+      while (freeCh < kMaxSpeakers && patchUsed[(size_t) freeCh]) ++freeCh;
+      patch[(size_t) s] = freeCh;
+      patchUsed[(size_t) freeCh] = true;
+    }
+  }
+
+  // ⚠ THE TONE BYPASSES THE DECODER, AND THAT IS THE ENTIRE POINT. It is written straight onto a DEVICE
+  // CHANNEL, after the decode and after the master chain. A tone routed through the ambisonic encoder
+  // would prove the DECODER works — which we already know — and prove nothing about the PATCH, which is
+  // the thing being commissioned. A test tone that routes through the thing under test is not a test.
+  //
+  // It is written BEFORE metering (the metering source wraps this bus), so the operator sees the channel
+  // light up in Preferences — which is how the rig is verified with no hardware at all.
+  void setTestTone(int deviceChannel, float g) {
+    const juce::ScopedLock sl(lock);
+    toneCh = deviceChannel; toneGain = g;
+  }
 
   void releaseResources() override {
     const juce::ScopedLock sl(lock);
@@ -222,13 +301,15 @@ public:
         binaural.Process(&bformat, out, (unsigned) n);
         if (outCh > 0) info.buffer->addFrom(0, info.startSample, decodeL.data(), n);
         if (outCh > 1) info.buffer->addFrom(1, info.startSample, decodeR.data(), n);
-      } else if (mode == OutMode::Speakers && decoderOk && nSpeakers > 0) {
+      } else if (mode == OutMode::Speakers && decoderOk && decoder != nullptr && nSpeakers > 0) {
         for (int s = 0; s < nSpeakers; ++s)
           std::fill(speakerBuf[(size_t) s].begin(), speakerBuf[(size_t) s].begin() + n, 0.0f);
-        decoder.Process(&bformat, (unsigned) n, speakerPtrs.data());
-        const int m = juce::jmin(nSpeakers, outCh); // never write past the device's channels
-        for (int s = 0; s < m; ++s)
-          info.buffer->addFrom(s, info.startSample, speakerBuf[(size_t) s].data(), n);
+        decoder->Process(&bformat, (unsigned) n, speakerPtrs.data());
+        for (int s = 0; s < nSpeakers; ++s) {
+          const int dst = (s < (int) patch.size()) ? patch[(size_t) s] : s;   // decoder speaker → device channel
+          if (dst >= 0 && dst < outCh)                                        // never write past the device
+            info.buffer->addFrom(dst, info.startSample, speakerBuf[(size_t) s].data(), n);
+        }
       }
     }
 
@@ -238,6 +319,20 @@ public:
     if (masterChain != nullptr) masterChain->process(mblock);
     juce::dsp::ProcessContextReplacing<float> mctx(mblock);
     masterGain.process(mctx); // post-insert fader, SmoothedValue-ramped ⇒ click-free
+
+    // ── TEST TONE: post-everything, straight onto a device channel ──────────────────────────────────
+    // Deliberately AFTER the master fader: a commissioning tone that the house fader can silence is a tone
+    // that will have you checking a speaker cable while the software is muting it.
+    if (toneCh >= 0 && toneCh < outCh && toneGain > 0.0f) {
+      float* d = info.buffer->getWritePointer(toneCh, info.startSample);
+      for (int i = 0; i < n; ++i) {
+        const float w = toneRng.nextFloat() * 2.0f - 1.0f;   // white
+        pinkB0 = 0.99765f * pinkB0 + w * 0.0990460f;         // → pink (Kellet). Broadband: a speaker is far
+        pinkB1 = 0.96300f * pinkB1 + w * 0.2965164f;         //   easier to localise by ear than a sine, and
+        pinkB2 = 0.57000f * pinkB2 + w * 1.0526913f;         //   a sine can null against a room mode.
+        d[i] += (pinkB0 + pinkB1 + pinkB2 + w * 0.1848f) * 0.2f * toneGain;
+      }
+    }
   }
 
   // ── Control (all take the lock, so they can't race the audio thread) ──────────────────────────
@@ -322,17 +417,46 @@ public:
     auto it = clips.find(id);
     return it == clips.end() ? nullptr : it->second.get();
   }
+  // First enable builds the encoder OUTSIDE the lock — same shape as applyEffects/setMode (decide under
+  // the lock, build outside it, swap under it again): AmbisonicEncoder::Configure() allocates, and dragging
+  // a source in the positioner UI can flip a clip's `spatial` on as a routine gesture, not a one-off. A
+  // MOVE (spatial already on) stays on the cheap SetPosition/Refresh path, entirely under one lock, exactly
+  // as before.
   void setSpatial(const std::string& id, float x, float y, float z) {
-    const juce::ScopedLock sl(lock);
-    Clip* c = find(id);
-    if (c == nullptr) return;
-    c->pos = toPolar(x, y, z);
-    if (!c->spatial || c->encoder == nullptr) {
-      c->spatial = true;
-      configureEncoder(*c);              // first enable: allocate + configure
-    } else {
-      c->encoder->SetPosition(c->pos);   // a move: just re-aim (the fade smooths it)
-      c->encoder->Refresh();
+    const spaudio::PolarPosition<float> pos = toPolar(x, y, z);
+    double sr = 0.0;
+    {
+      const juce::ScopedLock sl(lock);
+      Clip* c = find(id);
+      if (c == nullptr) return;
+      c->pos = pos;
+      if (!c->spatial || c->encoder == nullptr) {
+        c->spatial = true; // set now, under the lock — see the comment on the swap below for the brief
+                            // window this opens (spatial==true, encoder still null) and why it's benign
+        sr = sampleRate;
+      } else {
+        c->encoder->SetPosition(c->pos);   // a move: just re-aim (the fade smooths it)
+        c->encoder->Refresh();
+        return;
+      }
+    }
+    // Reached only on first enable, with no lock held.
+    std::unique_ptr<spaudio::AmbisonicEncoder> enc = buildEncoder(pos, sr); // ← the allocation, OUTSIDE the lock
+    std::unique_ptr<spaudio::AmbisonicEncoder> old; // destroyed when this scope ends — outside the lock
+    {
+      const juce::ScopedLock sl(lock);
+      // Re-find: the clip may have been removed by another control call while we were building. (It cannot
+      // have been swapped by a SECOND setSpatial on the same id — control calls all run on the single
+      // N-API thread — so there is no encoder here to race with, only removeClip to guard against.)
+      if (Clip* c = find(id)) {
+        c->spatial = true;
+        old = std::move(c->encoder);
+        c->encoder = std::move(enc);
+      }
+      // Between the lock above and this one, the audio thread could see spatial==true with encoder still
+      // null — getNextAudioBlock's `c.spatial && c.encoder != nullptr` guard then takes the non-spatial
+      // branch for at most one block (the clip plays un-spatialised, not silent), which is the same kind
+      // of brief, benign transient applyEffects accepts while its own swap is in flight.
     }
   }
   void clearSpatial(const std::string& id) {
@@ -431,19 +555,68 @@ public:
   double sampleRate = 48000.0;
 
 private:
-  void configureEncoder(Clip& c) { // caller holds the lock
-    if (c.encoder == nullptr) c.encoder = std::make_unique<spaudio::AmbisonicEncoder>();
-    c.encoder->Configure(kAmbiOrder, true, (unsigned) juce::jmax(8000.0, sampleRate), kPosFadeMs);
-    c.encoder->SetPosition(c.pos);
-    c.encoder->Refresh();
+  // The pure builder behind setSpatial's first-enable path (see that function). Takes no lock and touches
+  // no member — everything it needs is a parameter — so it is safe to call with the lock released.
+  // configureEncoder() below (prepareToPlay's path, already safe to allocate under its lock) is just this
+  // plus an assignment.
+  static std::unique_ptr<spaudio::AmbisonicEncoder> buildEncoder(spaudio::PolarPosition<float> pos, double sr) {
+    auto enc = std::make_unique<spaudio::AmbisonicEncoder>();
+    enc->Configure(kAmbiOrder, true, (unsigned) juce::jmax(8000.0, sr), kPosFadeMs);
+    enc->SetPosition(pos);
+    enc->Refresh();
+    return enc;
   }
 
-  void configureDecoder() { // caller holds the lock
-    decoderOk = decoder.Configure(kAmbiOrder, true, (unsigned) maxBlock, (unsigned) sampleRate, layoutFromName(layout));
-    nSpeakers = decoderOk ? (int) decoder.GetSpeakerCount() : 0;
-    speakerBuf.assign((size_t) juce::jmax(0, nSpeakers), std::vector<float>((size_t) maxBlock, 0.0f));
-    speakerPtrs.assign((size_t) juce::jmax(0, nSpeakers), nullptr);
-    for (int i = 0; i < nSpeakers; ++i) speakerPtrs[(size_t) i] = speakerBuf[(size_t) i].data();
+  void configureEncoder(Clip& c) { // caller holds the lock — only prepareToPlay calls this (off the audio
+                                    // thread, callback not yet attached, so allocating here is fine)
+    c.encoder = buildEncoder(c.pos, sampleRate);
+  }
+
+  // Everything a freshly-built decoder needs. AmbisonicDecoder cannot be rebuilt in place with the lock
+  // released and swapped in by value: it owns a raw `AmbisonicSpeaker*` array freed in its OWN destructor
+  // (see AmbisonicDecoder.h/.cpp), has NO move constructor (a user-declared destructor suppresses the
+  // implicit one), and its only copy constructor is the compiler-generated one — which would shallow-copy
+  // that pointer, leaving two decoders to `delete[]` the same array on destruction. So it is held here by
+  // pointer and swapped by pointer via installDecode(), never copied and never move-assigned in place.
+  struct DecodeBuild {
+    std::unique_ptr<spaudio::AmbisonicDecoder> decoder;
+    bool decoderOk = false;
+    int nSpeakers = 0;
+    std::vector<std::vector<float>> speakerBuf;
+    std::vector<float*> speakerPtrs;
+  };
+
+  // The pure builder behind setMode's rebuild path (see that function). No lock, no member read or write —
+  // everything it needs is a parameter, so it is safe to call with the lock released. This is also what
+  // prepareToPlay calls (build immediately followed by installDecode, back-to-back under ITS lock — safe
+  // there because it runs off the audio thread with the callback not yet attached).
+  static DecodeBuild buildDecode(const juce::String& layoutName, int maxBlockSamples, double sr) {
+    DecodeBuild b;
+    b.decoder = std::make_unique<spaudio::AmbisonicDecoder>();
+    b.decoderOk = b.decoder->Configure(kAmbiOrder, true, (unsigned) maxBlockSamples, (unsigned) sr, layoutFromName(layoutName));
+    b.nSpeakers = b.decoderOk ? (int) b.decoder->GetSpeakerCount() : 0;
+    b.speakerBuf.assign((size_t) juce::jmax(0, b.nSpeakers), std::vector<float>((size_t) maxBlockSamples, 0.0f));
+    b.speakerPtrs.assign((size_t) juce::jmax(0, b.nSpeakers), nullptr);
+    for (int i = 0; i < b.nSpeakers; ++i) b.speakerPtrs[(size_t) i] = b.speakerBuf[(size_t) i].data();
+    return b;
+  }
+
+  // Swaps `b` into the live decoder/buffers. Caller holds the lock. Returns whatever was displaced —
+  // callers that need the discard to happen OUTSIDE the lock (setMode) capture the return value in a
+  // holder declared before their lock scope; prepareToPlay just discards it (fine there — see buildDecode).
+  DecodeBuild installDecode(DecodeBuild&& b) { // caller holds the lock
+    DecodeBuild old;
+    old.decoder = std::move(decoder);
+    old.decoderOk = decoderOk;
+    old.nSpeakers = nSpeakers;
+    old.speakerBuf = std::move(speakerBuf);
+    old.speakerPtrs = std::move(speakerPtrs);
+    decoder = std::move(b.decoder);
+    decoderOk = b.decoderOk;
+    nSpeakers = b.nSpeakers;
+    speakerBuf = std::move(b.speakerBuf);
+    speakerPtrs = std::move(b.speakerPtrs);
+    return old;
   }
 
   bool prepared = false;
@@ -455,11 +628,23 @@ private:
   bool binauralOk = false;
   OutMode mode = OutMode::Binaural;
   juce::String layout { "stereo" };
-  spaudio::AmbisonicDecoder decoder;
+  std::unique_ptr<spaudio::AmbisonicDecoder> decoder; // see DecodeBuild, above, for why this is a pointer
   bool decoderOk = false;
   int nSpeakers = 0;
   std::vector<std::vector<float>> speakerBuf;
   std::vector<float*> speakerPtrs;
+
+  static constexpr int kMaxSpeakers = 64;   // configure() clamps channels to 64; the patch must cover it
+  std::vector<int> patch;                   // decoder speaker → device channel (identity by default)
+  std::vector<bool> patchUsed;               // setPatch's scratch "which device channels are claimed" —
+                                              // a MEMBER so it's grown once and reset (not reallocated) on
+                                              // every setPatch call, same discipline as `patch` itself; a
+                                              // local here would malloc on every call while `lock` is held
+                                              // (the same disease addClip/stop's comments are about)
+  int toneCh = -1;                          // -1 = off
+  float toneGain = 0.0f;
+  float pinkB0 = 0, pinkB1 = 0, pinkB2 = 0; // Paul Kellet's economy pink filter — no allocation, no state reset needed
+  juce::Random toneRng;
 
   // Master insert chain + fader, applied post-decode. `outChannels` is what the device ACTUALLY opened
   // with (Engine::configure reads it back from the device — asking for 8 on a stereo card gives 2), and
@@ -526,45 +711,177 @@ public:
   Engine() : metering(bus, meterPeak, meterRms, meterCh, meterClipped) {}
   ~Engine() { closeDevice(); }
 
-  juce::String configure(int outputChannels, OutMode mode, const juce::String& layout) {
-    // Decode mode/layout is applied live (decoder-only) — changing it never reopens the device.
-    bus.setMode(mode, layout);
-    const int ch = juce::jlimit(1, 64, outputChannels);
-    // ⚠ THE DEVICE CAN DIE UNDER US, AND `opened` DOES NOT KNOW.
+  struct DeviceCfg {
+    juce::String type;    // '' = keep the current device type
+    juce::String name;    // '' = that type's default device
+    int channels = 2;
+    double sampleRate = 0; // 0 = the device's default
+    int bufferSize = 0;    // 0 = the device's default
+    OutMode mode = OutMode::Binaural;
+    juce::String layout { "stereo" };
+    std::vector<int> patch;   // decoder speaker → device channel (empty ⇒ identity)
+  };
+
+  struct OpenedCfg { juce::String deviceName, deviceType; double sampleRate = 0; int bufferSize = 0; int channels = 0; };
+
+  juce::String configure(const DeviceCfg& c, OpenedCfg& out) {
+    // Decode mode/layout is applied live (decoder-only) — changing it never reopens the device, so this
+    // MUST run before every guard below: none of them (dead-device check, idempotence guard, the
+    // snapshot block) is about the decoder, and a mode/layout-only change (same device, different
+    // mode/layout) has to take effect even when — ESPECIALLY when — one of those guards ends this call
+    // early without touching the device at all. That is deliberate and load-bearing; do not "clean up"
+    // this ordering by moving it after the guards.
     //
-    // `opened` is set true when configure() succeeds and false only when configure() ITSELF tears the
-    // device down. NOTHING sets it false when the HARDWARE GOES AWAY — a bumped USB cable, a driver
-    // reload, a Windows power-management cycle on the interface. JUCE knows perfectly well
-    // (getCurrentAudioDevice() returns nullptr); the engine simply never asked.
-    //
-    // So: the room goes silent, JUCE does not recover on its own, and the operator does the one thing the
-    // UI offers — Preferences ▸ Audio ▸ pick the interface again — and the guard below TAKES THE EARLY
-    // RETURN AND DOES NOTHING, because the channel count still matches. The only recovery gesture in the
-    // application is inert, and the only way back is a restart. In a venue, mid-show.
-    //
-    // One line. Ask the device manager instead of a stale bool, and a re-pick actually re-opens.
+    // ⚠ BUT THAT MEANS IT MUST BE ROLLED BACK, TOO. bus.setMode() rebuilds the ambisonic decoder — speaker
+    // count, speakerBuf/speakerPtrs — for the REQUESTED layout immediately, SYNCHRONOUSLY, before we know
+    // whether the requested DEVICE below will even open. If the open fails and the rollback block further
+    // down puts the OLD device back, the decoder must be put back to the OLD mode/layout as well — or the
+    // restored device plays through a decode built for the layout that just failed to open (wrong speaker
+    // count, content routed to the wrong channels). Nothing else catches this: `opened`/`deviceLive` only
+    // know about the device, and the masterFxChannels/deviceChannels diagnostic in GetMeters only checks
+    // the POST-decode chain's width against the device — never the decode's mode/layout itself. See the
+    // rollback block below, where prevMode/prevLayout are applied via a second bus.setMode() call.
+    bus.setMode(c.mode, c.layout);
+    bus.setPatch(c.patch);   // live, decoder-only — changing the patch never reopens the device
+    const int ch = juce::jlimit(1, 64, c.channels);
+
+    // ⚠ THE DEVICE CAN DIE UNDER US, AND `opened` DOES NOT KNOW. Nothing sets it false when the HARDWARE
+    // goes away — a bumped USB cable, a driver reload, a Windows power-management cycle. JUCE knows
+    // (getCurrentAudioDevice() returns nullptr); the engine simply never asked. Without this line the
+    // Reconnect button takes the early return below and does nothing, and the only way back is a restart.
     if (deviceManager.getCurrentAudioDevice() == nullptr) opened = false;
-    if (opened && ch == openedChannels) return {}; // already open on this config — don't interrupt playback
+
+    // ⚠ THE GUARD KEYS ON THE WHOLE SETUP, NOT JUST THE CHANNEL COUNT. It used to compare `ch` alone —
+    // so SWITCHING DEVICE at the same channel count (the entire point of a device picker) would have hit
+    // this early return and CHANGED NOTHING. The picker would have looked wired and been inert.
+    if (opened && ch == openedChannels && c.type == openedType && c.name == openedName
+        && c.sampleRate == openedRate && c.bufferSize == openedBuffer) {
+      // The device didn't change, but bus.setMode() above may have — this is exactly how a mode/layout-only
+      // change takes effect (see the comment above it). Record it, or a later rollback would read a STALE
+      // openedMode/openedLayout (from before THIS call) instead of the one now actually live.
+      openedMode = c.mode; openedLayout = c.layout;
+      out = lastOpened;
+      return {}; // already open on exactly this config — don't interrupt playback
+    }
+
+    // ⚠ A FAILED RECONFIGURE MUST NOT LEAVE THE ROOM SILENT. Task 3 made this reachable: configure() used
+    // to only ever open the OS default (which essentially never errors); pinning a named device/type/rate/
+    // buffer is exactly what makes "the operator asked for a combination the device won't grant" something
+    // that gets clicked — a buffer size WASAPI Exclusive won't grant at the requested rate, an unsupported
+    // sample rate, a device that vanished between enumeration and open. So before tearing down a device
+    // that IS working, snapshot exactly what "working" means — the live driver type and the live
+    // AudioDeviceSetup — so a failed open below can put the OLD one straight back instead of leaving
+    // `opened` false with nothing registered to the callback. This MUST be captured before any mutation:
+    // setCurrentAudioDeviceType() a few lines down changes what getCurrentAudioDeviceType() reports, and
+    // closeAudioDevice() does not preserve it for us. Only meaningful when a device was actually open —
+    // `opened` is already the corrected ground truth for that (the dead-device check above ran first).
+    const bool hadGoodDevice = opened;
+    juce::String prevType;
+    juce::AudioDeviceManager::AudioDeviceSetup prevSetup;
+    int prevActualChannels = 0;
+    OutMode prevMode = OutMode::Binaural;
+    juce::String prevLayout { "stereo" };
+    if (hadGoodDevice) {
+      prevType = deviceManager.getCurrentAudioDeviceType();
+      deviceManager.getAudioDeviceSetup(prevSetup);
+      prevActualChannels = lastOpened.channels; // what the bus was ACTUALLY configured for, not what was asked
+      // prevMode/prevLayout come from openedMode/openedLayout, NOT from the bus: bus.setMode(c.mode,
+      // c.layout) at the very top of this call has ALREADY overwritten the bus's mode/layout with the
+      // REQUESTED (possibly-failing) values, so by the time we get here the bus itself can no longer tell
+      // us what was live. openedMode/openedLayout are the engine's own record of the last mode/layout a
+      // successful bus.setMode() call left in place — tracked in lockstep with openedType/openedName
+      // (both here and at the idempotence-guard's early return above), and, like them, deliberately left
+      // untouched on the rollback path below so they keep describing whatever ends up actually live.
+      prevMode = openedMode;
+      prevLayout = openedLayout;
+    }
+
     if (opened) { deviceManager.removeAudioCallback(&player); player.setSource(nullptr); deviceManager.closeAudioDevice(); opened = false; }
-    juce::String err = deviceManager.initialiseWithDefaultDevices(0, ch);
-    if (err.isNotEmpty()) return err;
-    // The device can open with FEWER channels than we asked for (8 on a stereo card gives 2). The master
-    // chain must be built for what we actually got, or it would see a channel-count mismatch every block
-    // and pass dry. Push it BEFORE addAudioCallback — that's what triggers prepareToPlay, which builds it.
+
+    // First call: initialise() is what builds the device-type list that setCurrentAudioDeviceType() needs.
+    if (!initialised) {
+      deviceManager.initialise(0, ch, nullptr, true);
+      initialised = true;
+    }
+    if (c.type.isNotEmpty() && c.type != deviceManager.getCurrentAudioDeviceType())
+      deviceManager.setCurrentAudioDeviceType(c.type, true);
+
+    juce::AudioDeviceManager::AudioDeviceSetup setup;
+    deviceManager.getAudioDeviceSetup(setup);
+    setup.outputDeviceName = c.name;      // '' ⇒ the type's default device
+    setup.inputDeviceName = {};
+    setup.sampleRate = c.sampleRate;      // 0 ⇒ device default
+    setup.bufferSize = c.bufferSize;      // 0 ⇒ device default
+    setup.useDefaultInputChannels = false;
+    setup.inputChannels.clear();
+    setup.useDefaultOutputChannels = false;
+    setup.outputChannels.clear();
+    setup.outputChannels.setRange(0, ch, true);
+    juce::String err = deviceManager.setAudioDeviceSetup(setup, true);
+    if (err.isNotEmpty()) {
+      // Nothing was open before this call (first-ever configure, or the previous device had already died —
+      // see the dead-device invalidation above) — there is no "last known good" to roll back to.
+      if (!hadGoodDevice) return err;
+
+      // ⚠ ROLL BACK, NOT DOWN. Put the previous type + setup straight back — the SAME open sequence the
+      // success path below uses, just with the OLD numbers — so the show keeps making sound. None of this
+      // runs under `bus.lock`: it is JS/native-thread work, exactly like the open attempt above and the
+      // teardown before it. See SpatialBus::addClip's comment block for why a blocking device open under
+      // the audio lock is the one bug this engine cannot afford to repeat.
+      if (deviceManager.getCurrentAudioDeviceType() != prevType)
+        deviceManager.setCurrentAudioDeviceType(prevType, true);
+      const juce::String rollbackErr = deviceManager.setAudioDeviceSetup(prevSetup, true);
+      if (rollbackErr.isNotEmpty())
+        return "requested device failed to open (" + err + ") AND the previous device could not be "
+               "restored (" + rollbackErr + ") — audio is now silent, a restart is required";
+
+      int restoredActual = prevActualChannels;
+      if (auto* dev = deviceManager.getCurrentAudioDevice())
+        restoredActual = juce::jmax(1, dev->getActiveOutputChannels().countNumberOfSetBits());
+      bus.setOutputChannels(restoredActual);   // BEFORE setSource — see the success path below
+      // Put the DECODE back too. bus.setMode(c.mode, c.layout) at the top of this call already rebuilt the
+      // ambisonic decoder for the layout that just failed to open — the device being restored above was
+      // never opened with that layout; it was opened (and is being put back) with prevMode/prevLayout. Skip
+      // this and the restored device would be live and audible but decoding into the WRONG mode/layout —
+      // looks wired, meters normally (masterFxChannels/deviceChannels only check the POST-decode chain's
+      // width against the device, never the decode itself), and is silently wrong. Decoder-only, so — like
+      // the call at the top of configure() — this cannot fail and does not touch the device.
+      bus.setMode(prevMode, prevLayout);
+      if (!readThread.isThreadRunning()) readThread.startThread();
+      player.setSource(&metering);
+      deviceManager.addAudioCallback(&player);
+      opened = true;
+      // openedType/openedName/openedChannels/openedRate/openedBuffer/openedMode/openedLayout/lastOpened
+      // are DELIBERATELY left untouched here: the failed attempt never reached the point (below) where
+      // they get overwritten, so they still describe exactly the setup — and now, the decode — we just put
+      // back. Rewriting them to the REQUESTED (failed) setup would make the guard above believe that setup
+      // is live — the operator's next attempt to fix it would then take the early return and do nothing,
+      // the same trap the dead-device invalidation above exists to avoid.
+      return err; // the requested setup still failed — the caller (and the Preferences panel) must know
+    }
+
+    // The device can open with FEWER channels than we asked for (8 on a stereo card gives 2), and at a
+    // different rate/buffer than requested. The master chain must be built for what we ACTUALLY got, or it
+    // sees a channel-count mismatch every block and passes dry. Push it BEFORE addAudioCallback — that is
+    // what triggers prepareToPlay, which builds it.
     int actual = ch;
-    if (auto* dev = deviceManager.getCurrentAudioDevice())
+    if (auto* dev = deviceManager.getCurrentAudioDevice()) {
       actual = juce::jmax(1, dev->getActiveOutputChannels().countNumberOfSetBits());
+      out.deviceName = dev->getName();
+      out.sampleRate = dev->getCurrentSampleRate();
+      out.bufferSize = dev->getCurrentBufferSizeSamples();
+    }
+    out.deviceType = deviceManager.getCurrentAudioDeviceType();
+    out.channels = actual;
     bus.setOutputChannels(actual);
     if (!readThread.isThreadRunning()) readThread.startThread();
     player.setSource(&metering);
     deviceManager.addAudioCallback(&player);
     opened = true;
-    openedChannels = ch;
-    return {};
-  }
-
-  juce::String currentDeviceName() {
-    if (auto* dev = deviceManager.getCurrentAudioDevice()) return dev->getName();
+    openedChannels = ch; openedType = c.type; openedName = c.name;
+    openedRate = c.sampleRate; openedBuffer = c.bufferSize;
+    openedMode = c.mode; openedLayout = c.layout;
+    lastOpened = out;
     return {};
   }
 
@@ -581,13 +898,25 @@ public:
   // channel, no new timer.
   bool deviceLive() { return deviceManager.getCurrentAudioDevice() != nullptr; }
 
-  juce::StringArray listOutputDevices() {
-    juce::StringArray names;
+  struct DeviceEntry { juce::String type, name; bool isDefault; };
+
+  // ⚠ NO NAME-LEVEL DEDUPE. One physical interface is enumerated under FOUR driver types — WASAPI shared,
+  // WASAPI exclusive, WASAPI shared-low-latency, DirectSound — all under the SAME NAME. The old dedupe
+  // collapsed them into one row and threw away the only thing that told them apart, which is why EXCLUSIVE
+  // MODE — the thing that delivers discrete 8-channel output on Windows — was already compiled in, already
+  // enumerated, and completely unreachable.
+  std::vector<DeviceEntry> listOutputDevices() {
+    std::vector<DeviceEntry> out;
     juce::OwnedArray<juce::AudioIODeviceType> types;
     deviceManager.createAudioDeviceTypes(types);
-    for (auto* t : types) { t->scanForDevices(); names.addArray(t->getDeviceNames(false)); }
-    names.removeDuplicates(false);
-    return names;
+    for (auto* t : types) {
+      t->scanForDevices();
+      const auto names = t->getDeviceNames(false);
+      const int def = t->getDefaultDeviceIndex(false);
+      for (int i = 0; i < names.size(); ++i)
+        out.push_back({ t->getTypeName(), names[i], i == def });
+    }
+    return out;
   }
 
   bool loadClip(const std::string& id, const juce::String& path, Clip*& out, juce::String& err) {
@@ -645,6 +974,7 @@ public:
   void setClipEffects(const std::string& id, std::vector<EffectSpec> specs) { bus.applyEffects(id, std::move(specs)); }
   void setMasterEffects(std::vector<EffectSpec> specs) { bus.applyEffects({}, std::move(specs)); } // {} ⇒ master
   void setMasterGain(float g) { bus.setMasterGain(g); }
+  void setTestTone(int ch, float g) { bus.setTestTone(ch, g); }
   void stopAll() { bus.stopAll(); }
 
   float peak() const { return meterPeak.load(); }
@@ -673,6 +1003,20 @@ private:
   juce::TimeSliceThread readThread { "artlux-audio-read" };
   bool opened = false;
   int openedChannels = 0;
+  bool initialised = false;
+  juce::String openedType, openedName;
+  double openedRate = 0;
+  int openedBuffer = 0;
+  // The last mode/layout a SUCCESSFUL bus.setMode() call left in place — i.e. the decode that matches
+  // whatever device is actually live. Tracked the same way as openedType/openedName (updated at the same
+  // two sites: the idempotence-guard early return and the full open-success path; deliberately untouched
+  // on the rollback path) so configure()'s rollback block has somewhere safe to read a PREVIOUS mode/layout
+  // from — the bus's own mode/layout members are not safe to read there, because the unconditional
+  // bus.setMode(c.mode, c.layout) at the top of configure() has already overwritten them with the
+  // REQUESTED (possibly-failing) values by the time the rollback block runs.
+  OutMode openedMode = OutMode::Binaural;
+  juce::String openedLayout { "stereo" };
+  OpenedCfg lastOpened;
 };
 
 std::unique_ptr<Engine> gEngine;
@@ -685,24 +1029,58 @@ static Napi::String JuceVersion(const Napi::CallbackInfo& info) {
   return Napi::String::New(info.Env(), juce::SystemStats::getJUCEVersion().toStdString());
 }
 
-// configure(outputChannels, mode?, layout?) — mode: 'binaural' (default, headphones) | 'speakers'.
-// layout (speakers mode): stereo | quad | 5.0 | 5.1 | 7.0 | 7.1 | hexagon | octagon | cube.
+// configure(cfg) — cfg: { deviceType?, deviceName?, channels?, sampleRate?, bufferSize?, mode?, layout? }
+// Returns the setup ACTUALLY OPENED: { deviceName, deviceType, sampleRate, bufferSize, channels }. It can
+// differ from what was asked (a stereo card asked for 8ch reports 2 back) and the UI must show what it GOT.
 static Napi::Value Configure(const Napi::CallbackInfo& info) {
   auto env = info.Env();
-  const int outCh = info.Length() > 0 && info[0].IsNumber() ? info[0].As<Napi::Number>().Int32Value() : 2;
-  const std::string modeStr = info.Length() > 1 && info[1].IsString() ? info[1].As<Napi::String>().Utf8Value() : "binaural";
-  const std::string layout = info.Length() > 2 && info[2].IsString() ? info[2].As<Napi::String>().Utf8Value() : "stereo";
-  const OutMode mode = (modeStr == "speakers") ? OutMode::Speakers : OutMode::Binaural;
-  juce::String err = ensureEngine().configure(outCh, mode, juce::String(layout));
+  Napi::Object o = info.Length() > 0 && info[0].IsObject() ? info[0].As<Napi::Object>() : Napi::Object::New(env);
+  const auto str = [&](const char* k, const char* dflt) -> std::string {
+    return o.Has(k) && o.Get(k).IsString() ? o.Get(k).As<Napi::String>().Utf8Value() : std::string(dflt);
+  };
+  const auto num = [&](const char* k, double dflt) -> double {
+    return o.Has(k) && o.Get(k).IsNumber() ? o.Get(k).As<Napi::Number>().DoubleValue() : dflt;
+  };
+  Engine::DeviceCfg cfg;
+  cfg.type = juce::String(str("deviceType", ""));
+  cfg.name = juce::String(str("deviceName", ""));
+  cfg.channels = (int) num("channels", 2);
+  cfg.sampleRate = num("sampleRate", 0);
+  cfg.bufferSize = (int) num("bufferSize", 0);
+  cfg.mode = (str("mode", "binaural") == "speakers") ? OutMode::Speakers : OutMode::Binaural;
+  cfg.layout = juce::String(str("layout", "stereo"));
+  if (o.Has("patch") && o.Get("patch").IsArray()) {
+    auto a = o.Get("patch").As<Napi::Array>();
+    for (uint32_t i = 0; i < a.Length(); ++i)
+      cfg.patch.push_back(a.Get(i).IsNumber() ? a.Get(i).As<Napi::Number>().Int32Value() : (int) i);
+  }
+
+  Engine::OpenedCfg got;
+  juce::String err = ensureEngine().configure(cfg, got);
   if (err.isNotEmpty()) { Napi::Error::New(env, ("audio configure failed: " + err).toStdString()).ThrowAsJavaScriptException(); return env.Null(); }
-  return Napi::String::New(env, ensureEngine().currentDeviceName().toStdString());
+
+  auto r = Napi::Object::New(env);
+  r.Set("deviceName", Napi::String::New(env, got.deviceName.toStdString()));
+  r.Set("deviceType", Napi::String::New(env, got.deviceType.toStdString()));
+  r.Set("sampleRate", Napi::Number::New(env, got.sampleRate));
+  r.Set("bufferSize", Napi::Number::New(env, got.bufferSize));
+  r.Set("channels", Napi::Number::New(env, got.channels));
+  return r;
 }
 
+// getDevices() → [{ type, name, isDefault }]. One physical device appears once PER DRIVER TYPE — that is
+// the point, not a bug: the type is what decides whether you get discrete multichannel.
 static Napi::Value GetDevices(const Napi::CallbackInfo& info) {
   auto env = info.Env();
-  const auto names = ensureEngine().listOutputDevices();
-  auto arr = Napi::Array::New(env, (size_t) names.size());
-  for (int i = 0; i < names.size(); ++i) arr.Set((uint32_t) i, Napi::String::New(env, names[i].toStdString()));
+  const auto devs = ensureEngine().listOutputDevices();
+  auto arr = Napi::Array::New(env, devs.size());
+  for (size_t i = 0; i < devs.size(); ++i) {
+    auto d = Napi::Object::New(env);
+    d.Set("type", Napi::String::New(env, devs[i].type.toStdString()));
+    d.Set("name", Napi::String::New(env, devs[i].name.toStdString()));
+    d.Set("isDefault", Napi::Boolean::New(env, devs[i].isDefault));
+    arr.Set((uint32_t) i, d);
+  }
   return arr;
 }
 
@@ -833,6 +1211,16 @@ static Napi::Value SetMasterGain(const Napi::CallbackInfo& info) {
   return info.Env().Undefined();
 }
 
+// setTestTone(deviceChannel, gain) — deviceChannel < 0 turns it off. Pink noise, straight onto a DEVICE
+// CHANNEL, bypassing the decoder and the master fader (see Bus::setTestTone).
+static Napi::Value SetTestTone(const Napi::CallbackInfo& info) {
+  auto env = info.Env();
+  const int ch = info.Length() > 0 && info[0].IsNumber() ? info[0].As<Napi::Number>().Int32Value() : -1;
+  const double g = info.Length() > 1 && info[1].IsNumber() ? info[1].As<Napi::Number>().DoubleValue() : 0.5;
+  ensureEngine().setTestTone(ch, (float) g);
+  return env.Undefined();
+}
+
 static Napi::Value StopAll(const Napi::CallbackInfo& info) { ensureEngine().stopAll(); return info.Env().Undefined(); }
 
 static Napi::Value GetMeters(const Napi::CallbackInfo& info) {
@@ -916,6 +1304,7 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("setClipEffects", Napi::Function::New(env, SetClipEffects));
   exports.Set("setMasterEffects", Napi::Function::New(env, SetMasterEffects));
   exports.Set("setMasterGain", Napi::Function::New(env, SetMasterGain));
+  exports.Set("setTestTone", Napi::Function::New(env, SetTestTone));
   exports.Set("stopAll", Napi::Function::New(env, StopAll));
   exports.Set("getMeters", Napi::Function::New(env, GetMeters));
   exports.Set("close", Napi::Function::New(env, Close));

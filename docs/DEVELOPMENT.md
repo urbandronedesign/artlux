@@ -59,6 +59,28 @@ so every machine and every CI runner builds its own. It is gitignored (`*.node`)
 > (`LNK1104` on Windows) and **silently leaves the stale addon in place**, so you debug code that
 > isn't loaded. Stop `npm run dev` and kill stray `electron` processes first.
 
+### ASIO (optional)
+**Off by default, and that's a decision, not an oversight.** Multichannel output on Windows is
+already delivered by **WASAPI exclusive mode**, compiled into the addon unconditionally — that's
+the **supported** path for discrete multichannel (see the driver-type grouping in AudioSettings'
+device picker). A show bed does not need ASIO.
+
+What ASIO would buy: lower latency than WASAPI exclusive.
+
+What it costs: the **Steinberg ASIO SDK**, which is not redistributable, carries its own licence,
+cannot be vendored into this repo, and cannot be fetched by CI — plus **zero test coverage**,
+because nobody on this project has ASIO hardware to build against. Turning it on adds a **third**
+licence obligation to a build that already carries JUCE's (still **unelected** — see `NOTICE`) and
+libspatialaudio's LGPL.
+
+If a venue genuinely needs it: download the SDK from [steinberg.net](https://www.steinberg.net/developers/)
+(free registration required), then point CMake at its `common` directory:
+```bash
+cmake -DARTLUX_ENABLE_ASIO=ON -DASIO_SDK_DIR=C:/path/to/asiosdk/common
+```
+The configure step hard-fails with a clear message if `ASIO_SDK_DIR` doesn't contain
+`iasiodrv.h`. Leave it `OFF` unless you have both the SDK and the hardware to test it against.
+
 ### "The audio UI is all there and nothing plays" — no sound?
 There is no error dialog and no red UI: the loader degrades to a no-op by design, so a missing **or
 stale** engine looks exactly like a bug in your code. Work the list in order.

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, normalizeCueBanks, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, timelineAudioTracks, sceneAudioEntries, cueEntries, isAddressableEntry, type AudioClip, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType } from './types';
+import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, normalizeCueBanks, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, timelineAudioTracks, sceneAudioEntries, cueEntries, isAddressableEntry, type AudioClip, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType, type PatchPolicy, readPatchPolicy } from './types';
 import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge, WINDOWED_DISPLAY } from '../../shared/protocol';
 import type { ProjectorCalibration } from '../../shared/protocol';
 import { CalibWizard, AutoAlignWizard, calibCapture as cam, measureGamma, calibWorkspace } from '@artlux/plugin-calibration/renderer';
@@ -137,6 +137,9 @@ const App: React.FC = () => {
   ]);
   const [selectedSurfaceId, setSelectedSurfaceId] = useState<string | null>(null);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  // Patch policy — SHOW state (it addresses this project's fixtures), not machine state. It used to live in
+  // AppSettings, which no longer travels in the project file.
+  const [patchPolicy, setPatchPolicy] = useState<PatchPolicy>({ reserveLockedRanges: false });
   const [isVideoPlaying, setIsVideoPlaying] = useState(true);
   const [globalBrightness, setGlobalBrightness] = useState(1.0);
   const [groups, setGroups] = useState<FixtureGroup[]>([]);
@@ -587,13 +590,13 @@ const App: React.FC = () => {
       colorData: [],
       surfaceId: selectedSurfaceId ?? surfaces[0]?.id,
     };
-    setFixtures(autoPatch([...fixtures, fx], controllers, settings));
+    setFixtures(autoPatch([...fixtures, fx], controllers, patchPolicy));
     handleSelectFixture(newId);
   };
 
   const handleRemoveFixture = (id: string) => {
     recordHistory();
-    setFixtures(autoPatch(fixtures.filter(f => f.id !== id), controllers, settings));
+    setFixtures(autoPatch(fixtures.filter(f => f.id !== id), controllers, patchPolicy));
     setSelectedFixtureIds(prev => prev.filter(x => x !== id));
     if (selectedFixtureId === id) setSelectedFixtureId(null);
   };
@@ -604,12 +607,12 @@ const App: React.FC = () => {
     recordHistory();
     const mapped = fixtures.map(f => f.id === id ? { ...f, ...updates } : f);
     const repatch = REPATCH_KEYS.some(k => k in updates);
-    const next = repatch ? autoPatch(mapped, controllers, settings) : mapped;
+    const next = repatch ? autoPatch(mapped, controllers, patchPolicy) : mapped;
     dropTakenOverLegs({ surfaces, fixtures, globalBrightness }, { surfaces, fixtures: next, globalBrightness });
     setFixtures(next);
   };
 
-  const handleAutoPatch = () => setFixtures(autoPatch(fixtures, controllers, settings));
+  const handleAutoPatch = () => setFixtures(autoPatch(fixtures, controllers, patchPolicy));
 
   // --- Controllers (output devices) ---
   const handleAddController = () => {
@@ -621,12 +624,12 @@ const App: React.FC = () => {
   const handleUpdateController = (id: string, patch: Partial<Controller>) => {
     const next = controllers.map(c => c.id === id ? { ...c, ...patch } : c);
     setControllers(next);
-    if ('startUniverse' in patch) setFixtures(autoPatch(fixtures, next, settings));
+    if ('startUniverse' in patch) setFixtures(autoPatch(fixtures, next, patchPolicy));
   };
   const handleRemoveController = (id: string) => {
     const next = controllers.filter(c => c.id !== id);
     setControllers(next);
-    setFixtures(autoPatch(fixtures.map(f => f.controllerId === id ? { ...f, controllerId: undefined } : f), next, settings));
+    setFixtures(autoPatch(fixtures.map(f => f.controllerId === id ? { ...f, controllerId: undefined } : f), next, patchPolicy));
   };
 
   const handleRenameFixture = (id: string, newName: string) => {
@@ -1183,7 +1186,7 @@ const App: React.FC = () => {
       surfaces,
       fixtures,
       controllers,
-      settings,
+      reserveLockedRanges: patchPolicy.reserveLockedRanges,
       globalBrightness,
       groups,
       scenes,
@@ -1212,7 +1215,16 @@ const App: React.FC = () => {
           // garbage — coerce it back to undefined so Stage's `segments.map` can't throw on load.
           setFixtures(data.fixtures.map((f: any) => ({ ...f, colorData: [], surfaceId: f.surfaceId ?? surf[0]?.id, segments: Array.isArray(f.segments) ? f.segments : undefined })));
       }
-      if (data?.settings) setSettings(prev => ({ ...prev, ...data.settings }));
+      // ── A PROJECT DOES NOT RECONFIGURE THE BUILDING ────────────────────────────────────────────────
+      // `settings` is NOT read from the file, and `buildProjectData` no longer writes it. AppSettings is
+      // the MACHINE — the sound card, the Art-Net target, the OSC port — and `Prefs.appSettings` already
+      // persists it per-machine. Carrying a second copy in the .artlux meant OPENING A SHOW REPATCHED THE
+      // VENUE: a project authored in binaural/2ch flipped an octagon/8ch rig to a headphone mix, and
+      // :2411 wrote that back to prefs so it stuck.
+      //
+      // Legacy files still HAVE a `settings` key. It is deliberately ignored — that is the fix, not an
+      // oversight. The one show-scoped field it used to hold is rescued by readPatchPolicy() below.
+      setPatchPolicy(readPatchPolicy(data));
       if (typeof data?.globalBrightness === 'number') setGlobalBrightness(data.globalBrightness);
       setControllers(Array.isArray(data?.controllers) ? data.controllers : []);
       setGroups(Array.isArray(data?.groups) ? data.groups : []);
@@ -1386,10 +1398,15 @@ const App: React.FC = () => {
   // them clean. The two functions are two halves of one contract — and they had drifted badly.
   //
   // The old comment here said *"Keeps settings/scene3D/timeline (matches prior New behavior)."* It names
-  // three fields. **Only `settings` is right** — and it earns its exemption honestly: OPEN *merges* it
-  // (`{...prev, ...data.settings}`) rather than replacing it, because it is the audio device and the OSC
-  // port, i.e. the machine, not the show. `scene3D` and `timeline` are the show, and keeping them meant a
-  // brand-new project opened holding the last one.
+  // three fields. **Only `settings` is right** — and at the time this comment was written it earned its
+  // exemption honestly: OPEN *merged* it (`{...prev, ...data.settings}`) rather than replacing it, because
+  // it is the audio device and the OSC port, i.e. the machine, not the show. `scene3D` and `timeline` are
+  // the show, and keeping them meant a brand-new project opened holding the last one.
+  //
+  // P6 (Task 2) removed that merge outright: `settings` is now the ONE field that never round-trips
+  // through this contract at all — `buildProjectData` doesn't write it and `applyProjectData` doesn't read
+  // it, so there is nothing here for `resetToNewProject` to reset or return. See AppSettings' header in
+  // types.ts and `ProjectData.settings`'s tombstone in shared/protocol.ts.
   //
   // ⚠ IT RETURNS THE OVERRIDES, AND THAT IS THE POINT. `buildProjectData()` reads REACT STATE, and the
   // caller runs it in the SAME SYNCHRONOUS HANDLER as this function — so none of the setStates below have
@@ -1530,15 +1547,20 @@ const App: React.FC = () => {
       setGlobalBrightness(1);
       setProjectorFpsCap(0);
       setProjectorBrightness(1);
+      // The patch policy is show state too (see the PatchPolicy header in types.ts) — reset it with the
+      // rest, or a brand-new project would inherit the outgoing show's "reserve locked ranges" flag.
+      setPatchPolicy({ reserveLockedRanges: false });
       // ── AND THE DOCUMENT THAT DESCRIBES ALL OF IT (see the header) ───────────────────────────────────
-      // Every field buildProjectData() writes, except `version`/`timestamp` (minted fresh on each save) and
-      // `settings` (the machine, not the show). If you add a field to buildProjectData, add it here — tsc will
-      // NOT catch its absence, because this is a widening spread into an `any`-shaped payload.
+      // Every field buildProjectData() writes, except `version`/`timestamp` (minted fresh on each save).
+      // buildProjectData() no longer writes `settings` at all (the machine, not the show — see AppSettings'
+      // header) so there is nothing left to except for it. If you add a field to buildProjectData, add it
+      // here too — tsc will NOT catch its absence, because this is a widening spread into an `any`-shaped
+      // payload. This list has already drifted from buildProjectData three times; don't make it four.
       return {
           surfaces: st.surfaces, fixtures: st.fixtures, controllers: [], groups: [], scenes: [],
           cueBanks: st.cueBanks, stateMachine: defaultStateMachine(), projectorOutputs: [], assets: [],
           timeline: emptyTl, audio: emptyMix, schedule: [], scene3D: defaultScene3D(),
-          globalBrightness: 1, projectorFpsCap: 0, projectorBrightness: 1,
+          globalBrightness: 1, projectorFpsCap: 0, projectorBrightness: 1, reserveLockedRanges: false,
       };
   };
 
@@ -2365,6 +2387,12 @@ const App: React.FC = () => {
       const mode = HEADLESS ? 'headless' : 'broadcast';
       (async () => {
           const prefs = await window.artlux?.getPrefs?.();
+          // AppSettings is the MACHINE — the sound card, the Art-Net target, the OSC port — and prefs are where
+          // it lives. Broadcast/headless never restored it: it used to arrive (wrongly) inside the project file,
+          // and now that a project no longer carries it, THIS IS THE ONLY SOURCE. Without it the show machine
+          // runs on DEFAULT_SETTINGS — Art-Net unicast to 127.0.0.1, and audio falling back to binaural/2ch on
+          // whatever rig is actually plugged in. This is the one mode a venue actually runs.
+          if (prefs?.appSettings) setSettings(s => ({ ...s, ...(prefs.appSettings as Partial<AppSettings>) }));
           const path = QUERY_PROJECT || prefs?.lastProjectPath;
           if (!path) { console.warn(`[${mode}] no project to load`); return; }
           const data = await window.artlux?.loadProjectPath?.(path);
@@ -2376,7 +2404,7 @@ const App: React.FC = () => {
 
   // Restore persisted prefs (settings + master brightness + recents + last project) on launch.
   useEffect(() => {
-      if (SHOW_ENGINE) return; // broadcast/headless own project loading (above); no editor prefs/layout to restore
+      if (SHOW_ENGINE) return; // broadcast/headless restore AppSettings themselves (above, before project load); the rest of this effect is editor-only UI state (layout, recents, templates) that show mode has no use for
       (async () => {
           const prefs = await window.artlux?.getPrefs?.();
           if (!prefs) return;
@@ -2866,12 +2894,14 @@ const App: React.FC = () => {
           surfaces={surfaces}
           controllers={controllers}
           settings={settings}
+          patchPolicy={patchPolicy}
           onUpdateFixture={handleUpdateFixture}
           onAddController={handleAddController}
           onUpdateController={handleUpdateController}
           onRemoveController={handleRemoveController}
           onAutoPatch={handleAutoPatch}
           onUpdateSettings={updateSettings}
+          onUpdatePatchPolicy={(p) => setPatchPolicy(prev => ({ ...prev, ...p }))}
       />
 
       {timelineMax && (

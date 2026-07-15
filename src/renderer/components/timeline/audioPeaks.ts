@@ -67,10 +67,11 @@ const notify = () => { for (const cb of subs) { try { cb(); } catch { /* a bad s
 
 // ⚠ OfflineAudioContext, NOT AudioContext. A live AudioContext OPENS AN OUTPUT STREAM ON THE DEFAULT
 // DEVICE — and this app's entire audio path is a native JUCE engine driving that same device
-// (audioClient.configure(channels, mode, layout)). On a rig where the engine takes the device exclusively
-// (or via ASIO), a stray Chromium output handle can make the engine's configure() fail to open it — and
-// the failure surfaces as NO AUDIO AT ALL, with the waveforms drawing perfectly. Peaks need decoding, not
-// output, and decodeAudioData lives on BaseAudioContext, so an offline context has it. Zero devices.
+// (audioClient.configure({ deviceType, deviceName, channels, sampleRate, bufferSize, mode, layout })).
+// On a rig where the engine takes the device exclusively (or via ASIO), a stray Chromium output handle
+// can make the engine's configure() fail to open it — and the failure surfaces as NO AUDIO AT ALL, with
+// the waveforms drawing perfectly. Peaks need decoding, not output, and decodeAudioData lives on
+// BaseAudioContext, so an offline context has it. Zero devices.
 let ctx: OfflineAudioContext | null = null;      // lazily created: one per decode would be wasteful
 
 // Kick off a decode for `path` if we don't have it. Fire-and-forget.
