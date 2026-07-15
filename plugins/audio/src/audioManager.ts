@@ -40,10 +40,30 @@ export interface AudioEffectSpec {
 export type OutputMode = 'binaural' | 'speakers';
 export type SpeakerLayout = 'stereo' | 'quad' | '5.0' | '5.1' | '7.0' | '7.1' | 'hexagon' | 'octagon' | 'cube';
 
+// The setup we ASK the engine for. An absent deviceName means "that driver type's default device" —
+// today's behaviour, preserved. sampleRate/bufferSize of 0 mean "the device's default".
+export interface DeviceCfg {
+  deviceType?: string;
+  deviceName?: string;
+  channels?: number;
+  sampleRate?: number;
+  bufferSize?: number;
+  mode?: OutputMode;
+  layout?: SpeakerLayout;
+}
+// What the engine ACTUALLY OPENED — not what we asked for. A stereo card asked for 8 channels reports 2
+// back. The UI must render THIS, or Preferences describes a rig that does not exist.
+export interface OpenedCfg {
+  deviceName: string; deviceType: string; sampleRate: number; bufferSize: number; channels: number;
+}
+// One physical interface appears once PER DRIVER TYPE. That is the point: the type is what decides whether
+// you get discrete multichannel (WASAPI *exclusive*) or a shared mix (WASAPI shared).
+export interface DeviceEntry { type: string; name: string; isDefault: boolean }
+
 interface NativeAudio {
   juceVersion(): string;
-  configure(outputChannels: number, mode: string, layout: string): string; // → opened device name; throws on failure
-  getDevices(): string[];
+  configure(cfg: DeviceCfg): OpenedCfg; // throws on failure
+  getDevices(): DeviceEntry[];
   loadClip(id: string, path: string): ClipMeta; // throws if no decoder / file missing
   unloadClip(id: string): void;
   playClip(id: string, seekSec: number, gain: number): void;
@@ -90,10 +110,9 @@ console.log(
 );
 
 // Thin, null-safe wrappers. Every call is a no-op (sensible default) when the engine is absent.
-export function configure(outputChannels: number, mode: OutputMode = 'binaural', layout: SpeakerLayout = 'stereo'): string {
-  return native ? native.configure(outputChannels, mode, layout) : '';
-}
-export function getDevices(): string[] { return native ? native.getDevices() : []; }
+const NO_DEVICE: OpenedCfg = { deviceName: '', deviceType: '', sampleRate: 0, bufferSize: 0, channels: 0 };
+export function configure(cfg: DeviceCfg): OpenedCfg { return native ? native.configure(cfg) : NO_DEVICE; }
+export function getDevices(): DeviceEntry[] { return native ? native.getDevices() : []; }
 export function loadClip(id: string, path: string): ClipMeta | null { return native ? native.loadClip(id, path) : null; }
 export function unloadClip(id: string): void { native?.unloadClip(id); }
 export function playClip(id: string, seekSec: number, gain: number): void { native?.playClip(id, seekSec, gain); }

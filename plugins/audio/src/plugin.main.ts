@@ -14,11 +14,9 @@ export const plugin: MainPlugin = {
     const { ipc } = ctx;
 
     // Reply channels (renderer invoke). configure/loadClip may throw in the addon → the invoke rejects.
-    ipc.handle('audio:configure', (ch, mode, layout) => engine.configure(
-      typeof ch === 'number' ? ch : 2,
-      (mode === 'speakers' ? 'speakers' : 'binaural'),
-      (typeof layout === 'string' ? layout : 'stereo') as engine.SpeakerLayout,
-    ));
+    // configure(cfg) — the WHOLE setup in one object (type, device, channels, rate, buffer, mode, layout).
+    // Returns what was ACTUALLY opened, which can differ from what was asked.
+    ipc.handle('audio:configure', (cfg) => engine.configure((cfg ?? {}) as engine.DeviceCfg));
     ipc.handle('audio:getDevices', () => engine.getDevices());
     ipc.handle('audio:getMeters', () => engine.getMeters());
     // Is the native engine actually loaded? `available` was exported and unconsumed — the renderer had to

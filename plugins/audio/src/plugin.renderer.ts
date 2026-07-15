@@ -43,7 +43,10 @@ import {
   applyClipLayers, applyBusLayers, hasAnyOverride, takeDirty, boundGain,
 } from './automationTargets';
 
-interface AudioPluginCfg { outputChannels?: number; outputMode?: OutputMode; speakerLayout?: SpeakerLayout }
+interface AudioPluginCfg {
+  outputChannels?: number; outputMode?: OutputMode; speakerLayout?: SpeakerLayout;
+  deviceType?: string; deviceName?: string; sampleRate?: number; bufferSize?: number;
+}
 
 // Minimal structural view of the two persisted containers the driver reads (host.audio.getMix() and
 // host.audio.getTimelineAudio()). The concrete AudioMix/TimelineAudio live in the host types; we only read
@@ -62,6 +65,7 @@ const SYNC_THRESHOLD = 0.05; // s — per-clip source-offset drift (retime / mis
 
 let unsubTick: (() => void) | null = null;
 let unsubMix: (() => void) | null = null;
+let unsubCfg: (() => void) | null = null;
 
 // The fallbacks for a junk container, as SHARED FROZEN CONSTANTS — never fresh literals. readTlAudio runs
 // EVERY FRAME and pruneOrphans gates on the clip array's IDENTITY, so a fresh `[]` per call would defeat
@@ -109,12 +113,33 @@ export const plugin: RendererPlugin = {
     setAudioHost(host); // let the Audio Bed panel reach host.audio/host.show
     ctx.automationTargets.register(audioAutomationProvider); // the 'audio.*' namespace: bed gain/position/effect params
 
-    // Open the device once on startup (default device, persisted channel count). Idempotent engine-side.
-    const s0 = host.settings.get() as { plugins?: Record<string, unknown> };
-    const cfg = (s0.plugins?.['audio'] as AudioPluginCfg) ?? {};
-    void audioClient
-      .configure(cfg.outputChannels ?? 2, cfg.outputMode ?? 'binaural', cfg.speakerLayout ?? 'stereo')
-      .catch(() => { /* engine absent → no-op */ });
+    // Open the device from the MACHINE's persisted setup (AppSettings is machine-scoped — see types.ts; a
+    // project can no longer overwrite this), and RE-OPEN it whenever that setup changes.
+    //
+    // ⚠ NOT a one-shot startup configure. In the main editor window that would be masked (opening
+    // Preferences ▸ Audio mounts AudioSettings, whose own mount effect re-applies) — but in broadcast/
+    // headless there is no Preferences panel, and the machine's real settings arrive ASYNCHRONOUSLY (a
+    // prefs load) AFTER this activate() has already run once against DEFAULT_SETTINGS (which has no
+    // `plugins` key). Without a subscription the engine would sit at binaural/2ch forever, and an
+    // 8-speaker venue rig launched with --broadcast would play a stereo downmix. So: apply once now, from
+    // whatever settings are live (defaults, most likely), and again every time settings change —
+    // key-diffed so an unrelated settings edit (a totally different plugin's slice) never re-issues
+    // configure(). configure() is idempotent engine-side, but the diff also skips the IPC round-trip.
+    let lastCfgKey = '';
+    const applyDeviceCfg = () => {
+      const s = host.settings.get() as { plugins?: Record<string, unknown> };
+      const c = (s.plugins?.['audio'] as AudioPluginCfg) ?? {};
+      const key = JSON.stringify([c.deviceType, c.deviceName, c.outputChannels, c.sampleRate, c.bufferSize, c.outputMode, c.speakerLayout]);
+      if (key === lastCfgKey) return;
+      lastCfgKey = key;
+      void audioClient.configure({
+        deviceType: c.deviceType, deviceName: c.deviceName,
+        channels: c.outputChannels ?? 2, sampleRate: c.sampleRate ?? 0, bufferSize: c.bufferSize ?? 0,
+        mode: c.outputMode ?? 'binaural', layout: c.speakerLayout ?? 'stereo',
+      }).catch(() => { /* engine absent → no-op */ });
+    };
+    applyDeviceCfg();                                          // startup
+    unsubCfg = host.settings.subscribe(applyDeviceCfg);        // and on every settings change
 
     // ── Audio scheduler: TWO containers, TWO clocks ───────────────────────────────────────────
     let bed: Bed = readBed(host);            // ProjectData.audio — the BED. Show clock.
@@ -711,6 +736,7 @@ export const plugin: RendererPlugin = {
   deactivate(): void {
     unsubTick?.(); unsubTick = null;
     unsubMix?.(); unsubMix = null;
+    unsubCfg?.(); unsubCfg = null;
     audioClient.stopAll();
   },
 };

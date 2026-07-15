@@ -1,12 +1,19 @@
-// Audio settings section (Preferences ▸ Audio). Engine status, output channel count, how the ambisonic
-// field is rendered (binaural HRTF for headphones, or a decode to a real speaker layout), a live
-// per-channel meter, and the detected output devices. Talks to the main-process engine via audioClient.
+// Audio settings section (Preferences ▸ Audio). Engine status, an output device picker (grouped by driver
+// type), sample rate / buffer size, how the ambisonic field is rendered (binaural HRTF for headphones, or a
+// decode to a real speaker layout), and a live per-channel meter. Talks to the main-process engine via
+// audioClient. Every readout renders what the engine ACTUALLY OPENED, not what was requested.
 import React, { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { audioClient } from './audioClient';
-import type { OutputMode, SpeakerLayout } from './audioManager';
+import type { DeviceEntry, OpenedCfg, OutputMode, SpeakerLayout } from './audioManager';
 
-interface AudioCfg { outputChannels?: number; outputMode?: OutputMode; speakerLayout?: SpeakerLayout }
+interface AudioCfg {
+  outputChannels?: number; outputMode?: OutputMode; speakerLayout?: SpeakerLayout;
+  deviceType?: string; deviceName?: string; sampleRate?: number; bufferSize?: number;
+}
+
+const SAMPLE_RATES = [0, 44100, 48000, 88200, 96000];
+const BUFFER_SIZES = [0, 128, 256, 512, 1024];
 
 // name → speaker count, so the UI can warn when a layout needs more channels than the device is opened with.
 const LAYOUTS: { id: SpeakerLayout; label: string; speakers: number }[] = [
@@ -29,9 +36,12 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
   const mode: OutputMode = cfg.outputMode ?? 'binaural';
   const layout: SpeakerLayout = cfg.speakerLayout ?? 'stereo';
 
-  const [devices, setDevices] = useState<string[]>([]);
+  const [devices, setDevices] = useState<DeviceEntry[]>([]);
   const [device, setDevice] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  // WHAT WE ACTUALLY GOT, not what we asked for. A stereo card asked for 8 channels opens with 2, and a
+  // panel that renders the REQUEST describes a rig that does not exist. Every readout below reads this.
+  const [opened, setOpened] = useState<OpenedCfg | null>(null);
   // THE REAL SIGNAL. This used to be inferred from configure() returning an empty device name — a guess
   // derived from a side effect, and the reason a dead engine was never surfaced anywhere an operator
   // would look. Defaults true so the warning never flashes while the probe is in flight.
@@ -45,16 +55,20 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
   const [meter, setMeter] = useState<{ peaks: number[]; speakers: number }>({ peaks: [], speakers: 0 });
   const holds = useRef<number[]>([]);
 
-  const apply = (ch: number, m: OutputMode, l: SpeakerLayout) =>
-    audioClient.configure(ch, m, l)
-      .then((name) => { setDevice(name); setError(null); })
+  const apply = (c: AudioCfg) =>
+    audioClient.configure({
+      deviceType: c.deviceType, deviceName: c.deviceName,
+      channels: c.outputChannels ?? 2, sampleRate: c.sampleRate ?? 0, bufferSize: c.bufferSize ?? 0,
+      mode: c.outputMode ?? 'binaural', layout: c.speakerLayout ?? 'stereo',
+    })
+      .then((got) => { setOpened(got); setDevice(got.deviceName); setError(null); })
       .catch((e) => setError(String(e?.message ?? e)));
 
   useEffect(() => {
     let live = true;
     audioClient.available().then((v) => { if (live) setEngineUp(v); }).catch(() => {});
     audioClient.getDevices().then((d) => { if (live) setDevices(d ?? []); }).catch(() => {});
-    void apply(outCh, mode, layout); // idempotent engine-side; returns the open device
+    void apply(cfg); // idempotent engine-side; returns the setup actually opened
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -77,9 +91,13 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
   const patchCfg = (p: AudioCfg) =>
     onChange({ plugins: { ...(settings?.plugins ?? {}), audio: { ...cfg, ...p } } });
 
-  const setChannels = (ch: number) => { patchCfg({ outputChannels: ch }); void apply(ch, mode, layout); };
-  const setMode = (m: OutputMode) => { patchCfg({ outputMode: m }); void apply(outCh, m, layout); };
-  const setLayout = (l: SpeakerLayout) => { patchCfg({ speakerLayout: l }); void apply(outCh, mode, l); };
+  // Every picker patches the cfg and re-applies the WHOLE thing — the engine's guard now keys on the whole
+  // setup, so it reopens only when something actually changed.
+  const patchAndApply = (p: AudioCfg) => { patchCfg(p); void apply({ ...cfg, ...p }); };
+
+  const setChannels = (ch: number) => patchAndApply({ outputChannels: ch });
+  const setMode = (m: OutputMode) => patchAndApply({ outputMode: m });
+  const setLayout = (l: SpeakerLayout) => patchAndApply({ speakerLayout: l });
 
   // `available` is GONE, and its removal is the fix. It was `engineUp && !error` — a single boolean standing
   // in for a question that has THREE answers (no addon / no device / running), and it collapsed the one that
@@ -137,12 +155,11 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
                 ? 'Reconnect the interface, then press Reconnect. Sound returns with no restart.'
                 : 'Connect an output device, then press Reconnect.'}
             </div>
-            {/* THE RECOVERY GESTURE, WHICH DID NOT EXIST. configure() takes (channels, mode, layout) and opens
-                the DEFAULT device — there is no device picker anywhere in this panel, so "just pick it again"
-                was never actually possible. The only lever an operator had was to change the channel count and
-                change it back, and even THAT did nothing until the `opened` guard learned to invalidate itself
-                (engine.cpp). This button is that lever, named. */}
-            <button onClick={() => void apply(outCh, mode, layout)}
+            {/* THE RECOVERY GESTURE, WHICH DID NOT EXIST. configure() used to take (channels, mode, layout) and
+                open the DEFAULT device — there was no device picker anywhere in this panel, so "just pick it
+                again" was never actually possible. It now re-opens the NAMED device (cfg.deviceType/deviceName),
+                so the recovery gesture finally reaches the interface that actually vanished. */}
+            <button onClick={() => void apply(cfg)}
               className="inline-flex items-center gap-1.5 px-2 h-7 rounded border border-danger/40 bg-danger/10 text-danger text-mini hover:bg-danger/20">
               <RefreshCw size={12} /> Reconnect
             </button>
@@ -152,6 +169,46 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
           <div className="text-mini text-warn">Audio engine unavailable — {error}. Playback is disabled.</div>
         ) : (
           <div className="text-mini text-fg-3">Native JUCE + ambisonic engine active · output device: <span className="text-fg-1">{device || 'default'}</span></div>
+        )}
+      </div>
+
+      <div>
+        <div className="text-mini font-semibold text-fg-2 mb-1">Output device</div>
+        <select
+          value={`${cfg.deviceType ?? ''} ${cfg.deviceName ?? ''}`}
+          onChange={(e) => {
+            const [deviceType, deviceName] = e.target.value.split(' ');
+            patchAndApply({ deviceType, deviceName });
+          }}
+          className="w-full bg-surface-2 border border-line-1 rounded px-1.5 h-6 text-mini text-fg-1 outline-none"
+        >
+          <option value={' '}>System default</option>
+          {Object.entries(devices.reduce<Record<string, DeviceEntry[]>>((acc, d) => {
+            (acc[d.type] ??= []).push(d); return acc;
+          }, {})).map(([type, ds]) => (
+            <optgroup key={type} label={type}>
+              {ds.map((d) => (
+                <option key={`${type} ${d.name}`} value={`${type} ${d.name}`}>
+                  {d.name}{d.isDefault ? ' (default)' : ''}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+        {/* ── THE SENTENCE THAT MAKES MULTICHANNEL POSSIBLE ────────────────────────────────────────────────
+            An operator cannot be expected to know that "Windows Audio" and "Windows Audio (Exclusive Mode)"
+            are the difference between a stereo downmix and eight discrete outputs. The dropdown groups by
+            driver type; this says what the groups MEAN. Do not shorten it to "choose a device". */}
+        <div className="text-micro text-fg-3 mt-1">
+          Devices are grouped by <span className="text-fg-2">driver type</span>. For a multichannel interface
+          choose <span className="text-fg-2">Exclusive Mode</span> — it hands ArtLux the card's discrete outputs.
+          Shared mode routes through the Windows mixer and will usually give you stereo, whatever the card can do.
+        </div>
+        {opened && (
+          <div className="text-micro text-fg-3 mt-1">
+            Open: <span className="text-fg-1">{opened.deviceName || 'default'}</span> ·{' '}
+            {opened.channels} ch · {(opened.sampleRate / 1000).toFixed(1)} kHz · {opened.bufferSize} samples
+          </div>
         )}
       </div>
 
@@ -195,30 +252,43 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
             </button>
           ))}
         </div>
-        <div className="text-micro text-fg-3 mt-1">Uses the system default output device.</div>
+        <div className="text-micro text-fg-3 mt-1">Requested — see &quot;Open:&quot; above for what the device actually gave.</div>
+      </div>
+
+      <div>
+        <div className="text-mini font-semibold text-fg-2 mb-1">Sample rate</div>
+        <div className="flex items-center gap-1">
+          {SAMPLE_RATES.map((r) => (
+            <button key={r} onClick={() => patchAndApply({ sampleRate: r })}
+              className={`px-2 h-6 rounded text-mini border ${(cfg.sampleRate ?? 0) === r ? 'bg-accent text-black border-transparent' : 'bg-surface-2 text-fg-2 border-line-1 hover:text-fg-1'}`}>
+              {r === 0 ? 'Device default' : `${(r / 1000).toFixed(1)} kHz`}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <div className="text-mini font-semibold text-fg-2 mb-1">Buffer size</div>
+        <div className="flex items-center gap-1">
+          {BUFFER_SIZES.map((b) => (
+            <button key={b} onClick={() => patchAndApply({ bufferSize: b })}
+              className={`px-2 h-6 rounded text-mini border ${(cfg.bufferSize ?? 0) === b ? 'bg-accent text-black border-transparent' : 'bg-surface-2 text-fg-2 border-line-1 hover:text-fg-1'}`}>
+              {b === 0 ? 'Device default' : `${b} samples`}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div>
         <div className="text-mini font-semibold text-fg-2 mb-1">Meters</div>
         <div className="space-y-0.5">
-          {Array.from({ length: Math.max(2, Math.min(outCh, 8)) }).map((_, i) => (
+          {Array.from({ length: Math.max(2, Math.min(opened?.channels ?? outCh, 8)) }).map((_, i) => (
             <div key={i} className="flex items-center gap-1.5">
               <span className="text-micro text-fg-3 w-4 tabular-nums">{i + 1}</span>
               <div className="flex-1 h-1.5 rounded bg-surface-2 overflow-hidden">
                 <div className="h-full bg-accent transition-[width] duration-75" style={{ width: pct(meter.peaks[i] ?? 0) }} />
               </div>
             </div>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <div className="text-mini font-semibold text-fg-2 mb-1">Detected output devices ({devices.length})</div>
-        <div className="space-y-0.5 max-h-24 overflow-auto">
-          {devices.length === 0 ? (
-            <div className="text-micro text-fg-3 italic">None enumerated.</div>
-          ) : devices.map((d) => (
-            <div key={d} className={`text-micro px-1.5 py-0.5 rounded ${d === device ? 'bg-accent/20 text-fg-1' : 'text-fg-3'}`}>{d}</div>
           ))}
         </div>
       </div>
