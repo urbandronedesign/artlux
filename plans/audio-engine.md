@@ -99,7 +99,7 @@ There is **no** keyframe/envelope system today (verified: zero hits for automati
 - A `SettingsSection` (device selection, channel count, **output mode** = binaural-stereo vs speaker-layout, speaker-layout definition, ambisonic order), persisted under `AppSettings.plugins['audio']` (self-defaulted, the [ShowControlSettings.tsx:13-18](../plugins/show-control/src/ShowControlSettings.tsx#L13) idiom).
 
 ### WS9 · Build / packaging / licensing
-- New **C++/CMake** build path: node-addon-api + node-gyp/CMake, `electron-rebuild` for Electron 42's ABI; extend `scripts/copy-native.cjs` + electron-builder `extraResources`; per-OS CI. COOP/COEP **not** needed (native path, no AudioWorklet/SharedArrayBuffer). **Licensing:** JUCE Starter is free under $20k/yr revenue (else $800 perpetual Indie / AGPLv3); libspatialaudio is LGPL-2.1 (dynamic-link or comply). Record obligations in `README.md`/`NOTICE`.
+- New **C++/CMake** build path: node-addon-api + node-gyp/CMake, `electron-rebuild` for Electron 42's ABI; extend `scripts/copy-native.cjs` + electron-builder `extraResources`; per-OS CI. COOP/COEP **not** needed (native path, no AudioWorklet/SharedArrayBuffer). **Licensing:** JUCE is dual-licensed (commercial or AGPLv3); libspatialaudio is LGPL-2.1 (dynamic-link or comply). See [`NOTICE`](../NOTICE) and juce.com for current terms — specific tier/revenue figures were purged from this plan during the licensing pass as unverifiable from memory; a confidently-wrong licence figure is worse than none.
 
 ## ⚠️ Breaking changes (warn loudly)
 - **Persisted `.artlux`:** all additive optional (`ProjectData.audio`, `Timeline` audio lane + automation, per-clip audio fields) with `normalize*()` defaults ⇒ **old projects load unchanged, no version bump** ([types.ts normalize pattern](../src/renderer/types.ts#L351)). New `AssetType`/category is additive.
@@ -113,8 +113,8 @@ Blast radius (grepped): `timeline.ts` `frame()` (new per-frame automation sample
 1. **Audio↔video sync / drift** — the hardest real-time problem; mitigated by curve-ahead scheduling + periodic playhead re-sync (projector phase-lock pattern).
 2. **New C++/JUCE toolchain × 3 OSes** — build/ABI friction (EBUSY-class rebuild pain, on top of the existing Rust flow); the single biggest engineering cost.
 3. **The automation-curve engine is itself a large new core subsystem** (data model + sampler + editor UI) with value beyond audio.
-4. **Licensing gate** (JUCE $20k threshold) + **LGPL compliance** (libspatialaudio linkage).
-5. **Headless audio** — headless doesn't drive transport today ([HeadlessRunner.tsx:95](../src/renderer/HeadlessRunner.tsx#L95)); unattended audio installs need explicit headless wiring + a device.
+4. **Licensing gate** (JUCE dual-license election — see [`NOTICE`](../NOTICE) / juce.com) + **LGPL compliance** (libspatialaudio linkage).
+5. **Headless audio** — headless boots the full App ([main/index.ts](../src/main/index.ts)) with `?headless=1`; the plugin host activates as `'main'` and the audio plugin opens the device on activation, same as any other window. **Verified in P6.**
 Singleton/barrel hazard applies to `plugins/audio`. WebGPU/WebGL parity: N/A.
 
 ## Migration & back-compat
@@ -136,13 +136,13 @@ Additive optional fields + `normalize*()` defaults; `ProjectData.version` stays 
 - **P3:** effect chains (juce_dsp) + effect params.
 - **P4:** the core automation-curve engine + timeline automation lanes.
 - **P5:** scene/state binding (paramPath) + global-bed/per-scene scoping.
-- **P6:** multichannel hardening (ASIO, speaker layouts), headless wiring, packaging/CI/licensing.
+- **P6 (complete):** multichannel hardening (ASIO, speaker layouts), headless wiring, packaging/CI/licensing.
 Ship P0–P1 behind the graceful-degrade loader so the tree stays releasable throughout.
 
 ## Open questions / decisions
 1. **Ambisonic order** — 1st-order (cheap, 4ch bus, fine for ≤8 speakers) vs 3rd-order (16ch, sharper imaging)? Recommend **1st-order** for v1.
 2. **libspatialaudio vs SAF** — start with libspatialaudio (LGPL, simpler); keep SAF (Spatial_Audio_Framework) as an upgrade path for higher-order decoders.
-3. **JUCE license** — confirm the org stays under $20k (free Starter) or budget the **$800 perpetual Indie**; avoid AGPL (viral).
+3. **JUCE license** — elect a tier per current terms at [`NOTICE`](../NOTICE) / juce.com (figures not restated here — see the licensing-pass rationale in WS9); avoid AGPL (viral).
 4. **Per-scene audio crossfade** — the one-transport invariant gives no true cross-scene audio dissolve today; accept restart-on-swap for per-scene one-shots, keep continuous material on the global bed.
 5. **Automation-curve engine ownership** — build it as a **general core feature** (usable for non-audio params later) rather than audio-only? Recommend yes.
 6. **mp3 decode** — JUCE mp3 needs an enable flag/format; confirm we ship wav/flac/ogg first and gate mp3.
