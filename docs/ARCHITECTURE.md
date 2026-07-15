@@ -37,7 +37,7 @@ Per animation frame, `components/Stage.tsx` `tick()`:
    arrays applying **color order** + **gamma LUT** + **channels-per-pixel** (RGB/RGBW), spanning the
    512 boundary as needed. Destinations are resolved per fixture from its **controller** → per-fixture
    `output` override → global settings, keyed by `${protocol}|${ip}|${broadcast}`.
-4. **Publish** — `dmxSignal.publish(pixels, destinations)`; `App`/`HeadlessRunner` subscribe and call
+4. **Publish** — `dmxSignal.publish(pixels, destinations)`; `App` subscribes and calls
    `window.artlux.sendArtNet(encodeFrame(targets))` → IPC `dmx:frame` → main → `outputManager`.
 
 ## GPU mapper (`src/renderer/gpu/WebGPUMapper.ts`)
@@ -121,9 +121,12 @@ so they persist and collect. The renderer reads a path → blob URL once via the
 `services/timeline.ts` and `services/surfaceMedia.ts`.
 
 ## Headless (`--headless --project=<path>`)
-`src/main/index.ts` parses CLI args; a hidden GPU window (`backgroundThrottling:false`) loads a second
-renderer entry (`headless.html`/`headless.tsx`/`HeadlessRunner.tsx`) that mounts only the Stage
-compute + output loop — no UI/3D/monitor. Used for low-overhead runs and automated output tests.
+`src/main/index.ts` parses CLI args; a hidden GPU window (`backgroundThrottling:false`) loads the **full
+App** entry (`index.html`) with `?headless=1`. `App` gates on that flag to suppress projector/NDI output
+and editor chrome, so headless is *hidden compute + Art-Net (and audio) only* — but it runs the real
+plugin host, show engine, schedule tick and media playback, exactly like broadcast. (The old minimal
+`headless.html`/`headless.tsx`/`HeadlessRunner.tsx` fork was retired in P6 — it had no plugin host, which
+is why it drove no audio.) Used for low-overhead runs and automated output tests.
 
 ## Key files
 | Area | File |

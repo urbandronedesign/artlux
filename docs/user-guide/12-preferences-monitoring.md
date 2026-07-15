@@ -31,6 +31,25 @@ scrolling panel with collapsible sections.
 
 See [OSC.md](../OSC.md) for the full address map.
 
+**Audio** — the output device and the spatial rig (only when the native audio engine is built):
+
+- **Output device** — a dropdown **grouped by driver type**. On Windows the same interface appears under
+  *Windows Audio* (shared — routes through the Windows mixer, usually stereo) **and** *Windows Audio
+  (Exclusive Mode)* — pick **Exclusive Mode** for a multichannel rig; it hands ArtLux the card's discrete
+  outputs. **Sample rate** and **buffer size** pin the device; the *Open:* line reports what was **actually**
+  opened (a stereo card asked for 8 channels reports 2 back). **Reconnect** re-opens the named device after
+  a cable bump.
+- **Spatial output** — *Binaural* (headphones, HRTF) or *Speaker layout* (a real array: quad, 5.1, 7.1,
+  octagon, cube…).
+- **Speaker check** *(speaker mode)* — **hold** a speaker to hear pink noise from exactly that output, and
+  set which device **channel** each speaker is wired to. This is how you commission a ring whose speakers
+  aren't cabled 1:1 — see the walkthrough in [chapter 7 ▸ Commissioning a speaker rig](07-audio.md).
+- **Meters** — a live per-channel level meter.
+
+These settings are **per-machine** (they describe this computer's sound card), so they are stored in
+Preferences, not in the project — opening a show never re-patches the venue's audio. See
+[AUDIO.md ▸ Devices and speakers](../AUDIO.md) for the reference.
+
 ---
 
 ## DMX Monitor
