@@ -124,7 +124,10 @@ public:
     bformat.Configure(kAmbiOrder, true, (unsigned) blockSize);
     unsigned tail = 0;
     binauralOk = binaural.Configure(kAmbiOrder, true, (unsigned) sr, (unsigned) blockSize, tail);
-    configureDecoder();
+    // Build + install back-to-back, under this lock: safe here (and necessary — see the invariant note on
+    // setMode below) because this runs OFF the audio thread with the callback not yet attached. setMode,
+    // which runs WHILE the callback IS attached, builds outside the lock instead.
+    installDecode(buildDecode(layout, blockSize, sr));
 
     // Every chain is rebuilt from its specs: sample rate and block size may both have changed, and the
     // filter/delay/reverb states are sized from them.
@@ -146,11 +149,38 @@ public:
 
   // Switch how the B-format is rendered (binaural HRTF ↔ speaker-layout decode). Live: only the decoder
   // is reconfigured, so changing it never reopens the device or interrupts playback.
+  //
+  // Three phases, same shape as applyEffects below (read that function's comment — the order IS the
+  // design): decide under the lock, BUILD OUTSIDE it, swap under it again.
+  //
+  // ⚠ THE CHANGE-GUARD IS HALF THE VALUE ON ITS OWN. configure()'s idempotence guard calls
+  // bus.setMode(c.mode, c.layout) on EVERY call — including ones that change nothing about the device at
+  // all (an operator re-picking the same device/layout in Preferences, or any redundant configure()). Mode
+  // and layout are now a routine operator gesture (the P6 device picker), not a one-off — so without this
+  // guard, EVERY such call rebuilt the decoder (Configure() allocates internally, and speakerBuf.assign()
+  // below is a real heap allocation) WHILE HOLDING THE SAME LOCK the audio callback takes for the whole
+  // block, on every call, whether or not anything actually changed. Only an ACTUAL change proceeds past it.
   void setMode(OutMode m, const juce::String& layoutName) {
-    const juce::ScopedLock sl(lock);
-    mode = m;
-    layout = layoutName;
-    if (prepared) configureDecoder();
+    int block = 0;
+    double sr = 0.0;
+    {
+      const juce::ScopedLock sl(lock);
+      if (prepared && m == mode && layoutName == layout) return; // nothing changed — no rebuild, no allocation
+      mode = m;
+      layout = layoutName;
+      if (!prepared) return; // no device yet — prepareToPlay will build the decoder when one opens
+      block = maxBlock;
+      sr = sampleRate;
+    }
+    // OUTSIDE the lock: build the new decoder + speaker buffers for the (now-live) layout. `layout` is not
+    // re-read here on purpose — nothing else on this single N-API thread can change it before the swap
+    // below runs, so the value just written above is still exactly what was requested.
+    DecodeBuild built = buildDecode(layoutName, block, sr); // ← the expensive part, OUTSIDE the lock
+    DecodeBuild old;                                        // destroyed when this scope ends — outside the lock
+    {
+      const juce::ScopedLock sl(lock);
+      old = installDecode(std::move(built));
+    }
   }
   int speakerCount() { const juce::ScopedLock sl(lock); return nSpeakers; }
 
@@ -271,10 +301,10 @@ public:
         binaural.Process(&bformat, out, (unsigned) n);
         if (outCh > 0) info.buffer->addFrom(0, info.startSample, decodeL.data(), n);
         if (outCh > 1) info.buffer->addFrom(1, info.startSample, decodeR.data(), n);
-      } else if (mode == OutMode::Speakers && decoderOk && nSpeakers > 0) {
+      } else if (mode == OutMode::Speakers && decoderOk && decoder != nullptr && nSpeakers > 0) {
         for (int s = 0; s < nSpeakers; ++s)
           std::fill(speakerBuf[(size_t) s].begin(), speakerBuf[(size_t) s].begin() + n, 0.0f);
-        decoder.Process(&bformat, (unsigned) n, speakerPtrs.data());
+        decoder->Process(&bformat, (unsigned) n, speakerPtrs.data());
         for (int s = 0; s < nSpeakers; ++s) {
           const int dst = (s < (int) patch.size()) ? patch[(size_t) s] : s;   // decoder speaker → device channel
           if (dst >= 0 && dst < outCh)                                        // never write past the device
@@ -387,17 +417,46 @@ public:
     auto it = clips.find(id);
     return it == clips.end() ? nullptr : it->second.get();
   }
+  // First enable builds the encoder OUTSIDE the lock — same shape as applyEffects/setMode (decide under
+  // the lock, build outside it, swap under it again): AmbisonicEncoder::Configure() allocates, and dragging
+  // a source in the positioner UI can flip a clip's `spatial` on as a routine gesture, not a one-off. A
+  // MOVE (spatial already on) stays on the cheap SetPosition/Refresh path, entirely under one lock, exactly
+  // as before.
   void setSpatial(const std::string& id, float x, float y, float z) {
-    const juce::ScopedLock sl(lock);
-    Clip* c = find(id);
-    if (c == nullptr) return;
-    c->pos = toPolar(x, y, z);
-    if (!c->spatial || c->encoder == nullptr) {
-      c->spatial = true;
-      configureEncoder(*c);              // first enable: allocate + configure
-    } else {
-      c->encoder->SetPosition(c->pos);   // a move: just re-aim (the fade smooths it)
-      c->encoder->Refresh();
+    const spaudio::PolarPosition<float> pos = toPolar(x, y, z);
+    double sr = 0.0;
+    {
+      const juce::ScopedLock sl(lock);
+      Clip* c = find(id);
+      if (c == nullptr) return;
+      c->pos = pos;
+      if (!c->spatial || c->encoder == nullptr) {
+        c->spatial = true; // set now, under the lock — see the comment on the swap below for the brief
+                            // window this opens (spatial==true, encoder still null) and why it's benign
+        sr = sampleRate;
+      } else {
+        c->encoder->SetPosition(c->pos);   // a move: just re-aim (the fade smooths it)
+        c->encoder->Refresh();
+        return;
+      }
+    }
+    // Reached only on first enable, with no lock held.
+    std::unique_ptr<spaudio::AmbisonicEncoder> enc = buildEncoder(pos, sr); // ← the allocation, OUTSIDE the lock
+    std::unique_ptr<spaudio::AmbisonicEncoder> old; // destroyed when this scope ends — outside the lock
+    {
+      const juce::ScopedLock sl(lock);
+      // Re-find: the clip may have been removed by another control call while we were building. (It cannot
+      // have been swapped by a SECOND setSpatial on the same id — control calls all run on the single
+      // N-API thread — so there is no encoder here to race with, only removeClip to guard against.)
+      if (Clip* c = find(id)) {
+        c->spatial = true;
+        old = std::move(c->encoder);
+        c->encoder = std::move(enc);
+      }
+      // Between the lock above and this one, the audio thread could see spatial==true with encoder still
+      // null — getNextAudioBlock's `c.spatial && c.encoder != nullptr` guard then takes the non-spatial
+      // branch for at most one block (the clip plays un-spatialised, not silent), which is the same kind
+      // of brief, benign transient applyEffects accepts while its own swap is in flight.
     }
   }
   void clearSpatial(const std::string& id) {
@@ -496,19 +555,68 @@ public:
   double sampleRate = 48000.0;
 
 private:
-  void configureEncoder(Clip& c) { // caller holds the lock
-    if (c.encoder == nullptr) c.encoder = std::make_unique<spaudio::AmbisonicEncoder>();
-    c.encoder->Configure(kAmbiOrder, true, (unsigned) juce::jmax(8000.0, sampleRate), kPosFadeMs);
-    c.encoder->SetPosition(c.pos);
-    c.encoder->Refresh();
+  // The pure builder behind setSpatial's first-enable path (see that function). Takes no lock and touches
+  // no member — everything it needs is a parameter — so it is safe to call with the lock released.
+  // configureEncoder() below (prepareToPlay's path, already safe to allocate under its lock) is just this
+  // plus an assignment.
+  static std::unique_ptr<spaudio::AmbisonicEncoder> buildEncoder(spaudio::PolarPosition<float> pos, double sr) {
+    auto enc = std::make_unique<spaudio::AmbisonicEncoder>();
+    enc->Configure(kAmbiOrder, true, (unsigned) juce::jmax(8000.0, sr), kPosFadeMs);
+    enc->SetPosition(pos);
+    enc->Refresh();
+    return enc;
   }
 
-  void configureDecoder() { // caller holds the lock
-    decoderOk = decoder.Configure(kAmbiOrder, true, (unsigned) maxBlock, (unsigned) sampleRate, layoutFromName(layout));
-    nSpeakers = decoderOk ? (int) decoder.GetSpeakerCount() : 0;
-    speakerBuf.assign((size_t) juce::jmax(0, nSpeakers), std::vector<float>((size_t) maxBlock, 0.0f));
-    speakerPtrs.assign((size_t) juce::jmax(0, nSpeakers), nullptr);
-    for (int i = 0; i < nSpeakers; ++i) speakerPtrs[(size_t) i] = speakerBuf[(size_t) i].data();
+  void configureEncoder(Clip& c) { // caller holds the lock — only prepareToPlay calls this (off the audio
+                                    // thread, callback not yet attached, so allocating here is fine)
+    c.encoder = buildEncoder(c.pos, sampleRate);
+  }
+
+  // Everything a freshly-built decoder needs. AmbisonicDecoder cannot be rebuilt in place with the lock
+  // released and swapped in by value: it owns a raw `AmbisonicSpeaker*` array freed in its OWN destructor
+  // (see AmbisonicDecoder.h/.cpp), has NO move constructor (a user-declared destructor suppresses the
+  // implicit one), and its only copy constructor is the compiler-generated one — which would shallow-copy
+  // that pointer, leaving two decoders to `delete[]` the same array on destruction. So it is held here by
+  // pointer and swapped by pointer via installDecode(), never copied and never move-assigned in place.
+  struct DecodeBuild {
+    std::unique_ptr<spaudio::AmbisonicDecoder> decoder;
+    bool decoderOk = false;
+    int nSpeakers = 0;
+    std::vector<std::vector<float>> speakerBuf;
+    std::vector<float*> speakerPtrs;
+  };
+
+  // The pure builder behind setMode's rebuild path (see that function). No lock, no member read or write —
+  // everything it needs is a parameter, so it is safe to call with the lock released. This is also what
+  // prepareToPlay calls (build immediately followed by installDecode, back-to-back under ITS lock — safe
+  // there because it runs off the audio thread with the callback not yet attached).
+  static DecodeBuild buildDecode(const juce::String& layoutName, int maxBlockSamples, double sr) {
+    DecodeBuild b;
+    b.decoder = std::make_unique<spaudio::AmbisonicDecoder>();
+    b.decoderOk = b.decoder->Configure(kAmbiOrder, true, (unsigned) maxBlockSamples, (unsigned) sr, layoutFromName(layoutName));
+    b.nSpeakers = b.decoderOk ? (int) b.decoder->GetSpeakerCount() : 0;
+    b.speakerBuf.assign((size_t) juce::jmax(0, b.nSpeakers), std::vector<float>((size_t) maxBlockSamples, 0.0f));
+    b.speakerPtrs.assign((size_t) juce::jmax(0, b.nSpeakers), nullptr);
+    for (int i = 0; i < b.nSpeakers; ++i) b.speakerPtrs[(size_t) i] = b.speakerBuf[(size_t) i].data();
+    return b;
+  }
+
+  // Swaps `b` into the live decoder/buffers. Caller holds the lock. Returns whatever was displaced —
+  // callers that need the discard to happen OUTSIDE the lock (setMode) capture the return value in a
+  // holder declared before their lock scope; prepareToPlay just discards it (fine there — see buildDecode).
+  DecodeBuild installDecode(DecodeBuild&& b) { // caller holds the lock
+    DecodeBuild old;
+    old.decoder = std::move(decoder);
+    old.decoderOk = decoderOk;
+    old.nSpeakers = nSpeakers;
+    old.speakerBuf = std::move(speakerBuf);
+    old.speakerPtrs = std::move(speakerPtrs);
+    decoder = std::move(b.decoder);
+    decoderOk = b.decoderOk;
+    nSpeakers = b.nSpeakers;
+    speakerBuf = std::move(b.speakerBuf);
+    speakerPtrs = std::move(b.speakerPtrs);
+    return old;
   }
 
   bool prepared = false;
@@ -520,7 +628,7 @@ private:
   bool binauralOk = false;
   OutMode mode = OutMode::Binaural;
   juce::String layout { "stereo" };
-  spaudio::AmbisonicDecoder decoder;
+  std::unique_ptr<spaudio::AmbisonicDecoder> decoder; // see DecodeBuild, above, for why this is a pointer
   bool decoderOk = false;
   int nSpeakers = 0;
   std::vector<std::vector<float>> speakerBuf;
