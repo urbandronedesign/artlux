@@ -113,4 +113,4 @@ Additive optional `midiBindings` + a `normalizeMidiBindings()` default; `Project
 
 ---
 
-*Grounded in an adversarial code-reading of the OSC/cue/state/param control path. Pairs naturally with [show-control-tablet-parity](archive/show-control-tablet-parity.md) (both are external-control front-ends onto the same buses); the continuous-CC path also unlocks riding [audio-engine](audio-engine.md) params once its `audio.*` `paramPath` namespace lands — a synergy, not a dependency.*
+*Grounded in an adversarial code-reading of the OSC/cue/state/param control path. Pairs naturally with [show-control-tablet-parity](archive/show-control-tablet-parity.md) (both are external-control front-ends onto the same buses); the continuous-CC path also unlocks riding [audio-engine](archive/audio-engine.md) params once its `audio.*` `paramPath` namespace lands — a synergy, not a dependency.*

@@ -2,7 +2,7 @@
 
 > **Deliverable:** this document, saved as `plans/timeline-transport-and-audio-scoping.md` and indexed in `plans/README.md`.
 > **Status:** Approved (design agreed 2026-07-11) · **Placement:** Hybrid (core timeline/transport/paramPath + `plugins/audio` driver) · **Risk:** Medium-High · **Breaking changes:** behavioural (the timeline clock gains an end), additive persisted fields, one new documented invariant
-> **Supersedes:** the P5 section of [audio-engine.md](../audio-engine.md). Wave A below is net-new (not in that plan).
+> **Supersedes:** the P5 section of [audio-engine.md](audio-engine.md). Wave A below is net-new (not in that plan).
 
 ## Context — why this, and what the grounding found
 
@@ -148,7 +148,7 @@ The audio driver stops treating a playhead jump as a bed seek. The bed's `stopAl
 
 ## WS-B2 · Audio lanes (core)
 
-Per doctrine, **timeline lane rendering is core-only, not a plugin seam** ([audio-engine.md:55](../audio-engine.md)) — and `AudioMix`/`AudioClip` are already core persisted types. So a new core `AudioLane.tsx` sits alongside `AutomationLane.tsx` and `StateLane.tsx`, reading `AudioTrack[]`/`AudioClip[]` directly.
+Per doctrine, **timeline lane rendering is core-only, not a plugin seam** ([audio-engine.md:55](audio-engine.md)) — and `AudioMix`/`AudioClip` are already core persisted types. So a new core `AudioLane.tsx` sits alongside `AutomationLane.tsx` and `StateLane.tsx`, reading `AudioTrack[]`/`AudioClip[]` directly.
 
 - **No `LayerKind` change.** Audio lanes are their own lane type. (The plugin's already-registered `clipKind: 'audio'` is unreachable because `LayerKind = 'video' | 'tracking'` ([types.ts:208](../../src/renderer/types.ts#L208)); leave it unreachable and drop the dead registration rather than widening a core union for a rendering concern.)
 - Drag / trim / blade / snap by reusing `ClipBlock`'s interaction (draft-on-drag, **commit once on pointerup** — the `AutomationLane` rule) and the existing `snapping.ts`.
@@ -190,7 +190,7 @@ So `audio.*` scene/cue binding is a **core edit**:
 - **Persisted (additive, safe):** `Timeline.audio?: { tracks, clips }`; a new `onTimelineEnd` trigger kind on `StateMachine`. Both default in `normalize*()`; `ProjectData.version` stays `'1.1'`.
 - **Core-invasive (additive but wide):** `paramPath` + `StateView` + every `StateView` construction site + the cue picker. `StateView` is consumed by `transitions.ts` end-to-end.
 - **UI:** the Audio Bed panel is rebuilt as a mixer; the `@ Ns` placement field is removed (its function moves to the lane).
-- **Corrects a false claim in [audio-engine.md](../audio-engine.md):** P5's "no new recall plumbing" (§WS6). Fix that plan in place.
+- **Corrects a false claim in [audio-engine.md](audio-engine.md):** P5's "no new recall plumbing" (§WS6). Fix that plan in place.
 
 ## Risk evaluation — **Medium-High**
 

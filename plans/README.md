@@ -34,7 +34,7 @@ block with decisions a human must make before building.
 
 ## Shipped (archived)
 
-**Eleven** plans are complete and have moved to [`archive/`](archive/). Full per-wave record in
+**Twelve** plans are complete and have moved to [`archive/`](archive/). Full per-wave record in
 [SEQUENCING.md](SEQUENCING.md#status-tracker).
 
 | Plan | Lifts | Status |
@@ -48,8 +48,9 @@ block with decisions a human must make before building.
 | [In-app docs browser](archive/docs-browser.md) | (net-new) | ✅ shipped v0.21.0 |
 | [Watchdog relaunch throttle](archive/watchdog-relaunch-throttle.md) | #10 Ship It | ✅ **merged 2026-07-11** (Wave 0) — `minRelaunchGapSec` pacing + the Preferences field. *(This row said "not started" until 2026-07-14, three days after it merged.)* |
 | [Show-control tablet parity](archive/show-control-tablet-parity.md) | #7 Operator Remote | ✅ **merged 2026-07-11** (Wave 0) — tablet multi-bank + per-cue fire + Kick hard-cuts SSE. *(Same — this table was never updated when Wave 0 landed.)* |
-| [Timeline transport + global/scene scoping + audio scene binding](archive/timeline-transport-and-audio-scoping.md) | (net-new, Wave 3) | ◑ **COMPLETE — lands with `wave-3-audio`.** Wave A live-tested on hardware; Wave B = the show clock, audio lanes, the mixer, audio on scenes/cues. **Supersedes P5** of `audio-engine.md`. |
-| [Asset paths: scenes + audio bed](archive/asset-paths-scenes-and-audio.md) | #9 Pack & Hand Off | ◑ **COMPLETE — lands with `wave-3-audio`.** `mapAssetPaths` → per-container visitors over the top level, **every scene**, and the bed. ⚠ Makes a saved project **forward-incompatible** with older builds. |
+| [Timeline transport + global/scene scoping + audio scene binding](archive/timeline-transport-and-audio-scoping.md) | (net-new, Wave 3) | ✅ **merged (`wave-3-audio`, 4541743, 2026-07-14).** Wave A live-tested on hardware; Wave B = the show clock, audio lanes, the mixer, audio on scenes/cues. **Superseded P5** of `audio-engine.md`. |
+| [Asset paths: scenes + audio bed](archive/asset-paths-scenes-and-audio.md) | #9 Pack & Hand Off | ✅ **merged (`wave-3-audio`, 4541743, 2026-07-14).** `mapAssetPaths` → per-container visitors over the top level, **every scene**, and the bed. ⚠ Makes a saved project **forward-incompatible** with older builds. |
+| [Native audio engine](archive/audio-engine.md) | (net-new, Wave 3) | ✅ **all phases merged.** P0–P4 (bed, spatial, juce_dsp FX, the automation-curve engine), P5 as Wave B (the show clock + scene/cue binding), and **P6** (multichannel: device picker, speaker commissioning, off-lock decoder rebuild, ASIO-behind-a-flag, machine≠show) merged to `main` (`4541743` + `f37f341`, 2026-07-14/15). ⚠ P6 is a **synthetic pass** — venue verification + the JUCE licence election remain (tracked in SEQUENCING). |
 
 ## Active plans
 
@@ -59,28 +60,26 @@ block with decisions a human must make before building.
 | [Projector blend preview + phase-lock](projector-blend-preview.md) | #5 Hello Projector | **Hybrid** | 🟡 Med | held (loosely gated on webgl-strict) |
 | [WebGL strict per-surface sampling](webgl-strict-per-surface-sampling.md) | #1 Composite Stage | **Core** | 🟡 Med | **Phase 1 shipped** (banner + force-WebGL + GPU settings); **Phase 2 deferred — open GitHub decision issue** |
 | [MIDI controller support](midi-control.md) | (net-new) | **Plugin** | 🟡 Med | not started (Draft) |
-| [Native audio engine](audio-engine.md) | (net-new, Wave 3) | **Hybrid** | 🔴 High | **P0–P4 shipped** on `wave-3-audio` (bed, spatial, FX, automation); **P5 shipped as Wave B** (its §WS6 was **wrong** and is corrected in place); P6 last |
 | [Transport: prev/next edit point](transport-edit-point-navigation.md) | (net-new; Wave A leftover) | **Core** | 🟢 Low | Draft — the `⏮`/`⏭` buttons are **in the transport sketch and were never built**: Wave A's plan narrowed to "the three controls that never had a button" and the two skip buttons dropped out between the drawing and the plan. The *capability* is missing too — there is **no prev/next navigation of any kind** in the timeline. Land **after** `wave-3-audio` merges (it touches `TimelineToolbar.tsx`) |
 | [Timeline undo](timeline-undo.md) | (net-new, Wave 4) | **Core** | 🟡 Med | Draft — **there is no undo for any timeline edit**, and the show engine (FSM/OSC/cues/scheduler) pushes history entries **no human made** onto an **uncapped** stack |
 | [Renderer error containment](renderer-error-containment.md) | #10 Ship It | **Core** | 🟠 Med | Draft — **the watchdog is blind to a white screen.** A first-render throw means the heartbeat never fires, so the watchdog **never arms** and an unattended install sits dead until someone drives to the venue |
 
 ## Net-new subsystems (beyond limitation-lifts)
 
-Two active plans design whole new capabilities (both in the Active table above):
-[MIDI controller support](midi-control.md) and the [Native audio engine](audio-engine.md). Audio is by far
-the heaviest — it introduces the **first non-Rust native module** (a JUCE C++ N-API addon alongside the Rust
-crates) and a **general time-keyframed automation-curve engine** that doesn't exist today (scenes/cues are
-snapshot+fade only). It is gated behind a Phase-0 toolchain spike and the graceful-degrade loader, so the tree
-stays releasable throughout. (The [in-app docs browser](archive/docs-browser.md) was the third net-new plan —
-shipped in v0.21.0.)
+[MIDI controller support](midi-control.md) is the one still-active net-new plan. The two that have shipped
+were the heavier ones: the [Native audio engine](archive/audio-engine.md) — the **first non-Rust native
+module** (a JUCE C++ N-API addon alongside the Rust crates) plus a **general time-keyframed automation-curve
+engine** that didn't exist before (scenes/cues were snapshot+fade only), now fully merged through P6 — and
+the [in-app docs browser](archive/docs-browser.md), shipped in v0.21.0. Audio stayed releasable throughout
+via a Phase-0 toolchain spike and the graceful-degrade loader.
 
 ## Sequencing
 
-Build order + git workflow live in **[SEQUENCING.md](SEQUENCING.md)** — the canonical source. Waves 0–2 are
-merged. **Wave 3 (audio) is in flight on `wave-3-audio` and is not merged:** P0–P4, the transport plan's
-Wave A (live-tested 2026-07-12), asset-paths, and **Wave B — audio scoping, the show clock** (landed
-2026-07-12, live smoke test pending) are on the branch. **P6 remains.** The webgl-strict **Phase 2**
-decision still gates content-source-region + projector-blend.
+Build order + git workflow live in **[SEQUENCING.md](SEQUENCING.md)** — the canonical source. **Waves 0–3
+are all merged to `main`, and P6 (audio multichannel) merged on top** (`4541743` Wave 3 + `f37f341` P6,
+2026-07-14/15) — the whole audio subsystem (P0–P6, the transport/Wave A/Wave B work, asset-paths) is
+shipped. The remaining open item on the render side is the webgl-strict **Phase 2** decision, which still
+gates content-source-region + projector-blend.
 
 **Wave 4 — renderer robustness** ([timeline-undo](timeline-undo.md) → [renderer-error-containment](renderer-error-containment.md))
 was **surfaced by Wave B's adversarial review**, which passed the branch but named both as structural gaps that
@@ -100,7 +99,7 @@ renders unconditionally, and an edit landing somewhere it cannot be taken back f
 The **16-agent adversarial review of the full `wave-3-audio` merge diff** confirmed **39 findings**. The user
 triaged the merge bar to *"Wave 3's own defects + the effect clock"* ([the merge-blocker
 plan](../docs/superpowers/plans/2026-07-14-wave-3-merge-blockers.md), gate 6 in
-[SEQUENCING](SEQUENCING.md#-the-wave-3-merge-gate)). **These are the ones that were deliberately left out.**
+[SEQUENCING](SEQUENCING.md) ▸ *"The Wave 3 merge gate"*). **These are the ones that were deliberately left out.**
 They are written down here so that "not a merge blocker" cannot quietly become "forgotten". Each is
 *confirmed* — verified by three adversarial lenses that were told to default to REFUTED.
 

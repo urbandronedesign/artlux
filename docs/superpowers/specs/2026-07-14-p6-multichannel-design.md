@@ -1,7 +1,7 @@
 # P6 — Multichannel hardening, rig commissioning, headless audio
 
 > **Status:** Design, approved 2026-07-14 · **Branch:** `p6-audio-multichannel` (cut from `main` @ `cd31dbe`)
-> · **Closes:** the last open phase of [plans/audio-engine.md](../../../plans/audio-engine.md) (P6)
+> · **Closes:** the last open phase of [plans/audio-engine.md](../../../plans/archive/audio-engine.md) (P6)
 > · **Risk:** Medium — one change (§1) touches the project-file contract, not just audio.
 
 **Goal, in one sentence:** *an eight-speaker installation can be commissioned on a venue machine, by

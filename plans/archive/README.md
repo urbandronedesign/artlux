@@ -4,11 +4,13 @@ These implementation plans are **complete** and are kept here for reference/hist
 of the active build queue — see [`../SEQUENCING.md`](../SEQUENCING.md#status-tracker) for the per-wave record
 and [`../README.md`](../README.md) for the active plans.
 
-> **Two of these are complete but not yet on `main`.** The Wave-3 plans
-> ([timeline-transport-and-audio-scoping](timeline-transport-and-audio-scoping.md) and
-> [asset-paths-scenes-and-audio](asset-paths-scenes-and-audio.md)) are done and fully tested, but they land
-> **with the `wave-3-audio` branch** rather than ahead of it. They are archived because the *work* is
-> finished, which is what this folder is for — not because the branch has merged. The status column says so.
+> **The whole Wave-3 audio subsystem is now merged to `main`.** The Wave-3 plans
+> ([timeline-transport-and-audio-scoping](timeline-transport-and-audio-scoping.md),
+> [asset-paths-scenes-and-audio](asset-paths-scenes-and-audio.md)) and the
+> [native audio engine](audio-engine.md) (P0–P6) all landed via `wave-3-audio` (`4541743`, 2026-07-14) and
+> the follow-on P6 merge (`f37f341`, 2026-07-15). P6's synthetic acceptance checklist is unrun (no
+> multichannel hardware) and the JUCE licence election is still open — both tracked in
+> [`../SEQUENCING.md`](../SEQUENCING.md#status-tracker), neither reason to keep the plans out of archive.
 
 | Plan | Shipped as |
 |------|-----------|
@@ -22,4 +24,5 @@ and [`../README.md`](../README.md) for the active plans.
 | [watchdog-relaunch-throttle](watchdog-relaunch-throttle.md) | Wave 0 — `minRelaunchGapSec` pacing (first relaunch instant, 2nd+ deferred-not-dropped) + the Preferences field |
 | [show-control-tablet-parity](show-control-tablet-parity.md) | Wave 0 — tablet multi-bank + per-cue fire + Kick hard-cuts SSE |
 | [timeline-transport-and-audio-scoping](timeline-transport-and-audio-scoping.md) | **Wave 3 — complete, lands with `wave-3-audio`.** Wave A: the bounded clock, a working Loop, Stop/Set-In/Set-Out, `onTimelineEnd`, scene-vs-global legibility (live-tested on hardware 2026-07-12). Wave B: the **show clock**, audio lanes, the mixer, audio on scenes/cues. It **supersedes P5** of `audio-engine.md`. |
-| [asset-paths-scenes-and-audio](asset-paths-scenes-and-audio.md) | **Wave 3 — complete, lands with `wave-3-audio`.** `mapAssetPaths` became per-container visitors over the top level, **every scene**, and the bed — a hard prerequisite for `Timeline.audio`. ⚠ Makes a saved project **forward-incompatible** with older builds. |
+| [asset-paths-scenes-and-audio](asset-paths-scenes-and-audio.md) | **Wave 3 — merged (`wave-3-audio`, 4541743).** `mapAssetPaths` became per-container visitors over the top level, **every scene**, and the bed — a hard prerequisite for `Timeline.audio`. ⚠ Makes a saved project **forward-incompatible** with older builds. |
+| [audio-engine](audio-engine.md) | **Wave 3 — the whole native audio subsystem, merged (P0–P6).** JUCE + libspatialaudio N-API addon: the ambisonic bed, spatial UI, juce_dsp FX, the core automation-curve engine, and **P6** (device picker grouped by driver type, speaker commissioning, off-lock decoder rebuild, ASIO-behind-a-flag, and machine≠show persistence). `4541743` + `f37f341`, 2026-07-14/15. ⚠ P6 is a **synthetic pass** — venue verification + the JUCE licence election remain (see `../SEQUENCING.md`). |

@@ -1,6 +1,6 @@
 # ArtLux — Development Sequencing & Execution Plan
 
-The canonical order in which the 11 limitation-lift plans and the [audio engine](audio-engine.md) get
+The canonical order in which the 11 limitation-lift plans and the [audio engine](archive/audio-engine.md) get
 built, and the git workflow around them. **Point me at this file** (e.g. *"execute Wave 1 per
 plans/SEQUENCING.md"*) and I will do the plans in the right order, on the right branch, with the
 verification gate — see **Execution protocol** below.
@@ -69,7 +69,7 @@ Consume Wave 1's hardened render/dest paths.
 4. [autopatch-collision-detection](archive/autopatch-collision-detection.md) — **after** dmx-io-fidelity
 
 ### Wave 3 — Audio subsystem · branch `wave-3-audio` (large — the whole wave lives on one long-running branch)
-The [audio engine](audio-engine.md), landed on the now-hardened foundations. **Two plans govern this wave:**
+The [audio engine](archive/audio-engine.md), landed on the now-hardened foundations. **Two plans govern this wave:**
 `audio-engine.md` for P0–P4 and P6, and
 [timeline-transport-and-audio-scoping](archive/timeline-transport-and-audio-scoping.md), which **supersedes P5**
 and prepends a net-new **Wave A** (the transport work P5 turned out to be blocked on). The revised
@@ -91,8 +91,8 @@ internal order — *the ✅ phases are on the branch, unmerged*:
    WS-B3 the Audio Bed panel becomes the mixer · WS-B4 `audio.*` scene/cue binding (core `paramPath` +
    `StateView` + the cue picker).
 9. ✅ **P6** — multichannel hardening (ASIO, speaker layouts) + headless audio wiring + packaging/CI/licensing.
-   Tasks 1–8 landed on `p6-audio-multichannel`, `tsc`/`build`/`verify:plugins` clean. **⚠ SYNTHETIC PASS
-   ONLY** — there is no multichannel hardware on this project (established at Wave-3 acceptance test 2.10),
+   Tasks 1–9 + a real-time fix (5b) **merged to `main` 2026-07-15 (`f37f341`)**; `tsc`/`build`/`verify:plugins`/
+   `build:audio` green on `main`. **⚠ SYNTHETIC PASS ONLY** — there is no multichannel hardware on this project (established at Wave-3 acceptance test 2.10),
    so the multichannel/speaker-patch/device-picker checkpoints are runnable only against a virtual
    8-channel device or a card switched to 7.1 Surround, and headless audio is wired but has never been
    audibly confirmed. See [2026-07-14-p6-acceptance.md](../docs/superpowers/2026-07-14-p6-acceptance.md) —
@@ -218,14 +218,16 @@ else is on the critical path; everything else is post-merge.
 - The webgl-strict **Phase 2** decision (long-standing, gates two Wave 2 plans).
 
 ### After the merge, in this order
+> **P6 is done** — multichannel hardening, the device picker, speaker commissioning, ASIO-behind-a-flag
+> and headless audio all merged to `main` on 2026-07-15 (`f37f341`). It is dropped from this list. What
+> remains:
 1. **Wave 4 — renderer robustness** (`timeline-undo` → `renderer-error-containment`). **The highest-value item
    in the entire backlog for an unattended install: the watchdog cannot see a white screen.** A first-render
    throw means the heartbeat never fires, so the watchdog never arms, and the venue sits dead until someone
    drives there.
-2. **P6** — multichannel hardening (ASIO, speaker layouts) + headless audio wiring.
-3. The two loose bugs above, and the webgl-strict Phase 2 decision.
-4. **[Transport prev/next edit point](transport-edit-point-navigation.md)** (`feat-transport-skip`) — half a day,
-   🟢 low. Held only because it touches `TimelineToolbar.tsx`, which Wave 3 is still sitting on.
+2. The two loose bugs above, and the webgl-strict Phase 2 decision.
+3. **[Transport prev/next edit point](transport-edit-point-navigation.md)** (`feat-transport-skip`) — half a day,
+   🟢 low. (No longer blocked — `wave-3-audio` has merged, so `TimelineToolbar.tsx` is free.)
 5. **MIDI control** (independent, parallel-safe at any point).
 
 ## Verification gate (what "done, ready to test" means, per wave)
@@ -260,7 +262,7 @@ Keep `main` buildable + `tsc`-clean at all times. Never push to a remote or skip
 | 0 | `wave-0-quick-wins` (merged, deleted) | watchdog, show-control-tablet-parity | ☑ **merged to main 2026-07-11** — **watchdog** minRelaunchGapSec pacing (first relaunch instant, 2nd+ deferred-not-dropped) + Preferences field; **show-control** tablet multi-bank + per-cue fire + Kick hard-cuts SSE. tsc+build+verify:plugins + adversarial review clean. |
 | 1 | `wave-1-foundation` (merged, deleted) | webgl-strict, dmx-io, cue-authoring, asset-ops, headless-plugin-host | ☑ **merged + pushed 2026-07-11** — cue-authoring, dmx-io, asset-ops, headless-plugin-host landed + adversarially reviewed (headless NVAPI-gate finding fixed). **webgl-strict = Phase 1 only** (reduced-mode banner + `forceWebGL` localStorage flag + GPU settings section); **Phase 2 (GPUMapper per-surface parity) DEFERRED** pending multi-machine testing. |
 | 2 | `wave-2-render-output` (merged, deleted) | fixture-segments, content-source-region, projector-blend, autopatch | ◑ **partially merged + pushed 2026-07-11** — **fixture-segments** (segment gap/off; **verified live on-wire** — middle third → 0) + **autopatch** (collision detector always-on + opt-in locked-range reservation) landed. **content-source-region + projector-blend HELD behind webgl-strict Phase 2**; autopatch **Phase C (split-brain write-back) deferred**. |
-| 3 | `wave-3-audio` (**merged**) | audio-engine (P0→P6, **P6 on `p6-audio-multichannel`**) + transport-and-scoping (supersedes P5) + asset-paths | ☑ **MERGED TO `main` 2026-07-14** (`4541743`, 135 commits) — the JUCE/libspatialaudio addon, the bed, ambisonic + spatial UI, juce_dsp FX, the core automation-curve engine, Wave A (the bounded clock), Wave B (**the show clock**, audio lanes, the mixer, audio on scenes/cues), asset-paths, and the 14-task merge-blocker plan. **A 16-agent adversarial review of the full diff confirmed 39 findings (7 blockers)**; the two that decided the merge were automation-clock blockers that **snapped the master +9.6 dB on every GO and persisted it to disk** — cured by *deleting the state* (`Scene.timeline` is now required). ⚠ **BREAKING (project files):** a timeline-less scene now loads with an **empty** timeline instead of falling back to the global one. **Every merge-deciding test was run by hand and passed**, and **two of the 14 tasks were found by the USER, in the app, after the review had already passed the branch** — the mixer's faders drew the document while the engine played the automation, and New Project left the outgoing show's whole timeline behind. *A review that reads code cannot hear a room.* **P6 landed** (Tasks 1–8, `p6-audio-multichannel` @ `4f76edc`) — device picker, speaker patch + commissioning tone, ASIO behind an off-by-default flag, headless audio wired. ⚠ **GATE, NOT YET PASSED: P6 is a SYNTHETIC PASS, not a venue pass** — there is no multichannel hardware on this project (Wave-3 test 2.10), so every multichannel result is obtainable only against a virtual 8-channel device or a card switched to 7.1 Surround, and headless audio has never been audibly confirmed; see [2026-07-14-p6-acceptance.md](../docs/superpowers/2026-07-14-p6-acceptance.md), unrun. **Still open: gate 4 (the JUCE licence) before any `v*` tag.** |
+| 3 | `wave-3-audio` (**merged**) | audio-engine (P0→P6, **P6 on `p6-audio-multichannel`**) + transport-and-scoping (supersedes P5) + asset-paths | ☑ **MERGED TO `main` 2026-07-14** (`4541743`, 135 commits) — the JUCE/libspatialaudio addon, the bed, ambisonic + spatial UI, juce_dsp FX, the core automation-curve engine, Wave A (the bounded clock), Wave B (**the show clock**, audio lanes, the mixer, audio on scenes/cues), asset-paths, and the 14-task merge-blocker plan. **A 16-agent adversarial review of the full diff confirmed 39 findings (7 blockers)**; the two that decided the merge were automation-clock blockers that **snapped the master +9.6 dB on every GO and persisted it to disk** — cured by *deleting the state* (`Scene.timeline` is now required). ⚠ **BREAKING (project files):** a timeline-less scene now loads with an **empty** timeline instead of falling back to the global one. **Every merge-deciding test was run by hand and passed**, and **two of the 14 tasks were found by the USER, in the app, after the review had already passed the branch** — the mixer's faders drew the document while the engine played the automation, and New Project left the outgoing show's whole timeline behind. *A review that reads code cannot hear a room.* **P6 MERGED TO `main` 2026-07-15** (`f37f341`, its own `--no-ff` merge after the Wave 3 merge) — Tasks 1–9 + a real-time fix (5b), each written failing-sim-first and reviewed, then a whole-branch review that caught one Critical (the commissioned patch never reached the engine in broadcast/headless). Device picker grouped by driver type (WASAPI exclusive = the multichannel path), speaker patch + commissioning tone, the ambisonic decoder rebuild moved off the audio lock, ASIO behind an off-by-default flag, headless audio wired, the dead HeadlessRunner fork deleted, and **AppSettings stopped travelling in the `.artlux`** (the machine, not the show). ⚠ **GATE, NOT YET PASSED: P6 is a SYNTHETIC PASS, not a venue pass** — there is no multichannel hardware on this project (Wave-3 test 2.10), so every multichannel result is obtainable only against a virtual 8-channel device or a card switched to 7.1 Surround, and headless audio has never been audibly confirmed; see [2026-07-14-p6-acceptance.md](../docs/superpowers/2026-07-14-p6-acceptance.md), unrun. **Still open: gate 4 (the JUCE licence) before any `v*` tag.** |
 | — | `feat-docs-browser` | docs-browser (independent, parallel-safe) | ☑ **shipped v0.21.0** — reader + detachable window + inline user-guide images + tutorial SVG diagrams; bundled into packaged builds via `extraResources` (23/23 image refs validated, tsc+build clean, in-app visual test confirmed). Getting-started fold-in still pending. |
 | 4 | `wave-4-robustness` | timeline-undo → renderer-error-containment | ☐ not started (Drafts — both plans written 2026-07-12, surfaced by Wave B's adversarial review). **`timeline-undo` first** (the last-good-document edge). Highest-value single item in the whole backlog for an unattended install: **the watchdog cannot see a white screen.** |
 | — | `feat-transport-skip` | transport-edit-point-navigation | ☐ not started (Draft — plan written 2026-07-13). The `⏮`/`⏭` buttons were **in the Wave A sketch and never entered the Wave A plan**; the capability (prev/next edit point) does not exist at all. Held until `wave-3-audio` merges — same file. |
@@ -268,6 +270,8 @@ Keep `main` buildable + `tsc`-clean at all times. Never push to a remote or skip
 | — | (content, no branch gate) | LiDAR + state-machine tutorial sets | ☑ drafted; **SVG diagrams added** (state-graph, hub-and-spoke, tracking-zones, merge-people) — all 23 doc image refs resolve + read, 4/4 SVGs valid; needs in-app open test |
 
 *Update the Status cell to `☐ in progress (branch cut)` → `☑ merged <date>` as each wave lands. As of
-2026-07-12: Waves 0–2 are merged to `main`; **Wave 3 is in flight on `wave-3-audio` and is NOT merged** —
-P0–P4 and Wave A are on that branch, live-tested but unmerged, and asset-paths → Wave B → P6 remain.
-Still Draft: midi-control, and the webgl-strict / content-source-region / projector-blend Phase-2 render work.*
+2026-07-15: **Waves 0–3 are all merged to `main`, and P6 (audio multichannel) merged on top** (`f37f341`).
+The `wave-3-audio` and `p6-audio-multichannel` branches are merged and deleted. What remains: **Wave 4**
+(renderer robustness), `feat-transport-skip`, `feat-midi-control` (Draft), and the webgl-strict Phase-2
+render work (content-source-region / projector-blend). Post-ship follow-ups still open: P6's synthetic
+acceptance checklist (unrun — no multichannel hardware) and the JUCE licence election (gates the first tag).*
