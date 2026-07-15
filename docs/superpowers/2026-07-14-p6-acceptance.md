@@ -7,14 +7,15 @@ passed.
 
 ---
 
-> ### ⚠ THIS IS A SYNTHETIC PASS, NOT A VENUE PASS.
+> ### ⚠ A SYNTHETIC PASS IS NOT A VENUE PASS.
 > There is no multichannel hardware on this project (established at Wave-3 acceptance test 2.10). Every
-> multichannel result below was obtained against a VIRTUAL 8-channel device or a built-in card switched to
-> 7.1 Surround. That proves the device opens with 8 discrete channels, that the ambisonic decode lands
-> energy on the speaker index it claims, and that the patch routes it where it says.
+> multichannel checkpoint below is to be run against a VIRTUAL 8-channel device or a built-in card switched
+> to 7.1 Surround. Passing them will prove that the device opens with 8 discrete channels, that the
+> ambisonic decode lands energy on the speaker index it claims, and that the patch routes it where it says.
 >
-> It does NOT prove: ASIO, real driver behaviour, real converter latency, or that eight physical speakers
-> are wired the way the layout thinks they are. Those close on hardware, or they do not close.
+> It will NOT prove: ASIO, real driver behaviour, real converter latency, or that eight physical speakers
+> are wired the way the layout thinks they are. Those close on hardware, or they do not close — and until a
+> venue pass runs, they stay open.
 
 ---
 
