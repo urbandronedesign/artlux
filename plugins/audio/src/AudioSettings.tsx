@@ -107,6 +107,27 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
   const need = LAYOUTS.find((l) => l.id === layout)?.speakers ?? 2;
   const shortChannels = mode === 'speakers' && need > outCh;
 
+  // ── OPTION VALUES ARE INDICES, NOT `${type} ${name}` STRINGS ────────────────────────────────────────
+  // Driver type names and device names ROUTINELY CONTAIN SPACES — "Windows Audio (Exclusive Mode)",
+  // "Focusrite Scarlett 2i2 USB" — so a space-joined value split back on ' ' silently shreds both fields
+  // (`"Windows Audio (Exclusive Mode) Focusrite Scarlett 2i2 USB".split(' ')` gives type "Windows", name
+  // "Audio"). That sends configure() a device that matches nothing, the native side rolls back to
+  // whatever was already open, and the corrupted {type,name} still gets persisted — so the picker looks
+  // wired while silently reopening the wrong box. An index into a flat array can't be corrupted by any
+  // character in a name, so that's what the <option value> carries instead.
+  //
+  // `deviceGroups` is the SAME structure rendered as optgroups below; `flatDevices` is that structure
+  // flattened, not a second grouping of `devices` that could put things in a different order.
+  const deviceGroups = Object.entries(devices.reduce<Record<string, DeviceEntry[]>>((acc, d) => {
+    (acc[d.type] ??= []).push(d); return acc;
+  }, {}));
+  const flatDevices = deviceGroups.flatMap(([, ds]) => ds);
+  const selectedIndex = flatDevices.findIndex((d) => d.type === cfg.deviceType && d.name === cfg.deviceName);
+  // 'default' is not a valid array index and can never collide with a real flat-index value — it means
+  // "no device picked yet" as well as the explicit "System default" choice, both of which resolve to
+  // {deviceType: undefined, deviceName: undefined} (today's "that driver type's default device").
+  const selectValue = selectedIndex >= 0 ? String(selectedIndex) : 'default';
+
   return (
     <div className="space-y-4">
       <div>
@@ -175,25 +196,32 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
       <div>
         <div className="text-mini font-semibold text-fg-2 mb-1">Output device</div>
         <select
-          value={`${cfg.deviceType ?? ''} ${cfg.deviceName ?? ''}`}
+          value={selectValue}
           onChange={(e) => {
-            const [deviceType, deviceName] = e.target.value.split(' ');
-            patchAndApply({ deviceType, deviceName });
+            const v = e.target.value;
+            if (v === 'default') { patchAndApply({ deviceType: undefined, deviceName: undefined }); return; }
+            const d = flatDevices[Number(v)];
+            if (d) patchAndApply({ deviceType: d.type, deviceName: d.name });
           }}
           className="w-full bg-surface-2 border border-line-1 rounded px-1.5 h-6 text-mini text-fg-1 outline-none"
         >
-          <option value={' '}>System default</option>
-          {Object.entries(devices.reduce<Record<string, DeviceEntry[]>>((acc, d) => {
-            (acc[d.type] ??= []).push(d); return acc;
-          }, {})).map(([type, ds]) => (
-            <optgroup key={type} label={type}>
-              {ds.map((d) => (
-                <option key={`${type} ${d.name}`} value={`${type} ${d.name}`}>
-                  {d.name}{d.isDefault ? ' (default)' : ''}
-                </option>
-              ))}
-            </optgroup>
-          ))}
+          <option value="default">System default</option>
+          {(() => {
+            let offset = 0;
+            return deviceGroups.map(([type, ds]) => {
+              const start = offset;
+              offset += ds.length;
+              return (
+                <optgroup key={type} label={type}>
+                  {ds.map((d, j) => (
+                    <option key={start + j} value={String(start + j)}>
+                      {d.name}{d.isDefault ? ' (default)' : ''}
+                    </option>
+                  ))}
+                </optgroup>
+              );
+            });
+          })()}
         </select>
         {/* ── THE SENTENCE THAT MAKES MULTICHANNEL POSSIBLE ────────────────────────────────────────────────
             An operator cannot be expected to know that "Windows Audio" and "Windows Audio (Exclusive Mode)"
