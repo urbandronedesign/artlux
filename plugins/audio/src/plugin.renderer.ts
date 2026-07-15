@@ -46,6 +46,12 @@ import {
 interface AudioPluginCfg {
   outputChannels?: number; outputMode?: OutputMode; speakerLayout?: SpeakerLayout;
   deviceType?: string; deviceName?: string; sampleRate?: number; bufferSize?: number;
+  // Decoder speaker → device channel, commissioned in AudioSettings (Speaker check) and persisted
+  // machine-scoped, same as the rest of this cfg. MUST travel with the rest of applyDeviceCfg's cfg object
+  // below — this is the ONLY path that configures the engine in broadcast/headless (AudioSettings never
+  // mounts there), so a patch missing here means a venue's commissioned ring plays the wrong outputs with
+  // no error and normal-looking meters. See AudioCfg in AudioSettings.tsx, which this mirrors.
+  speakerPatch?: number[];
 }
 
 // Minimal structural view of the two persisted containers the driver reads (host.audio.getMix() and
@@ -129,13 +135,25 @@ export const plugin: RendererPlugin = {
     const applyDeviceCfg = () => {
       const s = host.settings.get() as { plugins?: Record<string, unknown> };
       const c = (s.plugins?.['audio'] as AudioPluginCfg) ?? {};
-      const key = JSON.stringify([c.deviceType, c.deviceName, c.outputChannels, c.sampleRate, c.bufferSize, c.outputMode, c.speakerLayout]);
+      // ⚠ c.speakerPatch MUST be in this key. It is machine-commissioned (Speaker check, AudioSettings.tsx)
+      // and lives in the SAME cfg slice as everything else here, but it is an ARRAY, not a scalar — easy to
+      // forget in a tuple built by eye. Omitting it does not just drop the patch from the call below; it
+      // ALSO means a patch-ONLY edit (device/channels/mode/layout unchanged) produces an unchanged key, so
+      // `if (key === lastCfgKey) return;` would skip the re-configure entirely — a commissioning change made
+      // while broadcast is already running would never reach the engine. JSON.stringify nests the array fine.
+      const key = JSON.stringify([c.deviceType, c.deviceName, c.outputChannels, c.sampleRate, c.bufferSize, c.outputMode, c.speakerLayout, c.speakerPatch]);
       if (key === lastCfgKey) return;
       lastCfgKey = key;
       void audioClient.configure({
         deviceType: c.deviceType, deviceName: c.deviceName,
         channels: c.outputChannels ?? 2, sampleRate: c.sampleRate ?? 0, bufferSize: c.bufferSize ?? 0,
         mode: c.outputMode ?? 'binaural', layout: c.speakerLayout ?? 'stereo',
+        // THE FIX: without this, broadcast/headless — the mode a venue actually runs, since AudioSettings
+        // never mounts there — opens the engine with NO patch, native setPatch({}) builds the IDENTITY
+        // permutation, and every speaker wired non-1:1 (which is the entire point of commissioning a patch)
+        // plays the wrong output. No error, no crash, meters look normal. See AudioSettings.tsx's apply(),
+        // which already does this for the editor path — this call must mirror it exactly.
+        patch: c.speakerPatch,
       }).catch(() => { /* engine absent → no-op */ });
     };
     applyDeviceCfg();                                          // startup

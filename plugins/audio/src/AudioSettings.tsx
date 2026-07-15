@@ -31,6 +31,30 @@ function hasDuplicateChannel(patch: number[] | undefined, need: number): boolean
   return false;
 }
 
+// A patch entry that OUTLIVES a device downgrade. The Speaker check dropdowns below only ever offer
+// `opened?.channels` options, so an operator can't SET an over-range channel going forward — but a patch
+// commissioned against a LARGER device survives untouched when this machine later opens a SMALLER one (a
+// different interface, a multichannel card that dropped out and fell back to onboard stereo): nothing
+// re-clamps `speakerPatch` on that change. The engine's write-site then silently DROPS that speaker's audio
+// (engine.cpp: `if (dst >= 0 && dst < outCh)`) — no error, no log, just a speaker whose meter never moves.
+// `shortChannels` above catches "the LAYOUT needs more speakers than the device has"; it does not catch an
+// individual PATCH ENTRY pointing past the device's real channel count, which is this case.
+function hasOverRangeChannel(patch: number[] | undefined, need: number, channels: number): boolean {
+  for (let s = 0; s < need; s++) {
+    const dst = patch?.[s] ?? s;
+    if (dst >= channels) return true;
+  }
+  return false;
+}
+// The FIRST offending entry's device channel, for the warning's wording — same predicate, one extra return.
+function firstOverRangeChannel(patch: number[] | undefined, need: number, channels: number): number | null {
+  for (let s = 0; s < need; s++) {
+    const dst = patch?.[s] ?? s;
+    if (dst >= channels) return dst;
+  }
+  return null;
+}
+
 const SAMPLE_RATES = [0, 44100, 48000, 88200, 96000];
 const BUFFER_SIZES = [0, 128, 256, 512, 1024];
 
@@ -133,6 +157,11 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
   const need = LAYOUTS.find((l) => l.id === layout)?.speakers ?? 2;
   const shortChannels = mode === 'speakers' && need > outCh;
   const patchDuplicate = mode === 'speakers' && hasDuplicateChannel(cfg.speakerPatch, need);
+  // Gated on `opened` being known — `opened.channels` is what the device ACTUALLY has; `outCh` is only
+  // what was REQUESTED, and a stereo card asked for 8 channels opens with 2, so warning off the request
+  // would be wrong in exactly the case this exists to catch.
+  const patchOverRange = mode === 'speakers' && opened != null && hasOverRangeChannel(cfg.speakerPatch, need, opened.channels);
+  const overRangeChannel = patchOverRange && opened ? firstOverRangeChannel(cfg.speakerPatch, need, opened.channels) : null;
 
   // A held test tone plays in the physical room. If the layout, device, or output mode changes while a
   // speaker is held — including via keyboard, which fires no pointerup on the vanishing button — the
@@ -320,6 +349,12 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
           {patchDuplicate && (
             <div className="text-micro text-warn mb-1.5">
               Two speakers are set to the same channel — the engine will move one.
+            </div>
+          )}
+          {patchOverRange && overRangeChannel !== null && opened && (
+            <div className="text-micro text-warn mb-1.5">
+              A speaker is patched to channel {overRangeChannel + 1}, which this device doesn't have
+              ({opened.channels} channels) — it will be silent. Re-pick its channel.
             </div>
           )}
           <div className="space-y-0.5">
