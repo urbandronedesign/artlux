@@ -92,7 +92,9 @@ sidecars in `assets/tracking/`. Details in [TRACKING_TAKES.md](TRACKING_TAKES.md
 
 ## Projects, rigs & preferences
 - **Save / Save As / Open** (File menu or top bar) — native dialogs writing `.artlux` project files
-  (fixtures, settings, brightness, groups, scenes).
+  (fixtures, brightness, groups, scenes — the *show*. Machine preferences like the audio device and the
+  Art‑Net target are **not** in the project; they live per‑machine, so opening a show never re‑patches the
+  computer that opens it).
 - **Auto-restore** — settings, master brightness, recent files, and the last project reload on launch.
 - **Recent files** — quick-reopen from the File menu.
 - **Export / Import Rig** — `.artrig` holds only patch/wiring/routing/geometry (no effects, scenes,

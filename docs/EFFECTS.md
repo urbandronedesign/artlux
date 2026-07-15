@@ -88,5 +88,5 @@ the shader samples by `(colorIndex, paletteId)`.
 | [`gpu/effects.ts`](../src/renderer/gpu/effects.ts) | `EFFECT_NAMES` catalog (ids ↔ names) |
 | [`gpu/palettes.ts`](../src/renderer/gpu/palettes.ts) | gradient palettes → 256×N RGBA LUT |
 | [`gpu/WebGPUMapper.ts`](../src/renderer/gpu/WebGPUMapper.ts) | WGSL `effectColor` + fire2012 compute (per-LED) |
-| [`gpu/GPUMapper.ts`](../src/renderer/gpu/GPUMapper.ts) | WebGL2 fallback mapper |
+| [`services/GPUMapper.ts`](../src/renderer/services/GPUMapper.ts) | WebGL2 fallback mapper |
 | [`gpu/surfaceFx.ts`](../src/renderer/gpu/surfaceFx.ts) | 2D surface-content effect renderer |

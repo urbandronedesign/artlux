@@ -81,7 +81,7 @@ npm run dev            # launch the Electron app
 > **and the previous `.node` is still sitting there.** So a build you *think* succeeded silently ships the old
 > engine, and a correct fix looks broken. **Close the app before any native rebuild.** If you edited
 > `engine.cpp` and nothing changed, compare mtimes — see
-> [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md#no-sound).
+> [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md#the-audio-ui-is-all-there-and-nothing-plays--no-sound).
 
 **NDI (Windows):** the real NDI addon (`native/ndi/ndi.node`) is **committed as a prebuilt**, built
 once against the [NDI 6 SDK](https://ndi.video/for-developers/ndi-sdk/) — so CI and end users **don't

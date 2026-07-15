@@ -39,12 +39,12 @@ ids + 4 sub-pixel corners per marker. Dict 0 = `DICT_4X4_50` (also 5x5/6x6/7x7).
 the metric reference; register once per physical install).
 
 **Flow** (Anchor step of the Auto-Align wizard,
-[AutoAlignWizard.tsx](../src/renderer/components/AutoAlignWizard.tsx)):
+[AutoAlignWizard.tsx](../plugins/calibration/src/AutoAlignWizard.tsx)):
 - **Register:** *Detect markers* → click a detected id chip → click its real-world point on the 3D
   model. Repeat for a few markers. Stored to the marker map (✓ on registered chips).
 - **Recalibrate:** *Auto-anchor (detect markers)* → detects markers, looks each id up, feeds the 4
   corners of each as `CamPick`s into the **unchanged** `solveCameraPose`
-  ([markerlessController.ts](../src/renderer/calib/markerlessController.ts) `camPicksFromAruco`) →
+  ([markerlessController.ts](../plugins/calibration/src/markerlessController.ts) `camPicksFromAruco`) →
   proceed to the existing Scan step. 4 corners/marker means one marker already meets the ≥4 minimum;
   RANSAC rejects outliers.
 
@@ -52,7 +52,7 @@ Re-align time = detect (instant) + PnP (instant) + the existing Gray-code scan.
 
 ## 2. Camera + projector masking
 
-**Camera mask** ([camMask.ts](../src/renderer/calib/camMask.ts)) — draw exclusion polygons over
+**Camera mask** ([camMask.ts](../plugins/calibration/src/camMask.ts)) — draw exclusion polygons over
 reflective hotspots / obstructions on the camera preview (toggle *Camera mask*, click to outline,
 **double-click** to close). Masked pixels are dropped from the decode by zeroing their white/black
 refs, so they fail the decode's existing contrast gate — **no native ABI change**. Persisted on
@@ -72,7 +72,7 @@ exposure* toggle → Exposure / Gain sliders.
   auto-exposure first (the wizard sets `autoexposure`→0.25 before manual values — the DShow "manual"
   sentinel).
 - **Browser (getUserMedia):** `MediaStreamTrack.applyConstraints`, gated on `getCapabilities()`
-  ([calibCapture.ts](../src/renderer/services/calibCapture.ts) `setProp`).
+  ([calibCapture.ts](../plugins/calibration/src/calibCapture.ts) `setProp`).
 
 Exposure units are driver-specific (exposure is usually log2-seconds) — the UI exposes the raw value.
 
@@ -87,7 +87,7 @@ floor to match an overlap's doubled black). Sliders in the output settings of
 - **NVAPI** (`buildIntensity`): `a * gain + lift * blackWeight` per channel (intensity is a per-channel
   multiply — colour gain is exact; black lift is applied where content is attenuated).
 - **Spatial black-lift weight** — `BlendMap.black` in
-  [blendCompute.ts](../src/renderer/calib/blendCompute.ts) reuses the existing voxel-overlap structure:
+  [blendCompute.ts](../plugins/calibration/src/blendCompute.ts) reuses the existing voxel-overlap structure:
   1 where a projector sees the least overlap (lift its black most), 0 at the deepest overlap. Only
   emitted with ≥2 projectors.
 

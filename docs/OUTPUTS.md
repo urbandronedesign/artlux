@@ -124,5 +124,5 @@ same teardown: unregister the shortcut, destroy the tray, and close every projec
   (`APP_RELAUNCH_BROADCAST` → `app.relaunch({args:['--broadcast','--project='+path]}); app.exit(0)`).
 
 ### Build
-`electron.vite.config.ts` adds the `projector` HTML rollup input (alongside index/headless/scene).
+`electron.vite.config.ts` adds the `projector` HTML rollup input (alongside `index` and `docs`).
 electron-builder ships it automatically (`out/**/*`).
