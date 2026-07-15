@@ -155,18 +155,40 @@ public:
   int speakerCount() { const juce::ScopedLock sl(lock); return nSpeakers; }
 
   // Decoder speaker index → DEVICE CHANNEL. A venue's ring is almost never wired 1:1, and there is no
-  // ladder in the audio callback. Sanitised on the way in: an out-of-range or duplicated entry keeps
-  // identity, so a hand-edited prefs file can never make the callback write past the buffer.
+  // ladder in the audio callback. Sanitised on the way in: an out-of-range OR DUPLICATED entry (two
+  // speakers CAN be pointed at the same channel — persisted prefs can be hand-edited, and the per-speaker
+  // channel dropdowns in Preferences let an operator pick the same channel twice) is never silently
+  // dropped — every slot is guaranteed a distinct device channel, so the result is ALWAYS a full
+  // permutation of [0..kMaxSpeakers).
   void setPatch(const std::vector<int>& p) {
     const juce::ScopedLock sl(lock);
     patch.assign(kMaxSpeakers, -1);
-    std::vector<bool> used(kMaxSpeakers, false);
+    patchUsed.assign(kMaxSpeakers, false);   // member, not a local — see the declaration: no allocation
+                                              // under `lock` once the vector has grown to size once
     for (int s = 0; s < kMaxSpeakers; ++s) {
       const int v = s < (int) p.size() ? p[(size_t) s] : s;
-      if (v >= 0 && v < kMaxSpeakers && !used[(size_t) v]) { patch[(size_t) s] = v; used[(size_t) v] = true; }
+      if (v >= 0 && v < kMaxSpeakers && !patchUsed[(size_t) v]) { patch[(size_t) s] = v; patchUsed[(size_t) v] = true; }
     }
-    for (int s = 0; s < kMaxSpeakers; ++s)                       // anything rejected falls back to a free channel
-      if (patch[(size_t) s] < 0 && !used[(size_t) s]) { patch[(size_t) s] = s; used[(size_t) s] = true; }
+    // Anything still unfilled here was REJECTED by the pass above — out of range, or a duplicate whose
+    // value an earlier slot already claimed. It must still land on SOME device channel: leaving it at -1
+    // silently drops that decoder speaker (the write site skips a -1, so it's memory-safe, but the speaker
+    // goes SILENT with no diagnostic) and breaks the "always a valid permutation" guarantee above.
+    //
+    // This can NOT fall back to `patch[s] = s` (a slot's own index) — that index may already be claimed by
+    // a slot the pass above legitimately honoured. E.g. input [2, 2]: slot 0 claims channel 2 first, so
+    // when slot 2 is considered its own index (2) is already taken; `patch[2] = 2` would just be rejected
+    // again by `used[2]`, and the old code left it at -1 there — that was the bug. Instead walk a cursor
+    // forward over the channels the pass above left genuinely FREE and hand out the next one. This always
+    // terminates with every slot filled and the whole array a permutation: the pass above claims at most
+    // one channel per slot, there are exactly kMaxSpeakers slots and kMaxSpeakers channels, so a still-
+    // unfilled slot always means an as-yet-unclaimed channel exists for the cursor to find.
+    int freeCh = 0;
+    for (int s = 0; s < kMaxSpeakers; ++s) {
+      if (patch[(size_t) s] >= 0) continue;
+      while (freeCh < kMaxSpeakers && patchUsed[(size_t) freeCh]) ++freeCh;
+      patch[(size_t) s] = freeCh;
+      patchUsed[(size_t) freeCh] = true;
+    }
   }
 
   // ⚠ THE TONE BYPASSES THE DECODER, AND THAT IS THE ENTIRE POINT. It is written straight onto a DEVICE
@@ -506,6 +528,11 @@ private:
 
   static constexpr int kMaxSpeakers = 64;   // configure() clamps channels to 64; the patch must cover it
   std::vector<int> patch;                   // decoder speaker → device channel (identity by default)
+  std::vector<bool> patchUsed;               // setPatch's scratch "which device channels are claimed" —
+                                              // a MEMBER so it's grown once and reset (not reallocated) on
+                                              // every setPatch call, same discipline as `patch` itself; a
+                                              // local here would malloc on every call while `lock` is held
+                                              // (the same disease addClip/stop's comments are about)
   int toneCh = -1;                          // -1 = off
   float toneGain = 0.0f;
   float pinkB0 = 0, pinkB1 = 0, pinkB2 = 0; // Paul Kellet's economy pink filter — no allocation, no state reset needed
