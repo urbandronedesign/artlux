@@ -134,6 +134,15 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
   const shortChannels = mode === 'speakers' && need > outCh;
   const patchDuplicate = mode === 'speakers' && hasDuplicateChannel(cfg.speakerPatch, need);
 
+  // A held test tone plays in the physical room. If the layout, device, or output mode changes while a
+  // speaker is held — including via keyboard, which fires no pointerup on the vanishing button — the
+  // button can unmount with the tone still sounding and nothing on screen to stop it. Kill it whenever
+  // any of those change.
+  useEffect(() => {
+    if (tone !== null) { setTone(null); audioClient.setTestTone(-1, 0); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, need, opened?.channels, cfg.deviceType, cfg.deviceName]);
+
   // ── OPTION VALUES ARE INDICES, NOT `${type} ${name}` STRINGS ────────────────────────────────────────
   // Driver type names and device names ROUTINELY CONTAIN SPACES — "Windows Audio (Exclusive Mode)",
   // "Focusrite Scarlett 2i2 USB" — so a space-joined value split back on ' ' silently shreds both fields
@@ -323,6 +332,7 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
                     onPointerDown={() => { setTone(s); audioClient.setTestTone(dst, 0.5); }}
                     onPointerUp={() => { setTone(null); audioClient.setTestTone(-1, 0); }}
                     onPointerLeave={() => { setTone(null); audioClient.setTestTone(-1, 0); }}
+                    onPointerCancel={() => { setTone(null); audioClient.setTestTone(-1, 0); }}
                     className={`px-2 h-6 rounded text-mini border tabular-nums ${tone === s ? 'bg-accent text-black border-transparent' : 'bg-surface-2 text-fg-2 border-line-1 hover:text-fg-1'}`}
                   >
                     Speaker {s + 1}

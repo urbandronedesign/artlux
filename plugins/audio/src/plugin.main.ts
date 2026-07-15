@@ -38,7 +38,7 @@ export const plugin: MainPlugin = {
     ipc.on('audio:setMasterEffects', (fx) => engine.setMasterEffects(Array.isArray(fx) ? (fx as engine.AudioEffectSpec[]) : []));
     ipc.on('audio:setMasterGain', (g) => engine.setMasterGain(g == null ? 1 : Number(g)));
     // Commissioning tone. deviceChannel < 0 turns it off; see audioManager.setTestTone.
-    ipc.on('audio:setTestTone', (ch, g) => engine.setTestTone(Number(ch) ?? -1, g == null ? 0.5 : Number(g)));
+    ipc.on('audio:setTestTone', (ch, g) => engine.setTestTone(ch == null ? -1 : Number(ch), g == null ? 0.5 : Number(g)));
     ipc.on('audio:stopAll', () => engine.stopAll());
   },
 
