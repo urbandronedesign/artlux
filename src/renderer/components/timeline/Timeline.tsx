@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { X, ChevronDown, Film, Plus, Save, ChevronLeft, ChevronRight } from 'lucide-react';
-import { Timeline as TL, VideoClip, VideoLayer, SurfaceContent, SourceType, StateMachine, defaultStateMachine, isContentClip, timelineEnd, timelineStart, timelineDuration, hasTimelineRegion, timelineAudioClips, timelineAudioTracks, type AudioClip, type AudioMix, type AudioTrack, type AssetEntry } from '../../types';
+import { Timeline as TL, VideoClip, VideoLayer, SurfaceContent, SourceType, StateMachine, defaultStateMachine, isContentClip, timelineEnd, timelineStart, timelineDuration, hasTimelineRegion, timelineAudioClips, timelineAudioTracks, type AudioClip, type AudioMix, type AudioTrack, type AssetEntry, type VideoClipAudio } from '../../types';
 import { timeline as engine } from '../../services/timeline';
 import * as selection from '../../services/selection';
 import { ContentEditor } from '../ContentEditor';
@@ -28,6 +28,7 @@ import { trackingRecorder, trackingTake } from '@artlux/plugin-lidar-tracking';
 import { ensureBlobUrl, mimeForPath } from '../../services/mediaCache';
 import { StateGraphEditor } from './StateGraphEditor';
 import { DragMode } from './ClipBlock';
+import { ClipAudioInspector } from './ClipAudioInspector';
 import { useTimelineKeys } from './hooks/useTimelineKeys';
 
 // Fallback length for an audio file the browser cannot decode (some .aiff): place a trimmable clip rather
@@ -1101,6 +1102,12 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       ? { ...c, content: { ...(c.content ?? { type: SourceType.NONE }), ...patch }, ...(patch.url !== undefined ? { path: patch.url ?? '' } : {}) }
       : c),
   });
+  // Edit the selected clip's OWN-soundtrack settings. Placement is never written here — it is derived from
+  // the video clip (services/videoAudio.ts) — so this only ever touches the `audio` block.
+  const patchClipAudio = (id: string, patch: Partial<VideoClipAudio>) => onChangeRef.current({
+    ...timelineRef.current,
+    clips: timelineRef.current.clips.map(c => c.id === id ? { ...c, audio: { ...c.audio, ...patch } } : c),
+  });
   const changeClipContentType = (id: string, type: SurfaceContent['type']) => onChangeRef.current({
     ...timelineRef.current,
     clips: timelineRef.current.clips.map(c => c.id === id ? { ...c, content: { type }, name: contentLabel({ type }), path: '' } : c),
@@ -1450,6 +1457,20 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
             onChange={(patch) => patchClipContent(selectedClip.id, patch)}
             onTypeChange={(type) => changeClipContentType(selectedClip.id, type)}
           />
+        </div>
+      )}
+
+      {/* Inspector for a selected PATH-BASED VIDEO clip — the only kind that carries a soundtrack. A
+          generalized-content clip (Spout/NDI/camera/effect) has no file to conform, and a tracking clip is
+          blob data; both are excluded here exactly as they are in the derivation. */}
+      {selectedClip && !isContentClip(selectedClip) && selectedClip.kind !== 'tracking' && !!selectedClip.path && (
+        <div className="absolute top-2 right-2 z-30 w-60 bg-surface-1/95 backdrop-blur-sm border border-line-1 rounded-md p-2.5 shadow-e2 space-y-2"
+          onPointerDown={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between">
+            <span className="text-micro font-bold uppercase tracking-wider text-fg-3 truncate">{selectedClip.name}</span>
+            <button onClick={() => setSelected(null)} className="text-fg-3 hover:text-fg-1" title="Close"><X size={12} /></button>
+          </div>
+          <ClipAudioInspector clip={selectedClip} onPatch={(patch) => patchClipAudio(selectedClip.id, patch)} />
         </div>
       )}
     </div>

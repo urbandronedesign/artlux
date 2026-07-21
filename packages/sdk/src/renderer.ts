@@ -483,6 +483,25 @@ export interface AudioService<Mix = unknown, TlAudio = unknown, TlClip = unknown
   getTimelineAudio(): TlAudio;
 
   /**
+   * THE THIRD CONTAINER — the bound timeline's VIDEO CLIPS' own soundtracks, in the same `{tracks, clips}`
+   * shape and on the same clock as `getTimelineAudio()` (the PLAYHEAD, so it restarts with its timeline).
+   *
+   * DERIVED, NOT AUTHORED. There is no such document: the host recomputes these from the video clips on
+   * the timeline, so a move/trim/blade/slip/undo is inherited by construction rather than maintained. The
+   * caller must therefore treat them as READ-ONLY — `patchTimelineClip` addresses `Timeline.audio` and
+   * will not find a `va:`-prefixed id. To change one, write the VIDEO clip's `audio` block.
+   *
+   * ⚠ `clips[].path` IS THE SOURCE VIDEO'S PATH — an `.mp4`/`.mov`, which the audio engine CANNOT OPEN.
+   * The consumer is expected to map it to something playable (the audio plugin conforms it to a cached
+   * WAV) and to drop clips it has no mapping for yet. Core deliberately knows nothing about that step.
+   *
+   * Returns a REFERENCE-STABLE value while the timeline's layers and clips are unchanged, and a shared
+   * frozen empty when nothing contributes — the driver's orphan detector compares clip arrays by identity
+   * and this is read every frame.
+   */
+  getVideoAudio(): TlAudio;
+
+  /**
    * THE SECOND WRITER — patch ONE clip inside the BOUND timeline's own audio (gain, mute, spatial, FX).
    *
    * TWO CONTAINERS, TWO WRITERS, AND THEY ARE NOT SYMMETRIC — read this before reaching for `setMix`.

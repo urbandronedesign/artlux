@@ -6,6 +6,14 @@
 
 import type { MainPlugin, MainPluginContext } from '@artlux/sdk/main';
 import * as engine from './audioManager';
+import {
+  conformAppend, conformFinish, conformFrames, conformRewind, conformStart, pruneCache,
+} from './conform.main';
+
+// Ceiling for the conform cache, swept after each conform lands. Generous on purpose: a conform is 16-bit
+// at the source rate (~10 MB/minute stereo), and re-conforming a show's media because the cache was
+// trimmed too eagerly costs an operator minutes at exactly the wrong moment. Derivable either way.
+const CONFORM_CACHE_BYTES = 4 * 1024 * 1024 * 1024;
 
 export const plugin: MainPlugin = {
   manifest: { id: 'audio', name: 'Audio', version: '0.0.0' },
@@ -40,6 +48,27 @@ export const plugin: MainPlugin = {
     // Commissioning tone. deviceChannel < 0 turns it off; see audioManager.setTestTone.
     ipc.on('audio:setTestTone', (ch, g) => engine.setTestTone(ch == null ? -1 : Number(ch), g == null ? 0.5 : Number(g)));
     ipc.on('audio:stopAll', () => engine.stopAll());
+
+    // ── The conform (a video file's soundtrack → a cached WAV the engine can already open) ──────────
+    // ALL invokes, no sends: every step is an awaited round trip, which is both the ordering guarantee
+    // (an append must never overtake the finish on a different IPC channel) and the back-pressure that
+    // keeps a fast decoder from outrunning the disk. See conform.main.ts for the branch matrix.
+    ipc.handle('audio:conformStart', (src) => conformStart(String(src ?? '')));
+    ipc.handle('audio:conformFrames', (token) => conformFrames(String(token ?? '')));
+    ipc.handle('audio:conformRewind', (token) => { conformRewind(String(token ?? '')); return true; });
+    ipc.handle('audio:conformAppend', (token, pcm, channels, rate) => conformAppend(
+      String(token ?? ''),
+      // Structured-clone hands a TypedArray back as one; a plain object would mean a protocol change
+      // upstream, and writing its `length` bytes of nothing is how a conform ends up silent.
+      pcm instanceof Int16Array ? pcm : new Int16Array(0),
+      Math.max(1, Number(channels) || 2),
+      Math.max(1, Number(rate) || 48000),
+    ));
+    ipc.handle('audio:conformFinish', (token, ok) => {
+      const wav = conformFinish(String(token ?? ''), ok !== false);
+      if (wav) pruneCache(CONFORM_CACHE_BYTES);
+      return wav;
+    });
   },
 
   deactivate(): void {

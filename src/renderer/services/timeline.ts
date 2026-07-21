@@ -4,6 +4,7 @@ import * as contentSource from './contentSource';
 import { clipKindRegistry, videoCodecRegistry } from '../host/registries';
 import { automationTargetRegistry } from '../host/registries';
 import { sampleLane, type Cursor } from './automation';
+import { videoAudioOf } from './videoAudio';
 import type { AutomationLane, Keyframe, TimelineAudio } from '../types';
 import type { AutomationTargetProvider } from '@artlux/sdk/renderer';
 import type { VideoCodecContribution } from '@artlux/sdk/renderer';
@@ -1047,6 +1048,9 @@ export const timeline = {
   //
   // May be undefined (a project saved before Timeline.audio existed) — the caller defaults it.
   getBoundAudio(): TimelineAudio | undefined { return data.audio; },
+  // THE BOUND DOCUMENT'S VIDEO-CLIP AUDIO — the same clock as getBoundAudio (the playhead), a different
+  // owner. See videoAudioOf() for the whole argument; read from `data` for exactly the reason above.
+  getBoundVideoAudio(): TimelineAudio { return videoAudioOf(data); },
   // The GLOBAL timeline document. `data` is always the BOUND doc, so this is the engine's only handle on
   // the global one — and the SHOW clock is bounded by it. Pushed by App on every global-timeline change.
   //

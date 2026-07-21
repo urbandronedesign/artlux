@@ -2016,6 +2016,11 @@ const App: React.FC = () => {
       // EMPTY_TIMELINE_AUDIO, not a fresh literal: this is read EVERY FRAME and the driver's orphan gate
       // compares clip arrays by identity. See the constant's comment.
       getTimelineAudio: () => timelineEngine.getBoundAudio() ?? EMPTY_TIMELINE_AUDIO,
+      // THE THIRD CONTAINER — the bound timeline's video clips' own soundtracks, derived (never authored)
+      // and on the same clock as getTimelineAudio. Read from the ENGINE for the same reason: a recall
+      // repoints `data` synchronously and the driver ticks in that same frame. The engine memoises on the
+      // layers/clips array identities, so this is a ref compare per frame and allocates nothing.
+      getVideoAudio: () => timelineEngine.getBoundVideoAudio(),
       // THE SECOND WRITER, AND IT IS NOT A MIRROR OF setMix. setMix replaces the bed — one document, App's
       // own, never rebound. This patches ONE clip, BY ID, inside whichever document CORE has bound right
       // now, through the owner-router every other timeline edit uses; the caller cannot name a scene, and an

@@ -221,6 +221,38 @@ export interface VideoLayer {
   enabled?: boolean;     // false = excluded from the program; default true
   opacity?: number;      // program composite alpha 0..1 (default 1)
   blendMode?: LayerBlendMode; // program composite blend (default 'normal')
+  // The layer's SOUND — deliberately NOT the `muted` field three lines up. That one means "excluded from
+  // the program composite", i.e. a picture flag; conflating them would make hiding a layer silence it,
+  // which no NLE does. This is the audio strip of the same track: mute/solo/gain over every clip on it.
+  audio?: VideoLayerAudio;
+}
+export interface VideoLayerAudio {
+  gain?: number;         // linear, default 1
+  mute?: boolean;
+  solo?: boolean;        // scoped to the video-audio container only — see the driver's audibleIn()
+}
+/**
+ * A video clip's OWN soundtrack — the audio track inside the `.mp4`/`.mov` the clip already points at.
+ *
+ * ⚠ ABSENT MEANS AUDIBLE. `enabled` is undefined in every project authored before this existed, and it
+ * reads as TRUE there exactly as it does in a new one: a decided behaviour change, not an oversight, and
+ * normalizeTimeline stamps nothing to soften it (plans/video-clip-audio.md §Breaking changes). Existing
+ * shows will make sound they never made before; the venue's recourse is the machine-level `Video clip
+ * audio` switch, the operator's is this flag or the layer's mute.
+ *
+ * There is no `path` here and there never will be: the sound IS the clip's own file, so a link cannot go
+ * stale and a trim cannot desynchronise it. The audio placement is DERIVED from the video clip every frame
+ * (timelineEngine.getBoundVideoAudio), which is what makes blade/slip/move/undo free.
+ */
+export interface VideoClipAudio {
+  enabled?: boolean;     // absent ⇒ TRUE. false = deliberately silent.
+  gain?: number;         // linear, default 1
+  mute?: boolean;
+  offsetMs?: number;     // A/V trim, + = audio later. Folded into the derived clip's inPoint.
+  fadeIn?: number;       // s
+  fadeOut?: number;      // s
+  spatial?: AudioSpatial;  // absent ⇒ non-spatial (the engine gives this away free — see docs/AUDIO.md)
+  effects?: AudioEffect[]; // insert chain on the source, applied BEFORE spatialisation
 }
 // A clip placed on a track. All times are seconds.
 export interface VideoClip {
@@ -238,6 +270,7 @@ export interface VideoClip {
   inPoint: number;       // offset into the source where playback starts (trim)
   sourceDuration?: number; // full length of the source video/take (for trim limits)
   color?: string;        // per-clip tint override (optional)
+  audio?: VideoClipAudio;  // the clip's own soundtrack — see VideoClipAudio; absent ⇒ audible
 }
 // A clip whose pixels come from a generalized content source (not the legacy video <video>/HAP path).
 // Video clips stay path-based even if they also carry content={type:VIDEO,...}.
@@ -545,7 +578,42 @@ const sanitizeClip = (c: VideoClip): VideoClip => ({
   duration: finiteNum(c.duration) ?? 0,
   inPoint: finiteNum(c.inPoint) ?? 0,
   sourceDuration: finiteNum(c.sourceDuration) ?? undefined,
+  audio: sanitizeClipAudio(c.audio),
 });
+
+/**
+ * Coerce a video clip's audio block. Same rule as everywhere else — COERCE, DO NOT DROP (invariant 6) —
+ * but one field here is not merely cosmetic if it arrives malformed:
+ *
+ * ⚠ `spatial` REACHES THE AMBISONIC ENCODER. Every spatial source is encoded into ONE SHARED B-format bus
+ * (SpatialBus::getNextAudioBlock), so a NaN coordinate on a single clip poisons the whole bus — silence,
+ * or full-scale noise, on the audio thread, in a venue. NaN passes native SetClipSpatial's IsNumber()
+ * guard, because NaN *is* a number. The audio driver bounds this at the engine door too
+ * (plugin.renderer.ts finiteVec3) and both are wanted: this one keeps the DOCUMENT clean, that one
+ * protects the engine from a document that never passed through here (a live in-memory Timeline).
+ * A malformed position reads as NO position, i.e. the clip is simply not spatial.
+ */
+const sanitizeClipAudio = (a: VideoClipAudio | undefined): VideoClipAudio | undefined => {
+  if (!a || typeof a !== 'object') return undefined;
+  const s = a.spatial;
+  const spatial = s && typeof s === 'object'
+    && finiteNum(s.x) !== undefined && finiteNum(s.y) !== undefined && finiteNum(s.z) !== undefined
+    ? s : undefined;
+  return {
+    ...a,
+    // `enabled` is a tri-state on purpose: absent ⇒ audible. Only an explicit `false` silences a clip, so
+    // a junk value must fall back to ABSENT and not to `false` — coercing junk into silence would be the
+    // one coercion in this file that destroys the operator's sound rather than a number.
+    enabled: a.enabled === false ? false : undefined,
+    gain: finiteNum(a.gain),
+    offsetMs: finiteNum(a.offsetMs),
+    fadeIn: finiteNum(a.fadeIn),
+    fadeOut: finiteNum(a.fadeOut),
+    mute: a.mute === true ? true : undefined,
+    spatial,
+    effects: Array.isArray(a.effects) ? a.effects : undefined,
+  };
+};
 
 // --- Audio coercion (Wave B). Declared HERE, above normalizeTimeline, rather than down in the audio
 // section next to the types they coerce: normalizeTimeline calls normalizeTimelineAudio, and a `const`

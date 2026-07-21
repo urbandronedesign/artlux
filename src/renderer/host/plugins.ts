@@ -54,6 +54,10 @@ const NOOP_HOST: RendererHostServices = {
   audio: {
     getMix: () => ({ tracks: [], clips: [], buses: [] }), setMix: () => {},
     getTimelineAudio: () => ({ tracks: [], clips: [] }), patchTimelineClip: () => {},
+    // Video-clip audio, likewise empty here. (The fresh literals in this stub would be a hazard in the
+    // main window — the audio driver's orphan gate compares clip arrays by IDENTITY — but the driver
+    // returns early for every window that is not 'main', which is the only kind this host serves.)
+    getVideoAudio: () => ({ tracks: [], clips: [] }),
     subscribe: () => () => {},
   },
 };

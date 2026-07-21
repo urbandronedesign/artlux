@@ -11,17 +11,23 @@ Shipped in **Wave 3**. **Not yet released** — it sits under `## Unreleased` in
 **[`examples/audio/`](../examples/audio/README.md)** — five ready-to-open projects and a six-chapter
 tutorial.
 
-> ### The one thing to understand before anything else: **two containers, two clocks.**
+> ### The one thing to understand before anything else: **three containers, two clocks.**
 >
 > | | Lives in | Rides | A Scene recall… |
 > |---|---|---|---|
 > | **The BED** | `ProjectData.audio` — **one per project** | the **SHOW clock** (`showTime`) | **does not touch it.** It plays straight through. |
 > | **A timeline's OWN audio** | `Timeline.audio` — one per timeline, **so one per Scene** | the **PLAYHEAD** | **restarts it**, with its timeline. |
+> | **A VIDEO CLIP's own soundtrack** | nowhere — **derived** from the video clips on a timeline | the **PLAYHEAD** | **restarts it**, with its timeline. |
 >
 > The bed is the house music, the room tone, the thing that must not stutter when you fire a cue. A
 > timeline's own audio is the scene's *sting* — the thing that **should** fire again every time you enter it.
 > Almost every question about ArtLux audio ("why did it restart?", "why *didn't* it restart?") is answered by
 > asking which container the clip is in. See [TIMELINE.md — the show clock](TIMELINE.md).
+>
+> The third one is **not a document**: there is no list of video-clip audio anywhere in a `.artlux`. It is
+> recomputed from the video clips themselves every frame, which is why a blade, a trim, a slip or an undo
+> carries the sound with the picture and cannot desynchronise it — there is no link to maintain. Only *how it
+> sounds* is authored (`VideoClip.audio`), never *when*.
 
 ---
 
@@ -208,6 +214,8 @@ When a layer owns a fader it says so:
 
 - **Files:** `wav`, `aiff`/`aif`, `flac`, `ogg` (JUCE's `registerBasicFormats`). MP3/AAC are gated behind
   extra codecs and are **not** enabled.
+- **Video containers** (`mp4`/`m4v`/`mov`/`mkv`/`webm`) are **conformed**, not opened: the engine still only
+  ever plays a WAV. See *A video clip's own soundtrack* below.
 - **Output:** Preferences ▸ Audio — 1/2/4/6/8 channels, **binaural** (HRTF, for headphones) or a **speaker
   layout** (the mode for an installation). The device may open with *fewer* channels than you asked for; the
   master chain is built for what you actually got, and the panel tells you.
@@ -221,6 +229,54 @@ way the room can go quiet has its own badge in the Audio Bed header, and they mu
 | **`no audio engine`** (amber) | The native addon did **not load**. `audioManager` is load-or-null, so authoring, saving, DMX, projectors and OSC all keep working — there is simply nothing to make sound with. A startup notice says so too. | Built from source: `npm run build:audio`, **with the app closed**. |
 | **`no output device`** (red) | The engine is loaded and the show is running, but **the audio interface has gone** — a bumped USB cable, a driver reload, Windows power-cycling the device. | Reconnect it, then **Preferences ▸ Audio ▸ Reconnect**. Sound returns with no restart. ⚠ **ArtLux does not re-open a device by itself** — in an unattended install nobody is there to press it. Tracked for Wave 4. |
 | **`show ended`** (amber) | **Not a fault — the show is over.** The global timeline's Length ran out with **Loop off**, so the show clock **parked** and the driver correctly stopped the bed. But the transport still reports *playing* (a scene may be looping underneath), the Play button stays lit, and the readout freezes over a silent room. **This is the one an unattended install hits first** — the default project is 60 s with Loop **off**, so it reaches the end in one minute. | Raise the global **Length**, turn global **Loop** on, or **Stop → Play**. An installation's global timeline should essentially always loop. |
+
+---
+
+## A video clip's own soundtrack
+
+Drop an `.mp4` or a `.mov` on a video track and **it plays its own audio**, on the clip's playhead, through
+this rig — the master chain, the commissioned patch, the meters. No linking, no separate import, no audio
+lane. It is codec-agnostic by construction: the sound lives in the *container*, so a HAP `.mov`, a WebCodecs
+`.mp4`, a plain `<video>` file and the DXV plugin that isn't written yet all behave identically.
+
+### It is CONFORMED, not decoded live
+
+The engine cannot open an MP4 — it registers WAV/AIFF/FLAC/Ogg and nothing that reads an ISO-BMFF container.
+Rather than put a video decoder on the audio read thread (where a seek would land *during the show*, against
+a 10.7 ms deadline), the soundtrack is decoded **once**, at import, into a 16-bit WAV cached per machine in
+`userData/audio-conform/`. What plays in the venue at 3am is a plain WAV.
+
+- The cache key is `path + mtime + size`, so **re-encoding a file in place re-conforms it** and moving a
+  project does not.
+- It is **derivable machine state**: never in the `.artlux`, never in the project's `assets/`. Delete it and
+  it rebuilds. A project handed to a venue conforms on first open.
+- Only the audio is read — a HAP master's soundtrack is ~2% of the file.
+- A file with **no audio track** is remembered as such and never re-examined.
+- **Multichannel is downmixed, not truncated** (ITU-R BS.775). A 5.1 film folded by taking channels 1–2
+  would drop the centre channel, which is the dialogue. The fold is measured first so it cannot clip.
+
+### ⚠ Every project starts with sound — including the ones authored before this existed
+
+`VideoClip.audio.enabled` is **absent by default and absent means audible**, in a project made today and in
+one made two years ago. A show that has been silent for a year can start playing whatever its masters carry —
+a scratch take, room tone off a camera mic — on the first launch after an update. That is intended, and these
+are the three ways to stop it:
+
+| Scope | Where |
+|---|---|
+| **Everything, this machine** | **Preferences ▸ Audio ▸ Video clip audio** — off. The venue's switch: no document edit, no re-save, and it does not travel with the project. |
+| One **track** | the **speaker button** on the track header — *not* the `M` beside it, which is the picture flag for the Program composite |
+| One **clip** | select it → **Audio ▸ On** in the inspector |
+
+This is the inverse of the three silences below — *unexpected sound with a UI that says nothing is playing* —
+so it gets the same treatment: one named cause, one place to fix it.
+
+### Lipsync
+
+Audio and picture are both slaved to the playhead; neither chases the other. What is left is the constant
+latency of the rig, and there are two trims that add together: **Preferences ▸ Audio ▸ A/V offset** (this
+machine — converters, buffer, projector delay; tune once with a clapperboard clip) and the per-clip **Offset**
+in the inspector (this file). Positive means audio later.
 
 ---
 

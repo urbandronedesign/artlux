@@ -33,6 +33,7 @@
 
 import type { RendererPlugin, RendererPluginContext, RendererHostServices } from '@artlux/sdk/renderer';
 import { setIpc, audioClient } from './audioClient';
+import { setConformIpc, conformAudio, conformOf, conformGeneration } from './conformClient';
 import { setAudioHost } from './audioHost';
 import { AudioSettings } from './AudioSettings';
 import { AudioBedPanel } from './AudioBedPanel';
@@ -52,6 +53,15 @@ interface AudioPluginCfg {
   // mounts there), so a patch missing here means a venue's commissioned ring plays the wrong outputs with
   // no error and normal-looking meters. See AudioCfg in AudioSettings.tsx, which this mirrors.
   speakerPatch?: number[];
+  // ── Video-clip audio (the third container) ──
+  // The venue's kill switch. ABSENT ⇒ ON: every project makes sound, including one authored before video
+  // clips could. See plans/video-clip-audio.md §Breaking changes for why that default is deliberate and
+  // what it obliges.
+  videoAudio?: boolean;
+  // Machine-wide A/V trim (ms, + = audio later) — the constant part of the offset: device latency, the
+  // rig's converters, the projector's own lag. Machine state, so it does NOT travel in the `.artlux`; the
+  // per-clip `VideoClipAudio.offsetMs` is the document's half and core has already folded that one in.
+  avOffsetMs?: number;
 }
 
 // Minimal structural view of the two persisted containers the driver reads (host.audio.getMix() and
@@ -100,11 +110,66 @@ function readTlAudio(host: RendererHostServices): TlAudio {
   };
 }
 
+// ── THE THIRD CONTAINER: video clips' own soundtracks ──────────────────────────────────────────────
+//
+// Core derives these from the video clips on the bound timeline (timeline.getBoundVideoAudio) and hands
+// them over in the SAME shape as Timeline.audio, on the SAME clock (the playhead). So the driver needs no
+// new concepts — one more reconcileContainer call, and every behaviour below (loading, fades, gain,
+// spatial, FX, mute/solo, the seek re-lock) is inherited unchanged.
+//
+// The one thing this layer must do is TRANSLATE THE PATH. Core hands back the source `.mp4`/`.mov`, which
+// the engine cannot open; the conform turns it into a cached WAV. A clip with no conform yet has no
+// `path`, and syncLoaded skips it (`!clip.path`) until one lands — so a clip is simply silent while it
+// conforms, with no state machine anywhere.
+//
+// ⚠ MEMOISED, for the reason stated everywhere else in this file: pruneOrphans gates on the clip array's
+// IDENTITY, and this runs every frame. The memo key is the SOURCE array's identity plus the two things
+// that can change the mapping without the document moving at all — a conform landing
+// (conformGeneration), and the machine's A/V offset.
+let vaSrcClips: BedClip[] | null = null;
+let vaGen = -1;
+let vaOffsetMs = 0;
+let vaOut: TlAudio = { tracks: EMPTY_TRACKS, clips: EMPTY_CLIPS };
+
+const EMPTY_VIDEO_AUDIO: TlAudio = { tracks: EMPTY_TRACKS, clips: EMPTY_CLIPS };
+
+function readVideoAudio(host: RendererHostServices, enabled: boolean, offsetMs: number): TlAudio {
+  // THE VENUE'S KILL SWITCH (Preferences ▸ Audio ▸ Video clip audio). Every project — including one
+  // authored years before video clips could make a sound — starts audible, so an installation needs a way
+  // to silence the lot NOW, without editing and re-saving a show. Off ⇒ the container is empty, which
+  // stops clips through the ordinary orphan path rather than through a special case.
+  if (!enabled) {
+    if (vaSrcClips !== null) { vaSrcClips = null; vaGen = -1; vaOut = EMPTY_VIDEO_AUDIO; }
+    return vaOut;
+  }
+  const raw = (host.audio.getVideoAudio() as Partial<TlAudio>) ?? {};
+  const srcClips = Array.isArray(raw.clips) ? raw.clips : EMPTY_CLIPS;
+  const gen = conformGeneration();
+  if (srcClips === vaSrcClips && gen === vaGen && offsetMs === vaOffsetMs) return vaOut;
+  vaSrcClips = srcClips; vaGen = gen; vaOffsetMs = offsetMs;
+
+  const clips: BedClip[] = [];
+  for (const c of srcClips) {
+    const wav = conformOf(c.path);
+    // `undefined` = never asked. Kick the conform HERE and nowhere else: this block runs only when the
+    // memo actually misses (a document edit, or a conform landing), never on a steady frame. conformAudio
+    // dedupes by source path, so five clips off one file conform once.
+    if (wav === undefined) { void conformAudio(c.path); continue; }
+    if (!wav) continue;                       // asked and answered: no audio track. Nothing to play.
+    clips.push({ ...c, path: wav, inPoint: c.inPoint + offsetMs / 1000 });
+  }
+  vaOut = clips.length
+    ? { tracks: Array.isArray(raw.tracks) ? raw.tracks : EMPTY_TRACKS, clips }
+    : EMPTY_VIDEO_AUDIO;
+  return vaOut;
+}
+
 export const plugin: RendererPlugin = {
   manifest: { id: 'audio', name: 'Audio', version: '0.0.0' },
 
   activate(ctx: RendererPluginContext): void {
     setIpc(ctx.ipc);
+    setConformIpc(ctx.ipc);
     ctx.settings.register({ id: 'audio', title: 'Audio', Component: AudioSettings });
     // Audio clips carry no visual — keep them off the video-sync path and out of the PROGRAM composite.
     // MUST register in every window (main + projector), like tracking/mediapipe/augmenta.
@@ -131,10 +196,20 @@ export const plugin: RendererPlugin = {
     // whatever settings are live (defaults, most likely), and again every time settings change —
     // key-diffed so an unrelated settings edit (a totally different plugin's slice) never re-issues
     // configure(). configure() is idempotent engine-side, but the diff also skips the IPC round-trip.
+    // The video-audio container's two machine-scoped knobs, refreshed by the same settings subscription
+    // that re-opens the device. Held here rather than read per frame: `tick` must not touch settings.
+    let videoAudioOn = true;
+    let avOffsetMs = 0;
+
     let lastCfgKey = '';
     const applyDeviceCfg = () => {
       const s = host.settings.get() as { plugins?: Record<string, unknown> };
       const c = (s.plugins?.['audio'] as AudioPluginCfg) ?? {};
+      // Read BEFORE the device-key early-out below: these two have nothing to do with the device, and
+      // gating them on a device-config change would mean flipping the kill switch did nothing until the
+      // operator also changed their sound card.
+      videoAudioOn = c.videoAudio !== false;
+      avOffsetMs = Number.isFinite(c.avOffsetMs) ? (c.avOffsetMs as number) : 0;
       // ⚠ c.speakerPatch MUST be in this key. It is machine-commissioned (Speaker check, AudioSettings.tsx)
       // and lives in the SAME cfg slice as everything else here, but it is an ARRAY, not a scalar — easy to
       // forget in a tuple built by eye. Omitting it does not just drop the patch from the call below; it
@@ -170,10 +245,17 @@ export const plugin: RendererPlugin = {
     // every GO. host.audio.getTimelineAudio() reads the ENGINE's bound document, so a per-frame read is
     // always the doc the playhead belongs to. (It is a ref read + two Array.isArray checks; the fan-out is
     // still what drives syncLoaded, i.e. what actually loads and unloads engine-resident sources.)
-    const refreshTlAudio = () => { tlAudio = readTlAudio(host); };
+    // The bound timeline's VIDEO clips' own soundtracks — the third container, same clock as tlAudio, and
+    // re-read every frame for the same reason (a recall repoints the engine synchronously).
+    let vidAudio: TlAudio = readVideoAudio(host, videoAudioOn, avOffsetMs);
+    const refreshTlAudio = () => {
+      tlAudio = readTlAudio(host);
+      vidAudio = readVideoAudio(host, videoAudioOn, avOffsetMs);
+    };
     // Last frame's clip arrays, by REFERENCE — the cheap change detector for pruneOrphans below.
     let prevBedClips: BedClip[] = bed.clips;
     let prevTlClips: BedClip[] = tlAudio.clips;
+    let prevVidClips: BedClip[] = vidAudio.clips;
     // EVERY per-clip map below (loaded/sounding/sentGain/sentOffset/…) is keyed by CLIP ID and is SHARED
     // across both containers. Sharing means one syncLoaded, one reconcile-shaped code path, and no chance
     // of the two drifting apart.
@@ -192,7 +274,7 @@ export const plugin: RendererPlugin = {
     // UI (bed ids are minted fresh; structuredClone only ever clones a TIMELINE, never into the bed).
     // Aliasing across a RECALL is a different question, and `srcPath` + the content-keyed re-pushes are
     // what answer it.
-    const allClips = (): BedClip[] => [...bed.clips, ...tlAudio.clips];
+    const allClips = (): BedClip[] => [...bed.clips, ...tlAudio.clips, ...vidAudio.clips];
     const loaded = new Map<string, ClipMeta>();   // clip source loaded in the engine
     const loading = new Set<string>();            // loads in flight (dedupe overlapping syncLoaded runs)
     const failed = new Set<string>();             // sources that failed to decode (don't retry every bed edit)
@@ -234,7 +316,11 @@ export const plugin: RendererPlugin = {
     // scenes' track ids are never in the same lookup. (Solo/mute are NOT looked up through here — they are
     // container-scoped; see audibleIn.)
     const trackOfClip = (clip: BedClip): BedTrack | undefined =>
-      bed.tracks.find((t) => t.id === clip.trackId) ?? tlAudio.tracks.find((t) => t.id === clip.trackId);
+      bed.tracks.find((t) => t.id === clip.trackId)
+      ?? tlAudio.tracks.find((t) => t.id === clip.trackId)
+      // The video container's track ids are `vl:<layerId>` — minted from a namespace neither of the other
+      // two can produce, so adding them here cannot shadow anything.
+      ?? vidAudio.tracks.find((t) => t.id === clip.trackId);
     // THE CLIP'S FADE ENVELOPE at a given container-clock time. Linear in gain (not dB) — this is a
     // clip-edge fade, not a mix fade, and every DAW draws it as the straight line the lane draws.
     //
@@ -619,8 +705,8 @@ export const plugin: RendererPlugin = {
     // costs nothing, being content-keyed. What it does NOT cover is the aliased clip: DO NOT "simplify" by
     // deleting the SYNCHRONOUS call and trusting the async one. That is precisely the bug described above.
     const pruneOrphans = () => {
-      if (bed.clips === prevBedClips && tlAudio.clips === prevTlClips) return;
-      prevBedClips = bed.clips; prevTlClips = tlAudio.clips;
+      if (bed.clips === prevBedClips && tlAudio.clips === prevTlClips && vidAudio.clips === prevVidClips) return;
+      prevBedClips = bed.clips; prevTlClips = tlAudio.clips; prevVidClips = vidAudio.clips;
       syncClips();                       // what the engine ALREADY holds: correct it NOW, before reconcile() starts it
       void syncLoaded().then(syncClips); // the containers moved: load what arrived, unload what left
       if (sounding.size === 0) return;
@@ -638,6 +724,10 @@ export const plugin: RendererPlugin = {
       if (showEnded) { for (const c of bed.clips) if (sounding.has(c.id)) stopSounding(c.id); }
       else reconcileContainer(bed.clips, bed.tracks, showTime, nowMs);      // THE BED — show clock
       reconcileContainer(tlAudio.clips, tlAudio.tracks, playhead, nowMs);   // the BOUND timeline's own audio — playhead
+      // VIDEO CLIPS' OWN SOUNDTRACKS — the playhead, exactly like the container above, and deliberately
+      // NOT gated on `showEnded`: that is bed-scoped. A scene looping under a finished show keeps its
+      // video playing, so its video must keep sounding.
+      reconcileContainer(vidAudio.clips, vidAudio.tracks, playhead, nowMs);
     };
 
     // TWO CLOCKS, TWO SEEK TESTS.
@@ -727,7 +817,10 @@ export const plugin: RendererPlugin = {
         // clears the shared maps wholesale and would drag the other container down with it. Do not
         // "simplify" these back to stopAllSounding().
         if (showSeeked) for (const c of bed.clips) if (sounding.has(c.id)) stopSounding(c.id);
+        // BOTH playhead-clocked containers resync on a playhead seek — a scene recall must restart a
+        // video's sound with its picture, not leave it running from the outgoing scene's offset.
         if (phSeeked) for (const c of tlAudio.clips) if (sounding.has(c.id)) stopSounding(c.id);
+        if (phSeeked) for (const c of vidAudio.clips) if (sounding.has(c.id)) stopSounding(c.id);
         reconcile(showTime, playhead, st.showEnded, nowMs);
       }
       prevPlaying = playing; prevShowTime = showTime; prevPlayhead = playhead; prevWallMs = nowMs;

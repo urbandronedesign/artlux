@@ -13,6 +13,10 @@ interface AudioCfg {
   // Decoder speaker → device channel (Speaker check below). Absent/short slots default to identity
   // (speaker N → channel N). Persisted machine-scoped, same as the rest of this cfg (Task 2).
   speakerPatch?: number[];
+  // Video-clip audio — the venue's switch and the venue's latency trim. Mirrors AudioPluginCfg in
+  // plugin.renderer.ts, which is what actually reads them.
+  videoAudio?: boolean;   // ABSENT ⇒ ON
+  avOffsetMs?: number;
 }
 
 // Does any device channel repeat among the first `need` speakers? The native sanitiser (engine.cpp
@@ -333,6 +337,41 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
             This layout needs {need} channels but the device is open with {outCh} — only the first {outCh} speakers will be heard. Raise the channel count below.
           </div>
         )}
+      </div>
+
+      {/* ── VIDEO CLIP AUDIO ────────────────────────────────────────────────────────────────────────
+          THE VENUE'S SWITCH, and the reason it exists is a decision rather than a feature: every project
+          plays its video clips' own soundtracks, INCLUDING projects authored before that was possible. A
+          show that has been silent for a year can start making sound on the first launch after an update,
+          and an installation needs to stop it NOW — without opening the timeline, editing clips, or
+          re-saving a show file. Machine-scoped like everything else on this panel, so it never travels in
+          the `.artlux` and never follows the project to the next machine.
+          `patchCfg`, not `patchAndApply`: neither of these touches the device, so re-opening it would be a
+          gratuitous dropout in a running room. */}
+      <div>
+        <div className="text-mini font-semibold text-fg-2 mb-1">Video clip audio</div>
+        <label className="flex items-center gap-2 text-mini text-fg-1 cursor-pointer">
+          <input type="checkbox" className="accent-accent" checked={cfg.videoAudio !== false}
+            onChange={(e) => patchCfg({ videoAudio: e.target.checked ? undefined : false })} />
+          Play the soundtrack inside video clips
+        </label>
+        <div className="text-micro text-fg-3 mt-1">
+          {cfg.videoAudio === false
+            ? 'Off — every video clip on every timeline is silent, whatever the project says.'
+            : 'On — a clip’s own audio plays with it, through this rig. Silence one clip in its inspector, or a whole track with the speaker button on its header.'}
+        </div>
+        <div className="flex items-center gap-2 mt-2">
+          <span className="text-mini text-fg-2">A/V offset</span>
+          <input type="number" step={5} value={cfg.avOffsetMs ?? 0}
+            onChange={(e) => { const v = parseFloat(e.target.value); patchCfg({ avOffsetMs: Number.isFinite(v) && v !== 0 ? v : undefined }); }}
+            className="w-20 bg-surface-0 border border-line-1 rounded text-mini num text-fg-1 px-1 py-0.5 outline-none focus:border-accent" />
+          <span className="text-micro text-fg-3">ms — positive = audio later</span>
+        </div>
+        <div className="text-micro text-fg-3 mt-1">
+          The constant part of the lag on THIS machine: converter and buffer latency, and the projector's own
+          delay. Tune it once with a clapperboard clip. A single clip that needs its own trim has one in its
+          inspector; this is added to that.
+        </div>
       </div>
 
       {mode === 'speakers' && (

@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+### ⚠ BEHAVIOUR CHANGE — video clips now play their own soundtracks, in EVERY project
+
+A video clip on a timeline plays the audio track inside its own `.mp4`/`.mov`, on that clip's playhead,
+through the audio engine — the master chain, the commissioned speaker patch, the meters. There is nothing to
+link and nothing to import: placement is derived from the video clip itself, so a move/trim/blade/slip/undo
+carries the sound with the picture. It works the same for a HAP `.mov`, a WebCodecs `.mp4` and a plain
+`<video>` file, because the sound comes from the *container*, not the codec.
+
+**This changes what existing projects do.** `enabled` is absent in every project authored before this
+existed, and **absent means audible** — so a show that has been silent for a year can start playing whatever
+its masters happen to carry (a scratch take, room tone off a camera mic) on the first launch after updating.
+That is deliberate, not an oversight. Three ways to stop it, coarsest first:
+
+- **Preferences ▸ Audio ▸ Video clip audio — off.** The venue's switch: silences every video clip on the
+  machine, with no document edit and no re-save, and it does not travel with the project.
+- The **speaker button** on a track header — note this is *not* the `M` beside it, which is the picture flag
+  for the Program composite. Hiding a layer does not silence it and silencing it does not hide it.
+- **Audio ▸ On** in a clip's inspector, per clip.
+
+Sound is **conformed, not decoded live**: the soundtrack is decoded once, at import, into a WAV cached in
+`userData/audio-conform/` (keyed by path + mtime + size), so what plays in a venue is a plain WAV and no
+decoder ever runs on the audio thread. The cache is derivable machine state — never in the `.artlux`, never
+in `assets/`; delete it and it rebuilds, and a project handed to a venue conforms on first open. Multichannel
+soundtracks are **downmixed** (ITU-R BS.775), not truncated to channels 1–2, which would drop the centre
+channel — the dialogue. Lipsync trims live in Preferences ▸ Audio (per machine) and the clip inspector (per
+clip); they add. Full detail: [docs/AUDIO.md](docs/AUDIO.md).
+
 ### ⚠ BREAKING (project files) — a project no longer reconfigures the machine that opens it
 
 `AppSettings` — the audio output device, the Art-Net target, the OSC listen port — is the **machine**, not

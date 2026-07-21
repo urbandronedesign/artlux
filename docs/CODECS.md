@@ -38,6 +38,18 @@ default `<video>` element.
 - **Renderer-only** (no native addon) and a **single module identity** so its decoder/clock singletons
   aren't duplicated.
 
+## Audio is a CONTAINER concern, not a codec one
+
+A video file's soundtrack does **not** go through `videoCodecRegistry` and must never be implemented
+per-codec. The audio track of an `.mp4` is the same AAC or PCM whether its *pictures* are decoded by
+WebCodecs, by the HAP native decoder, by a plain `<video>`, or by a codec that doesn't exist yet — so it is
+read from the container once and conformed to a WAV the audio engine can already play. Every present and
+future codec gets sound for free, and a new `VideoCodec` contribution has nothing to do about it.
+
+See [AUDIO.md ▸ A video clip's own soundtrack](AUDIO.md). Worth knowing when adding a codec: Chromium's own
+ffmpeg **refuses** a HAP `.mov` outright (`EncodingError`), which is why the conform demuxes the container
+itself rather than handing the file to `decodeAudioData`.
+
 ## Adding a codec
 
 Implement a `VideoCodecContribution` (surface player + layer sync + thumbnail) and register it in the

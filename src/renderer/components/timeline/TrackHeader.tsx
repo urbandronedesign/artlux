@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Trash2, Eye, EyeOff, Lock, Unlock, GripVertical, Blend } from 'lucide-react';
+import { Trash2, Eye, EyeOff, Lock, Unlock, GripVertical, Blend, Volume2, VolumeX } from 'lucide-react';
 import { VideoLayer, LayerBlendMode } from '../../types';
 
 const BLEND_MODES: LayerBlendMode[] = ['normal', 'add', 'screen', 'multiply'];
@@ -57,6 +57,17 @@ const TrackHeaderBase: React.FC<Props> = ({ layer, index, height, onPatch, onRem
         <button title={layer.enabled === false ? 'Show' : 'Hide'} onPointerDown={(e) => e.stopPropagation()} onClick={() => onPatch(layer.id, { enabled: layer.enabled === false })}
           className={`w-4 h-4 rounded-sm flex items-center justify-center border ${layer.enabled === false ? 'text-fg-3 border-line-2 hover:text-fg-1' : 'text-fg-1 border-line-2'}`}>
           {layer.enabled === false ? <EyeOff size={10} /> : <Eye size={10} />}
+        </button>
+        {/* THE LAYER'S SOUND — its clips' own soundtracks, NOT the same thing as the `M` two buttons left.
+            That one is the PROGRAM composite (a picture flag); this silences every video clip on the track.
+            Two separate concepts sharing a track header is exactly why they get two separate buttons and
+            two separate fields (VideoLayer.muted vs VideoLayer.audio.mute) — hiding a layer must not
+            silence it, and silencing it must not hide it. */}
+        <button title={layer.audio?.mute ? 'Un-mute this track’s video audio' : 'Mute this track’s video audio'}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={() => onPatch(layer.id, { audio: { ...layer.audio, mute: !layer.audio?.mute } })}
+          className={`w-4 h-4 rounded-sm flex items-center justify-center border ${layer.audio?.mute ? 'bg-warn text-black border-transparent' : 'text-fg-3 border-line-2 hover:text-fg-1'}`}>
+          {layer.audio?.mute ? <VolumeX size={10} /> : <Volume2 size={10} />}
         </button>
         {/* Opacity + blend for the timeline (Program) composite — popover so it fits any track height. */}
         <button title="Opacity & blend in the Timeline (Program) composite" onPointerDown={(e) => e.stopPropagation()} onClick={() => setFxOpen(v => !v)}
