@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { Fixture, Surface, Controller, ColorOrder } from '../types';
-import { AlertCircle, Magnet, Grid3X3, ZoomIn } from 'lucide-react';
+import { AlertCircle, Magnet, Grid3X3, ZoomIn, Maximize2 } from 'lucide-react';
 import { GPUMapper } from '../services/GPUMapper';
 import { WebGPUMapper } from '../gpu/WebGPUMapper';
 import { IPixelMapper } from '../services/PixelMapper';
@@ -45,6 +45,12 @@ interface StageProps {
 
 // Hoisted so the composite z-sort doesn't allocate a fresh comparator every frame.
 const byZIndex = (a: Surface, b: Surface) => a.zIndex - b.zIndex;
+
+// Refresh cap for the operator's preview composite, used ONLY when the mapper samples per-surface
+// (so the composite feeds the preview and nothing else — see the gate in tick()). 30 Hz reads as
+// smooth for monitoring while halving the rescale work on a 60 Hz display. The LED/output path is
+// never throttled by this.
+const PREVIEW_MS = 1000 / 30;
 
 // Output channel source-index order per ColorOrder ([R=0,G=1,B=2]).
 const COLOR_ORDER: Record<ColorOrder, [number, number, number]> = {
@@ -119,6 +125,7 @@ export const Stage: React.FC<StageProps> = ({
   // `[...surfaces]` spread + a getContext() call every frame in the hot loop.
   const orderedSurfacesRef = useRef<Surface[]>([]);
   const canvasCtxRef = useRef<CanvasRenderingContext2D | null>(null);
+  const lastPreviewCompositeRef = useRef(-1e9); // last preview-only composite (ms) — see PREVIEW_HZ
 
   const mapper = useRef<IPixelMapper | null>(null);
   const [webglError, setWebglError] = useState(false);
@@ -275,7 +282,12 @@ export const Stage: React.FC<StageProps> = ({
       for (const s of surfacesRef.current) {
         const aspect = surfaceMedia.getContentAspect(s);
         if (!aspect) continue;
-        const key = `${s.content.type}:${s.content.url ?? s.content.spoutName ?? ''}`;
+        // The aspect is PART OF THE KEY, not just the url. A LAYER surface's identity string never
+        // changes (it's the layer id — the clips under it come and go), so a url-only key would fit
+        // once on the first clip and never again. Keying on the measured aspect re-fits exactly when
+        // the shape of the content actually changes, and still leaves a manual resize alone while
+        // the content is unchanged — which is the behaviour the one-shot fit was written for.
+        const key = `${s.content.type}:${s.content.url ?? s.content.layerId ?? s.content.spoutName ?? ''}:${aspect.toFixed(3)}`;
         if (fittedAspect.current.get(s.id) === key) continue;
         fittedAspect.current.set(s.id, key);
         if (Math.abs(s.width / s.height - aspect) > 0.01) {
@@ -328,7 +340,19 @@ export const Stage: React.FC<StageProps> = ({
     // own drawable; rawBytes comes from the compute readback). The WebGL fallback still needs it
     // (updateSource samples this canvas), so keep it whenever the mapper isn't per-surface.
     const perSurface = !!(mapper.current.perSurface && mapper.current.renderSurfaces);
-    const needComposite = showPreview || !perSurface;
+    let needComposite = showPreview || !perSurface;
+    // When the mapper samples per-surface, this composite is PREVIEW ONLY — nothing downstream reads
+    // it, so it does not need the display's refresh rate. Every source gets rescaled into it (a 1080p
+    // or 4K frame → 512²) once per pass, per surface, and with several video surfaces that is the
+    // single biggest cost in the editor's frame that the audience never sees. Cap it.
+    //
+    // ⚠ Only throttle in the per-surface case. On the WebGL fallback this canvas IS the sampling
+    // source (updateSource below reads it), so throttling it would throttle the actual LED output.
+    if (needComposite && perSurface) {
+        const nowMs = performance.now();
+        if (nowMs - lastPreviewCompositeRef.current < PREVIEW_MS) needComposite = false;
+        else lastPreviewCompositeRef.current = nowMs;
+    }
     if (canvasRef.current && needComposite) {
         // Cache the 2D context across frames (getContext on the same canvas returns the same object,
         // but caching keeps the hot path allocation-free and obvious). Re-fetch if the canvas element
@@ -797,6 +821,50 @@ export const Stage: React.FC<StageProps> = ({
       setViewState({ x: 0, y: 0, scale: 0.8 });
   };
 
+  // Frame the surfaces you actually built, instead of always showing the whole square. The canvas is
+  // a fixed UV square by design (see contentAspect above) — a wide rig therefore occupies a thin band
+  // of it, and that is a VIEW problem, not a document one. Fitting the view solves it without
+  // touching the normalized coordinate space (and so without touching rotation, which is computed in
+  // normalized units but applied as a screen-space CSS transform — the two only agree at aspect 1).
+  //
+  // Coordinates, all reusing what the render tree already sets up:
+  //   · the pannable layer is translate(view.x, view.y) scale(view.scale) with origin 0,0
+  //   · the stage box is centred in it (left/top 50%, margin -stageW/2, -stageH/2)
+  //   ⇒ a normalized point (nx,ny) sits at layer coords (Vw/2 - stageW/2 + nx*stageW, …y…)
+  const fitView = () => {
+      const vp = viewportRef.current;
+      if (!vp) return;
+      const { width: Vw, height: Vh } = vp.getBoundingClientRect();
+      if (Vw <= 0 || Vh <= 0) return;
+
+      // Normalized bounds of the content to frame. ROTATION-AWARE: a rotated surface's corners stick
+      // out past its rect, and framing the un-rotated rect would clip them. The canvas is square, so
+      // a normalized rotation IS the visual rotation and no aspect correction is needed here.
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const s of surfaces) {
+          const cx = s.x + s.width / 2, cy = s.y + s.height / 2;
+          const r = ((s.rotation || 0) * Math.PI) / 180;
+          const cos = Math.cos(r), sin = Math.sin(r);
+          for (const [ox, oy] of [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]] as const) {
+              const px = ox * s.width, py = oy * s.height;
+              const x = cx + px * cos - py * sin;
+              const y = cy + px * sin + py * cos;
+              if (x < minX) minX = x; if (x > maxX) maxX = x;
+              if (y < minY) minY = y; if (y > maxY) maxY = y;
+          }
+      }
+      // Nothing placed yet (or degenerate): frame the whole document — still a useful "fit".
+      if (!Number.isFinite(minX) || maxX - minX <= 0 || maxY - minY <= 0) { minX = 0; minY = 0; maxX = 1; maxY = 1; }
+
+      const PAD = 24; // screen px of breathing room on every side
+      const boxW = (maxX - minX) * stageW, boxH = (maxY - minY) * stageH;
+      // Same [0.1, 5] bounds handleWheel clamps to, so fit can't land somewhere the wheel can't reach.
+      const scale = Math.min(Math.max(Math.min((Vw - 2 * PAD) / boxW, (Vh - 2 * PAD) / boxH), 0.1), 5);
+      const layerCx = Vw / 2 - stageW / 2 + ((minX + maxX) / 2) * stageW;
+      const layerCy = Vh / 2 - stageH / 2 + ((minY + maxY) / 2) * stageH;
+      setViewState({ x: Vw / 2 - scale * layerCx, y: Vh / 2 - scale * layerCy, scale });
+  };
+
   const getResizeCursor = (rotation: number, offset: number) => {
     const a = (rotation + offset) % 180; 
     const angle = a < 0 ? a + 180 : a;
@@ -816,6 +884,16 @@ export const Stage: React.FC<StageProps> = ({
       {/* Docked viewport header — tools live in reserved chrome, not floating over the canvas
           (Houdini-style). The canvas below renders edge-to-edge with nothing painted on top. */}
       <div className="h-9 shrink-0 flex items-center gap-1 px-2 bg-surface-1 border-b border-line-1">
+        {/* Fit is the primary action — it's what you want after placing surfaces. Plain reset stays
+            reachable (alt-click, and its own button) so the default framing is never lost. */}
+        <button
+          onClick={(e) => (e.altKey ? resetView() : fitView())}
+          className="p-1.5 rounded-sm border bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1 transition-colors"
+          title="Fit view to surfaces (Alt-click: reset view)"
+          aria-label="Fit view to surfaces"
+        >
+          <Maximize2 size={14} />
+        </button>
         <button
           onClick={resetView}
           className="p-1.5 rounded-sm border bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1 transition-colors"

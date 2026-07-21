@@ -127,6 +127,11 @@ const api: ArtluxApi = {
         ipcRenderer.on(IPC.PROJECTOR_DISPLAYS_CHANGED, listener);
         return () => { ipcRenderer.removeListener(IPC.PROJECTOR_DISPLAYS_CHANGED, listener); };
     },
+    onProjectorClosed: (cb: (surfaceId: string) => void) => {
+        const listener = (_e: unknown, surfaceId: string) => cb(surfaceId);
+        ipcRenderer.on(IPC.PROJECTOR_CLOSED, listener);
+        return () => { ipcRenderer.removeListener(IPC.PROJECTOR_CLOSED, listener); };
+    },
     // Generic plugin IPC bridge. contextIsolation keeps plugin code out of preload and `artlux` is
     // built once, so first-party plugins can't add their own named methods. Instead they funnel all
     // main↔renderer traffic through these three forwarders, namespaced under 'plugin:<channel>'.

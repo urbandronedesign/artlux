@@ -795,6 +795,19 @@ function layerDrawable(layerId: string): CanvasImageSource | null {
   return lv.el.readyState >= 2 ? lv.el : (lv.hold ?? null);
 }
 
+// Natural w/h of whatever a layer is showing right now, or null when nothing is under the playhead
+// / it isn't measurable yet. A layer's drawable is a <video>, a codec canvas or a content drawable,
+// and each reports its intrinsic size under a different property — hence the ordered probe.
+// (`width`/`height` last: on an HTMLVideoElement those are the DISPLAY attributes, not the frame,
+// so videoWidth has to win.)
+function drawableAspect(d: CanvasImageSource | null): number | null {
+  if (!d) return null;
+  const anyD = d as unknown as { videoWidth?: number; videoHeight?: number; naturalWidth?: number; naturalHeight?: number; width?: number; height?: number };
+  const w = anyD.videoWidth || anyD.naturalWidth || anyD.width || 0;
+  const h = anyD.videoHeight || anyD.naturalHeight || anyD.height || 0;
+  return w > 0 && h > 0 ? w / h : null;
+}
+
 // Composite all contributing layers into the program canvas (bottom of the track list = back, top =
 // front). enabled/muted/solo gate contribution; per-layer opacity + blendMode drive the mix.
 function buildProgram(): void {
@@ -1155,9 +1168,24 @@ export const timeline = {
   getLayerDrawable(layerId?: string): CanvasImageSource | null {
     if (!layerId) return null;
     if (external) {
+      // ⚠ A MIRROR DECIDES "NO CLIP → BLACK" FOR ITSELF. `layerBitmaps` only ever grows: the main
+      // window's pump simply STOPS sending once a layer has nothing under the playhead, so a mirror
+      // that trusted the last streamed frame kept a finished clip's finalframe on screen for the
+      // rest of the show — and with several video tracks, whichever track ended first stayed frozen
+      // over everything after it. Nothing in the stream says "now show nothing".
+      //
+      // It doesn't need to be told: a mirror holds the timeline (setData) and the playhead (seek),
+      // so activeClip() answers this locally, with the same half-open predicate the main window
+      // uses. Worst case at a clip boundary the two disagree by the mirror's slew error (sub-frame),
+      // which is a frame early/late — not a frame held forever.
+      if (!activeClip(layerId, playhead)) {
+        const stale = layerBitmaps.get(layerId);
+        if (stale) { stale.close(); layerBitmaps.delete(layerId); } // release the held frame too
+        return null;
+      }
       // Locally-decoded HAP wins (the projector decodes its own); else the streamed frame.
       const lv = layerVideos.get(layerId);
-      if (hapLocal && lv && lv.mode === 'codec' && lv.codec) return lv.codec.canvas;
+      if (hapLocal && lv && lv.clipId && lv.mode === 'codec' && lv.codec) return lv.codec.canvas;
       return layerBitmaps.get(layerId) ?? null;
     }
     return layerDrawable(layerId);
@@ -1169,6 +1197,15 @@ export const timeline = {
   // The composited program drawable (main window only; mirror windows stream it as a surface frame).
   getProgramDrawable(): CanvasImageSource | null { return !external && programReady && programCanvas ? programCanvas : null; },
   programSize(): { w: number; h: number } { return { w: PROGRAM_W, h: PROGRAM_H }; },
+  // Natural aspect (w/h) of what this layer is currently showing, or null when nothing is under the
+  // playhead / it isn't measurable yet. Exists so a SURFACE fed by a timeline track can auto-fit its
+  // rect the same way a direct VIDEO surface does — contentSource can't answer for LAYER (the
+  // timeline owns it, not the content-source registry), so it returned null and LAYER surfaces
+  // never adapted at all. Uses the same drawable the compositor draws, so it needs no clip lookup.
+  getLayerAspect(layerId?: string): number | null {
+    if (!layerId) return null;
+    return drawableAspect(this.getLayerDrawable(layerId));
+  },
   subscribe(cb: (playhead: number) => void): () => void { subs.add(cb); return () => { subs.delete(cb); }; },
   start(): void {
     if (!raf) {

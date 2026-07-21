@@ -37,7 +37,20 @@ export function syncSurfaces(surfaces: Surface[], isPlaying: boolean): void {
 // if unknown / not applicable. Used by the Stage to fit the surface rect to its media.
 export function getContentAspect(s: Surface): number | null {
   if (s.content.type === SourceType.PROGRAM) { const { w, h } = timeline.programSize(); return w / h; }
+  // LAYER is owned by the timeline, not the content-source registry — without this branch
+  // contentSource.getAspect() falls through to the plugin registry, finds nothing, and returns null,
+  // so a surface fed by a timeline track never auto-fitted its aspect at all (PROGRAM above already
+  // had the same special case; LAYER was simply missed).
+  if (s.content.type === SourceType.LAYER) return timeline.getLayerAspect(s.content.layerId);
   return contentSource.getAspect(s.id, s.content);
+}
+
+// Changes only when this surface's drawable holds NEW pixels; undefined = unknown, assume changed.
+// Only VIDEO surfaces report one — LAYER/PROGRAM composite continuously and everything else is live.
+// Used by the projector frame pump to skip a full-surface createImageBitmap on a repeated frame.
+export function getDrawableGeneration(s: Surface): number | undefined {
+  if (s.content.type === SourceType.LAYER || s.content.type === SourceType.PROGRAM) return undefined;
+  return contentSource.getDrawableGeneration(s.id, s.content);
 }
 
 // Drawable for a surface this frame, or null if not ready / no content.

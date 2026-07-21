@@ -27,6 +27,40 @@ const effects = new Map<string, SurfaceEffect>(); // EFFECT, keyed by consumer k
 const cameraConsumers = new Set<string>();
 const dmxConsumers = new Set<string>();
 
+// ⚠ CODEC DECODERS ARE SHARED PER FILE PATH — SO THEY MUST BE REFCOUNTED PER CONSUMER.
+//
+// A plugin VideoCodec keys its surface decoder by PATH, not by consumer: hap `open$`
+// (hapManager) and mp4 `decoders` (mp4Decoder) both return the SAME decoder to every consumer
+// asking for the same file. That sharing is the point — it is why N surfaces on one clip cost
+// one decode, and why HAP survives many simultaneous sources.
+//
+// But `closeSurface(path)` tears that shared decoder down unconditionally. Keyed by consumer,
+// `dropMedia` used to call it the moment ANY one consumer let go — so with two surfaces on the
+// same file, deleting or retyping one KILLED THE OTHER'S DECODER. The survivor then went black
+// permanently, because reconcileMedia() early-returns when the url is unchanged and never reopens.
+//
+// So: count the consumers per path here and only close on the last release. This lives in the
+// host rather than in each plugin because this module is the only place that knows consumer
+// identity — the codec contract is path-based by design and should stay that way.
+const codecUsers = new Map<string, Set<string>>(); // codec file path -> consumer keys holding it
+
+function retainCodec(path: string, key: string): void {
+  let users = codecUsers.get(path);
+  if (!users) { users = new Set(); codecUsers.set(path, users); }
+  users.add(key);
+}
+
+// Release `key`'s claim on `path`; closes the shared decoder only when nobody is left.
+function releaseCodec(codecId: string, path: string, key: string): void {
+  const users = codecUsers.get(path);
+  if (users) {
+    users.delete(key);
+    if (users.size > 0) return; // another surface/clip is still playing this file — leave it open
+    codecUsers.delete(path);
+  }
+  videoCodecRegistry.get(codecId)?.closeSurface(path);
+}
+
 let cameraEl: HTMLVideoElement | null = null;
 let cameraStream: MediaStream | null = null;
 let cameraStarting = false;
@@ -79,7 +113,7 @@ function dropMedia(key: string): void {
   const e = media.get(key);
   if (!e) return;
   if (e.type === 'VIDEO') e.el.pause();
-  if (e.type === 'CODEC') videoCodecRegistry.get(e.codecId)?.closeSurface(e.path);
+  if (e.type === 'CODEC') releaseCodec(e.codecId, e.path, key); // shared per path — close only on the last user
   media.delete(key);
 }
 
@@ -90,17 +124,21 @@ function reconcileMedia(key: string, content: SurfaceContent): void {
     const curUrl = e ? (e.type === 'CODEC' ? e.path : e.type === 'VIDEO' ? e.url : null) : null;
     if (curUrl === content.url) return;
     if (e?.type === 'VIDEO') e.el.pause();
-    if (e?.type === 'CODEC') videoCodecRegistry.get(e.codecId)?.closeSurface(e.path);
+    if (e?.type === 'CODEC') releaseCodec(e.codecId, e.path, key); // retyped away — drop this key's claim
     const url = content.url;
     const codec = videoCodecRegistry.forPath(url); // a plugin decoder claims this file (e.g. HAP .mov)
     if (codec) {
       // Optimistically use the codec; its probe downgrades to a normal <video> if it isn't (e.g. an
       // H.264 .mov that isn't HAP).
       media.set(key, { type: 'CODEC', codecId: codec.id, path: url });
+      retainCodec(url, key);
       void codec.openSurface(url).then((ok) => {
         if (ok) return;
         const cur = media.get(key);
-        if (cur && cur.type === 'CODEC' && cur.path === url) media.set(key, { type: 'VIDEO', el: makeVideo(url), url });
+        if (cur && cur.type === 'CODEC' && cur.path === url) {
+          releaseCodec(codec.id, url, key); // not decodable by this codec → hand the file to a <video>
+          media.set(key, { type: 'VIDEO', el: makeVideo(url), url });
+        }
       });
     } else {
       media.set(key, { type: 'VIDEO', el: makeVideo(url), url });
@@ -223,6 +261,19 @@ export function getDrawable(key: string, content: SurfaceContent, timeSec: numbe
       return p ? p.getDrawable(key, content, timeSec) : null;
     }
   }
+}
+
+// A value that changes only when `key`'s drawable holds NEW pixels, or undefined when that can't be
+// known (live receivers, effects, plugin sources) — undefined means "assume it changed". Lets a
+// consumer that pays per frame skip repeats; see VideoCodecContribution.surfaceGeneration.
+export function getDrawableGeneration(key: string, content: SurfaceContent): number | undefined {
+  if (content.type !== SourceType.VIDEO) return undefined;
+  const e = media.get(key);
+  if (!e) return undefined;
+  if (e.type === 'CODEC') return videoCodecRegistry.get(e.codecId)?.surfaceGeneration?.(e.path);
+  // A <video> element advances continuously; currentTime is its natural frame identity. Paused or
+  // stalled playback repeats the same value, which is exactly what we want to detect.
+  return e.type === 'VIDEO' && e.el.readyState >= 2 ? e.el.currentTime : undefined;
 }
 
 // Natural aspect ratio (w/h) of `key`'s content once loaded, or null if unknown / not applicable.

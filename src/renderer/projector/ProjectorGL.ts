@@ -85,6 +85,20 @@ export class ProjectorGL {
   private srcFBO: WebGLFramebuffer | null = null;
   private srcTex: WebGLTexture | null = null;
   private srcW = 0; private srcH = 0;
+  // Warp-geometry cache. The mesh is a pure function of (cornerPin, warp) and neither changes on a
+  // normal frame — only when the operator drags a handle or a new config arrives. Rebuilding it per
+  // frame allocated a number[] + a Float32Array and re-uploaded the vertex buffer every draw; with
+  // one window per physical output that cost multiplies by the output count. Compared by REFERENCE:
+  // both come from refs the projector only reassigns on an actual config/edit change.
+  private lastPin: DrawOpts['cornerPin'] | null = null;
+  private lastWarp: DrawOpts['warp'] | null = null;
+  private lastGeomLen = 0;   // vertex count currently resident in `buf` (0 = nothing uploaded yet)
+  // Streamed-frame upload gate. Frames arrive from main at ~30 fps but we draw at display rate, so
+  // the same ImageBitmap was re-uploaded via texImage2D on roughly every other frame. The caller
+  // passes a generation that ticks per received frame; an unchanged generation means the texture
+  // already holds these pixels. undefined = a live drawable (video/canvas) that mutates in place
+  // with no generation to compare, so it must always be uploaded.
+  private lastSrcGen: number | null = null;
 
   constructor(private canvas: HTMLCanvasElement) {
     const gl2 = canvas.getContext('webgl2', { premultipliedAlpha: false, antialias: false }) as WebGL2RenderingContext | null;
@@ -171,13 +185,22 @@ export class ProjectorGL {
   }
 
   // Upload a CPU/DOM source (image/video/canvas) and warp it onto the display.
-  draw(src: TexImageSource | null, o: DrawOpts): void {
+  //
+  // `srcGen` (optional) identifies the pixels in `src`. Pass it for a source that only changes when
+  // a new frame is pushed (the ImageBitmap streamed from main) so an unchanged generation skips the
+  // texImage2D — at 1080p that is ~8 MB of upload per skipped frame, per output window. Omit it for
+  // a live <video>/<canvas> that mutates in place: those must be re-uploaded every frame.
+  draw(src: TexImageSource | null, o: DrawOpts, srcGen?: number): void {
     const gl = this.gl;
-    if (!src) { this.warpFromTexture(null, o); return; }
-    try {
-      gl.bindTexture(gl.TEXTURE_2D, this.tex);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
-    } catch { this.warpFromTexture(null, o); return; } // source not decodable this frame
+    if (!src) { this.lastSrcGen = null; this.warpFromTexture(null, o); return; }
+    const fresh = srcGen === undefined || srcGen !== this.lastSrcGen || this.lastSrcGen === null;
+    if (fresh) {
+      try {
+        gl.bindTexture(gl.TEXTURE_2D, this.tex);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
+      } catch { this.lastSrcGen = null; this.warpFromTexture(null, o); return; } // not decodable this frame
+      this.lastSrcGen = srcGen ?? null;
+    }
     this.warpFromTexture(this.tex, o);
   }
 
@@ -205,6 +228,7 @@ export class ProjectorGL {
   // longer knows what the content is.
   drawComposited(w: number, h: number, composite: (gl: WebGLRenderingContext) => void, o: DrawOpts): void {
     const gl = this.gl;
+    this.lastSrcGen = null; // this path warps srcTex, so `tex` is now stale — force the next draw() to upload
     this.ensureSrcFBO(w, h);
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.srcFBO);
     gl.viewport(0, 0, w, h);
@@ -228,7 +252,10 @@ export class ProjectorGL {
     if (!tex) { this.resolve(useMS, w, h); return; }
 
     gl.bindTexture(gl.TEXTURE_2D, tex);
-    const data = this.buildGeometry(o);
+    // Rebuild + re-upload the mesh only when the warp/corner-pin actually changed (reference
+    // compare — see lastPin/lastWarp). Uniforms below are cheap and always set; the vertex buffer
+    // is the expensive part and its contents persist in `buf` between draws.
+    const geomChanged = o.cornerPin !== this.lastPin || o.warp !== this.lastWarp || this.lastGeomLen === 0;
     const soft = o.softEdge;
     gl.useProgram(this.prog);
     gl.uniform4f(this.uSoft, soft?.left ?? 0, soft?.right ?? 0, soft?.top ?? 0, soft?.bottom ?? 0);
@@ -239,13 +266,19 @@ export class ProjectorGL {
     gl.uniform3f(this.uColorGain, cg[0], cg[1], cg[2]);
     gl.uniform3f(this.uBlackLift, bl[0], bl[1], bl[2]);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.buf);
-    gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
+    if (geomChanged) {
+      const data = this.buildGeometry(o);
+      gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
+      this.lastGeomLen = data.length;
+      this.lastPin = o.cornerPin;
+      this.lastWarp = o.warp;
+    }
     const stride = 5 * 4;
     gl.enableVertexAttribArray(this.aPos);
     gl.vertexAttribPointer(this.aPos, 2, gl.FLOAT, false, stride, 0);
     gl.enableVertexAttribArray(this.aUVQ);
     gl.vertexAttribPointer(this.aUVQ, 3, gl.FLOAT, false, stride, 2 * 4);
-    gl.drawArrays(gl.TRIANGLES, 0, data.length / 5);
+    gl.drawArrays(gl.TRIANGLES, 0, this.lastGeomLen / 5);
     // Leave no enabled attrib arrays behind (the blob pass shares this context — a stale array
     // pointing at a smaller buffer would read out of bounds and crash the GPU process).
     gl.disableVertexAttribArray(this.aPos);

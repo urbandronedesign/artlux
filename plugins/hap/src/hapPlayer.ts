@@ -67,6 +67,14 @@ export function getHapCanvas(path: string): HTMLCanvasElement | null {
   return s && s.index >= 0 ? s.canvas : null;
 }
 
+// Decoded frame index currently painted on this source's canvas — changes only when tick() actually
+// uploaded a new frame (see the `got.index !== s.index` gate above). The canvas is reused in place,
+// so this is the only way a consumer can tell a new frame from a repeated one.
+export function getHapGeneration(path: string): number | undefined {
+  const s = active.get(path);
+  return s && s.index >= 0 ? s.index : undefined;
+}
+
 export function getHapAspect(path: string): number | null {
   const info = hapDecode.getInfo(path);
   return info && info.width > 0 && info.height > 0 ? info.width / info.height : null;

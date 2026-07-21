@@ -100,14 +100,31 @@ function fill(path: string, idx: number): void {
   }
 }
 
+// --- Ring health (diagnostics) ---------------------------------------------------------------
+// THE signal for "is decode+IPC keeping up with N simultaneous sources". A miss means the exact
+// frame for this playhead wasn't decoded in time and we painted a neighbour instead — i.e. the
+// source visibly stuttered. Bandwidth numbers are a proxy; this is the symptom itself.
+// Read via window.__artluxHapStats() while a show runs; costs two integer adds per frame.
+const stats = { asked: 0, missed: 0 };
+export function getStats(): { asked: number; missed: number; missRate: number } {
+  return { ...stats, missRate: stats.asked ? stats.missed / stats.asked : 0 };
+}
+export function resetStats(): void { stats.asked = 0; stats.missed = 0; }
+if (typeof window !== 'undefined') {
+  (window as unknown as Record<string, unknown>)['__artluxHapStats'] = getStats;
+  (window as unknown as Record<string, unknown>)['__artluxHapStatsReset'] = resetStats;
+}
+
 // Best decoded frame to show for playhead `idx`, plus ring upkeep. Returns the exact frame if
 // ready, else the nearest decoded frame at/just-before it (or just-after) — this keeps the
 // canvas updating continuously instead of only when the exact frame happens to be cached.
 export function getFrame(path: string, idx: number): { index: number; frame: Frame } | null {
   fill(path, idx);
   const cache = getPipe(path).cache;
+  stats.asked++;
   const exact = cache.get(idx);
   if (exact) return { index: idx, frame: exact };
+  stats.missed++; // ring underrun — the exact frame wasn't ready
   let below = -1, above = Infinity;
   for (const k of cache.keys()) {
     if (k <= idx) { if (k > below) below = k; }

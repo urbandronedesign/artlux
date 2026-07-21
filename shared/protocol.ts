@@ -138,6 +138,14 @@ export const IPC = {
   PROJECTOR_PORT: 'projector:port',
   /** Main → renderer: the set of connected displays changed (add/remove). */
   PROJECTOR_DISPLAYS_CHANGED: 'projector:displays-changed',
+  /**
+   * Main → renderer: a projector window was closed BY THE USER (its X button), not by the app.
+   * Without this the renderer never learns the window is gone: the output stays `enabled`, its entry
+   * stays in openProjectorsRef, and the reconciler — which only acts when the desired display
+   * CHANGES — sees "already open" and never reopens it. The output became permanently dead until
+   * someone toggled it off and on again, while the frame pump kept posting to the dead port.
+   */
+  PROJECTOR_CLOSED: 'projector:closed',
 } as const;
 
 export interface UpdateEvent {
@@ -765,6 +773,8 @@ export interface ArtluxApi {
   closeProjector(surfaceId: string): void;
   setProjectorDisplay(surfaceId: string, displayId: number): void;
   onDisplaysChanged(cb: (displays: DisplayInfo[]) => void): () => void;
+  /** A projector window was closed by the user (window X), so the renderer can drop its state. */
+  onProjectorClosed(cb: (surfaceId: string) => void): () => void;
   // Generic plugin IPC bridge (channels namespaced under 'plugin:<channel>' by preload). First-party
   // plugins use these to talk to their own main-process entry without bespoke preload methods.
   pluginInvoke(channel: string, ...args: unknown[]): Promise<unknown>;

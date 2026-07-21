@@ -171,9 +171,27 @@ export interface VideoCodecContribution {
 
   // Surface playback (free-running internal clock; keyed by file path). openSurface begins playback
   // and resolves false if the file isn't actually this codec (caller falls back to a plain <video>).
+  //
+  // KEYED BY PATH, NOT BY CONSUMER — that is deliberate: N surfaces (or timeline content clips) on
+  // one file share ONE decoder, which is what makes many simultaneous sources affordable. A codec
+  // may therefore see openSurface(p) once and serve several consumers from it.
+  //
+  // Consequently `closeSurface` means "nobody wants this file any more", NOT "one consumer let go".
+  // The HOST refcounts consumers per path (services/contentSource.ts) and calls this only on the
+  // last release — do NOT add per-consumer bookkeeping here. Implementations may free the decoder
+  // outright. (Before that refcount existed, one surface releasing killed a sibling surface's
+  // decoder and the survivor went black permanently.)
   openSurface(path: string): Promise<boolean>;
   surfaceFrame(path: string): CanvasImageSource | null;
   closeSurface(path: string): void;
+
+  // OPTIONAL. A counter that changes only when surfaceFrame() would return NEW pixels. Codecs
+  // typically paint into one reused canvas, so callers cannot tell a fresh frame from a repeat by
+  // identity — and a 30 fps clip sampled by a 60 Hz loop is half repeats. Consumers that pay a real
+  // cost per frame (the projector pump copies the whole surface with createImageBitmap) use this to
+  // skip the repeats. Any monotonic value works; the decoded frame index is the natural one.
+  // Omit it and callers simply treat every frame as new — correct, just not free.
+  surfaceGeneration?(path: string): number | undefined;
 
   // Timeline layer frame at a clip-local time (playhead-driven). `layerKey` scopes the GPU canvas.
   layerFrame(layerKey: string, path: string, clipTimeSec: number): CanvasImageSource | null;

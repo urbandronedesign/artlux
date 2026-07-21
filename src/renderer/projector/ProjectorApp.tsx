@@ -35,6 +35,13 @@ export const ProjectorApp: React.FC = () => {
   const portRef = useRef<MessagePort | null>(null);
   const surfaceRef = useRef<Surface | null>(null);
   const frameRef = useRef<ImageBitmap | null>(null);
+  // Ticks once per streamed frame received from main. Handed to ProjectorGL.draw so an unchanged
+  // generation skips the texture upload — frames arrive at ~30 fps but we draw at display rate.
+  const frameGenRef = useRef(0);
+  // Memoized Bézier render mesh: tessellateBezier is a pure function of (warp, RENDER_TESS) and the
+  // warp only changes when a config arrives or a handle is dragged, but this ran EVERY frame in
+  // EVERY output window. Keyed on the warp object identity (warpRef is reassigned, never mutated).
+  const meshRef = useRef<{ src: BezierWarp | null; mesh: ReturnType<typeof tessellateBezier> | null }>({ src: null, mesh: null });
   const playingRef = useRef(true);
 
   const pinRef = useRef<CornerPin>(defaultCornerPin());
@@ -132,6 +139,13 @@ export const ProjectorApp: React.FC = () => {
         } else if (m.t === 'frame') {
           frameRef.current?.close();
           frameRef.current = m.bitmap;
+          frameGenRef.current++;
+        } else if (m.t === 'frameIdle') {
+          // The source has nothing to show — drop the held frame so we render black instead of
+          // freezing on the last one. Bump the generation so the next real frame always uploads.
+          frameRef.current?.close();
+          frameRef.current = null;
+          frameGenRef.current++;
         } else if (m.t === 'layerFrame') {
           engine.setLayerBitmap(m.layerId, m.bitmap); // TRACKING background video
         } else if (m.t === 'timeline') {
@@ -177,7 +191,9 @@ export const ProjectorApp: React.FC = () => {
       lastDraw = now;
       gl.setSize(window.innerWidth, window.innerHeight, window.devicePixelRatio || 1);
       const s = surfaceRef.current;
-      const mesh = warpRef.current ? tessellateBezier(warpRef.current, RENDER_TESS) : null;
+      const warp = warpRef.current;
+      if (meshRef.current.src !== warp) meshRef.current = { src: warp, mesh: warp ? tessellateBezier(warp, RENDER_TESS) : null };
+      const mesh = meshRef.current.mesh;
       const opts = { cornerPin: pinRef.current, warp: mesh, softEdge: softRef.current, gamma: gammaRef.current, brightness: brightnessRef.current, colorGain: colorGainRef.current, blackLift: blackLiftRef.current, aa: AA_SAMPLES };
       // A projector channel may GPU-render this surface's content itself (e.g. LiDAR tracking): the
       // plugin composites a source texture, we warp it — no CPU canvas, no host knowledge of content.
@@ -191,11 +207,17 @@ export const ProjectorApp: React.FC = () => {
         // For HAP LAYER content getDrawable returns this window's locally-decoded canvas; for
         // other streamed sources it's null, so we fall back to the frame pushed from main.
         let src: CanvasImageSource | ImageBitmap | null = null;
+        let srcGen: number | undefined;
         if (s) {
           if (SELF_RENDER.has(s.content.type)) src = getDrawable(s);
-          else if (STREAMED.has(s.content.type)) src = getDrawable(s) ?? frameRef.current;
+          else if (STREAMED.has(s.content.type)) {
+            src = getDrawable(s);
+            // Only the pushed ImageBitmap carries a generation. A locally-decoded drawable is a
+            // live canvas that mutates in place, so it must be re-uploaded unconditionally.
+            if (!src) { src = frameRef.current; srcGen = frameGenRef.current; }
+          }
         }
-        gl.draw(src as TexImageSource | null, opts);
+        gl.draw(src as TexImageSource | null, opts, srcGen);
       }
       // Publish this output as NDI (~30 fps, capped resolution) when enabled.
       if (ndiSendRef.current && now - lastNdiRef.current >= 33) {

@@ -12,13 +12,23 @@ import { buildPaletteLut } from './palettes';
 // Stateful fire2012 uses a persistent `heat` buffer updated by a separate compute
 // pass each frame (in-place; races are fine for fire), then mapped through a palette.
 
-const SOURCE_SIZE = 512;      // per-surface cell size inside the atlas
+const SOURCE_SIZE = 512;      // fallback cell size (uniform-grid fallback + the legacy updateSource path)
 const WORKGROUP = 64;
 const STAGING_COUNT = 3;
 const FIRE_EFFECT = 4;
-// Half-texel inset (in cell-local units) applied when mapping a surface's UV into its atlas cell,
-// so the linear sampler never bleeds across a cell border into a neighbouring surface.
-const ATLAS_INSET = 0.5 / SOURCE_SIZE;
+
+// --- Adaptive atlas sizing -----------------------------------------------------------------------
+// A surface's atlas cell used to be a fixed 512² square for everyone. That is simultaneously too
+// coarse for a dense matrix (a 64-wide matrix on half a surface wants ~256 columns of real detail)
+// and pure waste for a 60-LED strip. Sampling is normalized, so cell size/shape is a QUALITY and
+// COST decision only — never a correctness one (docs/ARCHITECTURE.md). So: size each cell from the
+// LED density actually mapped onto that surface, and pack the differently-sized cells.
+const OVERSAMPLE = 2;         // texels per LED along each axis (Nyquist-ish; degraded on overflow)
+const MIN_CELL = 64;          // floor — a sparse surface still needs enough to look sane in preview
+const MAX_CELL = 1024;        // ceiling per axis, before packing limits apply
+const ceilPow2 = (n: number): number => 2 ** Math.ceil(Math.log2(Math.max(1, n)));
+
+interface AtlasRect { x: number; y: number; w: number; h: number } // pixels within the atlas
 
 const SHADER = /* wgsl */ `
 struct Params { brightness: f32, time: f32, count: u32, paletteCount: u32, frame: u32, p0: u32, p1: u32, p2: u32 };
@@ -32,6 +42,10 @@ struct Params { brightness: f32, time: f32, count: u32, paletteCount: u32, frame
 @group(0) @binding(6) var<storage, read> segParams: array<vec4<f32>>;
 @group(0) @binding(7) var<storage, read> ledMeta: array<vec4<f32>>;
 @group(0) @binding(8) var<storage, read_write> heat: array<f32>;
+// Per-surface atlas rect, indexed by surface index: (u0, v0, uSpan, vSpan) in atlas UV, already
+// half-texel inset on the CPU. Replaces the old implicit uniform grid — cells now differ in size
+// and shape, so the inset has to be computed per rect in ITS OWN texels, not from one constant.
+@group(0) @binding(9) var<storage, read> atlasRects: array<vec4<f32>>;
 
 const FIRE: i32 = ${FIRE_EFFECT};
 
@@ -117,14 +131,11 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 
   var color: vec4<f32>;
   if (mode < 0.0) {
-    // Map this surface's local UV into its atlas cell (col = surfIdx % cols, row = surfIdx / cols),
-    // with a half-texel inset so linear filtering can't sample a neighbouring cell.
-    let cols = params.p0;
-    let cellCol = surfIdx % cols;
-    let cellRow = surfIdx / cols;
-    let cu = clamp(uv.x, 0.0, 1.0) * (1.0 - 2.0 * ${ATLAS_INSET}) + ${ATLAS_INSET};
-    let cv = clamp(uv.y, 0.0, 1.0) * (1.0 - 2.0 * ${ATLAS_INSET}) + ${ATLAS_INSET};
-    let auv = vec2<f32>((f32(cellCol) + cu) / f32(cols), (f32(cellRow) + cv) / f32(params.p1));
+    // Map this surface's local UV straight into its packed atlas rect. The rect already carries the
+    // half-texel inset, so linear filtering still can't reach a neighbouring surface's pixels.
+    let r = atlasRects[surfIdx];
+    let auv = vec2<f32>(r.x + clamp(uv.x, 0.0, 1.0) * r.z,
+                        r.y + clamp(uv.y, 0.0, 1.0) * r.w);
     color = textureSampleLevel(srcTex, samp, auv, 0.0);
   } else if (i32(mode + 0.5) == FIRE) {
     color = samplePalette(u32(fp0.y + 0.5), heat[i]);
@@ -184,9 +195,11 @@ export class WebGPUMapper implements IPixelMapper {
 
   // Strict per-surface sampling (S3).
   readonly perSurface = true;
-  private surfaceOrder: string[] = []; // index → surfaceId (also the atlas cell index, row-major)
-  private atlasCols = 1;               // atlas grid dimensions; srcTexture is (cols·CELL)×(rows·CELL)
-  private atlasRows = 1;
+  private surfaceOrder: string[] = []; // index → surfaceId (also the atlas rect index)
+  private atlasRectsPx: AtlasRect[] = []; // packed pixel rect per surface, parallel to surfaceOrder
+  private atlasW = SOURCE_SIZE;
+  private atlasH = SOURCE_SIZE;
+  private atlasRectBuffer: GPUBuffer | null = null; // the vec4 UV rects the shader reads
   private zeroBytes: Uint8Array = new Uint8Array(0);
   private scratch: HTMLCanvasElement;
   private scratchCtx: CanvasRenderingContext2D;
@@ -273,6 +286,70 @@ export class WebGPUMapper implements IPixelMapper {
     let n = 0;
     for (const f of fixtures) n += fixtureSegments(f).length;
     return n;
+  }
+
+  // How many texels each surface's cell wants, from the LED density mapped onto it. A fixture whose
+  // 32 LEDs span half the surface implies the FULL surface needs ~64 columns to resolve them, so the
+  // LED count is divided by the fraction of the surface the fixture covers. Max over its fixtures.
+  private cellSizes(fixtures: Fixture[], surfaces: Surface[], oversample: number): { w: number; h: number }[] {
+    return this.surfaceOrder.map((sid) => {
+      const s = surfaces.find((x) => x.id === sid);
+      const sw = Math.max(1e-6, s?.width ?? 1);
+      const sh = Math.max(1e-6, s?.height ?? 1);
+      let needU = 0, needV = 0;
+      for (const f of fixtures) {
+        if (f.surfaceId !== sid) continue;
+        let lu: number, lv: number;
+        if (f.shape === LedShape.MATRIX) {
+          lu = Math.max(1, f.matrixWidth ?? 1);
+          lv = Math.max(1, f.matrixHeight ?? 1);
+        } else if (f.width >= f.height) { lu = Math.max(1, f.ledCount); lv = 1; }
+        else { lu = 1; lv = Math.max(1, f.ledCount); }
+        // A rotated fixture's chain runs across BOTH surface axes; without an exact projection just
+        // demand the larger count on each axis rather than under-resolving the diagonal.
+        const rot = Math.abs((f.rotation || 0) % 180);
+        if (rot > 1 && rot < 179) { const m = Math.max(lu, lv); lu = m; lv = m; }
+        // Fraction of the surface this fixture covers, capped at 1 so a fixture larger than its
+        // surface can't *reduce* the demand.
+        const fu = Math.min(1, Math.max(1e-3, (f.width || 0) / sw));
+        const fv = Math.min(1, Math.max(1e-3, (f.height || 0) / sh));
+        needU = Math.max(needU, lu / fu);
+        needV = Math.max(needV, lv / fv);
+      }
+      const clamp = (n: number): number => Math.min(MAX_CELL, Math.max(MIN_CELL, ceilPow2(n * oversample)));
+      // No linked fixture shouldn't happen (surfaceOrder is filtered to linked surfaces) but a
+      // surface can be re-linked live, so it still gets a usable cell rather than a zero-sized one.
+      return { w: clamp(needU || MIN_CELL), h: clamp(needV || MIN_CELL) };
+    });
+  }
+
+  // Shelf packer: sort by height desc, fill rows left→right, start a new shelf when the row is full.
+  // Deterministic and more than good enough for the handful of surfaces a show has. Returns null if
+  // the result won't fit the device's max texture dimension.
+  private packAtlas(sizes: { w: number; h: number }[], maxDim: number): { rects: AtlasRect[]; w: number; h: number } | null {
+    if (!sizes.length) return { rects: [], w: 1, h: 1 };
+    const area = sizes.reduce((a, s) => a + s.w * s.h, 0);
+    const widest = sizes.reduce((a, s) => Math.max(a, s.w), 0);
+    if (widest > maxDim) return null;
+    // Start near-square, grow the shelf width until the stack fits (or we run out of texture).
+    for (let width = Math.min(maxDim, Math.max(widest, ceilPow2(Math.sqrt(area)))); width <= maxDim; width *= 2) {
+      const order = sizes.map((s, i) => i).sort((a, b) => sizes[b].h - sizes[a].h);
+      const rects: AtlasRect[] = new Array(sizes.length);
+      let x = 0, y = 0, shelfH = 0, ok = true;
+      for (const i of order) {
+        const { w, h } = sizes[i];
+        if (x + w > width) { x = 0; y += shelfH; shelfH = 0; }   // next shelf
+        if (y + h > maxDim) { ok = false; break; }
+        rects[i] = { x, y, w, h };
+        x += w;
+        if (h > shelfH) shelfH = h;
+      }
+      // Round the stack height up to a power of two, but never past the device limit (maxDim is 8192
+      // — a power of two — on every device seen so far, but don't bet the texture creation on it).
+      if (ok) return { rects, w: width, h: Math.min(maxDim, ceilPow2(y + shelfH)) };
+      if (width === maxDim) break;
+    }
+    return null;
   }
 
   updateMapping(fixtures: Fixture[], surfaces: Surface[] = []): void {
@@ -404,24 +481,54 @@ export class WebGPUMapper implements IPixelMapper {
     this.stagingCursor = 0;
     this.latest = new Uint8Array(outBytes);
 
-    // Size the atlas to a near-square grid of one CELL-sized cell per active surface, and resize the
-    // source texture + scratch canvas to match. A single upload of this atlas replaces the old
-    // per-surface uploads (the dominant stall under projector GPU contention).
-    const nSurf = this.surfaceOrder.length;
-    const cols = Math.max(1, Math.ceil(Math.sqrt(nSurf)));
-    const rows = Math.max(1, Math.ceil(nSurf / cols));
-    if (cols !== this.atlasCols || rows !== this.atlasRows) {
-      this.atlasCols = cols;
-      this.atlasRows = rows;
+    // Size each surface's cell from its LED density, pack the cells, and resize the source texture +
+    // scratch canvas to the packed atlas. One upload of this atlas still replaces the old
+    // per-surface uploads (the dominant stall under projector contention) — only the layout changed.
+    const maxDim = this.device.limits.maxTextureDimension2D;
+    let packed: { rects: AtlasRect[]; w: number; h: number } | null = null;
+    let usedOversample = OVERSAMPLE;
+    // Degrade rather than fail: halve the oversample, then fall back to minimum cells. Each step is
+    // announced — a silently coarser atlas would surface later as a mystery quality regression.
+    for (const os of [OVERSAMPLE, OVERSAMPLE / 2, OVERSAMPLE / 4]) {
+      packed = this.packAtlas(this.cellSizes(fixtures, surfaces, os), maxDim);
+      if (packed) { usedOversample = os; break; }
+    }
+    if (!packed) {
+      packed = this.packAtlas(this.surfaceOrder.map(() => ({ w: MIN_CELL, h: MIN_CELL })), maxDim);
+      usedOversample = 0;
+    }
+    if (!packed) {
+      console.warn(`[WebGPUMapper] ${this.surfaceOrder.length} surfaces cannot be packed into a ${maxDim}² atlas — sampling disabled for the overflow.`);
+      packed = { rects: [], w: 1, h: 1 };
+    } else if (usedOversample < OVERSAMPLE) {
+      console.warn(`[WebGPUMapper] atlas oversample reduced to ${usedOversample}× (${this.surfaceOrder.length} surfaces, ${maxDim}² limit) — LED sampling is coarser than requested.`);
+    }
+
+    this.atlasRectsPx = packed.rects;
+    if (packed.w !== this.atlasW || packed.h !== this.atlasH) {
+      this.atlasW = packed.w; this.atlasH = packed.h;
       this.srcTexture.destroy();
       this.srcTexture = this.device.createTexture({
-        size: [cols * SOURCE_SIZE, rows * SOURCE_SIZE],
+        size: [this.atlasW, this.atlasH],
         format: 'rgba8unorm',
         usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
       });
-      this.scratch.width = cols * SOURCE_SIZE;
-      this.scratch.height = rows * SOURCE_SIZE;
+      this.scratch.width = this.atlasW;
+      this.scratch.height = this.atlasH;
     }
+
+    // UV rects for the shader, half-texel inset inside each rect's OWN pixels so linear filtering
+    // can never reach the neighbouring surface packed beside it.
+    const rectData = new Float32Array(Math.max(1, this.atlasRectsPx.length) * 4);
+    this.atlasRectsPx.forEach((r, i) => {
+      rectData[i * 4 + 0] = (r.x + 0.5) / this.atlasW;
+      rectData[i * 4 + 1] = (r.y + 0.5) / this.atlasH;
+      rectData[i * 4 + 2] = Math.max(0, r.w - 1) / this.atlasW;
+      rectData[i * 4 + 3] = Math.max(0, r.h - 1) / this.atlasH;
+    });
+    this.atlasRectBuffer?.destroy();
+    this.atlasRectBuffer = this.device.createBuffer({ size: rectData.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+    this.queue.writeBuffer(this.atlasRectBuffer, 0, rectData);
 
     this.mainBind = this.device.createBindGroup({
       layout: this.mainPipeline.getBindGroupLayout(0),
@@ -435,6 +542,7 @@ export class WebGPUMapper implements IPixelMapper {
         { binding: 6, resource: { buffer: this.segParamsBuffer } },
         { binding: 7, resource: { buffer: this.metaBuffer } },
         { binding: 8, resource: { buffer: this.heatBuffer } },
+        { binding: 9, resource: { buffer: this.atlasRectBuffer } },
       ],
     });
     this.fireBind = this.device.createBindGroup({
@@ -459,14 +567,16 @@ export class WebGPUMapper implements IPixelMapper {
   updateSource(source: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement): void {
     if (this.disposed) return;
     try {
-      this.queue.copyExternalImageToTexture({ source: source as GPUCopyExternalImageSource, flipY: false }, { texture: this.srcTexture }, [SOURCE_SIZE, SOURCE_SIZE]);
+      // Legacy whole-texture path (perSurface is true, so Stage never takes this branch for WebGPU).
+      this.queue.copyExternalImageToTexture({ source: source as GPUCopyExternalImageSource, flipY: false }, { texture: this.srcTexture }, [this.atlasW, this.atlasH]);
     } catch { /* source not ready */ }
   }
 
-  // Atlas render: compose every surface's drawable into one atlas canvas (a CELL-sized grid cell
-  // each), upload it in a SINGLE copyExternalImageToTexture, then run ONE compute pass where each
-  // LED samples its own cell. This collapses the N per-surface texture uploads — each a fixed GPU-
-  // process sync stall that dominates under projector contention — down to one upload + one submit.
+  // Atlas render: compose every surface's drawable into one atlas canvas (each into its own packed
+  // rect, sized to that surface's LED density), upload it in a SINGLE copyExternalImageToTexture,
+  // then run ONE compute pass where each LED samples its own rect. This collapses the N per-surface
+  // texture uploads — each a fixed GPU-process sync stall that dominates under projector
+  // contention — down to one upload + one submit.
   renderSurfaces(getDrawable: (surfaceId: string) => CanvasImageSource | null, getOpacity?: (surfaceId: string) => number): void {
     if (this.disposed || this.totalLeds === 0 || !this.mainBind || !this.outBuffer) return;
 
@@ -476,24 +586,23 @@ export class WebGPUMapper implements IPixelMapper {
     this.frame = (this.frame + 1) >>> 0;
     const time = (performance.now() - this.startTime) / 1000;
     const groups = Math.ceil(this.totalLeds / WORKGROUP);
-    const cols = this.atlasCols;
 
-    // Compose the atlas: black background (inactive cells + fade-to-black), then each surface's
-    // drawable stretched into its cell. Opacity blends toward black (shader samples RGB, ignores A).
+    // Compose the atlas: black background (unpacked gaps + fade-to-black), then each surface's
+    // drawable stretched into its rect. Opacity blends toward black (shader samples RGB, ignores A).
     this.scratchCtx.globalAlpha = 1;
     this.scratchCtx.fillStyle = '#000';
     this.scratchCtx.fillRect(0, 0, this.scratch.width, this.scratch.height);
     for (let k = 0; k < this.surfaceOrder.length; k++) {
+      const r = this.atlasRectsPx[k];
+      if (!r) continue; // overflowed the atlas (already warned) — leave it black
       const d = getDrawable(this.surfaceOrder[k]);
       if (!d) continue;
       const opacity = getOpacity ? getOpacity(this.surfaceOrder[k]) : 1;
-      if (opacity <= 0) continue; // fully transparent → leave the cell black
-      const x0 = (k % cols) * SOURCE_SIZE;
-      const y0 = Math.floor(k / cols) * SOURCE_SIZE;
+      if (opacity <= 0) continue; // fully transparent → leave the rect black
       try {
         this.scratchCtx.globalAlpha = opacity < 1 ? opacity : 1;
-        this.scratchCtx.drawImage(d, x0, y0, SOURCE_SIZE, SOURCE_SIZE);
-      } catch { /* skip this surface's cell for this frame */ }
+        this.scratchCtx.drawImage(d, r.x, r.y, r.w, r.h);
+      } catch { /* skip this surface's rect for this frame */ }
     }
     this.scratchCtx.globalAlpha = 1;
     try {
@@ -503,15 +612,17 @@ export class WebGPUMapper implements IPixelMapper {
         [this.scratch.width, this.scratch.height]);
     } catch { /* atlas source not ready this frame */ }
 
-    // Params written once: atlas grid (p0=cols, p1=rows) + surface count (p2, the unlinked guard).
+    // Params written once. p0/p1 used to carry the atlas grid; the shader now reads an explicit
+    // per-surface rect from atlasRects, so they are unused (kept zeroed rather than renumbering the
+    // uniform block). p2 is still the surface count — the unlinked-LED guard.
     const dv = this.paramScratchView;
     dv.setFloat32(0, this.brightness, true);
     dv.setFloat32(4, time, true);
     dv.setUint32(8, this.totalLeds, true);
     dv.setUint32(12, this.paletteCount, true);
     dv.setUint32(16, this.frame, true);
-    dv.setUint32(20, this.atlasCols, true);           // p0 = atlas cols
-    dv.setUint32(24, this.atlasRows, true);           // p1 = atlas rows
+    dv.setUint32(20, 0, true);                        // p0 — unused (was atlas cols)
+    dv.setUint32(24, 0, true);                        // p1 — unused (was atlas rows)
     dv.setUint32(28, this.surfaceOrder.length, true); // p2 = surface count
     this.queue.writeBuffer(this.paramsBuffer, 0, this.paramScratch);
 
@@ -559,6 +670,7 @@ export class WebGPUMapper implements IPixelMapper {
     this.heatBuffer?.destroy();
     this.outBuffer?.destroy();
     this.paramsBuffer?.destroy();
+    this.atlasRectBuffer?.destroy();
     this.srcTexture?.destroy();
     this.paletteTexture?.destroy();
     for (const s of this.staging) { try { s.destroy(); } catch { /* mapped */ } }

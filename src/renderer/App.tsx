@@ -37,7 +37,7 @@ import { PerfPanel } from './components/PerfPanel';
 import { sendArtNetFrame, configureOutput, addStatusListener } from './services/mockSocketService';
 import { dmxSignal } from './services/dmxSignal';
 import { perfMonitor } from './services/perfMonitor';
-import { getDrawable } from './services/surfaceMedia';
+import { getDrawable, getDrawableGeneration } from './services/surfaceMedia';
 import { timeline as timelineEngine, GLOBAL_POOL } from './services/timeline';
 import { usageForPath, normPath, type ProjectRefs } from './services/assetLibrary';
 import { setCoreStateView } from './services/automationTargets.core';
@@ -2140,6 +2140,27 @@ const App: React.FC = () => {
       });
   }, [displays]);
 
+  // A projector window was closed BY THE USER (its X). Main can't act on this alone — the output
+  // lives in project state here. Without this handler the renderer went on believing the window was
+  // live: openProjectorsRef still listed it, so the reconciler (which only acts when the desired
+  // display CHANGES) saw "already open" and never reopened it, the output stayed `enabled` so the
+  // panel showed it Live, and the frame pump kept posting to a dead port. The output was
+  // unrecoverable until someone toggled enabled off and on.
+  //
+  // Closing the window IS the disable gesture, so record it as one. This does NOT stop the show:
+  // an output is a destination, not the transport — audio, Art-Net and the timeline keep running,
+  // exactly as when you disable an output from the panel.
+  useEffect(() => {
+      if (HEADLESS) return;
+      const unsub = window.artlux?.onProjectorClosed?.((surfaceId) => {
+          openProjectorsRef.current.delete(surfaceId);
+          projectorPortsRef.current.delete(surfaceId);
+          upsertOutput(surfaceId, { enabled: false });
+      });
+      return () => unsub?.();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Frame pump for every projector: this (main) renderer is the sole decoder, so transfer
   // each surface's drawable to its projector window as an ImageBitmap (~30 fps, zero-copy).
   // Live singular sources (camera/Spout/DMX-in/NDI) AND HW-decoded file video / timeline
@@ -2148,6 +2169,19 @@ const App: React.FC = () => {
   useEffect(() => {
       const STREAMED = new Set<string>([SourceType.CAMERA, SourceType.SPOUT, SourceType.DMX_IN, SourceType.NDI, SourceType.VIDEO, SourceType.LAYER, SourceType.PROGRAM]); // content-type strings (open type space)
       const inFlight = new Set<string>(); // surfaceIds with a createImageBitmap still pending
+      // Last drawable generation actually shipped per surface. A 25/30 fps clip sampled by this
+      // 30 fps pump repeats frames; each repeat would otherwise cost a full-surface
+      // createImageBitmap (~8 MB at 1080p) and a transfer, per output window. undefined generation
+      // = source can't report one (live camera/NDI/effect) → always send, as before.
+      //
+      // Keyed on the PORT as well as the generation: a projector window that is closed and reopened
+      // gets a fresh port for the same surfaceId, and it starts with no frame. On a PAUSED source the
+      // generation never advances, so a generation-only check would skip it forever and the new
+      // window would stay black. A changed port always re-sends.
+      const sentGen = new Map<string, { port: unknown; gen: number }>();
+      // Surfaces we've already told to go black, so the idle notice is sent once per transition
+      // rather than every tick.
+      const idle = new Set<string>();
       let raf = 0; let last = 0;
       const tick = (now: number) => {
           raf = requestAnimationFrame(tick);
@@ -2175,11 +2209,26 @@ const App: React.FC = () => {
               if (inFlight.has(surfaceId)) continue; // back-pressure: don't pile up decodes
               if (!STREAMED.has(surface.content.type)) continue;
               const drawable = getDrawable(surface);
-              if (!drawable) continue;
+              if (!drawable) {
+                  // Nothing under the playhead (clip ended) or the live source dropped. Say so ONCE —
+                  // otherwise the window goes on drawing the last frame it was sent, forever.
+                  if (!idle.has(surfaceId)) {
+                      idle.add(surfaceId);
+                      sentGen.delete(surfaceId); // a resume must re-send even if the generation repeats
+                      try { port.postMessage({ t: 'frameIdle' }); } catch { /* window closing */ }
+                  }
+                  continue;
+              }
+              idle.delete(surfaceId);
+              // Skip sources that haven't produced a new frame since we last shipped one to THIS port.
+              const gen = getDrawableGeneration(surface);
+              const prev = sentGen.get(surfaceId);
+              if (gen !== undefined && prev && prev.port === port && prev.gen === gen) continue;
               inFlight.add(surfaceId);
+              if (gen !== undefined) sentGen.set(surfaceId, { port, gen });
               createImageBitmap(drawable as CanvasImageSource)
                   .then(bitmap => { try { port.postMessage({ t: 'frame', bitmap }, [bitmap]); } catch { bitmap.close(); } })
-                  .catch(() => {})
+                  .catch(() => { sentGen.delete(surfaceId); }) // failed → don't treat this gen as shipped
                   .finally(() => inFlight.delete(surfaceId));
           }
       };

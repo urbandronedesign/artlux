@@ -1,3 +1,4 @@
+import './threadpool'; // MUST stay first — sizes the libuv pool before anything can initialise it
 import { app, BrowserWindow, session, systemPreferences, ipcMain, Tray, Menu, globalShortcut, nativeTheme } from 'electron';
 import { join, basename } from 'node:path';
 import { registerIpc } from './ipc';
@@ -201,7 +202,21 @@ function setupBroadcastControls(): void {
 
 app.whenReady().then(() => {
     // Lost the single-instance race → a copy is already running. Focus it (via 'second-instance') and bail.
-    if (!isPrimaryInstance) { app.quit(); return; }
+    //
+    // SAY SO, LOUDLY, WHEN A SHOW WAS SUPPOSED TO START. For the editor this is the designed outcome:
+    // you double-clicked the app, the running copy comes forward, nothing is wrong. For broadcast or
+    // headless it is a FAILURE TO START A SHOW, and it used to exit here in total silence — no window,
+    // no log line, nothing to distinguish it from a broken project or a bad display config. The usual
+    // cause is a stale process still holding the lock (an interrupted `npm run dev` kills the npm
+    // wrapper but leaves its Electron children alive), which is invisible unless you go looking in the
+    // task list. In an unattended venue that is a show that simply never comes up with nothing in the
+    // log explaining why.
+    if (!isPrimaryInstance) {
+        if (RUN_MODE === 'editor') console.info('[artlux] another instance is already running — focusing it and exiting.');
+        else console.error(`[${RUN_MODE}] ANOTHER ARTLUX INSTANCE ALREADY HOLDS THE SINGLE-INSTANCE LOCK — this ${RUN_MODE} launch is exiting WITHOUT starting the show. Kill the running artlux/electron process and relaunch.`);
+        app.quit();
+        return;
+    }
     // Force dark UI so the native Windows menu bar (File/Edit/View/…) and other OS-drawn
     // chrome render dark instead of following the system light theme.
     nativeTheme.themeSource = 'dark';
@@ -232,7 +247,17 @@ app.whenReady().then(() => {
         cfg: prefs.unattended,
     });
     watchdog.setEventListener((e) => mainWindow?.webContents.send(IPC.WATCHDOG_EVENT, e));
-    if (!HEADLESS) registerProjectorWindows(() => mainWindow);
+    // Broadcast only: the projector outputs are this mode's ONLY visible windows (the editor window
+    // is deliberately kept at opacity 0 so its rAF stays full-speed), so closing the last one by hand
+    // is the operator saying "stop" — otherwise the app lingers invisibly, still playing audio and
+    // still sending Art-Net, reachable only via the tray. The editor passes no callback: closing an
+    // output there must never quit. Only USER closes reach this (a display unplug or an app-initiated
+    // close is excluded in projector.ts), and fullscreen outputs are frameless with no close button,
+    // so a live venue output cannot trigger it.
+    if (!HEADLESS) registerProjectorWindows(() => mainWindow, BROADCAST ? () => {
+        console.info('[broadcast] last projector output closed by the operator — quitting.');
+        app.quit();
+    } : undefined);
     if (!HEADLESS) registerDocsWindow(() => mainWindow);
     // One consistent, always-available quit for both editor and broadcast modes — works even
     // when a frameless fullscreen projector window is focused (no reachable menu there).

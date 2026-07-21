@@ -30,6 +30,11 @@ export type MainToProjector =
   | { t: 'brightness'; value: number }                        // projector-content master brightness (live drag)
   | { t: 'edit'; on: boolean }                                // toggle corner-pin / mesh editing
   | { t: 'frame'; bitmap: ImageBitmap }                       // streamed source frame (camera/Spout/DMX-in/NDI + video/layer, decoded once in main)
+  // The streamed source has NOTHING to show (a timeline clip ended, a live source dropped). Without
+  // this the pump simply stops sending and the window keeps drawing the last bitmap it received —
+  // so a finished clip stayed frozen on the projector for the rest of the show. Sent once on the
+  // transition, not per frame.
+  | { t: 'frameIdle' }
   | { t: 'layerFrame'; layerId: string; bitmap: ImageBitmap } // a timeline layer frame (TRACKING content background; decoded once in main)
   | { t: 'pluginData'; channel: string; payload: unknown }    // generic per-frame plugin channel (see ProjectorChannel) — e.g. LiDAR tracking snapshots
   // --- calibration (physical-projector calibration: structured light + pose) ---
