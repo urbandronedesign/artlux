@@ -31,9 +31,39 @@ Open the row's **gear** ▸ tick **Bézier warp**. The mapping becomes a bicubic
 points** (4 corners + 12 curve handles). In **Align**, drag any control point; curved iso-lines + a
 faint control net show the warp. Use it for cylinders, cyclorama corners, domes, angled walls.
 
+### Spanning one picture across several projectors
+Outputs ▸ **Spans**. Pick the surface you want to span (a video, an effect, or **Timeline** for the
+whole show composite), press **New span**, then set **Cols** × **Rows** and one **Overlap %**.
+
+That cuts the surface into overlapping **slices**. Each slice is an ordinary Surface, so it gets its
+own output row underneath the source — its own display, its own corner-pin/Bézier alignment, its own
+gamma and colour match — while the source itself is decoded **once**, no matter how many projectors
+it feeds. The overlap number also writes each slice's soft edge, so the seams are set up with the cut
+rather than after it.
+
+The map under the controls draws the cut over the live picture: drag a piece to move it, drag an edge
+to resize it. Either one **unlinks** the span (🔗), so the grid stops overwriting your hand-tuning;
+press ⟳ **Regenerate** to go back to a clean grid. **Align span** puts the alignment grid up on every
+projector of the wall at once, which is the only way to see where the overlaps actually land.
+
+Deleting a span deletes the pieces it made. The source surface is left alone.
+
+> A slice can also be made by hand — Inspector ▸ Content ▸ **Slice**, pick a surface and type the
+> crop. The span wizard just does that N times and works out the overlaps for you.
+
 ### Overlapping projectors — soft-edge blend
 In the gear panel, set per-edge **Soft edge %** (L/R/T/B feather) and **Blend γ**. Each output fades
-its overlapping edge so two projectors sum to even brightness across the seam.
+its overlapping edge so two projectors sum to even brightness across the seam. A span sets the
+feathers for you; these fields are for tuning them afterwards, or for a rig you wired by hand.
+
+**Blend γ is your projector's gamma** (≈2.2), not a shape control — the ramp is `alpha^(1/γ)`, which
+is what makes the two halves of an overlap sum to exactly 100% of full light. Measure it per machine
+with **Auto-measure (camera)** in the same panel. Setting it wrong is what a dark or bright band in
+the middle of an otherwise well-aligned seam looks like.
+
+> ⚠ Before 2026-07-21 the ramp was `alpha^γ` — inverted — so the middle of every seam emitted about
+> **7%** of full light instead of 100%: a black band exactly where the blend should be invisible.
+> Shows saved with soft edge already set will look different (correct) after this fix.
 
 ### Per-screen gamma
 The gear panel has an **Output γ** slider per output — correct a projector that's darker/brighter than
@@ -86,7 +116,33 @@ same teardown: unregister the shortcut, destroy the tray, and close every projec
   (0 = uncapped).
 - `CornerPin { tl,tr,br,bl }` normalized display-space corners.
 - `BezierWarp { points:[16] }` — bicubic 4×4 control net (row-major, corners at indices 0,3,15,12).
-- `SoftEdge { left,right,top,bottom,gamma }` (feather fractions 0..0.5).
+- `SoftEdge { left,right,top,bottom,gamma }` — feather fractions 0..0.5; `gamma` is the **projector's**
+  gamma and the ramp is `alpha^(1/gamma)` (partition of *light*, not of signal — see the type's header).
+- `OutputSpan { id, name, sourceSurfaceId, cols, rows, overlapX, overlapY, sliceIds[], linked }`,
+  persisted as `ProjectData.outputSpans[]`. **Authoring metadata only** — nothing reads it at runtime.
+  The truth lives on the members: each slice's `SurfaceContent.sliceRect` and its output's `SoftEdge`.
+  `App.applySpan` is the single writer that turns a grid into surfaces + outputs.
+
+### Slices — one picture across several projectors (`SourceType.SLICE`)
+A slice is a Surface whose content is a **cropped region of another Surface**
+(`SurfaceContent { type: SLICE, sliceOf, sliceRect }`). It resolves in
+`services/surfaceMedia.getDrawable` — the one seam the Stage composite, the per-surface WebGPU LED
+sampler, the projector frame pump and the projector window all pass through — so spanning needed no
+change to the output layer, the projector IPC, the SDK, the calibration plugin, NVAPI or NDI.
+
+- The source's drawable is blitted into a per-slice offscreen canvas sized to the crop; the blit is
+  skipped when the source's generation and the rect are both unchanged.
+- `getDrawableGeneration` and `getContentAspect` delegate to the source (× the crop), so the frame
+  pump's repeated-frame skip keeps working and each piece auto-fits to its own aspect.
+- The pump therefore ships an **already-cropped, slice-sized** `ImageBitmap` — less IPC traffic than
+  one unsliced output, not more.
+- Slices **do not nest** and cannot slice themselves; both are refused with a one-time console warning
+  (any sub-region is expressible as one rect on the original, and refusing it removes every cycle).
+- `services/outputSpan.ts` holds the grid math (`spanTiles`, `tileSize`, `clampRect`) — pure, so it is
+  provable with a throwaway `tsc`-checked script rather than a projector rig.
+- A projector window syncs only its own surface, so `MainToProjector.config` carries `sources[]` (the
+  surface a slice crops). That lets a sliced effect/image still render locally at display rate; a
+  sliced video is still streamed, cropped, from the one decode in the main window.
 
 ### Windows & bridge (`src/main/projector.ts`)
 - One frameless, fullscreen `BrowserWindow` per enabled output, positioned on the target display

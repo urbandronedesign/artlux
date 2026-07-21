@@ -369,8 +369,23 @@ export interface BezierWarp {
   points: [number, number][]; // length 16
 }
 
+// A normalized sub-rectangle of a source image ([0,1], top-left origin). Used to crop one
+// surface's content into a SLICE surface — see OutputSpan and renderer/types SurfaceContent.
+export interface SrcRect { x: number; y: number; w: number; h: number }
+
+export const FULL_RECT: SrcRect = { x: 0, y: 0, w: 1, h: 1 };
+
 // Per-output soft-edge blend (for overlapping projectors). Each value is the feather width
-// as a fraction of the output (0 = hard edge); gamma shapes the blend ramp.
+// as a fraction of the output (0 = hard edge).
+//
+// ⚠ `gamma` IS THE PROJECTOR'S GAMMA, and the ramp is `alpha^(1/gamma)` — not `alpha^gamma`.
+// The screen emits `signal^gamma`, so only the inverse exponent makes the emitted LIGHT ramp
+// linearly, which is the whole point: two projectors feathering into each other must sum to
+// exactly 1 at every point of the overlap. It was `pow(a, gamma)` until 2026-07-21, which put
+// 2·0.5^2.2 ≈ 0.07 of full light in the middle of every seam — a black band precisely where the
+// blend was supposed to be invisible. Fixed in ProjectorGL's FRAG; the field name and its 2.2
+// default are unchanged, so no project migrates, but a show that already used soft edge looks
+// different (correct) now. Measure the real value with Outputs → Auto-measure (camera).
 export interface SoftEdge {
   left: number;
   right: number;
@@ -427,6 +442,31 @@ export interface ProjMask { polys: [number, number][][] }
 export const defaultProjectorOutput = (surfaceId: string): ProjectorOutput => ({
   surfaceId, enabled: false, displayId: null, cornerPin: defaultCornerPin(),
   warp: null, softEdge: defaultSoftEdge(), gamma: 1,
+});
+
+// ── Spanning one source across several projectors ────────────────────────────────────────────────
+// A span is AUTHORING METADATA over a set of ordinary surfaces, not a runtime object. It records how
+// a grid of SLICE surfaces was cut out of one source surface so the operator can re-tune the overlap
+// later instead of re-typing sixteen numbers. The truth always lives on the members themselves
+// (SurfaceContent.sliceRect + the outputs' SoftEdge) — regenerating just overwrites them, so a span
+// whose members were hand-tuned, renamed or deleted still degrades to something sane.
+//
+// It is deliberately project-level, not per-scene: a scene recall swaps surfaces + projectorOutputs,
+// and a span pointing at ids from another scene must not fight that. Dangling ids are ignored.
+export interface OutputSpan {
+  id: string;
+  name: string;
+  sourceSurfaceId: string;    // the surface being split (video / PROGRAM / effect / …)
+  cols: number;
+  rows: number;
+  overlapX: number;           // fraction of ONE tile's width shared with its horizontal neighbour (0..0.5)
+  overlapY: number;           // same, vertically
+  sliceIds: string[];         // member Surface ids, row-major (length cols*rows)
+  linked: boolean;            // true = editing cols/rows/overlap regenerates the members' rect + soft edge
+}
+
+export const defaultOutputSpan = (id: string, sourceSurfaceId: string, name: string): OutputSpan => ({
+  id, name, sourceSurfaceId, cols: 2, rows: 1, overlapX: 0.12, overlapY: 0.12, sliceIds: [], linked: true,
 });
 
 // ---- Persistence (project / rig / preferences) -------------------------------
@@ -564,6 +604,7 @@ export interface ProjectData {
   audio?: unknown; // AudioMix (renderer type) — global audio bed (Wave 3); normalizeAudioMix() on read
   assets?: AssetEntry[]; // managed media library (video/image/model/take/audio)
   projectorOutputs?: ProjectorOutput[]; // per-surface fullscreen projector mappings
+  outputSpans?: OutputSpan[]; // authoring metadata: how a source surface was cut into SLICE surfaces
   projectorFpsCap?: number; // performance mode: cap projector output fps (0 = uncapped/vsync)
   projectorBrightness?: number; // master brightness of projected content (1 = full)
   reserveLockedRanges?: boolean; // patch policy: pack auto fixtures AROUND locked ranges (was AppSettings)

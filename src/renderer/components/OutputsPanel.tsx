@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { X, MonitorUp, RefreshCw, Frame, Undo2, Settings2, Spline, Gauge, Radio, Aperture, Cpu, Camera, Loader2 } from 'lucide-react';
-import { Surface } from '../types';
-import { ProjectorOutput, DisplayInfo, SoftEdge, defaultSoftEdge, WINDOWED_DISPLAY } from '../../../shared/protocol';
+import { Surface, SourceType } from '../types';
+import { ProjectorOutput, OutputSpan, DisplayInfo, SoftEdge, SrcRect, defaultSoftEdge, WINDOWED_DISPLAY } from '../../../shared/protocol';
 import { useDraggableModal } from '../hooks/useDraggableModal';
+import { SpanEditor } from './SpanEditor';
 
 interface Props {
   open: boolean;
@@ -10,8 +11,15 @@ interface Props {
   surfaces: Surface[];
   outputs: ProjectorOutput[];
   displays: DisplayInfo[];
-  editingOutputId: string | null;
+  editingOutputIds: string[];
   fpsCap: number;
+  // Spanning one surface across several projectors (see SpanEditor / services/outputSpan.ts).
+  spans: OutputSpan[];
+  onApplySpan: (span: OutputSpan) => void;
+  onUpdateSpan: (span: OutputSpan) => void;
+  onRemoveSpan: (id: string) => void;
+  onSetSliceRect: (surfaceId: string, rect: SrcRect) => void;
+  onToggleEditMany: (surfaceIds: string[]) => void;
   onSetEnabled: (surfaceId: string, enabled: boolean) => void;
   onSetDisplay: (surfaceId: string, displayId: number | null) => void;
   onToggleEdit: (surfaceId: string) => void;
@@ -40,7 +48,8 @@ const clamp01h = (v: number) => Math.max(0, Math.min(0.5, v));
 // projector output (corner-pin warp lives in the projector window). Display picker +
 // enable toggle; the App reconciler opens/moves/closes the actual output windows.
 export const OutputsPanel: React.FC<Props> = ({
-  open, onClose, surfaces, outputs, displays, editingOutputId, fpsCap,
+  open, onClose, surfaces, outputs, displays, editingOutputIds, fpsCap,
+  spans, onApplySpan, onUpdateSpan, onRemoveSpan, onSetSliceRect, onToggleEditMany,
   onSetEnabled, onSetDisplay, onToggleEdit, onResetCorners,
   onToggleWarp, onSetSoftEdge, onSetGamma, onSetColorMatch, onMeasureGamma, measuringGammaId, gammaMsg, onToggleNdiSend, onSetFpsCap, onRefreshDisplays, onCalibrate, onSetUseCalibration,
   nvAvailable, onSetHwWarp,
@@ -55,6 +64,27 @@ export const OutputsPanel: React.FC<Props> = ({
   }, [open, onClose]);
 
   const { positionerStyle, handleProps } = useDraggableModal('outputs');
+
+  // List each source surface with its slices right under it, so a spanned wall reads as one block
+  // instead of N unrelated rows scattered by creation order.
+  const ordered = React.useMemo(() => {
+    const bySource = new Map<string, Surface[]>();
+    for (const s of surfaces) {
+      const of = s.content.type === SourceType.SLICE ? s.content.sliceOf : undefined;
+      if (!of) continue;
+      const arr = bySource.get(of) ?? [];
+      arr.push(s);
+      bySource.set(of, arr);
+    }
+    const out: Surface[] = [];
+    for (const s of surfaces) {
+      // A slice whose source is gone is orphaned — list it on its own rather than losing it.
+      const of = s.content.type === SourceType.SLICE ? s.content.sliceOf : undefined;
+      if (of && surfaces.some(x => x.id === of)) continue;
+      out.push(s, ...(bySource.get(s.id) ?? []));
+    }
+    return out;
+  }, [surfaces]);
 
   if (!open) return null;
 
@@ -99,12 +129,25 @@ export const OutputsPanel: React.FC<Props> = ({
             projection surface (on the projector: arrows nudge, <b>R</b> reset, <b>Esc</b> done).
           </div>
 
+          <SpanEditor
+            surfaces={surfaces}
+            spans={spans}
+            outputs={outputs}
+            editingOutputIds={editingOutputIds}
+            onApplySpan={onApplySpan}
+            onUpdateSpan={onUpdateSpan}
+            onRemoveSpan={onRemoveSpan}
+            onSetSliceRect={onSetSliceRect}
+            onToggleEditMany={onToggleEditMany}
+          />
+
           <div className="border border-line-1 rounded-md divide-y divide-line-1">
             <div className={`grid ${COLS} gap-2 px-2 py-1 text-micro uppercase tracking-wider text-fg-3`}>
               <span>Surface</span><span>Output</span><span>Display</span><span>Status</span><span>Align</span><span></span>
             </div>
             {surfaces.length === 0 && <div className="px-2 py-2 text-mini text-fg-3 italic">No surfaces.</div>}
-            {surfaces.map((s) => {
+            {ordered.map((s) => {
+              const isSlice = s.content.type === SourceType.SLICE;
               const o = outFor(s.id);
               const enabled = !!o?.enabled;
               const displayId = o?.displayId ?? null;
@@ -114,7 +157,10 @@ export const OutputsPanel: React.FC<Props> = ({
               return (
                 <React.Fragment key={s.id}>
                 <div className={`grid ${COLS} gap-2 px-2 py-1.5 items-center`}>
-                  <span className="text-mini text-fg-1 truncate" title={s.name}>{s.name}</span>
+                  <span className={`text-mini truncate flex items-center gap-1 ${isSlice ? 'text-fg-2 pl-2' : 'text-fg-1'}`} title={s.name}>
+                    {isSlice && <span className="text-fg-3 shrink-0" title="A slice of the surface above">↳</span>}
+                    <span className="truncate">{s.name}</span>
+                  </span>
                   <label className="flex items-center gap-1.5 text-mini text-fg-2 cursor-pointer">
                     <input
                       type="checkbox"
@@ -142,10 +188,10 @@ export const OutputsPanel: React.FC<Props> = ({
                       disabled={!live}
                       title="Align corners/mesh on the projector"
                       className={`flex items-center gap-1 px-1.5 py-1 rounded-sm text-micro disabled:opacity-30 ${
-                        editingOutputId === s.id ? 'bg-accent text-black' : 'bg-surface-2 text-fg-2 hover:text-fg-1'
+                        editingOutputIds.includes(s.id) ? 'bg-accent text-black' : 'bg-surface-2 text-fg-2 hover:text-fg-1'
                       }`}
                     >
-                      <Frame size={12} /> {editingOutputId === s.id ? 'Aligning' : 'Align'}
+                      <Frame size={12} /> {editingOutputIds.includes(s.id) ? 'Aligning' : 'Align'}
                     </button>
                     <button
                       onClick={() => onResetCorners(s.id)}

@@ -67,7 +67,8 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                 return (
                 <>
                 <PanelSection title="Content" icon={<Layers size={12}/>}>
-                    <ContentEditor content={c} onChange={setContent} onTypeChange={setContentType} layers={layers} />
+                    <ContentEditor content={c} onChange={setContent} onTypeChange={setContentType} layers={layers}
+                        surfaces={surfaces} selfId={selectedSurface.id} />
                 </PanelSection>
 
                 <PanelSection title="Transform" icon={<Box size={12}/>}>

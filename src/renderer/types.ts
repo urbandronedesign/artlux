@@ -1,4 +1,4 @@
-import type { Scene3D, ProjectorOutput } from '../../shared/protocol';
+import type { Scene3D, ProjectorOutput, SrcRect } from '../../shared/protocol';
 
 export interface Point {
   x: number;
@@ -156,6 +156,7 @@ export enum SourceType {
   NDI = 'NDI',           // network video (NDI receive)
   LAYER = 'LAYER',       // a single timeline track (by layerId)
   PROGRAM = 'PROGRAM',   // the whole timeline composited (all contributing layers, z-ordered)
+  SLICE = 'SLICE',       // a cropped region of ANOTHER surface — how one picture spans several projectors
   TRACKING = 'TRACKING', // LiDAR blob positions (by trackingSource)
   MEDIAPIPE = 'MEDIAPIPE', // camera-based pose positions (BlazePose; @artlux/plugin-mediapipe)
   AUGMENTA = 'AUGMENTA', // Augmenta box optical tracking (OSC; @artlux/plugin-augmenta)
@@ -177,6 +178,17 @@ export interface SurfaceContent {
   ndiName?: string;    // NDI source name (empty = first discovered)
   layerId?: string;    // LAYER content: which timeline track to show
   opacity?: number;    // surface opacity 0..1 (default 1) — composite alpha; fadeable for crossfades
+  // SLICE content — a cropped region of another Surface's picture. This is how ONE source spans
+  // SEVERAL projectors: the source decodes once, and each slice is an ordinary Surface, so it gets
+  // its own ProjectorOutput with its own corner-pin/Bézier homography, soft edge, gamma and colour
+  // match. Neighbouring slices overlap; each feathers the shared edge. See services/outputSpan.ts
+  // for the grid math and docs/OUTPUTS.md → Spanning.
+  //
+  // Resolved in services/surfaceMedia.getDrawable — the one seam the Stage composite, the WebGPU
+  // per-surface LED sampler, the projector frame pump and the projector window ALL pass through,
+  // which is why nothing downstream needed to learn about slicing.
+  sliceOf?: string;    // source Surface id (must not be this surface, and must not itself be a SLICE)
+  sliceRect?: SrcRect; // crop of the source's picture; absent ⇒ the whole thing (FULL_RECT)
   // EFFECT params (S2):
   effectId?: number;
   paletteId?: number;

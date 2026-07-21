@@ -21,7 +21,11 @@ export interface ProjectorRender {
 // resolution; only the surface config, corner-pin, and transport clock cross the bridge.
 
 export type MainToProjector =
-  | { t: 'config'; surface: Surface; playing: boolean; render: ProjectorRender } // geometry + look
+  // `sources` = the surfaces this window's surface DEPENDS ON — today only the surface a SLICE crops.
+  // A projector window syncs its own surface alone, so without this a slice could not resolve its
+  // source locally and a sliced EFFECT/IMAGE would drop from display-rate local rendering to the
+  // 30 fps frame push. Empty/absent for every non-slice surface.
+  | { t: 'config'; surface: Surface; sources?: Surface[]; playing: boolean; render: ProjectorRender } // geometry + look
   | { t: 'timeline'; timeline: Timeline }                     // for LAYER content
   // ~30 fps clock. showTime rides along because an EFFECT SURFACE is drawn against the SHOW clock
   // (surfaceMedia.getDrawable), and a mirror window does not RUN that clock — it is told it. Without it,

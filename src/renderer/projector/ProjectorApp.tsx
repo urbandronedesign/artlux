@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Surface, SourceType } from '../types';
 import { defaultCornerPin, defaultSoftEdge, type CornerPin, type BezierWarp, type SoftEdge } from '../../../shared/protocol';
-import { syncSurfaces, getDrawable } from '../services/surfaceMedia';
+import { syncSurfaces, getDrawable, resolveSource } from '../services/surfaceMedia';
 import { timeline as engine } from '../services/timeline';
 import { ProjectorGL } from './ProjectorGL';
 import { squareToQuad, applyH } from './homography';
@@ -18,6 +18,14 @@ import type { ProjectorPanelContext } from '@artlux/sdk/renderer';
 // are strings, so a Set<string> both constructs from the enum and accepts any plugin type id at .has()).
 const SELF_RENDER = new Set<string>([SourceType.IMAGE, 'EFFECT', SourceType.TRACKING]);
 const STREAMED = new Set<string>([SourceType.CAMERA, SourceType.SPOUT, SourceType.DMX_IN, SourceType.NDI, SourceType.VIDEO, SourceType.LAYER, SourceType.PROGRAM]);
+// A SLICE shows another surface's picture, so it is classified by that surface's type, not its own —
+// a slice of an EFFECT still renders here at display rate, a slice of a VIDEO is still streamed
+// (already cropped to this output's region, so it is SMALLER than an unsliced push, not larger).
+// These types own no media of their own, so registering them in a projector window costs nothing —
+// which is what lets a slice resolve its source here without ever decoding it twice.
+const OWNS_NO_MEDIA = (s: Surface): boolean =>
+  s.content.type === SourceType.SLICE || s.content.type === SourceType.LAYER
+  || s.content.type === SourceType.PROGRAM || s.content.type === SourceType.NONE;
 const CORNER_KEYS: (keyof CornerPin)[] = ['tl', 'tr', 'br', 'bl'];
 const CORNER_LABELS = ['TL', 'TR', 'BR', 'BL'];
 const AA_SAMPLES = 4;
@@ -34,6 +42,15 @@ export const ProjectorApp: React.FC = () => {
   const glRef = useRef<ProjectorGL | null>(null);
   const portRef = useRef<MessagePort | null>(null);
   const surfaceRef = useRef<Surface | null>(null);
+  // Content type this window actually renders: the surface's own, or — when it is a SLICE — the type
+  // of the surface it crops. Drives the self-render / streamed decision in the frame loop.
+  const effTypeRef = useRef<string>(SourceType.NONE);
+  // The surfaces this window's surface depends on (a slice's source). Kept so the sync set can be
+  // DERIVED on every re-sync rather than replayed from a snapshot: a transport tick arrives ~30×/s
+  // and re-syncs, and handing it a stale (or, after a hot reload, empty) snapshot would wipe the
+  // surface lookup a slice resolves through — the window then goes black and never recovers,
+  // because no new config is coming.
+  const sourcesRef = useRef<Surface[]>([]);
   const frameRef = useRef<ImageBitmap | null>(null);
   // Ticks once per streamed frame received from main. Handed to ProjectorGL.draw so an unchanged
   // generation skips the texture upload — frames arrive at ~30 fps but we draw at display rate.
@@ -68,6 +85,17 @@ export const ProjectorApp: React.FC = () => {
   const [size, setSize] = useState({ w: window.innerWidth, h: window.innerHeight });
   const [connected, setConnected] = useState(false);
   const [name, setName] = useState('');
+
+  // Re-register this window's surfaces with surfaceMedia. Media is only ACQUIRED for content this
+  // window renders itself; a slice and its source own no media, so they are always safe to register
+  // (that registration is what lets getDrawable resolve the crop here). Derived, never snapshotted.
+  const resync = (playing: boolean) => {
+    const s = surfaceRef.current;
+    if (!s) return;
+    const all = [s, ...sourcesRef.current];
+    const self = SELF_RENDER.has(effTypeRef.current);
+    syncSurfaces(self ? all : all.filter(OWNS_NO_MEDIA), playing);
+  };
 
   const setPin = (n: CornerPin) => { pinRef.current = n; setPinState(n); };
   const setWarp = (n: BezierWarp | null) => { warpRef.current = n; setWarpState(n); };
@@ -133,9 +161,13 @@ export const ProjectorApp: React.FC = () => {
           setName(m.surface.name);
           setConnected(true);
           applyRender(m.render);
-          const self = SELF_RENDER.has(m.surface.content.type);
-          syncSurfaces(self ? [m.surface] : [], m.playing);
-          if (!STREAMED.has(m.surface.content.type)) { frameRef.current?.close(); frameRef.current = null; }
+          // A slice borrows its source's picture, so it is classified by the SOURCE's type — that is
+          // what decides whether this window renders locally or waits for pushed frames.
+          sourcesRef.current = m.sources ?? [];
+          const eff = resolveSource(m.surface, [m.surface, ...sourcesRef.current]) ?? m.surface;
+          effTypeRef.current = eff.content.type;
+          resync(m.playing);
+          if (!STREAMED.has(eff.content.type)) { frameRef.current?.close(); frameRef.current = null; }
         } else if (m.t === 'frame') {
           frameRef.current?.close();
           frameRef.current = m.bitmap;
@@ -155,8 +187,7 @@ export const ProjectorApp: React.FC = () => {
           engine.setPlaying(m.playing); engine.seek(m.playhead);
           // A mirror is TOLD the show clock, never derives it — an effect SURFACE is drawn against it.
           engine.setExternalShowTime(m.showTime);
-          const s = surfaceRef.current;
-          if (s) syncSurfaces(SELF_RENDER.has(s.content.type) ? [s] : [], m.playing);
+          resync(m.playing);
         } else if (m.t === 'brightness') {
           brightnessRef.current = m.value;
         } else if (m.t === 'pluginData') {
@@ -209,8 +240,10 @@ export const ProjectorApp: React.FC = () => {
         let src: CanvasImageSource | ImageBitmap | null = null;
         let srcGen: number | undefined;
         if (s) {
-          if (SELF_RENDER.has(s.content.type)) src = getDrawable(s);
-          else if (STREAMED.has(s.content.type)) {
+          // Classified by the EFFECTIVE type (a slice's source), but drawn from the surface itself —
+          // getDrawable resolves the crop, so a slice hands back only its own region.
+          if (SELF_RENDER.has(effTypeRef.current)) src = getDrawable(s);
+          else if (STREAMED.has(effTypeRef.current)) {
             src = getDrawable(s);
             // Only the pushed ImageBitmap carries a generation. A locally-decoded drawable is a
             // live canvas that mutates in place, so it must be re-uploaded unconditionally.

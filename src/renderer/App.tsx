@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Fixture, Surface, SourceType, AppSettings, DockTab, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, normalizeCueBanks, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, timelineAudioTracks, sceneAudioEntries, cueEntries, isAddressableEntry, type AudioClip, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType, type PatchPolicy, readPatchPolicy } from './types';
+import { Fixture, Surface, SurfaceContent, SourceType, AppSettings, DockTab, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, normalizeCueBanks, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, timelineAudioTracks, sceneAudioEntries, cueEntries, isAddressableEntry, type AudioClip, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType, type PatchPolicy, readPatchPolicy } from './types';
 import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge, WINDOWED_DISPLAY } from '../../shared/protocol';
 import type { ProjectorCalibration } from '../../shared/protocol';
 import { CalibWizard, AutoAlignWizard, calibCapture as cam, measureGamma, calibWorkspace } from '@artlux/plugin-calibration/renderer';
-import type { AppInfo, UpdateEvent, Scene3D, SceneModel, ProjectorOutput, DisplayInfo, SoftEdge } from '../../shared/protocol';
+import type { AppInfo, UpdateEvent, Scene3D, SceneModel, ProjectorOutput, OutputSpan, DisplayInfo, SoftEdge, SrcRect } from '../../shared/protocol';
+import { spanTiles, tileName } from './services/outputSpan';
 import type { ProjectorToMain, MainToProjector } from './projector/bridge';
 import { makeBezierWarp } from './projector/warp';
 import { outputToNvwarp } from './projector/nvwarpApply';
@@ -37,7 +38,7 @@ import { PerfPanel } from './components/PerfPanel';
 import { sendArtNetFrame, configureOutput, addStatusListener } from './services/mockSocketService';
 import { dmxSignal } from './services/dmxSignal';
 import { perfMonitor } from './services/perfMonitor';
-import { getDrawable, getDrawableGeneration } from './services/surfaceMedia';
+import { getDrawable, getDrawableGeneration, resolveSource } from './services/surfaceMedia';
 import { timeline as timelineEngine, GLOBAL_POOL } from './services/timeline';
 import { usageForPath, normPath, type ProjectRefs } from './services/assetLibrary';
 import { setCoreStateView } from './services/automationTargets.core';
@@ -253,8 +254,15 @@ const App: React.FC = () => {
 
   // Projector outputs: per-surface fullscreen on a physical display.
   const [projectorOutputs, setProjectorOutputs] = useState<ProjectorOutput[]>([]);
+  // How a source surface was cut into overlapping SLICE surfaces (one picture across several
+  // projectors). Authoring metadata only — the truth lives on the member surfaces and their outputs;
+  // see shared/protocol OutputSpan.
+  const [outputSpans, setOutputSpans] = useState<OutputSpan[]>([]);
   const [displays, setDisplays] = useState<DisplayInfo[]>([]);
-  const [editingOutputId, setEditingOutputId] = useState<string | null>(null); // surface whose corners are being aligned
+  // Surfaces whose corners/mesh are being aligned. A SET, not one id: aligning a span means putting
+  // the grid up on every projector of the wall AT ONCE, which is the only way to judge where the
+  // overlaps actually land. Toggling one output adds/removes it; Esc in a window removes just that one.
+  const [editingOutputIds, setEditingOutputIds] = useState<string[]>([]);
   const [projectorFpsCap, setProjectorFpsCap] = useState(0); // performance mode: 0 = uncapped
   const [projectorBrightness, setProjectorBrightness] = useState(1); // master brightness of projected content (separate from LED brightness)
   const projectorPortsRef = useRef<Map<string, MessagePort>>(new Map()); // surfaceId -> port
@@ -471,6 +479,90 @@ const App: React.FC = () => {
       : [...prev, { ...defaultProjectorOutput(surfaceId), ...patch }]);
   };
   const projectorOutputsRef = useRef(projectorOutputs); projectorOutputsRef.current = projectorOutputs; // live mirror for plugin host services
+
+  // --- Spanning one surface across several projectors (grid math: services/outputSpan.ts) ---
+  //
+  // The ONLY writer of a span's members. The wizard, the overlap slider and Regenerate all land here,
+  // so there is exactly one place where "what the grid means" becomes surfaces + outputs — and a span
+  // is never consulted at runtime, which is what keeps a hand-tuned or half-deleted span harmless.
+  const applySpan = (span: OutputSpan) => {
+    const src = surfaces.find(s => s.id === span.sourceSurfaceId);
+    if (!src) return;
+    const tiles = spanTiles(span);
+    const ids = tiles.map((_, i) => span.sliceIds[i] ?? generateId());
+    const dropped = span.sliceIds.filter(id => !ids.includes(id)); // members a shrinking grid no longer has
+
+    setSurfaces(prev => {
+      let z = prev.reduce((m, s) => Math.max(m, s.zIndex), -1);
+      const next = prev.filter(s => !dropped.includes(s.id));
+      tiles.forEach((t, i) => {
+        const id = ids[i];
+        const k = next.findIndex(s => s.id === id);
+        const content: SurfaceContent = { ...(k >= 0 ? next[k].content : {}), type: SourceType.SLICE, sliceOf: src.id, sliceRect: t.rect };
+        // Lay each piece out INSIDE the source's own stage rect, so the Stage shows the split the
+        // same way the projectors will — the editor preview reads as the wall, not as a pile of rects.
+        const geom = {
+          x: src.x + t.rect.x * src.width, y: src.y + t.rect.y * src.height,
+          width: src.width * t.rect.w, height: src.height * t.rect.h,
+        };
+        if (k >= 0) next[k] = { ...next[k], ...geom, content };
+        else next.push({ id, name: tileName(src.name, t, span.cols, span.rows), rotation: src.rotation, zIndex: ++z, ...geom, content });
+      });
+      return next;
+    });
+
+    setProjectorOutputs(prev => {
+      let next = prev.filter(o => !dropped.includes(o.surfaceId));
+      // Never hand one display to two outputs: anything already claimed is off the table, and a member
+      // that already has a display keeps it (re-tuning an overlap must not re-shuffle the wall).
+      //
+      // The operator's OWN screen is never auto-claimed — primary and built-in panels are skipped, so
+      // creating a span can't slam a fullscreen output over the editor you are creating it in. In a
+      // real rig the projectors are the secondary displays, which is exactly what's left. Rows that
+      // get nothing stay unassigned; pick a display (or Windowed) per row.
+      const taken = new Set(next.filter(o => o.displayId != null).map(o => o.displayId!));
+      const free = displays.filter(d => !taken.has(d.id) && !d.primary && !d.internal).map(d => d.id);
+      let f = 0;
+      tiles.forEach((t, i) => {
+        const id = ids[i];
+        const cur = next.find(o => o.surfaceId === id);
+        const patch: Partial<ProjectorOutput> = {
+          enabled: true,
+          displayId: cur?.displayId ?? (f < free.length ? free[f++] : null),
+          // Feather comes from the grid; the blend gamma is the PROJECTOR's and is kept (it is measured
+          // per machine, not derived from the layout — see SoftEdge in shared/protocol).
+          softEdge: { ...t.soft, gamma: cur?.softEdge?.gamma ?? defaultSoftEdge().gamma },
+        };
+        next = cur ? next.map(o => o.surfaceId === id ? { ...o, ...patch } : o)
+                   : [...next, { ...defaultProjectorOutput(id), ...patch }];
+      });
+      return next;
+    });
+
+    const stored: OutputSpan = { ...span, sliceIds: ids };
+    setOutputSpans(prev => prev.some(x => x.id === span.id) ? prev.map(x => x.id === span.id ? stored : x) : [...prev, stored]);
+  };
+
+  // Metadata-only edit (name, linked) — never touches the members.
+  const updateSpan = (span: OutputSpan) =>
+    setOutputSpans(prev => prev.map(x => x.id === span.id ? span : x));
+
+  // Deleting a span deletes the pieces it made. They exist only because it cut them; leaving orphan
+  // slices behind (still routed to projectors) would be the surprising half of the two options.
+  const removeSpan = (id: string) => {
+    const span = outputSpans.find(x => x.id === id);
+    if (!span) return;
+    setSurfaces(prev => prev.filter(s => !span.sliceIds.includes(s.id)));
+    setProjectorOutputs(prev => prev.filter(o => !span.sliceIds.includes(o.surfaceId))); // reconciler closes the windows
+    setOutputSpans(prev => prev.filter(x => x.id !== id));
+  };
+
+  // Hand-drag of one piece's crop in the span map. It stops describing a regular grid the moment this
+  // happens, so the span unlinks itself rather than silently reverting the drag on the next edit.
+  const setSliceRect = (surfaceId: string, rect: SrcRect) => {
+    setSurfaces(prev => prev.map(s => s.id === surfaceId ? { ...s, content: { ...s.content, sliceRect: rect } } : s));
+    setOutputSpans(prev => prev.map(x => x.sliceIds.includes(surfaceId) && x.linked ? { ...x, linked: false } : x));
+  };
   const handleSetOutputEnabled = (surfaceId: string, enabled: boolean) => upsertOutput(surfaceId, { enabled });
   const handleSetOutputDisplay = (surfaceId: string, displayId: number | null) =>
     upsertOutput(surfaceId, {
@@ -479,7 +571,12 @@ const App: React.FC = () => {
       enabled: displayId != null,
     });
   const handleToggleEditOutput = (surfaceId: string) =>
-    setEditingOutputId(prev => prev === surfaceId ? null : surfaceId);
+    setEditingOutputIds(prev => prev.includes(surfaceId) ? prev.filter(x => x !== surfaceId) : [...prev, surfaceId]);
+  // Align a whole span: all of it, or none of it. Judging a soft edge means seeing both grids meet.
+  const handleToggleEditMany = (ids: string[]) =>
+    setEditingOutputIds(prev => ids.every(id => prev.includes(id))
+      ? prev.filter(x => !ids.includes(x))
+      : [...prev.filter(x => !ids.includes(x)), ...ids]);
   // --- projector calibration (structured-light intrinsics + solvePnP pose) ---
   const [calibratingOutputId, setCalibratingOutputId] = useState<string | null>(null);
   const [calibFlow, setCalibFlow] = useState<'board' | 'auto'>('board'); // board structured-light vs markerless auto-align
@@ -1198,6 +1295,7 @@ const App: React.FC = () => {
       audio: audioMix, // global audio bed (plugins/audio); AudioMix — normalizeAudioMix() on load
       assets,
       projectorOutputs,
+      outputSpans,
       projectorFpsCap,
       projectorBrightness,
   });
@@ -1310,6 +1408,7 @@ const App: React.FC = () => {
       // assets) so recorded takes still appear in the library. Takes stay owned by the timeline.
       setAssets(Array.isArray(data?.assets) ? data.assets as AssetEntry[] : []);
       setProjectorOutputs(Array.isArray(data?.projectorOutputs) ? data.projectorOutputs as ProjectorOutput[] : []);
+      setOutputSpans(Array.isArray(data?.outputSpans) ? data.outputSpans as OutputSpan[] : []);
       setProjectorFpsCap(typeof data?.projectorFpsCap === 'number' ? data.projectorFpsCap : 0);
       setProjectorBrightness(typeof data?.projectorBrightness === 'number' ? data.projectorBrightness : 1);
       setScene3D(() => {
@@ -1435,6 +1534,7 @@ const App: React.FC = () => {
       // nothing, shipped into a project that never had those scenes.
       setCueBanks(st.cueBanks);
       setProjectorOutputs([]);
+      setOutputSpans([]); // spans point at the outgoing show's surface ids — worthless here
       setAssets([]);
       // ⚠ AND THE BED. This function reasons carefully about what is SHOW state and what is DOCUMENT state
       // — it drops the fade layer below on exactly that grounds — and still left behind the most audible
@@ -1558,7 +1658,7 @@ const App: React.FC = () => {
       // payload. This list has already drifted from buildProjectData three times; don't make it four.
       return {
           surfaces: st.surfaces, fixtures: st.fixtures, controllers: [], groups: [], scenes: [],
-          cueBanks: st.cueBanks, stateMachine: defaultStateMachine(), projectorOutputs: [], assets: [],
+          cueBanks: st.cueBanks, stateMachine: defaultStateMachine(), projectorOutputs: [], outputSpans: [], assets: [],
           timeline: emptyTl, audio: emptyMix, schedule: [], scene3D: defaultScene3D(),
           globalBrightness: 1, projectorFpsCap: 0, projectorBrightness: 1, reserveLockedRanges: false,
       };
@@ -2190,10 +2290,15 @@ const App: React.FC = () => {
           for (const [surfaceId, port] of projectorPortsRef.current) {
               const surface = surfacesRef.current.find(s => s.id === surfaceId);
               if (!surface) continue;
+              // A SLICE is classified by the surface it CROPS — its own type says nothing about where
+              // the pixels come from. Without this a spanned wall streamed nothing and every piece
+              // stayed black: 'SLICE' is in neither set below, so the tick fell through the STREAMED
+              // gate and returned. getDrawable(surface) still takes the SLICE (it returns the crop).
+              const eff = resolveSource(surface, surfacesRef.current) ?? surface;
               // TRACKING self-renders its blobs in the projector, but its optional background
               // timeline layer (a video) must be decoded here and streamed as a layer frame.
-              if (surface.content.type === SourceType.TRACKING) {
-                  const layerId = surface.content.bgLayerId;
+              if (eff.content.type === SourceType.TRACKING) {
+                  const layerId = eff.content.bgLayerId;
                   if (!layerId) continue;
                   const key = `${surfaceId}:bg`;
                   if (inFlight.has(key)) continue;
@@ -2207,7 +2312,7 @@ const App: React.FC = () => {
                   continue;
               }
               if (inFlight.has(surfaceId)) continue; // back-pressure: don't pile up decodes
-              if (!STREAMED.has(surface.content.type)) continue;
+              if (!STREAMED.has(eff.content.type)) continue;
               const drawable = getDrawable(surface);
               if (!drawable) {
                   // Nothing under the playhead (clip ended) or the live source dropped. Say so ONCE —
@@ -2264,8 +2369,12 @@ const App: React.FC = () => {
       // When NVAPI applies warp + blend at the scanout, the GLSL path must render flat (identity corner-pin,
       // no Bézier warp, no soft-edge feather) or the correction is applied twice. Gamma/brightness stay in GLSL.
       const hwGeom = hwOwnsGeometry(out);
+      // A SLICE output shows a region of ANOTHER surface, and this window holds only its own — so send
+      // the source alongside it, or the slice cannot resolve locally (see projector/bridge.ts).
+      const source = resolveSource(surface, surfaces);
       port.postMessage({
-          t: 'config', surface, playing: isVideoPlaying,
+          t: 'config', surface, sources: source && source.id !== surface.id ? [source] : undefined,
+          playing: isVideoPlaying,
           render: {
               cornerPin: hwGeom ? defaultCornerPin() : (out?.cornerPin ?? defaultCornerPin()),
               warp: hwGeom ? null : (out?.warp ?? null),
@@ -2283,7 +2392,7 @@ const App: React.FC = () => {
           },
       });
       port.postMessage({ t: 'timeline', timeline: activeTimeline }); // the current scene's timeline, not global
-      port.postMessage({ t: 'edit', on: editingOutputId === surfaceId });
+      port.postMessage({ t: 'edit', on: editingOutputIds.includes(surfaceId) });
       // Render-from-projector: while the calibration panel is open it owns the projector's calib mode;
       // otherwise drive it here — render the 3D venue scene when this output opts in and has a full pose.
       if (surfaceId !== calibratingOutputId) {
@@ -2302,7 +2411,7 @@ const App: React.FC = () => {
       if (m.t === 'ready') pushProjectorStateRef.current(surfaceId);
       else if (m.t === 'cornerPin') upsertOutput(surfaceId, { cornerPin: m.cornerPin });
       else if (m.t === 'warp') upsertOutput(surfaceId, { warp: m.warp });
-      else if (m.t === 'editOff') setEditingOutputId(prev => prev === surfaceId ? null : prev);
+      else if (m.t === 'editOff') setEditingOutputIds(prev => prev.filter(x => x !== surfaceId));
       // Fan out to plugin back-channel subscribers: calibration taps patternShown (capture controllers)
       // + calibCrosshair/calibConfirm (pose pairing in calibWorkspace).
       projMsgSubs.current.forEach(cb => cb(surfaceId, m));
@@ -2327,18 +2436,19 @@ const App: React.FC = () => {
   // Re-push config (incl. the edit toggle) whenever anything a projector renders changes.
   useEffect(() => {
       for (const surfaceId of projectorPortsRef.current.keys()) pushProjectorStateRef.current(surfaceId);
-  }, [surfaces, projectorOutputs, activeTimeline, isVideoPlaying, editingOutputId, projectorFpsCap, projectorBrightness, scene3D, calibratingOutputId, nvAvailable]);
+  }, [surfaces, projectorOutputs, activeTimeline, isVideoPlaying, editingOutputIds, projectorFpsCap, projectorBrightness, scene3D, calibratingOutputId, nvAvailable]);
   // Live projector-brightness push (no full config re-send) — drives slider drag render-free.
   const pushProjectorBrightnessRef = useRef<(v: number) => void>(() => {});
   pushProjectorBrightnessRef.current = (v: number) => {
       for (const port of projectorPortsRef.current.values()) port.postMessage({ t: 'brightness', value: v });
   };
-  // Stop aligning if the edited output is disabled / removed.
+  // Stop aligning any output that got disabled / removed (the rest of the span keeps its grid up).
   useEffect(() => {
-      if (editingOutputId && !projectorOutputs.some(o => o.surfaceId === editingOutputId && o.enabled && o.displayId != null)) {
-          setEditingOutputId(null);
-      }
-  }, [editingOutputId, projectorOutputs]);
+      setEditingOutputIds(prev => {
+          const live = prev.filter(id => projectorOutputs.some(o => o.surfaceId === id && o.enabled && o.displayId != null));
+          return live.length === prev.length ? prev : live; // same array when nothing changed — no re-render loop
+      });
+  }, [projectorOutputs]);
 
   // Reconcile desired outputs (enabled + valid display + surface exists) with open windows.
   useEffect(() => {
@@ -2883,8 +2993,14 @@ const App: React.FC = () => {
           surfaces={surfaces}
           outputs={projectorOutputs}
           displays={displays}
-          editingOutputId={editingOutputId}
+          editingOutputIds={editingOutputIds}
           fpsCap={projectorFpsCap}
+          spans={outputSpans}
+          onApplySpan={applySpan}
+          onUpdateSpan={updateSpan}
+          onRemoveSpan={removeSpan}
+          onSetSliceRect={setSliceRect}
+          onToggleEditMany={handleToggleEditMany}
           onSetEnabled={handleSetOutputEnabled}
           onSetDisplay={handleSetOutputDisplay}
           onToggleEdit={handleToggleEditOutput}

@@ -10,6 +10,12 @@ universe/address allocation and a multi-controller routing spreadsheet.
   `Surface { id, name, x, y, width, height, rotation, zIndex, content }` (rect normalized 0..1).
 - **SurfaceContent** — `{ type: NONE | VIDEO | IMAGE | CAMERA | SPOUT | DMX_IN | EFFECT, url?,
   spoutName?, effectId?, paletteId?, speed?, intensity? }`.
+- **Slice** (`type: SLICE`) — a surface that shows a **cropped region of another surface**
+  (`sliceOf`, `sliceRect`) instead of owning content. It borrows the source's picture, so N slices of
+  one video cost **one** decode; because each slice is a normal Surface it gets its own projector
+  output with its own homography, warp and soft edge. This is how one picture spans several
+  projectors — see [OUTPUTS.md → Spanning](OUTPUTS.md). Slices don't nest, and a fixture may link to
+  one (the LEDs beside projector 3 then sample exactly what projector 3 shows).
 - **Fixture** — an LED layout (red on-canvas). Gains `surfaceId` (link), and later `controllerId`,
   `patchLocked`. When linked, its placement is interpreted in the surface's local space (S3).
 - **Controller** (S5) — a physical output device `{ id, name, protocol, ip, broadcast, priority?,

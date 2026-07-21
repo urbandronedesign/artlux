@@ -124,7 +124,7 @@ function sampleGrid(data: Float32Array, w: number, h: number, u: number, v: numb
 const sampleBlend = (b: BlendMap, u: number, v: number): number => sampleGrid(b.data, b.w, b.h, u, v);
 
 // Build the NVAPI intensity/blend texture: w*h*3 floats (RGB, 0..1). Replicates the GLSL fragment
-// shader's soft-edge feather (product of the four edge ramps, raised to the blend gamma) on a CPU grid,
+// shader's soft-edge feather (product of the four edge ramps, taken to the inverse projector gamma) on a CPU grid,
 // then multiplies in an optional world-space blend map (blendCompute.ts) for true multi-projector
 // partition-of-unity blending. NOTE (MVP): the GLSL feather is defined in content space but NVAPI
 // intensity is applied in screen space; for near-identity warps these coincide. Exact per-pixel parity
@@ -144,11 +144,18 @@ export function buildIntensity(
     const v = h > 1 ? y / (h - 1) : 0;
     for (let x = 0; x < w; x++) {
       const u = w > 1 ? x / (w - 1) : 0;
-      let a = featherWeight(u, se.left) * featherWeight(1 - u, se.right)
-            * featherWeight(v, se.top) * featherWeight(1 - v, se.bottom);
-      a = Math.pow(a, g);
+      // LINEAR share of the light this projector owns here: the four edge ramps, times the
+      // world-space partition-of-unity weight when a multi-projector blend map was solved.
+      let share = featherWeight(u, se.left) * featherWeight(1 - u, se.right)
+                * featherWeight(v, se.top) * featherWeight(1 - v, se.bottom);
+      if (blendMap) share *= sampleBlend(blendMap, u, v);
+      // …then to a SIGNAL, which is share^(1/g) because the projector emits signal^g. Both halves of
+      // an overlap then emit exactly their share and the pair sums to 1. This mirrors the same fix in
+      // ProjectorGL's FRAG (it read pow(share, g) here too, i.e. a dark seam in hardware as well).
+      // ⚠ UNVALIDATED ON HARDWARE — like the other NVAPI conventions in this file, it needs a
+      // Quadro/RTX-pro with two overlapping projectors to confirm against the GLSL path.
+      let a = Math.pow(share, 1 / g);
       a *= maskWeight(out, u, v);               // projector exclusion mask (0 inside)
-      if (blendMap) a *= sampleBlend(blendMap, u, v);
       // Spatial black-lift weight (where this projector sees the least overlap → lift its black most).
       const bw = blendMap?.black ? sampleGrid(blendMap.black, blendMap.w, blendMap.h, u, v) : 1;
       const i = (y * w + x) * 3;

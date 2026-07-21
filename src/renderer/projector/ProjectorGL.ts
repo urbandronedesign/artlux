@@ -31,7 +31,7 @@ precision mediump float;
 varying vec3 vUVQ;
 uniform sampler2D uTex;
 uniform vec4 uSoft;        // left, right, top, bottom feather widths (0 = hard)
-uniform float uBlendGamma; // soft-edge ramp shaping
+uniform float uBlendGamma; // THE PROJECTOR'S GAMMA — the ramp below is a^(1/g), not a^g. See below.
 uniform float uGamma;      // output gamma (1 = off)
 uniform float uBrightness; // projector-content master brightness (1 = full)
 uniform vec3 uColorGain;   // per-channel white-point/brightness match across projectors (1,1,1 = off)
@@ -42,7 +42,13 @@ void main() {
   vec4 c = texture2D(uTex, uv);
   float a = feather(uv.x, uSoft.x) * feather(1.0 - uv.x, uSoft.y)
           * feather(uv.y, uSoft.z) * feather(1.0 - uv.y, uSoft.w);
-  float pa = pow(a, uBlendGamma);
+  // ⚠ THE EXPONENT IS 1/g, AND IT USED TO BE g — which made every soft edge a BLACK BAND.
+  //
+  // a is the linear share of the picture this projector is responsible for across the overlap; the
+  // neighbour has 1-a. What has to sum to one is LIGHT, and a projector emits signal^g. So the signal
+  // must be a^(1/g): the screen then emits (a^(1/g))^g = a, and a + (1-a) = 1 exactly, everywhere.
+  // With pow(a, g) the middle of a seam emitted 2·0.5^2.2 ≈ 0.07 of full light instead of 1.0.
+  float pa = pow(a, 1.0 / uBlendGamma);
   // Edge blend × per-projector colour gain, plus the black floor where content is attenuated so an
   // overlap's doubled black matches the single-projector black. Identity at gain=1, lift=0.
   c.rgb = c.rgb * pa * uColorGain + uBlackLift * (1.0 - pa);

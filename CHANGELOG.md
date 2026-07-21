@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+### One picture across several projectors — and a soft edge that actually blends
+
+**Spanning.** Outputs ▸ **Spans** cuts a surface into a grid of overlapping **slices**, each routed to
+its own projector. A slice is an ordinary Surface whose content is a cropped region of another
+(`SourceType.SLICE`), so every piece keeps the full correction stack it always had — corner-pin and
+Bézier homography, soft edge, gamma, colour gain, black lift, NDI send, NVAPI scanout warp,
+structured-light calibration — while the source is decoded **once** no matter how many projectors it
+feeds. Cols × rows × one overlap number derives every crop *and* every feather together; the map draws
+the cut over the live picture and the pieces can be dragged. **Align span** puts the alignment grid up
+on the whole wall at once. Spanning the **Timeline** surface spans the entire show composite.
+
+Slicing resolves in `services/surfaceMedia.getDrawable`, the single seam the Stage composite, the
+WebGPU LED sampler, the projector frame pump and the projector window all pass through — so the
+output layer, the projector IPC, the SDK, the calibration plugin, NVAPI and NDI are untouched, and no
+project migrates. The frame pump now ships each output an already-cropped, slice-sized `ImageBitmap`,
+so a spanned wall costs *less* IPC traffic than one full-frame output, not more.
+
+### ⚠ BEHAVIOUR CHANGE — soft-edge seams were inverted, and are now correct
+
+`ProjectorGL`'s blend ramp was `alpha^γ` with γ defaulting to 2.2. A projector emits `signal^γ`, so
+for two overlapping projectors' **light** to sum across the seam the signal must be `alpha^(1/γ)` —
+the exponent was upside down. The middle of every soft edge emitted about **7%** of full light instead
+of 100%: a black band exactly where the blend was supposed to be invisible. Fixed in the GLSL path and
+mirrored in the NVAPI intensity map (`nvwarpApply.buildIntensity`, which also multiplied the
+calibration plugin's partition-of-unity blend map in the wrong space).
+
+`SoftEdge.gamma` keeps its name, its 2.2 default and its place in the file — it is now documented as
+what it always had to be, **the projector's gamma**, measurable per machine with Outputs ▸
+Auto-measure (camera). Nothing migrates, but **a show already using soft edge will look different**
+(correct) on the first launch after updating.
+
 ### ⚠ BEHAVIOUR CHANGE — video clips now play their own soundtracks, in EVERY project
 
 A video clip on a timeline plays the audio track inside its own `.mp4`/`.mov`, on that clip's playhead,
