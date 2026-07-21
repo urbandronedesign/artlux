@@ -819,19 +819,21 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       onChangeRef.current({ ...t, audio: { tracks: [...timelineAudioTracks(t), track], clips: timelineAudioClips(t) } });
     }
   };
-  // Drop a library AUDIO asset onto an audio lane → a clip AT THE DROP X (not at the playhead: on a
-  // show-clock container the playhead is not even the same clock). Today such a drop dies silently on a
-  // video lane (onDropFile rejects everything that is not video/image).
+  // Drop onto an audio lane → a clip AT THE DROP X (not at the playhead: on a show-clock container the
+  // playhead is not even the same clock). Such a drop still dies silently on a VIDEO lane, deliberately —
+  // onDropFile rejects everything that is not video/image, and audio belongs on an audio lane.
+  //
+  // TWO payloads reach this handler, and for a long time only the first was read:
+  //   · a library asset dragged from the Media panel — `application/artlux-asset` (AssetChip)
+  //   · an OS FILE dragged from Explorer/Finder      — `dataTransfer.files`
+  // The second was a silent no-op, and silent in the worst possible way: AudioLane preventDefaults EVERY
+  // dragover (it must — see its comment; otherwise the file falls through to the document and navigates
+  // the window away, blanking the app), so the drop was swallowed with no rejected-cursor and no error to
+  // explain it. A wav dragged off the desktop simply vanished, which reads as a broken app rather than an
+  // unsupported gesture. Both routes now converge on the one `place()` below.
   const onDropAudioAsset = (e: React.DragEvent, trackId: string, source: 'bed' | 'timeline') => {
     e.preventDefault();
-    const raw = e.dataTransfer.getData('application/artlux-asset');
-    if (!raw) return;
-    let asset: { type?: string; path?: string };
-    try { asset = JSON.parse(raw); } catch { return; }
-    if (asset.type !== 'audio' || !asset.path) return;
-    const path = asset.path;
     const start = clientXToTime(e.clientX);
-    const name = path.split(/[\\/]/).pop()?.replace(/\.[^.]+$/, '') ?? 'audio';
     // ⚠ `d === null` MEANS "THE PROBE DID NOT LEARN THE SOURCE'S LENGTH" — IT DOES NOT MEAN "THE SOURCE IS
     // 30 s LONG". So the fallback feeds `duration` (a layout choice: give the clip a body the user can
     // trim) and NOT `sourceDuration` (a factual claim ABOUT THE FILE, which gets SAVED INTO THE DOCUMENT).
@@ -860,7 +862,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     // deleted while the file was decoding — don't orphan an invisible-but-audible clip"). Core's drop did
     // not. Both doors are checked here: the document it was dropped on, then the track it was dropped on.
     const dropDocKey = docKeyRef.current;
-    const place = (d: number | null) => {
+    const place = (path: string, name: string, d: number | null) => {
       if (docKeyRef.current !== dropDocKey) return;                       // recalled mid-probe → drop it
       const tracks = source === 'bed' ? (audioRef.current?.mix.tracks ?? []) : timelineAudioTracks(timelineRef.current);
       if (!tracks.some(t => t.id === trackId)) return;                    // track deleted mid-probe → drop it
@@ -872,7 +874,46 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     // Core probes the duration with the browser; the native engine loads the file for playback itself
     // (the audio driver's syncLoaded). A source Chromium cannot decode (some .aiff) still gets a clip —
     // a default-length one the user can trim — rather than a drop that silently does nothing.
-    void probeAudioDuration(path).then(d => place(d && d > 0 ? d : null));
+    //
+    // Route 1 — a library asset from the Media panel. Already inside the project (or deliberately
+    // referenced in place by an earlier import), so there is nothing to copy: probe and place.
+    const raw = e.dataTransfer.getData('application/artlux-asset');
+    if (raw) {
+      let asset: { type?: string; path?: string };
+      try { asset = JSON.parse(raw); } catch { return; }
+      if (asset.type !== 'audio' || !asset.path) return;
+      const path = asset.path;
+      const name = path.split(/[\\/]/).pop()?.replace(/\.[^.]+$/, '') ?? 'audio';
+      void probeAudioDuration(path).then(d => place(path, name, d && d > 0 ? d : null));
+      return;
+    }
+    // Route 2 — an OS file. The extension list is MAIN's (projectFolder.ts ASSET_CATEGORIES.audio) and
+    // NOT a broader `f.type.startsWith('audio')` mime test, on purpose: those five are what the JUCE
+    // engine registers a decoder for (engine.cpp formats(); mp3/aac are gated on extra codecs). Accepting
+    // an .mp3 here would import a file, draw a clip, move the playhead across it — and play NOTHING,
+    // which is precisely the silence-behind-a-confident-UI failure docs/AUDIO.md takes most seriously.
+    // Better to decline the drop than to draw a clip that cannot sound.
+    const file = Array.from(e.dataTransfer.files).find(f => /\.(wav|aiff?|flac|ogg)$/i.test(f.name));
+    if (!file) return;
+    const srcPath = window.artlux?.getPathForFile?.(file);
+    if (!srcPath) return;
+    const name = file.name.replace(/\.[^.]+$/, '');
+    void (async () => {
+      // Drop = import + place, the video lane's policy verbatim (onDropFile): copy the file into the
+      // project's assets/audio/ and register a library entry, so it lands in the Media tab exactly as an
+      // explicit import would — and so the project stays portable. With no project folder there is
+      // nowhere to collect it and no library to add it to, so reference the file where it lies.
+      let path = srcPath;
+      if (projectPath) {
+        const entry = await window.artlux?.importAssetFile?.(projectPath, srcPath, 'audio', name);
+        if (entry) { path = entry.path; onRegisterAsset?.(entry); }
+      }
+      // ⚠ TWO awaits now stand between the gesture and the commit (a file copy, then the probe) — twice
+      // the window the `place()` guards above were written for, and the copy is the slow one on a 15 MB
+      // wav. Both doors are still checked in there, at commit time.
+      const d = await probeAudioDuration(path);
+      place(path, name, d && d > 0 ? d : null);
+    })();
   };
   // --- tracking takes: record the live blob feed, place takes on a special lane ---
   const hasTrackingLane = layers.some(l => l.kind === 'tracking');
