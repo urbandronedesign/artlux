@@ -513,7 +513,13 @@ function Invoke-DevChecks {
     # cmake-js shells out to `cmake` by name, so it must be on PATH -- but VS ships its own copy that a
     # plain shell never sees. Distinguish "not installed" from "installed, wrong shell": the second is a
     # WARN you fix by opening a Developer Command Prompt, not by installing anything.
-    $vsCmake = @(Get-ChildItem "${env:ProgramFiles}\Microsoft Visual Studio\*\*\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" -ErrorAction SilentlyContinue)
+    # Both hives: VS Build Tools (as opposed to the full IDE) installs under Program Files (x86) even
+    # on x64, which an x64-only glob silently misses -- it reported "CMake not installed" on a machine
+    # that had built the audio engine minutes earlier.
+    $vsRoots = @("${env:ProgramFiles}\Microsoft Visual Studio", "${env:ProgramFiles(x86)}\Microsoft Visual Studio")
+    $vsCmake = @(foreach ($r in $vsRoots) {
+        Get-ChildItem "$r\*\*\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" -ErrorAction SilentlyContinue
+      })
     if ($vsCmake.Count -gt 0) {
       Add-Result $Grp 'dev.cmake' 'CMake >= 3.23' 'WARN' "not on PATH, but bundled with Visual Studio: $($vsCmake[0].FullName)" 'cmake-js invokes `cmake` by name. Build from a Developer Command Prompt, or add that bin dir to PATH.'
     } else {

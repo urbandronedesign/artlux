@@ -2,6 +2,67 @@
 
 ## Unreleased
 
+## v0.22.0
+
+### ⚠ BEHAVIOUR CHANGE — the installer is now per-machine, and provisions the PC itself
+
+Installing on a second machine produced an app with **no NDI and no projector calibration**, silently.
+Every native module degrades gracefully by design — a missing runtime logs one line to the main-process
+console, disables its feature and never crashes — and a packaged app has no visible console, so a
+half-provisioned machine is indistinguishable from a working one until someone reaches for the feature
+mid-show.
+
+Three build inputs are gitignored and were therefore absent from **every released installer**:
+`native/calib/opencv_world4110.dll` (CI never ran `build:calib`), the NDI Runtime redistributable
+(never bundled — the `customInstall` macro was a documented no-op), and the MediaPipe WASM + BlazePose
+models (CI never ran `assets:mediapipe`). They went missing *silently* because electron-builder
+resolves an `extraResources` source path as a **glob**: a literal path matching nothing is a skip, not
+an error. The build stayed green and the failure surfaced at the venue.
+
+**The installer now provisions the machine.** On first install and on every electron-updater update, it
+installs the **NDI Runtime** and the **VC++ 2015-2022 x64 runtime** silently when absent, adds Windows
+Firewall rules (Art-Net 6454/UDP, sACN 5568/UDP, OSC 10000/UDP, show-control 8788/TCP), and writes a
+diagnostic report to `%APPDATA%\artlux\preflight.json`. Uninstall removes the rules and the watchdog
+Scheduled Task, and deliberately leaves the two shared redistributables alone.
+
+**`nsis.perMachine` is now `true`.** All of the above needs elevation, and a per-user one-click install
+never prompts for UAC — `netsh` and both redistributable installers would have failed silently, which
+is the exact failure mode this release exists to remove. ArtLux now installs to `%ProgramFiles%\ArtLux`
+for all users.
+
+> ⚠ **Existing per-user installs are NOT upgraded in place.** Windows treats the two scopes as different
+> products, so the new installer will sit *beside* the old one. Uninstall the old
+> `%LOCALAPPDATA%\Programs\artlux` first — step-by-step in **[docs/INSTALL.md](docs/INSTALL.md)**.
+> Settings and LiDAR takes in `%APPDATA%\artlux` are untouched by either.
+
+### A dependency preflight, and a build that cannot ship a missing resource
+
+**`scripts/preflight.ps1`** — one dependency checker, two modes, no dependencies of its own.
+`-Mode runtime` audits a venue PC: the VC++ runtime, the NDI Runtime, the installed `resources/`
+against the full expected file set, GPU/driver, audio endpoints, firewall and network profile, port
+availability. `-Mode dev` audits a build machine: Node/Rust/MSVC/CMake, the optional OpenCV + LLVM +
+NDI SDK toolchains, and every artifact a correct `npm run package` needs. `-Json`/`-OutFile` for a
+machine-readable report, `-Fix` to winget-install the two redistributables.
+
+The check that pays for itself reads the **PE import table** of every `.node` rather than trusting
+that the file exists — so `calib.node` present but with no `opencv_world4110.dll` beside it reports as
+a failure instead of looking fine. It accounts for the directories the app injects itself
+(`ensureNdiOnPath()`), so a correctly-installed NDI Runtime is not a false positive.
+
+**`scripts/verify-package-resources.cjs`** re-reads the same `extraResources` declarations
+electron-builder will use and **hard-fails** if a declared source is missing or zero-length. It runs in
+`package`, `package:dir` and CI ahead of electron-builder, which is what makes this class of bug
+impossible rather than merely fixed once.
+
+**`npm run fetch:redist` / `npm run fetch:opencv`** stage the gitignored inputs at package time, so a
+fresh clone produces a correct installer. Obtaining `opencv_world4110.dll` needs no OpenCV/LLVM/MSVC
+toolchain — it is an unmodified redistributable, and the fetched file is byte-identical (SHA256) to
+what `build:calib` produces. CI stages all three, then runs the verifier.
+
+New **[docs/INSTALL.md](docs/INSTALL.md)**: build-PC and venue-PC walkthroughs, first install,
+verification and troubleshooting. `NOTICE` gains a "redistributed verbatim" section — it previously
+stated the NDI runtime was not bundled, which stopped being true here.
+
 ### One picture across several projectors — and a soft edge that actually blends
 
 **Spanning.** Outputs ▸ **Spans** cuts a surface into a grid of overlapping **slices**, each routed to
