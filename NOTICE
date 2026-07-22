@@ -38,13 +38,43 @@ the two kinds of use, because they carry very different obligations:
 2. LOADED AT RUNTIME — NOT redistributed by us
 --------------------------------------------------------------------------------------
 
-  NDI® SDK / Runtime                https://ndi.video
-    NDI® is a registered trademark of Vizrt NDI AB. ArtLux does not bundle the NDI
-    runtime; the user installs it. The `ndi.node` addon links the NDI SDK's import
-    library only.
+  NDI® SDK                          https://ndi.video
+    The `ndi.node` addon links the NDI SDK's import library only. The SDK itself is
+    gated and is NOT redistributed. (The NDI *Runtime* now IS bundled — see section 3.)
 
 --------------------------------------------------------------------------------------
-3. THE APPLICATION ITSELF
+3. REDISTRIBUTED VERBATIM — unmodified vendor binaries bundled in the Windows installer
+--------------------------------------------------------------------------------------
+
+  These are shipped as-is inside the NSIS installer and, for the first two, executed by
+  it during install (`build/installer.nsh`). They are not linked into anything we build,
+  not modified, and not repackaged. They are fetched at package time by
+  `npm run fetch:redist` / `npm run fetch:opencv` rather than committed to git.
+
+  NDI® 6 Runtime                    https://ndi.link/NDIRedistV6
+    NDI® is a registered trademark of Vizrt NDI AB. The NDI SDK licence PERMITS
+    redistributing the runtime installer provided the attribution and trademark notice
+    are preserved — which is what this entry is for. The installer runs it silently only
+    when the machine does not already have it.
+
+    ⚠ CHANGED 2026-07-22. This file previously stated "ArtLux does not bundle the NDI
+      runtime; the user installs it." That stopped being true when the installer began
+      bundling it, to fix NDI being silently unavailable on a fresh machine.
+
+  Microsoft Visual C++ 2015-2022 Redistributable (x64)
+                                    https://aka.ms/vs/17/release/vc_redist.x64.exe
+    Redistribution is expressly permitted by the Microsoft "REDIST" terms accompanying
+    Visual Studio. Every `.node` addon and `opencv_world4110.dll` link the dynamic CRT,
+    so without it the app installs and then silently loses every native feature.
+
+  OpenCV 4.11 — `opencv_world4110.dll`
+                                    https://github.com/opencv/opencv  ·  Apache-2.0
+    The stock prebuilt Windows binary, unmodified, placed beside `calib.node` (which
+    links it) and bundled into the installer. Apache-2.0 permits redistribution; the
+    licence text ships with the OpenCV release and is reproduced by that project.
+
+--------------------------------------------------------------------------------------
+4. THE APPLICATION ITSELF
 --------------------------------------------------------------------------------------
 
   Electron, React, TypeScript, Vite, Tailwind CSS, react-three-fiber, and the Rust

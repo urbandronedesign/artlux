@@ -57,6 +57,25 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # MediaPipe ships its WASM runtime + BlazePose models out of band: @mediapipe/tasks-vision would
+      # otherwise fetch them from a Google CDN per session, which Electron's CSP blocks. Vite copies
+      # them out of the renderer public dir at build time, so this MUST run before "Build app" or the
+      # packaged renderer has no pose assets and camera tracking silently does nothing.
+      - name: Stage MediaPipe offline assets
+        run: npm run assets:mediapipe
+
+      # The two Windows redistributables the NSIS installer bundles and silently installs (NDI Runtime,
+      # VC++ 2015-2022), plus the stock OpenCV world DLL that calib.node links.
+      #
+      # This step is why calibration and NDI were dead in released builds: all three are gitignored, CI
+      # never ran build:calib (it needs OpenCV + LLVM + MSVC, which no runner has), and electron-builder
+      # resolves an extraResources `from` as a GLOB -- a literal path matching nothing is a SILENT skip,
+      # not an error. So every release shipped calib.node with no OpenCV behind it and an installer that
+      # could not install the NDI Runtime. Fetching the unmodified redistributables needs no toolchain.
+      - name: Stage Windows redistributables + OpenCV runtime
+        if: runner.os == 'Windows'
+        run: npm run fetch:redist && npm run fetch:opencv
+
       # NDI: native/ndi/ndi.node is a committed prebuilt (Windows, built against the NDI SDK),
       # so CI doesn't build it — build:native covers output-engine + spout + hap only.
       - name: Build native engine
@@ -72,6 +91,12 @@ jobs:
 
       - name: Build app (main/preload/renderer)
         run: npm run build
+
+      # Hard gate: assert every file electron-builder is DECLARED to bundle actually exists, because
+      # electron-builder itself will not. Without this the job stays green while producing an installer
+      # that is missing native runtimes -- the failure then surfaces on the venue PC, silently.
+      - name: Verify packaged resources
+        run: npm run verify:resources
 
       - name: Package
         run: npx electron-builder --publish never

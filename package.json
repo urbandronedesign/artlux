@@ -15,14 +15,19 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "verify:plugins": "node scripts/verify-plugins.cjs",
+    "verify:resources": "node scripts/verify-package-resources.cjs",
+    "preflight": "powershell -ExecutionPolicy Bypass -File scripts/preflight.ps1 -Mode all",
     "assets:mediapipe": "node scripts/fetch-mediapipe-assets.cjs",
+    "fetch:redist": "node scripts/fetch-redist.cjs",
+    "fetch:opencv": "node scripts/fetch-opencv-dll.cjs",
+    "prepack:assets": "npm run fetch:redist && npm run fetch:opencv && npm run assets:mediapipe",
     "build:native": "cargo build --release --manifest-path native/output-engine/Cargo.toml && cargo build --release --manifest-path native/spout-receiver/Cargo.toml && cargo build --release --manifest-path native/hap/Cargo.toml && node scripts/copy-native.cjs && node scripts/build-audio.cjs --optional",
     "build:audio": "node scripts/build-audio.cjs",
     "build:ndi": "cargo build --release --features ndi --manifest-path native/ndi/Cargo.toml && node scripts/copy-ndi.cjs",
     "build:calib": "powershell -ExecutionPolicy Bypass -File scripts/build-calib.ps1",
     "build:nvwarp": "powershell -ExecutionPolicy Bypass -File scripts/build-nvwarp.ps1",
-    "package": "node scripts/build-audio.cjs && electron-vite build && electron-builder",
-    "package:dir": "node scripts/build-audio.cjs && electron-vite build && electron-builder --dir",
+    "package": "npm run prepack:assets && node scripts/build-audio.cjs && electron-vite build && npm run verify:resources && electron-builder",
+    "package:dir": "npm run prepack:assets && node scripts/build-audio.cjs && electron-vite build && npm run verify:resources && electron-builder --dir",
     "gen:icon": "node scripts/gen-icon.cjs",
     "docs:capture": "node scripts/capture-docs.cjs",
     "docs:html": "node scripts/build-docs-html.cjs"
@@ -131,6 +136,18 @@
           "to": "nvwarp.node"
         },
         {
+          "from": "build/ndi/NDI-Runtime.exe",
+          "to": "NDI-Runtime.exe"
+        },
+        {
+          "from": "build/vcredist/vc_redist.x64.exe",
+          "to": "vc_redist.x64.exe"
+        },
+        {
+          "from": "scripts/preflight.ps1",
+          "to": "scripts/preflight.ps1"
+        },
+        {
           "from": "scripts/install-watchdog-task.ps1",
           "to": "scripts/install-watchdog-task.ps1"
         },
@@ -145,7 +162,8 @@
       ]
     },
     "nsis": {
-      "include": "build/installer.nsh"
+      "include": "build/installer.nsh",
+      "perMachine": true
     },
     "mac": {
       "icon": "build/icon.png",

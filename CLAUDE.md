@@ -19,6 +19,7 @@ a project-level state machine, scenes/cues, OSC control, and a 3D simulator.
 |---|---|
 | **How the system fits together (canonical)** | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | **Setup / build / test / release + env gotchas** | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) |
+| **Installing on a real machine (build PC + venue PC) + the preflight** | [docs/INSTALL.md](docs/INSTALL.md) |
 | **Plugin architecture — developer guide** | [docs/PLUGINS.md](docs/PLUGINS.md) |
 | **Plugin SDK — API surface + stability policy** | [docs/SDK.md](docs/SDK.md) |
 | **Plugin-architecture roadmap + next extraction plan** | [docs/ROADMAP.md](docs/ROADMAP.md) |

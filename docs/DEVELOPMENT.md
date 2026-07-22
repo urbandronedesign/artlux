@@ -127,6 +127,80 @@ not hard-fail on a machine with no C++ toolchain. CI starts from a clean clone w
 > behaviour and left the document describing the old one. If you are reading a stale checkout, trust
 > `package.json`, not this file.
 
+## Fresh-machine setup — the preflight, and what the installer provisions
+
+Everything native in ArtLux **degrades gracefully**: a missing addon or runtime logs one line to the
+main-process console, disables its feature, and never crashes. That is the right behaviour and it is
+also the reason a bad install is nearly undiagnosable — putting ArtLux on a second machine produced an
+app with **no NDI and no calibration**, with nothing on screen saying so.
+
+Two things now exist because of that.
+
+### `npm run preflight` — check a machine before (or after) installing
+
+`scripts/preflight.ps1`, Windows, PowerShell 5.1, no dependencies. Exits non-zero on any FAIL.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/preflight.ps1 -Mode all      # dev + runtime
+powershell -ExecutionPolicy Bypass -File scripts/preflight.ps1 -Mode runtime  # a venue PC
+powershell -ExecutionPolicy Bypass -File scripts/preflight.ps1 -Mode dev      # a build machine
+#   -Json / -OutFile <path>   machine-readable report      -Fix   winget-install the two redists
+#   -InstallDir <path>        audit an install electron-builder put somewhere non-standard
+```
+
+| Mode | Checks |
+|---|---|
+| `runtime` | VC++ 2015-2022 x64 runtime · **NDI Runtime** · an audit of the installed `resources/` against the full expected file set · a **PE import-table scan of every `.node`** (catches "file present, dependency unresolvable") · real D3D12 GPU + driver age · an enabled audio output device · firewall rules, network profile, NIC count, and whether 6454/5568/10000/8788 are free · displays · disk · elevation |
+| `dev` | Node ≥ 20 · Rust stable **MSVC host** · MSVC C++ build tools (vswhere) · CMake ≥ 3.23 · optional OpenCV 4.11 + LLVM + NDI SDK · every artifact `npm run package` needs, including the three gitignored ones · MediaPipe assets · a stray `electron.exe` holding the addons |
+
+The import scan is the one that pays for itself: it reads the PE import directory rather than trusting
+`existsSync`, so `calib.node` present-but-with-no-`opencv_world4110.dll` reports as a failure instead of
+looking fine. It knows about the dirs the app injects itself (`ensureNdiOnPath()` in
+`plugins/ndi/src/ndiManager.ts`), so a correctly-installed NDI Runtime does not read as a false positive.
+
+The installer runs `-Mode runtime -Json` at the end of every install and leaves the report at
+`%APPDATA%\artlux\preflight.json`.
+
+### What `npm run package` now stages automatically
+
+Three build inputs are **gitignored** and were therefore absent on any machine that had not built them
+by hand — including every CI runner. `package` / `package:dir` fetch them first (`prepack:assets`) and
+then **assert** them:
+
+| Input | Fetched by | Was silently missing from |
+|---|---|---|
+| `native/calib/opencv_world4110.dll` (62 MB) | `npm run fetch:opencv` | **every released installer** — CI never ran `build:calib` |
+| `build/ndi/NDI-Runtime.exe`, `build/vcredist/vc_redist.x64.exe` | `npm run fetch:redist` | every installer — never bundled at all |
+| `src/renderer/public/mediapipe/{wasm,models}` | `npm run assets:mediapipe` | every released installer — CI never ran it |
+
+> **Why they went missing silently:** electron-builder resolves an `extraResources` `from` path as a
+> **glob**. A literal path that matches nothing is not an error — it is a skip. The build stays green
+> and the failure surfaces on the venue PC. `npm run verify:resources`
+> (`scripts/verify-package-resources.cjs`) closes that hole: it re-reads the same `extraResources`
+> declarations out of `package.json` and hard-fails if a declared source is absent or zero-length. It
+> runs in `package`, `package:dir`, and CI, ahead of electron-builder.
+
+### What the installer provisions (`build/installer.nsh`)
+
+NSIS `customInstall`, which electron-builder also re-runs on every **electron-updater update**, so all
+of it is idempotent and re-asserted:
+
+1. **NDI Runtime** — installed silently when `NDI_RUNTIME_DIR_V6` / the registry key is absent.
+2. **VC++ 2015-2022 x64** — installed silently when the `VC\Runtimes\x64` key says otherwise.
+3. **Firewall rules** — program rules for `ArtLux.exe` plus explicit inbound rules for Art-Net 6454/UDP,
+   sACN 5568/UDP, OSC 10000/UDP, show-control 8788/TCP. Removed by `customUnInstall`.
+4. **Preflight report** → `%APPDATA%\artlux\preflight.json`.
+
+`customUnInstall` also removes the watchdog Scheduled Task, which would otherwise keep relaunching a
+deleted binary once a minute forever.
+
+> **`nsis.perMachine` is `true`** — and it must stay that way. All of the above needs elevation; a
+> per-user one-click install never prompts for UAC, so `netsh` and both redistributables would fail
+> **silently**, which is the exact failure mode this work exists to remove.
+
+Not automatable, so the preflight reports them instead: GPU driver updates, the ASIO SDK (see above),
+the PS3 Eye camera driver, and physical NIC/multicast configuration.
+
 ### Scripts
 | Script | What |
 |--------|------|
@@ -134,9 +208,13 @@ not hard-fail on a machine with no C++ toolchain. CI starts from a clean clone w
 | `npm run build` | build main + preload + renderer bundles |
 | `npm run build:native` | cargo build the 3 Rust crates + copy to `*.node`, then the audio engine (warns, non-fatal) |
 | `npm run build:audio` | cmake-js build the JUCE audio engine → `native/audio-engine/audio_engine.node` (strict) |
+| `npm run preflight` | dependency check, dev + runtime (`scripts/preflight.ps1`) |
+| `npm run fetch:redist` | download the NDI Runtime + VC++ redistributable into `build/` (gitignored) |
+| `npm run fetch:opencv` | download `opencv_world4110.dll` into `native/calib/` (gitignored) — no OpenCV toolchain needed |
+| `npm run verify:resources` | assert every declared `extraResources` file exists (runs in `package` + CI) |
 | `npm run gen:icon` | regenerate `build/icon.{png,ico}` + favicon from `build/icon.svg` |
-| `npm run package` | full installers (electron-builder) |
-| `npm run package:dir` | unpacked app (fast local smoke test) |
+| `npm run package` | full installers: stage assets → build audio → bundle → verify → electron-builder |
+| `npm run package:dir` | unpacked app (fast local smoke test), same staging + verification |
 
 ## Headless
 ```bash
