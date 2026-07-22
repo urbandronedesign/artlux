@@ -32,11 +32,16 @@ function mkdirp(dir) { fs.mkdirSync(dir, { recursive: true }); }
 
 function copyWasm() {
   // Resolve the installed package's wasm/ dir (works with npm workspaces hoisting to root node_modules).
-  let pkgDir;
-  try { pkgDir = path.dirname(require.resolve('@mediapipe/tasks-vision/package.json', { paths: [ROOT] })); }
-  catch { console.error('[mediapipe] @mediapipe/tasks-vision not installed — run `npm install` first.'); process.exit(1); }
-  const wasmSrc = path.join(pkgDir, 'wasm');
-  if (!fs.existsSync(wasmSrc)) { console.error(`[mediapipe] no wasm/ dir in ${pkgDir}`); process.exit(1); }
+  // The package ships an `exports` map that does NOT expose ./package.json, so resolving that path throws
+  // ERR_PACKAGE_PATH_NOT_EXPORTED — resolve an *exported* wasm subpath instead and walk up from it.
+  let wasmSrc;
+  try { wasmSrc = path.dirname(require.resolve('@mediapipe/tasks-vision/vision_wasm_internal.js', { paths: [ROOT] })); }
+  catch {
+    // Older/looser packagings: fall back to the package root, then its wasm/ dir.
+    try { wasmSrc = path.join(path.dirname(require.resolve('@mediapipe/tasks-vision/package.json', { paths: [ROOT] })), 'wasm'); }
+    catch { console.error('[mediapipe] @mediapipe/tasks-vision not installed — run `npm install` first.'); process.exit(1); }
+  }
+  if (!fs.existsSync(wasmSrc)) { console.error(`[mediapipe] no wasm/ dir at ${wasmSrc}`); process.exit(1); }
   mkdirp(WASM_OUT);
   let n = 0;
   for (const f of fs.readdirSync(wasmSrc)) {
