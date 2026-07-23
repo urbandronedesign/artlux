@@ -98,7 +98,7 @@ survives only as a one-time migration input (see below).
 | | `3d` | `Simulator3D` | venue layout, models, fixture 3D positions, lighting, tracking overlays |
 | **Align** | `project` | outputs table | bind displays, warp, blend, span, gamma; previews in the dock |
 | | `calib` | *plugin* — wizard + camera | structured-light / markerless alignment, 3D alongside |
-| **Show** | `scenes` | `CueBankPanel` | capture scenes, build cue banks |
+| **Show** | `scenes` | `CueBankPanel` | capture scenes, fire them from the grid; program preview + both clocks on the left |
 | | `machine` | `StateGraphEditor` | the show graph over those scenes |
 | | `audio` | *plugin* — the mixer | bed, mix, inserts, spatial |
 | | `tracking` | 2D stage + 3D | LiDAR / MediaPipe / Augmenta; the same Tracking section in the parameter column, monitors in the dock |
