@@ -8,10 +8,13 @@ interface Props {
   step?: number;
   min?: number;
   max?: number;
+  // Widen the label column where the container affords it (Preferences' tiles are ~2x an inspector
+  // column, so 'Min relaunch gap (s)' need not read as 'Min relau…'). Defaults to Field's w-16.
+  labelWidth?: string;
 }
 
-export const NumberField: React.FC<Props> = ({ label, value, onChange, step = 1, min, max }) => (
-  <Field label={label}>
+export const NumberField: React.FC<Props> = ({ label, value, onChange, step = 1, min, max, labelWidth }) => (
+  <Field label={label} labelWidth={labelWidth}>
     <input
       type="number"
       step={step}

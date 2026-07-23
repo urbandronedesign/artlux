@@ -10,6 +10,22 @@ interface Props {
   onChange: (patch: Partial<AppSettings>) => void;
 }
 
+// One tile in the settings mosaic. `Section` is the shared collapsible used by every panel column in
+// the app, and it is built to STACK — it draws only a bottom rule and expects a bordered parent. Tiled,
+// each one has to become its own card, so the wrapper supplies the border/radius and suppresses that
+// rule (`[&>div]` is Section's root). `break-inside-avoid` is what keeps a section whole: without it the
+// column algorithm splits a card across two columns, chopping the Watchdog log or the device list in half.
+// Label column for this screen's rows. The shared default (`w-16`) is sized for the 260px inspector
+// column and truncates "Min relaunch gap (s)" to "Min relau…" — harmless when a tooltip is a hover away
+// in a dense inspector, wrong on the screen whose whole job is being read. A tile is twice that wide.
+const LBL = 'w-36';
+
+const Tile: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <div className="break-inside-avoid mb-3 rounded-md border border-line-1 bg-surface-1 overflow-hidden [&>div]:border-b-0">
+    {children}
+  </div>
+);
+
 const WATCHDOG_UI_DEFAULTS: UnattendedPrefs = {
   enabled: false, crashRecovery: true, outputDownSec: 15, renderStallSec: 10,
   minRelaunchGapSec: 30, maxRelaunchesPerHour: 6, always: false,
@@ -56,13 +72,13 @@ const WatchdogSection: React.FC = () => {
               title="Tier-1: relaunch on render-process-gone / GPU crash / unresponsive window / frozen render loop" />
       <Toggle label="Arm outside broadcast" checked={!!cfg.always} onChange={(v) => update({ always: v })}
               title="By default the watchdog only arms in --broadcast (so it never surprises you in the editor). Enable to arm everywhere." />
-      <NumberField label="Output-down (s)" value={cfg.outputDownSec} step={1} min={2} max={600}
+      <NumberField label="Output-down (s)" labelWidth={LBL} value={cfg.outputDownSec} step={1} min={2} max={600}
                    onChange={(v) => update({ outputDownSec: Math.max(2, Math.round(v)) })} />
-      <NumberField label="Render-stall (s)" value={cfg.renderStallSec} step={1} min={2} max={600}
+      <NumberField label="Render-stall (s)" labelWidth={LBL} value={cfg.renderStallSec} step={1} min={2} max={600}
                    onChange={(v) => update({ renderStallSec: Math.max(2, Math.round(v)) })} />
-      <NumberField label="Min relaunch gap (s)" value={cfg.minRelaunchGapSec} step={1} min={0} max={600}
+      <NumberField label="Min relaunch gap (s)" labelWidth={LBL} value={cfg.minRelaunchGapSec} step={1} min={0} max={600}
                    onChange={(v) => update({ minRelaunchGapSec: Math.max(0, Math.round(v)) })} />
-      <NumberField label="Max relaunches / hour" value={cfg.maxRelaunchesPerHour} step={1} min={1} max={60}
+      <NumberField label="Max relaunches / hour" labelWidth={LBL} value={cfg.maxRelaunchesPerHour} step={1} min={1} max={60}
                    onChange={(v) => update({ maxRelaunchesPerHour: Math.max(1, Math.round(v)) })} />
 
       {/* Live status from the main-side watchdog */}
@@ -191,16 +207,21 @@ export const Preferences: React.FC<Props> = ({ settings, onChange }) => {
 
 
   return (
-    // The `settings` context's viewport. This was a 460px dialog you dismissed; app settings are read
-    // and compared, not acknowledged, so it is a workbench now. Capped to a readable column rather than
-    // stretched across the window — these are label/control rows, not a canvas.
-    <div className="w-full h-full overflow-y-auto bg-surface-0" aria-label="Preferences">
-      <div className="max-w-[620px] mx-auto my-4 bg-surface-1 border border-line-1 rounded-lg overflow-hidden">
-        <div className="h-10 px-3 flex items-center border-b border-line-1 bg-surface-2 select-none">
-          <span className="text-xs font-semibold text-fg-1 uppercase tracking-wider">Preferences</span>
-        </div>
-
-        <Section title="Appearance" icon={<Monitor size={12} />}>
+    // The `settings` context's viewport, laid out as a MOSAIC rather than one column. A settings screen
+    // is read and compared — you tune Engine FPS against the Watchdog's render-stall threshold, or the
+    // DMX target against the OSC bind address — and a 620px column made that scrolling instead of
+    // looking. Tiles let the whole surface be visible at once.
+    //
+    // The count is driven by `column-width`, not by viewport breakpoints: the shell can give this
+    // viewport any width (a browser/parameter column may be reopened over it, and the window itself is
+    // UI-scaled 80–200%), so the layout has to respond to the space it actually got. The `4` caps it —
+    // on a 4K panel an unbounded fill would produce a dozen columns and a header-only mosaic.
+    // Column flow is column-major and heights balance, which is what packs ragged sections tightly.
+    //
+    // No title bar: the ActionBar above already carries the context icon + "Preferences".
+    <div className="w-full h-full overflow-y-auto bg-surface-0 p-3" aria-label="Preferences">
+      <div style={{ columns: '19rem 5', columnGap: '0.75rem' }}>
+        <Tile><Section title="Appearance" icon={<Monitor size={12} />}>
           <Slider label="UI scale" value={uiScaleValue} min={0.8} max={2} step={0.05}
                   format={(v) => `${Math.round(v * 100)}%`} onChange={applyScale} />
           <div className="flex items-center justify-between">
@@ -210,17 +231,17 @@ export const Preferences: React.FC<Props> = ({ settings, onChange }) => {
               if (typeof d === 'number') applyScale(d);
             }}>Reset to detected</Button>
           </div>
-        </Section>
+        </Section></Tile>
 
-        <Section title="DMX Output" icon={<Cpu size={12} />}>
-          <Field label="Protocol">
+        <Tile><Section title="DMX Output" icon={<Cpu size={12} />}>
+          <Field label="Protocol" labelWidth={LBL}>
             <Select value={settings.protocol} onChange={(e) => onChange({ protocol: e.target.value as AppSettings['protocol'] })}>
               <option value="artnet">Art-Net</option>
               <option value="sacn">sACN (E1.31)</option>
             </Select>
           </Field>
           <Toggle label="Output enabled" checked={settings.outputEnabled} onChange={(v) => onChange({ outputEnabled: v })} />
-          <Field label="Target IP">
+          <Field label="Target IP" labelWidth={LBL}>
             <input
               type="text"
               value={settings.artNetIp}
@@ -228,7 +249,7 @@ export const Preferences: React.FC<Props> = ({ settings, onChange }) => {
               className="num flex-1 bg-surface-0 border border-line-1 rounded-sm px-1.5 py-1 text-right text-fg-1 focus:border-accent focus:outline-none"
             />
           </Field>
-          <NumberField label="Port" value={settings.artNetPort} step={1} onChange={(v) => onChange({ artNetPort: v })} />
+          <NumberField label="Port" labelWidth={LBL} value={settings.artNetPort} step={1} onChange={(v) => onChange({ artNetPort: v })} />
           <Toggle label="Broadcast / multicast" checked={settings.broadcast} onChange={(v) => onChange({ broadcast: v })} />
 
           {/* Art-Net device discovery (ArtPoll) */}
@@ -261,21 +282,21 @@ export const Preferences: React.FC<Props> = ({ settings, onChange }) => {
               <div className="text-micro text-fg-3 italic px-0.5">No Art-Net nodes replied.</div>
             )}
           </div>
-        </Section>
+        </Section></Tile>
 
-        <Section title="Engine" icon={<Cpu size={12} />}>
-          <NumberField label="FPS" value={settings.fps} step={1} min={1} max={1000} onChange={(v) => onChange({ fps: Math.max(1, Math.min(1000, Math.round(v))) })} />
+        <Tile><Section title="Engine" icon={<Cpu size={12} />}>
+          <NumberField label="FPS" labelWidth={LBL} value={settings.fps} step={1} min={1} max={1000} onChange={(v) => onChange({ fps: Math.max(1, Math.min(1000, Math.round(v))) })} />
           <Toggle label="Keep-alive" checked={settings.keepAlive} onChange={(v) => onChange({ keepAlive: v })} title="Re-send last frame at FPS so receivers never starve" />
           <Toggle label="Synchronous output (ArtSync)" checked={settings.artNetSync} onChange={(v) => onChange({ artNetSync: v })} title="Send ArtSync (0x5200) after each frame so nodes latch + output simultaneously (tear-free multi-universe)" />
           <Slider label="Gamma" value={settings.gamma} min={1} max={3} step={0.05} format={(v) => v.toFixed(2)} onChange={(v) => onChange({ gamma: v })} />
-        </Section>
+        </Section></Tile>
 
-        <GpuSection />
+        <Tile><GpuSection /></Tile>
 
-        <Section title="OSC / Tracking" icon={<Radio size={12} />}>
+        <Tile><Section title="OSC / Tracking" icon={<Radio size={12} />}>
           <Toggle label="OSC receive" checked={settings.oscEnabled} onChange={(v) => onChange({ oscEnabled: v })} title="Bind a UDP listener for external control + LiDAR blob tracking" />
-          <NumberField label="Listen port" value={settings.oscListenPort} step={1} min={1} max={65535} onChange={(v) => onChange({ oscListenPort: Math.max(1, Math.min(65535, Math.round(v))) })} />
-          <Field label="Bind address">
+          <NumberField label="Listen port" labelWidth={LBL} value={settings.oscListenPort} step={1} min={1} max={65535} onChange={(v) => onChange({ oscListenPort: Math.max(1, Math.min(65535, Math.round(v))) })} />
+          <Field label="Bind address" labelWidth={LBL}>
             <input
               type="text"
               value={settings.oscListenAddress}
@@ -299,7 +320,7 @@ export const Preferences: React.FC<Props> = ({ settings, onChange }) => {
               >{ip}</button>
             ))}
           </div>
-          <Field label="Control prefix">
+          <Field label="Control prefix" labelWidth={LBL}>
             <input
               type="text"
               value={settings.oscControlPrefix}
@@ -308,16 +329,19 @@ export const Preferences: React.FC<Props> = ({ settings, onChange }) => {
               className="num flex-1 bg-surface-0 border border-line-1 rounded-sm px-1.5 py-1 text-right text-fg-1 focus:border-accent focus:outline-none"
             />
           </Field>
-        </Section>
+        </Section></Tile>
 
-        <WatchdogSection />
+        <Tile><WatchdogSection /></Tile>
 
         {/* Plugin-contributed settings sections (e.g. the mp4 plugin's "Video"). Each owns its fields;
-            the host passes the shared settings + onChange. Keeps plugin settings out of core. */}
+            the host passes the shared settings + onChange. Keeps plugin settings out of core. They tile
+            with the core ones — a plugin's section is not a second-class citizen here. */}
         {settingsSectionRegistry.all().map((s) => (
-          <Section key={s.id} title={s.title} icon={s.icon ?? <Cpu size={12} />}>
-            <s.Component settings={settings} onChange={onChange} />
-          </Section>
+          <Tile key={s.id}>
+            <Section title={s.title} icon={s.icon ?? <Cpu size={12} />}>
+              <s.Component settings={settings} onChange={onChange} />
+            </Section>
+          </Tile>
         ))}
       </div>
     </div>

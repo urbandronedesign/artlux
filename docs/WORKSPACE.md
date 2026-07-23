@@ -122,6 +122,13 @@ Five of these are worth knowing the history of, because the shape was arrived at
   and grew into appearance, unattended watchdog, GPU probing and every plugin's `SettingsSection` — a
   screen you *read and compare*, not one you acknowledge. It is still the single host for plugin
   settings sections; that did not move. `Ctrl+,`, the TopBar gear and the Context menu all land on it.
+
+  Its sections are a **mosaic**, not a column: each `Section` becomes a card and CSS multi-column packs
+  them (`columns: 19rem 5`). The count follows the width the shell actually gave the viewport rather
+  than a viewport breakpoint — 4 columns at 1392px, 3 at 1000, 2 at 700, 1 at 420 — because the window
+  is also UI-scaled 80–200%. The `5` is a cap: unbounded, a 4K panel gets a dozen header-only columns.
+  Each card needs `break-inside-avoid` or the column algorithm chops it in half. Eleven sections now
+  fit in roughly one screen (33px of scroll) instead of ~1300px of it.
 - **`show` absorbed the tablet remote's feature set.** Schedule and Playlist were reachable *only* from
   the served PWA, so an operator at the machine could arm an unattended venue from a phone but not from
   the app in front of them. See [SHOW-CONTROL.md](SHOW-CONTROL.md) → the desktop Show context.
