@@ -2,6 +2,122 @@
 
 ## Unreleased
 
+### ⚠ BEHAVIOUR CHANGE — the editor is context-driven; layout presets are gone
+
+The editor was one fixed three-region layout, and every feature added since (projector outputs,
+calibration, the timeline, scenes/cues, audio, tracking, show-control) had to be bolted on as **a modal
+or a dock tab**. Half the app was reachable only from a menu, the right-hand panel showed the same
+section list whatever you were doing, and a plugin could contribute exactly one thing: a modal.
+
+The shell is now built from **workspace contexts** — one active workbench at a time, chosen from a 48px
+rail down the far left, each declaring its *whole* shell: browser column, viewport, dock tabs, parameter
+sections and action bar. A context is a **manifest of panel ids** and owns no components, which is what
+lets `contextRegistry.extend()` give a plugin the viewport of a context it does not own.
+Canonical doc: **[docs/WORKSPACE.md](docs/WORKSPACE.md)**.
+
+**Eleven contexts, four clusters.** Build: `timeline` · `mapping` · `3d` — Align: `project` · `calib` —
+Show: `scenes` · `machine` · `audio` · `tracking` · `show` — App: `settings`.
+
+**What happens to your layout.** `activePreset` migrates on first launch: `edit`→`mapping`,
+`perform`→`show`, `calibrate`→`calib`. The `map`/`led` contexts merged into `mapping` and `media` was
+retired into `timeline`, so a saved *active* context id pointing at one of those is remapped too — the
+rail never boots with nothing selected. (Their banked panel sizes are simply left unused; nothing else
+carries over from them.) Each context now keeps its **own** sizes, so switching restores that
+workbench's ergonomics instead of carrying the last one's. Getting around: click the rail, `Ctrl+1..9`, `Ctrl+Tab`, the new **Context** menu (in both the
+React and the native menu), or `Ctrl+K` for a command palette that searches every context *and* every
+action any context declares — and switches context for you before running one.
+
+**Almost every modal became a workbench.** `OutputsPanel`, `RoutingModal`, `StateGraphEditor`,
+`AudioBedPanel`, both calibration wizards, `ShowControlPanel` and `Preferences` are contexts or panels
+now; `AssetManager` was deleted outright (its detail pane folded into `MediaPanel`, whose library is the
+Timeline context's browser column). Still modal, deliberately, because they are global and momentary:
+About, the update notice, the audio-engine warning, and MediaPipe's floor calibration.
+
+Three contexts have their viewport supplied by a **plugin** (`calib`, `audio`, `show`). With the plugin
+disabled the host's declared viewport is the fallback, so the rail never carries a dead entry. This also
+closes the ROADMAP 2b seam: `App.tsx` no longer mounts the calibration wizards or holds their state.
+
+---
+
+**Timeline replaced "Media & Content", and got the NLE shape.** A context may name one panel for a
+**full-width bottom region** below everything else — the browser and parameter columns both stop above
+it. Lanes squeezed between two side columns are too narrow to cut in. Above them sits a live **program
+monitor**; its measured cost is *none* (60 fps with it open vs 61 without) because it only blits a
+composite the engine already builds. The `project` context gained an **Output Preview**: one live tile
+per enabled projector output, which for a surface spanned across several projectors shows what each
+machine is actually putting on its screen, side by side.
+
+**The Show context absorbed the tablet remote's whole feature set.** Schedule and project Playlist were
+reachable *only* from the served PWA, so an operator at the machine could arm an unattended venue from a
+phone but not from the app in front of them. The desktop Show context now carries the scene/cue/transport
+deck, the wall-clock **Schedule**, the multi-project **Playlist**, and live engine/render/system
+**metrics**. See [docs/SHOW-CONTROL.md](docs/SHOW-CONTROL.md).
+
+**Preferences is a context, laid out as a mosaic.** It began as a 460px dialog over output protocol and
+engine and grew into appearance, the unattended watchdog, GPU probing and every plugin's own
+`SettingsSection` — a screen you read and *compare* (Engine FPS against the watchdog's render-stall
+threshold; the DMX target against the OSC bind address), which a single scrolling column made impossible.
+Each section is now a card, packed by CSS multi-column: 4 columns at 1392px, 3 at 1000, 2 at 700, 1 at
+420. The count follows the width the shell actually gave the viewport rather than a viewport breakpoint,
+because the window is also UI-scaled 80–200%. Eleven sections fit in roughly one screen instead of
+~1300px of scrolling. `Ctrl+,`, the TopBar gear and the Context menu all land on it.
+
+**Cues shows you the show, not the globals.** The `scenes` context's left column carries a program
+preview and a timing monitor (both clocks) instead of the global parameter sidebar. **Tracking** got its
+own parameter section in the 3D context.
+
+### Every control now answers the pointer
+
+Counted across `src/renderer` + `plugins`: **267** hand-rolled `<button>` elements, **193** with no
+`hover:` class, and **267** — every single one, plus both kit primitives — with **no pressed state at
+all**. Fixing that per site across 54 files would have drifted again by the next feature, so hover and
+press are now a **floor**: one base-layer rule pair in `styles/index.css` films every `<button>`,
+`[role="button"]`, `<summary>` and `.pressable`.
+
+It is a film, not a background swap, so a selected cue pad or a toggled-on `IconButton` keeps its accent
+tint and merely brightens — a blanket `background-color` would have wiped it and made *hovered* read as
+*deselected*. That is what fixes the `sel ? tint : hover-classes` pattern used throughout this UI, whose
+selected branch never had a hover. The strengths reproduce the palette's own steps: 5% white over
+`surface-2` (`#1e1e1e`) computes to `#292929`, which *is* `surface-3`. Measured after: **642** enabled
+controls across all 11 contexts, **0** not reached. Conventions:
+[docs/UI-UX-AUDIT.md](docs/UI-UX-AUDIT.md) → Interaction states.
+
+### Fixed — LED fixtures could not be selected in the 3D scene
+
+Clicking a fixture in the 3D viewport did nothing, or worked exactly once. **Four independent causes**,
+each of which alone was enough:
+
+1. The 3D canvas mounted at 0×0 when its context was hidden, which leaves r3f's raycaster dead. It is
+   now **lazy-but-sticky**.
+2. `THREE.InstancedMesh` caches `boundingSphere` from the **first** raycast, and
+   `instanceMatrix.needsUpdate` does not invalidate it — so `InstancedLeds` froze its pickable region and
+   every later layout change (moving a fixture, editing its 3D position) made it unpickable. Hence
+   "works once, then never".
+3. **The actual blocker.** Venue screens are big planes and LEDs are 12mm spheres sitting *on* them, so a
+   screen is almost always nearer the camera, and `PlaneObject`/`ModelObject` called `stopPropagation()`
+   unconditionally — **648 of 649** probe clicks selected a screen. A model or plane now **yields** when
+   an LED is in the same intersection list (`Simulator3D/pickPriority.ts`) and r3f carries the click
+   through.
+4. Selecting a fixture never cleared `selectedModelId`, and `Simulator3D` gates the gizmo on
+   `!selectedModelId` — so the click landed with no visible effect.
+
+A 12mm sphere is also not a target anyone can hit, so a fixture now has a **body**: one slim housing
+each, drawn behind the LED line as a single `InstancedMesh` sharing one unit-cylinder geometry, so
+hundreds of fixtures still cost one draw call.
+
+### Build — the invariants these bugs kept breaking are now mechanical
+
+`npm run verify` = **`verify:invariants` + typecheck**, and `npm run package` runs it first.
+`scripts/verify-invariants.cjs` holds **10** checks, each carrying the bug it came from — the class where
+the code compiles, the app boots, nothing throws, and the symptom is "I can't select my fixtures" or
+"Art-Net stopped". It reads source, so it is instant. Guarded: `Stage`/`TimelinePanel` mounted exactly
+once (unmounting `Stage` stops Art-Net mid-show); context switches go through `goToContext()` so a
+shipped layout change actually reaches an operator who already opened that context; one 3D scene; the
+`InstancedMesh` bounding-sphere recompute; backdrop objects yielding picks; fixture/model selection
+staying symmetric; `EditorData` memoized; and the interaction floor staying `:where()`-wrapped so
+components can still override it. **When you fix a bug of that shape, add a check** — and prove it fails
+by breaking the invariant on purpose first.
+
 ## v0.22.0
 
 ### ⚠ BEHAVIOUR CHANGE — the installer is now per-machine, and provisions the PC itself
