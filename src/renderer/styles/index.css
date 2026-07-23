@@ -20,6 +20,36 @@
     outline: 2px solid var(--accent);
     outline-offset: 1px;
   }
+
+  /* ── Interaction-state floor ────────────────────────────────────────────────
+     Every control answers the pointer, whether or not its author remembered to
+     write the classes. Counted before this landed: 267 hand-rolled <button>
+     elements, 193 with no `hover:` class, and 267 — every single one, plus both
+     kit primitives — with no pressed state at all. Per-site fixes across 54
+     files would have drifted again by the next feature.
+
+     A FILM, not a background swap. The inset shadow floods the box and
+     composites over whatever the control already is, so a selected cue pad or a
+     toggled-on IconButton keeps its accent tint and merely brightens — where a
+     blanket `background-color` would have wiped it and made "hovered" read as
+     "deselected". That is also why the common `active ? tint : hover-classes`
+     pattern used all over this UI is fixed by this rule: the selected branch
+     never had a hover, and now it does not need one.
+
+     `:where()` everywhere is load-bearing. Tailwind v3's `@layer base` is source
+     order, NOT a real cascade layer, so a high-specificity base rule would BEAT
+     the utilities and there would be no way to override it. `:where()` weighs
+     zero, leaving these at the specificity of the bare pseudo-class, which any
+     `hover:`/`active:` utility outranks. Components keep the last word.
+
+     Opt out with `.no-press`; opt IN a non-button (a <label> wrapping a hidden
+     file input, a role="button" row) with `.pressable`. */
+  :where(button, [role='button'], summary, .pressable):where(:not(:disabled)):where(:not([aria-disabled='true'])):where(:not(.no-press)):hover {
+    box-shadow: inset 0 0 0 999px rgb(255 255 255 / 0.05);
+  }
+  :where(button, [role='button'], summary, .pressable):where(:not(:disabled)):where(:not([aria-disabled='true'])):where(:not(.no-press)):active {
+    box-shadow: inset 0 0 0 999px rgb(255 255 255 / 0.12);
+  }
 }
 
 /* Scrollbars (moved out of index.html) */

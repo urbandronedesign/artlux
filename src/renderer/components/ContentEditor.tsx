@@ -55,11 +55,11 @@ export const ContentEditor: React.FC<ContentEditorProps> = ({ content: c, onChan
         <button onClick={() => pickType(SourceType.CAMERA)} className={btnCls(c.type === SourceType.CAMERA)}>
           <Video size={16} className="mb-1" /><span className="text-micro">Camera</span>
         </button>
-        <label className={`relative cursor-pointer ${btnCls(c.type === SourceType.VIDEO)}`}>
+        <label className={`pressable relative cursor-pointer ${btnCls(c.type === SourceType.VIDEO)}`}>
           <input type="file" accept="video/*" className="hidden" onChange={(e) => onFile(e, SourceType.VIDEO)} />
           <Monitor size={16} className="mb-1" /><span className="text-micro">Video</span>
         </label>
-        <label className={`relative cursor-pointer ${btnCls(c.type === SourceType.IMAGE)}`}>
+        <label className={`pressable relative cursor-pointer ${btnCls(c.type === SourceType.IMAGE)}`}>
           <input type="file" accept="image/*" className="hidden" onChange={(e) => onFile(e, SourceType.IMAGE)} />
           <ImageIcon size={16} className="mb-1" /><span className="text-micro">Image</span>
         </label>

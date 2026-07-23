@@ -72,6 +72,36 @@ are unchanged. Prefer the named classes; `rounded-[Npx]` only for genuine one-of
 `--ease-out` is the modal curve. `transition-colors` (150ms default) is fine as-is for hover states.
 Keyframes in [`index.css`](../src/renderer/styles/index.css); `prefers-reduced-motion` is globally honored.
 
+### Interaction states — a floor, not a per-button chore
+
+Hover and press come from **one base-layer rule pair** in
+[`styles/index.css`](../src/renderer/styles/index.css), not from classes on each control. Before it
+landed: **267** hand-rolled `<button>` elements, **193** with no `hover:` class and **267** — every one,
+plus both kit primitives — with no pressed state at all.
+
+It is a **film**: `box-shadow: inset 0 0 0 999px rgb(255 255 255 / 0.05)` on `:hover`, `/ 0.12` on
+`:active`. It composites over whatever the control already is, so a selected cue pad or a toggled-on
+`IconButton` keeps its accent tint and merely brightens — where a blanket `background-color` would wipe
+it and make *hovered* read as *deselected*. That is also what fixes the `sel ? tint : hover-classes`
+pattern used all over this UI: the selected branch never had a hover and no longer needs one.
+
+The strengths are not arbitrary — they reproduce the palette's own steps. 5% white over `surface-2`
+(`#1e1e1e`) computes to `#292929`, which *is* `surface-3` (`#2a2a2a`) — the hover step the app already
+used by hand. 12% gives `#393939`, between `surface-3` and `surface-4`.
+
+**`:where()` is load-bearing.** Tailwind v3's `@layer base` is source order, *not* a real cascade layer,
+so a plain-specificity base rule would **beat** the utilities and no component could override it.
+`:where()` weighs zero, leaving the rules at the specificity of the bare pseudo-class, which any
+`hover:`/`active:` utility outranks. `npm run verify:invariants` guards this.
+
+- **Opt out** with `.no-press` — controls that *are* their content (a colour swatch, a video thumbnail),
+  where a white film reads as a wrong colour rather than as a press.
+- **Opt in** a non-`<button>` with `.pressable` — a `<label>` wrapping a hidden file input, a
+  `CollapsibleSection` header (it hosts an action slot, so it cannot be a `<button>`: nested buttons are
+  invalid HTML), a browser-column row. `[role="button"]` and `<summary>` are covered already.
+
+Measured after: **642** enabled controls across all 11 contexts, **0** not reached by the floor.
+
 ### Modals — draggable + position-remembering
 Modals are the centered `fixed inset-0 … bg-black/60` backdrop + a `role="dialog"` content div with an
 `Escape` handler. To make one **draggable with a remembered position**, wrap the dialog in a positioner
@@ -131,6 +161,9 @@ Verified: `tsc --noEmit` clean; Tailwind emits every new class; 0 residual arbit
 Run these to keep the tree clean (all should return `0`):
 
 ```bash
+# controls with no interaction feedback — the floor covers <button>/[role=button]/summary/.pressable,
+# so this counts things that LOOK clickable but are not controls (audit by eye; a few are legitimate)
+grep -rIoE "cursor-pointer" src/renderer plugins --include=*.tsx | wc -l
 # arbitrary font sizes
 grep -rIoE "text-\[[0-9]+px\]" src/renderer plugins --include=*.tsx | wc -l
 # arbitrary colors (canvas draw colors live in .ts/ctx, not className, so won't match)

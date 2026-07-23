@@ -33,7 +33,9 @@ export const CollapsibleSection: React.FC<Props> = ({
         <div className={`border-b border-line-1 ${growing ? 'flex-1 min-h-0 flex flex-col' : ''}`}>
             <div
                 onClick={() => setOpen(o => !o)}
-                className="h-8 shrink-0 bg-surface-2 flex items-center px-2 justify-between cursor-pointer hover:bg-surface-3 select-none"
+                // `pressable` opts this into the interaction-state floor (index.css): it is a control, but it
+                // cannot be a <button> — it hosts an action slot, and a button inside a button is invalid HTML.
+                className="pressable h-8 shrink-0 bg-surface-2 flex items-center px-2 justify-between cursor-pointer hover:bg-surface-3 select-none"
             >
                 <div className="flex items-center gap-1.5 min-w-0">
                     <ChevronDown

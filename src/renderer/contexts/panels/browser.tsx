@@ -58,7 +58,7 @@ export const SurfacesPanel: React.FC = () => {
             key={s.id}
             onClick={() => a.selectSurface(s.id)}
             onDoubleClick={() => rename.start(s.id, s.name)}
-            className={`flex items-center group px-2 py-1.5 rounded cursor-pointer transition-colors ${sel ? 'bg-sel-surface/20 text-fg-1' : 'text-fg-2 hover:bg-surface-3'}`}
+            className={`pressable flex items-center group px-2 py-1.5 rounded cursor-pointer transition-colors ${sel ? 'bg-sel-surface/20 text-fg-1' : 'text-fg-2 hover:bg-surface-3'}`}
           >
             <Layers size={12} className={`mr-2 ${sel ? 'text-sel-surface' : 'text-fg-3'}`} />
             {rename.editingId === s.id
@@ -123,7 +123,7 @@ export const FixturesPanel: React.FC = () => {
       <div className="mb-1">
         <div
           onClick={a.selectAllFixtures}
-          className="flex items-center px-2 py-1 text-fg-2 hover:bg-surface-3 rounded cursor-pointer"
+          className="pressable flex items-center px-2 py-1 text-fg-2 hover:bg-surface-3 rounded cursor-pointer"
           title="Select all fixtures"
         >
           <Folder size={12} className="mr-2 text-fg-3" />
@@ -138,7 +138,7 @@ export const FixturesPanel: React.FC = () => {
                 key={f.id}
                 onClick={(e) => onClick(e, f.id)}
                 onDoubleClick={() => rename.start(f.id, f.name)}
-                className={`flex items-center group px-2 py-1.5 rounded cursor-pointer transition-colors ${sel ? 'bg-accent/20 text-white' : 'text-fg-2 hover:bg-surface-3'}`}
+                className={`pressable flex items-center group px-2 py-1.5 rounded cursor-pointer transition-colors ${sel ? 'bg-accent/20 text-white' : 'text-fg-2 hover:bg-surface-3'}`}
               >
                 <Box size={12} className={`mr-2 ${sel ? 'text-accent' : 'text-fg-3'}`} />
                 {rename.editingId === f.id

@@ -224,6 +224,11 @@ video-codec contributions. `npm run verify:plugins` guards single-identity. Next
 - **Don't mount a second WebGL/3D scene.** The `scene3d` viewport id is re-exported from the shell, never
   re-declared; the 3D canvas is lazy-but-sticky (mounting it at 0×0 leaves r3f's raycaster dead).
 
+- **Hover/press feedback is a FLOOR, not per-button work.** One `:where()`-wrapped base-layer rule pair
+  in `styles/index.css` films every `<button>`/`[role=button]`/`<summary>`/`.pressable` on `:hover` and
+  `:active`, composing over whatever the control already is. Don't add `hover:bg-*`/`active:*` just to
+  make a control respond — it already does. `.no-press` opts out, `.pressable` opts a non-button in.
+  The `:where()` wrapping is what keeps components able to override it; `verify:invariants` guards it.
 - **Match the surrounding code:** dense, heavily-commented explaining **why** (not what); the comment
   density in existing files is intentional. ES2022, strict-ish TS, `moduleResolution: "bundler"`.
 - The renderer **repaints per-frame during playback** — memoize child panels (`React.memo`) or a native

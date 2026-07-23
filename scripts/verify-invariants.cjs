@@ -192,6 +192,26 @@ check(
   },
 );
 
+// ── UI: the interaction-state floor ───────────────────────────────────────────────────────────
+check(
+  'the interaction-state floor is overridable',
+  'Every control in the app gets its hover/press from one base-layer rule in styles/index.css. ' +
+  'Tailwind v3\'s @layer base is SOURCE ORDER, not a real cascade layer, so the rule only stays ' +
+  'overridable because :where() weighs zero. Rewrite it as a plain selector and it silently outranks ' +
+  'every hover:/active: utility in the app — nothing throws, the build is clean, and components stop ' +
+  'being able to style their own states.',
+  () => {
+    const css = read('src/renderer/styles/index.css');
+    const rules = css.match(/^.*no-press.*:(hover|active) \{$/gm) ?? [];
+    if (rules.length !== 2) return `expected one :hover and one :active floor rule in index.css, found ${rules.length}`;
+    const bare = rules.filter((r) => !/:where\(:not\(:disabled\)\)/.test(r) || !/^:where\(button,/.test(r.trim()));
+    if (bare.length) return `floor rule is not fully wrapped in :where() — it would outrank component utilities:\n      ${bare.join('\n      ')}`;
+    // The floor is inert unless it sits in the base layer.
+    const base = css.slice(css.indexOf('@layer base'), css.indexOf('/* Scrollbars'));
+    return base.includes('no-press') ? null : 'the floor rules must live inside @layer base';
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
