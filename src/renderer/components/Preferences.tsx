@@ -1,14 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { X, Cpu, Radar, Check, Radio, Monitor, ShieldAlert } from 'lucide-react';
+import { Cpu, Radar, Check, Radio, Monitor, ShieldAlert } from 'lucide-react';
 import { AppSettings } from '../types';
 import type { ArtNetDevice, UnattendedPrefs, WatchdogStatus } from '../../../shared/protocol';
 import { Section, Field, NumberField, Toggle, Select, Slider, Button } from './ui';
 import { settingsSectionRegistry } from '../host/registries';
-import { useDraggableModal } from '../hooks/useDraggableModal';
 
 interface Props {
-  open: boolean;
-  onClose: () => void;
   settings: AppSettings;
   onChange: (patch: Partial<AppSettings>) => void;
 }
@@ -22,7 +19,7 @@ const WATCHDOG_UI_DEFAULTS: UnattendedPrefs = {
 // and writes it directly through getPrefs/setPrefs and shows live status from the main-side watchdog.
 // Changes take effect on the next launch/relaunch (the watchdog arms + attaches its detectors at
 // process start), so we make that explicit in the UI.
-const WatchdogSection: React.FC<{ open: boolean }> = ({ open }) => {
+const WatchdogSection: React.FC = () => {
   const [cfg, setCfg] = useState<UnattendedPrefs>(WATCHDOG_UI_DEFAULTS);
   const [status, setStatus] = useState<WatchdogStatus | null>(null);
   const [busy, setBusy] = useState(false);
@@ -30,12 +27,11 @@ const WatchdogSection: React.FC<{ open: boolean }> = ({ open }) => {
 
   const refreshStatus = () => { window.artlux?.getWatchdogStatus?.().then(setStatus).catch(() => {}); };
   useEffect(() => {
-    if (!open) return;
     window.artlux?.getPrefs?.().then((p) => {
       if (p?.unattended) setCfg({ ...WATCHDOG_UI_DEFAULTS, ...p.unattended });
     }).catch(() => {});
     refreshStatus();
-  }, [open]);
+  }, []);
 
   // Persist a patch to Prefs.unattended. Applies on the next launch/relaunch.
   const update = (patch: Partial<UnattendedPrefs>) => {
@@ -111,17 +107,16 @@ const WatchdogSection: React.FC<{ open: boolean }> = ({ open }) => {
 // per-surface sampling. This section reports which backend is live (recorded to localStorage by Stage),
 // probes WebGPU on demand, and lets a tester force the WebGL fallback on this machine to compare — a
 // per-machine localStorage flag (`artlux.forceWebGL`), deliberately not a project/prefs field.
-const GpuSection: React.FC<{ open: boolean }> = ({ open }) => {
+const GpuSection: React.FC = () => {
   const [forced, setForced] = useState(false);
   const [active, setActive] = useState('');
   const [probe, setProbe] = useState('');
   const [probing, setProbing] = useState(false);
 
   useEffect(() => {
-    if (!open) return;
     try { setForced(localStorage.getItem('artlux.forceWebGL') === '1'); } catch { /* ignore */ }
     try { setActive(localStorage.getItem('artlux.activeBackend') || ''); } catch { /* ignore */ }
-  }, [open]);
+  }, []);
 
   const toggleForce = (v: boolean) => {
     setForced(v);
@@ -162,8 +157,9 @@ const GpuSection: React.FC<{ open: boolean }> = ({ open }) => {
   );
 };
 
-// Tabbed-modal-style Preferences (output + engine), replacing inline settings.
-export const Preferences: React.FC<Props> = ({ open, onClose, settings, onChange }) => {
+// Preferences — the `settings` context's viewport (it was a draggable modal until it grew past
+// output+engine into appearance, watchdog, GPU and every plugin's own SettingsSection).
+export const Preferences: React.FC<Props> = ({ settings, onChange }) => {
   const [scanning, setScanning] = useState(false);
   const [scanned, setScanned] = useState(false);
   const [devices, setDevices] = useState<ArtNetDevice[]>([]);
@@ -171,7 +167,6 @@ export const Preferences: React.FC<Props> = ({ open, onClose, settings, onChange
   const [uiScaleValue, setUiScaleValue] = useState(1); // main-window zoom factor; applied in main
 
   useEffect(() => {
-    if (!open) return;
     window.artlux?.listLocalAddrs?.().then((a) => setLocalAddrs(a ?? [])).catch(() => setLocalAddrs([]));
     // Show the scale in effect: the saved value, else the auto-detected default for this display.
     (async () => {
@@ -179,7 +174,7 @@ export const Preferences: React.FC<Props> = ({ open, onClose, settings, onChange
       const s = typeof p?.uiScale === 'number' ? p.uiScale : await window.artlux?.detectUiScale?.();
       if (typeof s === 'number') setUiScaleValue(s);
     })();
-  }, [open]);
+  }, []);
 
   // Apply immediately (main persists + zooms) and reflect in the slider readout.
   const applyScale = (v: number) => { setUiScaleValue(v); window.artlux?.setUiScale?.(v); };
@@ -194,29 +189,15 @@ export const Preferences: React.FC<Props> = ({ open, onClose, settings, onChange
     }
   };
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
 
-  const { positionerStyle, handleProps } = useDraggableModal('preferences');
-
-  if (!open) return null;
   return (
-    <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/60 animate-overlay-in" onClick={onClose}>
-      <div style={positionerStyle}>
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Preferences"
-        className="w-[460px] max-h-[80vh] overflow-auto bg-surface-1 border border-line-2 rounded-lg shadow-e3 animate-modal-in"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div {...handleProps} className="h-10 px-3 flex items-center justify-between border-b border-line-1 bg-surface-2 cursor-move select-none">
+    // The `settings` context's viewport. This was a 460px dialog you dismissed; app settings are read
+    // and compared, not acknowledged, so it is a workbench now. Capped to a readable column rather than
+    // stretched across the window — these are label/control rows, not a canvas.
+    <div className="w-full h-full overflow-y-auto bg-surface-0" aria-label="Preferences">
+      <div className="max-w-[620px] mx-auto my-4 bg-surface-1 border border-line-1 rounded-lg overflow-hidden">
+        <div className="h-10 px-3 flex items-center border-b border-line-1 bg-surface-2 select-none">
           <span className="text-xs font-semibold text-fg-1 uppercase tracking-wider">Preferences</span>
-          <button onClick={onClose} aria-label="Close preferences" title="Close" className="text-fg-2 hover:text-fg-1"><X size={16} /></button>
         </div>
 
         <Section title="Appearance" icon={<Monitor size={12} />}>
@@ -289,7 +270,7 @@ export const Preferences: React.FC<Props> = ({ open, onClose, settings, onChange
           <Slider label="Gamma" value={settings.gamma} min={1} max={3} step={0.05} format={(v) => v.toFixed(2)} onChange={(v) => onChange({ gamma: v })} />
         </Section>
 
-        <GpuSection open={open} />
+        <GpuSection />
 
         <Section title="OSC / Tracking" icon={<Radio size={12} />}>
           <Toggle label="OSC receive" checked={settings.oscEnabled} onChange={(v) => onChange({ oscEnabled: v })} title="Bind a UDP listener for external control + LiDAR blob tracking" />
@@ -329,7 +310,7 @@ export const Preferences: React.FC<Props> = ({ open, onClose, settings, onChange
           </Field>
         </Section>
 
-        <WatchdogSection open={open} />
+        <WatchdogSection />
 
         {/* Plugin-contributed settings sections (e.g. the mp4 plugin's "Video"). Each owns its fields;
             the host passes the shared settings + onChange. Keeps plugin settings out of core. */}
@@ -338,11 +319,6 @@ export const Preferences: React.FC<Props> = ({ open, onClose, settings, onChange
             <s.Component settings={settings} onChange={onChange} />
           </Section>
         ))}
-
-        <div className="p-3 flex justify-end">
-          <Button variant="primary" onClick={onClose}>Done</Button>
-        </div>
-      </div>
       </div>
     </div>
   );

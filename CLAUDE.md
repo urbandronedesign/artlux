@@ -93,7 +93,7 @@ src/preload/         contextBridge → the typed `window.artlux` API (contextIso
 src/renderer/        React UI + the frame-generation loop
   components/        UI (Stage, panels, wizards, timeline/, Simulator3D/, calib/)
     shell/           the context-driven editor shell (WorkspaceShell, ContextRail, ActionBar)
-  contexts/          the 10 core workspace contexts + the panels they compose (nav.ts = goToContext)
+  contexts/          the 11 core workspace contexts + the panels they compose (nav.ts = goToContext)
   state/             EditorStore — what shell panels read instead of props (App still owns the state)
   services/          engine singletons: contentSource, surfaceMedia, timeline, stateMachine,
                      cueBus, dmxSignal, addressing, mediaCache, …

@@ -375,7 +375,9 @@ export interface WorkspaceContext<Layout = unknown> {
   title: string;                       // full name, shown on the action bar ("LED Mapping")
   shortTitle?: string;                 // ≤5 chars for the 48px rail ("LED"); falls back to `title`
   icon: ReactNode;
-  cluster: 'build' | 'align' | 'show'; // rail grouping
+  // Rail grouping, in this order, separated by a rule. 'app' is for machine-level workbenches
+  // (Preferences) rather than show work — it sits last, below everything you use during a show.
+  cluster: 'build' | 'align' | 'show' | 'app';
   order: number;                       // sort within the cluster
   viewport: string;                    // panel id, mount 'viewport'
   // A panel id given the FULL WIDTH of the workspace, below everything else — the browser and the

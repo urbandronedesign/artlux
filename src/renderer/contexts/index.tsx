@@ -26,6 +26,7 @@ import {
 import { MediaBrowserPanel, FixtureEditorDock, MonitorDock, PerfDock, RoutingDock, StateMachineViewport } from './panels/adapters';
 import { ProgramPreviewPanel, ProgramMonitorViewport, OutputsPreviewPanel } from './panels/preview';
 import { TimingPanel, TimingHeaderActions } from './panels/timing';
+import { PreferencesViewport } from './panels/adapters';
 import {
   ModelsPanel, ModelsHeaderActions, Scene3DFixturesPanel, ModelTransformPanel,
   SceneLightingPanel, SceneTrackingPanel,
@@ -48,6 +49,7 @@ export const VIEWPORT_OUTPUTS = 'core.viewport.outputs';
 // Not persistent — a monitor is cheap to remount, so it resolves from the panel registry.
 export const VIEWPORT_PROGRAM = 'core.viewport.program';
 export const VIEWPORT_MACHINE = 'core.viewport.machine';
+export const VIEWPORT_PREFERENCES = 'core.viewport.preferences';
 
 let registered = false;
 
@@ -92,6 +94,7 @@ export function registerCoreWorkspace(): void {
   panelRegistry.register({ id: 'core.dock.programPreview', mount: 'dock', title: 'Program Preview', icon: <MonitorPlay size={13} />, Component: ProgramPreviewPanel });
   panelRegistry.register({ id: VIEWPORT_PROGRAM, mount: 'viewport', title: 'Program', Component: ProgramMonitorViewport });
   panelRegistry.register({ id: VIEWPORT_MACHINE, mount: 'viewport', title: 'Show Machine', Component: StateMachineViewport });
+  panelRegistry.register({ id: VIEWPORT_PREFERENCES, mount: 'viewport', menuAction: 'preferences', title: 'Preferences', Component: PreferencesViewport });
 
   // ── Contexts ───────────────────────────────────────────────────────────────────────────────
   // Actions reuse App's menu dispatcher by id wherever the function already exists there, so no
@@ -245,6 +248,24 @@ export function registerCoreWorkspace(): void {
     actions: [],
   });
 
+  // Preferences. Machine-level settings (output protocol, engine, appearance, watchdog, GPU) plus every
+  // plugin's SettingsSection — read and compared, not acknowledged, so a dialog was the wrong shape. Its
+  // own `app` cluster keeps it off the end of the show group, below a rule on the rail.
+  contextRegistry.register({
+    id: 'settings', title: 'Preferences', shortTitle: 'Prefs', icon: <Settings size={16} />,
+    cluster: 'app', order: 0,
+    viewport: VIEWPORT_PREFERENCES,
+    browser: [],
+    inspector: [],
+    layout: { showLeft: false, showRight: false, dockOpen: false, splitView: false },
+    layoutRev: 1,
+    hint: {
+      en: "App and machine settings — output, engine, appearance, and each plugin's own section.",
+      fr: "Réglages de l'application et de la machine — sortie, moteur, apparence, et chaque extension.",
+    },
+    actions: [],
+  });
+
   // The show machine — the state graph over the scenes. It was a modal inside the timeline, which
   // capped it at a fixed 1000×640 box over the work it describes; as a context it gets the window.
   contextRegistry.register({
@@ -322,8 +343,6 @@ export function registerCoreWorkspace(): void {
       fr: 'Conduite du spectacle — scènes, transport, planning, playlist et métriques live.',
     },
     // show-control appends its operator panel as a dock tab (contextRegistry.extend).
-    actions: [
-      { id: 'prefs', label: 'Preferences…', icon: <Settings size={13} />, menuAction: 'preferences', group: 'app' },
-    ],
+    actions: [],
   });
 }

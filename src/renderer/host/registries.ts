@@ -123,7 +123,7 @@ function applyExtend(c: WorkspaceContext<WorkspaceLayout>, patch: ContextPatch):
   if (patch.actions) c.actions = [...(c.actions ?? []), ...patch.actions];
 }
 
-const CLUSTER_ORDER = { build: 0, align: 1, show: 2 } as const;
+const CLUSTER_ORDER = { build: 0, align: 1, show: 2, app: 3 } as const;
 
 export const contextRegistry: ContextRegistry<WorkspaceLayout> = {
   register(c) {

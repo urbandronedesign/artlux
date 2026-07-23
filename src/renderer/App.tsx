@@ -21,7 +21,6 @@ import Simulator3D from './components/Simulator3D/Simulator3D';
 import { useModelUrls } from './components/Simulator3D/useModelUrls';
 import type { ModelTransform } from './components/Simulator3D/ModelObject';
 import { Timeline as TimelinePanel } from './components/timeline/Timeline';
-import { Preferences } from './components/Preferences';
 import { MenuBar } from './components/MenuBar';
 import { HelpPanel } from './components/HelpPanel';
 import { DocsBrowser } from './components/DocsBrowser';
@@ -220,7 +219,6 @@ const App: React.FC = () => {
   const [docsWidth, setDocsWidth] = useState(480);
   const setShowLeftPanel = setLayoutField('showLeft');
   const setShowRightPanel = setLayoutField('showRight');
-  const [prefsOpen, setPrefsOpen] = useState(false);
   const [currentProjectPath, setCurrentProjectPath] = useState<string | null>(null);
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -1898,7 +1896,7 @@ const App: React.FC = () => {
           case 'broadcast': handleLaunchBroadcast(); break;
           case 'export-rig': handleExportRig(); break;
           case 'import-rig': handleImportRig(); break;
-          case 'preferences': setPrefsOpen(true); break;
+          case 'preferences': goToContext('settings'); break;
           case 'routing': openDockPanel(ROUTING_PANEL); break;
           // Context action-bar targets. These functions already existed as panel buttons; routing them
           // through the same dispatcher is what lets a WorkspaceContext name them by id (see
@@ -2806,7 +2804,7 @@ const App: React.FC = () => {
           onMenuAction={(a) => dispatchMenuRef.current(a)}
           actions={
             <TopBar
-                onOpenPreferences={() => setPrefsOpen(true)}
+                onOpenPreferences={() => goToContext('settings')}
                 onOpenRouting={() => openDockPanel(ROUTING_PANEL)}
                 onOpenOutputs={() => { refreshDisplays(); goToContext('project'); }}
                 monitorOpen={dockOpen && activeDockPanel === MONITOR_PANEL}
@@ -3042,7 +3040,6 @@ const App: React.FC = () => {
           stateMachine={stateMachine}
       />
 
-      <Preferences open={prefsOpen} onClose={() => setPrefsOpen(false)} settings={settings} onChange={updateSettings} />
       <About open={aboutOpen} onClose={() => setAboutOpen(false)} info={appInfo} />
       {/* No sound, and nothing else would have said so. Dismissible per launch — never permanently: the
           Audio Bed panel keeps a `no audio engine` badge for as long as the state lasts. */}

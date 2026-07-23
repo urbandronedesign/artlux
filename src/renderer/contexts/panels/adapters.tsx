@@ -4,6 +4,7 @@ import { FixtureEditor } from '../../components/FixtureEditor';
 import { DMXMonitor } from '../../components/DMXMonitor';
 import { PerfPanel } from '../../components/PerfPanel';
 import { RoutingModal } from '../../components/RoutingModal';
+import { Preferences } from '../../components/Preferences';
 import { StateGraphEditor } from '../../components/timeline/StateGraphEditor';
 import { useEditor, useEditorActions } from '../../state/EditorStore';
 import { goToContext } from '../nav';
@@ -101,4 +102,12 @@ export const StateMachineViewport: React.FC = () => {
       onEditTimeline={(sceneId) => { a.enterAuthorScene(sceneId); goToContext('timeline'); }}
     />
   );
+};
+
+// Preferences as the `settings` context's viewport. It hosts every plugin's SettingsSection too, so
+// this one adapter carries the whole app-settings surface.
+export const PreferencesViewport: React.FC = () => {
+  const { settings } = useEditor();
+  const a = useEditorActions();
+  return <Preferences settings={settings} onChange={a.updateSettings} />;
 };

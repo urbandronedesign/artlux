@@ -715,6 +715,9 @@ export const CONTEXT_MENU_ITEMS: ContextMenuEntry[] = [
   { id: 'audio',    label: 'Audio',              accel: 'Ctrl+8' },
   { id: 'tracking', label: 'Tracking',           accel: 'Ctrl+9' },
   { id: 'show',     label: 'Show / Perform' },
+  // App-level, hence the rule above it — same split the rail draws. Also reachable as Ctrl+, from the
+  // File menu; both land on the same context, so there is one place Preferences lives, not two.
+  { id: 'settings', label: 'Preferences',         accel: 'Ctrl+,', sepBefore: true },
 ];
 /** The menu action a context entry fires; App routes it through goToContext. */
 export const contextAction = (id: string): string => `context:${id}`;

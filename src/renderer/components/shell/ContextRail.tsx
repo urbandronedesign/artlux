@@ -17,7 +17,7 @@ import { helpBus } from '../../services/helpBus';
 // Ctrl+A). The rail is the only always-visible switcher, so it must never be the thing that eats a
 // number the operator is typing into a universe field.
 
-const CLUSTER_LABEL: Record<string, string> = { build: 'Build', align: 'Align', show: 'Show' };
+const CLUSTER_LABEL: Record<string, string> = { build: 'Build', align: 'Align', show: 'Show', app: 'App' };
 
 
 function isTyping(): boolean {

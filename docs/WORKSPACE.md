@@ -89,7 +89,7 @@ survives only as a one-time migration input (see below).
   that plugin disabled. Extends queue if the target hasn't registered yet, so activation order doesn't
   matter.
 
-### The ten contexts
+### The eleven contexts
 
 | Cluster | Context | Viewport | What it is for |
 |---|---|---|---|
@@ -103,8 +103,9 @@ survives only as a one-time migration input (see below).
 | | `audio` | *plugin* — the mixer | bed, mix, inserts, spatial |
 | | `tracking` | 2D stage + 3D | LiDAR / MediaPipe / Augmenta; the same Tracking section in the parameter column, monitors in the dock |
 | | `show` | *plugin* — Show Deck | running it: transport, scene pads, schedule, playlist, metrics |
+| **App** | `settings` | `Preferences` | machine-level: output protocol, engine, appearance, watchdog, GPU, plugin sections |
 
-Four of these are worth knowing the history of, because the shape was arrived at, not designed up front:
+Five of these are worth knowing the history of, because the shape was arrived at, not designed up front:
 
 - **`mapping` = the old `map` + `led`.** Surface placement and the DMX patch were separate contexts, but
   you place a surface *in order to* map LEDs onto it, and you check a patch against the surface it
@@ -116,6 +117,11 @@ Four of these are worth knowing the history of, because the shape was arrived at
 - **`timeline` replaced `media`.** "Media & Content" was only a media browser beside the stage; that
   library is now the timeline's browser column, so you import media where you actually cut it. Timeline
   leads the Build cluster in its place.
+- **`settings` was the Preferences modal**, and it is the only context in its own `app` cluster (a rule
+  separates it on the rail, last). Preferences started as a 460px dialog over output protocol + engine
+  and grew into appearance, unattended watchdog, GPU probing and every plugin's `SettingsSection` — a
+  screen you *read and compare*, not one you acknowledge. It is still the single host for plugin
+  settings sections; that did not move. `Ctrl+,`, the TopBar gear and the Context menu all land on it.
 - **`show` absorbed the tablet remote's feature set.** Schedule and Playlist were reachable *only* from
   the served PWA, so an operator at the machine could arm an unattended venue from a phone but not from
   the app in front of them. See [SHOW-CONTROL.md](SHOW-CONTROL.md) → the desktop Show context.
@@ -145,9 +151,9 @@ item or a floating window:
 | Schedule, project Playlist (were tablet-only) | **Show** — dock tabs |
 | 3D scene outliner (was a column inside the 3D view) | **3D** — browser + parameter columns |
 
-Still modal, deliberately, because they are global and momentary rather than workbenches:
-Preferences, About, the update notice, the audio-engine warning, and MediaPipe's floor-calibration
-wizard. Docs and Help remain right-hand drawers on every context.
+Still modal, deliberately, because they are global and momentary rather than workbenches: About, the
+update notice, the audio-engine warning, and MediaPipe's floor-calibration wizard. Docs and Help remain
+right-hand drawers on every context.
 
 **Getting around:** click the rail, press `Ctrl+1..9`, use the **Context** menu, or press `Ctrl+K` for
 the command palette — which searches every context *and* every action any context declares, and
@@ -190,14 +196,15 @@ Both draw on their own rAF loop capped at 20 Hz and never touch React state per 
 
 ### What lives where
 
-Modals are now only for things that are **global and momentary**: Preferences, About, the update
-notice, the audio-engine warning, and the MediaPipe floor-calibration wizard. Everything that is a
-*workbench* became a panel on a context:
+Modals are now only for things that are **global and momentary**: About, the update notice, the
+audio-engine warning, and the MediaPipe floor-calibration wizard. Everything that is a *workbench*
+became a panel on a context:
 
 | Was a modal | Now |
 |---|---|
 | `OutputsPanel` | the `project` context's **viewport** |
 | `RoutingModal` | a `mapping` **dock tab** |
+| `Preferences` | the `settings` context's **viewport** |
 | `AssetManager` | **deleted** — its selected-asset inspector (size / duration / dimensions / path / missing-on-disk + the resolved **Usage** list) was folded into the Media Library, which already covered import / relink / reveal / remove; consolidate is an action-bar item |
 | `ScenePanel3D` (a floating column in the 3D pane) | the `3d` context's **browser + parameter** panels |
 | `StateGraphEditor` (a 1000×640 centred dialog) | the `machine` context's **viewport** |
