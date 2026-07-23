@@ -463,6 +463,13 @@ const App: React.FC = () => {
   const handleSelectFixture = (id: string | null, additive = false) => {
     if (!id) { setSelectedFixtureId(null); setSelectedFixtureIds([]); return; }
     setSelectedSurfaceId(null);
+    // Clearing the MODEL is not optional, and its absence read as "fixtures cannot be selected in 3D":
+    // Simulator3D computes `selectedFixture = !selectedModelId && …`, so while a model stayed selected
+    // the fixture gizmo never appeared and the inspector kept showing Model — the click DID land, it
+    // just had no visible effect. handleSelectModel has always cleared the fixture; this is the other
+    // half of that pair. Venue screens are big and easy to select by accident, so this was the common
+    // case, not the corner one.
+    setSelectedModelId(null);
     if (additive) {
       const has = selectedFixtureIds.includes(id);
       const next = has ? selectedFixtureIds.filter(x => x !== id) : [...selectedFixtureIds, id];
@@ -479,7 +486,7 @@ const App: React.FC = () => {
   const handleSelectFixtures = (ids: string[]) => {
     setSelectedFixtureIds(ids);
     setSelectedFixtureId(ids.length ? ids[ids.length - 1] : null);
-    if (ids.length) setSelectedSurfaceId(null);
+    if (ids.length) { setSelectedSurfaceId(null); setSelectedModelId(null); }
   };
   const handleSelectAllFixtures = () => handleSelectFixtures(fixtures.map(f => f.id));
   const handleAddSurface = () => {
@@ -2920,6 +2927,7 @@ const App: React.FC = () => {
                             <Simulator3D
                                 fixtures={fixtures}
                                 selectedFixtureId={selectedFixtureId}
+                                selectedFixtureIds={selectedFixtureIds}
                                 scene3D={scene3D}
                                 modelUrls={modelUrls}
                                 selectedModelId={selectedModelId}

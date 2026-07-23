@@ -206,6 +206,11 @@ video-codec contributions. `npm run verify:plugins` guards single-identity. Next
   who already opened that context.
 - **Bump `WorkspaceContext.layoutRev`** whenever a context's default `layout` changes meaningfully — a
   banked slice (the operator's own sizes) otherwise wins forever.
+- **A fixture in 3D is picked by its BODY, not its LEDs** (`Simulator3D/FixtureBodies.tsx`): one slim
+  housing per fixture, drawn behind the LED line, as a single InstancedMesh sharing one unit-cylinder
+  geometry — so hundreds of fixtures cost one draw call. A 12mm LED sphere is not a target an operator
+  can hit. Selecting a fixture must ALSO clear `selectedModelId` (Simulator3D gates the gizmo on
+  `!selectedModelId`), or the click lands with no visible effect.
 - **3D picking has a priority rule.** Venue screens are big planes and LEDs are 12mm spheres sitting ON
   them, so a screen is almost always NEARER the camera. Model/plane click handlers therefore YIELD
   (skip `stopPropagation`) when an LED is in the same intersection list, and r3f carries the click

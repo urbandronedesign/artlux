@@ -7,6 +7,7 @@ import { Fixture, Vec3, Euler3 } from '../../types';
 import { Scene3D, SceneModel, defaultScene3D, ProjectorCalibration } from '../../../../shared/protocol';
 import { ProjectorFrustum } from './ProjectorFrustum';
 import { InstancedLeds } from './InstancedLeds';
+import { FixtureBodies } from './FixtureBodies';
 import { FixtureGizmo } from './FixtureGizmo';
 import { FixtureLights } from './FixtureLights';
 import { ModelObject, ModelTransform } from './ModelObject';
@@ -20,6 +21,8 @@ import { sceneVizRegistry } from '../../host/registries';
 interface Props {
   fixtures: Fixture[];
   selectedFixtureId: string | null;
+  /** Every selected fixture — the bodies highlight all of them, not just the primary. */
+  selectedFixtureIds?: string[];
   scene3D?: Scene3D;
   /** Resolved Blob/object URLs for each scene model, keyed by model id. */
   modelUrls?: Record<string, string>;
@@ -67,7 +70,7 @@ const ToolBtn: React.FC<{ active: boolean; title: string; onClick: () => void; c
 );
 
 const Simulator3D: React.FC<Props> = ({
-  fixtures, selectedFixtureId, scene3D = defaultScene3D(), modelUrls = {},
+  fixtures, selectedFixtureId, selectedFixtureIds = [], scene3D = defaultScene3D(), modelUrls = {},
   selectedModelId = null,
   onSelectFixture, onSelectModel, onCommitFixture3D, onCommitModel, onModelNaturalSize, onRecordHistory,
   calibPickMode = false, onCalibPick, projectorCalibs = [], activePicks = [], selectedPick = null, onSelectPick,
@@ -162,6 +165,9 @@ const Simulator3D: React.FC<Props> = ({
           );
         })}
         <FixtureLights fixtures={fixtures} scene3D={scene3D} />
+        {/* The housing goes in FIRST so the LEDs draw over it. It is also the click target — see
+            FixtureBodies: a 12mm sphere is not something an operator can reliably hit. */}
+        <FixtureBodies fixtures={fixtures} selectedIds={selectedFixtureIds} onSelectFixture={onSelectFixture} />
         <InstancedLeds fixtures={fixtures} onSelectFixture={onSelectFixture} />
         <FixtureGizmo
           fixture={selectedFixture}
