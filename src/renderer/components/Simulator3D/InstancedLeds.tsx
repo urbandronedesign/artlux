@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { Fixture } from '../../types';
 import { computeLedPositions } from '../../services/led3dLayout';
 import { useLedColors } from './hooks/useLedColors';
+import { LED_PICK } from './pickPriority';
 
 interface Props {
   fixtures: Fixture[];
@@ -82,6 +83,9 @@ export const InstancedLeds: React.FC<Props> = ({ fixtures, onSelectFixture }) =>
     <instancedMesh
       key={total}                 // remount when count changes (resizes buffers)
       ref={meshRef}
+      // Lets the screens/models yield this click to us when an LED is under the pointer — see
+      // pickPriority.ts. Without it a fixture drawn on a screen is unpickable.
+      userData={{ [LED_PICK]: true }}
       args={[undefined as unknown as THREE.BufferGeometry, undefined as unknown as THREE.Material, total]}
       onClick={handleClick}
     >

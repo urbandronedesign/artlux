@@ -206,6 +206,12 @@ video-codec contributions. `npm run verify:plugins` guards single-identity. Next
   who already opened that context.
 - **Bump `WorkspaceContext.layoutRev`** whenever a context's default `layout` changes meaningfully — a
   banked slice (the operator's own sizes) otherwise wins forever.
+- **3D picking has a priority rule.** Venue screens are big planes and LEDs are 12mm spheres sitting ON
+  them, so a screen is almost always NEARER the camera. Model/plane click handlers therefore YIELD
+  (skip `stopPropagation`) when an LED is in the same intersection list, and r3f carries the click
+  through — see `Simulator3D/pickPriority.ts`. Also: `InstancedMesh` caches `boundingSphere` from the
+  first raycast, so `InstancedLeds` must `computeBoundingSphere()` whenever it rewrites instance
+  matrices or fixtures silently stop being selectable.
 - **Don't mount a second WebGL/3D scene.** The `scene3d` viewport id is re-exported from the shell, never
   re-declared; the 3D canvas is lazy-but-sticky (mounting it at 0×0 leaves r3f's raycaster dead).
 

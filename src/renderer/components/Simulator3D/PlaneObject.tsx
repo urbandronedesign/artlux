@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { TransformControls } from '@react-three/drei';
 import * as THREE from 'three';
+import type { ThreeEvent } from '@react-three/fiber';
+import { ledUnderPointer } from './pickPriority';
 import { SceneModel, modelScaleXYZ } from '../../../../shared/protocol';
 import { ModelTransform } from './ModelObject';
 import { useLayerTexture } from './useLayerTexture';
@@ -58,7 +60,16 @@ export const PlaneObject: React.FC<Props> = ({ model, selected, mode, onSelect, 
 
   return (
     <>
-      <primitive object={group} onClick={(e: any) => { e.stopPropagation(); onSelect(model.id); }}>
+      <primitive
+        object={group}
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          // Yield to a fixture under the same pointer: not stopping propagation lets r3f carry the
+          // click through to the LED mesh behind this screen. See pickPriority.ts.
+          if (ledUnderPointer(e)) return;
+          e.stopPropagation();
+          onSelect(model.id);
+        }}
+      >
         <mesh>
           <planeGeometry args={[16 / 9, 1]} />
           <meshBasicMaterial ref={matRef} side={THREE.DoubleSide} toneMapped={false} color="#161616" />

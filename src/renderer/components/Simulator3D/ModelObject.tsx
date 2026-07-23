@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { useGLTF, TransformControls } from '@react-three/drei';
 import * as THREE from 'three';
+import { ledUnderPointer } from './pickPriority';
 import { SceneModel, modelScaleXYZ } from '../../../../shared/protocol';
 import { useLayerTexture } from './useLayerTexture';
 import { registerVenueMesh, unregisterVenueMesh } from '@artlux/plugin-calibration/renderer';
@@ -137,6 +138,9 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
       <primitive
         object={group}
         onClick={(e: any) => {
+          // Yield to a fixture under the same pointer — see pickPriority.ts. NOT while calibrating:
+          // a pose pick wants the point on the MESH, which is the whole purpose of that mode.
+          if (!calibPickMode && ledUnderPointer(e)) return;
           e.stopPropagation();
           if (calibPickMode && onCalibPick) onCalibPick([e.point.x, e.point.y, e.point.z]);
           else onSelect(model.id);
