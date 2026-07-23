@@ -62,7 +62,11 @@ npm run build:audio           # JUCE audio engine (native/audio-engine, cmake-js
                               # Close the app first — a running Electron locks the .node (LNK1104 → stale addon).
 npm run dev                   # electron-vite dev + launch the app (hot-reloads the renderer)
 ```
-- **Typecheck (do this — there's no test suite):** `npx tsc -p tsconfig.json --noEmit` (checks the whole tree).
+- **Check your work (do this — there's no test suite):** `npm run verify` = **invariant guards + typecheck**.
+  `verify:invariants` (`scripts/verify-invariants.cjs`) asserts the rules a typechecker cannot see —
+  every one encodes a bug we shipped, where the code compiled, the app booted, nothing threw, and the
+  symptom was "I can't select my fixtures" or "Art-Net stopped". It reads source, so it is instant,
+  and `npm run package` runs it first. **When you fix a bug of that shape, add a check.**
 - **Build:** `npm run build` (main + preload + renderer). Needed after adding an HTML entry / dep / native change.
 - **Package:** `npm run package` (installers) or `npm run package:dir` (unpacked, fast smoke test).
 - **Verify a change in the real app:** run `npm run dev` and exercise it. There is no unit-test runner;
@@ -195,7 +199,7 @@ video-codec contributions. `npm run verify:plugins` guards single-identity. Next
 
 ## Conventions
 
-**Shell rules (learned the hard way — see WORKSPACE.md for the why):**
+**Shell + 3D rules (each is enforced by `npm run verify:invariants` — see WORKSPACE.md for the why):**
 - **`Stage` must never unmount** — it publishes `dmx:frame`, so unmounting it stops Art-Net mid-show.
   It and the single `TimelinePanel` are passed to the shell as *persistent viewport elements* at fixed
   tree positions and hidden with CSS, never conditionally rendered.

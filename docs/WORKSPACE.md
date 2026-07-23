@@ -279,6 +279,43 @@ without that the rail would open with nothing selected.
   `shared/protocol.ts` and read/write via `getPrefs`/`setPrefs` — keep nested state in one object so the
   shallow merge is safe.
 
+## Regression guards
+
+These rules are load-bearing and invisible: break one and the code still compiles, the app still boots,
+nothing throws, and the failure surfaces as *"I can't select my fixtures"* or *"the output stopped"* —
+usually on someone's rig, hours later. So they are asserted mechanically.
+
+```bash
+npm run verify          # invariant guards + typecheck — the normal loop
+npm run verify:invariants   # just the guards (reads source, instant)
+```
+
+`scripts/verify-invariants.cjs` — nine checks, each carrying the bug it came from and printing **why**
+it matters when it fires:
+
+| Guard | The bug it prevents |
+|---|---|
+| `InstancedMesh` writes recompute `boundingSphere` | THREE caches it from the first raycast; `instanceMatrix.needsUpdate` does not invalidate it, so the pickable region freezes and later layout changes make objects silently unclickable |
+| 3D backdrop objects yield picks to fixtures | screens are nearer the camera than the fixtures on them; an unguarded `stopPropagation()` stole 648 of 649 clicks |
+| fixtures have a pickable body | the only target was a 12mm LED sphere |
+| fixture/model selection is symmetric | the gizmo is gated on `!selectedModelId`, so a fixture click landed with no visible effect |
+| context switches go through `goToContext()` | a direct `setContext` drops `layoutRev`, and a shipped layout never reaches an operator |
+| the `scene3d` viewport id is declared once | a drifted copy mounts `Simulator3D` in both panes |
+| one `<Simulator3D>` mount site | two WebGL contexts, visible only as halved frame rate |
+| `Stage` / `TimelinePanel` mounted once | `Stage` publishes `dmx:frame`; two timelines double its keyboard hook and engine subscription |
+| `EditorData` is memoized | rebuilt per render it re-renders every panel and closes native `<select>` popups |
+
+Two things learned writing them, worth keeping if you add more:
+
+- **Read code, not prose.** This repo comments densely and the comments name the very things being
+  asserted. Matching raw text reports mounts that do not exist *and* lets a stale comment satisfy a
+  check whose call was deleted. `stripComments()` exists for that.
+- **Assert the call, not the identifier.** The first version passed while the guard was deleted, because
+  a leftover `import { ledUnderPointer }` still matched. Check for `name(`.
+
+**Verify the guard itself fails.** Break the invariant on purpose, confirm the check fires, then restore.
+A guard that cannot fail is worse than none — it reads as coverage.
+
 ## Out of scope
 
 Full free-form docking (drag-to-rearrange, split trees, tabbed groups) and tear-off panel windows were
