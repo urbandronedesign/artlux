@@ -691,6 +691,34 @@ export interface OpenProjectResult {
   data: ProjectData;
 }
 
+// ── Workspace contexts, as the two menus see them ───────────────────────────────────────────────
+// The rail is built from the renderer's `contextRegistry`, but a MENU cannot be: the native menu lives
+// in the main process and has no access to a renderer registry. Both menus therefore read this ONE
+// list, so the app-styled menu bar and the native menu can never drift (they mirror each other by
+// design — see the note atop components/MenuBar.tsx).
+//
+// Ctrl+1..9 are shown here but NOT registered as accelerators: the rail's own keydown handler owns
+// them, so it can ignore them while the operator is typing in a numeric field. Menu entries pass
+// through, exactly like the existing `passthrough` items.
+//
+// A context registered by a PLUGIN appears on the rail and in the command palette but not here —
+// menus in this app are static by construction. Core's ten are the ones worth a menu entry.
+export interface ContextMenuEntry { id: string; label: string; accel?: string; sepBefore?: boolean }
+export const CONTEXT_MENU_ITEMS: ContextMenuEntry[] = [
+  { id: 'timeline', label: 'Timeline',           accel: 'Ctrl+1' },
+  { id: 'mapping',  label: 'Mapping',            accel: 'Ctrl+2' },
+  { id: '3d',       label: 'Venue / 3D Scene',   accel: 'Ctrl+3' },
+  { id: 'project',  label: 'Projection Outputs', accel: 'Ctrl+4', sepBefore: true },
+  { id: 'calib',    label: 'Calibration',        accel: 'Ctrl+5' },
+  { id: 'scenes',   label: 'Scenes & Cues',      accel: 'Ctrl+6', sepBefore: true },
+  { id: 'machine',  label: 'Show Machine',       accel: 'Ctrl+7' },
+  { id: 'audio',    label: 'Audio',              accel: 'Ctrl+8' },
+  { id: 'tracking', label: 'Tracking',           accel: 'Ctrl+9' },
+  { id: 'show',     label: 'Show / Perform' },
+];
+/** The menu action a context entry fires; App routes it through goToContext. */
+export const contextAction = (id: string): string => `context:${id}`;
+
 /** Window/menu-role commands the custom title bar can fire at the main window. */
 export type WindowCommand =
   | 'minimize' | 'maximize-toggle' | 'close' | 'quit'

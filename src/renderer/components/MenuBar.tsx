@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Minus, X, ChevronRight } from 'lucide-react';
 import type { WindowCommand } from '../../../shared/protocol';
+import { CONTEXT_MENU_ITEMS, contextAction } from '../../../shared/protocol';
 
 // Custom window title bar (VSCode-style) for the frameless editor window: the ArtLux mark, the
 // File/Edit/View/Window/Help menus as app-styled dropdowns, a draggable spacer, and the
@@ -69,6 +70,14 @@ function buildMenus(recents: string[]): Menu[] {
         { label: 'Paste', accel: 'Ctrl+V', cmd: 'paste' },
         { label: 'Select All', accel: 'Ctrl+A', cmd: 'select-all' },
       ],
+    },
+    {
+      // Workspace contexts. Same list the native menu uses (shared/protocol.ts) so the two can't drift.
+      label: 'Context',
+      items: CONTEXT_MENU_ITEMS.flatMap((c) => [
+        ...(c.sepBefore ? [{ sep: true as const }] : []),
+        { label: c.label, accel: c.accel, action: contextAction(c.id) },
+      ]),
     },
     {
       label: 'View',

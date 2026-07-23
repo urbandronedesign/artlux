@@ -8,6 +8,7 @@ import { CollapsibleSection } from '../CollapsibleSection';
 import { Dock } from '../Dock';
 import { ContextRail } from './ContextRail';
 import { ActionBar } from './ActionBar';
+import { CommandPalette } from './CommandPalette';
 
 // The context-driven editor shell.
 //
@@ -125,6 +126,7 @@ export const WorkspaceShell: React.FC<Props> = ({ viewports, selection, drawers 
 
   return (
     <div className="flex flex-1 min-h-0">
+      <CommandPalette selection={selection} />
       <ContextRail />
 
       <div className="flex-1 min-w-0 flex flex-col">

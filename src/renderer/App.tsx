@@ -1878,6 +1878,8 @@ const App: React.FC = () => {
   // the listener can be registered exactly once.
   const dispatchMenu = (action: string) => {
       if (action.startsWith('open-recent:')) { handleOpenRecent(action.slice('open-recent:'.length)); return; }
+      // Workspace-context switches from either menu (see CONTEXT_MENU_ITEMS in shared/protocol).
+      if (action.startsWith('context:')) { goToContext(action.slice('context:'.length)); return; }
       switch (action) {
           case 'new': handleNewProject(); break;
           case 'new-project-folder': handleNewProject(); break; // legacy menu id → folder flow

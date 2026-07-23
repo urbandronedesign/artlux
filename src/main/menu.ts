@@ -1,5 +1,5 @@
 import { Menu, shell, type BrowserWindow, type MenuItemConstructorOptions } from 'electron';
-import { IPC } from '../../shared/protocol';
+import { IPC, CONTEXT_MENU_ITEMS, contextAction } from '../../shared/protocol';
 import * as persistence from './persistence';
 
 // Native application menu. Renderer-bound commands (save/open/undo/about/…) are
@@ -67,6 +67,18 @@ function template(): MenuItemConstructorOptions[] {
       ],
     },
     {
+      // Workspace contexts — same list the renderer's menu bar renders (shared/protocol.ts).
+      // Accelerators are SHOWN but not registered: the rail's keydown handler owns Ctrl+1..9 so it can
+      // ignore them while the operator types in a numeric field.
+      label: 'Context',
+      submenu: CONTEXT_MENU_ITEMS.flatMap((c): MenuItemConstructorOptions[] => [
+        ...(c.sepBefore ? [{ type: 'separator' } as MenuItemConstructorOptions] : []),
+        c.accel
+          ? passthrough(c.label, c.accel, contextAction(c.id))
+          : { label: c.label, click: () => send(contextAction(c.id)) },
+      ]),
+    },
+    {
       label: 'View',
       submenu: [
         // Direct calls on the tracked window — the built-in 'reload'/'toggleDevTools' roles
@@ -76,6 +88,13 @@ function template(): MenuItemConstructorOptions[] {
         { label: 'Toggle Developer Tools', accelerator: process.platform === 'darwin' ? 'Alt+Cmd+I' : 'Ctrl+Shift+I', click: () => getWindowRef?.()?.webContents.toggleDevTools() },
         { type: 'separator' },
         { label: 'OSC Monitor…', accelerator: 'CmdOrCtrl+Shift+M', registerAccelerator: false, click: () => send('osc-monitor') },
+        // These five existed ONLY in the renderer's menu bar until now, so they were unreachable from
+        // the native menu that owns real accelerators — and on macOS the native menu is the only menu.
+        { label: 'Pose Monitor…', click: () => send('pose-monitor') },
+        { label: 'Pose Floor Calibration…', click: () => send('pose-calibrate') },
+        { label: 'Augmenta Monitor…', click: () => send('augmenta-monitor') },
+        { label: 'Show Control…', click: () => send('show-control') },
+        { label: 'Audio Bed…', click: () => send('audio-bed') },
         { type: 'separator' },
         { role: 'resetZoom' },
         { role: 'zoomIn' },
