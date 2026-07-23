@@ -10,7 +10,7 @@
 
 import React from 'react';
 import {
-  Layers, Box, Users, SlidersHorizontal, Image as ImageIcon, Film, Lightbulb, MonitorPlay, Crosshair, Clapperboard, Music, Radar, Radio, Activity, Gauge, Hash, Plus, RefreshCw, Workflow, Network, Settings, FolderOpen, Save, Trash2, Copy, Grid3x3, Cable, Play,
+  Layers, Box, Users, SlidersHorizontal, Image as ImageIcon, Film, Lightbulb, MonitorPlay, Crosshair, Clapperboard, Music, Radar, Radio, Activity, Gauge, Hash, Plus, RefreshCw, Workflow, Timer, Network, Settings, FolderOpen, Save, Trash2, Copy, Grid3x3, Cable, Play,
 } from 'lucide-react';
 import { panelRegistry, contextRegistry } from '../host/registries';
 import { SCENE_3D_VIEWPORT } from '../components/shell/WorkspaceShell';
@@ -25,6 +25,7 @@ import {
 } from './panels/inspector';
 import { MediaBrowserPanel, FixtureEditorDock, MonitorDock, PerfDock, RoutingDock, StateMachineViewport } from './panels/adapters';
 import { ProgramPreviewPanel, ProgramMonitorViewport, OutputsPreviewPanel } from './panels/preview';
+import { TimingPanel, TimingHeaderActions } from './panels/timing';
 import {
   ModelsPanel, ModelsHeaderActions, Scene3DFixturesPanel, ModelTransformPanel,
   SceneLightingPanel, SceneTrackingPanel,
@@ -59,6 +60,9 @@ export function registerCoreWorkspace(): void {
   panelRegistry.register({ id: 'core.browser.fixtures', mount: 'browser', title: 'Fixtures', icon: <Box size={12} />, grow: true, Component: FixturesPanel, HeaderActions: FixturesHeaderActions });
   panelRegistry.register({ id: 'core.browser.groups', mount: 'browser', title: 'Groups', icon: <Users size={12} />, Component: GroupsPanel, HeaderActions: GroupsHeaderActions });
   panelRegistry.register({ id: 'core.browser.globals', mount: 'browser', title: 'Global Params', icon: <SlidersHorizontal size={12} />, Component: GlobalParamsPanel });
+  // Browser-mounted flavours for contexts whose left column is a monitor rather than an outliner.
+  panelRegistry.register({ id: 'core.browser.programPreview', mount: 'browser', title: 'Program', icon: <MonitorPlay size={12} />, Component: ProgramPreviewPanel });
+  panelRegistry.register({ id: 'core.browser.timing', mount: 'browser', title: 'Timing', icon: <Timer size={12} />, Component: TimingPanel, HeaderActions: TimingHeaderActions });
   panelRegistry.register({ id: 'core.browser.media', mount: 'browser', bare: true, grow: true, title: 'Media Library', icon: <ImageIcon size={12} />, Component: MediaBrowserPanel });
   panelRegistry.register({ id: 'core.browser.models', mount: 'browser', title: 'Objects', icon: <Box size={12} />, grow: true, Component: ModelsPanel, HeaderActions: ModelsHeaderActions });
   panelRegistry.register({ id: 'core.browser.scene3dFixtures', mount: 'browser', title: 'Fixtures', icon: <Lightbulb size={12} />, grow: true, Component: Scene3DFixturesPanel });
@@ -227,10 +231,13 @@ export function registerCoreWorkspace(): void {
     id: 'scenes', title: 'Scenes & Cues', shortTitle: 'Cues', icon: <Clapperboard size={16} />,
     cluster: 'show', order: 1,
     viewport: VIEWPORT_SCENES,
-    browser: ['core.browser.globals'],
+    // Firing cues is a WATCHING job: you want to see what you just put on air and how long it has been
+    // there. Master brightness (the old Global Params here) is a rig setting, not a cue-firing one —
+    // it lives in Mapping and on the Show deck.
+    browser: ['core.browser.programPreview', 'core.browser.timing'],
     inspector: [],
     layout: { showLeft: true, showRight: false, dockOpen: false, splitView: false },
-    layoutRev: 1,
+    layoutRev: 2,
     hint: {
       en: 'Capture looks as scenes, then fire them from the cue grid.',
       fr: 'Capturez des ambiances en scènes, puis déclenchez-les depuis la grille.',

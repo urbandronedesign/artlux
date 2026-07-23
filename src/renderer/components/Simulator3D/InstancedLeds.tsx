@@ -53,6 +53,18 @@ export const InstancedLeds: React.FC<Props> = ({ fixtures, onSelectFixture }) =>
     }
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    // MUST recompute, or the fixtures stop being clickable in the 3D view.
+    //
+    // THREE.InstancedMesh.raycast() early-outs against `boundingSphere`, which three computes lazily on
+    // the FIRST raycast and then caches forever — `instanceMatrix.needsUpdate` does not invalidate it.
+    // So the pickable region freezes at whatever the instance positions were the first time anyone
+    // clicked, and every later layout change (moving a fixture, editing its 3D position, changing
+    // spacing/rows) leaves the ray tested against a sphere that is no longer where the LEDs are.
+    //
+    // The symptom is exact and was reported as such: picking a fixture in the 3D scene works once, and
+    // after that it is impossible. `key={total}` does not save us — it remounts only when the LED COUNT
+    // changes, not when positions do.
+    mesh.computeBoundingSphere();
   }, [positions, total]);
 
   useLedColors(meshRef, total);
