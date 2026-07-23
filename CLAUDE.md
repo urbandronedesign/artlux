@@ -89,7 +89,7 @@ src/preload/         contextBridge → the typed `window.artlux` API (contextIso
 src/renderer/        React UI + the frame-generation loop
   components/        UI (Stage, panels, wizards, timeline/, Simulator3D/, calib/)
     shell/           the context-driven editor shell (WorkspaceShell, ContextRail, ActionBar)
-  contexts/          the 11 core workspace contexts + the panels they are composed of
+  contexts/          the 10 core workspace contexts + the panels they compose (nav.ts = goToContext)
   state/             EditorStore — what shell panels read instead of props (App still owns the state)
   services/          engine singletons: contentSource, surfaceMedia, timeline, stateMachine,
                      cueBus, dmxSignal, addressing, mediaCache, …
@@ -118,6 +118,13 @@ Three processes: **main** (OS access — UDP, fs, `.node` addons), **preload** (
   `dmx:frame` → main → native output engine.
 - **Projector windows** talk to the main window over a **MessagePort** bridge
   (`renderer/projector/bridge.ts`), NOT ipc.
+- **The editor shell is context-driven** (canonical: [docs/WORKSPACE.md](docs/WORKSPACE.md)). One
+  **workspace context** is active at a time, chosen from the left rail, and it declares the whole
+  workbench: browser column, viewport, dock tabs, parameter sections and the action bar. A context is a
+  *manifest of panel ids* — it owns no components — so `contextRegistry.extend()` lets a plugin add to,
+  or supply the viewport of, a context it does not own. `WorkspaceShell` imports zero panels.
+  Panels read state via `useEditor()/useEditorActions()` (`state/EditorStore.tsx`), not props; **App
+  still owns all state and every mutation**.
 - **Persistence** (`main/persistence.ts` + `projectFolder.ts`): `.artlux` JSON projects (portable
   folders with `assets/`); **all asset-path translation lives in main — the renderer always sees absolute
   paths.** Prefs in `userData/artlux-prefs.json`.
@@ -187,6 +194,20 @@ video-codec contributions. `npm run verify:plugins` guards single-identity. Next
   changes when testing.
 
 ## Conventions
+
+**Shell rules (learned the hard way — see WORKSPACE.md for the why):**
+- **`Stage` must never unmount** — it publishes `dmx:frame`, so unmounting it stops Art-Net mid-show.
+  It and the single `TimelinePanel` are passed to the shell as *persistent viewport elements* at fixed
+  tree positions and hidden with CSS, never conditionally rendered.
+- **One element, one position.** A persistent viewport named as a context's `bottom` renders there and
+  nowhere else; two `TimelinePanel`s double its keyboard hook and engine subscription.
+- **Switch contexts only via `goToContext()`** (`contexts/nav.ts`). Calling `layoutStore.setContext`
+  directly drops the `layoutRev`, and a shipped layout change then silently never reaches an operator
+  who already opened that context.
+- **Bump `WorkspaceContext.layoutRev`** whenever a context's default `layout` changes meaningfully — a
+  banked slice (the operator's own sizes) otherwise wins forever.
+- **Don't mount a second WebGL/3D scene.** The `scene3d` viewport id is re-exported from the shell, never
+  re-declared; the 3D canvas is lazy-but-sticky (mounting it at 0×0 leaves r3f's raycaster dead).
 
 - **Match the surrounding code:** dense, heavily-commented explaining **why** (not what); the comment
   density in existing files is intentional. ES2022, strict-ish TS, `moduleResolution: "bundler"`.

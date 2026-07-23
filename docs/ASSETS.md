@@ -36,12 +36,15 @@ An asset path can be referenced in exactly these places (the same set `mapAssetP
 ```
 src/renderer/services/assetLibrary.ts   usageForPath, libraryItems (assets + takes), normPath, helpers
 src/renderer/components/
-  MediaPanel.tsx     left-sidebar Media tab: import buttons, filters, search, grid, selected-asset actions
+  MediaPanel.tsx     THE asset UI — the Timeline context's browser column: import buttons, filters,
+                     search, grid, and the selected-asset INSPECTOR (metadata, missing-on-disk,
+                     relink/reveal/remove, and the resolved Usage list)
   AssetChip.tsx      one draggable tile: thumbnail (thumbnailCache / BlobSparkline / icon) + badges
-  AssetManager.tsx   full-screen manager: grid + detail pane (metadata, usage, relink/reveal/remove/consolidate)
 src/main/projectFolder.ts   importAssets (pick+copy), importAssetFile (copy a known file), assets[] in mapAssetPaths
 src/main/ipc.ts             IMPORT_ASSETS, IMPORT_ASSET_FILE, SHOW_ITEM_IN_FOLDER, ASSET_EXISTS
-src/renderer/App.tsx        assets state, Scene⇄Media left tabs, import/remove/relink/use handlers, drag-to-surface
+src/renderer/App.tsx        assets state, import/remove/relink/use handlers, drag-to-surface
+   (A separate full-screen `AssetManager.tsx` existed until 2026-07-23; it duplicated the same grid, so
+    it was deleted and its detail pane folded into MediaPanel. See docs/WORKSPACE.md.)
 src/renderer/components/Stage.tsx   onDropAsset: hit-tests the drop against surface rects
 ```
 

@@ -76,7 +76,7 @@ not change what was *in* the panels. `BUILTIN_PRESETS`/`applyPreset`/`PresetId` 
 survives only as a one-time migration input (see below).
 
 - **Contract:** `WorkspaceContext` + `ContextRegistry` in [`@artlux/sdk/renderer`](SDK.md); a context is a
-  **manifest of panel ids** and owns no components. Core registers its 11 in
+  **manifest of panel ids** and owns no components. Core registers its ten in
   [`src/renderer/contexts/index.tsx`](../src/renderer/contexts/index.tsx) through exactly the same API a
   plugin uses — there is no privileged core path.
 - **Shell:** [`components/shell/WorkspaceShell.tsx`](../src/renderer/components/shell/WorkspaceShell.tsx)
@@ -89,15 +89,22 @@ survives only as a one-time migration input (see below).
   that plugin disabled. Extends queue if the target hasn't registered yet, so activation order doesn't
   matter.
 
-### The nine contexts
+### The ten contexts
 
-| Cluster | Contexts |
-|---|---|
-| **Build** | `timeline` · `mapping` · `3d` |
-| **Align** | `project` · `calib` |
-| **Show** | `scenes` · `machine` · `audio` · `tracking` · `show` |
+| Cluster | Context | Viewport | What it is for |
+|---|---|---|---|
+| **Build** | `timeline` | program monitor + timeline as `bottom` | cutting the show; media library on the left |
+| | `mapping` | 2D stage | surfaces **and** fixtures — placement, content, patch, DMX |
+| | `3d` | `Simulator3D` | venue layout, models, fixture 3D positions, lighting |
+| **Align** | `project` | outputs table | bind displays, warp, blend, span, gamma; previews in the dock |
+| | `calib` | *plugin* — wizard + camera | structured-light / markerless alignment, 3D alongside |
+| **Show** | `scenes` | `CueBankPanel` | capture scenes, build cue banks |
+| | `machine` | `StateGraphEditor` | the show graph over those scenes |
+| | `audio` | *plugin* — the mixer | bed, mix, inserts, spatial |
+| | `tracking` | 2D stage + 3D | LiDAR / MediaPipe / Augmenta; monitors in the dock |
+| | `show` | *plugin* — Show Deck | running it: transport, scene pads, schedule, playlist, metrics |
 
-Two of these were consolidations, both because the split cost more than it bought:
+Four of these are worth knowing the history of, because the shape was arrived at, not designed up front:
 
 - **`mapping` = the old `map` + `led`.** Surface placement and the DMX patch were separate contexts, but
   you place a surface *in order to* map LEDs onto it, and you check a patch against the surface it
@@ -109,6 +116,42 @@ Two of these were consolidations, both because the split cost more than it bough
 - **`timeline` replaced `media`.** "Media & Content" was only a media browser beside the stage; that
   library is now the timeline's browser column, so you import media where you actually cut it. Timeline
   leads the Build cluster in its place.
+- **`show` absorbed the tablet remote's feature set.** Schedule and Playlist were reachable *only* from
+  the served PWA, so an operator at the machine could arm an unattended venue from a phone but not from
+  the app in front of them. See [SHOW-CONTROL.md](SHOW-CONTROL.md) → the desktop Show context.
+
+Three contexts have their viewport supplied by a **plugin** (`calib`, `audio`, `show`) via
+`extend({ viewport })`. The host declares the context — rail slot, title, hint, default layout — and the
+plugin owns its principal surface. With the plugin disabled the host's declared viewport is the
+fallback, so the rail never carries a dead entry.
+
+### Where did it go? (things that moved)
+
+Almost every workbench moved out of a dialog. If you are looking for something that used to be a menu
+item or a floating window:
+
+| Looking for | Now |
+|---|---|
+| Surfaces / Fixtures outliner, the old left panel | **Mapping** — browser column |
+| The properties panel (surface + fixture params) | **Mapping** — parameter column, filtered by what is selected |
+| Fixture Editor, Routing | **Mapping** — dock tabs |
+| Media library, Asset Manager | **Timeline** — browser column. The Asset Manager was deleted; its per-asset inspector (size, dimensions, path, and the resolved **Usage** list) is the bottom section of the library |
+| Outputs… (was a modal) | **Proj** — the viewport; live per-output previews in the dock |
+| Calibrate | **Proj** ▸ Calibrate on a row → jumps to **Calib** |
+| Scenes & Cues | **Cues** |
+| "Edit logic" / the state graph (was a 1000×640 dialog) | **Logic** |
+| Audio Bed (was a floating window) | **Audio** — the whole workspace |
+| OSC / Pose / Augmenta monitors | **Track** — dock tabs |
+| Schedule, project Playlist (were tablet-only) | **Show** — dock tabs |
+| 3D scene outliner (was a column inside the 3D view) | **3D** — browser + parameter columns |
+
+Still modal, deliberately, because they are global and momentary rather than workbenches:
+Preferences, About, the update notice, the audio-engine warning, and MediaPipe's floor-calibration
+wizard. Docs and Help remain right-hand drawers on every context.
+
+**Getting around:** click the rail, press `Ctrl+1..9`, use the **Context** menu, or press `Ctrl+K` for
+the command palette — which searches every context *and* every action any context declares, and
+switches context for you before running one.
 
 ### The full-width bottom region (`WorkspaceContext.bottom`)
 
@@ -197,7 +240,8 @@ operator's arrangement. That also means **a layout change we ship would never re
 already opened that context**, so `WorkspaceContext.layoutRev` is the escape hatch: the host stamps the
 rev into the banked slice and re-applies `layout` exactly once when the two differ
 (`resolveContextLayout` in layoutStore.ts). Bump it whenever a context's default layout changes
-meaningfully — all 11 core contexts currently ship `layoutRev: 1`.
+meaningfully. Core contexts currently ship `layoutRev` 1–3 (bumped as their layouts were revised
+during the migration).
 
 **Migration:** an install with no saved `activeContext` maps its last preset once — `edit→mapping`,
 `perform→show`, `calibrate→calib`, anything else (incl. `'custom'`) → the `mapping` default. A saved id
@@ -214,7 +258,19 @@ without that the rail would open with nothing selected.
 - **Add a context:** `contextRegistry.register({...})` — from `contexts/index.tsx` for core, or from a
   plugin's renderer `activate(ctx)` via `ctx.contexts`. Nothing else to wire; the rail is registry-driven.
 - **Add a panel to a context:** `panelRegistry.register({ id, mount, ... })`, then name its id in the
-  context's `browser`/`dock`/`inspector` array (or `extend` a context you don't own).
+  context's `browser`/`dock`/`inspector` array (or `extend` a context you don't own). `mount` is
+  `'modal' | 'browser' | 'inspector' | 'dock' | 'viewport'`; an `'inspector'` panel should declare
+  `appliesTo` so the shell shows it only while something of that kind is selected.
+- **Make a menu action reach a panel:** give the panel a `menuAction`. `dispatchMenu` resolves the action
+  to whichever panel declares it and does the right thing per mount — toggle (modal), open the dock tab,
+  or switch to the context whose viewport it is. Nothing to add per panel.
+- **Expose a new function on a context:** add a `ContextAction`. It appears on the action bar **and** in
+  the `Ctrl+K` palette automatically — the context declaration is the command index, so nothing is
+  registered twice.
+- **Let a plugin own a workbench's main surface:** register a `mount:'viewport'` panel and
+  `ctx.contexts.extend('<id>', { viewport: '<panel id>' })`. Keep the host's declared viewport as a
+  sane fallback so the rail entry still works with the plugin disabled (`calib`, `audio`, `show` all do
+  this).
 - **Panels read state, not props:** `useEditor()` / `useEditorActions()` from
   [`state/EditorStore.tsx`](../src/renderer/state/EditorStore.tsx). App remains the sole owner of state
   and of every mutation — the store only distributes it. Action identities are permanent (a facade
