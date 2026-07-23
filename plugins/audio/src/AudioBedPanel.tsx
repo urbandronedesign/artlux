@@ -60,7 +60,7 @@
 // App, that survives every recall, so it has nothing to rebind to and its gestures must never be abandoned.
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Plus, Music, Trash2, Volume2, VolumeX, Headphones, AlertTriangle, Play, Pause, SkipBack, Square, Orbit, Sliders } from 'lucide-react';
-import { useDraggable, type PanelProps } from '@artlux/sdk/renderer';
+import { type PanelProps } from '@artlux/sdk/renderer';
 import { getAudioHost } from './audioHost';
 import { audioClient } from './audioClient';
 import { EffectChain, type Effect, type FxParamRef } from './EffectChain';
@@ -292,7 +292,7 @@ const vec3 = (s: unknown): Spatial | undefined => {
 // it is UNREPAIRABLE, defeating the self-repair EffectChain.tsx:118 promises in its own comment.
 const fxOf = (fx: unknown): Effect[] => (Array.isArray(fx) ? (fx as Effect[]) : []);
 
-export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
+export const AudioBedPanel: React.FC<PanelProps> = () => {
   const host = getAudioHost();
   // ── WHICH DOCUMENT IS BOUND, RIGHT NOW ───────────────────────────────────────────────────────────────
   // THE SAME STRING CORE MINTS (Timeline.tsx:117 — `author?.activeSceneId ?? '__global__'`), because it is
@@ -382,7 +382,6 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   // it a render later. Without the ref, an axis write would carry a stale copy of its siblings.
   const tlRef = useRef<TlAudio>(tlAudio);
   // Floating (non-blocking) window — draggable by its header so it can be moved clear of the Media library.
-  const { positionerStyle, handleProps } = useDraggable();
 
   // Defaults TRUE so no badge flashes while the probe is in flight. Only an explicit false lights it, and
   // a rejection lights nothing — see the badge below.
@@ -835,15 +834,12 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
   };
 
   return (
-    // NOT a blocking modal: authoring the bed means dragging audio assets IN from the Media library, so the
-    // full-screen container is pointer-events-none (the library + the rest of the editor stay live) and only
-    // the window itself takes pointer events. Drag the header to move it clear of whatever it covers.
-    <div className="fixed inset-0 z-50 pointer-events-none flex items-center justify-center">
-      <div style={positionerStyle} className="pointer-events-auto">
-      <div role="dialog" aria-label="Audio Bed"
-        className="w-[880px] max-w-[94vw] h-[70vh] max-h-[84vh] flex flex-col bg-surface-1 border border-line-2 rounded-lg shadow-e3 animate-modal-in">
-        {/* header — drag handle */}
-        <div {...handleProps} className="h-11 px-3 flex items-center gap-2 border-b border-line-1 bg-surface-2 shrink-0 cursor-move select-none">
+    // The `audio` context's VIEWPORT. It was a floating window that deliberately let clicks through
+    // (pointer-events-none) because authoring the bed means dragging audio assets in from the Media
+    // library — as a context that is simply the layout: the library IS the browser column beside it,
+    // and the mixer gets the whole work area instead of 880x70vh of it.
+    <div className="w-full h-full flex flex-col bg-surface-1" aria-label="Audio Bed">
+        <div className="h-11 px-3 flex items-center gap-2 border-b border-line-1 bg-surface-2 shrink-0 select-none">
           <Music size={14} className="text-fg-2 shrink-0" />
           <span className="text-xs font-semibold text-fg-1 uppercase tracking-wider shrink-0">Audio Bed</span>
 
@@ -925,7 +921,6 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
               word the section heading below uses. One act, one word, in both surfaces. */}
           <button onClick={addTrack} title="Add a track to the BED (it rides the SHOW clock — a scene recall does not restart it)"
             className="shrink-0 inline-flex items-center gap-1 px-2 h-7 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 text-mini"><Plus size={12} /> Bed</button>
-          <button onClick={onClose} className="text-fg-3 hover:text-fg-1 ml-1"><X size={16} /></button>
         </div>
 
         {error && (
@@ -1167,8 +1162,6 @@ export const AudioBedPanel: React.FC<PanelProps> = ({ onClose }) => {
             </div>
           )}
         </div>
-      </div>
-      </div>
     </div>
   );
 };

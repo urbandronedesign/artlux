@@ -116,6 +116,7 @@ type ContextPatch = Parameters<ContextRegistry<WorkspaceLayout>['extend']>[1];
 const pendingExtends = new Map<string, ContextPatch[]>();
 
 function applyExtend(c: WorkspaceContext<WorkspaceLayout>, patch: ContextPatch): void {
+  if (patch.viewport) c.viewport = patch.viewport; // replaces — a context has one main work area
   if (patch.browser) c.browser = [...(c.browser ?? []), ...patch.browser];
   if (patch.dock) c.dock = [...(c.dock ?? []), ...patch.dock];
   if (patch.inspector) c.inspector = [...(c.inspector ?? []), ...patch.inspector];

@@ -401,9 +401,15 @@ export interface ContextRegistry<Layout = unknown> {
   register(c: WorkspaceContext<Layout>): void;
   all(): WorkspaceContext<Layout>[];                     // sorted by cluster then order
   get(id: string): WorkspaceContext<Layout> | undefined;
-  // Append panel ids to a context someone else declared — the "extend a context I don't own" path.
-  // Ordering is registration order; a missing context id is a no-op (the owner may be disabled).
-  extend(id: string, patch: { browser?: string[]; dock?: string[]; inspector?: string[]; actions?: ContextAction[] }): void;
+  // Add to a context someone else declared — the "extend a context I don't own" path. Lists append in
+  // registration order; a missing context id queues the patch (activation order is not something a
+  // plugin should have to know).
+  //
+  // `viewport` REPLACES rather than appends: a context has exactly one main work area, so this is how a
+  // plugin that owns a workbench's principal surface claims it (the audio plugin supplies the mixer for
+  // the host-declared `audio` context). Last writer wins; the host's declared viewport is the fallback
+  // when no plugin claims it, which is what keeps the context usable with that plugin disabled.
+  extend(id: string, patch: { viewport?: string; browser?: string[]; dock?: string[]; inspector?: string[]; actions?: ContextAction[] }): void;
 }
 
 // ─── Projector panel contribution ───────────────────────────────────────────────────────────

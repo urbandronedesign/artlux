@@ -1918,6 +1918,11 @@ const App: React.FC = () => {
             if (!panel) break;
             if (panel.mount === 'modal') setOpenModals((s) => { const n = new Set(s); n.has(panel.id) ? n.delete(panel.id) : n.add(panel.id); return n; });
             else if (panel.mount === 'dock') openDockPanel(panel.id);
+            // A viewport panel IS a context's main work area, so "open it" means going to that context.
+            else if (panel.mount === 'viewport') {
+              const owner = contextRegistry.all().find((c) => c.viewport === panel.id);
+              if (owner) goToContext(owner.id);
+            }
           }
       }
   };

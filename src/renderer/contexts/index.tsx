@@ -256,18 +256,19 @@ export function registerCoreWorkspace(): void {
   contextRegistry.register({
     id: 'audio', title: 'Audio', shortTitle: 'Audio', icon: <Music size={16} />,
     cluster: 'show', order: 3,
+    // The audio PLUGIN claims this viewport (the mixer) via contextRegistry.extend. The stage below is
+    // only the fallback for a build with that plugin disabled — the rail entry then still opens on
+    // something rather than a blank pane.
     viewport: VIEWPORT_STAGE_2D,
     browser: ['core.browser.media'],
     inspector: [],
     layout: { showLeft: true, showRight: false, dockOpen: false, splitView: false },
-    layoutRev: 1,
+    layoutRev: 2,
     hint: {
-      en: 'The bed, the mix and the insert chains.',
-      fr: 'Le lit sonore, le mixage et les chaînes d’effets.',
+      en: 'The bed, the mix and the insert chains — drag audio in from the library on the left.',
+      fr: "Le lit sonore, le mixage et les chaînes d'effets — glissez l'audio depuis la bibliothèque à gauche.",
     },
-    actions: [
-      { id: 'bed', label: 'Audio Bed…', icon: <Music size={13} />, menuAction: 'audio-bed' },
-    ],
+    actions: [],
   });
 
   contextRegistry.register({

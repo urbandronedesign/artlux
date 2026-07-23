@@ -174,8 +174,14 @@ export const plugin: RendererPlugin = {
     // Audio clips carry no visual — keep them off the video-sync path and out of the PROGRAM composite.
     // MUST register in every window (main + projector), like tracking/mediapipe/augmenta.
     ctx.clipKinds.register({ kind: 'audio', excludeFromProgram: true, skipVideoSync: true });
-    // Audio Bed authoring panel (global bed → ProjectData.audio). Modal, toggled from View ▸ Audio Bed.
-    ctx.panels.register({ id: 'audio-bed', mount: 'modal', menuAction: 'audio-bed', title: 'Audio Bed', Component: AudioBedPanel });
+    // The mixer (global bed → ProjectData.audio) IS the `audio` workspace context's main work area.
+    // The host declares that context (title, icon, rail slot, the Media library beside it); this plugin
+    // owns its principal surface, so it claims the viewport. With the plugin disabled the context falls
+    // back to whatever the host declared, so the rail never has a dead entry.
+    // The 'audio-bed' menu action still reaches it — the host resolves an action to the owning panel and
+    // switches to the context that carries it.
+    ctx.panels.register({ id: 'audio-bed', mount: 'viewport', menuAction: 'audio-bed', title: 'Audio Bed', Component: AudioBedPanel });
+    ctx.contexts.extend('audio', { viewport: 'audio-bed' });
 
     // Only the main editor/broadcast window drives the engine + bed playback.
     if (ctx.window !== 'main') return;

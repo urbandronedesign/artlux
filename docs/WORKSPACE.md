@@ -82,8 +82,12 @@ survives only as a one-time migration input (see below).
 - **Shell:** [`components/shell/WorkspaceShell.tsx`](../src/renderer/components/shell/WorkspaceShell.tsx)
   (+ `ContextRail`, `ActionBar`). It resolves panel ids against `panelRegistry` and imports no panel.
 - **Soft, never locked.** A context sets the default workbench; opening something off-context is allowed.
-- **Extending someone else's context:** `contextRegistry.extend(id, { browser, dock, inspector, actions })`.
-  Extends queue if the target hasn't registered yet, so activation order doesn't matter.
+- **Extending someone else's context:** `contextRegistry.extend(id, { viewport, browser, dock, inspector, actions })`.
+  Lists append; `viewport` **replaces** (a context has one main work area), which is how a plugin claims
+  a workbench's principal surface — the audio plugin supplies the mixer for the host-declared `audio`
+  context. The host's declared viewport stays as the fallback, so the rail never has a dead entry with
+  that plugin disabled. Extends queue if the target hasn't registered yet, so activation order doesn't
+  matter.
 
 ### The nine contexts
 
@@ -156,6 +160,7 @@ notice, the audio-engine warning, and the MediaPipe floor-calibration wizard. Ev
 | `StateGraphEditor` (a 1000×640 centred dialog) | the `machine` context's **viewport** |
 | `OscMonitor` · `PosePanel` · `AugmentaMonitor` | **dock tabs** appended to `tracking` by their plugins |
 | `ShowControlPanel` | a **dock tab** appended to `show` by its plugin |
+| `AudioBedPanel` (an 880×70vh floating window) | the `audio` context's **viewport**, claimed by its plugin via `extend({ viewport })` |
 
 A menu action still reaches any of them: `dispatchMenu` resolves the action to whichever panel
 declares it and either toggles it (modal) or switches to the owning context and selects its tab
