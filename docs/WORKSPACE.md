@@ -161,6 +161,7 @@ notice, the audio-engine warning, and the MediaPipe floor-calibration wizard. Ev
 | `OscMonitor` · `PosePanel` · `AugmentaMonitor` | **dock tabs** appended to `tracking` by their plugins |
 | `ShowControlPanel` | a **dock tab** appended to `show` by its plugin |
 | `AudioBedPanel` (an 880×70vh floating window) | the `audio` context's **viewport**, claimed by its plugin via `extend({ viewport })` |
+| `CalibWizard` / `AutoAlignWizard` (App-mounted, camera portaled over the Stage) | the `calib` context's **viewport**, claimed by its plugin — closes ROADMAP Stage 2b |
 
 A menu action still reaches any of them: `dispatchMenu` resolves the action to whichever panel
 declares it and either toggles it (modal) or switches to the owning context and selects its tab

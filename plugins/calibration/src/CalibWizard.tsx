@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { X, Camera, Check, AlertTriangle, Loader2, ChevronLeft, ChevronRight, Aperture, MonitorUp, Crosshair } from 'lucide-react';
 import type { MainToProjector } from '@/projector/bridge'; // host bridge type — transitional seam (props still App-driven)
 import type { ProjectorCalibration, ProjectorOutput, Scene3D } from '../../../shared/protocol';
@@ -23,9 +22,7 @@ interface Props {
   // ./calibHost, and the pose-pairing logic (poseModeChange/clearPoses) via ./calibWorkspace — not
   // props. The remaining props are reactive data + the App-owned 3D/camera workspace.
   onSetCalibPickMode: (on: boolean) => void;
-  onSetSplit: (on: boolean) => void;
   onSwitchFlow?: (flow: 'board' | 'auto') => void; // board (this) ↔ markerless auto-align
-  cameraHost: HTMLElement | null; // portal target for the big RGB camera viewport (left split pane)
   onClose: () => void;
 }
 
@@ -63,7 +60,7 @@ type Detect = { found: true; corners: number[]; w: number; h: number } | { found
 // pose step picks directly on the embedded Simulator3D (right split pane).
 export const CalibWizard: React.FC<Props> = (props) => {
   const { surfaceId, surfaceName, output, scene3D, live, hasModel,
-    onSetCalibPickMode, onSetSplit, onSwitchFlow, cameraHost, onClose } = props;
+    onSetCalibPickMode, onSwitchFlow, onClose } = props;
   // Write path via host-services (see ./calibHost); pose pairing via ./calibWorkspace. Same names as
   // the former props → call sites unchanged.
   const sendToProjector = calibHost.sendToProjector;
@@ -104,7 +101,6 @@ export const CalibWizard: React.FC<Props> = (props) => {
   // Mount: start the SL session, check the addon + cameras, force the split on (3D visible). Cleanup.
   useEffect(() => {
     ctl.begin(surfaceId, (m) => sendToProjector(surfaceId, m));
-    onSetSplit(true);
     calibNative.calibAvailable().then((v) => setAddonOk(!!v)).catch(() => setAddonOk(false));
     primeDevices();
     return () => { ctl.end(); cam.stop(); onSetCalibPickMode(false); onPoseModeChange(surfaceId, false); };
@@ -132,7 +128,7 @@ export const CalibWizard: React.FC<Props> = (props) => {
       onSetCalibPickMode(false); onPoseModeChange(surfaceId, false);
     } else if (step === 'pose') {
       send({ t: 'calib', mode: 'crosshair' });
-      onSetCalibPickMode(true); onPoseModeChange(surfaceId, true); onSetSplit(true);
+      onSetCalibPickMode(true); onPoseModeChange(surfaceId, true);
     } else if (step === 'verify') {
       onSetCalibPickMode(false); onPoseModeChange(surfaceId, false);
       if (testProj && cal) { send({ t: 'scene', scene3D }); send({ t: 'calib', mode: 'render', calibration: cal }); }
@@ -239,15 +235,11 @@ export const CalibWizard: React.FC<Props> = (props) => {
   const finish = () => { onSetUseCalibration(surfaceId, true); onClose(); };
 
   return (
-    <>
-    {cameraHost && createPortal(
-      <CameraViewport
-        ref={viewportRef}
-        active={camOn}
-        detect={step === 'camera' || step === 'intrinsics' ? detect : { found: false }}
-        placeholder="start the camera"
-      />, cameraHost)}
-    <div className="fixed left-0 top-9 bottom-6 z-calib-panel w-[340px] flex flex-col bg-surface-1 border-r border-line-2 shadow-e3 animate-overlay-in">
+    // The context's viewport: wizard rail + camera, side by side. The camera used to be PORTALED into a
+    // black div App laid over the Stage — the only way to get a big preview next to the 3D scene before
+    // there was a workbench to put them in. It renders inline now; the 3D is the context's right pane.
+    <div className="w-full h-full flex bg-surface-0 min-h-0">
+    <div className="w-[340px] shrink-0 flex flex-col bg-surface-1 border-r border-line-1 min-h-0">
       {/* Header */}
       <div className="h-10 px-3 flex items-center justify-between border-b border-line-1 bg-surface-2 shrink-0">
         <span className="text-xs font-semibold text-fg-1 uppercase tracking-wider flex items-center gap-1.5"><Aperture size={14} /> Calibrate — {surfaceName}</span>
@@ -431,7 +423,15 @@ export const CalibWizard: React.FC<Props> = (props) => {
         )}
       </div>
     </div>
-    </>
+    <div className="flex-1 min-w-0 min-h-0 bg-black">
+      <CameraViewport
+        ref={viewportRef}
+        active={camOn}
+        detect={step === 'camera' || step === 'intrinsics' ? detect : { found: false }}
+        placeholder="start the camera"
+      />
+    </div>
+    </div>
   );
 };
 

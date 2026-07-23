@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useSyncExternalStore } from 'react';
 import { Fixture, Surface, SurfaceContent, SourceType, AppSettings, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, normalizeCueBanks, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, timelineAudioTracks, sceneAudioEntries, cueEntries, isAddressableEntry, type AudioClip, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType, type PatchPolicy, readPatchPolicy } from './types';
 import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge, WINDOWED_DISPLAY } from '../../shared/protocol';
 import type { ProjectorCalibration } from '../../shared/protocol';
-import { CalibWizard, AutoAlignWizard, calibCapture as cam, measureGamma, calibWorkspace } from '@artlux/plugin-calibration/renderer';
+import { calibCapture as cam, measureGamma, calibWorkspace } from '@artlux/plugin-calibration/renderer';
 import type { AppInfo, UpdateEvent, Scene3D, SceneModel, ProjectorOutput, OutputSpan, DisplayInfo, SoftEdge, SrcRect } from '../../shared/protocol';
 import { spanTiles, tileName } from './services/outputSpan';
 import type { ProjectorToMain, MainToProjector } from './projector/bridge';
@@ -196,6 +196,11 @@ const App: React.FC = () => {
   // Which dock panel the ACTIVE context is showing — read from that context's own remembered slice,
   // falling back to nothing (the shell then shows the context's first dock panel).
   const activeDockPanel = L.contexts[L.activeContext]?.dockPanel;
+  // Calibration's session state lives in the PLUGIN (calibWorkspace) since the `calib` context took
+  // ownership. App only reads it, to feed the embedded 3D its pick props and to let the projector
+  // reconciler know which output the wizard is currently driving.
+  const calib = useSyncExternalStore(calibWorkspace.subscribe, calibWorkspace.getState);
+  const calibratingOutputId = calib.target;
   // Is the 3D pane on screen right now? (The 3D context, or any split-view context.)
   const scene3dVisible = splitView || contextRegistry.get(L.activeContext)?.viewport === VIEWPORT_SCENE_3D;
   // LAZY, THEN STICKY. Unlike Stage (which must never unmount — it feeds Art-Net), the 3D canvas has no
@@ -215,7 +220,6 @@ const App: React.FC = () => {
   const [docsWidth, setDocsWidth] = useState(480);
   const setShowLeftPanel = setLayoutField('showLeft');
   const setShowRightPanel = setLayoutField('showRight');
-  const [calibPickMode, setCalibPickMode] = useState(false);        // wizard pose step: pick on the embedded 3D
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [currentProjectPath, setCurrentProjectPath] = useState<string | null>(null);
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
@@ -611,14 +615,9 @@ const App: React.FC = () => {
       ? prev.filter(x => !ids.includes(x))
       : [...prev.filter(x => !ids.includes(x)), ...ids]);
   // --- projector calibration (structured-light intrinsics + solvePnP pose) ---
-  const [calibratingOutputId, setCalibratingOutputId] = useState<string | null>(null);
-  const [calibFlow, setCalibFlow] = useState<'board' | 'auto'>('board'); // board structured-light vs markerless auto-align
   // Portal target in the left split pane: during calibration the big RGB camera viewport lives here
   // (replacing the 2D Stage) so it sits side-by-side with the 3D scene. Callback ref → re-renders the
   // wizard once the host element exists, so its createPortal target is reliable.
-  const [calibCameraHost, setCalibCameraHost] = useState<HTMLDivElement | null>(null);
-  const [autoAlignPicks, setAutoAlignPicks] = useState<[number, number, number][]>([]); // Auto-Align anchor world points (for the 3D markers)
-  const [autoAlignSelectedPick, setAutoAlignSelectedPick] = useState<number | null>(null); // correspondence being edited (3D highlight)
   const [measuringGammaId, setMeasuringGammaId] = useState<string | null>(null); // output whose gamma is being camera-measured
   const [gammaMsg, setGammaMsg] = useState<{ id: string; text: string; ok: boolean } | null>(null);
   const sendToProjector = (surfaceId: string, msg: MainToProjector) =>
@@ -2077,6 +2076,7 @@ const App: React.FC = () => {
   // sees current state. Subscriber sets fire from the change effects below and the projector message
   // router; `projectors.onMessage` is the projector→main back-channel (e.g. calibration patternShown).
   const outputSubs = useRef(new Set<() => void>());
+  const surfaceSubs = useRef(new Set<() => void>());
   const sceneSubs = useRef(new Set<() => void>());
   const settingsSubs = useRef(new Set<() => void>());
   const showSubs = useRef(new Set<() => void>()); // host `show` service: scenes/cueBanks/FSM/schedule changed
@@ -2088,6 +2088,11 @@ const App: React.FC = () => {
       list: () => projectorOutputsRef.current,
       patch: (id, partial) => upsertOutput(id, partial as Partial<ProjectorOutput>),
       subscribe: (cb) => { outputSubs.current.add(cb); return () => { outputSubs.current.delete(cb); }; },
+    },
+    surfaces: {
+      list: () => surfacesRef.current,
+      get: (id) => surfacesRef.current.find(s => s.id === id),
+      subscribe: (cb) => { surfaceSubs.current.add(cb); return () => { surfaceSubs.current.delete(cb); }; },
     },
     scene3D: {
       get: () => scene3DRef.current,
@@ -2186,6 +2191,7 @@ const App: React.FC = () => {
     },
   }), []);
   useEffect(() => { outputSubs.current.forEach(cb => cb()); }, [projectorOutputs]);
+  useEffect(() => { surfaceSubs.current.forEach(cb => cb()); }, [surfaces]);
   useEffect(() => { sceneSubs.current.forEach(cb => cb()); }, [scene3D]);
   useEffect(() => { settingsSubs.current.forEach(cb => cb()); }, [settings]);
   useEffect(() => { showSubs.current.forEach(cb => cb()); }, [scenes, cueBanks, stateMachine, schedule]);
@@ -2208,7 +2214,6 @@ const App: React.FC = () => {
     timelineEngine.recompileAutomation(); // providers only exist now — anything compiled before this saw no namespaces
   }, [pluginHost]);
   // Tell the calibration plugin which output its board-pose pairing targets (the one being calibrated).
-  useEffect(() => { calibWorkspace.setTarget(calibratingOutputId); }, [calibratingOutputId]);
   // Gate the WebCodecs MP4 decoder on its setting (off → .mp4 keeps using the default <video>).
   useEffect(() => { mp4SetEnabled(settings.mp4WebCodecs ?? false); }, [settings.mp4WebCodecs]);
   // OSC: subscribe the controller to forwarded messages once; (re)bind the UDP listener and refresh
@@ -2903,11 +2908,6 @@ const App: React.FC = () => {
                             </>
                         }
                     />
-                    {/* During calibration the big RGB camera viewport is portaled here, over the Stage,
-                        so the operator works camera (left) ⟷ 3D (right). z-calib-camera clears Stage's own
-                        z-stage-overlay layers (Stage's root is position:relative/z-auto → no stacking
-                        context, so its children would otherwise paint over a lower-z sibling). */}
-                    {calibratingOutputId && <div ref={setCalibCameraHost} className="absolute inset-0 z-calib-camera bg-black" />}
                 </div>
           ),
           // The embedded 3D scene. Withheld until first shown (see scene3dMounted), then kept in the
@@ -2930,14 +2930,14 @@ const App: React.FC = () => {
                                 onModelNaturalSize={handleModelNaturalSize}
                                 onSceneConfig={handleSceneConfig}
                                 onRecordHistory={recordHistory}
-                                calibPickMode={calibPickMode}
+                                calibPickMode={calib.pickMode}
                                 onCalibPick={(world) => calibWorkspace.pick(world)}
                                 projectorCalibs={projectorOutputs.filter(o => o.calibration?.poseRms != null).map(o => ({ surfaceId: o.surfaceId, calibration: o.calibration! }))}
-                                activePicks={calibFlow === 'auto'
-                                    ? autoAlignPicks.map(world => ({ world }))
+                                activePicks={calib.flow === 'auto'
+                                    ? calib.picks.map(world => ({ world }))
                                     : (projectorOutputs.find(o => o.surfaceId === calibratingOutputId)?.calibration?.posePicks ?? []).map(p => ({ world: p.world }))}
-                                selectedPick={calibFlow === 'auto' ? autoAlignSelectedPick : null}
-                                onSelectPick={calibFlow === 'auto' ? ((i: number) => calibWorkspace.selectPick(i)) : undefined}
+                                selectedPick={calib.flow === 'auto' ? calib.selectedPick : null}
+                                onSelectPick={calib.flow === 'auto' ? ((i: number) => calibWorkspace.selectPick(i)) : undefined}
                                 paused={!scene3dVisible}
                             />
                             </div>
@@ -2983,7 +2983,7 @@ const App: React.FC = () => {
           onToggleNdiSend={handleToggleNdiSend}
           onSetFpsCap={setProjectorFpsCap}
           onRefreshDisplays={refreshDisplays}
-          onCalibrate={(surfaceId) => setCalibratingOutputId(surfaceId)}
+          onCalibrate={(surfaceId) => { calibWorkspace.begin(surfaceId); goToContext('calib'); }}
           onSetUseCalibration={(surfaceId, on) => upsertOutput(surfaceId, { useCalibration: on })}
           nvAvailable={nvAvailable}
           onSetHwWarp={(surfaceId, on) => upsertOutput(surfaceId, { hwWarp: on })}
@@ -3057,43 +3057,6 @@ const App: React.FC = () => {
             onDismiss={() => { setUpdate(null); setUpdateUserInitiated(false); }}
         />
       )}
-      {calibratingOutputId && (() => {
-        const co = projectorOutputs.find(o => o.surfaceId === calibratingOutputId);
-        const calibLive = !!co?.enabled && co.displayId != null && (co.displayId === WINDOWED_DISPLAY || displays.some(d => d.id === co.displayId));
-        const hasModel = (scene3D.models ?? []).some(m => m.kind !== 'plane' && m.visible);
-        const closeCalib = () => { setCalibratingOutputId(null); setCalibPickMode(false); calibWorkspace.reset(); setCalibFlow('board'); setAutoAlignPicks([]); setAutoAlignSelectedPick(null); };
-        return calibFlow === 'auto' ? (
-          <AutoAlignWizard
-            surfaceId={calibratingOutputId}
-            surfaceName={surfaces.find(s => s.id === calibratingOutputId)?.name ?? 'Output'}
-            output={co}
-            scene3D={scene3D}
-            live={calibLive}
-            hasModel={hasModel}
-            onSetCalibPickMode={setCalibPickMode}
-            onSetSplit={setSplitView}
-            onPicksChange={setAutoAlignPicks}
-            onSwitchFlow={setCalibFlow}
-            cameraHost={calibCameraHost}
-            onSelectionChange={setAutoAlignSelectedPick}
-            onClose={closeCalib}
-          />
-        ) : (
-          <CalibWizard
-            surfaceId={calibratingOutputId}
-            surfaceName={surfaces.find(s => s.id === calibratingOutputId)?.name ?? 'Output'}
-            output={co}
-            scene3D={scene3D}
-            live={calibLive}
-            hasModel={hasModel}
-            onSetCalibPickMode={setCalibPickMode}
-            onSetSplit={setSplitView}
-            onSwitchFlow={setCalibFlow}
-            cameraHost={calibCameraHost}
-            onClose={closeCalib}
-          />
-        );
-      })()}
 
       {timelineMax && (
         <div className="fixed inset-0 z-50 bg-surface-0 flex flex-col">

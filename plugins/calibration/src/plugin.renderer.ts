@@ -15,6 +15,7 @@ import * as calibController from './calibController';
 import * as slCapture from './slCapture';
 import * as calibWorkspace from './calibWorkspace';
 import { setHost } from './calibHost';
+import { CalibViewport } from './CalibViewport';
 import { CalibProjector } from './CalibProjector';
 
 // The projector→main message shape we care about (a subset of the host's ProjectorToMain union —
@@ -34,6 +35,13 @@ export const plugin: RendererPlugin = {
     // The projector-window calibration overlay (structured-light pattern / pose crosshair / render-from-
     // projector). Projector windows mount every registered panel; the editor window ignores this registry.
     ctx.projectorPanels.register({ id: 'calibration', Component: CalibProjector });
+
+    // The calibration WORKBENCH (ROADMAP Stage 2b, closed 2026-07-23). The wizards lived here all
+    // along but App mounted them and held their state, because a Stage-coupled workspace had no mount
+    // point; the `calib` context is one. The host declares that context (rail slot, title, the 3D as
+    // its right pane) and this plugin claims its viewport — so App now imports no calibration UI.
+    ctx.panels.register({ id: 'calibration.workbench', mount: 'viewport', title: 'Calibration', Component: CalibViewport });
+    ctx.contexts.extend('calib', { viewport: 'calibration.workbench' });
 
     // Only the main window owns the bridge ports, so this fires there; in projector windows the host
     // service is inert and the callback is never invoked.

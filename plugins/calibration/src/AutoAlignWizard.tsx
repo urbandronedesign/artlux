@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { X, Camera, Check, AlertTriangle, Loader2, MousePointer, ScanLine, Aperture } from 'lucide-react';
 import type { MainToProjector } from '@/projector/bridge'; // host bridge type — transitional seam (props still App-driven)
 import type { ProjectorCalibration, ProjectorOutput, Scene3D, CamMask, MarkerMap } from '../../../shared/protocol';
@@ -27,10 +26,8 @@ interface Props {
   // Mutations/IO (via ./calibHost) and pick registration (via ./calibWorkspace) go through the plugin,
   // not props. Remaining props are reactive data + the App-owned 3D/camera workspace.
   onSetCalibPickMode: (on: boolean) => void;
-  onSetSplit: (on: boolean) => void;
   onPicksChange?: (worlds: [number, number, number][]) => void; // report anchor world points → 3D markers
   onSwitchFlow?: (flow: 'board' | 'auto') => void;
-  cameraHost: HTMLElement | null; // portal target for the big RGB camera viewport (left split pane)
   onSelectionChange?: (i: number | null) => void; // report the edited correspondence for 3D highlight
   onClose: () => void;
 }
@@ -57,7 +54,7 @@ function nominalK(w: number, h: number, hfovDeg: number): number[] {
 // (residual heatmap). Produces the same ProjectorCalibration the projector window renders from.
 export const AutoAlignWizard: React.FC<Props> = (props) => {
   const { surfaceId, surfaceName, output, scene3D, live, hasModel,
-    onSetCalibPickMode, onSetSplit, onPicksChange, onSwitchFlow, cameraHost,
+    onSetCalibPickMode, onPicksChange, onSwitchFlow,
     onSelectionChange, onClose } = props;
   // Write path via host-services (see ./calibHost); pick registration via ./calibWorkspace. Same names
   // as the former props → call sites unchanged.
@@ -121,8 +118,7 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
   // on during Anchor; idle/render otherwise.
   useEffect(() => {
     if (step === 'pose') {
-      send({ t: 'calib', mode: 'pattern' }); send({ t: 'calibPattern', kind: 'white', index: -1 });
-      onSetSplit(true); onSetCalibPickMode(true);
+      send({ t: 'calib', mode: 'pattern' }); send({ t: 'calibPattern', kind: 'white', index: -1 }); onSetCalibPickMode(true);
     } else if (step === 'camera' || step === 'setup') {
       send({ t: 'calib', mode: 'pattern' }); send({ t: 'calibPattern', kind: 'white', index: -1 });
       onSetCalibPickMode(false);
@@ -341,25 +337,9 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
   const canNext = gate[step];
 
   return (
-    <>
-    {cameraHost && createPortal(
-      <CameraViewport
-        ref={viewportRef}
-        active={camOn}
-        pickActive={step === 'pose' && !maskMode}
-        maskMode={maskMode}
-        picks={picks.map((p) => ({ camPx: p.camPx }))}
-        pending={pendingCamPx}
-        selectedPick={selectedPick}
-        mask={scene3D.camMask}
-        maskDraft={maskDraft}
-        onPick={onPick}
-        onSelectPick={setSelectedPick}
-        onMovePick={movePickCam}
-        onMaskPoint={onMaskPoint}
-        onMaskClose={onPreviewDblClick}
-      />, cameraHost)}
-    <div className="fixed left-0 top-9 bottom-6 z-calib-panel w-[340px] flex flex-col bg-surface-1 border-r border-line-2 shadow-e3 animate-overlay-in">
+    // See CalibWizard: rail + camera side by side; the 3D venue scene is the context's right pane.
+    <div className="w-full h-full flex bg-surface-0 min-h-0">
+    <div className="w-[340px] shrink-0 flex flex-col bg-surface-1 border-r border-line-1 min-h-0">
       <div className="h-10 px-3 flex items-center justify-between border-b border-line-1 bg-surface-2 shrink-0">
         <span className="text-xs font-semibold text-fg-1 uppercase tracking-wider flex items-center gap-1.5"><ScanLine size={14} /> Auto-Align — {surfaceName}</span>
         <div className="flex items-center gap-2">
@@ -560,7 +540,25 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
           : <button onClick={() => idx < STEPS.length - 1 && canNext && setStep(STEPS[idx + 1].id)} disabled={!canNext} title={canNext ? '' : 'complete this step'} className="text-mini px-2 py-1 rounded bg-accent/20 border border-accent text-fg-1 disabled:opacity-30">Next ›</button>}
       </div>
     </div>
-    </>
+    <div className="flex-1 min-w-0 min-h-0 bg-black">
+      <CameraViewport
+        ref={viewportRef}
+        active={camOn}
+        pickActive={step === 'pose' && !maskMode}
+        maskMode={maskMode}
+        picks={picks.map((p) => ({ camPx: p.camPx }))}
+        pending={pendingCamPx}
+        selectedPick={selectedPick}
+        mask={scene3D.camMask}
+        maskDraft={maskDraft}
+        onPick={onPick}
+        onSelectPick={setSelectedPick}
+        onMovePick={movePickCam}
+        onMaskPoint={onMaskPoint}
+        onMaskClose={onPreviewDblClick}
+      />
+    </div>
+    </div>
   );
 };
 

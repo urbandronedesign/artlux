@@ -34,6 +34,7 @@ let activated = false;
 // window owns the bridge ports). The main window (App) injects the real implementations.
 const NOOP_HOST: RendererHostServices = {
   projectorOutputs: { get: () => undefined, list: () => [], patch: () => {}, subscribe: () => () => {} },
+  surfaces: { list: () => [], get: () => undefined, subscribe: () => () => {} },
   scene3D: { get: () => ({}), patch: () => {}, subscribe: () => () => {} },
   projectors: { send: () => {}, onMessage: () => () => {} },
   settings: { get: () => ({}), subscribe: () => () => {} },

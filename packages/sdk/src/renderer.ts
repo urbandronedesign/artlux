@@ -471,6 +471,16 @@ export interface ProjectorOutputsService<O = unknown> {
   subscribe(cb: () => void): () => void; // fires when any output changes
 }
 
+// Read-only view of the rig's surfaces. A plugin that OWNS a workbench needs to name what it is
+// working on — the calibration context titles itself "Calibrate — <surface>" — and a surface id is not
+// a name. Read + subscribe only: surfaces are core persisted state (see "Core stays core"), so a
+// plugin never mutates them through here.
+export interface SurfacesService<S = unknown> {
+  list(): S[];
+  get(id: string): S | undefined;
+  subscribe(cb: () => void): () => void;
+}
+
 export interface Scene3DService<S = unknown> {
   get(): S;
   patch(partial: Partial<S>): void;
@@ -669,6 +679,7 @@ export interface AudioService<Mix = unknown, TlAudio = unknown, TlClip = unknown
 
 export interface RendererHostServices {
   projectorOutputs: ProjectorOutputsService;
+  surfaces: SurfacesService;
   scene3D: Scene3DService;
   projectors: ProjectorsService;
   settings: SettingsService;

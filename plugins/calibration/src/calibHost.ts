@@ -15,6 +15,8 @@ let host: RendererHostServices | null = null;
 // Called once from the plugin's renderer activate(). In the main window this is the real host; the
 // wizards only ever render there, so it's set before any wizard mounts.
 export function setHost(h: RendererHostServices): void { host = h; }
+/** The raw services, for UI that reads several of them reactively (see CalibViewport). */
+export function getHost(): RendererHostServices | null { return host; }
 
 // main → projector (structured-light patterns, calib mode, crosshair, scene).
 export function sendToProjector(surfaceId: string, msg: MainToProjector): void {

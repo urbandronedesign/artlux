@@ -205,11 +205,22 @@ export const CameraViewport = forwardRef<CameraViewportHandle, Props>((props, re
     ctx.fillText(`${cu.toFixed(0)},${cv.toFixed(0)}`, lx + 3, ly + LOUPE - 2);
   };
 
+  // Coalesced repaint, cancelled on unmount. A queued frame that fires after this component is gone
+  // would draw into a canvas React has already detached — harmless in the common case, but it is the
+  // shape of bug that surfaces as a GPU fault rather than an exception, so it is not worth leaving to
+  // chance in a component that unmounts every time an operator closes the wizard.
   const rafPending = useRef(false);
+  const rafId = useRef(0);
+  const alive = useRef(true);
+  useEffect(() => () => { alive.current = false; if (rafId.current) cancelAnimationFrame(rafId.current); }, []);
   const redraw = () => {
     if (rafPending.current) return;
     rafPending.current = true;
-    requestAnimationFrame(() => { rafPending.current = false; drawBase(); drawOverlay(); });
+    rafId.current = requestAnimationFrame(() => {
+      rafPending.current = false;
+      if (!alive.current) return;   // unmounted between schedule and frame — the canvas is gone
+      drawBase(); drawOverlay();
+    });
   };
 
   useImperativeHandle(ref, () => ({

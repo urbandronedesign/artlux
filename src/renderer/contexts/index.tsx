@@ -171,15 +171,17 @@ export function registerCoreWorkspace(): void {
   contextRegistry.register({
     id: 'calib', title: 'Calibration', shortTitle: 'Calib', icon: <Crosshair size={16} />,
     cluster: 'align', order: 1,
+    // The calibration PLUGIN claims this viewport (wizard rail + camera). The stage below is only the
+    // fallback for a build with that plugin disabled. splitView puts the 3D venue scene in the right
+    // pane, which the pose step needs open beside the camera — that pairing is the whole workbench.
     viewport: VIEWPORT_STAGE_2D,
     browser: [],
     inspector: [],
-    // The old `calibrate` preset: 2D stage on the left, 3D scene on the right, dock out of the way.
-    layout: { showLeft: false, showRight: false, dockOpen: false, splitView: true, splitRatio: 0.5 },
-    layoutRev: 1,
+    layout: { showLeft: false, showRight: false, dockOpen: false, splitView: true, splitRatio: 0.55 },
+    layoutRev: 2,
     hint: {
-      en: 'Start a calibration from Outputs — camera on the left, 3D scene on the right.',
-      fr: 'Lancez un calibrage depuis les Sorties — caméra à gauche, scène 3D à droite.',
+      en: 'Start a calibration from Projection Outputs — camera here, 3D venue scene alongside.',
+      fr: 'Lancez un calibrage depuis les Sorties — la caméra ici, la scène 3D à côté.',
     },
     actions: [
       { id: 'outputs', label: 'Outputs…', icon: <MonitorPlay size={13} />, menuAction: 'outputs' },

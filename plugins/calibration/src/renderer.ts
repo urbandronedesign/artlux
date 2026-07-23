@@ -9,8 +9,8 @@ export { plugin } from './plugin.renderer';
 // Wizard UIs + the pose-pairing orchestration, co-located here. App mounts the wizards (it owns the
 // embedded Simulator3D + camera portal they drive) and forwards 3D picks into `calibWorkspace`, which
 // owns the board/markerless pose logic (moved out of App, Stage 2d).
-export { CalibWizard } from './CalibWizard';
-export { AutoAlignWizard } from './AutoAlignWizard';
+// CalibWizard / AutoAlignWizard are NO LONGER exported: they are mounted by this plugin's own
+// `calibration.workbench` viewport panel, not by the host. App importing them was the Stage 2b seam.
 export * as calibWorkspace from './calibWorkspace';
 
 // Namespaces (host imports these as `import { X }` and uses X.member).
