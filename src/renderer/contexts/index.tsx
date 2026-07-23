@@ -299,13 +299,15 @@ export function registerCoreWorkspace(): void {
     viewport: VIEWPORT_STAGE_2D,
     browser: ['core.browser.globals'],
     inspector: [],
+    // The show-control plugin appends Schedule / Playlist / Metrics / Show Control here and claims
+    // the viewport (its operator deck) — see plugins/show-control/src/plugin.renderer.ts.
     dock: ['core.dock.outputsPreview', 'core.dock.programPreview', 'core.dock.monitor', 'core.dock.perf'],
     // The old `perform` preset — everything out of the way except the stage.
     layout: { showLeft: false, showRight: false, dockOpen: true, splitView: false },
     layoutRev: 2,
     hint: {
-      en: 'Running the show: master levels, live monitoring and the tablet remote.',
-      fr: 'Conduite du spectacle : niveaux maîtres, monitoring live et télécommande tablette.',
+      en: 'Running the show — scenes, transport, schedule, playlist and live metrics.',
+      fr: 'Conduite du spectacle — scènes, transport, planning, playlist et métriques live.',
     },
     // show-control appends its operator panel as a dock tab (contextRegistry.extend).
     actions: [

@@ -7,6 +7,30 @@ phone/tablet browser into an operator surface for ArtLux, adds a wall-clock sche
 It's a **cross-process plugin** (NDI-style `/main` + `/renderer` barrels): the main half owns an
 embedded HTTP server; the renderer half drives the show engine and contributes the app-side UI.
 
+## The desktop Show context (2026-07-23)
+
+Everything the tablet PWA offers is now also in the app's **Show** workspace context — the remote was
+the *only* way to reach half of it, so an operator at the machine could arm an unattended venue from a
+phone but not from the app in front of them.
+
+| Tablet tab | Desktop |
+|---|---|
+| Control · States | **Show Deck** — the context's viewport: transport, scene pads, live state + its manual transitions |
+| Schedule | **Schedule** dock tab — in-project wall-clock actions (`ProjectData.schedule`) |
+| Projects | **Playlist** dock tab — the machine-global unattended broadcast playlist |
+| Metrics | **Metrics** dock tab — engine / render / system series + the watchdog self-heal audit |
+| (pairing) | **Show Control** dock tab — connect URL, QR, PIN, paired devices |
+
+**One model, two surfaces.** The deck and the schedule go through `host.show` — the same service the
+tablet's commands land on — so the two agree by construction. The playlist and the metrics assembler
+live in **main**, and were previously reachable only over the HTTP/SSE stream; three handles were added
+(`showctl:playlist-get` / `playlist-set` / `scan`, plus `showctl:metrics-get`) so the desktop pulls the
+identical payload. Saving the playlist from the desktop runs the same follow-up the tablet's save does,
+so a connected tablet stays in sync.
+
+Metrics are pulled only while the panel is **mounted**, mirroring the server's "assemble only while a
+client is watching" rule — the sampler stays free when nobody is looking.
+
 ## For the operator (how to use it)
 
 1. **Enable it:** Preferences ▸ **Show Control** → tick *Enable the tablet remote*. Note the LAN URL(s)

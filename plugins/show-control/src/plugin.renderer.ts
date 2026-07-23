@@ -12,6 +12,10 @@ import { setHost } from './showControlHost';
 import { dispatch } from './dispatch';
 import { ShowControlSettings } from './ShowControlSettings';
 import { ShowControlPanel } from './ShowControlPanel';
+import { ShowControlDeck } from './ShowControlDeck';
+import { SchedulePanel } from './SchedulePanel';
+import { PlaylistPanel } from './PlaylistPanel';
+import { ShowMetricsPanel } from './ShowMetricsPanel';
 import type { ShowCommand, ShowSnapshot, ShowStatus, ScheduleEntry } from './types';
 
 let timers: ReturnType<typeof setInterval>[] = [];
@@ -55,7 +59,19 @@ export const plugin: RendererPlugin = {
     // A DOCK tab on the host's `show` context: the connect URL/QR/PIN and the paired-device list are
     // things an operator keeps visible while running a show, not a dialog to dismiss.
     ctx.panels.register({ id: 'show-control', mount: 'dock', menuAction: 'show-control', title: 'Show Control', Component: ShowControlPanel });
-    ctx.contexts.extend('show', { dock: ['show-control'] });
+
+    // The REMOTE's own tabs, on the desktop. Control · States · Schedule · Projects · Metrics all
+    // existed only inside the served tablet PWA, so an operator at the machine could arm an unattended
+    // venue from a phone but not from the app in front of them. These are the same data and the same
+    // command path (host.show / the plugin bridge) — one model, two surfaces.
+    ctx.panels.register({ id: 'show-control.deck', mount: 'viewport', title: 'Show Deck', Component: ShowControlDeck });
+    ctx.panels.register({ id: 'show-control.schedule', mount: 'dock', title: 'Schedule', Component: SchedulePanel });
+    ctx.panels.register({ id: 'show-control.playlist', mount: 'dock', title: 'Playlist', Component: PlaylistPanel });
+    ctx.panels.register({ id: 'show-control.metrics', mount: 'dock', title: 'Metrics', Component: ShowMetricsPanel });
+    ctx.contexts.extend('show', {
+      viewport: 'show-control.deck',
+      dock: ['show-control.schedule', 'show-control.playlist', 'show-control.metrics', 'show-control'],
+    });
 
     // Only the main editor/broadcast window owns the show engine + the bridge to main.
     if (ctx.window !== 'main') return;

@@ -12,7 +12,9 @@ import * as server from './server';
 import * as scheduler from './scheduler';
 import * as metricsSampler from './metricsSampler';
 import * as auth from './auth';
-import type { EngineMetrics, RenderMetrics, ShowCommand, ShowSnapshot, ShowStatus, WatchdogEventLite } from './types';
+import * as playlistStore from './playlist';
+import * as projectScanner from './projectScanner';
+import type { EngineMetrics, Playlist, RenderMetrics, ShowCommand, ShowSnapshot, ShowStatus, WatchdogEventLite } from './types';
 
 let lastEngine: EngineMetrics | null = null;
 let lastRender: RenderMetrics | null = null;
@@ -54,6 +56,28 @@ export const plugin: MainPlugin = {
     // Operator controls (from the app-side panel).
     ipc.on('showctl:set-lock', (v) => server.setLocked(!!v));
     ipc.on('showctl:revoke', (tok) => { auth.revoke(typeof tok === 'string' ? tok : undefined); server.disconnectRevoked(); server.pushDevices(); });
+
+    // ── Desktop operator surface ──────────────────────────────────────────────────────────────
+    // The playlist and the metrics assembler live HERE (main), and until now they were reachable only
+    // through the tablet's HTTP/SSE stream — so an operator sitting at the machine had no way to see
+    // or edit the unattended broadcast schedule. These handles give the renderer's Show context the
+    // same data the tablet gets. The in-project SCHEDULE needs nothing here: it is renderer state
+    // (ProjectData.schedule) and the panel reaches it through host.show.
+    ipc.handle('showctl:playlist-get', () => ({ playlist: playlistStore.getPlaylist(), status: scheduler.status() }));
+    ipc.on('showctl:playlist-set', (p) => {
+      playlistStore.setPlaylist(p as Playlist);
+      // Same follow-up the tablet's own save does (server.ServerHandlers.onPlaylistChanged): the
+      // scheduler re-reads the store on its next tick, so all that is owed is a status push to any
+      // tablet currently watching, so both surfaces agree on "what's next".
+      server.pushPlaylistStatus(scheduler.status());
+    });
+    ipc.handle('showctl:scan', (folder) => projectScanner.scanProjects(String(folder ?? '')));
+    // Pulled ~1 Hz by the desktop Metrics panel while it is mounted (the tablet gets the same payload
+    // pushed over SSE — one assembler, two consumers).
+    ipc.handle('showctl:metrics-get', () => ({
+      engine: lastEngine, render: lastRender, system: metricsSampler.sample(),
+      watchdog: lastWatchdog, mode: metricsSampler.appMode(), version: metricsSampler.appVersion(), ts: Date.now(),
+    }));
 
     ipc.handle('showctl:lan-info', () => server.lanInfo());
     ipc.handle('showctl:regen-pin', () => { auth.regeneratePin(); return server.lanInfo(); });
