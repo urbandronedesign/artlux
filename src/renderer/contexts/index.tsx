@@ -26,7 +26,8 @@ import {
 import { MediaBrowserPanel, FixtureEditorDock, MonitorDock, PerfDock, RoutingDock, StateMachineViewport } from './panels/adapters';
 import { ProgramPreviewPanel, ProgramMonitorViewport, OutputsPreviewPanel } from './panels/preview';
 import {
-  ModelsPanel, ModelsHeaderActions, Scene3DFixturesPanel, ModelTransformPanel, SceneLightingPanel,
+  ModelsPanel, ModelsHeaderActions, Scene3DFixturesPanel, ModelTransformPanel,
+  SceneLightingPanel, SceneTrackingPanel,
 } from './panels/scene3d';
 
 // ── Viewport ids ─────────────────────────────────────────────────────────────────────────────
@@ -73,6 +74,8 @@ export function registerCoreWorkspace(): void {
   panelRegistry.register({ id: 'core.inspector.model.transform', mount: 'inspector', title: 'Model', icon: <Box size={12} />, appliesTo: ['model'], Component: ModelTransformPanel });
   // No appliesTo — scene lighting is a property of the SCENE, not of whatever is selected.
   panelRegistry.register({ id: 'core.inspector.scene.lighting', mount: 'inspector', title: 'Lighting', icon: <Lightbulb size={12} />, defaultOpen: false, Component: SceneLightingPanel });
+  // Also no appliesTo — the tracking overlays are a property of the SCENE, not of a selection.
+  panelRegistry.register({ id: 'core.inspector.scene.tracking', mount: 'inspector', title: 'Tracking', icon: <Radar size={12} />, defaultOpen: false, Component: SceneTrackingPanel });
 
   // ── Dock panels ────────────────────────────────────────────────────────────────────────────
   panelRegistry.register({ id: 'core.dock.fixtureEditor', mount: 'dock', title: 'Fixture Editor', icon: <SlidersHorizontal size={13} />, Component: FixtureEditorDock });
@@ -135,7 +138,7 @@ export function registerCoreWorkspace(): void {
     cluster: 'build', order: 3,
     viewport: VIEWPORT_SCENE_3D,
     browser: ['core.browser.models', 'core.browser.scene3dFixtures'],
-    inspector: ['core.inspector.model.transform', 'core.inspector.fixture.layout3d', 'core.inspector.scene.lighting'],
+    inspector: ['core.inspector.model.transform', 'core.inspector.fixture.layout3d', 'core.inspector.scene.lighting', 'core.inspector.scene.tracking'],
     layout: { showLeft: true, showRight: true, dockOpen: false, splitView: false },
     layoutRev: 1,
     hint: {
@@ -278,9 +281,11 @@ export function registerCoreWorkspace(): void {
     cluster: 'show', order: 4,
     viewport: VIEWPORT_STAGE_2D,
     browser: [],
-    inspector: [],
-    layout: { showLeft: false, showRight: false, dockOpen: false, splitView: true },
-    layoutRev: 1,
+    // The same Tracking section the 3D context carries — these overlays are what this context is FOR,
+    // and the 3D scene showing them is its right pane, so tuning them here saves a round trip.
+    inspector: ['core.inspector.scene.tracking'],
+    layout: { showLeft: false, showRight: true, dockOpen: false, splitView: true },
+    layoutRev: 2,   // showRight flipped on — existing installs need the revision to pick it up
     hint: {
       en: 'LiDAR, camera pose and Augmenta sources — the 3D scene shows live blobs.',
       fr: 'Sources LiDAR, pose caméra et Augmenta — la scène 3D affiche les blobs en direct.',

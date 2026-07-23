@@ -95,13 +95,13 @@ survives only as a one-time migration input (see below).
 |---|---|---|---|
 | **Build** | `timeline` | program monitor + timeline as `bottom` | cutting the show; media library on the left |
 | | `mapping` | 2D stage | surfaces **and** fixtures — placement, content, patch, DMX |
-| | `3d` | `Simulator3D` | venue layout, models, fixture 3D positions, lighting |
+| | `3d` | `Simulator3D` | venue layout, models, fixture 3D positions, lighting, tracking overlays |
 | **Align** | `project` | outputs table | bind displays, warp, blend, span, gamma; previews in the dock |
 | | `calib` | *plugin* — wizard + camera | structured-light / markerless alignment, 3D alongside |
 | **Show** | `scenes` | `CueBankPanel` | capture scenes, build cue banks |
 | | `machine` | `StateGraphEditor` | the show graph over those scenes |
 | | `audio` | *plugin* — the mixer | bed, mix, inserts, spatial |
-| | `tracking` | 2D stage + 3D | LiDAR / MediaPipe / Augmenta; monitors in the dock |
+| | `tracking` | 2D stage + 3D | LiDAR / MediaPipe / Augmenta; the same Tracking section in the parameter column, monitors in the dock |
 | | `show` | *plugin* — Show Deck | running it: transport, scene pads, schedule, playlist, metrics |
 
 Four of these are worth knowing the history of, because the shape was arrived at, not designed up front:

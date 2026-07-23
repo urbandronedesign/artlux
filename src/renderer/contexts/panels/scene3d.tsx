@@ -193,9 +193,7 @@ export const ModelTransformPanel: React.FC = () => {
   );
 };
 
-// ── Lighting + the scene-viz toggles ────────────────────────────────────────────────────────
-// The tracking/pose/Augmenta toggles live on `Scene3D` (core persisted state) and gate the plugins'
-// own scene-viz contributions — core owns the flag, the plugin owns what it draws.
+// ── Lighting ────────────────────────────────────────────────────────────────────────────────
 export const SceneLightingPanel: React.FC = () => {
   const { scene3D } = useEditor();
   const a = useEditorActions();
@@ -206,6 +204,22 @@ export const SceneLightingPanel: React.FC = () => {
       <Toggle label="Ambient (env)" checked={scene3D.environment} onChange={(v) => a.sceneConfig({ environment: v })} />
       <Toggle label="Reflective floor" checked={scene3D.reflectiveFloor ?? false} onChange={(v) => a.sceneConfig({ reflectiveFloor: v })} />
       <Toggle label="Grid" checked={scene3D.gridVisible} onChange={(v) => a.sceneConfig({ gridVisible: v })} />
+    </>
+  );
+};
+
+// ── Tracking (the scene-viz overlays) ───────────────────────────────────────────────────────
+// Its own section rather than a tail on Lighting: these are three separate tracking SOURCES, each
+// with sub-options, and they had grown to outweigh the lighting controls they were tacked onto.
+//
+// Every flag here lives on `Scene3D` (core persisted state) and gates a PLUGIN's scene-viz
+// contribution — core owns the flag, the plugin owns what it draws. That split is why a toggle can
+// stay in core while nothing here imports lidar-tracking, mediapipe or augmenta.
+export const SceneTrackingPanel: React.FC = () => {
+  const { scene3D } = useEditor();
+  const a = useEditorActions();
+  return (
+    <>
       <Toggle label="Tracking zones (LiDAR)" checked={scene3D.trackingViz ?? false} onChange={(v) => a.sceneConfig({ trackingViz: v })} />
       {scene3D.trackingViz && (
         <div className="pl-2 border-l border-line-1 space-y-2">
