@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.23.0
+
+> **Also carries everything under v0.22.0 below.** That version was prepared — package.json bumped, its
+> changelog section written — but never tagged, so no v0.22.0 build was ever distributed. The last
+> released version is **v0.21.0**; a v0.23.0 release would be the first to carry either set of changes.
+
 ### ⚠ BEHAVIOUR CHANGE — the editor is context-driven; layout presets are gone
 
 The editor was one fixed three-region layout, and every feature added since (projector outputs,
