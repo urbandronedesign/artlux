@@ -4,7 +4,7 @@ import { OrbitControls, GizmoHelper, GizmoViewport, Html } from '@react-three/dr
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import { Move3d, Rotate3d, Maximize } from 'lucide-react';
 import { Fixture, Vec3, Euler3 } from '../../types';
-import { Scene3D, SceneModel, defaultScene3D, ProjectorCalibration, modelScaleXYZ } from '../../../../shared/protocol';
+import { Scene3D, SceneModel, defaultScene3D, ProjectorCalibration } from '../../../../shared/protocol';
 import { ProjectorFrustum } from './ProjectorFrustum';
 import { InstancedLeds } from './InstancedLeds';
 import { FixtureGizmo } from './FixtureGizmo';
@@ -38,8 +38,13 @@ interface Props {
   activePicks?: Array<{ world: [number, number, number] }>;
   selectedPick?: number | null;                       // highlight the correspondence being edited
   onSelectPick?: (i: number) => void;                 // click a numbered marker → select it for editing
-  /** Hide the built-in floating transform inspector (e.g. when an external panel already shows Pos/Rot/Scale). */
-  hideInspector?: boolean;
+  /**
+   * Stop rendering without unmounting. The workspace shell keeps this canvas MOUNTED across context
+   * switches (remounting it would rebuild the WebGL context and reload every model), so while it is
+   * hidden it must not keep burning a render loop on a zero-width pane — r3f's default `frameloop`
+   * is 'always' and does not care that the canvas is invisible.
+   */
+  paused?: boolean;
 }
 
 type Mode = 'translate' | 'rotate' | 'scale';
@@ -66,7 +71,7 @@ const Simulator3D: React.FC<Props> = ({
   selectedModelId = null,
   onSelectFixture, onSelectModel, onCommitFixture3D, onCommitModel, onModelNaturalSize, onRecordHistory,
   calibPickMode = false, onCalibPick, projectorCalibs = [], activePicks = [], selectedPick = null, onSelectPick,
-  hideInspector = false,
+  paused = false,
 }) => {
   const [mode, setMode] = useState<Mode>('translate');
   const selectedFixture = (!selectedModelId && fixtures.find(f => f.id === selectedFixtureId)) || null;
@@ -84,13 +89,12 @@ const Simulator3D: React.FC<Props> = ({
 
       {/* Canvas region — fills the pane below the header. The inspector overlays only this area. */}
       <div className="flex-1 relative">
-      {/* Numeric transform inspector for the selected model — position, rotation, and per-axis scale. */}
-      {!hideInspector && (() => {
-        const m = models.find((mm) => mm.id === selectedModelId);
-        return m && onCommitModel ? <ModelInspector model={m} onCommit={onCommitModel} /> : null;
-      })()}
+      {/* The floating transform inspector that used to overlay this canvas is GONE. It was already
+          dead code — App always passed `hideInspector`, so it never rendered in the main window — and
+          the `3d` context's `core.inspector.model.transform` panel is its real replacement. */}
 
       <Canvas
+        frameloop={paused ? 'never' : 'always'}
         dpr={[1, 2]}
         gl={{ powerPreference: 'high-performance', antialias: true }}
         camera={{ position: [0, 1.2, 3], fov: 50 }}
@@ -174,54 +178,6 @@ const Simulator3D: React.FC<Props> = ({
         </EffectComposer>
       </Canvas>
       </div>
-    </div>
-  );
-};
-
-const AXES = ['x', 'y', 'z'] as const;
-
-// Numeric transform editor for the selected model: position, rotation (deg), and per-axis (independent)
-// scale. Overlays the 3D view; each edit commits the full transform so nothing is lost between fields.
-// Buffered input: holds the raw text while focused (so decimals / intermediate values type freely) and
-// only commits — clamped — on Enter or blur. A live controlled value would reset mid-keystroke.
-const TInput: React.FC<{ value: number; step: number; title: string; min?: number; onChange: (v: number) => void }> = ({ value, step, title, min, onChange }) => {
-  const [txt, setTxt] = useState<string | null>(null);
-  const commit = () => {
-    if (txt === null) return;
-    const n = parseFloat(txt);
-    setTxt(null);
-    if (!Number.isNaN(n)) onChange(min != null ? Math.max(min, n) : n);
-  };
-  return (
-    <input type="number" step={step} title={title}
-      value={txt ?? String(+value.toFixed(4))}
-      onChange={(e) => setTxt(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); else if (e.key === 'Escape') setTxt(null); }}
-      onPointerDown={(e) => e.stopPropagation()}
-      className="w-14 bg-surface-0 border border-line-1 rounded px-1 py-0.5 text-right text-fg-1 num text-micro focus:border-accent focus:outline-none" />
-  );
-};
-
-const ModelInspector: React.FC<{ model: SceneModel; onCommit: (id: string, t: ModelTransform) => void }> = ({ model, onCommit }) => {
-  const scl = modelScaleXYZ(model);
-  const base = (): ModelTransform => ({ position: { ...model.position }, rotation: { ...model.rotation }, scaleXYZ: [scl[0], scl[1], scl[2]] });
-  const onPR = (field: 'position' | 'rotation') => (i: number, v: number) =>
-    onCommit(model.id, { ...base(), [field]: { ...model[field], [AXES[i]]: v } });
-  const onScale = (i: number, v: number) => { const s = [...scl] as [number, number, number]; s[i] = Math.max(0.0001, v); onCommit(model.id, { ...base(), scaleXYZ: s }); };
-  const Row = (label: string, vals: number[], step: number, on: (i: number, v: number) => void, min?: number) => (
-    <div className="flex items-center gap-1">
-      <span className="text-fg-3 w-8 text-micro">{label}</span>
-      {vals.map((val, i) => <TInput key={i} value={val} step={step} min={min} title={AXES[i].toUpperCase()} onChange={(v) => on(i, v)} />)}
-    </div>
-  );
-  return (
-    <div className="absolute top-2 right-2 z-10 bg-surface-1/95 border border-line-1 rounded-md p-2 space-y-1 shadow-e2 backdrop-blur-sm"
-      onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-      <div className="text-micro font-bold uppercase tracking-wider text-fg-3 truncate max-w-[190px]">{model.name}</div>
-      {Row('Pos', [model.position.x, model.position.y, model.position.z], 0.1, onPR('position'))}
-      {Row('Rot°', [model.rotation.x, model.rotation.y, model.rotation.z], 5, onPR('rotation'))}
-      {Row('Scale', [scl[0], scl[1], scl[2]], 0.1, onScale, 0.0001)}
     </div>
   );
 };

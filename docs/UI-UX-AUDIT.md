@@ -110,9 +110,11 @@ Verified: `tsc --noEmit` clean; Tailwind emits every new class; 0 residual arbit
    nothing wraps or clips.
 2. **Shadows** — the elevation tokens are darker/tighter than Tailwind's defaults (intentional, for the
    black bg). Glance at modals, the menu flyout, timeline popovers, calibration wizard rails.
-3. **`StateGraphEditor` modal at `z-[60]`** (left as-is): it's a full-screen modal sitting *below*
-   `z-menubar` (150) and other modals (200). Decide if that's intended (keep menu reachable) or a latent
-   bug → bump to `z-modal`. Not touched because it changes stacking and needs eyes.
+3. ~~**`StateGraphEditor` modal at `z-[60]`**~~ **RESOLVED** — it was a latent bug (the editor sat
+   *below* `z-menubar` and every other modal). Now `z-modal`, and the dialog also became **draggable +
+   resizable** (`useDraggableModal('state-graph')`, CSS `resize`, viewport-relative max size): it is a
+   long-lived authoring surface, so a permanently-centred fixed-size box covering the timeline was the
+   wrong shape. The `grep -v StateGraphEditor` exception in [Guardrails](#guardrails) is no longer needed.
 4. **Row keyboard nav** — the 4 rows are now tabbable; in very long lists a roving-tabindex `listbox`
    would be a better pattern than one tab-stop per row. Fine for now.
 5. **Radius 1px shifts** — the convergence moved existing `rounded-sm` (2→3px) and `rounded-md` (6→5px);
@@ -134,6 +136,6 @@ grep -rIoE "text-\[[0-9]+px\]" src/renderer plugins --include=*.tsx | wc -l
 # arbitrary colors (canvas draw colors live in .ts/ctx, not className, so won't match)
 grep -rIoE "(bg|text|border|ring|from|to|via)-\[#[0-9a-fA-F]" src/renderer plugins --include=*.tsx | wc -l
 # ad-hoc z-index and shadows
-grep -rIoE "z-\[[0-9]{2,}\]" src/renderer plugins --include=*.tsx | grep -v StateGraphEditor | wc -l
+grep -rIoE "z-\[[0-9]{2,}\]" src/renderer plugins --include=*.tsx | wc -l   # 1: plugins/mediapipe PoseCalibration
 grep -rIoE "shadow-(sm|md|lg|xl|2xl)\b" src/renderer plugins --include=*.tsx | wc -l
 ```

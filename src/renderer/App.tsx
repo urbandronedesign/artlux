@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Fixture, Surface, SurfaceContent, SourceType, AppSettings, DockTab, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, normalizeCueBanks, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, timelineAudioTracks, sceneAudioEntries, cueEntries, isAddressableEntry, type AudioClip, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType, type PatchPolicy, readPatchPolicy } from './types';
+import { Fixture, Surface, SurfaceContent, SourceType, AppSettings, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, normalizeCueBanks, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, timelineAudioTracks, sceneAudioEntries, cueEntries, isAddressableEntry, type AudioClip, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType, type PatchPolicy, readPatchPolicy } from './types';
 import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge, WINDOWED_DISPLAY } from '../../shared/protocol';
 import type { ProjectorCalibration } from '../../shared/protocol';
 import { CalibWizard, AutoAlignWizard, calibCapture as cam, measureGamma, calibWorkspace } from '@artlux/plugin-calibration/renderer';
@@ -15,26 +15,24 @@ import { TopBar } from './components/TopBar';
 import { About } from './components/About';
 import { AudioEngineMissing } from './components/AudioEngineMissing';
 import { RoutingModal } from './components/RoutingModal';
-import { InspectorPanel } from './components/InspectorPanel';
-import { ScenePanel } from './components/ScenePanel';
 import { CueBankPanel } from './components/CueBankPanel';
-import { MediaPanel } from './components/MediaPanel';
-import { AssetManager } from './components/AssetManager';
 import { Stage } from './components/Stage';
 import Simulator3D from './components/Simulator3D/Simulator3D';
-import ScenePanel3D from './components/Simulator3D/ScenePanel3D';
 import { useModelUrls } from './components/Simulator3D/useModelUrls';
 import type { ModelTransform } from './components/Simulator3D/ModelObject';
-import { DMXMonitor } from './components/DMXMonitor';
-import { FixtureEditor } from './components/FixtureEditor';
-import { Dock } from './components/Dock';
 import { Timeline as TimelinePanel } from './components/timeline/Timeline';
 import { Preferences } from './components/Preferences';
 import { MenuBar } from './components/MenuBar';
 import { HelpPanel } from './components/HelpPanel';
 import { DocsBrowser } from './components/DocsBrowser';
 import { StatusBar } from './components/StatusBar';
-import { PerfPanel } from './components/PerfPanel';
+import { WorkspaceShell } from './components/shell/WorkspaceShell';
+import { EditorStore, buildSelection, type EditorData, type EditorActions } from './state/EditorStore';
+import {
+  registerCoreWorkspace, VIEWPORT_STAGE_2D, VIEWPORT_SCENE_3D, VIEWPORT_TIMELINE, VIEWPORT_SCENES,
+  VIEWPORT_OUTPUTS, VIEWPORT_MACHINE,
+} from './contexts';
+import { contextLayoutOf, goToContext } from './contexts/nav';
 import { sendArtNetFrame, configureOutput, addStatusListener } from './services/mockSocketService';
 import { dmxSignal } from './services/dmxSignal';
 import { perfMonitor } from './services/perfMonitor';
@@ -47,20 +45,49 @@ import { nextAccent, GLOBAL_ACCENT } from './sceneAccent';
 import * as oscController from './services/oscController';
 import { useLayout } from './hooks/useLayout';
 import { layoutStore, type WorkspaceLayout } from './services/layoutStore';
-import { useResizable } from './hooks/useResizable';
 import { activateRendererPlugins } from './host/plugins';
 import { setEnabled as mp4SetEnabled } from '@artlux/plugin-mp4';
 import type { RendererHostServices, AutomationTargetProvider, AutomationTargetDef } from '@artlux/sdk/renderer';
-import { projectorChannelRegistry, panelRegistry, automationTargetRegistry } from './host/registries';
+import { projectorChannelRegistry, panelRegistry, automationTargetRegistry, contextRegistry } from './host/registries';
 import * as cueBus from './services/cueBus';
 import * as selection from './services/selection';
 import * as transitions from './services/transitions';
 import { collectFadeableTargets, getByPath, setByPath, isFadeablePath, type StateView } from './services/paramPath';
 import { trackingPlayback, trackingDrawable, resetPeopleTracking } from '@artlux/plugin-lidar-tracking';
-import { Activity, SlidersHorizontal, Film, Clapperboard, Columns2, Maximize2, Minimize2, Gauge } from 'lucide-react';
+import { Columns2, Maximize2, Minimize2 } from 'lucide-react';
 import { useHistory } from './hooks/useHistory';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
+
+// Register the host's own workspace contexts + panels at module scope, i.e. before React mounts and
+// before plugins activate. Registration order does not actually matter (contextRegistry.extend queues
+// against a context that hasn't registered yet), but doing it here means the rail is populated on the
+// very first render instead of after an effect.
+registerCoreWorkspace();
+
+// The DMX monitor's panel id — the TopBar's Monitor button targets it by id now that dock tabs are
+// panels rather than the core-only DockTab enum.
+const MONITOR_PANEL = 'core.dock.monitor';
+const PERF_PANEL = 'core.dock.perf';
+
+const ROUTING_PANEL = 'core.dock.routing';
+
+// Open a dock panel by id from outside the shell (a keyboard shortcut, a launch flag). Not every
+// context carries every dock panel, so if the active one doesn't, switch to the first context that
+// does — otherwise the shortcut would open the dock onto a tab that isn't there.
+function openDockPanel(panelId: string): void {
+  const L = layoutStore.get();
+  const active = contextRegistry.get(L.activeContext);
+  if (!active?.dock?.includes(panelId)) {
+    const owner = contextRegistry.all().find((c) => c.dock?.includes(panelId));
+    if (owner) goToContext(owner.id);
+  }
+  const now = layoutStore.get();
+  layoutStore.set({
+    dockOpen: true,
+    contexts: { ...now.contexts, [now.activeContext]: { ...now.contexts[now.activeContext], dockPanel: panelId } },
+  });
+}
 
 // Broadcast (show) mode: launched hidden via `--broadcast` (see main/index.ts). Renders only
 // the Stage engine + the projector outputs from the loaded project — no editor chrome.
@@ -158,7 +185,7 @@ const App: React.FC = () => {
   // the old local names + setter shims that preserve the useState API (a value OR an updater fn), so
   // every existing call site below is unchanged. Split view is included; the calibration wizard turns it on.
   const L = useLayout();
-  const { dockOpen, dockHeight, splitView, splitRatio, dockTab, timelineMax, showHelp, helpWidth, leftTab, showLeft: showLeftPanel, showRight: showRightPanel } = L;
+  const { dockOpen, splitView, splitRatio, timelineMax, showHelp, helpWidth, showLeft: showLeftPanel, showRight: showRightPanel } = L;
   const setLayoutField = <K extends keyof WorkspaceLayout>(k: K) =>
     (v: WorkspaceLayout[K] | ((p: WorkspaceLayout[K]) => WorkspaceLayout[K])) =>
       layoutStore.set({ [k]: typeof v === 'function' ? (v as (p: WorkspaceLayout[K]) => WorkspaceLayout[K])(layoutStore.get()[k]) : v } as Partial<WorkspaceLayout>);
@@ -166,17 +193,28 @@ const App: React.FC = () => {
   const setDockHeight = setLayoutField('dockHeight');
   const setSplitView = setLayoutField('splitView');
   const setSplitRatio = setLayoutField('splitRatio');
-  const setDockTab = setLayoutField('dockTab');
+  // Which dock panel the ACTIVE context is showing — read from that context's own remembered slice,
+  // falling back to nothing (the shell then shows the context's first dock panel).
+  const activeDockPanel = L.contexts[L.activeContext]?.dockPanel;
+  // Is the 3D pane on screen right now? (The 3D context, or any split-view context.)
+  const scene3dVisible = splitView || contextRegistry.get(L.activeContext)?.viewport === VIEWPORT_SCENE_3D;
+  // LAZY, THEN STICKY. Unlike Stage (which must never unmount — it feeds Art-Net), the 3D canvas has no
+  // such constraint, and it MUST NOT mount before it is first shown: r3f initializes its raycaster and
+  // event layer against the canvas's size at mount, and a canvas born in a 0×0 hidden pane never
+  // recovers working hit-testing when the pane later grows — every click misses, so fixtures can't be
+  // selected. So we withhold it until the first time it's visible (correct, non-zero init), then keep
+  // it mounted (no GLB reload / WebGL-context churn on later switches); `paused` idles it while hidden.
+  const scene3dMountedRef = useRef(false);
+  if (scene3dVisible) scene3dMountedRef.current = true;
+  const scene3dMounted = scene3dMountedRef.current;
   const setTimelineMax = setLayoutField('timelineMax');
   const setShowHelp = setLayoutField('showHelp');
   const setHelpWidth = setLayoutField('helpWidth');
   // Docs Browser panel (local UI state — not persisted in the layout yet).
   const [docsOpen, setDocsOpen] = useState(false);
   const [docsWidth, setDocsWidth] = useState(480);
-  const setLeftTab = setLayoutField('leftTab');
   const setShowLeftPanel = setLayoutField('showLeft');
   const setShowRightPanel = setLayoutField('showRight');
-  const splitHostRef = useRef<HTMLDivElement | null>(null);
   const [calibPickMode, setCalibPickMode] = useState(false);        // wizard pose step: pick on the embedded 3D
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [currentProjectPath, setCurrentProjectPath] = useState<string | null>(null);
@@ -204,9 +242,6 @@ const App: React.FC = () => {
   // clock via the engine — see services/timeline.ts setStateMachine).
   const [stateMachine, setStateMachine] = useState<StateMachine>(defaultStateMachine());
   const [assets, setAssets] = useState<AssetEntry[]>([]); // managed media library (video/image/model)
-  const [assetManagerOpen, setAssetManagerOpen] = useState(false);
-  const [routingOpen, setRoutingOpen] = useState(false);
-  const [outputsOpen, setOutputsOpen] = useState(false);
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
 
   // The scene currently being authored and the timeline the editor is bound to. `activeTimeline` is
@@ -221,7 +256,7 @@ const App: React.FC = () => {
     [timeline, scenes],
   );
   // EVERY place an asset path can live, in one memo — the input to asset-usage counting (the badge in
-  // Media/AssetManager, the delete confirmation, and Relink's reference count). It must span the LIVE
+  // the Media Library, the delete confirmation, and Relink's reference count). It must span the LIVE
   // doc AND every captured scene's snapshot AND the audio bed: `count === 0` is what makes
   // handleRemoveAsset skip its confirm dialog entirely, so a reference this list can't see is an asset
   // deleted with no warning while it is still on air. Ids repeat across scenes (Capture Scene aliases
@@ -302,7 +337,7 @@ const App: React.FC = () => {
   const lastTime = React.useRef(performance.now());
   // Renderer frame-time metrics live in the Performance dock tab (editor only). Broadcast has no chrome
   // and uses the console line + Prometheus gauges instead. `?perf=1` opens that tab on launch.
-  useEffect(() => { if (PERF_FLAG) { setDockOpen(true); setDockTab(DockTab.PERF); } }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (PERF_FLAG) openDockPanel(PERF_PANEL); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const unsubscribe = addStatusListener((status) => {
@@ -354,8 +389,7 @@ const App: React.FC = () => {
         }
         // Ctrl/Cmd+Alt+P — open the Performance dock tab (renderer frame-time metrics).
         else if ((e.ctrlKey || e.metaKey) && e.altKey && (e.key === 'p' || e.key === 'P')) {
-            setDockOpen(true);
-            setDockTab(DockTab.PERF);
+            openDockPanel(PERF_PANEL);
             e.preventDefault();
         }
     };
@@ -410,7 +444,6 @@ const App: React.FC = () => {
   const [sceneSaved, setSceneSaved] = useState(false);
   const sceneSavedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleSceneSave = () => { handleSaveProject().then((path) => { if (path) { setSceneSaved(true); if (sceneSavedTimer.current) clearTimeout(sceneSavedTimer.current); sceneSavedTimer.current = setTimeout(() => setSceneSaved(false), 1500); } }); };
-  const startSplitDrag = useResizable({ axis: 'x', mode: 'ratio', containerRef: splitHostRef, min: 0.2, max: 0.85, onChange: setSplitRatio });
   // Maximize the 3D pane: shrink the 2D stage to a sliver so the 3D view + panel nearly fill the
   // area (recovers the old detached-window's near-fullscreen editing). Toggles back to the prior split.
   const MAX_3D_RATIO = 0.12;
@@ -1858,7 +1891,17 @@ const App: React.FC = () => {
           case 'export-rig': handleExportRig(); break;
           case 'import-rig': handleImportRig(); break;
           case 'preferences': setPrefsOpen(true); break;
-          case 'routing': setRoutingOpen(true); break;
+          case 'routing': openDockPanel(ROUTING_PANEL); break;
+          // Context action-bar targets. These functions already existed as panel buttons; routing them
+          // through the same dispatcher is what lets a WorkspaceContext name them by id (see
+          // contexts/index.tsx) instead of every action needing a callback threaded to the shell.
+          case 'outputs': refreshDisplays(); goToContext('project'); break;
+          case 'add-surface': handleAddSurface(); break;
+          case 'add-fixture': handleAddFixture(); break;
+          case 'auto-patch': handleAutoPatch(); break;
+          case 'create-group': handleCreateGroup(); break;
+          case 'save-template': handleSaveTemplate(); break;
+          case 'remove-fixture': if (selectedFixtureId) handleRemoveFixture(selectedFixtureId); break;
           case 'about': setAboutOpen(true); break;
           case 'help-panel': setShowHelp((v) => !v); break;
           case 'docs-browser': setDocsOpen((v) => !v); break;
@@ -1866,10 +1909,15 @@ const App: React.FC = () => {
           case 'undo': undo(); break;
           case 'redo': redo(); break;
           default: {
-            // Plugin modal panels: a menu action toggles the panel whose menuAction matches (e.g. the
-            // LiDAR plugin's 'osc-monitor'). Host owns open state; the panel owns its own chrome.
-            const panel = panelRegistry.byMount('modal').find((p) => p.menuAction === action);
-            if (panel) setOpenModals((s) => { const n = new Set(s); n.has(panel.id) ? n.delete(panel.id) : n.add(panel.id); return n; });
+            // A menu action reaches whichever PANEL declares it — core or plugin, wherever it is mounted.
+            // 'modal' panels toggle open/closed (host owns open state, the panel owns its chrome);
+            // 'dock' panels are revealed by switching to the context that carries them and selecting the
+            // tab (openDockPanel). That is what lets a plugin move its panel from a dialog to a dock tab
+            // without the menu, the native menu, or this dispatcher knowing anything changed.
+            const panel = panelRegistry.all().find((p) => p.menuAction === action);
+            if (!panel) break;
+            if (panel.mount === 'modal') setOpenModals((s) => { const n = new Set(s); n.has(panel.id) ? n.delete(panel.id) : n.add(panel.id); return n; });
+            else if (panel.mount === 'dock') openDockPanel(panel.id);
           }
       }
   };
@@ -2588,6 +2636,8 @@ const App: React.FC = () => {
               localStorage.removeItem('artlux.splitRatio');
           }
           layoutStore.hydrate(savedLayout);
+          // …then put the active context's own panel sizes back on. See enterActiveContext().
+          layoutStore.enterActiveContext(contextLayoutOf(layoutStore.get().activeContext));
           if (Array.isArray(prefs.fixtureTemplates)) setTemplates(prefs.fixtureTemplates as FixtureTemplate[]);
           if (prefs.lastProjectPath) {
               const data = await window.artlux?.loadProjectPath?.(prefs.lastProjectPath);
@@ -2608,15 +2658,96 @@ const App: React.FC = () => {
   const updateSettings = (patch: Partial<AppSettings>) => setSettings(s => ({ ...s, ...patch }));
 
   const selectedFixture = fixtures.find(f => f.id === selectedFixtureId) || null;
-  const selectedSurface = surfaces.find(s => s.id === selectedSurfaceId) || null;
 
-  const dockTabs = [
-    { id: DockTab.MONITOR, label: 'DMX Monitor', icon: <Activity size={13} /> },
-    { id: DockTab.FIXTURE_EDITOR, label: 'Fixture Editor', icon: <SlidersHorizontal size={13} /> },
-    { id: DockTab.TIMELINE, label: 'Timeline', icon: <Film size={13} /> },
-    { id: DockTab.SCENES, label: 'Scenes & Cues', icon: <Clapperboard size={13} /> },
-    { id: DockTab.PERF, label: 'Performance', icon: <Gauge size={13} /> },
-  ];
+  // ── The editor store: what the shell's panels read instead of props ────────────────────────
+  // App stays the sole owner of state and of every mutation; this only distributes it. `data` is a
+  // fresh object per render on purpose (it mirrors the props it replaces), while `actions` is handed
+  // to a facade in <EditorStore> that makes each function's identity permanent — see EditorStore.tsx.
+  const editorSelection = useMemo(
+    () => buildSelection(selectedSurfaceId, selectedFixtureId, selectedFixtureIds, selectedModelId),
+    [selectedSurfaceId, selectedFixtureId, selectedFixtureIds, selectedModelId]);
+
+  // MEMOIZED ON ITS FIELDS, NOT REBUILT PER RENDER — this is load-bearing, not tidiness.
+  //
+  // Every field here is a useState value with a stable identity, so memoizing keeps the whole object's
+  // identity stable across App re-renders that changed none of them. Panels read this through a React
+  // context: a fresh object each render would re-render EVERY panel on every unrelated App render, and
+  // a repaint under an open native <select> closes the popup mid-interaction (the documented rule in
+  // CLAUDE.md, and exactly why the old ScenePanel3D was React.memo'd on its data props). This memo is
+  // that same guarantee, applied once for every panel instead of per component.
+  const editorData: EditorData = useMemo(() => ({
+    surfaces, fixtures, groups, controllers, templates,
+    selectedSurfaceId, selectedFixtureId, selectedFixtureIds, selectedModelId,
+    selection: editorSelection,
+    projectorOutputs, displays, scene3D, modelNaturalSizes, sceneSaved,
+    assets, currentProjectPath, projectRefs,
+    timeline: activeTimeline, globalTimeline: timeline, scenes, cueBanks, stateMachine, activeSceneId,
+    settings, patchPolicy, globalBrightness, projectorBrightness, isVideoPlaying,
+  }), [
+    surfaces, fixtures, groups, controllers, templates,
+    selectedSurfaceId, selectedFixtureId, selectedFixtureIds, selectedModelId, editorSelection,
+    projectorOutputs, displays, scene3D, modelNaturalSizes, sceneSaved,
+    assets, currentProjectPath, projectRefs,
+    activeTimeline, timeline, scenes, cueBanks, stateMachine, activeSceneId,
+    settings, patchPolicy, globalBrightness, projectorBrightness, isVideoPlaying,
+  ]);
+
+  const editorActions: EditorActions = {
+    selectSurface: handleSelectSurface,
+    addSurface: handleAddSurface,
+    removeSurface: handleRemoveSurface,
+    renameSurface: handleRenameSurface,
+    moveSurface: handleMoveSurface,
+    updateSurface: handleUpdateSurface,
+    setSurfaces,
+    selectFixture: handleSelectFixture,
+    selectFixtures: handleSelectFixtures,
+    selectAllFixtures: handleSelectAllFixtures,
+    addFixture: handleAddFixture,
+    removeFixture: handleRemoveFixture,
+    renameFixture: handleRenameFixture,
+    updateFixture: handleUpdateFixture,
+    setFixtures,
+    autoPatch: handleAutoPatch,
+    commitFixture3D: handleCommitFixture3D,
+    createGroup: handleCreateGroup,
+    addSelectedToGroup: handleAddSelectedToGroup,
+    removeGroup: handleRemoveGroup,
+    selectGroup: handleSelectGroup,
+    applyLookToGroup: handleApplyLookToGroup,
+    addController: handleAddController,
+    updateController: handleUpdateController,
+    removeController: handleRemoveController,
+    saveTemplate: handleSaveTemplate,
+    addFromTemplate: handleAddFromTemplate,
+    removeTemplate: handleRemoveTemplate,
+    selectModel: handleSelectModel,
+    addModel: handleAddModel,
+    addPlane: handleAddPlane,
+    removeModel: handleRemoveModel,
+    updateModel: handleUpdateModel,
+    commitModel: handleCommitModel,
+    modelNaturalSize: handleModelNaturalSize,
+    sceneConfig: handleSceneConfig,
+    saveScene: handleSceneSave,
+    importAssets: handleImportAssets,
+    removeAsset: handleRemoveAsset,
+    relinkAsset: handleRelinkAsset,
+    useAssetOnSurface: handleUseAssetOnSurface,
+    dropAssetOnSurface: handleDropAssetOnSurface,
+    collectAssets: handleCollectAssets,
+    setMasterBrightness: handleMasterBrightness,
+    setProjectorBrightness,
+    pushProjectorBrightness: (v) => pushProjectorBrightnessRef.current(v),
+    setVideoPlaying: setIsVideoPlaying,
+    updateSettings,
+    updatePatchPolicy: (p) => setPatchPolicy(prev => ({ ...prev, ...p })),
+    setStateMachine,
+    enterAuthorScene: (sid) => enterAuthor(sid),
+    recordHistory,
+    saveProject: () => { void handleSaveProject(); },
+    menuAction: (a) => dispatchMenuRef.current(a),
+  };
 
   // Broadcast/headless (show) modes: no editor chrome — render only the offscreen Stage engine.
   // All the output effects above still run, so Art-Net flows; broadcast additionally opens the saved
@@ -2657,12 +2788,18 @@ const App: React.FC = () => {
           actions={
             <TopBar
                 onOpenPreferences={() => setPrefsOpen(true)}
-                onOpenRouting={() => setRoutingOpen(true)}
-                onOpenOutputs={() => { refreshDisplays(); setOutputsOpen(true); }}
-                monitorOpen={dockOpen && dockTab === DockTab.MONITOR}
+                onOpenRouting={() => openDockPanel(ROUTING_PANEL)}
+                onOpenOutputs={() => { refreshDisplays(); goToContext('project'); }}
+                monitorOpen={dockOpen && activeDockPanel === MONITOR_PANEL}
+                // The dock tab is now a PANEL ID scoped to the active context (a plugin's dock panel
+                // can't be named by the core DockTab enum). Toggling from the TopBar therefore writes
+                // into that context's own slice — the same place the shell's tab strip writes.
                 onToggleMonitor={() => {
-                  if (dockOpen && dockTab === DockTab.MONITOR) setDockOpen(false);
-                  else { setDockTab(DockTab.MONITOR); setDockOpen(true); }
+                  if (dockOpen && activeDockPanel === MONITOR_PANEL) { setDockOpen(false); return; }
+                  layoutStore.set({
+                    dockOpen: true,
+                    contexts: { ...L.contexts, [L.activeContext]: { ...L.contexts[L.activeContext], dockPanel: MONITOR_PANEL } },
+                  });
                 }}
                 helpOpen={showHelp}
                 onToggleHelp={() => setShowHelp((v) => !v)}
@@ -2670,66 +2807,52 @@ const App: React.FC = () => {
           }
       />
 
-      <div className="flex flex-1 min-h-0">
-        {/* Left: Scene ⇄ Media tabs */}
-        <div className={`h-full border-r border-line-1 bg-surface-1 transition-all duration-med ${showLeftPanel ? 'w-72' : 'w-0 overflow-hidden border-none'}`}>
-            <div className="w-72 h-full flex flex-col overflow-hidden">
-              <div className="flex shrink-0 border-b border-line-1 bg-surface-2">
-                {(['scene', 'media'] as const).map(t => (
-                  <button key={t} onClick={() => setLeftTab(t)}
-                    className={`flex-1 h-7 text-mini font-medium capitalize ${leftTab === t ? 'text-fg-1 border-b-2 border-accent' : 'text-fg-3 hover:text-fg-1'}`}>{t}</button>
-                ))}
-              </div>
-              <div className="flex-1 min-h-0">
-                {leftTab === 'media' ? (
-                  <MediaPanel
-                    assets={assets} timeline={timeline} refs={projectRefs}
-                    selectedSurfaceId={selectedSurfaceId} hasProjectFolder={!!currentProjectPath}
-                    onImport={handleImportAssets} onRemoveAsset={handleRemoveAsset}
-                    onRelinkAsset={handleRelinkAsset} onUseOnSurface={handleUseAssetOnSurface}
-                    onOpenManager={() => setAssetManagerOpen(true)}
+      <EditorStore data={editorData} actions={editorActions}>
+      <WorkspaceShell
+        selection={editorSelection}
+        drawers={
+          <>
+            {/* Docs & Tutorials + bilingual Help — GLOBAL drawers, owned by no context (like the
+                Preferences/About modals below). They stay pinned to the far right on every context. */}
+            <div
+              className={`h-full border-l border-line-1 bg-surface-1 ${docsOpen ? '' : 'w-0 overflow-hidden border-none'}`}
+              style={{ width: docsOpen ? docsWidth : 0 }}
+            >
+              {docsOpen && (
+                <div className="h-full" style={{ width: docsWidth }}>
+                  <DocsBrowser
+                    onClose={() => setDocsOpen(false)}
+                    width={docsWidth}
+                    onResize={setDocsWidth}
+                    onOpenExample={(p) => { handleOpenRecent(p); setDocsOpen(false); }}
                   />
-                ) : (
-                <ScenePanel
-                    surfaces={surfaces}
-                    selectedSurfaceId={selectedSurfaceId}
-                    onSelectSurface={handleSelectSurface}
-                    onAddSurface={handleAddSurface}
-                    onRemoveSurface={handleRemoveSurface}
-                    onRenameSurface={handleRenameSurface}
-                    onMoveSurface={handleMoveSurface}
-                    fixtures={fixtures}
-                    selectedFixtureId={selectedFixtureId}
-                    selectedFixtureIds={selectedFixtureIds}
-                    onSelect={handleSelectFixture}
-                    onSelectFixtures={handleSelectFixtures}
-                    onSelectAll={handleSelectAllFixtures}
-                    onAdd={handleAddFixture}
-                    onRemove={handleRemoveFixture}
-                    onRename={handleRenameFixture}
-                    masterBrightness={globalBrightness}
-                    onMasterBrightnessChange={handleMasterBrightness}
-                    projectorBrightness={projectorBrightness}
-                    onProjectorBrightnessChange={setProjectorBrightness}
-                    onProjectorBrightnessInput={(v) => pushProjectorBrightnessRef.current(v)}
-                    groups={groups}
-                    onCreateGroup={handleCreateGroup}
-                    onAddSelectedToGroup={handleAddSelectedToGroup}
-                    onRemoveGroup={handleRemoveGroup}
-                    onSelectGroup={handleSelectGroup}
-                    onApplyLookToGroup={handleApplyLookToGroup}
-                    onAutoPatch={handleAutoPatch}
-                />
-                )}
-              </div>
+                </div>
+              )}
             </div>
-        </div>
-
-        {/* Center: persistent stage host + bottom dock */}
-        <div className="flex-1 min-w-0 flex flex-col bg-surface-0">
-            <div ref={splitHostRef} className="flex-1 min-h-0 relative flex">
-                {/* Left: 2D mapping stage */}
-                <div className="min-h-0 relative" style={{ width: splitView ? `${splitRatio * 100}%` : '100%' }}>
+            <div
+              className={`h-full border-l border-line-1 bg-surface-1 ${showHelp ? '' : 'w-0 overflow-hidden border-none'}`}
+              style={{ width: showHelp ? helpWidth : 0 }}
+            >
+              {showHelp && (
+                <div className="h-full" style={{ width: helpWidth }}>
+                  <HelpPanel
+                    lang={settings.helpLang}
+                    onLang={(l) => updateSettings({ helpLang: l })}
+                    onClose={() => setShowHelp(false)}
+                    width={helpWidth}
+                    onResize={setHelpWidth}
+                  />
+                </div>
+              )}
+            </div>
+          </>
+        }
+        viewports={{
+          // The 2D mapping stage — ALWAYS MOUNTED. This element owns the per-frame GPU sampling that
+          // publishes `dmx:frame`, so the shell only ever HIDES it; unmounting it on a context switch
+          // would stop Art-Net mid-show.
+          [VIEWPORT_STAGE_2D]: (
+                <div className="w-full h-full relative">
                     <Stage
                         surfaces={surfaces}
                         onUpdateSurfaces={setSurfaces}
@@ -2779,12 +2902,13 @@ const App: React.FC = () => {
                         context, so its children would otherwise paint over a lower-z sibling). */}
                     {calibratingOutputId && <div ref={setCalibCameraHost} className="absolute inset-0 z-calib-camera bg-black" />}
                 </div>
-                {/* Right: embedded 3D scene (or camera preview during calibration) */}
-                {splitView && (
-                    <>
-                        <div onPointerDown={startSplitDrag} className="w-1 shrink-0 bg-line-1 hover:bg-accent cursor-col-resize" />
-                        <div className="flex-1 min-w-0 min-h-0 flex">
-                            {/* 3D canvas flexes; the Scene outliner docks as a reserved column beside it. */}
+          ),
+          // The embedded 3D scene. Withheld until first shown (see scene3dMounted), then kept in the
+          // right pane so a later 2D⟷3D switch doesn't rebuild the WebGL context or reload the GLBs.
+          [VIEWPORT_SCENE_3D]: !scene3dMounted ? null : (
+                        <div className="w-full h-full flex">
+                            {/* The canvas now fills the pane: the scene outliner that used to dock as a
+                                reserved column here is the `3d` context's browser + parameter panels. */}
                             <div className="flex-1 min-w-0 min-h-0 relative">
                             <Simulator3D
                                 fixtures={fixtures}
@@ -2807,62 +2931,60 @@ const App: React.FC = () => {
                                     : (projectorOutputs.find(o => o.surfaceId === calibratingOutputId)?.calibration?.posePicks ?? []).map(p => ({ world: p.world }))}
                                 selectedPick={calibFlow === 'auto' ? autoAlignSelectedPick : null}
                                 onSelectPick={calibFlow === 'auto' ? ((i: number) => calibWorkspace.selectPick(i)) : undefined}
-                                hideInspector
+                                paused={!scene3dVisible}
                             />
                             </div>
-                            {/* Full scene outliner (OBJECTS / FIXTURES / transform / LIGHTING + Save).
-                                Docked as a reserved column on the pane's right edge; hidden during a projector
-                                calibration session so it doesn't block the pick markers.
-                                It gets the BOUND timeline, not the global one: its only use of the prop is the
-                                selected model's layer picker, and the texture a model shows is composited from
-                                the timeline the engine is PLAYING — the scene's own while authoring one. The
-                                global doc listed layers that weren't on air. */}
-                            {!calibratingOutputId && (
-                                <ScenePanel3D
-                                    scene3D={scene3D}
-                                    fixtures={fixtures}
-                                    selectedModelId={selectedModelId}
-                                    selectedFixtureId={selectedFixtureId}
-                                    timeline={activeTimeline}
-                                    naturalSizes={modelNaturalSizes}
-                                    saved={sceneSaved}
-                                    onSelectModel={handleSelectModel}
-                                    onSelectFixture={(id) => handleSelectFixture(id || null)}
-                                    onAddModel={handleAddModel}
-                                    onAddPlane={handleAddPlane}
-                                    onRemoveModel={handleRemoveModel}
-                                    onUpdateModel={handleUpdateModel}
-                                    onSceneConfig={handleSceneConfig}
-                                    onSave={handleSceneSave}
-                                />
-                            )}
                         </div>
-                    </>
-                )}
-            </div>
-
-            <Dock
-                open={dockOpen}
-                onToggle={() => setDockOpen(!dockOpen)}
-                tabs={dockTabs}
-                activeTab={dockTab}
-                onTab={(id) => setDockTab(id as DockTab)}
-                height={dockHeight}
-                onResize={setDockHeight}
-            >
-                {dockTab === DockTab.MONITOR ? (
-                    <DMXMonitor fixtures={fixtures} />
-                ) : dockTab === DockTab.PERF ? (
-                    <PerfPanel />
-                ) : dockTab === DockTab.TIMELINE ? (
-                    // Render the timeline in exactly one place (dock XOR fullscreen overlay) so its
-                    // keyboard hook + engine subscription aren't doubled.
+          ),
+          // The one and only TimelinePanel. Two instances double its keyboard hook and its engine
+          // subscription, so the fullscreen `timelineMax` overlay below renders a placeholder rather
+          // than a second copy — exactly the rule the old dock-XOR-overlay branch enforced.
+          [VIEWPORT_TIMELINE]: (
                     timelineMax ? (
                         <div className="h-full flex items-center justify-center text-fg-3 text-mini italic">Timeline maximized — press F or the restore button to dock it</div>
                     ) : (
                         <TimelinePanel timeline={activeTimeline} onChange={handleTimelineChange} author={timelineAuthor} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} onToggleMax={() => setTimelineMax(true)} projectPath={currentProjectPath} onRegisterAsset={handleRegisterAsset} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} audio={timelineBedProp} baseAutomation={baseAutomationProp} />
                     )
-                ) : dockTab === DockTab.SCENES ? (
+          ),
+          // Projector outputs. Was a modal; it is the `project` context's viewport now — you bind
+          // displays, warp, blend and gamma-match here for long stretches, which is a workbench,
+          // not a dialog. Persistent so its expanded per-output drawer survives a context switch.
+          [VIEWPORT_OUTPUTS]: (
+                    <OutputsPanel
+          surfaces={surfaces}
+          outputs={projectorOutputs}
+          displays={displays}
+          editingOutputIds={editingOutputIds}
+          fpsCap={projectorFpsCap}
+          spans={outputSpans}
+          onApplySpan={applySpan}
+          onUpdateSpan={updateSpan}
+          onRemoveSpan={removeSpan}
+          onSetSliceRect={setSliceRect}
+          onToggleEditMany={handleToggleEditMany}
+          onSetEnabled={handleSetOutputEnabled}
+          onSetDisplay={handleSetOutputDisplay}
+          onToggleEdit={handleToggleEditOutput}
+          onResetCorners={handleResetCorners}
+          onToggleWarp={handleToggleWarp}
+          onSetSoftEdge={handleSetSoftEdge}
+          onSetGamma={handleSetOutputGamma}
+          onSetColorMatch={(sid, patch) => upsertOutput(sid, patch)}
+          onMeasureGamma={handleMeasureGamma}
+          measuringGammaId={measuringGammaId}
+          gammaMsg={gammaMsg}
+          onToggleNdiSend={handleToggleNdiSend}
+          onSetFpsCap={setProjectorFpsCap}
+          onRefreshDisplays={refreshDisplays}
+          onCalibrate={(surfaceId) => setCalibratingOutputId(surfaceId)}
+          onSetUseCalibration={(surfaceId, on) => upsertOutput(surfaceId, { useCalibration: on })}
+          nvAvailable={nvAvailable}
+          onSetHwWarp={(surfaceId, on) => upsertOutput(surfaceId, { hwWarp: on })}
+                    />
+          ),
+          // Scenes + cue banks. Persistent so its Live/Edit mode and its own selection survive a
+          // trip through another context.
+          [VIEWPORT_SCENES]: (
                     <CueBankPanel
                         banks={cueBanks}
                         onChangeBanks={setCueBanks}
@@ -2884,74 +3006,15 @@ const App: React.FC = () => {
                         onPreloadScene={(s) => timelinePreloader.warm(s.id, s.timeline)}
                         activeSceneId={activeSceneId}
                     />
-                ) : (
-                    <FixtureEditor
-                        fixture={selectedFixture}
-                        onUpdateFixture={handleUpdateFixture}
-                        onAdd={handleAddFixture}
-                        onAutoPatch={handleAutoPatch}
-                        templates={templates}
-                        onSaveTemplate={handleSaveTemplate}
-                        onAddFromTemplate={handleAddFromTemplate}
-                        onRemoveTemplate={handleRemoveTemplate}
-                    />
-                )}
-            </Dock>
-        </div>
-
-        {/* Right: inspector / properties */}
-        <div className={`h-full border-l border-line-1 bg-surface-1 transition-all duration-med ${showRightPanel ? 'w-80' : 'w-0 overflow-hidden border-none'}`}>
-            <div className="w-80 h-full overflow-y-auto">
-                <InspectorPanel
-                    surfaces={surfaces}
-                    selectedSurface={selectedSurface}
-                    onUpdateSurface={handleUpdateSurface}
-                    selectedFixture={selectedFixture}
-                    onUpdateFixture={handleUpdateFixture}
-                    settings={settings}
-                    layers={timeline.layers}
-                />
-            </div>
-        </div>
-
-        {/* Docs & Tutorials browser (dockable; detach + images are follow-ups) */}
-        <div
-          className={`h-full border-l border-line-1 bg-surface-1 ${docsOpen ? '' : 'w-0 overflow-hidden border-none'}`}
-          style={{ width: docsOpen ? docsWidth : 0 }}
-        >
-          {docsOpen && (
-            <div className="h-full" style={{ width: docsWidth }}>
-              <DocsBrowser
-                onClose={() => setDocsOpen(false)}
-                width={docsWidth}
-                onResize={setDocsWidth}
-                onOpenExample={(p) => { handleOpenRecent(p); setDocsOpen(false); }}
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Far right: dockable bilingual Help panel */}
-        <div
-          className={`h-full border-l border-line-1 bg-surface-1 ${showHelp ? '' : 'w-0 overflow-hidden border-none'}`}
-          style={{ width: showHelp ? helpWidth : 0 }}
-        >
-          {showHelp && (
-            <div className="h-full" style={{ width: helpWidth }}>
-              <HelpPanel
-                lang={settings.helpLang}
-                onLang={(l) => updateSettings({ helpLang: l })}
-                onClose={() => setShowHelp(false)}
-                width={helpWidth}
-                onResize={setHelpWidth}
-              />
-            </div>
-          )}
-        </div>
-      </div>
+          ),
+        }}
+      />
+      </EditorStore>
 
       <StatusBar
-          help="Map content onto surfaces, then patch fixtures. Open the 3D Scene for venue layout."
+          // Idle help is the ACTIVE CONTEXT's own hint (a hovered control still wins via helpBus).
+          help={contextRegistry.get(L.activeContext)?.hint?.[settings.helpLang]
+            ?? 'Map content onto surfaces, then patch fixtures. Open the 3D Scene for venue layout.'}
           lang={settings.helpLang}
           renderFps={fps}
           connected={isBridgeConnected}
@@ -2987,39 +3050,6 @@ const App: React.FC = () => {
             onDismiss={() => { setUpdate(null); setUpdateUserInitiated(false); }}
         />
       )}
-      <OutputsPanel
-          open={outputsOpen}
-          onClose={() => setOutputsOpen(false)}
-          surfaces={surfaces}
-          outputs={projectorOutputs}
-          displays={displays}
-          editingOutputIds={editingOutputIds}
-          fpsCap={projectorFpsCap}
-          spans={outputSpans}
-          onApplySpan={applySpan}
-          onUpdateSpan={updateSpan}
-          onRemoveSpan={removeSpan}
-          onSetSliceRect={setSliceRect}
-          onToggleEditMany={handleToggleEditMany}
-          onSetEnabled={handleSetOutputEnabled}
-          onSetDisplay={handleSetOutputDisplay}
-          onToggleEdit={handleToggleEditOutput}
-          onResetCorners={handleResetCorners}
-          onToggleWarp={handleToggleWarp}
-          onSetSoftEdge={handleSetSoftEdge}
-          onSetGamma={handleSetOutputGamma}
-          onSetColorMatch={(sid, patch) => upsertOutput(sid, patch)}
-          onMeasureGamma={handleMeasureGamma}
-          measuringGammaId={measuringGammaId}
-          gammaMsg={gammaMsg}
-          onToggleNdiSend={handleToggleNdiSend}
-          onSetFpsCap={setProjectorFpsCap}
-          onRefreshDisplays={refreshDisplays}
-          onCalibrate={(surfaceId) => setCalibratingOutputId(surfaceId)}
-          onSetUseCalibration={(surfaceId, on) => upsertOutput(surfaceId, { useCalibration: on })}
-          nvAvailable={nvAvailable}
-          onSetHwWarp={(surfaceId, on) => upsertOutput(surfaceId, { hwWarp: on })}
-      />
       {calibratingOutputId && (() => {
         const co = projectorOutputs.find(o => o.surfaceId === calibratingOutputId);
         const calibLive = !!co?.enabled && co.displayId != null && (co.displayId === WINDOWED_DISPLAY || displays.some(d => d.id === co.displayId));
@@ -3057,22 +3087,6 @@ const App: React.FC = () => {
           />
         );
       })()}
-      <RoutingModal
-          open={routingOpen}
-          onClose={() => setRoutingOpen(false)}
-          fixtures={fixtures}
-          surfaces={surfaces}
-          controllers={controllers}
-          settings={settings}
-          patchPolicy={patchPolicy}
-          onUpdateFixture={handleUpdateFixture}
-          onAddController={handleAddController}
-          onUpdateController={handleUpdateController}
-          onRemoveController={handleRemoveController}
-          onAutoPatch={handleAutoPatch}
-          onUpdateSettings={updateSettings}
-          onUpdatePatchPolicy={(p) => setPatchPolicy(prev => ({ ...prev, ...p }))}
-      />
 
       {timelineMax && (
         <div className="fixed inset-0 z-50 bg-surface-0 flex flex-col">
@@ -3080,14 +3094,6 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <AssetManager
-        open={assetManagerOpen} onClose={() => setAssetManagerOpen(false)} refs={projectRefs}
-        assets={assets} timeline={timeline}
-        selectedSurfaceId={selectedSurfaceId} hasProjectFolder={!!currentProjectPath}
-        onImport={handleImportAssets} onRemoveAsset={handleRemoveAsset} onRelinkAsset={handleRelinkAsset}
-        onUseOnSurface={handleUseAssetOnSurface} onSelectSurface={handleSelectSurface}
-        onConsolidate={handleCollectAssets}
-      />
     </div>
   );
 };

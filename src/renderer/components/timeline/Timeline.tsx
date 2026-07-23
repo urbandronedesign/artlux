@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { X, ChevronDown, Film, Plus, Save, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Timeline as TL, VideoClip, VideoLayer, SurfaceContent, SourceType, StateMachine, defaultStateMachine, isContentClip, timelineEnd, timelineStart, timelineDuration, hasTimelineRegion, timelineAudioClips, timelineAudioTracks, type AudioClip, type AudioMix, type AudioTrack, type AssetEntry, type VideoClipAudio } from '../../types';
 import { timeline as engine } from '../../services/timeline';
+import { goToContext } from '../../contexts/nav';
 import * as selection from '../../services/selection';
 import { ContentEditor } from '../ContentEditor';
 import { GUTTER, RULER_H, LANE_H, MIN_LANE_H, MAX_LANE_H, PAGE_SECS, laneHeight, clamp, fmtClock, fmtTimecode } from './geometry';
@@ -26,7 +27,6 @@ import type { AutomationTargetDef } from '@artlux/sdk/renderer';
 import { TakesBin } from './TakesBin';
 import { trackingRecorder, trackingTake } from '@artlux/plugin-lidar-tracking';
 import { ensureBlobUrl, mimeForPath } from '../../services/mediaCache';
-import { StateGraphEditor } from './StateGraphEditor';
 import { DragMode } from './ClipBlock';
 import { ClipAudioInspector } from './ClipAudioInspector';
 import { useTimelineKeys } from './hooks/useTimelineKeys';
@@ -105,7 +105,6 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   const [orderDraft, setOrderDraft] = useState<string[] | null>(null);
   const [regionDrag, setRegionDrag] = useState<{ edge: 'in' | 'out'; t: number } | null>(null); // loop-region handle drag (draft; commits once on pointerup)
   const [pages, setPages] = useState(0); // infinite-timeline growth: content spans (pages+1) PAGE_SECS at least
-  const [smEditorOpen, setSmEditorOpen] = useState(false);
 
   // ⚠ THE BOUND-DOCUMENT KEY. A GESTURE MUST LAND ON THE DOCUMENT IT STARTED ON, OR ON NOTHING.
   //
@@ -1290,7 +1289,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
         hasRegion={hasTimelineRegion(timeline)}
         onZoom={onZoom} onZoomFit={onZoomFit} onAddTrack={addLayer}
         loop={!!timeline.loop} onToggleLoop={toggleLoop}
-        smEnabled={sm.enabled} onToggleSm={toggleSm} onEditLogic={() => setSmEditorOpen(true)}
+        smEnabled={sm.enabled} onToggleSm={toggleSm} onEditLogic={() => goToContext('machine')}
         maximized={maximized} onToggleMax={() => onToggleMax?.()}
       />
 
@@ -1322,7 +1321,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
 
           {/* always-present state-machine control lane */}
           <StateLane sm={sm} pxPerSec={pxPerSec} width={Math.max(width, 100)}
-            onTrigger={(id) => engine.triggerSmTransition(id)} onEdit={() => setSmEditorOpen(true)} onToggle={toggleSm} />
+            onTrigger={(id) => engine.triggerSmTransition(id)} onEdit={() => goToContext('machine')} onToggle={toggleSm} />
 
           {layers.length === 0 && (
             <div className="flex">
@@ -1456,14 +1455,6 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
           </div>
         )}
       </div>
-
-      {smEditorOpen && (
-        <StateGraphEditor sm={sm} markers={timeline.markers ?? []} layers={layers}
-          scenes={author ? author.scenes.map(s => ({ id: s.id, name: s.name, clipCount: s.clipCount })) : scenes}
-          cues={cues}
-          onChange={setStateMachine} onClose={() => setSmEditorOpen(false)}
-          onEditTimeline={author ? author.onSelect : undefined} />
-      )}
 
       {/* Right-click an empty lane → source-type picker → places a default-length content clip. */}
       {contentMenu && (

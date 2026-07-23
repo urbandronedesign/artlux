@@ -42,7 +42,8 @@ talks to its own main-process half). All are handed to the plugin in its `activa
 | `projectorPanels` | `ProjectorPanelContribution` | A full-window React overlay mounted **in projector output windows** (pattern/crosshair/render), with a bidirectional bridge. | calibration |
 | `automationTargets` | `AutomationTargetProvider` | **Publishes automatable parameters into the core curve engine** — `enumerate()` the targets a plugin owns, `write()`/`writeFade()` the two override layers, `release()`/`releaseFade()` to hand a path back, `get()` (authored) / `getLive()` (what is actually sounding). This is how an audio lane on the timeline is *the same object* as any other lane. ⚠ Undocumented here until 2026-07-14 — the table listed 8 of the 9 registries. | audio |
 | `settings` | `SettingsSection` | A Preferences section (`{settings, onChange}` Component). The persisted field stays core; only the editor moves. | mp4 (Video) |
-| `panels` | `PanelContribution` | A host-mounted UI panel. **Only `mount:'modal'`** today — a dialog toggled by a `menuAction`; host mounts it while open and passes `onClose`. | lidar (OSC Monitor) |
+| `panels` | `PanelContribution` | A host-mounted UI panel. `mount:'modal'` is a global dialog toggled by a `menuAction` (host mounts it while open, passes `onClose`); `'browser'`/`'inspector'`/`'dock'`/`'viewport'` are the workspace-shell mounts — a `WorkspaceContext` names the panel by id and the shell renders it into that column. `'inspector'` panels declare `appliesTo` (selection kinds) and are filtered by the live selection. | lidar (OSC Monitor), core (every shell panel) |
+| `contexts` | `WorkspaceContext` | **A whole workbench** — title/icon/rail cluster plus the panel ids filling its browser, viewport, dock and parameter columns, its `ContextAction[]` (the functions on its action bar), and its default `layout` (+ `layoutRev`, bumped so a revised layout reaches installs that already banked their own). Owns no components, so `contextRegistry.extend(id, …)` adds to a context someone else declared. | core (11 contexts), tracking plugins + show-control (extend) |
 
 Registries are plain Map/array singletons in `src/renderer/host/registries.ts` (+ main transports). The
 host reads them from the compositor, timeline, projector bridge, Preferences, and the panel/menu host.
@@ -151,9 +152,16 @@ none of this exists yet; each is a deliberate future step:
 
 ## Recorded design decisions
 
-- **Panel mounts trimmed to `'modal'`.** `dock` / `timeline-bin` had no consumer; an unstable SDK
-  shouldn't ship speculative surface. Add a mount kind **together with** its host mount point when a real
-  consumer appears (TakesBin was considered but is too timeline-engine-coupled to invert cleanly).
+- ~~**Panel mounts trimmed to `'modal'`.**~~ **Superseded.** The rule was to add a mount kind *together
+  with* its host mount point, once a real consumer appeared. The **workspace-context shell** is that
+  consumer: `PanelMount` is now `'modal' | 'browser' | 'inspector' | 'dock' | 'viewport'`, and each new
+  kind ships with its mount point in `components/shell/WorkspaceShell.tsx`. `PanelContribution` gained
+  `icon`/`appliesTo`/`defaultOpen`/`grow`/`bare`/`HeaderActions` for those mounts; `mount:'modal'`
+  behaviour is unchanged. `WorkspaceContext` + `ContextRegistry` landed alongside them.
+- **Contexts are manifests of panel IDs, not components.** A context can therefore be extended by a
+  plugin that does not own it (`contextRegistry.extend`), and the shell imports zero panels. Extends
+  arriving before their target registers are queued, so activation order is not something a plugin has
+  to know.
 - **`SurfaceContent.type` opened to `(string & {})`** and **`AppSettings.plugins`** namespace added — both
   make the SDK third-party-ready without touching the closed core enum or persisted top-level fields
   (invariants 3–4). Backward compatible: every existing value/field is unchanged.

@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Film, Image as ImageIcon, Box, Music, FolderOpen, Link2, Trash2, Maximize2, MonitorPlay, Search } from 'lucide-react';
-import { AssetEntry, AssetType, Timeline } from '../types';
+import { Film, Image as ImageIcon, Box, Music, FolderOpen, Link2, Trash2, MonitorPlay, Search } from 'lucide-react';
+import { AssetEntry, AssetType, Timeline, timelineAudioClips } from '../types';
 import { AssetChip } from './AssetChip';
-import { libraryItems, usageIndex, normPath, type ProjectRefs } from '../services/assetLibrary';
+import { libraryItems, usageIndex, normPath, typeLabel, type ProjectRefs } from '../services/assetLibrary';
 
 interface Props {
   assets: AssetEntry[];
@@ -17,14 +17,23 @@ interface Props {
   onRemoveAsset: (asset: AssetEntry) => void;
   onRelinkAsset: (asset: AssetEntry) => void;
   onUseOnSurface: (asset: AssetEntry) => void;
-  onOpenManager: () => void;
+  /** Jump to a surface from the usage list. */
+  onSelectSurface: (id: string) => void;
 }
 
 type Filter = 'all' | AssetType;
 
+const fmtBytes = (n?: number) => n == null ? '' : n > 1e6 ? `${(n / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1e3))} KB`;
+
 // Left-sidebar media library. Lists imported assets + recorded takes; drag a tile onto the Stage
 // or the Timeline to place it. Import copies files into the project's assets/ folder.
-export const MediaPanel: React.FC<Props> = ({ assets, timeline, refs, selectedSurfaceId, hasProjectFolder, onImport, onRemoveAsset, onRelinkAsset, onUseOnSurface, onOpenManager }) => {
+//
+// Selecting a tile opens the INSPECTOR at the bottom: metadata plus the resolved Usage list. That was
+// a separate full-width "Asset Manager" panel until 2026-07-23; carrying both meant the same grid on
+// screen twice, so the manager was deleted and the one part it uniquely had — this inspector — moved
+// here. The usage rows resolve names across EVERY timeline / surface list / scene3D the index was
+// built from, because an id can come from a captured scene rather than the live doc.
+export const MediaPanel: React.FC<Props> = ({ assets, timeline, refs, selectedSurfaceId, hasProjectFolder, onImport, onRemoveAsset, onRelinkAsset, onUseOnSurface, onSelectSurface }) => {
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -56,6 +65,29 @@ export const MediaPanel: React.FC<Props> = ({ assets, timeline, refs, selectedSu
   // timeline into each scene made the per-asset scan cost scale with (1 + #scenes).
   const usage = useMemo(() => usageIndex(refs), [refs]);
   const usageOf = (a: AssetEntry) => usage.get(normPath(a.path))?.count ?? 0;
+  const selUsage = selected ? usage.get(normPath(selected.path)) ?? null : null;
+
+  // Usage spans every timeline, every surface list and every scene3D, so an id can come from a
+  // CAPTURED SCENE rather than the live doc — resolve names across the same lists the index was built
+  // from, or a scene-only reference renders as a raw uuid in the very audit that justifies an
+  // irreversible Delete/Relink click.
+  const surfName = (id: string) => refs.surfaces.find(s => s.id === id)?.name ?? id;
+  const clipName = (id: string) => {
+    for (const tl of refs.timelines) { const c = tl.clips.find(cl => cl.id === id); if (c) return c.name; }
+    return id;
+  };
+  const modelName = (id: string) => {
+    for (const sc of refs.scene3D) { const m = sc?.models?.find(mm => mm.id === id); if (m) return m.name; }
+    return id;
+  };
+  // An audio usage row can be a BED clip (refs.audioClips) OR a clip on any timeline's own audio —
+  // both land in the same `audioClipIds` bucket, so resolve across both lists.
+  const audioClipName = (id: string) => {
+    const bed = refs.audioClips.find(c => c.id === id);
+    if (bed) return bed.name;
+    for (const tl of refs.timelines) { const c = timelineAudioClips(tl).find(cl => cl.id === id); if (c) return c.name; }
+    return id;
+  };
 
   const chip = (label: string, value: Filter, icon?: React.ReactNode) => (
     <button onClick={() => setFilter(value)}
@@ -69,7 +101,6 @@ export const MediaPanel: React.FC<Props> = ({ assets, timeline, refs, selectedSu
       {/* header */}
       <div className="h-8 px-2 flex items-center justify-between border-b border-line-1 bg-surface-2 shrink-0">
         <span className="text-mini font-semibold text-fg-1">Media Library</span>
-        <button onClick={onOpenManager} title="Open full Asset Manager" className="text-fg-3 hover:text-fg-1"><Maximize2 size={13} /></button>
       </div>
 
       {/* import + project-folder hint */}
@@ -115,10 +146,20 @@ export const MediaPanel: React.FC<Props> = ({ assets, timeline, refs, selectedSu
         )}
       </div>
 
-      {/* selected asset actions */}
+      {/* Selected-asset INSPECTOR — metadata, actions, and where the asset is actually used.
+          This is what the separate Asset Manager panel used to show; it lives here now so there is one
+          media surface instead of two showing the same grid. Capped height + its own scroll so a
+          heavily-used asset can never squeeze the library above it out of view. */}
       {selected && (
-        <div className="border-t border-line-1 p-2 space-y-1.5 bg-surface-1 shrink-0">
-          <div className="text-micro text-fg-2 truncate">{selected.name}</div>
+        <div className="border-t border-line-1 p-2 space-y-1.5 bg-surface-1 shrink-0 max-h-[46%] overflow-y-auto">
+          <div className="text-mini text-fg-1 break-words">{selected.name}</div>
+          <div className="text-micro text-fg-3 space-y-0.5">
+            <div>{typeLabel[selected.type]}{selected.size ? ` · ${fmtBytes(selected.size)}` : ''}</div>
+            {selected.durationSec != null && <div>{selected.durationSec.toFixed(1)}s{selected.fps ? ` · ${selected.fps}fps` : ''}</div>}
+            {(selected.width && selected.height) ? <div className="num">{selected.width}×{selected.height}</div> : null}
+            <div className="break-all text-fg-3/80" title={selected.path}>{selected.path}</div>
+            {missing.has(normPath(selected.path)) && <div className="text-warn">Missing on disk — relink to fix.</div>}
+          </div>
           <div className="flex items-center gap-1">
             {(selected.type === 'video' || selected.type === 'image') && (
               <button onClick={() => onUseOnSurface(selected)} disabled={!selectedSurfaceId} title={selectedSurfaceId ? 'Set as the selected surface’s content' : 'Select a surface first'}
@@ -130,6 +171,26 @@ export const MediaPanel: React.FC<Props> = ({ assets, timeline, refs, selectedSu
               className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 text-micro"><Link2 size={11} /></button>
             <button onClick={() => onRemoveAsset(selected)} title="Remove from library"
               className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-danger/20 hover:text-danger text-micro ml-auto"><Trash2 size={11} /></button>
+          </div>
+
+          <div>
+            <div className="text-micro font-semibold text-fg-2 mb-1">Usage {selUsage ? `(${selUsage.count})` : ''}</div>
+            {selUsage && selUsage.count === 0 && <div className="text-micro text-fg-3 italic">Not used anywhere.</div>}
+            <div className="space-y-0.5">
+              {selUsage?.surfaceIds.map(id => (
+                <button key={`s${id}`} onClick={() => onSelectSurface(id)} title="Select this surface"
+                  className="block w-full text-left text-micro px-1.5 py-1 rounded bg-surface-2 hover:bg-surface-3 text-fg-1 truncate">Surface · {surfName(id)}</button>
+              ))}
+              {selUsage?.clipIds.map(id => (
+                <div key={`c${id}`} className="text-micro px-1.5 py-1 rounded bg-surface-2 text-fg-2 truncate">Clip · {clipName(id)}</div>
+              ))}
+              {selUsage?.modelIds.map(id => (
+                <div key={`m${id}`} className="text-micro px-1.5 py-1 rounded bg-surface-2 text-fg-2 truncate">Scene model · {modelName(id)}</div>
+              ))}
+              {selUsage?.audioClipIds.map(id => (
+                <div key={`a${id}`} className="text-micro px-1.5 py-1 rounded bg-surface-2 text-fg-2 truncate">Audio clip · {audioClipName(id)}</div>
+              ))}
+            </div>
           </div>
         </div>
       )}

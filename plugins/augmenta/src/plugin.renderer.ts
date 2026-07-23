@@ -34,9 +34,10 @@ export const plugin: RendererPlugin = {
     // Stash host services so the Monitor panel + settings section can read live OSC settings.
     setHost(ctx.host);
 
-    // Augmenta Monitor: a diagnostic modal that sniffs the raw OSC stream (/au/ addresses). Registered
-    // as a 'modal' panel toggled by the 'augmenta-monitor' menu action; App mounts it from the registry.
-    ctx.panels.register({ id: 'augmenta-monitor', mount: 'modal', menuAction: 'augmenta-monitor', title: 'Augmenta Monitor', Component: AugmentaMonitor });
+    // Augmenta Monitor: a diagnostic panel that sniffs the raw OSC stream (/au/ addresses). A DOCK tab
+    // appended to the host's `tracking` context, beside the other tracking sources' monitors.
+    ctx.panels.register({ id: 'augmenta-monitor', mount: 'dock', menuAction: 'augmenta-monitor', title: 'Augmenta Monitor', Component: AugmentaMonitor });
+    ctx.contexts.extend('tracking', { dock: ['augmenta-monitor'] });
 
     // Preferences section: OSC status + setup guidance (Augmenta has no plugin-local device settings —
     // it reuses the core OSC / Tracking receive settings).

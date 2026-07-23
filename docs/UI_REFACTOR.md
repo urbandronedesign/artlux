@@ -67,7 +67,13 @@ with token classes (`bg-surface-1`, `text-fg-2`) and swap bespoke rows for kit p
 **Refactor U1–U5 complete.** Open polish backlog: tertiary-text contrast retune, modal focus-trap,
 vendoring the ui-ux-pro-max skill.
 
-## Workspace layout v2 (supersedes the "Left panel / Right panel removed / Dock placeholder" notes above)
+## Workspace layout v2 — SUPERSEDED by workspace contexts (see [WORKSPACE.md](WORKSPACE.md))
+> The fixed three-region shell described below was replaced by the **context-driven shell**
+> (`components/shell/WorkspaceShell.tsx`): the regions survive, but their CONTENTS are now declared by
+> the active `WorkspaceContext` rather than hardcoded in `App.tsx`. `ScenePanel` and `InspectorPanel`
+> no longer exist — they were decomposed into registered panels under `src/renderer/contexts/panels/`.
+> Everything below is kept for the design rationale (tokens, motion, slider/perf rules), which still holds.
+
 Three-region shell in `App.tsx`: **left** `ScenePanel` (outliners + sliders) · **center** `Stage`
 + bottom `Dock` · **right** `InspectorPanel` (the contextual properties/"content"). Both side
 panels toggle from the `StatusBar` (`PanelLeft` / `PanelRight`); widths `w-72` (left) / `w-80` (right).

@@ -33,9 +33,11 @@ export const plugin: RendererPlugin = {
     setHost(ctx.host);
     poseEngine.setWindow(ctx.window);
 
-    // Pose Monitor: a diagnostic modal (camera preview + fps + tracked count). Toggled by the
-    // 'pose-monitor' menu action; the host owns open state and mounts it from the panel registry.
-    ctx.panels.register({ id: 'pose-monitor', mount: 'modal', menuAction: 'pose-monitor', title: 'Pose Monitor', Component: PosePanel });
+    // Pose Monitor: a diagnostic panel (camera preview + fps + tracked count), a DOCK tab on the host's
+    // `tracking` context. The floor-calibration wizard below stays a MODAL: it is a modal step-by-step
+    // flow over the camera image, not something you leave open beside your work.
+    ctx.panels.register({ id: 'pose-monitor', mount: 'dock', menuAction: 'pose-monitor', title: 'Pose Monitor', Component: PosePanel });
+    ctx.contexts.extend('tracking', { dock: ['pose-monitor'] });
 
     // Pose Floor Calibration: the 4-point wizard relating the camera feed to real floor space; writes
     // Scene3D.mediapipeFloor, which PoseViz reads to place people at real-world positions on the floor.

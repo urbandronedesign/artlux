@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { X, Pause, Play, Trash2, Radio, Search } from 'lucide-react';
 import type { OscMessage } from '../../../shared/protocol';
 import type { PanelProps } from '@artlux/sdk/renderer';
-import { useDraggable } from '@artlux/sdk/renderer';
 import { Button } from '@/components/ui'; // host UI primitive (pure presentational — no singleton)
 import { useHostSettings } from './trackingHost';
 
@@ -50,12 +49,11 @@ function fmtArgs(args: (number | string)[]): string {
     .join(', ');
 }
 
-// Registered as a 'modal' PanelContribution — the host mounts it only while open and passes `onClose`.
+// Registered as a 'dock' PanelContribution on the `tracking` workspace context — the host mounts it
+// as a dock tab beside the other tracking monitors, so it no longer needs modal chrome or a close.
 // OSC settings (for the status strip) come from the host settings service, not props.
-export const OscMonitor: React.FC<PanelProps> = ({ onClose }) => {
+export const OscMonitor: React.FC<PanelProps> = () => {
   const settings = useHostSettings();
-  const onCloseRef = useRef(onClose); onCloseRef.current = onClose; // host passes a fresh onClose each render
-  const close = () => onCloseRef.current?.();
   const accum = useRef<Accum>(freshAccum());
   const pausedRef = useRef(false);
   const loggingRef = useRef(false);
@@ -78,8 +76,6 @@ export const OscMonitor: React.FC<PanelProps> = ({ onClose }) => {
   useEffect(() => {
     accum.current = freshAccum();
     setSeenAny(false);
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCloseRef.current?.(); };
-    window.addEventListener('keydown', onKey);
 
     const ingest = (msgs: OscMessage[]) => {
       if (pausedRef.current) return;
@@ -114,7 +110,7 @@ export const OscMonitor: React.FC<PanelProps> = ({ onClose }) => {
     };
 
     const unsub = window.artlux?.onOscMessage?.(ingest) ?? null;
-    return () => { window.removeEventListener('keydown', onKey); unsub?.(); };
+    return () => { unsub?.(); };
   }, []);
 
   // Flush accumulated stats into React state on a fixed cadence.
@@ -161,29 +157,13 @@ export const OscMonitor: React.FC<PanelProps> = ({ onClose }) => {
   const where = settings.oscListenAddress ? `${settings.oscListenAddress}:${settings.oscListenPort}` : `*:${settings.oscListenPort}`;
   const totalActive = surfRows.reduce((n, s) => n + s.active, 0);
 
-  // Draggable + remembered position via the SDK hook. This is a plugin, so it can't reach host
-  // prefs — it persists to localStorage (renderer-global, survives restart) instead.
-  const { positionerStyle, handleProps } = useDraggable({
-    load: () => { try { const s = localStorage.getItem('artlux.modalPos.osc'); return s ? JSON.parse(s) as { x: number; y: number } : null; } catch { return null; } },
-    onCommit: (pos) => { try { localStorage.setItem('artlux.modalPos.osc', JSON.stringify(pos)); } catch { /* storage full/blocked — non-fatal */ } },
-  });
 
   return (
-    <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/60 animate-overlay-in" onClick={close}>
-      <div style={positionerStyle}>
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="OSC Monitor"
-        className="w-[760px] max-h-[86vh] flex flex-col bg-surface-1 border border-line-2 rounded-lg shadow-e3 animate-modal-in overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header — drag handle */}
-        <div {...handleProps} className="h-10 px-3 flex items-center justify-between border-b border-line-1 bg-surface-2 shrink-0 cursor-move select-none">
+    <div className="w-full h-full flex flex-col bg-surface-1 overflow-hidden" aria-label="OSC Monitor">
+        <div className="h-10 px-3 flex items-center justify-between border-b border-line-1 bg-surface-2 shrink-0 select-none">
           <div className="flex items-center gap-2 text-fg-1 text-sm font-semibold">
             <Radio size={15} className="text-accent" /> OSC Monitor
           </div>
-          <button onClick={close} aria-label="Close OSC monitor" title="Close" className="text-fg-2 hover:text-fg-1"><X size={16} /></button>
         </div>
 
         {/* Status strip */}
@@ -271,8 +251,6 @@ export const OscMonitor: React.FC<PanelProps> = ({ onClose }) => {
               logLines.map((l, i) => <div key={i} className="whitespace-pre truncate">{l}</div>)}
           </div>
         )}
-      </div>
-      </div>
     </div>
   );
 };

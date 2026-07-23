@@ -31,9 +31,11 @@ export const plugin: RendererPlugin = {
     setHost(ctx.host);
 
     // OSC Monitor: a diagnostic modal that sniffs the raw OSC stream (LiDAR blob addresses). Registered
-    // as a 'modal' panel toggled by the 'osc-monitor' menu action — App mounts it from the panel registry
-    // (no longer imports it or owns its open state).
-    ctx.panels.register({ id: 'osc-monitor', mount: 'modal', menuAction: 'osc-monitor', title: 'OSC Monitor', Component: OscMonitor });
+    // as a DOCK panel on the `tracking` workspace context: the host declares that context, this plugin
+    // appends its own tab to it, and the 'osc-monitor' menu action still reaches it (the host resolves
+    // the action to the owning context + tab). App imports neither the panel nor its open state.
+    ctx.panels.register({ id: 'osc-monitor', mount: 'dock', menuAction: 'osc-monitor', title: 'OSC Monitor', Component: OscMonitor });
+    ctx.contexts.extend('tracking', { dock: ['osc-monitor'] });
 
     // TRACKING content: the host compositor dispatches unknown content types through the registry.
     ctx.contentSources.register({

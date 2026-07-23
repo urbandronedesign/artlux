@@ -1096,19 +1096,11 @@ export function readPatchPolicy(data: any): PatchPolicy {
   };
 }
 
-export enum ViewMode {
-  MAPPING = 'MAPPING',
-  MONITORING = 'MONITORING',
-  SIMULATOR_3D = 'SIMULATOR_3D'
-}
-
-// MadMapper-style top-level modules (drive the left panel + center stage).
-export enum Module {
-  MEDIA = 'MEDIA',       // content source + effects
-  MAP = 'MAP',           // 2D placement on the stage
-  FIXTURES = 'FIXTURES', // DMX patch (universe/addr/color/segments/routing)
-  THREE_D = 'THREE_D',   // 3D simulator
-}
+// `ViewMode` and `Module` (the MadMapper-style MEDIA/MAP/FIXTURES/THREE_D switcher) lived here and
+// were REMOVED — both had been dead since the Workspace-v2 refactor dropped the ModuleSwitcher, and
+// the top-level-mode idea they encoded is now the workspace CONTEXT (`WorkspaceContext` in
+// @artlux/sdk/renderer + `contextRegistry`), which drives the panels themselves and not just the
+// centre stage. See docs/WORKSPACE.md.
 
 // Bottom dock tabs.
 export enum DockTab {

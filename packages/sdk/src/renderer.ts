@@ -277,28 +277,133 @@ export interface SettingsSectionRegistry<S = unknown> {
   all(): SettingsSection<S>[];
 }
 
+// ─── Selection ──────────────────────────────────────────────────────────────────────────────
+// What the operator currently has selected, in the one shape the shell passes to every panel and
+// action. Deliberately ID-ONLY: a panel resolves an id against host state it already reads (core via
+// the host's editor store, a plugin via its own state or `ctx.host.*`), so the SDK never has to carry
+// the domain model. More than one kind can be live at once — selecting a surface does NOT clear the
+// selected fixture — which is why `kinds`/`ids` are plural and `primary` records the last click.
+export type SelectionKind =
+  | 'surface' | 'fixture' | 'group' | 'output' | 'model'
+  | 'clip' | 'trackingSource' | 'audioChannel';
+
+export interface SelectionSnapshot {
+  kinds: SelectionKind[];                              // every kind with a live selection
+  ids: Partial<Record<SelectionKind, string[]>>;        // selected ids per kind (absent ⇒ none)
+  primary: { kind: SelectionKind; id: string } | null;  // last thing clicked; orders the inspector
+}
+
 // ─── Panel contribution ─────────────────────────────────────────────────────────────────────
-// A plugin-owned UI panel mounted by the host. Currently only 'modal' — a dialog toggled by a menu
-// action; the host mounts it only while open and passes `onClose`. The panel owns its own chrome + any
-// host-services reads (e.g. host.settings) it needs. (Dock / timeline-bin mounts are intentionally NOT
-// modelled yet — no plugin needs them, and an unstable SDK shouldn't ship speculative surface. Add a
-// mount kind + a host mount point together, when a real consumer appears — see docs/SDK.md.)
+// A UI panel mounted by the host — the single unit both plugins and core compose the shell out of.
+//
+// `mount` says WHERE the host puts it. 'modal' is the original kind: a dialog toggled by a menu
+// action, mounted only while open, handed `onClose`; it is global and belongs to no workspace
+// context. The other four are the mount points the workspace-context shell added (see
+// `WorkspaceContext` below) — a context names panel ids and the shell renders them into its browser
+// column, its bottom dock, its parameter column, or as the viewport itself. A panel owns its own
+// body; the shell owns the surrounding chrome (section header, dock tab, backdrop).
+export type PanelMount =
+  | 'modal'      // global dialog, toggled by a menu action — NOT part of any context
+  | 'browser'    // a section in the context's left browser column
+  | 'inspector'  // a parameter section in the context's right column (selection-filtered)
+  | 'dock'       // a tab in the context's bottom dock
+  | 'viewport';  // the context's main work area
+
 export interface PanelProps {
-  onClose?: () => void; // provided for 'modal' panels (host controls open by mounting/unmounting)
+  onClose?: () => void;          // 'modal' only (host controls open by mounting/unmounting)
+  contextId?: string;            // the workspace context rendering this panel (non-modal mounts)
+  selection?: SelectionSnapshot; // current selection (non-modal mounts)
 }
 
 export interface PanelContribution {
   id: string;
-  mount: 'modal';
-  menuAction?: string; // host menu action id that toggles the panel
-  title?: string;
+  mount: PanelMount;
+  menuAction?: string;          // 'modal' only — host menu action id that toggles the panel
+  title?: string;               // section header / dock tab label
+  icon?: ReactNode;             // section header / dock tab icon
+  // 'inspector' only: render this section only while one of these kinds is selected. Omitted ⇒
+  // always rendered. This is a FILTER, not an XOR — a surface AND a fixture can both be live.
+  appliesTo?: SelectionKind[];
+  defaultOpen?: boolean;        // 'browser' | 'inspector' — collapsed state on first show
+  grow?: boolean;               // 'browser' — fill the remaining height and scroll internally
+  // 'browser' | 'inspector': skip the shell's section header — the panel draws its own chrome.
+  // Used by panels that are already a stack of sections rather than one section.
+  bare?: boolean;
+  // 'browser' | 'inspector': buttons rendered on the right of the section header (add, auto-patch…).
+  // Clicks there do not toggle the section.
+  HeaderActions?: ComponentType<PanelProps>;
   Component: ComponentType<PanelProps>;
 }
 
 export interface PanelRegistry {
   register(p: PanelContribution): void;
   all(): PanelContribution[];
-  byMount(mount: PanelContribution['mount']): PanelContribution[];
+  get(id: string): PanelContribution | undefined;
+  byMount(mount: PanelMount): PanelContribution[];
+}
+
+// ─── Workspace context contribution ─────────────────────────────────────────────────────────
+// A CONTEXT is a whole workbench for one job — "LED Mapping", "Projection Outputs", "Audio". One is
+// active at a time and it declares the entire shell around it: which panels fill the browser column,
+// the viewport, the dock and the parameter column, plus the FUNCTIONS on its action bar. The rail
+// switches between them.
+//
+// A context owns no components and no state — it is a manifest of panel ids resolved against
+// `PanelRegistry` at render time. That is what lets a plugin ADD to a context it does not own (the
+// three tracking plugins all contribute panels to `tracking`) without any host edit.
+//
+// Contexts are SOFT: they set the default workbench, they do not lock anything away. Opening
+// something off-context is allowed and flips the layout badge to 'custom', exactly as a manual panel
+// resize already does.
+export interface ContextAction {
+  id: string;
+  label: string;
+  icon?: ReactNode;
+  group?: string;                                  // cluster on the action bar (a separator between)
+  menuAction?: string;                             // reuse an existing host menu action id…
+  run?(): void;                                    // …or run directly. One or the other.
+  enabled?(selection: SelectionSnapshot): boolean;  // omitted ⇒ always enabled
+  danger?: boolean;
+  shortcut?: string;                               // display only; binding stays with the host menu
+}
+
+// Generic over the host's layout type for the same reason every other contribution here is generic
+// over the domain model: the SDK must not import host types. The host instantiates it with
+// `WorkspaceLayout`.
+export interface WorkspaceContext<Layout = unknown> {
+  id: string;
+  title: string;                       // full name, shown on the action bar ("LED Mapping")
+  shortTitle?: string;                 // ≤5 chars for the 48px rail ("LED"); falls back to `title`
+  icon: ReactNode;
+  cluster: 'build' | 'align' | 'show'; // rail grouping
+  order: number;                       // sort within the cluster
+  viewport: string;                    // panel id, mount 'viewport'
+  // A panel id given the FULL WIDTH of the workspace, below everything else — the browser and the
+  // parameter column stop above it. `dock` lives inside the centre column and is flanked by them;
+  // this does not. For an editing timeline that distinction is the whole layout: the lanes need the
+  // window's full width, and the monitor sits above them.
+  bottom?: string;
+  browser?: string[];                  // ordered panel ids, mount 'browser'
+  dock?: string[];                     // ordered panel ids, mount 'dock' (first = default tab)
+  inspector?: string[];                // ordered panel ids, mount 'inspector'
+  actions?: ContextAction[];
+  layout?: Partial<Layout>;            // this context's default ergonomics (sizes/visibility)
+  // Bump when `layout` changes meaningfully. A context banks the operator's own sizes the moment
+  // they leave it, and a banked slice always wins over `layout` — otherwise switching away would
+  // undo their arrangement. That also means a shipped layout change would NEVER reach anyone who
+  // has already visited the context. `layoutRev` is the escape hatch: the host stamps the rev into
+  // the banked slice, and re-applies `layout` once when the two differ.
+  layoutRev?: number;
+  hint?: { en: string; fr: string };   // StatusBar help line while this context is active
+}
+
+export interface ContextRegistry<Layout = unknown> {
+  register(c: WorkspaceContext<Layout>): void;
+  all(): WorkspaceContext<Layout>[];                     // sorted by cluster then order
+  get(id: string): WorkspaceContext<Layout> | undefined;
+  // Append panel ids to a context someone else declared — the "extend a context I don't own" path.
+  // Ordering is registration order; a missing context id is a no-op (the owner may be disabled).
+  extend(id: string, patch: { browser?: string[]; dock?: string[]; inspector?: string[]; actions?: ContextAction[] }): void;
 }
 
 // ─── Projector panel contribution ───────────────────────────────────────────────────────────
@@ -575,6 +680,7 @@ export interface RendererPluginContext<C = unknown, SurfaceT = unknown, Clip = u
   projectorChannels: ProjectorChannelRegistry<SurfaceT>;
   settings: SettingsSectionRegistry<S>;
   panels: PanelRegistry;
+  contexts: ContextRegistry;
   sceneViz: SceneVizRegistry;
   projectorPanels: ProjectorPanelRegistry;
   videoCodecs: VideoCodecRegistry;

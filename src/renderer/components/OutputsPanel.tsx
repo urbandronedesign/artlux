@@ -1,13 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { X, MonitorUp, RefreshCw, Frame, Undo2, Settings2, Spline, Gauge, Radio, Aperture, Cpu, Camera, Loader2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { MonitorUp, RefreshCw, Frame, Undo2, Settings2, Spline, Gauge, Radio, Aperture, Cpu, Camera, Loader2 } from 'lucide-react';
 import { Surface, SourceType } from '../types';
 import { ProjectorOutput, OutputSpan, DisplayInfo, SoftEdge, SrcRect, defaultSoftEdge, WINDOWED_DISPLAY } from '../../../shared/protocol';
-import { useDraggableModal } from '../hooks/useDraggableModal';
 import { SpanEditor } from './SpanEditor';
 
 interface Props {
-  open: boolean;
-  onClose: () => void;
   surfaces: Surface[];
   outputs: ProjectorOutput[];
   displays: DisplayInfo[];
@@ -47,23 +44,19 @@ const clamp01h = (v: number) => Math.max(0, Math.min(0.5, v));
 // Screen / output manager: route each Surface to a physical display as a fullscreen
 // projector output (corner-pin warp lives in the projector window). Display picker +
 // enable toggle; the App reconciler opens/moves/closes the actual output windows.
+//
+// This WAS a modal. It is now the `project` workspace context's viewport — you bind displays, warp,
+// blend and gamma-match for an hour at a stretch, with the stage visible behind the rail, so a dialog
+// was always the wrong container. Nothing inside changed; only the chrome (backdrop, drag handle,
+// close button) came off. See docs/WORKSPACE.md.
 export const OutputsPanel: React.FC<Props> = ({
-  open, onClose, surfaces, outputs, displays, editingOutputIds, fpsCap,
+  surfaces, outputs, displays, editingOutputIds, fpsCap,
   spans, onApplySpan, onUpdateSpan, onRemoveSpan, onSetSliceRect, onToggleEditMany,
   onSetEnabled, onSetDisplay, onToggleEdit, onResetCorners,
   onToggleWarp, onSetSoftEdge, onSetGamma, onSetColorMatch, onMeasureGamma, measuringGammaId, gammaMsg, onToggleNdiSend, onSetFpsCap, onRefreshDisplays, onCalibrate, onSetUseCalibration,
   nvAvailable, onSetHwWarp,
 }) => {
   const [expanded, setExpanded] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
-
-  const { positionerStyle, handleProps } = useDraggableModal('outputs');
 
   // List each source surface with its slices right under it, so a spanned wall reads as one block
   // instead of N unrelated rows scattered by creation order.
@@ -86,20 +79,12 @@ export const OutputsPanel: React.FC<Props> = ({
     return out;
   }, [surfaces]);
 
-  if (!open) return null;
-
   const outFor = (id: string): ProjectorOutput | undefined => outputs.find((o) => o.surfaceId === id);
   const COLS = 'grid-cols-[1.3fr_56px_1.3fr_48px_144px_28px]';
 
   return (
-    <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/60 animate-overlay-in" onClick={onClose}>
-      <div style={positionerStyle}>
-      <div
-        role="dialog" aria-modal="true" aria-label="Outputs"
-        className="w-[760px] max-w-[95vw] max-h-[85vh] flex flex-col bg-surface-1 border border-line-2 rounded-lg shadow-e3 animate-modal-in"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div {...handleProps} className="h-10 px-3 flex items-center justify-between border-b border-line-1 bg-surface-2 shrink-0 cursor-move select-none">
+    <div className="w-full h-full flex flex-col bg-surface-1" aria-label="Outputs">
+        <div className="h-10 px-3 flex items-center justify-between border-b border-line-1 bg-surface-2 shrink-0 select-none">
           <span className="text-xs font-semibold text-fg-1 uppercase tracking-wider flex items-center gap-1.5"><MonitorUp size={14} /> Outputs</span>
           <div className="flex items-center gap-3">
             <label className="flex items-center gap-1.5 text-mini text-fg-2" title="Performance mode: cap projector output frame rate">
@@ -116,7 +101,6 @@ export const OutputsPanel: React.FC<Props> = ({
               </select>
             </label>
             <button onClick={onRefreshDisplays} title="Re-scan displays" className="flex items-center gap-1 text-mini text-fg-2 hover:text-fg-1"><RefreshCw size={13} /> Re-scan</button>
-            <button onClick={onClose} aria-label="Close outputs" title="Close" className="text-fg-2 hover:text-fg-1"><X size={16} /></button>
           </div>
         </div>
 
@@ -335,8 +319,6 @@ export const OutputsPanel: React.FC<Props> = ({
             })}
           </div>
         </div>
-      </div>
-      </div>
     </div>
   );
 };

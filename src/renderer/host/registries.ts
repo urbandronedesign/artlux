@@ -19,8 +19,10 @@ import type {
   ProjectorPanelContribution, ProjectorPanelRegistry,
   VideoCodecContribution, VideoCodecRegistry,
   AutomationTargetProvider, AutomationTargetRegistry,
+  WorkspaceContext, ContextRegistry,
 } from '@artlux/sdk/renderer';
 import type { SurfaceContent, Surface, VideoClip, AppSettings } from '../types';
+import type { WorkspaceLayout } from '../services/layoutStore';
 import type { Scene3D } from '../../../shared/protocol';
 
 // ── Content sources ───────────────────────────────────────────────────────────────────────
@@ -88,9 +90,54 @@ export const projectorPanelRegistry: ProjectorPanelRegistry = {
 };
 
 // ── Panels ────────────────────────────────────────────────────────────────────────────────
+// Every composable UI unit, core and plugin alike: modals, and the browser/inspector/dock/viewport
+// panels a WorkspaceContext names by id. Ids are global — a duplicate registration wins over the
+// earlier one so a plugin can deliberately replace a core panel, and warns so an accident is visible.
 const panels: PanelContribution[] = [];
 export const panelRegistry: PanelRegistry = {
-  register(p) { panels.push(p); },
+  register(p) {
+    const i = panels.findIndex((x) => x.id === p.id);
+    if (i >= 0) { console.warn(`[panels] "${p.id}" re-registered — replacing the earlier one`); panels[i] = p; }
+    else panels.push(p);
+  },
   all() { return panels.slice(); },
+  get(id) { return panels.find((p) => p.id === id); },
   byMount(mount) { return panels.filter((p) => p.mount === mount); },
+};
+
+// ── Workspace contexts ────────────────────────────────────────────────────────────────────
+// The top-level workbenches (LED Mapping, Projection Outputs, …). A context is a MANIFEST of panel
+// ids — it owns no components — so `extend` is all a plugin needs to add itself to a context another
+// owner declared (the three tracking plugins all append to `tracking`). Extends are queued when they
+// arrive before their target registers: plugin activation order is not something a plugin should
+// have to know, and the host's own contexts register after the plugin pass in some windows.
+const contexts = new Map<string, WorkspaceContext<WorkspaceLayout>>();
+type ContextPatch = Parameters<ContextRegistry<WorkspaceLayout>['extend']>[1];
+const pendingExtends = new Map<string, ContextPatch[]>();
+
+function applyExtend(c: WorkspaceContext<WorkspaceLayout>, patch: ContextPatch): void {
+  if (patch.browser) c.browser = [...(c.browser ?? []), ...patch.browser];
+  if (patch.dock) c.dock = [...(c.dock ?? []), ...patch.dock];
+  if (patch.inspector) c.inspector = [...(c.inspector ?? []), ...patch.inspector];
+  if (patch.actions) c.actions = [...(c.actions ?? []), ...patch.actions];
+}
+
+const CLUSTER_ORDER = { build: 0, align: 1, show: 2 } as const;
+
+export const contextRegistry: ContextRegistry<WorkspaceLayout> = {
+  register(c) {
+    contexts.set(c.id, c);
+    const queued = pendingExtends.get(c.id);
+    if (queued) { for (const p of queued) applyExtend(c, p); pendingExtends.delete(c.id); }
+  },
+  all() {
+    return [...contexts.values()].sort((a, b) =>
+      CLUSTER_ORDER[a.cluster] - CLUSTER_ORDER[b.cluster] || a.order - b.order);
+  },
+  get(id) { return contexts.get(id); },
+  extend(id, patch) {
+    const c = contexts.get(id);
+    if (c) applyExtend(c, patch);
+    else pendingExtends.set(id, [...(pendingExtends.get(id) ?? []), patch]);
+  },
 };

@@ -52,7 +52,10 @@ export const plugin: RendererPlugin = {
 
     // Contributions (Preferences section + operator modal). Marker strings guarded by verify:plugins.
     ctx.settings.register({ id: 'show-control', title: 'Show Control', Component: ShowControlSettings });
-    ctx.panels.register({ id: 'show-control', mount: 'modal', menuAction: 'show-control', title: 'Show Control', Component: ShowControlPanel });
+    // A DOCK tab on the host's `show` context: the connect URL/QR/PIN and the paired-device list are
+    // things an operator keeps visible while running a show, not a dialog to dismiss.
+    ctx.panels.register({ id: 'show-control', mount: 'dock', menuAction: 'show-control', title: 'Show Control', Component: ShowControlPanel });
+    ctx.contexts.extend('show', { dock: ['show-control'] });
 
     // Only the main editor/broadcast window owns the show engine + the bridge to main.
     if (ctx.window !== 'main') return;

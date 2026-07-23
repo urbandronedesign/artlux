@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useDraggable, type PanelProps } from '@artlux/sdk/renderer';
+import { type PanelProps } from '@artlux/sdk/renderer';
 import * as poseEngine from './poseEngine';
 import * as poseCamera from './poseCamera';
 import * as poseStore from './poseStore';
@@ -9,8 +9,7 @@ import * as poseStore from './poseStore';
 // by the 'pose-monitor' menu action; App mounts it from the panel registry. Mirrors the LiDAR plugin's
 // OscMonitor. Read-only: it observes poseEngine/poseStore, it doesn't drive them.
 
-export const PosePanel: React.FC<PanelProps> = ({ onClose }) => {
-  const { positionerStyle, handleProps } = useDraggable();
+export const PosePanel: React.FC<PanelProps> = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [status, setStatus] = useState(() => poseEngine.status());
   const [people, setPeople] = useState(0);
@@ -34,12 +33,9 @@ export const PosePanel: React.FC<PanelProps> = ({ onClose }) => {
   const stateColor = status.disabled ? 'text-red-400' : status.running ? 'text-emerald-400' : 'text-fg-3';
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div style={positionerStyle} onClick={(e) => e.stopPropagation()}
-        className="w-[420px] max-w-[92vw] rounded-lg border border-line-1 bg-surface-1 shadow-2xl overflow-hidden">
-        <div {...handleProps} className="flex items-center justify-between px-3 py-2 border-b border-line-1 bg-surface-2 cursor-move select-none">
+    <div className="w-full h-full overflow-y-auto bg-surface-1" aria-label="Pose Monitor">
+        <div className="flex items-center justify-between px-3 py-2 border-b border-line-1 bg-surface-2 select-none">
           <span className="text-mini font-bold text-fg-1">Pose Monitor</span>
-          <button onClick={onClose} className="text-fg-3 hover:text-fg-1 text-mini">✕</button>
         </div>
         <div className="p-3 space-y-3">
           <div className="relative aspect-video w-full rounded bg-surface-0 overflow-hidden border border-line-1">
@@ -61,7 +57,6 @@ export const PosePanel: React.FC<PanelProps> = ({ onClose }) => {
             </div>
           )}
         </div>
-      </div>
     </div>
   );
 };

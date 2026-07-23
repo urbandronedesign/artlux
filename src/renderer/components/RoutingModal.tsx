@@ -1,13 +1,10 @@
-import React, { useEffect, useMemo } from 'react';
-import { X, Plus, Trash2, Lock, Unlock, Hash, AlertTriangle } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { Plus, Trash2, Lock, Unlock, Hash, AlertTriangle } from 'lucide-react';
 import { Fixture, Surface, Controller, AppSettings, PatchPolicy } from '../types';
 import { Button } from './ui';
-import { useDraggableModal } from '../hooks/useDraggableModal';
 import { fixtureSpans, findCollisions } from '../services/addressing';
 
 interface Props {
-  open: boolean;
-  onClose: () => void;
   fixtures: Fixture[];
   surfaces: Surface[];
   controllers: Controller[];
@@ -26,18 +23,15 @@ const cell = 'w-full bg-surface-0 border border-line-1 rounded-sm px-1 py-0.5 te
 
 // Routing spreadsheet: manage controllers + patch every fixture (surface link,
 // controller, universe/address, channels) in one grid.
+//
+// WAS a modal (`RoutingModal`), now a dock panel in the `led` workspace context — patching is done
+// beside the fixture list and the DMX monitor, not on top of them. Only the chrome came off; the grid,
+// the collision detector and the locked-range policy are unchanged. The name is kept so the file's
+// history stays greppable. See docs/WORKSPACE.md.
 export const RoutingModal: React.FC<Props> = ({
-  open, onClose, fixtures, surfaces, controllers, settings, patchPolicy,
+  fixtures, surfaces, controllers, settings, patchPolicy,
   onUpdateFixture, onAddController, onUpdateController, onRemoveController, onAutoPatch, onUpdateSettings, onUpdatePatchPolicy,
 }) => {
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
-
-  const { positionerStyle, handleProps } = useDraggableModal('routing');
 
   // Address-overlap detector: flag any two fixtures whose channel ranges intersect on the same
   // resolved destination (protocol|ip|broadcast). MUST sit above the early return (Rules of Hooks).
@@ -55,8 +49,6 @@ export const RoutingModal: React.FC<Props> = ({
     return { count: pairs.length, partners };
   }, [fixtures, controllers, settings]);
 
-  if (!open) return null;
-
   const span = (f: Fixture) => {
     const ch = f.ledCount * (f.channelsPerPixel ?? 4);
     const startAbs = f.universe * 512 + (f.startAddress - 1);
@@ -68,14 +60,8 @@ export const RoutingModal: React.FC<Props> = ({
   const COLS = 'grid-cols-[1.4fr_1fr_1fr_52px_52px_84px_52px_84px_32px]';
 
   return (
-    <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/60 animate-overlay-in" onClick={onClose}>
-      <div style={positionerStyle}>
-      <div
-        role="dialog" aria-modal="true" aria-label="Routing"
-        className="w-[920px] max-w-[95vw] max-h-[85vh] flex flex-col bg-surface-1 border border-line-2 rounded-lg shadow-e3 animate-modal-in"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div {...handleProps} className="h-10 px-3 flex items-center justify-between border-b border-line-1 bg-surface-2 shrink-0 cursor-move select-none">
+    <div className="w-full h-full flex flex-col bg-surface-1" aria-label="Routing">
+        <div className="h-10 px-3 flex items-center justify-between border-b border-line-1 bg-surface-2 shrink-0 select-none">
           <span className="text-xs font-semibold text-fg-1 uppercase tracking-wider">Routing</span>
           <div className="flex items-center gap-2">
             {collisions.count > 0 && (
@@ -88,7 +74,6 @@ export const RoutingModal: React.FC<Props> = ({
               Reserve locked
             </label>
             <Button variant="primary" size="sm" onClick={onAutoPatch}><Hash size={13} /> Auto-patch</Button>
-            <button onClick={onClose} aria-label="Close routing" title="Close" className="text-fg-2 hover:text-fg-1"><X size={16} /></button>
           </div>
         </div>
 
@@ -159,8 +144,6 @@ export const RoutingModal: React.FC<Props> = ({
             <div className="text-micro text-fg-3 mt-1.5">Universe/Start are auto-assigned per controller; lock a row to edit them manually. Default target: {settings.artNetIp} ({settings.protocol}).</div>
           </div>
         </div>
-      </div>
-      </div>
     </div>
   );
 };

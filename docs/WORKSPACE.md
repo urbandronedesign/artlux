@@ -1,9 +1,10 @@
-# Workspace layout & high-DPI UI scaling
+# Workspace contexts, layout & high-DPI UI scaling
 
-How the editor UI scales for 4K/high-DPI and how its panel layout persists. This is **workspace
-ergonomics** — all of it lives in app **Prefs** (`userData/artlux-prefs.json`), never in the portable
-`.artlux` project. Scope note: this is a *flexible workspace* (persisted sizes + reusable resizer +
-presets), not a free-form docking engine — see [Out of scope](#out-of-scope).
+How the editor is organised into **contexts**, how its panel layout persists, and how the UI scales for
+4K/high-DPI. This is **workspace ergonomics** — all of it lives in app **Prefs**
+(`userData/artlux-prefs.json`), never in the portable `.artlux` project. Scope note: contexts +
+persisted sizes + a reusable resizer, **not** a free-form docking engine — see
+[Out of scope](#out-of-scope).
 
 ## UI scaling (high-DPI / 4K)
 
@@ -63,20 +64,155 @@ useResizable({ axis: 'x'|'y', min, max: number|(()=>number), invert?, mode?: 'de
 - Callers: the split divider (App.tsx, `ratio` + `splitHostRef`), the dock top edge (`Dock.tsx`, `invert`,
   dynamic `max: () => innerHeight-120`), the help left edge (`HelpPanel.tsx`, `invert`).
 
-## Workspace presets
+## Workspace contexts (replaces the old presets)
 
-Built-in `edit` / `perform` / `calibrate` presets (`BUILTIN_PRESETS` + `applyPreset` in `layoutStore.ts`).
-A preset is a **named partial layout** merged over the current one — sizes/tabs it doesn't mention are
-preserved, so the operator keeps their dock height etc. `applyPreset` stamps `activePreset`; any later
-manual resize/toggle flips it to `'custom'` (the `set()` guard). The switcher is a segmented control in the
-[StatusBar](../src/renderer/components/StatusBar.tsx) that reads the store directly (no props threaded).
+A **context** is a whole workbench for one job — Mapping, Projection Outputs, Audio. One is active at
+a time and it declares the entire shell around it: which panels fill the browser column, the viewport,
+the dock and the parameter column, plus the **functions** on its action bar. The rail down the far left
+switches between them.
+
+This replaced the `edit`/`perform`/`calibrate` presets, which only toggled panel *visibility* and could
+not change what was *in* the panels. `BUILTIN_PRESETS`/`applyPreset`/`PresetId` are gone; `activePreset`
+survives only as a one-time migration input (see below).
+
+- **Contract:** `WorkspaceContext` + `ContextRegistry` in [`@artlux/sdk/renderer`](SDK.md); a context is a
+  **manifest of panel ids** and owns no components. Core registers its 11 in
+  [`src/renderer/contexts/index.tsx`](../src/renderer/contexts/index.tsx) through exactly the same API a
+  plugin uses — there is no privileged core path.
+- **Shell:** [`components/shell/WorkspaceShell.tsx`](../src/renderer/components/shell/WorkspaceShell.tsx)
+  (+ `ContextRail`, `ActionBar`). It resolves panel ids against `panelRegistry` and imports no panel.
+- **Soft, never locked.** A context sets the default workbench; opening something off-context is allowed.
+- **Extending someone else's context:** `contextRegistry.extend(id, { browser, dock, inspector, actions })`.
+  Extends queue if the target hasn't registered yet, so activation order doesn't matter.
+
+### The nine contexts
+
+| Cluster | Contexts |
+|---|---|
+| **Build** | `timeline` · `mapping` · `3d` |
+| **Align** | `project` · `calib` |
+| **Show** | `scenes` · `machine` · `audio` · `tracking` · `show` |
+
+Two of these were consolidations, both because the split cost more than it bought:
+
+- **`mapping` = the old `map` + `led`.** Surface placement and the DMX patch were separate contexts, but
+  you place a surface *in order to* map LEDs onto it, and you check a patch against the surface it
+  samples. Both drive the same stage, and `appliesTo` lets the parameter column show surface **and**
+  fixture sections at once — so there was nothing left to separate.
+- **`machine` was the state-graph modal.** The show graph was a fixed 1000×640 dialog centred over the
+  timeline it describes. It is a long-lived authoring surface, so it became a context and got the whole
+  window; the timeline's "Edit logic" button and the state lane's edit affordance switch to it.
+- **`timeline` replaced `media`.** "Media & Content" was only a media browser beside the stage; that
+  library is now the timeline's browser column, so you import media where you actually cut it. Timeline
+  leads the Build cluster in its place.
+
+### The full-width bottom region (`WorkspaceContext.bottom`)
+
+A context may name **one** panel that gets the workspace's full width, below everything else — the
+browser column and the parameter column both stop above it. This is NOT the dock: the dock lives
+*inside* the centre column and is flanked by those two.
+
+`timeline` is the reason it exists. An editing timeline wants the NLE shape — program monitor on top,
+lanes across the full width underneath — and lanes squeezed between a browser and an inspector are
+simply too narrow to cut in. Height is dragged from its top edge and remembered per context
+(`ContextLayout.bottomHeight`).
+
+⚠ A **persistent viewport** named as `bottom` is rendered there and **nowhere else** — the shell filters
+it out of the left pane. A React element exists at exactly one position, and mounting `TimelinePanel`
+twice would double its keyboard hook and engine subscription, which is the one thing that must never
+happen. Moving between positions remounts it, exactly as the old dock-tab timeline did on every tab
+change.
+
+### Live previews
+
+Two panels in `contexts/panels/preview.tsx`, both of which only **blit** machinery that already runs
+each frame — neither adds a decode or a composite:
+
+- **Program Preview** — the whole timeline composited. It must `retainProgram()` while mounted (the
+  engine only builds that canvas while something wants it) and `releaseProgram()` on unmount. Two
+  flavours: a padded inspector/dock card, and `ProgramMonitorViewport`, the full-bleed monitor the
+  `timeline` context puts above its lanes. Measured cost of keeping it open: **none** (60 fps with it
+  on vs 61 without) — it only blits a composite the engine already builds.
+- **Output Preview** — one live tile per enabled projector output. This is the **multi-screen** view:
+  a surface spanned across several projectors becomes one slice surface per output, so the tiles show
+  what each machine is putting on its screen, side by side. Warp/soft-edge/gamma are applied in the
+  projector window's own GL pass and are deliberately *not* reproduced — the tile answers "is the right
+  content on the right screen", and badges carry the rest (display, warp, blend, calib, ndi).
+
+Both draw on their own rAF loop capped at 20 Hz and never touch React state per frame.
+
+### What lives where
+
+Modals are now only for things that are **global and momentary**: Preferences, About, the update
+notice, the audio-engine warning, and the MediaPipe floor-calibration wizard. Everything that is a
+*workbench* became a panel on a context:
+
+| Was a modal | Now |
+|---|---|
+| `OutputsPanel` | the `project` context's **viewport** |
+| `RoutingModal` | a `mapping` **dock tab** |
+| `AssetManager` | **deleted** — its selected-asset inspector (size / duration / dimensions / path / missing-on-disk + the resolved **Usage** list) was folded into the Media Library, which already covered import / relink / reveal / remove; consolidate is an action-bar item |
+| `ScenePanel3D` (a floating column in the 3D pane) | the `3d` context's **browser + parameter** panels |
+| `StateGraphEditor` (a 1000×640 centred dialog) | the `machine` context's **viewport** |
+| `OscMonitor` · `PosePanel` · `AugmentaMonitor` | **dock tabs** appended to `tracking` by their plugins |
+| `ShowControlPanel` | a **dock tab** appended to `show` by its plugin |
+
+A menu action still reaches any of them: `dispatchMenu` resolves the action to whichever panel
+declares it and either toggles it (modal) or switches to the owning context and selects its tab
+(dock). Nothing had to change in the menus when a panel moved.
+
+### Two constraints the shell must respect
+
+1. **`Stage` must never unmount** — it owns the per-frame GPU sampling that publishes `dmx:frame`, so
+   unmounting it stops Art-Net mid-show.
+2. **Exactly one `TimelinePanel`** — two instances double its keyboard hook and engine subscription.
+
+Both are handled the same way: App mounts these as **persistent viewport elements** and passes them to
+the shell, which places each one at a **fixed position** in its tree and only changes CSS width/visibility.
+A React element can exist at one position only, so viewports never "move" between panes — `scene3d` is
+permanently the RIGHT pane, everything else the LEFT pane, and contexts only change the two widths. Split
+view, a maximized 3D context and a plain 2D context are the same tree at different widths.
+The 3D canvas takes `paused` (→ r3f `frameloop='never'`) while hidden: it stays mounted, but a hidden
+canvas must not keep a render loop running on a zero-width pane.
+
+### Per-context ergonomics
+
+Each context remembers its own sizes in `WorkspaceLayout.contexts[id]` (`ContextLayout`: dock height,
+split ratio, panel visibility, and `dockPanel` — the active dock tab as a **panel id**, since the core
+`DockTab` enum cannot name a plugin's dock panel). `layoutStore.setContext(id, defaults)` banks the
+outgoing context's ergonomics and restores the incoming one's, falling back to the context's declared
+`layout` the first time it is entered. At boot, `hydrate()` restores the raw top-level fields — which are
+whatever the last context left behind — so App follows it with `layoutStore.enterActiveContext(...)` to
+put the active context's own sizes back on (`setContext` can't: it early-returns when the id is already
+active, which at boot it always is).
+
+A banked slice always wins over the declared `layout` — otherwise leaving a context would undo the
+operator's arrangement. That also means **a layout change we ship would never reach anyone who has
+already opened that context**, so `WorkspaceContext.layoutRev` is the escape hatch: the host stamps the
+rev into the banked slice and re-applies `layout` exactly once when the two differ
+(`resolveContextLayout` in layoutStore.ts). Bump it whenever a context's default layout changes
+meaningfully — all 11 core contexts currently ship `layoutRev: 1`.
+
+**Migration:** an install with no saved `activeContext` maps its last preset once — `edit→mapping`,
+`perform→show`, `calibrate→calib`, anything else (incl. `'custom'`) → the `mapping` default. A saved id
+that no longer resolves is remapped by `RETIRED_CONTEXTS` (`map`/`led`→`mapping`, `media`→`timeline`);
+without that the rail would open with nothing selected.
 
 ## How to…
 
 - **Add a persisted layout field:** add it to `WorkspaceLayout` + `DEFAULT_LAYOUT`, read via `useLayout()`,
   write via `layoutStore.set()`. It rides the existing `Prefs.layoutState` blob — no new Prefs key.
-- **Add a preset:** add an entry to `BUILTIN_PRESETS` (a `Partial<WorkspaceLayout>`) and a button to the
-  StatusBar `PRESETS` array.
+- **Switch context from code:** `goToContext(id)` from [`contexts/nav.ts`](../src/renderer/contexts/nav.ts).
+  Never call `layoutStore.setContext` directly — the context's `layout` has to travel with its
+  `layoutRev` or a shipped layout change silently never reaches an operator who already opened it.
+- **Add a context:** `contextRegistry.register({...})` — from `contexts/index.tsx` for core, or from a
+  plugin's renderer `activate(ctx)` via `ctx.contexts`. Nothing else to wire; the rail is registry-driven.
+- **Add a panel to a context:** `panelRegistry.register({ id, mount, ... })`, then name its id in the
+  context's `browser`/`dock`/`inspector` array (or `extend` a context you don't own).
+- **Panels read state, not props:** `useEditor()` / `useEditorActions()` from
+  [`state/EditorStore.tsx`](../src/renderer/state/EditorStore.tsx). App remains the sole owner of state
+  and of every mutation — the store only distributes it. Action identities are permanent (a facade
+  forwards to App's latest handler at call time), so a panel that only dispatches never re-renders.
 - **Persist any other workspace state** (not project content): add a top-level `Prefs` field in
   `shared/protocol.ts` and read/write via `getPrefs`/`setPrefs` — keep nested state in one object so the
   shallow merge is safe.

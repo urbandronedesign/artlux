@@ -41,7 +41,7 @@ export interface ProjectRefs {
 
 // Build a usage map for every distinct path referenced across the project in ONE pass over
 // surfaces/models/timelines/audio, instead of one pass per asset. Panels that render usage for a whole
-// asset list (MediaPanel, AssetManager) should call this once per render and look each asset up in
+// asset list (MediaPanel) should call this once per render and look each asset up in
 // the result, rather than calling usageForPath per asset — see those files for the useMemo wiring.
 //
 // EVERY id bucket is a Set. Capture Scene deep-clones the active timeline into a new scene
@@ -49,7 +49,7 @@ export interface ProjectRefs {
 // live `surfaces`/`scene3D` arrays onto the Scene BY REFERENCE (buildSceneSnapshot), so the same clip,
 // surface and model ids legitimately appear in the global doc AND in every scene captured from it.
 // Counting raw pushes would multiply one authored reference by (1 + #scenes) — an inflated badge, and
-// duplicate React keys in AssetManager's usage list. (This exact defect was found and fixed once for
+// duplicate React keys in a usage list. (This exact defect was found and fixed once for
 // clip ids in this branch; widening ProjectRefs to the scene snapshots re-exposes it for surfaces and
 // models, hence the Set on all four.)
 export function usageIndex(refs: ProjectRefs): Map<string, AssetUsage> {
@@ -78,7 +78,7 @@ export function usageIndex(refs: ProjectRefs): Map<string, AssetUsage> {
     // NB: `trackingTakes[].path` is deliberately NOT counted here, even though mapAssetPaths maps it.
     // A take's library entry IS its trackingTakes row (takeToAsset), so counting the row would make
     // every take report a use OF ITSELF: the delete confirm would fire for an unplaced take, and
-    // AssetManager would render the take's own id as one of its "clip" usage rows. A take that is
+    // a usage list would render the take's own id as one of its "clip" rows. A take that is
     // actually USED is a clip, and a take clip carries `path: ref.path` (Timeline.tsx's take drop), so
     // it is already counted by the loop above — which is what gates the confirm.
     // Wave B: this timeline's OWN audio. Derived from `timelines` rather than a new ProjectRefs field,
@@ -94,7 +94,7 @@ export function usageIndex(refs: ProjectRefs): Map<string, AssetUsage> {
       surfaceIds: [...b.s], modelIds: [...b.m], clipIds: [...b.c], audioClipIds: [...b.a], count: 0,
     };
     // count is derived from the DEDUPED id lists, so it always equals the number of usage ROWS
-    // AssetManager renders — the count and the list it summarizes must never disagree.
+    // a consumer renders — the count and the list it summarizes must never disagree.
     u.count = u.surfaceIds.length + u.modelIds.length + u.clipIds.length + u.audioClipIds.length;
     map.set(key, u);
   }
@@ -113,7 +113,7 @@ const EMPTY_USAGE: Readonly<AssetUsage> = { surfaceIds: [], modelIds: [], clipId
 // into N scenes by Capture Scene is still the ONE thing the user placed — deleting the underlying file
 // breaks that one authored reference everywhere it was cloned, which reads to the user as "used in 1
 // place", not N. Counting deduped ids also keeps `count` equal to the number of usage ROWS
-// AssetManager renders — the count and the list it summarizes must never disagree.
+// a consumer renders — the count and the list it summarizes must never disagree.
 export function usageForPath(path: string, refs: ProjectRefs): AssetUsage {
   return usageIndex(refs).get(normPath(path)) ?? EMPTY_USAGE;
 }

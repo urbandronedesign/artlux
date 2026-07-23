@@ -10,7 +10,7 @@ import type { LanInfo } from './types';
 
 interface Device { token: string; name: string; pairedAt: number }
 
-export const ShowControlPanel: React.FC<PanelProps> = ({ onClose }) => {
+export const ShowControlPanel: React.FC<PanelProps> = () => {
   const [lan, setLan] = useState<LanInfo | null>(null);
   const [locked, setLocked] = useState(false);
   const [devices, setDevices] = useState<Device[]>([]);
@@ -32,13 +32,11 @@ export const ShowControlPanel: React.FC<PanelProps> = ({ onClose }) => {
   const qrSvg = pairUrl ? toSvg(pairUrl, { size: 176 }) : null;
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50" onClick={onClose}>
-      <div className="w-[420px] max-w-[92vw] rounded-xl border border-line bg-panel text-fg shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <div className="w-full h-full overflow-y-auto bg-panel text-fg" aria-label="Show Control">
         <div className="flex items-center gap-2 px-4 py-3 border-b border-line">
           <span className="font-semibold text-sm">Show Control</span>
           <span className={`w-2 h-2 rounded-full ${lan?.enabled ? 'bg-emerald-400' : 'bg-amber-400'}`} />
           <span className="text-xs text-fg-2">{lan?.enabled ? 'server running' : 'server off'}</span>
-          <button className="ml-auto text-fg-2 hover:text-fg text-lg leading-none" onClick={onClose}>×</button>
         </div>
 
         <div className="p-4 space-y-3 text-xs text-fg-2">
@@ -84,7 +82,6 @@ export const ShowControlPanel: React.FC<PanelProps> = ({ onClose }) => {
             ))}
           </div>
         </div>
-      </div>
     </div>
   );
 };

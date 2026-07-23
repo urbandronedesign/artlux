@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { StateMachine, SmState, SmTransition, SmRegion, SmAction, SmActionKind, SmTriggerKind, Marker, VideoLayer } from '../../types';
 import { timeline as engine } from '../../services/timeline';
-import { X, Plus, Star, Trash2, ArrowRight, Wand2, SquareDashed, Film } from 'lucide-react';
+import { Plus, Star, Trash2, ArrowRight, Wand2, SquareDashed, Film } from 'lucide-react';
 
 export interface SceneRef { id: string; name: string; clipCount?: number }
 export interface CueRef { id: string; name: string }
@@ -13,11 +13,16 @@ interface Props {
   scenes: SceneRef[];
   cues: CueRef[];
   onChange: (sm: StateMachine) => void;
-  onClose: () => void;
+  /** Leave the editor — jumping to the timeline. Absent when it IS the workbench (its own context). */
+  onClose?: () => void;
   onEditTimeline?: (sceneId: string) => void; // enter author mode on a state's timeline (closes the graph)
 }
 
-// AutomataUI-style node-graph editor for the project-level "Show" machine over scenes. States are
+// AutomataUI-style node-graph editor for the project-level "Show" machine over scenes.
+//
+// WAS a fixed-size centred modal (and, briefly, a draggable one). It is now the `machine`
+// workspace context's viewport: a show graph is an authoring surface you work in for a long
+// time and it wants the whole window, which no dialog can give it. Only the chrome changed. States are
 // circular nodes (each can bind a Scene, recalled on entry); the initial state is drawn as the cyan
 // Init node and the live/active state gets an orange ring. Transitions are bezier edges with draggable
 // control handles, an auto-derived label + a [transition-time] badge (the scene crossfade on arrival).
@@ -240,17 +245,15 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
   };
 
   return (
-    <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center" onPointerDown={onClose}>
-      <div className="w-[1000px] h-[640px] bg-surface-0 border border-line-1 rounded-md shadow-e2 flex flex-col overflow-hidden" onPointerDown={e => e.stopPropagation()}>
+    <div className="w-full h-full bg-surface-0 flex flex-col overflow-hidden">
         <div className="h-9 shrink-0 flex items-center gap-2 px-3 border-b border-line-1 bg-surface-1">
-          <span className="text-xs text-fg-1 font-medium">Show machine — states & scenes</span>
+          <span className="text-xs text-fg-1 font-medium">Show machine — states &amp; scenes</span>
           <button onClick={() => addStateAt(CW / 2, CH / 2)} className="flex items-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-mini text-fg-1 hover:bg-surface-3"><Plus size={12} /> State</button>
           <button onClick={addRegion} className="flex items-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-mini text-fg-1 hover:bg-surface-3"><SquareDashed size={12} /> Region</button>
           <button onClick={buildFromScenes} disabled={!scenes.length} title={scenes.length ? 'Create one state per scene' : 'No scenes captured yet'}
             className="flex items-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-mini text-fg-1 hover:bg-surface-3 disabled:opacity-40"><Wand2 size={12} /> Build from scenes</button>
           {linkFrom && <span className="text-micro text-accent">drag onto a target state to connect…</span>}
           <span className="ml-auto text-micro text-fg-3">dbl-click empty: add · dbl-click state: fire · drag nub: link · Ctrl+click edge: fire · Ctrl+wheel: zoom</span>
-          <button onClick={onClose} className="inline-flex items-center justify-center h-6 w-6 rounded text-fg-2 hover:text-fg-1 hover:bg-surface-2"><X size={14} /></button>
         </div>
 
         <div className="flex-1 min-h-0 flex">
@@ -381,7 +384,7 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
                   onChange={(v) => patchState(selState.id, { sceneId: v || undefined })} />
                 {/* Author this state's own timeline: recalls its look live and binds the editor to it. */}
                 {selState.sceneId && onEditTimeline && (
-                  <button onClick={() => { onEditTimeline(selState.sceneId!); onClose(); }}
+                  <button onClick={() => { onEditTimeline(selState.sceneId!); onClose?.(); }}
                     className="w-full inline-flex items-center justify-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3"><Film size={12} /> Edit timeline</button>
                 )}
                 <NumField label="Lock time (s) — dwell before auto transitions" value={selState.lockSec ?? 0} onChange={(v) => patchState(selState.id, { lockSec: v || undefined })} />
@@ -461,7 +464,6 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
             {!selState && !selTrans && !selRegion && <div className="text-fg-3 italic">Select a state, transition or region to edit it. Bind each state to a scene; a transition's time is the crossfade.</div>}
           </div>
         </div>
-      </div>
     </div>
   );
 };

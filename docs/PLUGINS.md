@@ -49,7 +49,7 @@ clean (plugin → sdk only; the plugin never imports host modules for types beyo
 
 ### Contribution registries (renderer)
 
-`src/renderer/host/registries.ts` exposes seven singletons. **Not all are consumed yet** — the table is
+`src/renderer/host/registries.ts` exposes the contribution singletons. **Not all are consumed yet** — the table is
 honest about what's wired end-to-end today:
 
 | Registry | Contract (`@artlux/sdk/renderer`) | Wired today? |
@@ -60,11 +60,12 @@ honest about what's wired end-to-end today:
 | `sceneVizRegistry` | `SceneVizContribution` (`id`, `enabled?(scene3D)`, `Component`) | ✅ LiDAR `TrackingViz`. `Simulator3D` maps the registry inside its R3F `<Canvas>` instead of importing the component. |
 | `projectorPanelRegistry` | `ProjectorPanelContribution` (`id`, `Component: {ctx: ProjectorPanelContext, size}`) | ✅ calibration `CalibProjector` (pattern / crosshair / render-from-projector). `ProjectorApp` mounts every registered panel over its base canvas + fans the message stream to them. |
 | `settingsSectionRegistry` | `SettingsSection` (`id`, `title`, `Component`, `defaults`) | ⏳ scaffolded, unused. No clean first consumer yet: the obvious candidate (OSC receive settings) is **shared core infra** — the OSC listener drives both external control and LiDAR tracking — so it stays core (see Core stays core). |
-| `panelRegistry` | `PanelContribution` (`id`, `mount`, `menuAction?`, `Component`) | ⏳ scaffolded, unused. `OscMonitor`/`TakesBin` are candidates but stay host-side today (TakesBin is woven into the timeline around the core `trackingTakes` field; the no-prop `Component` shape needs a host-services surface first). |
+| `panelRegistry` | `PanelContribution` (`id`, `mount`, `menuAction?`, `title?`, `icon?`, `appliesTo?`, `grow?`, `bare?`, `HeaderActions?`, `Component`) | ✅ LiDAR/MediaPipe/Augmenta/show-control modals **and every core shell panel**. `mount` is now `'modal' | 'browser' | 'inspector' | 'dock' | 'viewport'`: modals are global (menu-toggled), the other four are placed by whichever `WorkspaceContext` names the panel id. |
+| `contextRegistry` | `WorkspaceContext` (`id`, `title`, `shortTitle?`, `icon`, `cluster`, `order`, `viewport`, `browser?`, `dock?`, `inspector?`, `actions?`, `layout?`, `hint?`) | ✅ core registers 11 contexts in `src/renderer/contexts/index.tsx`. A context is a **manifest of panel ids** — it owns no components — so `extend(id, {browser, dock, inspector, actions})` lets a plugin add itself to a workbench it does not own (the three tracking plugins → `tracking`). Extends queue if the target hasn't registered yet. |
 
 A plugin's renderer `activate(ctx)` registers into these via the context (`ctx.contentSources`,
 `ctx.clipKinds`, `ctx.projectorChannels`, `ctx.sceneViz`, `ctx.projectorPanels`, `ctx.settings`,
-`ctx.panels`).
+`ctx.panels`, `ctx.contexts`).
 
 ### The generic plugin IPC bridge
 

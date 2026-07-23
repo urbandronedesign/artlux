@@ -25,7 +25,7 @@ a project-level state machine, scenes/cues, OSC control, and a 3D simulator.
 | **Plugin-architecture roadmap + next extraction plan** | [docs/ROADMAP.md](docs/ROADMAP.md) |
 | **Unattended self-healing watchdog (crash/hang recovery + OS supervisor)** | [docs/WATCHDOG.md](docs/WATCHDOG.md) |
 | **UI/UX + design-token conventions (read before adding UI)** | [docs/UI-UX-AUDIT.md](docs/UI-UX-AUDIT.md) |
-| Workspace layout, presets + high-DPI UI scaling | [docs/WORKSPACE.md](docs/WORKSPACE.md) |
+| **Workspace contexts (the editor shell), layout + high-DPI UI scaling** | [docs/WORKSPACE.md](docs/WORKSPACE.md) |
 | Surfaces engine (content/mapping model) | [docs/SURFACES.md](docs/SURFACES.md) |
 | Outputs / controllers / routing | [docs/OUTPUTS.md](docs/OUTPUTS.md) |
 | LED map / fixture geometry | [docs/LEDMAP.md](docs/LEDMAP.md) |
@@ -88,6 +88,9 @@ src/main/            Electron main: lifecycle, windows, native loading, persiste
 src/preload/         contextBridge → the typed `window.artlux` API (contextIsolation ON)
 src/renderer/        React UI + the frame-generation loop
   components/        UI (Stage, panels, wizards, timeline/, Simulator3D/, calib/)
+    shell/           the context-driven editor shell (WorkspaceShell, ContextRail, ActionBar)
+  contexts/          the 11 core workspace contexts + the panels they are composed of
+  state/             EditorStore — what shell panels read instead of props (App still owns the state)
   services/          engine singletons: contentSource, surfaceMedia, timeline, stateMachine,
                      cueBus, dmxSignal, addressing, mediaCache, …
   gpu/               WebGPUMapper (WGSL compute), GPUMapper (WebGL fallback), surfaceFx, palettes
