@@ -54,6 +54,11 @@ let stateEnteredAtWall = 0; // wall-clock seconds when the current state was ent
 let lastNowSec = 0;         // most recent ctx.nowSec seen by tick() — for getStateElapsedSec()
 let lastEnabled = false;    // for rising-edge (re)initialization
 let forcedId: string | null = null; // external "go to this state" request, applied on the next tick
+// Wall-clock second at which the CURRENT state's hold began (ctx.held's rising edge), or null when the
+// state is not held. Drives StateMachine.idleResetSec — the unattended "reached its end, nobody came,
+// go home" reset. Kept here (not derived from stateEnteredAtWall) precisely because the timer must
+// start when the picture FINISHED, not when the state was entered. Cleared on every enter().
+let heldSinceWall: number | null = null;
 const stateSubs = new Set<(id: string | null) => void>();
 const firedSubs = new Set<(transitionId: string) => void>();
 
@@ -98,6 +103,7 @@ function enter(sm: StateMachine, stateId: string, playhead: number, ctx: SmConte
   currentStateId = stateId;
   stateEnteredAt = playhead;
   stateEnteredAtWall = ctx.nowSec;
+  heldSinceWall = null; // a fresh state has not reached its end yet — the idle-reset clock restarts on hold
   const s = sm.states.find(st => st.id === stateId);
   if (s?.sceneId) ctx.recallScene(s.sceneId, via?.fadeSec); // 1:1 scene binding — crossfade over the transition time
   if (s) runEntry(s.entry, ctx);
@@ -229,6 +235,28 @@ export function tick(sm: StateMachine | undefined, playhead: number, prev: numbe
   for (const tr of sm.transitions) {
     if (!tr.fromAny || tr.to === currentStateId) continue;
     if (fires(tr)) { enter(sm, tr.to, playhead, ctx, tr); return; }
+  }
+
+  // 3. IDLE RESET — the unattended safety net (StateMachine.idleResetSec).
+  //
+  // We only reach here when NO transition fired this frame: the current state has reached its end and
+  // is just sitting there. Track the hold's rising edge on the standalone wall clock (so it advances
+  // through a held show, whose transport is alive but frozen), and once the state has been held with no
+  // way out for idleResetSec, force-return to the initial state — the same "go home" enter() re-init
+  // does, so a venue that emptied mid-show restarts its attract loop instead of freezing on a reaction.
+  //
+  // Deliberately LAST: an explicit or global edge out of the held state always wins, so the reset can
+  // never pre-empt an authored exit. Deliberately keyed on `held`, not plain dwell: a looping/no-hold
+  // state never "reached its end", and the initial (idle) state is skipped so it can never reset to
+  // itself. `heldSinceWall` is cleared by enter(), so entering the reset target re-arms it cleanly.
+  heldSinceWall = ctx.held ? (heldSinceWall ?? ctx.nowSec) : null;
+  const idle = sm.idleResetSec;
+  if (idle && idle > 0 && heldSinceWall != null && ctx.nowSec - heldSinceWall >= idle) {
+    const init = sm.initialStateId && sm.states.some(s => s.id === sm.initialStateId) ? sm.initialStateId : (sm.states[0]?.id ?? null);
+    if (init && init !== currentStateId) {
+      console.info(`[fsm] idle reset: held ${Math.round(ctx.nowSec - heldSinceWall)}s with no transition → returning to initial state`);
+      enter(sm, init, playhead, ctx, null);
+    }
   }
 }
 

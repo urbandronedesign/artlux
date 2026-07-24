@@ -201,6 +201,35 @@ graph, a snowflake badge on states that hold, a warn-coloured out-handle on the 
 `playing: true` with a frozen timecode, which from the back of a venue is exactly what a hung show
 looks like.
 
+### Idle reset — the unattended dead-man's switch (`StateMachine.idleResetSec`)
+
+An installation runs itself, and the failure it must survive is the quiet one: a visitor triggers the
+reaction, walks off before it ends, and the show freezes on the last frame of a look nobody is watching —
+the picture is up, the transport is running, and the machine sits there **reporting itself perfectly
+healthy** until someone notices hours later. `idleResetSec` is the machine-wide dead-man's switch for
+exactly that: **if the current state reaches its end and holds with no transition firing for this many
+seconds, force-return to `initialStateId`** (your idle / attract state) so the loop starts over.
+
+- **It is machine-scoped, not per-edge.** One knob covers *every* interactive state without drawing a
+  return edge from each — the same reason `fromAny` exists. Set it once in the graph editor's **Show
+  machine** panel (*Auto-reset to initial after (min) — 0 = off*, shown in minutes, stored as seconds).
+- **It measures from the hold, not from entry.** The clock starts when the state's picture *finishes*
+  (`SmContext.held` goes true), so a 20 s clip that then holds for 5 minutes resets 5 minutes **after it
+  froze** — the honest "nobody came" window. (`afterDelay` counts from entry; this does not.)
+- **Only a held state can trigger it.** A state that loops, or has no **Hold at end** authored, never
+  "reached its end", so it is never a stuck show to rescue — and the idle/attract state itself is
+  **skipped** (it is the target), so a held attract loop never resets to itself.
+- **Authored exits always win.** It is evaluated **after** the state's own edges and all global rules, so
+  it can never pre-empt a real transition — it only fires on a frame where nothing else did. It resets
+  cleanly on entry, so returning to idle re-arms the clock for the next visitor.
+- **`0` / absent = off** — the behaviour of every project written before this field. A fired reset logs
+  `[fsm] idle reset: held Ns with no transition → returning to initial state`.
+
+This is the hard safety net that complements the *soft* one you may already author with tracking — the
+canonical `Reaction ──[LiDAR zone: empty for 30s]──▶ Attract` edge returns the show when the sensor says
+the room emptied; `idleResetSec` returns it even when **no sensor is configured, the tracker is down, or
+the room-empty rule was never drawn**. Belt and braces.
+
 ### Lock time (dwell)
 
 `SmState.lockSec` is a **minimum dwell**: the state's **`afterDelay`** transitions are held for

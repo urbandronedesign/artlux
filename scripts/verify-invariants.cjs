@@ -433,6 +433,28 @@ check(
   },
 );
 
+check(
+  'the idle reset skips its own target and runs last',
+  'StateMachine.idleResetSec force-returns a HELD state to initialStateId when nobody advances it. Two ' +
+  'ways it self-destructs: (1) if it did not skip the case where the initial state IS the current state, ' +
+  'a held attract loop would re-enter itself every idleResetSec — restarting its scene timeline behind a ' +
+  'frozen picture with the machine reporting itself healthy (the same failure as a self-targeting global); ' +
+  '(2) if it were evaluated BEFORE the transition loops, it could pre-empt an authored exit out of the ' +
+  'held state. It must sit after both loops and guard `init !== currentStateId`.',
+  () => {
+    const src = read('src/renderer/services/stateMachine.ts');
+    if (!src.includes('idleResetSec')) return 'stateMachine.ts no longer reads sm.idleResetSec — the idle reset is gone';
+    const problems = [];
+    if (!/init !== currentStateId/.test(src)) problems.push('the idle reset does not guard `init !== currentStateId` — it could reset a state to itself');
+    // It must come AFTER the global-rule loop (the last `tr.fromAny` gate) — i.e. only fire on a frame
+    // where no transition did. Compare source positions of the two anchors.
+    const globalLoop = src.indexOf('!tr.fromAny || tr.to === currentStateId');
+    const reset = src.indexOf('sm.idleResetSec');
+    if (globalLoop < 0 || reset < 0 || reset < globalLoop) problems.push('the idle reset is not placed AFTER the global-rule loop — it could pre-empt an authored exit');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Zones: the room is not part of a look ─────────────────────────────────────────────────────
 check(
   'a scene snapshot never carries the trigger zones',

@@ -412,6 +412,16 @@ export interface StateMachine {
   transitions: SmTransition[];
   initialStateId: string | null;
   regions?: SmRegion[];
+  // UNATTENDED SAFETY NET — "if a state reaches its end and then nothing happens for this long, go
+  // home." Seconds the CURRENT state may sit HELD (its picture finished, transport running on — see
+  // Timeline.holdAtEnd / SmContext.held) with no transition firing before the machine force-returns to
+  // `initialStateId`. Measured from when the hold BEGAN, not from state entry, so a 20 s clip that
+  // holds for 5 min resets 5 min after it froze — exactly the "nobody walked in" case. `0`/absent =
+  // off. The idle state itself is skipped (it is the target), so a held attract loop never resets to
+  // itself. It is deliberately a LEVEL on `held`, not a per-transition trigger: it must cover EVERY
+  // interactive state without an author having to draw an edge from each one (the same reason `fromAny`
+  // exists), and a state that never holds — a loop, no hold authored — is never a stuck show to rescue.
+  idleResetSec?: number;
 }
 export const defaultStateMachine = (): StateMachine => ({
   enabled: false, states: [], transitions: [], initialStateId: null, regions: [],
@@ -1082,6 +1092,9 @@ export const normalizeStateMachine = (sm: Partial<StateMachine> | null | undefin
     // honest so no consumer is handed a number where it was promised `string | null`.
     initialStateId: typeof sm.initialStateId === 'string' ? sm.initialStateId : null,
     regions: objectsIn(sm.regions) as unknown as SmRegion[],
+    // A junk/negative value must read as OFF, not as "reset every frame": finiteNum drops non-numbers,
+    // and we require > 0 so a hand-edited `0` / `-1` disables it (the behaviour of every prior save).
+    idleResetSec: (() => { const n = finiteNum(sm.idleResetSec); return n != null && n > 0 ? n : undefined; })(),
   };
 };
 

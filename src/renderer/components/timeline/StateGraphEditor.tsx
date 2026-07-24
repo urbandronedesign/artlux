@@ -417,6 +417,24 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
 
           {/* inspector */}
           <div className="w-72 shrink-0 border-l border-line-1 bg-surface-1 overflow-auto p-3 text-mini">
+            {/* MACHINE-WIDE POLICY — shown regardless of selection because it belongs to no node/edge.
+                The unattended "reached its end, nobody came, go home" safety net (StateMachine.idleResetSec).
+                Presented in MINUTES (the way a venue thinks about it) but stored as seconds. */}
+            <div className="mb-3 pb-3 border-b border-line-1 space-y-1">
+              <div className="flex items-center gap-1">
+                <Star size={12} className="text-fg-3" />
+                <span className="text-fg-2 font-medium">Show machine</span>
+              </div>
+              <NumField
+                label="Auto-reset to initial after (min) — 0 = off"
+                value={sm.idleResetSec ? Math.round((sm.idleResetSec / 60) * 100) / 100 : 0}
+                onChange={(v) => patch({ idleResetSec: v > 0 ? Math.round(v * 60) : undefined })} />
+              <div className="text-fg-3 text-micro leading-snug">
+                {sm.idleResetSec
+                  ? <>If a state reaches its end and holds with no transition for {Math.round(sm.idleResetSec)}s, return to <span className="text-fg-2">{sm.states.find(s => s.id === sm.initialStateId)?.name ?? 'the initial state'}</span>. Needs the state to <span className="text-fg-2">Hold at end</span>.</>
+                  : <>Off. Set a timeout so an unattended show returns to its initial state if it ends and nobody advances it. Only states that <span className="text-fg-2">Hold at end</span> can trigger it.</>}
+              </div>
+            </div>
             {/* GLOBAL RULES — listed, never drawn. A rule with no source node is not an edge, and
                 inventing one (from where? every node?) would misrepresent how it fires. Pinned above the
                 selection inspector because it is the one part of the graph the canvas cannot show. */}
