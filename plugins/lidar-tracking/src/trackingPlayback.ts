@@ -10,6 +10,8 @@
 import { timeline as engine } from '@/services/timeline'; // host timeline engine (transitional runtime seam)
 import * as trackingStore from './trackingStore';
 import * as take from './trackingTake';
+import * as zones from './zones';
+import { resetZoneTriggers } from './zoneTriggers';
 import type { Timeline, VideoClip } from '@/types';        // host domain types (transitional; type-only)
 
 let data: Timeline | null = null;
@@ -42,6 +44,11 @@ export function start(): void {
       const tk = take.getCached(clip.path);
       if (!tk) { void take.ensureLoaded(clip.path); return; } // not loaded yet — keep prior state briefly
       const local = playhead - clip.start + (clip.inPoint ?? 0);
+      // THE SOURCE JUST CHANGED UNDER THE ZONES. Entering a take replaces the whole store, so anyone
+      // "standing in" a zone a frame ago is a different world's person: keeping the latch would fire an
+      // exit edge for someone who never left (or hold an occupancy that was never there). Re-arm from
+      // empty, once, on the boundary — not per frame, which would defeat the dwell entirely.
+      if (!active) { zones.reset(); resetZoneTriggers(); }
       trackingStore.setReplaySource(true); // global simulation override: live OSC is suppressed
       trackingStore.applySnapshot(take.frameAt(tk, local));
       active = true;
@@ -49,6 +56,7 @@ export function start(): void {
       // Left the last take clip: clear blobs (no frozen ghosts) and hand the store back to live OSC.
       trackingStore.setReplaySource(false);
       trackingStore.applySnapshot({ surfaces: [] });
+      zones.reset(); resetZoneTriggers();   // …and the same re-arm on the way back out
       active = false;
     }
   });

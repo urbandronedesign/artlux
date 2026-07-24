@@ -11,17 +11,24 @@
 import type { ComponentType } from 'react';
 import type { RendererPlugin, RendererPluginContext, ProjectorChannel } from '@artlux/sdk/renderer';
 import type { SurfaceContent, VideoClip, Surface } from '@/types';
+import type { TrackingZone } from '../../../shared/protocol';
 import * as trackingStore from './trackingStore';
 import type { TrackingSnapshot } from './trackingStore';
+import * as zones from './zones';
+import { ZONE_TRIGGER_SOURCE, zoneTriggerFires, describeZoneTrigger, type ZoneTriggerParams } from './zoneTriggers';
+import { ZoneTriggerInspector } from './ZoneTriggerInspector';
 import * as trackingDrawable from './trackingDrawable';
 import * as trackingProjector from './trackingProjector';
 import * as take from './trackingTake';
 import { clusterAndTrack } from './blobClustering';
 import TrackingViz from './TrackingViz';
 import { OscMonitor } from './OscMonitor';
+import { ZonePanel } from './ZonePanel';
 import { setHost } from './trackingHost';
 
 let oscUnsub: (() => void) | null = null;
+let sceneUnsub: (() => void) | null = null;   // Scene3D → zones.configure
+let frameUnsub: (() => void) | null = null;   // per-frame zones.evaluate
 
 export const plugin: RendererPlugin = {
   manifest: { id: 'lidar-tracking', name: 'LiDAR Tracking', version: '0.0.0' },
@@ -35,7 +42,10 @@ export const plugin: RendererPlugin = {
     // appends its own tab to it, and the 'osc-monitor' menu action still reaches it (the host resolves
     // the action to the owning context + tab). App imports neither the panel nor its open state.
     ctx.panels.register({ id: 'osc-monitor', mount: 'dock', menuAction: 'osc-monitor', title: 'OSC Monitor', Component: OscMonitor });
-    ctx.contexts.extend('tracking', { dock: ['osc-monitor'] });
+    // Trigger Zones: where the venue's interactive areas are drawn. Same seam as the monitor above —
+    // the host declares the `tracking` context, the plugin appends its own tab to it.
+    ctx.panels.register({ id: 'zone-editor', mount: 'dock', title: 'Trigger Zones', Component: ZonePanel });
+    ctx.contexts.extend('tracking', { dock: ['osc-monitor', 'zone-editor'] });
 
     // TRACKING content: the host compositor dispatches unknown content types through the registry.
     ctx.contentSources.register({
@@ -88,6 +98,38 @@ export const plugin: RendererPlugin = {
       Component: TrackingViz as ComponentType<{ scene3D: unknown }>,
     });
 
+    // ── TRIGGER ZONES → the show machine ─────────────────────────────────────────────────────────
+    // Main window only: it is the one that runs the state machine (mirrors receive the resulting
+    // transport over the bridge), and evaluating zones anywhere else would be work nobody reads.
+    if (ctx.window === 'main') {
+      // Zones live on Scene3D (persisted project data, core type), so they arrive — and change —
+      // through the host scene service. Push them on every scene change; configure() is idempotent
+      // and deliberately keeps existing zone STATE, so renaming a zone does not re-fire its triggers.
+      const pushZones = (): void => {
+        const s = ctx.host.scene3D.get() as { trackingZones?: TrackingZone[]; activeZoneIds?: string[]; trackingMergePeople?: boolean; trackingMergeRadius?: number };
+        // `activeZoneIds` rides the LOOK (a scene recall replaces it), while `trackingZones` is the room
+        // and does not — so a GO arrives here as a change of which zones are listened to, nothing more.
+        zones.configure(s.trackingZones, !!s.trackingMergePeople, s.trackingMergeRadius ?? 0.8, s.activeZoneIds);
+      };
+      pushZones();
+      sceneUnsub = ctx.host.scene3D.subscribe(pushZones);
+      // Evaluated on the host's per-frame callback — which fires every frame INCLUDING while the
+      // transport is paused. That is required, not incidental: a state waiting for a person is
+      // usually HOLDING its last frame, and a zone that only advanced with the playhead would never
+      // notice anybody arrive.
+      frameUnsub = ctx.onPlayhead(() => zones.evaluate(performance.now()));
+    }
+
+    // The zone triggers themselves. One `source`, several rules — the host persists
+    // `{ kind:'plugin', source:'lidar.zone', params }` and never parses `params`.
+    ctx.smTriggers.register({
+      source: ZONE_TRIGGER_SOURCE,
+      label: 'LiDAR zone',
+      describe: (p) => describeZoneTrigger(p as ZoneTriggerParams),
+      fires: (p, c) => zoneTriggerFires(p as ZoneTriggerParams, c),
+      Inspector: ZoneTriggerInspector,
+    });
+
     // Live OSC blob/spec ingestion. Main window only — projector windows never see OSC (they get
     // snapshots over the bridge). Taps the shared OSC stream alongside the host's control router
     // (the preload bridge supports multiple subscribers). Delivery is array-batched per UDP packet.
@@ -101,5 +143,9 @@ export const plugin: RendererPlugin = {
     }
   },
 
-  deactivate(): void { oscUnsub?.(); oscUnsub = null; },
+  deactivate(): void {
+    oscUnsub?.(); oscUnsub = null;
+    sceneUnsub?.(); sceneUnsub = null;
+    frameUnsub?.(); frameUnsub = null;
+  },
 };

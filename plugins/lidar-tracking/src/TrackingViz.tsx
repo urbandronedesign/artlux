@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { Scene3D } from '../../../shared/protocol';
 import * as tracking from './trackingStore';
 import * as blobMotion from './blobMotion';
+import * as zones from './zones';
 
 // LiDAR tracking visualization for the 3D Scene. Reconstructs the venue's interactive zones at
 // real-world dimensions and renders a smoothed, predicted, ID-labeled marker per tracked blob.
@@ -57,6 +58,80 @@ function blobPosition(surface: string, u: number, v: number, d: Dims, out: THREE
 }
 
 const rect = (points: [number, number, number][]): [number, number, number][] => [...points, points[0]];
+
+// TRIGGER ZONES, in the venue. The panel is where they are DRAWN (a normalized rect is a 2D gesture);
+// this is where they are BELIEVED — seeing the rectangle on the floor next to the fixtures, lighting up
+// as somebody walks into it, is what tells an operator the zone is where they think it is.
+//
+// Reuses blobPosition(), so a zone corner maps to 3D through the EXACT code path a blob does. That is
+// deliberate rather than convenient: any disagreement between the two mappings would draw the zone
+// somewhere the trigger does not actually test, and the error would only show up as a show that fires
+// at the wrong moment.
+const ZoneOutlines: React.FC<{ dims: Dims }> = ({ dims }) => {
+  const [tick, setTick] = useState(0);
+  const list = zones.getZones();
+  // Occupancy is a low-rate event (a person arriving), so a 4 Hz poll is plenty and keeps the r3f
+  // scene out of the high-rate blob path entirely.
+  useEffect(() => {
+    const id = window.setInterval(() => setTick((t) => t + 1), 250);
+    return () => window.clearInterval(id);
+  }, []);
+  void tick;
+  const p = useMemo(() => new THREE.Vector3(), []);
+  const corner = (surface: string, u: number, v: number): [number, number, number] => {
+    blobPosition(surface, u, v, dims, p);
+    // Lift a hair off the surface so the outline is not z-fighting the zone plane it sits on.
+    return [p.x, p.y + 0.002, p.z];
+  };
+  return (
+    <group>
+      {list.map((z) => {
+        const u0 = Math.min(z.u0, z.u1), u1 = Math.max(z.u0, z.u1);
+        const v0 = Math.min(z.v0, z.v1), v1 = Math.max(z.v0, z.v1);
+        const st = zones.getState(z.id);
+        const occupied = st?.occupied ?? false;
+        // No state at all ⇒ this look does not listen to the zone (Scene3D.activeZoneIds). It still
+        // belongs to the room and is still drawn — hiding it would make an operator think it was
+        // deleted — but faintly, because nothing here can fire it.
+        const inScene = !!st;
+        const col = z.color || '#f5a623';
+        const centre = corner(z.surface, (u0 + u1) / 2, (v0 + v1) / 2);
+        return (
+          <group key={z.id}>
+            <Line points={rect([
+              corner(z.surface, u0, v0), corner(z.surface, u1, v0),
+              corner(z.surface, u1, v1), corner(z.surface, u0, v1),
+            ])} color={col} lineWidth={occupied ? 3.5 : 1.4} dashed={!occupied} dashSize={0.12} gapSize={0.08}
+              transparent opacity={inScene ? 1 : 0.35} />
+            {/* THE MARKER. Positioned through the same blobPosition() mapping as the corners above, so
+                the label can never drift from the rectangle it names. DOM via drei Html (offline-safe,
+                uses the app's fonts) — the same pattern as the per-blob #id labels below. */}
+            <group position={centre}>
+              <Html center distanceFactor={11} zIndexRange={[18, 0]} prepend>
+                <div style={{
+                  pointerEvents: 'none', whiteSpace: 'nowrap', fontSize: '11px', fontWeight: 700,
+                  lineHeight: 1.15, padding: '2px 6px', borderRadius: '4px', textAlign: 'center',
+                  // Occupied is the state a trigger fires on, so it is the one that reads from across a
+                  // venue: filled in the zone's colour. Otherwise it stays quiet against the 3D scene.
+                  color: occupied ? '#0b0b0b' : col,
+                  background: occupied ? col : 'rgba(0,0,0,0.55)',
+                  border: `1px solid ${col}`,
+                  opacity: inScene ? 1 : 0.4,
+                  transform: 'translate(-50%, -50%)',
+                }}>
+                  {z.name}
+                  {/* The live headcount, only while somebody is in it — a permanent "· 0" would be noise
+                      on every zone in the room. */}
+                  {!!st?.count && <span style={{ fontWeight: 500 }}> · {st.count}</span>}
+                </div>
+              </Html>
+            </group>
+          </group>
+        );
+      })}
+    </group>
+  );
+};
 
 const TrackingViz: React.FC<{ scene3D: Scene3D }> = ({ scene3D }) => {
   const meshRef = useRef<THREE.InstancedMesh>(null);
@@ -155,6 +230,9 @@ const TrackingViz: React.FC<{ scene3D: Scene3D }> = ({ scene3D }) => {
         <planeGeometry args={[W, H]} />
         <meshBasicMaterial color={ZONE_COLOR} transparent opacity={0.05} side={THREE.DoubleSide} depthWrite={false} />
       </mesh>
+
+      {/* Trigger zones — dashed while empty, solid + thick while occupied. */}
+      <ZoneOutlines dims={dims} />
 
       {/* Live blob markers — unlit + bright (per-surface instanceColor) so the scene's bloom glows. */}
       <instancedMesh ref={meshRef} args={[undefined, undefined, MAX_BLOBS]} frustumCulled={false}>

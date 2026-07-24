@@ -99,3 +99,152 @@ so ids and motion stay stable. Validated on the recording (was → now):
 2. **Same id or different ids?** — the single answer that unblocks Step 2.
 3. A recorded `.lblob` take of the one-person and two-people cases.
 4. The live `SOL`/`MUR` `Scalex`/`Scaley` values shown on the blob cards.
+
+---
+
+# Trigger zones — making the show react to the room
+
+A **trigger zone** is a named area of a tracking surface that the **show machine** can transition on:
+*someone enters the entrance zone → play the reaction state.* Zones are the bridge between the blob
+feed documented above and [STATE-MACHINE.md](STATE-MACHINE.md).
+
+## The model
+
+`Scene3D.trackingZones: TrackingZone[]` — persisted project data (a core type in
+`shared/protocol.ts`; all the behaviour lives in `@artlux/plugin-lidar-tracking`).
+
+```ts
+TrackingZone {
+  id, name,
+  surface,                 // SOL | MUR | SOL_MUR — a trackingStore surface key
+  u0, v0, u1, v1,          // normalized rect [0..1], origin BOTTOM-LEFT (the blob convention, Y up)
+  color?,
+  minBlobs?,               // people needed to count as occupied (default 1, AFTER people-merge)
+  enterSec?, exitSec?,     // dwell in / dwell out (defaults 0.2 / 0.5)
+}
+```
+
+**Normalized, not metres** — deliberately. Blobs arrive as `u`/`v` in [0..1], so that is what the test
+compares against: no unit conversion on the frame path, and no re-authoring when the venue re-measures
+itself. Metres are a *display* concern (the panel shows the live `Scalex`/`Scaley`).
+
+### Two scopes: the room, and what a look listens to
+
+| | scope | travels with a scene? |
+|---|---|---|
+| `Scene3D.trackingZones` | **the room** — the rectangles themselves | **no.** Stripped from the look snapshot (`App.buildSceneSnapshot`) and preserved across a recall |
+| `Scene3D.activeZoneIds` | **the look** — which of them this scene listens to | **yes.** Absent ⇒ every zone is live |
+
+A zone is a rectangle taped to a real floor; it does not change shape because the lighting did. So the
+geometry is authored **once**, and a scene chooses which zones it *listens to* — "the welcome state
+watches the entrance, the performance state watches the stage" — with the eye toggle in the panel.
+
+> ⚠ **This was a bug, briefly.** Zones live on `Scene3D`, `Scene3D` rides in the look snapshot, and
+> recall assigned the whole object — so every scene silently carried a **copy** of the zones, and the
+> first GO onto a scene captured *before* the zones were drawn replaced the live list with nothing.
+> Every zone vanished and every zone rule went inert, with nothing logged. `verify:invariants` now
+> guards both halves of the fix.
+
+An **inactive** zone is not evaluated and has **no state at all** — it is *unanswerable*, not "empty".
+That distinction is load-bearing: answering "empty" would make an `everyone leaves` or `empty for…` rule
+fire in a scene that was never watching that part of the room. A rule naming an inactive zone is inert,
+and the transition inspector says so rather than letting it be discovered during a show.
+
+## Authoring
+
+**Tracking** workbench → **Trigger Zones** dock tab.
+
+- **drag on empty space** to draw a new zone;
+- **click** a zone to select it, **drag its body** to move, **drag a corner** to resize;
+- the **eye** toggle sets whether the *current scene* listens to it (dim + hollow = ignored here);
+- the list carries **People needed**, **Enter dwell** and **Exit dwell**.
+
+Live blobs are drawn on the map as you work — **raw**, not people-merged, because this is the diagnostic
+view and the venue's two-blobs-per-person has to be visible rather than mysterious. The same zones appear
+in the **3D scene**, labelled with their name and live headcount, so you can check they are where you
+think they are against the fixtures. Every drag is a draft until you release: one commit, not one per
+mouse sample.
+
+## The rules (transition ▸ trigger ▸ **LiDAR zone**)
+
+Two modes in the inspector: **One zone** and **Combination**.
+
+### One zone
+
+| Rule | Fires when |
+|---|---|
+| `someone enters` | a person arrives — *since this state was entered* |
+| `everyone leaves` | the last person leaves |
+| `occupied for…` | somebody has stayed N seconds |
+| `empty for…` | nobody for N seconds — the attract-return rule |
+| `at least N people` | the headcount reaches N |
+
+### Combination — **ALL / ANY** of N zones, each optionally **NOT**
+
+*"Someone in the entrance **and** nobody on the stage"* is one rule, not two. Pick **Combination**, choose
+**ALL** or **ANY**, and add a term per zone with an optional **NOT**.
+
+> ⚠ **A combination is about occupancy, not events.** "Someone enters A" **and** "someone enters B" would
+> require two arrivals on the *same frame* — never, in a real room. So a combination evaluates *who is
+> standing where* and fires the moment the whole expression becomes true. It is one level deep on
+> purpose: ALL/ANY plus per-term NOT covers the logic people actually write, and a nested expression tree
+> is a UI nobody can use under show pressure.
+
+### One firing rule for all of them: **arm and hold**
+
+Every rule above — single or combination — is a **level**, and firing is:
+
+```
+on a new state entry:   armed = !value      // already true when we arrived ⇒ it must go false first
+each frame:             if (!value) armed = true
+fire  ⇔  armed && value
+```
+
+That one shape solves two problems that are easy to meet and expensive to debug:
+
+- **No strobe.** A show that reacts to people re-enters its states constantly, and the visitor who caused
+  the last hop is usually *still standing there*. `armed` starts false whenever the condition is already
+  true on entry, so a rule cannot fire until the world actually changes.
+- **The guard window.** A one-frame rising edge is too narrow when the transition is gated by
+  **only after the state has finished**: the visitor arrives at t=3 *during* the film and the guard opens
+  at t=12. Holding `armed && value` true for as long as the condition lasts makes t=12 fire — which is
+  what the hold was built for. (See also *a trigger is evaluated even while its guard is closed* in
+  [STATE-MACHINE.md](STATE-MACHINE.md).)
+
+Pair a zone trigger with **hold at end** + **only after the state has finished**
+([STATE-MACHINE.md](STATE-MACHINE.md#the-state-that-ends-and-waits--hold-at-end--requireend)) and you
+get the canonical installation state: *play the look to its end, freeze there, advance when someone
+walks in* — instead of a visitor cutting the film three seconds in.
+
+## Hysteresis — and the mistake that is easy to make here
+
+Presence is a **run that survives gaps**, not an unbroken stretch of frames, with `exitSec` doubling
+as the gap tolerance:
+
+```
+seen this frame        → extend the run (start one if there wasn't one)
+not seen for exitSec   → the run is really over
+run older than enterSec → OCCUPIED           run ended → EMPTY
+```
+
+The obvious alternative — "occupied *continuously* for `enterSec`" — is **worse than no dwell at all
+on this feed**. The venue's blob ids have a **median lifetime of 0.13 s** (measured, above), so a
+0.2 s continuous dwell is reset before it can ever expire and *nobody ever triggers anything*. That
+was caught in simulation (`scratch/zone-rules-sim.mjs`: 240 frames of a person standing still with a
+dropout every 7th frame → 0 enter edges) before it could be discovered in a venue.
+
+**Counting is post-merge.** With **Merge people** on, `minBlobs: 1` means one *person*, not one blob —
+which matters because this venue emits ~2 blobs per person and every authored threshold would
+otherwise mean half what it says. The zone panel deliberately draws the **raw** blobs, so the doubling
+is visible rather than mysterious.
+
+## Testing without the venue
+
+Zones read `trackingStore`, and so does take replay — so a recorded `.lblob` take drives them exactly
+like the live tracker:
+
+1. Drop a take on a tracking lane and play the timeline (or run `node scripts/lidar-emitter.cjs` for a
+   synthetic live feed).
+2. Watch the zone light up in the panel and in 3D; tune the dwells against the real recording.
+3. Entering or leaving a take **re-arms** every zone (`zones.reset()`), because a take replaces the
+   whole store: carrying a latch across that boundary would fire an exit for somebody who never left.

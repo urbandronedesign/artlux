@@ -30,6 +30,10 @@ const MAIN_BUNDLE = path.join(ROOT, 'out', 'main', 'index.js');
 //   where: 'main'     → single bundle; must occur exactly `occurrences` times (default 1).
 const CHECKS = [
   { plugin: 'lidar-tracking', where: 'renderer', marker: 'tracking] subscriber', note: 'trackingStore subscriber log' },
+  // The zone occupancy store is a SINGLETON with latched state: the plugin's per-frame evaluate()
+  // writes it and the FSM's trigger reads it. Duplicate the module and the writer fills one copy
+  // while the show machine questions an empty other — zones would simply never fire, silently.
+  { plugin: 'lidar-tracking', where: 'renderer', marker: 'zones] subscriber',    note: 'trigger-zone occupancy store' },
   { plugin: 'calibration',    where: 'renderer', marker: 'calib:camera-open',    note: 'calibCapture native channel' },
   { plugin: 'ndi',            where: 'renderer', marker: 'ndi:configure',        note: 'ndiReceiver plugin-IPC channel' },
   { plugin: 'ndi',            where: 'main',     marker: 'NDI_RUNTIME_DIR_V6',   note: 'ndiManager native runtime dir' },
@@ -53,6 +57,8 @@ const CHECKS = [
 const CONTRIBUTIONS = [
   { plugin: 'lidar-tracking', marker: 'osc-monitor',    note: 'OSC Monitor — modal PanelContribution id (panelRegistry)' },
   { plugin: 'lidar-tracking', marker: 'OSC Monitor',    note: 'OSC Monitor — panel body shipped' },
+  { plugin: 'lidar-tracking', marker: 'zone-editor',    note: 'Trigger Zones — dock PanelContribution id (panelRegistry)' },
+  { plugin: 'lidar-tracking', marker: 'lidar.zone',     note: 'zone trigger — SmTriggerContribution source (smTriggerRegistry)' },
   { plugin: 'mp4',            marker: 'GPU MP4 decode',  note: 'Video — SettingsSection (settingsSectionRegistry)' },
   { plugin: 'mediapipe',      marker: 'pose-monitor',    note: 'Pose Monitor — modal PanelContribution id (panelRegistry)' },
   { plugin: 'mediapipe',      marker: 'pose-calibrate',  note: 'Pose Floor Calibration — modal PanelContribution id (panelRegistry)' },

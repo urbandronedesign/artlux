@@ -18,6 +18,11 @@ export * as blobMotion from './blobMotion';
 export * as blobPass from './blobPass';
 export * as blobClustering from './blobClustering';
 export { clusterAndTrack, resetPeopleTracking } from './blobClustering';
+// Trigger zones — the occupancy runtime + the zone-drawing panel. Exported through the barrel (never
+// deep-imported) for the singleton reason at the top of this file: `zones` holds the latched
+// occupancy the FSM triggers read, and a second copy of it would watch a store nobody writes.
+export * as zones from './zones';
+export { ZonePanel } from './ZonePanel';
 
 export type { TrackingSnapshot, Blob, SurfaceTrack } from './trackingStore';
 export type { BlobInst } from './blobPass';
