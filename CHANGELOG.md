@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## v0.24.0
+
+> Carries everything under v0.23.0 and v0.22.0 below: those were prepared (version bumped, changelog
+> written) but never tagged, so no build was distributed. The last RELEASED version is **v0.21.0**.
 
 ### The first run of a show is smooth
 
