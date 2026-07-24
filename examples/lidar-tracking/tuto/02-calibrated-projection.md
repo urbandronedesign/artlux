@@ -36,10 +36,12 @@ This project ships with the **Calibrate** overlay already **on** (and **Show IDs
 discs you'll also see an emerald zone border, a grid, corner labels `TL/TR/BR/BL`, an amber **U/V**
 gizmo and each blob's `#id` — that's your diagnostic. Reading it is step 2.
 
-> **Sanity check first.** If you see *no* discs at all, the feed isn't arriving — open **View ▸ OSC
-> Monitor** (`Ctrl+Shift+M`) and confirm a green **SOL** card with active blobs before chasing
-> orientation. The emitter binds to `127.0.0.1:10000`; the project's `oscListenAddress` is `""` (all
-> interfaces) so loopback works. See [`../../../docs/OSC.md`](../../../docs/OSC.md) §5.
+> **Sanity check first.** If you see *no* discs at all, the feed isn't arriving — open the **OSC
+> Monitor** (**View ▸ OSC Monitor**, `Ctrl+Shift+M`; a dock tab on the **Tracking** context) and confirm
+> a green **SOL** card with active blobs before chasing orientation. The emitter binds to
+> `127.0.0.1:10000`; keep **Preferences ▸ OSC / Tracking ▸ Bind address** on **All** so loopback works
+> (OSC receive is a machine setting, not carried in the `.artlux`). See
+> [`../../../docs/OSC.md`](../../../docs/OSC.md).
 
 ## 2. Read the Calibrate overlay
 
@@ -84,6 +86,10 @@ rotate *then* mirror, not the other way round. The general procedure:
 arrow points *left* (its origin dot sits on the right edge) and the blobs run backwards. **Untick Flip
 H** and the U arrow snaps to point rightward — a blob the emitter sweeps rightward now tracks rightward
 on your surface. Here `Rotate` stays `0` and `Flip V` stays off; one checkbox is the whole fix.
+
+![Stage with the Calibrate overlay, before and after unticking Flip H](images/02-calibrate-flip.png)
+<!-- TODO screenshot: two Stage panes side by side with Calibrate on — LEFT: Flip H ticked, amber U arrow pointing left / origin on the right edge; RIGHT: Flip H unticked, U arrow pointing right. Same emerald border + TL/TR/BR/BL labels in both. -->
+
 
 Each toggle is live — the blobs, their comet **trails** and the `#id` labels all re-map together,
 because Flip/Rotate is a *real* coordinate transform, not just an overlay trick. Crucially it applies

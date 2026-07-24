@@ -16,14 +16,18 @@ field, then decodes that field to whatever you are listening on.
 Under the counting bed you now hear a second sound: a pulsing, buzzy tone. It is sitting **in front of you**,
 about a metre and a half out.
 
-In the **Audio Bed**, look at **Tracks — the bed**: there are two now. *Bed* (the count) and *Orbit*.
+In the **Audio** context, look at **Tracks — the bed**: there are two now. *Bed* (the count) and *Orbit*.
 
 ## 2. The positioner pad
 
-On the **timeline**, with **Global** bound, click the **first orbit clip** on its lane.
+In the **Timeline** context, with **Global** bound, click the **first orbit clip** on its lane to select it.
+Now switch to the **Audio** context: the clip inspector on the right has filled in for the selected clip.
 
-The clip inspector fills in, and this time it has a **Spatial** section: a checkbox (ticked), a small
-**top-down pad** with a dot in it, and a **height** slider.
+This time it has a **Spatial** section: a checkbox (ticked), a small **top-down pad** with a dot in it, and a
+**height** slider.
+
+![The clip inspector — the Spatial pad, the FX chain, and a Reverb refused on the master](images/04-clip-inspector-spatial-fx.png)
+<!-- TODO screenshot: Audio context clip inspector showing the top-down Spatial pad + height slider, the clip FX chain with a Reverb, and the master FX popover where a dropped Reverb node shows dimmed/disabled -->
 
 **Drag the dot.**
 
@@ -86,7 +90,7 @@ object.
 
 ## 4. ⚠ The master chain, and the trap
 
-Open the **Master** strip's **FX** button (bottom of the Audio Bed).
+Open the **Master** strip's **FX** button (bottom of the mixer, in the **Audio** context).
 
 There is a **Compressor** in it — threshold −12 dB, ratio 3:1. That is what a master chain is *for*: it is
 the last thing before the amplifier, and its job is to keep the rig safe.

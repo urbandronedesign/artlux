@@ -29,22 +29,6 @@
   ],
   "fixtures": [],
   "controllers": [],
-  "settings": {
-    "artNetIp": "127.0.0.1",
-    "artNetPort": 6454,
-    "outputEnabled": true,
-    "broadcast": false,
-    "gamma": 1,
-    "protocol": "artnet",
-    "fps": 44,
-    "keepAlive": true,
-    "artNetSync": false,
-    "oscEnabled": true,
-    "oscListenPort": 10000,
-    "oscListenAddress": "",
-    "oscControlPrefix": "/artlux",
-    "helpLang": "en"
-  },
   "globalBrightness": 1,
   "groups": [],
   "scenes": [],
@@ -65,8 +49,20 @@
   },
   "timeline": {
     "layers": [
-      { "id": "lay_bg", "name": "Backdrop", "kind": "video", "enabled": true, "opacity": 1, "blendMode": "normal" },
-      { "id": "lay_track", "name": "Tracking", "kind": "tracking", "enabled": true }
+      {
+        "id": "lay_bg",
+        "name": "Backdrop",
+        "kind": "video",
+        "enabled": true,
+        "opacity": 1,
+        "blendMode": "normal"
+      },
+      {
+        "id": "lay_track",
+        "name": "Tracking",
+        "kind": "tracking",
+        "enabled": true
+      }
     ],
     "clips": [
       {
@@ -89,7 +85,13 @@
     "outPoint": 18,
     "loop": true,
     "trackingTakes": [
-      { "id": "take_demo", "name": "Demo SOL take", "path": "assets/tracking/demo.lblob", "duration": 18, "fps": 30 }
+      {
+        "id": "take_demo",
+        "name": "Demo SOL take",
+        "path": "assets/tracking/demo.lblob",
+        "duration": 18,
+        "fps": 30
+      }
     ]
   },
   "stateMachine": {

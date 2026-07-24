@@ -23,8 +23,9 @@ nothing plugged in. Full architecture: [`docs/TRACKING_TAKES.md`](../../../docs/
 **File ▸ Open…** → `03-replayed-take.artlux`. The 2D **Stage** shows one surface, **Floor (SOL)**
 (`srf_sol`, a **TRACKING** content surface, `trackingSource: "SOL"`), and on it **three blobs already
 drifting** — trailing softly (`trail: true`, `trailSeconds: 0.6`) with their **ids** (`1`, `2`, `3`)
-shown. No emitter, no tracker — and although **OSC receive is on** here (`oscEnabled: true`, as in every
-project in this set), **nothing is sending**, so every bit of motion is coming from the timeline.
+shown. No emitter, no tracker — and even with **OSC receive** enabled in **Preferences ▸ OSC / Tracking**
+(a *machine* setting, not carried in the `.artlux`), **nothing is sending**, so every bit of motion is
+coming from the timeline.
 
 Open the **Timeline** dock. You'll see two layers:
 
@@ -32,6 +33,9 @@ Open the **Timeline** dock. You'll see two layers:
   (`clip_sol_take`), with a green **blob‑density sparkline** instead of a filmstrip.
 - **Backdrop** (`lay_bg`) — empty here; it's the layer `srf_sol` names as its `bgLayerId`, ready for you
   to drop an effect or video *under* the blobs (that's Chapter 02's move).
+
+![Timeline — the tracking lane with its blob-density sparkline, and the Takes strip](images/03-tracking-lane.png)
+<!-- TODO screenshot: Timeline dock. The Tracking lane (lay_track) with the "Demo SOL take" clip drawn as a green blob-density sparkline (not a filmstrip); the Backdrop lane empty below; the Takes strip in the toolbar with the ● Record button. -->
 
 Press **Play**. The playhead sweeps the clip and the three blobs trace their recorded path. Now **stop and
 drag the playhead by hand** — scrubbing works too, because replay is driven by the playhead every frame,
@@ -80,10 +84,10 @@ animation frame).
 
 Now make a take from the synthetic emitter and place it on the lane.
 
-1. **Confirm OSC receive is on.** This project already ships with it enabled — open **Preferences**
-   (`Ctrl+,`) **→ OSC / Tracking** and check **OSC receive** is on, **Listen port** is **10000**, and
-   **Bind address** is **All** (blank). Nothing to change here; leaving **Bind address** as **All** /
-   empty is what lets the loopback emitter reach you (see §4).
+1. **Confirm OSC receive is on.** OSC is a *machine* setting — set once, shared across projects — so open
+   **Preferences** (`Ctrl+,`) **→ OSC / Tracking** and check **OSC receive** is on, **Listen port** is
+   **10000**, and **Bind address** is **All**. Leaving **Bind address** on **All** is what lets the
+   loopback emitter reach you (see §4).
 2. **Start the emitter.** From the repo root:
    ```
    node scripts/lidar-emitter.cjs 127.0.0.1 10000 2
@@ -111,13 +115,13 @@ Now make a take from the synthetic emitter and place it on the lane.
 
 Three things change on site. None of them are in the shipped file by accident.
 
-**a) The bind address — `""` (All) vs a NIC IP.** This set ships `oscListenAddress: ""` — bind to **all
-interfaces**. Keep it that way on the bench: the loopback emitter (`127.0.0.1`) only reaches you if you're
-listening on all interfaces (or `127.0.0.1`). In the venue you *may* bind one card — **this machine's own
-IP** (e.g. `192.168.61.32`) — but **never the tracking server's IP** (`192.168.61.21`) and never a NIC IP
-that isn't on this box: binding an address that isn't a local card fails with `EADDRNOTAVAIL` and OSC
-silently stays off. The server *sends*; ArtLux *binds* to its own NIC. Details:
-[`docs/OSC.md`](../../../docs/OSC.md).
+**a) The bind address — All vs a NIC IP.** In **Preferences ▸ OSC / Tracking**, **Bind address** defaults
+to **All** — bind to **all interfaces**. Keep it that way on the bench: the loopback emitter
+(`127.0.0.1`) only reaches you if you're listening on all interfaces (or `127.0.0.1`). In the venue you
+*may* bind one card — **this machine's own IP** (e.g. `192.168.61.32`) — but **never the tracking
+server's IP** (`192.168.61.21`) and never a NIC IP that isn't on this box: binding an address that isn't
+a local card fails with `EADDRNOTAVAIL` and OSC silently stays off. The server *sends*; ArtLux *binds* to
+its own NIC. Details: [`docs/OSC.md`](../../../docs/OSC.md).
 
 **b) The 1‑person‑2‑blobs test.** On a real LiDAR floor **one person produces two blobs** (roughly, two
 legs), and — confirmed from venue recordings — **the two blobs carry different ids**, so identity has to
@@ -132,18 +136,58 @@ fill in) is [`docs/TRACKING_SYNC.md`](../../../docs/TRACKING_SYNC.md).
 > to `id 0` is a ~3‑line tweak if you want to try it.)
 
 **c) Merge People — and *where* you see it.** To make ArtLux count one person as **one** marker, turn on
-**Merge people (2 blobs → 1)** in the **3D Scene** window's tracking controls; **Merge radius** defaults
-to **0.8 m** (lower it if distinct people merge, raise toward 1.0 if one person still shows two markers).
-This is a **Scene3D per‑project setting** — `scene3D.trackingMergePeople` / `scene3D.trackingMergeRadius`
-in the file, both shipped here at their defaults (`false` / `0.8`).
+**Merge people (2 blobs → 1)** in the **Tracking** inspector section (`SceneTrackingPanel` — open the
+**3D** or **Tracking** workspace context); **Merge radius** defaults to **0.8 m** (lower it if distinct
+people merge, raise toward 1.0 if one person still shows two markers). This is a **Scene3D per‑project
+setting** — `scene3D.trackingMergePeople` / `scene3D.trackingMergeRadius` in the file (Scene3D *is*
+persisted, unlike the ignored `settings` block), both shipped here at their defaults (`false` / `0.8`).
 
 ![Merge People: two blobs from one person collapse to one marker](images/merge-people.svg)
 *One person on a real floor reads as **two blobs with different ids** (pair by distance, not id). **Merge People** (radius 0.8 m) collapses them to a single marker — but only in the **3D Scene / projector output**; the 2D editor Stage always shows the raw two markers.*
 
 > **Watch it in the 3D Scene or a projector output — not the 2D Stage.** Merge is applied only in the viz
 > and the projector channel build; the 2D editor Stage **intentionally shows the raw, un‑merged blobs**
-> so you can always see the ground truth. Enable **Tracking zones (LiDAR)** in the 3D Scene's Lighting
-> panel, replay a two‑people‑close take, and toggle Merge to see two markers collapse into one there.
+> so you can always see the ground truth. Enable **Tracking zones (LiDAR)** in the **Tracking** inspector
+> section (the 3D or Tracking context), replay a two‑people‑close take, and toggle Merge to see two
+> markers collapse into one there.
+
+## 5. Trigger zones — make the room drive the show
+
+A replayed take drives the **same store** the live tracker fills — so it also drives **trigger zones**,
+the mechanism that lets the room advance the show. You can author and tune the whole interaction right
+here, looping `demo.lblob`, with **no venue and no emitter**.
+
+1. **Draw a zone.** Open the **Tracking** workspace context (rail ▸ **Radar**) → **Trigger Zones** dock
+   tab. With the take looping (§1), the flat **SOL** map shows the raw blobs drifting. **Drag a
+   rectangle** across a part of the floor the blobs cross — it becomes a zone; drag its body to move, a
+   corner to resize. It fills in (and shows a live **· headcount**) whenever a blob is inside. Each zone
+   carries **People needed** (`minBlobs`, default 1, counted *after* people-merge) and follows the
+   **venue-wide dwell** (Zone enter 0.2 s / exit 0.5 s, in the Tracking inspector) unless you tick
+   **Override dwell for this zone**.
+2. **The eye toggle is per-scene.** Each scene chooses which zones it *listens to* (the eye —
+   `Scene3D.activeZoneIds`); the rectangles themselves belong to the **room** and never travel with a
+   scene, so a GO never recreates or loses them. A zone switched off for a scene is *unanswerable* there,
+   and any rule naming it is inert — the trigger inspector warns you.
+3. **Fire a transition on it.** In the **Show Machine** context, add a transition and set its trigger to
+   **LiDAR zone**. Its inspector (`ZoneTriggerInspector`) has two modes:
+   - **One zone** — *someone enters · everyone leaves · occupied for N s · empty for N s · at least N
+     people.*
+   - **Combination** — **ALL / ANY** of several zones, each optionally **NOT** (*"someone in the entrance
+     **and** nobody on the stage"* is one rule). A combination is about **occupancy**, not events.
+
+   Every rule is **armed once** — it will not re-fire while the visitor who tripped it is still standing
+   there — and it **holds**, so paired with **hold at end** + **only after the state has finished** it
+   gives the canonical installation state: *play the look, freeze on the last frame, advance when someone
+   walks in.*
+
+<!-- TODO screenshot (manual): images/zone-trigger-inspector.png — in the Show Machine, select a transition, set its trigger to "LiDAR zone", and capture the One-zone vs Combination inspector. Needs a drawn zone + a zone-triggered transition, which this demo project doesn't ship. -->
+_Screenshot: the LiDAR-zone trigger inspector (One zone vs Combination) — build it in the Show Machine as described above._
+<!-- TODO screenshot: the transition inspector with trigger = LiDAR zone. LEFT: One-zone mode (Zone dropdown + When = "someone enters"); RIGHT: Combination mode (Fires when ALL/ANY + two zone terms, one with NOT toggled), with the live occupancy dots. -->
+
+Because it all reads `trackingStore`, drop the **demo take** on the tracking lane (or run the emitter),
+watch the zone light in the panel and in 3D, and tune the dwells against the recording. Full wiring:
+[`docs/STATE-MACHINE.md`](../../../docs/STATE-MACHINE.md); the zone rules + on-site dwell reference:
+[`docs/TRACKING_SYNC.md`](../../../docs/TRACKING_SYNC.md).
 
 ## Recap
 
@@ -152,14 +196,18 @@ A **take** is the live blob feed frozen to a `.lblob` and replayed from a `kind:
 `assets/tracking/…` path referenced in both the take ref and the clip. You recorded your own from the
 emitter (it copies into the open project), then took the three steps to a real venue: bind **All / this
 machine's IP, never the server's**; the **1‑person‑2‑blobs / id≠0** field test; and **Merge People**
-(0.8 m) demoed in the **3D Scene**, not the raw 2D Stage.
+(0.8 m) demoed in the **Tracking** inspector (3D / Tracking context), not the raw 2D Stage. And because
+replay drives the same store as the live tracker, you built **trigger zones** against it — the room‑driven
+path into the **Show Machine**.
 
 ## Where next
 
 - **Takes reference:** [`docs/TRACKING_TAKES.md`](../../../docs/TRACKING_TAKES.md) — the `.lblob` format,
   record/replay services, and the copy‑in asset policy.
-- **On‑site sync:** [`docs/TRACKING_SYNC.md`](../../../docs/TRACKING_SYNC.md) — the full field checklist
-  and the predictive tracker behind Merge People.
+- **On‑site sync + trigger zones:** [`docs/TRACKING_SYNC.md`](../../../docs/TRACKING_SYNC.md) — the full
+  field checklist, the predictive tracker behind Merge People, and the zone dwell/rules reference.
+- **Wiring a zone to a transition:** [`docs/STATE-MACHINE.md`](../../../docs/STATE-MACHINE.md) — the show
+  graph, guards, and hold‑at‑end.
 - **OSC & tracking protocol:** [`docs/OSC.md`](../../../docs/OSC.md) — bind rules, the OSC Monitor, and
   the blob address/coordinate spec.
 

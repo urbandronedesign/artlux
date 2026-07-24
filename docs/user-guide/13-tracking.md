@@ -14,7 +14,8 @@ ArtLux ships three tracking sources, all interchangeable:
 | **MediaPipe** | any webcam | Google BlazePose, in‑app (no sensor) | lightest — a camera + one asset download |
 | **Augmenta** | an [Augmenta](https://augmenta.tech) box | Augmenta **OSC v2** into the app's OSC listener | a pre‑calibrated optical box |
 
-<!-- TODO screenshot: 3D Scene with live tracking — SOL floor + MUR wall zones at real scale, glowing per-person markers, the Lighting panel showing "Tracking zones (LiDAR)" and "Merge people" toggles — capture via scripts/capture-docs.cjs -->
+![The Tracking context — the 2D tracking map, a 3D floor grid, and the Trigger Zones dock tab](images/13-tracking.png)
+<!-- Ideal future shot: add live per-person blob markers (run scripts/lidar-emitter.cjs during capture) and a 2nd wall zone. -->
 *Live tracking in the 3D Scene: the floor (SOL) and wall (MUR) zones at real scale, one glowing marker per person, with the Lighting panel's tracking toggles at the bottom‑right.*
 
 ---

@@ -5,12 +5,12 @@
 > **meters**, **headroom**, and the clipping badge; and the division of labour between the mixer and the
 > lanes.
 
-The Audio Bed panel answers **"how loud, and what does it sound like."** The timeline lanes answer
-**"when."** That split is not a style choice — chapter 4 will show you the engine constraint that forces it.
+The mixer answers **"how loud, and what does it sound like."** The timeline lanes answer **"when."** That
+split is not a style choice — chapter 4 will show you the engine constraint that forces it.
 
 ## 1. The anatomy
 
-Open the **Audio Bed** (**View ▸ Audio Bed…**). Four regions:
+Go to the **Audio** context (the ♪ icon in the left rail) — the mixer **is** its viewport. Four regions:
 
 ```
 ┌─ header ─────────────────────────────────────────────────────────────────┐
@@ -29,6 +29,9 @@ Open the **Audio Bed** (**View ▸ Audio Bed…**). Four regions:
 **The header carries the transport** — and it is the *same* transport as the timeline's and as `Space`. There
 is one. The `♪` readout and its scrub slider are the **show clock** (chapter 1).
 
+![The mixer viewport — tracks, master strip, and the clipping badge](images/02-mixer-regions.png)
+<!-- TODO screenshot: Audio context mixer showing the four regions, master fader pushed up with the red `clipping` badge lit -->
+
 ## 2. Faders, and the one thing that is unusual about them
 
 Grab the **Bed** track's fader and ride it while the count plays. The number under it tracks your thumb.
@@ -46,9 +49,9 @@ Nothing surprising — except for what happened *underneath*:
 
 ## 3. Mute, solo, and which container they scope to
 
-Add a second bed track: **`+ Bed`** in the header. Call it *Room*. Drag `orbit.wav` from the **Media**
-library onto its lane in the timeline (with **Global** bound — remember chapter 1: you can only *edit* the
-bed on Global).
+Add a second bed track: **`+ Bed`** in the header. Call it *Room*. Then switch to the **Timeline** context and
+drag `orbit.wav` from the **Media** library onto its lane (with **Global** bound — remember chapter 1: you can
+only *edit* the bed on Global). Switch back to **Audio** for the faders.
 
 Now you have two bed tracks. Try:
 

@@ -28,10 +28,15 @@ node scripts/lidar-emitter.cjs            # 127.0.0.1  10000  2 blobs/surface (S
 ```
 
 It sends `SOL` and `MUR` zone specs plus a couple of orbiting blobs at ~61 fps to UDP `10000`
-(`Ctrl+C` to stop). Watch them arrive in **View ▸ OSC Monitor**. Two accuracy notes worth knowing:
+(`Ctrl+C` to stop). Watch them arrive in the **OSC Monitor** (**View ▸ OSC Monitor**, `Ctrl+Shift+M`) —
+now a dock tab on the **Tracking** workspace context. Two accuracy notes worth knowing:
 
-- Each project's `oscListenAddress` is `""` (**all interfaces**), never a venue NIC IP — an empty
-  address is what lets the loopback receive from the emitter work. Leave it empty.
+- **OSC receive is a machine setting, not part of the project.** Turn it on once in **Preferences ▸ OSC
+  / Tracking**: **OSC receive** on, **Listen port** `10000`, **Bind address** **All**. Keep the bind on
+  **All** (every interface, loopback included) so the emitter reaches you over `127.0.0.1` — a venue NIC
+  IP would not. Nothing about OSC ships *inside* these projects: the `settings` block older `.artlux`
+  files carry is **ignored on load** (it is the machine, not the show — see
+  [`docs/OSC.md`](../../docs/OSC.md)).
 - The emitter always sends `id = i+1` and **never `id = 0`**, so the protocol's *"`id == 0` means the
   slot is empty"* leave-signal can't be seen on the wire with the shipped emitter — the tutorial
   teaches that rule from the protocol (see [`docs/OSC.md`](../../docs/OSC.md)), not from a live packet.
@@ -46,13 +51,26 @@ clip, and that path resolves against the project's own folder on open — which 
 portable with zero setup. (A live-recorded take captures **up to ~60 fps**, not 61: the store coalesces
 the feed to one update per animation frame.)
 
+## Making the show react — trigger zones
+
+Blobs on the floor are the *input*; **trigger zones** are how the room drives the show. A zone is a named
+rectangle you draw on a tracking surface (**Tracking** workbench ▸ **Trigger Zones** dock tab); the
+**Show Machine** can transition on it — *someone enters the entrance → play the reaction state*. Zones are
+project-scope geometry (drawn once, shared by every scene), read from the **same store** the live feed and
+take replay fill — so you can build and tune the whole interaction against the emitter or the bundled take,
+**no venue required**. The tutorial covers this in [`tuto/README.md`](tuto/README.md#trigger-zones--making-the-room-drive-the-show)
+and chapter 03; wiring a zone to a transition is in [`docs/STATE-MACHINE.md`](../../docs/STATE-MACHINE.md),
+the field-tuning knobs in [`docs/TRACKING_SYNC.md`](../../docs/TRACKING_SYNC.md).
+
 ## How to open
 
 In ArtLux: **File ▸ Open…** (`Ctrl+O`) → pick a `.artlux` file. These are single-file projects — use
 **Open…**, not *Open Project Folder…*. Then open the **Timeline** panel; chapter 03's tracking clip
 sits on a dedicated **tracking lane**. Note that chapter 02 turns on the **3D Scene tracking
 visualization** (`trackingViz`), so its blobs also render in the **3D Scene / projector output**, not
-just the 2D editor stage — open the 3D Scene alongside the stage to see both.
+just the 2D editor stage — open the **3D** (Venue) or **Tracking** workspace context alongside the stage
+to see both. (The tracking overlays are tuned in the **Tracking** inspector section, shared by both
+contexts — see the tutorial.)
 
 ## Start the tutorial
 

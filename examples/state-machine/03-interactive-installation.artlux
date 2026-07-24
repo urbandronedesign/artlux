@@ -82,22 +82,6 @@
     }
   ],
   "controllers": [],
-  "settings": {
-    "artNetIp": "127.0.0.1",
-    "artNetPort": 6454,
-    "outputEnabled": true,
-    "broadcast": false,
-    "gamma": 1,
-    "protocol": "artnet",
-    "fps": 44,
-    "keepAlive": true,
-    "artNetSync": false,
-    "oscEnabled": true,
-    "oscListenPort": 10000,
-    "oscListenAddress": "",
-    "oscControlPrefix": "/artlux",
-    "helpLang": "en"
-  },
   "globalBrightness": 0.8,
   "groups": [],
   "scenes": [

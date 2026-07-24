@@ -24,9 +24,9 @@ Within a second or two, the show starts running by itself:
 - The **counting bed** plays straight through **all** of it, never restarting.
 - The **master gain** rises from 0.35 as the show comes up, holds, and falls again before the show wraps.
 
-Open the **Timeline** panel and watch the **state lane** (the top row): the ⚙ toggle is lit, and the current
-state's name changes as it advances. Open the **Audio Bed** and watch the **master fader** drift up and down
-on its own, greyed out, badged **`LANE`**.
+In the **Timeline** context, watch the **state lane** (the top row): the ⚙ toggle is lit, and the current
+state's name changes as it advances. Switch to the **Audio** context and watch the **master fader** drift up
+and down on its own, greyed out, badged **`LANE`**.
 
 Nobody is doing anything. **This is the deployment.**
 
@@ -39,8 +39,12 @@ Nobody is doing anything. **This is the deployment.**
 
 ## 2. Everything you learned, in one file
 
-Click **edit** on the state lane to open the graph. Three states in a ring, each bound to a Scene. Then map it
-back:
+Click **edit** on the state lane — it opens the **Show Machine** context (rail, *show* cluster, short title
+**Logic**), where the graph gets the whole window instead of the old modal box. Three states in a ring, each
+bound to a Scene. Then map it back:
+
+![The Show Machine context — three states in a ring, each bound to a scene](images/06-show-machine.png)
+<!-- TODO screenshot: Show Machine context (Logic) showing the three-state ring graph, one state highlighted as current -->
 
 | Layer | Where it lives | Which clock | What it does here |
 |---|---|---|---|

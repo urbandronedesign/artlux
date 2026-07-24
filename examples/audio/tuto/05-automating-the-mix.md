@@ -11,9 +11,10 @@ is a lane.
 
 ## 1. Open it and watch the room duck
 
-**File ▸ Open…** → `04-automation.artlux`. Make sure **Global** is bound. Press **Play**.
+**File ▸ Open…** → `04-automation.artlux`. Go to the **Timeline** context and make sure **Global** is bound
+(the pill above the ruler). Press **Play**.
 
-Look at the **timeline**. Below the clips there are two new lanes with curves drawn on them:
+Look at the timeline. Below the clips there are two new lanes with curves drawn on them:
 
 - **Master ▸ Gain** — flat, then a steep drop at 0:08, a long plateau, and a climb back at 0:26.
 - **Orbit ▸ Position X** — a triangle, sweeping back and forth.
@@ -29,7 +30,7 @@ Nobody is holding a fader. That is the point.
 
 ## 2. Watch the fader move — and refuse to be moved
 
-Open the **Audio Bed**. Watch the **Master** fader while the duck happens.
+Switch to the **Audio** context. Watch the **Master** fader while the duck happens.
 
 **The thumb slides down with the sound.** It is greyed out, and it wears a badge: **`LANE`**.
 
@@ -69,16 +70,20 @@ Here is the question that decides everything about a lane, and it has a beautifu
 > - A lane on the **GLOBAL** timeline rides the **SHOW clock**. It keeps driving underneath every Scene.
 > - A lane on a **Scene's** timeline rides that Scene's **playhead**, and restarts with it.
 
-Both lanes in this project are on the **global** timeline. So: **recall a Scene** while the duck is running.
+Both lanes in this project are on the **global** timeline. So: **recall a Scene** (from **Scenes & Cues**, or a
+scene pill above the ruler) while the duck is running.
 
 The picture changes. **The duck carries on descending, exactly as if you had not touched anything.** It is on
 the show clock — the same clock as the bed — so a cue does not reset it, any more than a cue resets the music.
 
 ## 4. …and you can *see* it, which is new
 
-With the Scene still bound, look at the **timeline**.
+With the Scene still bound, go back to the **Timeline** context.
 
 The two lanes are **still drawn** — dimmed, and each badged **`GLOBAL`**.
+
+![A GLOBAL lane struck through in the timeline, beside the read-only LANE master fader in the mixer](images/05-global-vs-lane.png)
+<!-- TODO screenshot: left, the Timeline context with a base lane badged GLOBAL and struck through because a scene lane owns the same target; right, the Audio context master fader greyed out and badged LANE -->
 
 > ### Why they are on screen at all
 > They do not belong to this Scene. They belong to the **global** timeline, and they are *what is currently

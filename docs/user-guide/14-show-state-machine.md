@@ -10,7 +10,7 @@ sequence, an unattended attract loop, or a live‑triggered installation.
 You drive it from the desktop **Show** context (or the timeline's state lane), and unattended venues
 can be run entirely from the **tablet remote**.
 
-<!-- TODO screenshot: the State Graph editor modal — several scene-bound nodes with the initial (cyan) node, the active node ringed orange, curved transition edges labelled with their triggers, a region group-box, and the inspector column on the right showing a selected transition's trigger dropdown — capture via scripts/capture-docs.cjs -->
+![The Show Machine context — the state graph over scenes: scene-bound nodes, the active node ringed, labelled transition edges, and a "Playhead-driven" region group-box](images/14-show-state-machine.png)
 *The State Graph editor: nodes are Scenes, edges are transitions. The initial state is the cyan node, the current state gets an orange ring, and a firing edge flashes red.*
 
 ---

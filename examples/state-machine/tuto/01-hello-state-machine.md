@@ -29,7 +29,10 @@ lit (the machine is **enabled**) and the **current state's name** updates — `C
 
 ## 2. Look under the hood
 
-On the state lane, click **`edit`** to open the **state-graph editor**.
+On the state lane, click **`edit`** — this opens the **Show Machine** context (the full-window
+state-graph editor). You can also reach it any time from the left **rail**: cluster **Show**, the
+**Logic** entry (the *Workflow* icon). It used to be a modal boxed over the timeline; it's now a
+workspace context with the whole window to itself.
 
 ![The state-graph editor: Calm, Rise and Burn joined in a loop](images/state-graph.svg)
 *The three states in a ring, as the graph editor draws them: **Calm** is the initial state (cyan ring), **Rise** is the current/live state (orange ring), and each `afterDelay` arrow carries its wait plus a crossfade time. **Burn → Calm** closes the loop.*
@@ -46,6 +49,12 @@ Click a node to select it. The **inspector** on the right shows its **Name**, wh
 **initial** state (★), and the **Scene (recalled on entry)** it's bound to. This binding is the heart
 of the machine: **entering a state recalls its Scene**, which swaps the whole look — here, the surface
 effect + the brightness.
+
+> **Every Scene now owns its own timeline.** A state doesn't just swap the *look* — recalling its Scene
+> also **warm-swaps** the playback engine to that Scene's own timeline (its own clips, markers and
+> playhead). These three states use effects with no clips, so there's nothing on their timelines to
+> notice yet — but it's the fact that makes chapter 2 work, so keep it in mind. Reference:
+> [`docs/SCENE-TIMELINES.md`](../../../docs/SCENE-TIMELINES.md).
 
 Now click an **arrow**. The inspector shows:
 
@@ -75,10 +84,10 @@ There's nothing else — a looping show is *N* states in a ring, each bound to a
 
 1. **Change the pace.** Select the `Calm → Rise` arrow and set **Seconds after entering** to `2`. The
    show now races through Calm. Set it to `20` and it lingers. (Changes apply live.)
-2. **Change a look.** Click the **CALM** node → note its Scene is *Calm*. Close the editor, open the
-   **Scenes & Cues** dock tab, click **GO** on *Calm* to make it the edit target, then change the
-   surface's effect/palette on the Stage and press **↻ Update** on the scene. Re-open the graph and let
-   it cycle — Calm now shows your new look.
+2. **Change a look.** Click the **CALM** node → note its Scene is *Calm*. Switch to the **Scenes & Cues**
+   context (rail cluster **Show**), click **GO** on *Calm* to make it the edit target, then change the
+   surface's effect/palette on the Stage and press **↻ Update** on the scene. Re-open **Show Machine**
+   and let it cycle — Calm now shows your new look.
 3. **Add a fourth state.** In the editor, **double-click empty canvas** to add a state. Bind it to a
    Scene in the inspector (or leave it blank for a black beat). Then **rewire the ring**: drag the
    little **nub on a node's right edge** onto your new node to connect, delete the old closing arrow

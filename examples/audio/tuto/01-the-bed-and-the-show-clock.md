@@ -10,8 +10,13 @@ yourself in about four minutes.
 
 ## 1. Open it and listen
 
-**File ▸ Open…** → `01-the-bed.artlux`. Open the **Audio Bed** panel (**View ▸ Audio Bed…**) and the
-**Timeline** panel (bottom dock).
+**File ▸ Open…** → `01-the-bed.artlux`. Go to the **Audio** context in the left rail (the ♪ icon, *show*
+cluster) — its viewport is the mixer. When a step sends you to the lanes, switch to the **Timeline** context
+(the film icon, *build* cluster); its bottom region is the timeline. (**View ▸ Audio Bed…** still works and
+just switches you to the Audio context.)
+
+![The Audio context — the mixer, with the counting bed on one track](images/01-audio-context.png)
+<!-- TODO screenshot: Audio context selected in the rail, mixer viewport showing the single Bed track + master strip -->
 
 Press **Play** (`Space`).
 
@@ -23,7 +28,8 @@ Watch the **`♪`** readout in the Audio Bed header climb in step with the beeps
 
 ## 2. Now break it. (Try to.)
 
-Open the **Scenes** tab in the bottom dock. You have three: **Foyer**, **Main**, **Exit**.
+Go to the **Scenes & Cues** context (the rail's *show* cluster, short title **Cues**). You have three:
+**Foyer**, **Main**, **Exit**.
 
 Let the bed reach somewhere unmistakable — wait for the high **beep 10**, then a couple more. Now **click
 Main.**
@@ -44,16 +50,21 @@ The picture snaps around. The music does not care. That is the bed.
 
 ## 3. Look at where it lives
 
-In the **Audio Bed** panel, look at the left column. Two headings:
+Back in the **Audio** context, look at the mixer's left column. Two headings:
 
 - **Tracks — the bed** → one track, **Bed**, holding your counting clip.
 - **Tracks — Global** → empty. (Recall a Scene and watch this heading change to **Foyer** / **Main** /
   **Exit** — it names whichever document is currently bound. It is empty in all of them, for now. Chapter 3
   fills it.)
 
-Now look at the **timeline** while **Global** is bound: you can see the bed's audio lane, with its waveform.
+Now switch to the **Timeline** context. While **Global** is bound (the pill above the ruler) you can see the
+bed's audio lane, with its waveform.
 
-**Recall a Scene.** The bed's lane **vanishes from the timeline.**
+**Recall a Scene** — from **Scenes & Cues**, or by clicking a scene pill above the ruler. The bed's lane
+**vanishes from the timeline.**
+
+![Timeline context — the bed's lane on Global vs a bound scene's own ruler](images/01-bed-lane-vs-ruler.png)
+<!-- TODO screenshot: Timeline context, top the bed lane with Global bound, bottom the same timeline with a scene bound (bed lane gone, scene ruler at 0) -->
 
 That is deliberate, and it is a signal rather than a bug. The ruler you are now looking at belongs to the
 *scene's* timeline — its playhead, its length. The bed is not on that clock, so drawing it against that ruler

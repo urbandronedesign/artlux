@@ -5,8 +5,13 @@ Five ready-to-open `.artlux` projects that teach ArtLux's **spatialised, show-sy
 [`tuto/`](tuto/README.md).
 
 **These are the one example set that ships real media** — audio needs audio. Everything else stays portable
-in the usual way: each look is a built-in GPU **effect** (no video or image files), and output is aimed at
-`127.0.0.1` (harmless loopback), so opening one transmits nothing to real fixtures unless you repoint it.
+in the usual way: each look is a built-in GPU **effect** (no video or image files).
+
+> ⚠ **Check your Art-Net output before opening these on a rig.** The output target is no longer stored in the
+> project — it is **machine state** now (Preferences ▸ Output), so opening one of these files sends to whatever
+> *this machine* is already set to send to. On a venue PC wired to real fixtures, that is the real fixtures.
+> There is no per-project loopback that quietly keeps the wire silent any more; if you want to open these
+> without lighting anything up, point Preferences ▸ Output somewhere harmless (or turn output off) first.
 
 > ## 🎧 Wear headphones for chapters 4 and 5.
 > The spatial engine decodes ambisonics **binaurally** (HRTF) by default — that is a true 3-D image, but it
@@ -16,7 +21,7 @@ in the usual way: each look is a built-in GPU **effect** (no video or image file
 | Project | What it demonstrates | Runs on open? |
 |---|---|---|
 | [`01-the-bed.artlux`](01-the-bed.artlux) | the **bed**, the **show clock**, and the claim the whole subsystem rests on: a Scene recall does **not** restart it | press **Play**, then fire GOs |
-| [`02-per-scene-audio.artlux`](02-per-scene-audio.artlux) | a Scene's **own** audio — the sting that *does* restart on every entry. **Two containers, two clocks**, heard side by side | press **Play**, then fire GOs |
+| [`02-per-scene-audio.artlux`](02-per-scene-audio.artlux) | a Scene's **own** audio — the sting that *does* restart on every entry. **Three containers, two clocks** (the third is a video clip's own soundtrack), heard side by side | press **Play**, then fire GOs |
 | [`03-spatial-and-fx.artlux`](03-spatial-and-fx.artlux) | the **positioner pad** (place a source in the room), the **clip insert chain** (a reverb), and why a reverb on the **master** is silently dropped | press **Play** |
 | [`04-automation.artlux`](04-automation.artlux) | **automation lanes** on the master gain and on a source's position; which **clock** a lane rides; the `GLOBAL` and `LANE` badges | press **Play** |
 | [`05-the-unattended-show.artlux`](05-the-unattended-show.artlux) | all of it, run by the **state machine** on a wall clock. Nobody presses anything. | **Yes** — it starts itself |
@@ -24,8 +29,12 @@ in the usual way: each look is a built-in GPU **effect** (no video or image file
 ## How to open
 
 In ArtLux: **File ▸ Open…** (`Ctrl+O`) → pick a `.artlux` file. These are single-file projects — use
-**Open…**, not *Open Project Folder…*. Then open the **Audio Bed** panel (**View ▸ Audio Bed…**) and the
-**Timeline** panel (bottom dock).
+**Open…**, not *Open Project Folder…*. Then pick the **Audio** context from the left rail (in the *show*
+cluster) — its viewport **is** the mixer — and the **Timeline** context (in the *build* cluster) when a chapter
+sends you to the lanes. (**View ▸ Audio Bed…** still works and now just switches you to the Audio context.)
+
+![The Audio workspace context — the mixer as its viewport](tuto/images/audio-context.png)
+<!-- TODO screenshot: Audio context selected in the left rail, mixer viewport showing tracks + master strip -->
 
 **No sound at all?** Look for a **`no audio engine`** badge in the Audio Bed header. Built from source, the
 native engine is a separate step — `npm run build:audio`, **with the app closed**. See

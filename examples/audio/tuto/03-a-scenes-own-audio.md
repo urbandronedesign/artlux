@@ -12,7 +12,7 @@ time**. That is what a scene's own audio is for.
 
 **File ▸ Open…** → `02-per-scene-audio.artlux`. Press **Play**. Let the count run a few beeps.
 
-Now, in the **Scenes** tab: **Main.**
+Now, in the **Scenes & Cues** context (rail, *show* cluster, short title **Cues**): **Main.**
 
 You hear **two things at once**:
 
@@ -35,14 +35,17 @@ Click it five more times. **It fires every single time.**
 
 ## 2. See it
 
-Bind **Main** (click it once). Now look at the **Audio Bed** panel's left column:
+Bind **Main** (click it once). Now, in the **Audio** context, look at the mixer's left column:
 
 - **Tracks — the bed** → *Bed*, with the count.
 - **Tracks — Main** → *Sting*. The heading **names the scene you are in.**
 
-And on the **timeline**, with Main bound: there is one audio lane, holding a short clip at **0:00** — with its
-waveform, a sharp attack at the very start. **That clip sits at zero.** That is why the recall fires it: the
-playhead resets to 0, and there is the clip.
+And in the **Timeline** context, with Main bound: there is one audio lane, holding a short clip at **0:00** —
+with its waveform, a sharp attack at the very start. **That clip sits at zero.** That is why the recall fires
+it: the playhead resets to 0, and there is the clip.
+
+![Timeline context — Main bound: the sting at 0:00 against the scene's own ruler](images/03-scene-ruler.png)
+<!-- TODO screenshot: Timeline context with the Main scene bound, one audio lane holding the sting clip at 0:00, the scene's playhead ruler (not the bed's show clock) -->
 
 Now look at the note under the clip inspector:
 
@@ -91,11 +94,12 @@ cannot touch it. Click the **Global** pill above the ruler and it returns.
 Let's give **Exit** a second sound.
 
 1. Bind **Exit**.
-2. On the **timeline**, in the audio gutter, click **`+`** to add an audio track to *this scene*. Call it
-   *Tail*.
-3. From the **Media** library (left panel, **Media** tab), drag **`orbit.wav`** onto that lane.
+2. In the **Timeline** context, in the audio gutter, click **`+`** to add an audio track to *this scene*.
+   Call it *Tail*.
+3. From the **Media** library (the browser column on the left), drag **`orbit.wav`** onto that lane.
 4. Drag it so it starts at about **0.5 s** — a beat after the sting.
-5. In the **Audio Bed**, click the clip on its lane, and pull its **gain** down to about **0.4**.
+5. Select the clip on its lane, then switch to the **Audio** context and pull its **gain** down to about
+   **0.4** in the clip inspector.
 
 Now fire **Foyer → Exit → Foyer → Exit.**
 
@@ -105,8 +109,8 @@ Both sounds fire, together, every time. And the count never so much as hiccups u
 
 Remember chapter 2's claim that **solo is scoped per container**? Test it now.
 
-In the Audio Bed, hit **S** on the **Bed** track. Only the count plays; your *Room* track (if you added one)
-goes quiet.
+In the **Audio** context, hit **S** on the **Bed** track. Only the count plays; your *Room* track (if you
+added one) goes quiet.
 
 Now fire **Main.**
 
@@ -139,6 +143,6 @@ clocks, and a solo that crossed between them would make no sense to anyone stand
    sting fires every four seconds for as long as you sit in that scene — and the bed *still* does not care.
 3. **Put the bed in the wrong place, on purpose.** Drag `bed-count.wav` onto Main's audio lane. Now GO to
    Main repeatedly. Two counts, out of phase, one restarting and one not. It is an unholy noise — and it is
-   the clearest possible demonstration of what the two containers actually do. `Ctrl+Z`.
+   the clearest possible demonstration of what the bed and a scene's own audio actually do. `Ctrl+Z`.
 
 ➡ **[Chapter 4 — Spatial audio and FX](04-spatial-audio-and-fx.md)**

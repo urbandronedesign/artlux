@@ -26,15 +26,22 @@ because the fastest way to understand a rule is to watch what happens without it
 
 Everything below follows from one sentence:
 
-> ### There are **two audio containers**, and they ride **two different clocks**.
+> ### There are **three audio containers**, and they ride **two clocks**.
 
-|  | **The BED** | **A timeline's OWN audio** |
-|---|---|---|
-| Lives in | `ProjectData.audio` — **one per project** | `Timeline.audio` — one per timeline, **so one per Scene** |
-| Rides | the **SHOW clock** | the **PLAYHEAD** |
-| A Scene recall (a GO) | **does not touch it** | **restarts it** |
-| Edit it on the timeline | only while **Global** is bound | whenever that timeline is bound |
-| It is for | house music, room tone, the ambient bed — **the thing that must not stutter when you fire a cue** | the scene's **sting** — the thing that *should* fire again every time you enter |
+|  | **The BED** | **A timeline's OWN audio** | **A video clip's own soundtrack** |
+|---|---|---|---|
+| Lives in | `ProjectData.audio` — **one per project** | `Timeline.audio` — one per timeline, **so one per Scene** | nowhere — **derived** from the video clips on a timeline |
+| Rides | the **SHOW clock** | the **PLAYHEAD** | the **PLAYHEAD** |
+| A Scene recall (a GO) | **does not touch it** | **restarts it** | **restarts it** |
+| Edit it on the timeline | only while **Global** is bound | whenever that timeline is bound | you don't — only *how it sounds* is authored (`VideoClip.audio`), never *when* |
+| It is for | house music, room tone, the ambient bed — **the thing that must not stutter when you fire a cue** | the scene's **sting** — the thing that *should* fire again every time you enter | a movie's own audio, locked to its picture — no lane, no separate import, nothing to keep in sync |
+
+Three containers, but only **two clocks**: the bed on the show clock, and *both* of the others on the
+playhead. This tutorial teaches the two you **author** — the bed and a scene's own audio. The third one you
+never place: drop an `.mp4` or `.mov` on a video track and it simply plays its own sound, on the picture's
+playhead, through the same rig. It carries the picture's audio and cannot drift from it, so there is nothing
+to learn about *when* — only *how it sounds*, which is the same clip-inspector controls chapter 4 covers. See
+[`docs/AUDIO.md`](../../../docs/AUDIO.md) → *A video clip's own soundtrack*.
 
 That is the whole design. Almost every question you will ever ask about ArtLux audio —
 
@@ -68,8 +75,9 @@ clock does not.
 
 You can see both, always:
 
-- **`♪ BED m:ss`** in the timeline toolbar — the **show** clock. It appears whenever a Scene is bound.
-- **`♪ m:ss`** in the Audio Bed header — the same number, plus a scrub slider for it.
+- **`♪ BED m:ss`** in the timeline toolbar (the **Timeline** context) — the **show** clock. It appears
+  whenever a Scene is bound.
+- **`♪ m:ss`** in the mixer header (the **Audio** context) — the same number, plus a scrub slider for it.
 - The **ruler** under a bound Scene is that scene's **playhead**. A different number, on purpose.
 
 If those two ever tell you the same story while a Scene is bound, something is wrong. They are *supposed*
@@ -79,8 +87,12 @@ to disagree.
 
 ## Before you start
 
-1. **Open the Audio Bed panel** — **View ▸ Audio Bed…**. Keep it open; every chapter uses it. (There is no
-   keyboard shortcut for it — if you were told there was, that was wrong.)
+1. **Go to the Audio context** — it is in the left rail, in the *show* cluster (the ♪ icon). Its viewport
+   **is** the mixer, so switching to it is how you "open" the mixer; every chapter uses it. (**View ▸ Audio
+   Bed…** still works and simply switches you here — there is no keyboard shortcut for it.)
+
+![The Audio workspace context — the mixer as its viewport](images/audio-context.png)
+<!-- TODO screenshot: Audio context selected in the left rail, mixer viewport showing tracks + master strip -->
 2. **Check you have sound.** If the Audio Bed header shows a **`no audio engine`** badge, ArtLux started
    without its native audio addon and there will be **silence, with everything else working normally**.
    Built from source, that addon is a separate step: `npm run build:audio`, **with the app closed**

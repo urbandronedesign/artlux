@@ -74,5 +74,5 @@
   <text x="628" y="196" class="zsub">height / depth (+V)</text>
 
   <!-- note -->
-  <text x="34" y="408" class="note">3D Scene ▸ Lighting ▸ Tracking zones (LiDAR) — the smoothed view (One-Euro filter + prediction), not the raw 2D Stage.</text>
+  <text x="34" y="408" class="note">Tracking context ▸ Tracking inspector ▸ Tracking zones (LiDAR) — the smoothed view (One-Euro filter + prediction), not the raw 2D Stage.</text>
 </svg>
