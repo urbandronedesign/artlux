@@ -333,7 +333,7 @@ clips.
 | 20 | **New Project** | **RESET to `globalStart`** | **RESET to `globalStart`** — the show clock must not keep running into a project that no longer exists | `resetToNewProject` clears `activeSceneId` + the state machine and re-binds the engine to the global pool: `swap(GLOBAL_POOL, timeline, {transport:'restart', showClock:'reset'})`. ⚠ **The bare `showSeek` this replaces moved ONE clock and left the binding on a scene that no longer exists** — the engine stayed on the departed scene's pool, `handleTimelineChange` mapped every edit over an empty `scenes` array (silently discarded), and the mixer locked its seek on a phantom `activeSceneId` |
 
 Rationale for every row (and the design calls behind it) lives in
-[`docs/superpowers/plans/2026-07-12-audio-scoping-wave-b.md`](superpowers/plans/2026-07-12-audio-scoping-wave-b.md), Task 2.
+[`docs/archive/superpowers/plans/2026-07-12-audio-scoping-wave-b.md`](archive/superpowers/plans/2026-07-12-audio-scoping-wave-b.md), Task 2.
 
 ### Engine API (`services/timeline.ts`)
 

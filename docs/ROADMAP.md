@@ -1,8 +1,13 @@
 # ArtLux — Plugin Architecture Roadmap
 
-Forward-looking backlog for the plugin-architecture migration. For how the app works today see
+Backlog + record for the plugin-architecture migration. For how the app works today see
 [ARCHITECTURE.md](ARCHITECTURE.md); for the historical pre-Electron rewrite see
-[ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md).
+[archive/ARCHITECTURE_PLAN.md](archive/ARCHITECTURE_PLAN.md).
+
+> **Status (v0.24.0):** the first-party plugin-extraction arc this doc planned is **essentially complete** —
+> all ten plugins ship (see the Status table). The two long "extraction record" sections below (spout,
+> calibration) are **retrospective** — kept for the how, not because the work is pending. Genuine forward
+> work is now thinner and is being re-scoped; see [What's next](#whats-next).
 
 ## Direction
 
@@ -33,6 +38,11 @@ with relative imports duplicates singletons (writers hit one instance, readers t
 | **calibration** | ✅ fully inverted (Stage 1 → 3, **2b closed 2026-07-23**) | Engine + logic (1); host-services + back-channel (2-foundation); wizard/camera UIs relocated (2b); write path via `calibHost.ts` (2c); pose orchestration → `calibWorkspace.ts` (2d); projector-side rendering → a `ProjectorPanelContribution` (`CalibProjector.tsx` + moved `ProjectorScene.tsx`) (3). `App`/`ProjectorApp`/`ProjectorGL` import zero calibration code. **Stage 2b is now closed**: the wizards are no longer mounted by App either — the plugin registers a `calibration.workbench` viewport panel and claims the host-declared `calib` context via `contexts.extend({ viewport })`. App shed six useStates (calibratingOutputId / flow / pickMode / picks / selectedPick / cameraHost) into `calibWorkspace`, and the camera preview renders inline instead of being portaled into a div App laid over the Stage. App now only SUBSCRIBES to `calibWorkspace` to feed the embedded 3D its pick props. **Wizard UI rig-confirmed 2026-07-02** (needed the Tailwind `content` glob to scan `plugins/` — see PLUGINS.md gotchas). The board/markerless calibration *pass* itself still needs on-rig sign-off. |
 | **spout** | ✅ shipped | Windows Spout video receive fully inverted — native `spoutManager` (main) + refcounted `spoutContentSource` provider + `SpoutEditor` (renderer), all over the generic plugin bridge. Receive-only (no send). `SourceType.SPOUT`/`SurfaceContent.spoutName` stay core. `spout-receiver.node` stays root `extraResources`. Runtime receive needs a Spout sender on the rig. |
 | **hap** | ✅ shipped | HAP video codec fully inverted — native `hapManager` (main) + prefetch-ring `hapDecode` + WebGL2 BC-decompress `hapGL` + surface `hapPlayer` (renderer), registered as the first **`VideoCodec`** contribution. The three consumers (`contentSource` surfaces, the timeline LAYER engine, `thumbnailCache`) dispatch `.mov` through `videoCodecRegistry` — no HAP code left in core. `hap.node` stays root `extraResources`. Rig-verified for playback (surface HAP auto-plays on boot; timeline-layer + thumbnails need on-rig sign-off). |
+| **mp4** | ✅ shipped | GPU WebCodecs H.264/H.265 `.mp4` decode, the second **`VideoCodec`** contribution. Renderer-only, opt-in via the `mp4WebCodecs` setting. See the Video-codecs section below + [CODECS.md](CODECS.md). |
+| **mediapipe** | ✅ shipped | Camera-based BlazePose pose tracking — a webcam **tracking source**, WASM in-renderer, renderer-only (no native crate). See [MEDIAPIPE.md](MEDIAPIPE.md). |
+| **augmenta** | ✅ shipped | Augmenta box optical tracking (OSC v2) — a **tracking source** sharing the host OSC listener, renderer-only. See [AUGMENTA.md](AUGMENTA.md). |
+| **audio** | ✅ shipped | The JUCE/ambisonics sound engine — an `automationTarget` provider + a `boot` probe; native `audio-engine` (C++). See [AUDIO.md](AUDIO.md). |
+| **show-control** | ✅ shipped | Cross-process: an embedded HTTP+SSE server serving a tablet PWA (scene/cue/transport/state-machine), a wall-clock scheduler, live metrics, and a multi-project broadcast playlist; adds a `host.show` service + `ProjectData.schedule`. See [SHOW-CONTROL.md](SHOW-CONTROL.md). |
 
 Also done: the **timeline clip-kind** inversion — `timeline.ts` no longer hardcodes `kind==='tracking'`;
 the lidar plugin registers the `tracking` kind into `clipKindRegistry` (first end-to-end consumer).
@@ -80,7 +90,9 @@ second `.mov` codec like DXV).
 
 ---
 
-## Next: `@artlux/plugin-spout` (Windows Spout video receive)
+## ✅ Shipped — extraction record: `@artlux/plugin-spout` (Windows Spout video receive)
+
+> Retrospective. This was the plan; it shipped (see Status table). Kept for the *how*.
 
 A direct parallel to the shipped **ndi** plugin, but **simpler**: Spout is Windows-only and **receive-only**
 (no send path), so no generic-bridge send routing. Cross-process (`/main` + `/renderer` barrels). The
@@ -122,7 +134,11 @@ surface. `spoutManager` is Windows-only + graceful-degrades, so non-Windows/CI s
 
 ---
 
-## Next: `@artlux/plugin-calibration` (projector auto-calibration)
+## ✅ Shipped — extraction record: `@artlux/plugin-calibration` (projector auto-calibration)
+
+> Retrospective. Fully inverted through Stage 3 (see Status table). Kept for the *how*; the staged plan
+> below carries inline ✅ marks. The board/markerless calibration *pass* itself still needs on-rig sign-off.
+
 
 Projector auto-calibration is a whole application *mode* — ~33 files, structured-light capture
 (projector displays patterns ↔ camera captures ↔ OpenCV solves ↔ writes warp/pose). Worthwhile
@@ -256,6 +272,40 @@ rewired mount — need a real projector to confirm.
 - Native ownership move (calib.node + 64 MB DLL → plugin extraResources) — double-check `electron-builder`.
 
 ---
+
+## What's next
+
+The plugin-extraction arc is essentially done, so forward work shifts from *extracting* features to
+*capabilities + hardening*. Several items are tracked as full plans under [`plans/`](../plans/README.md).
+
+### Near-term (prioritized)
+
+1. **Renderer error containment** — *hardening, highest operational value.* Today the watchdog is blind to
+   a white screen: a first-render throw means the heartbeat never fires, so an unattended venue install can
+   sit dead until someone drives out. Plan: [`plans/renderer-error-containment.md`](../plans/renderer-error-containment.md).
+2. **Timeline undo** — there is no undo for any timeline edit, and the show engine (FSM/OSC/cues/scheduler)
+   pushes machine-made history onto an **uncapped** stack. Plan: [`plans/timeline-undo.md`](../plans/timeline-undo.md).
+3. **MIDI control** — a new `plugins/midi` (control surface → cue/transport/state-machine). Net-new
+   capability, not started. Plan: [`plans/midi-control.md`](../plans/midi-control.md).
+4. **Projector polish** (the sampling/blend cluster):
+   - **WebGL strict per-surface sampling — Phase 2** (Phase 1 shipped: force-WebGL + banner; Phase 2 was
+     deferred pending a decision — [`plans/webgl-strict-per-surface-sampling.md`](../plans/webgl-strict-per-surface-sampling.md));
+   - **Content source-region (crop)** — held behind WebGL Phase 2 ([`plans/content-source-region.md`](../plans/content-source-region.md));
+   - **Projector blend preview + phase-lock** — additive soft-edge preview + phase-locked effect clock
+     ([`plans/projector-blend-preview.md`](../plans/projector-blend-preview.md)).
+
+### Later
+
+- **Transport: prev/next edit point** — the `⏮`/`⏭` capability was never built.
+  [`plans/transport-edit-point-navigation.md`](../plans/transport-edit-point-navigation.md).
+- **Runtime plugin test harness** — a behavioral harness (mock-context activation → assert registrations →
+  IPC round-trip); blocked on a headless activation environment. Static `verify:plugins` covers identity +
+  coverage today.
+- **SDK maturation → a third-party plugin API** — the long arc: contract soak → semver + host-range →
+  capability model → sandboxing → disk loading. Tracked in [SDK.md](SDK.md); future work.
+
+*(Explicitly **not** planned: **DXV** codec — dropped 2026-07-03; the two shipped codecs don't share an
+extension, so no probe-order work is needed.)*
 
 ## Deferred backlog (accumulated from shipped plugins)
 

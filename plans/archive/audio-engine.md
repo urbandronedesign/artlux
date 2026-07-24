@@ -67,7 +67,7 @@ There is **no** keyframe/envelope system today (verified: zero hits for automati
 
 > ⚠ **CORRECTED IN PLACE (Wave B, 2026-07-12) — this section was wrong, and the two bullets below are kept
 > only so the correction has something to point at.** P5 shipped as
-> [2026-07-12-audio-scoping-wave-b.md](../../docs/superpowers/plans/2026-07-12-audio-scoping-wave-b.md),
+> [2026-07-12-audio-scoping-wave-b.md](../../docs/archive/superpowers/plans/2026-07-12-audio-scoping-wave-b.md),
 > Tasks 9–10. What it actually took is in the two struck-through bullets' footnotes.
 
 - ~~Extend the dot-path model for an `audio.*` namespace: add handling to `getByPath`/`setByPath`, … and an audio slice on `StateView` threaded through its construction sites.~~ — **NOT WHAT SHIPPED.** `getByPath`/`setByPath` were **not** extended and `StateView` was **not** widened: audio is not in `StateView` and never will be (widening it means touching 9 construction sites and adding two per-frame allocations in `Stage`'s tick). Audio reads/writes go through the **automation-target registry** instead. What was needed: one head-aware `pathLeaf()` helper (the old grammar was hardwired to `<head>.<id>.<leaf>` via `slice(2)` — an audio path is one segment deeper), an `AUDIO_FADEABLE_RE` leaf set + an `isFadeablePath` audio arm, and a registry-driven cue picker.
@@ -86,7 +86,7 @@ There is **no** keyframe/envelope system today (verified: zero hits for automati
   one, a `FadeLeg.log` flag (the fade engine interpolated linearly over log-curve params like `cutoff`),
   and `Scene.audio?: CueEntry[]` + a `CaptureTarget` interface so the picker could commit to a **scene**
   and not only to the selected cue. See
-  [2026-07-12-audio-scoping-wave-b.md](../../docs/superpowers/plans/2026-07-12-audio-scoping-wave-b.md), Tasks 9–10.
+  [2026-07-12-audio-scoping-wave-b.md](../../docs/archive/superpowers/plans/2026-07-12-audio-scoping-wave-b.md), Tasks 9–10.
 - **Global bed** clips live on `ProjectData.audio`. ~~They survive swaps~~ — **they survive swaps *and no
   longer restart*: they ride the new SHOW CLOCK** (`showTime`), which a scene recall does not reset. **Per-scene**
   clips are `Timeline.audio` and ride the **playhead**, restarting with their timeline. *The clock follows the

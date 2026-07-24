@@ -1,6 +1,6 @@
 # ArtLux — Build Progress & Decisions
 
-Living status log for the rewrite in [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md).
+Living status log for the rewrite in [ARCHITECTURE_PLAN.md](archive/ARCHITECTURE_PLAN.md).
 Newest decisions at the bottom of each section. Commit hashes are on `main`.
 
 ## Status by phase
@@ -399,7 +399,7 @@ per-surface sampling + fixture linking, fixture library, controllers + auto-patc
 
 ## v0.3.x — workspace rework, square canvas, output/preview fixes, auto-update
 
-Shipped across **v0.3.0** and **v0.3.1** (see `CHANGELOG.md`; UI detail in `UI_REFACTOR.md`,
+Shipped across **v0.3.0** and **v0.3.1** (see `CHANGELOG.md`; UI detail in `archive/UI_REFACTOR.md`,
 "Workspace layout v2").
 
 - **Workspace UI v2** — three-region shell in `App.tsx`: left `ScenePanel` (outliners + sliders),

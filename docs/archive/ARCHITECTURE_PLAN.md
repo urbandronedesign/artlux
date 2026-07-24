@@ -1,7 +1,7 @@
 # ArtLux → WebGPU Compute + Electron + WLED Feature Port
 
 > **HISTORICAL** — this is the original pre-Electron rewrite roadmap (all phases shipped). For the
-> current architecture see [ARCHITECTURE.md](ARCHITECTURE.md); kept for context/decisions only.
+> current architecture see [ARCHITECTURE.md](../ARCHITECTURE.md); kept for context/decisions only.
 
 ## Context
 

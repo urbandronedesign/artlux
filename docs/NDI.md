@@ -4,6 +4,10 @@ NDI® lets ArtLux **receive** a network video stream as a Surface's content, and
 projector output as its own NDI source for other software (Resolume, OBS, vMix, media servers,
 recorders). It's the cross-platform, network counterpart to Spout. Added in **v0.7.0**.
 
+Shipped as the first-party plugin **`@artlux/plugin-ndi`** (see [PLUGINS.md](PLUGINS.md)):
+cross-process, with a main-side native manager (`/main`) and a renderer receive/content source
+(`/renderer`); its code lives under `plugins/ndi/src/` (the native addon stays in `native/ndi`).
+
 NDI® is a registered trademark of Vizrt NDI AB.
 
 ---
@@ -81,11 +85,11 @@ machines still compile the crate.)
   `sendCreate/sendFrame/sendDestroy`, `setRecvCap`. Real impl via **grafton-ndi** behind the `ndi`
   cargo feature; stubs otherwise. `recvFrame` downscales to a runtime cap (≤1280×720 default,
   raised to ≤1920×1080 via `setRecvCap` in Broadcast mode).
-- **Main** `src/main/transport/ndiManager.ts`: loads `ndi.node` (graceful if absent),
+- **Main** `plugins/ndi/src/ndiManager.ts` (`@artlux/plugin-ndi/main`): loads `ndi.node` (graceful if absent),
   60 Hz receive poll, multi-instance send. **`ensureNdiOnPath()`** prepends the NDI runtime dir
   (`NDI_RUNTIME_DIR_V6` + known fallbacks) so the linked `Processing.NDI.Lib.x64.dll` is found before
   `require`. IPC: `NDI_AVAILABLE/LIST/CONFIGURE/FRAME` (receive) + `NDI_SEND_CONFIGURE/NDI_SEND_FRAME`.
-- **Receive (renderer)**: `services/ndiReceiver.ts` → `getNdiCanvas()`; wired into `surfaceMedia` as a
+- **Receive (renderer)**: `plugins/ndi/src/ndiReceiver.ts` → `getNdiCanvas()`; wired into `surfaceMedia` as a
   single-live source (`SourceType.NDI`, `SurfaceContent.ndiName`); Inspector content button.
 - **Send (renderer)**: per-output `ProjectorOutput.ndiSend`; the projector window's
   `ProjectorGL.captureRGBA()` reads back the warped result (≤720p, or ≤1080p in Broadcast; Y-flipped) → `sendNdiFrame` IPC →

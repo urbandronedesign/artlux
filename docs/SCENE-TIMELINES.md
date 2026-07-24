@@ -1,10 +1,11 @@
 # Per-scene timelines & the per-state authoring loop
 
-Each **Scene** may own its own **Timeline** (its own tracks/clips/markers/playhead), so a show can
+Every **Scene** owns its own **Timeline** (its own tracks/clips/markers/playhead), so a show can
 be authored as a sequence of decoupled *states* — trigger a state, build its timeline, save, move to
-the next. Recalling a scene **warm-swaps** the playback engine to that scene's timeline; scenes
-without one fall back to the shared global `ProjectData.timeline` (so existing projects need **zero
-migration**). Shipped after v0.19.2 — commit `c85483e`.
+the next. Recalling a scene **warm-swaps** the playback engine to that scene's timeline. The editor is
+bound to a scene's timeline, or — only on the **Global pill** (no scene current) — to the shared global
+`ProjectData.timeline`. Shipped after v0.19.2 (`c85483e`); `Scene.timeline` became **required** on
+2026-07-14 (see the history note under [Data model](#data-model-srcrenderertypests)).
 
 > Read [TIMELINE.md](TIMELINE.md) (the NLE engine) and [SCENES.md](SCENES.md) (look snapshots) first —
 > this doc is the seam between them. The timeline *engine* and *editor* are unchanged in shape; what's
@@ -12,9 +13,11 @@ migration**). Shipped after v0.19.2 — commit `c85483e`.
 
 ## The model in one breath
 
-- A `Scene` optionally carries `timeline?: Timeline` (+ a stable `accent?` identity colour).
-- The **editor** is always bound to exactly one timeline — the **current scene's** own timeline, or
-  the shared global one. `App` tracks this as `activeSceneId` (`null` = global).
+- Every `Scene` carries `timeline: Timeline` (required) + a stable `accent?` identity colour.
+- The **editor** is always bound to exactly one timeline — the **current scene's** own timeline, or,
+  when `activeSceneId` is `null` (the **Global pill**), the shared global `ProjectData.timeline`. `App`
+  tracks this as `activeSceneId` (`null` = global). Because every scene owns a timeline, there is no
+  "scene with no timeline" case; the `?? timeline` in `activeTimeline` only resolves the global pill.
 - The **engine** plays exactly one timeline at a time — its **active pool** (see below). Recall keeps
   `activeSceneId` and the engine's active pool in **lockstep**, so the thing you edit is the thing that
   plays, everywhere (main window + projector windows + broadcast).
@@ -45,18 +48,18 @@ What that one transport carries is **two derived times** (Wave B):
 is bound: **the scene restarts, the bed rolls on.** This does not break the one-transport rule — there is
 still exactly one `playing`, one rAF, one `<video>` pool. A second *time value* rides the same clock.
 
-> ⚠ **TWO PREDICATES. DO NOT SWAP THEM.**
-> - `isGlobalDocBound()` = `activeKey === GLOBAL_POOL || data === globalDoc` — **which DOCUMENT is bound.**
->   A scene with **no timeline of its own** binds the GLOBAL document under its own pool key
->   (`handleRecallScene`), and the lanes in `data.automation` there *are* the base layer — so they ride the
->   **show clock**. That is `compileAutomation`'s question, and this is the right answer to it.
-> - `clocksCoincident()` = `activeKey === GLOBAL_POOL` — **are the two clocks EQUAL.** That is `seek()`'s
->   question. Under a timeline-less scene the document is bound but the clocks are **minutes apart**
->   (`transport:'restart'` reset the playhead; `showClock:'preserve'` left the bed running), so a seek that
->   tracked the *document* would drag `showTime` to a scene-relative number and **hard-restart the bed on
->   every entry to that state** — the exact bug the show clock exists to prevent, through the seek door.
+> **ONE PREDICATE — `clocksCoincident()` = `activeKey === GLOBAL_POOL`** — **are the two clocks EQUAL?**
+> That is `seek()`'s question: while Global is bound a seek moves both clocks together; the moment any
+> scene is bound they are minutes apart (`transport:'restart'` reset the playhead; `showClock:'preserve'`
+> left the bed running), so a seek must move the *playhead only* or it would **hard-restart the bed on
+> every entry to that state** — the exact bug the show clock exists to prevent, through the seek door.
 >
-> `isGlobalDocBound()` says which clock a **lane** rides. It has never asserted that the clocks are equal.
+> *(Historical: there used to be a **second** predicate, `isGlobalDocBound()` = "which DOCUMENT is bound",
+> distinct from "are the clocks equal", because a **timeless** scene bound the GLOBAL document under its
+> own pool key. That state was deleted when `Scene.timeline` became required — every scene now binds its
+> **own** document — so the two questions collapsed into one and only `clocksCoincident()` survives. The
+> `isGlobalDocBound()` name now lives only in code comments in `timeline.ts` explaining why. See the
+> [Data model](#data-model-srcrenderertypests) history note.)*
 
 **The show clock is silent.** It never emits a `TransportIntent` and never pulses `hitEnd`: the bed
 wrapping is not a show event, and firing `onTimelineEnd` from it would advance the state machine behind
@@ -75,23 +78,16 @@ Scene {
 }
 ```
 
-> ### ⚠ `timeline` WAS OPTIONAL. THE OPTIONAL SHAPE WAS DELETED ON 2026-07-14, AND MOST OF THIS DOCUMENT
-> ### WAS WRITTEN AROUND IT.
+> ### ⚠ History: `timeline` was `timeline?` until 2026-07-14 — why it became required.
 > A scene with **no** timeline ("plays the global one") was the root of **two automation-clock blockers**:
 > a lane copied into a scene got retagged to the *scene* clock **and** shadowed the genuine base lane by
 > `targetPath`, so a house fade on `audio.master.gain` **snapped +9.6 dB on every GO** and was persisted.
 > No fix inside `timeline.ts` could work — by the time it ran, the impostor was byte-identical to a lane
-> the operator had drawn. **So the state was deleted**, which makes two of the three writers that could
-> break the invariant *structurally impossible*.
->
-> **What that means for this document:** the two-predicate section below is **historical**.
-> `isGlobalDocBound()` **no longer exists** — the two questions collapsed into one, and only
-> `clocksCoincident()` survives. `activeTimeline` is no longer `activeScene?.timeline ?? timeline`.
-> Anywhere below that reasons about "a scene with no timeline", read it as a record of why the shape is
-> gone, not as a description of the code.
->
-> **Loading an older project is safe:** a timeline-less scene is given an **empty** timeline. It does not
-> fall back to the global one.
+> the operator had drawn. **So the optional state was deleted**, which makes two of the three writers that
+> could break the invariant *structurally impossible*. Consequences, now baked into the code and this doc:
+> the second predicate `isGlobalDocBound()` is gone (only `clocksCoincident()` survives — see above), and
+> **loading an older project is safe** because a timeline-less scene is normalized to an **empty**
+> timeline (`normalizeTimeline`), not a fallback to the global one.
 
 - **Additive, zero migration *for the look*.** `Timeline` itself is unchanged and carries **no id** —
   pools are keyed by `scene.id` (sentinel `'__global__'` for the global document). `applyProjectData`
@@ -114,16 +110,15 @@ const activeTimeline = activeScene?.timeline ?? timeline;   // scene's own, else
 ```
 
 - **Every recall makes the scene current.** `handleRecallScene(scene)` commits the look, then
-  `setActiveSceneId(scene.id)` and swaps the engine keyed by **`scene.id`** — *even when the scene has
-  no timeline yet* (its pool plays global content). Because the pool key always equals
-  `activeSceneId ?? GLOBAL_POOL`, the engine-feed effect's guard
+  `setActiveSceneId(scene.id)` and swaps the engine keyed by **`scene.id`** (the scene's own timeline).
+  Because the pool key always equals `activeSceneId ?? GLOBAL_POOL`, the engine-feed effect's guard
   (`engine.activePoolKey() === (activeSceneId ?? GLOBAL_POOL)`) is satisfied and edits preview live.
 - **On load, the editor binds to a real scene** — the initial-state scene
   (`stateMachine.initialStateId`'s `sceneId`), else the first scene. So "just editing the timeline"
   attaches to a scene instead of silently landing on Global. No scenes → stays on the global timeline.
 - **Edits write back to the owner.** `handleTimelineChange(next)` → `setScenes(… s.timeline = next)`
-  when a scene is current, else `setTimeline(next)`. A scene that was falling back to global is
-  **materialized on first edit** (seeded from what was shown).
+  when a scene is current, else `setTimeline(next)` (the Global pill edits `ProjectData.timeline`
+  directly).
 - **Follows GO.** Manual GO, cueBus, OSC, and the state machine all funnel through `handleRecallScene`,
   so triggering a scene also rebinds the editor to it. During a live show the editor simply follows the
   active state; you don't author during a show, so this never fights an edit.
@@ -246,8 +241,8 @@ fresh timeline to fill.
   `engine.activePoolKey() === (activeSceneId ?? GLOBAL_POOL)`. This prevents a live GO on one scene from
   being clobbered by edits bound elsewhere. Because every recall keys the pool by `scene.id`, the guard
   normally passes — the guard is the safety net for the transient/divergent cases.
-- **Pool key = `scene.id` even for a timeless scene.** This is what keeps editor and engine in lockstep
-  and lets first-edit materialization "just work" without a second swap.
+- **Pool key = `scene.id` for every scene** (even one whose timeline is still empty). This is what keeps
+  editor and engine in lockstep and lets edits preview live without a second swap.
 - **Snapshots stay look-only.** Timeline lives on the scene via `onChange`; keeping it out of
   `buildSceneSnapshot` is what stops "Update Scene" from overwriting it.
 - **Core stays core.** Persisted types/enums used app-wide are untouched; only *behaviour* moved. A
@@ -259,11 +254,16 @@ fresh timeline to fill.
 ## Testing
 
 `node scripts/test-scene-timelines.cjs` — a CDP harness (launches dev with `ARTLUX_CDP_PORT`, seeds a
-crafted 2-scene project into the OS temp dir, drives the real renderer). It asserts, 10/10: load binds
-to the initial-state scene (not Global); a scene with no own timeline falls back to global; each scene
-renders its own timeline; editing a scene attaches to it and **does not leak** into the global timeline;
-the editor **follows GO**. Extend this harness for future timeline-UI tests. (Reuses the launch/connect
-plumbing from `scripts/capture-docs.cjs`.)
+crafted 2-scene project into the OS temp dir, drives the real renderer). It asserts: load binds
+to the initial-state scene (not Global); each scene renders its own timeline; editing a scene attaches
+to it and **does not leak** into the global timeline; the editor **follows GO**. Extend this harness for
+future timeline-UI tests. (Reuses the launch/connect plumbing from `scripts/capture-docs.cjs`.)
+
+> ⚠ **Harness note (stale premise):** this script still seeds a Scene A with **no** `timeline` field and
+> a comment expecting it to "fall back to global." Since `Scene.timeline` became required, the loader
+> normalizes a missing timeline to an **empty** one (`normalizeTimeline`, `App.tsx`), so that scene now
+> renders empty, not the global clip. The fallback assertion is obsolete — update the harness before
+> relying on it.
 
 ## Verify (manual)
 

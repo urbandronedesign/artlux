@@ -92,4 +92,4 @@ draws the dashboard.
 
 Full setup (Docker one‑liner, native path, ready‑made dashboard) is in [MONITORING.md](../MONITORING.md).
 
-➡ Next: [Keyboard & mouse reference](13-keyboard-reference.md)
+➡ Next: [Tracking (LiDAR · camera · Augmenta)](13-tracking.md)

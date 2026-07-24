@@ -58,9 +58,12 @@ state there); `projectors.onMessage` only fires in the main window (it owns the 
 | Service | Methods | Notes |
 |---|---|---|
 | `projectorOutputs` | `get`/`list`/`patch`/`subscribe` | Read + patch persisted `ProjectorOutput`s (calibration, useCalibration, …). |
+| `surfaces` | `list`/`get`/`subscribe` | **Read-only** view of the project's `Surface`s (a plugin that samples or targets surfaces). |
 | `scene3D` | `get`/`patch`/`subscribe` | Read + patch the 3D scene (venue, camMask, markerMap, tracking flags). |
 | `projectors` | `send(surfaceId,msg)` / `onMessage(cb)` | main→projector send + projector→main back-channel (patternShown/crosshair/confirm). |
 | `settings` | `get()` / `subscribe(cb)` | **Read-only** view of persisted `AppSettings`. For UI with no props path (e.g. a modal panel). Editing goes through a `SettingsSection`. |
+| `show` | `getStateMachine`/`getScenes`/`getCueBanks`/`getSchedule` · `setFsmEnabled`/`setSchedule` · `subscribe` · live transport+FSM status | Read-mostly view of the project **show model** (state machine + scenes + cue banks + schedule) for a plugin that presents/controls it out-of-band (e.g. the tablet remote). Reads are live host state; writes go back through App. **Two playheads, one transport** — `playhead` is the bound doc's time; `showTime` is the show clock the bed rides (see [TIMELINE.md](TIMELINE.md)). |
+| `audio` | `getMix`/`setMix` · `getTimelineAudio` · `getVideoAudio` · `patchTimelineClip` · `subscribe` | The three audio containers: the **bed** (`getMix`/`setMix`), the bound timeline's **own audio** (`getTimelineAudio`, on the playhead), and the bound timeline's **video clips' soundtracks** (`getVideoAudio` — DERIVED + read-only). Used by `@artlux/plugin-audio`; a plugin registers a `boot` probe so a show does not open with the bed silent. |
 | `boot` | `registerProbe(id, fn)` / `isBooting()` | **Cold start.** On a project open the host holds the state machine until the opening look is decoded, then arms it (see [STATE-MACHINE.md](STATE-MACHINE.md#the-cold-start--the-show-waits-for-its-content-servicesbootgatets)). A plugin that loads content of its own registers a probe so the show also waits for *it* — the audio plugin does, or a show would open with its bed silent for the first bar. Register **once at activate**; the probe is polled ~10 Hz and must be a cheap synchronous read (no await, no IPC). **Never block on something that may never arrive** (a live feed, a camera) — the gate fails open on a deadline, but such a probe burns the venue's patience on every start. A throwing probe is treated as ready and logged. |
 
 ### The generic IPC bridge (`ctx.ipc` main-side, preload forwarders renderer-side)
@@ -140,7 +143,7 @@ There is no unit-test runner (see CLAUDE.md). Plugin conformance is guarded in t
 The gate to publishing `@artlux/sdk` as a versioned API and allowing third-party / disk-loaded plugins —
 none of this exists yet; each is a deliberate future step:
 
-- **Contract soak.** Enough first-party plugins (currently 6: lidar, ndi, calibration, spout, hap, mp4)
+- **Contract soak.** Enough first-party plugins (currently 10: lidar-tracking, ndi, calibration, spout, hap, mp4, mediapipe, augmenta, audio, show-control)
   across every registry that the shapes stop changing. Mostly reached for the shipped registries; the
   newest (settings/panels, host-services) are one-consumer-deep.
 - **Semver + host-range.** Version the SDK; a plugin manifest declares a compatible host range; the host

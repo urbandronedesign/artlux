@@ -45,7 +45,16 @@ captured by driving the running app.
 - `10-calibration.md` — Calibration Wizard (structured light) + Auto-Align (markerless), camera workspace
 - `11-projects-media-broadcast.md` — projects-as-folders, Media library, Asset Manager, broadcast mode
 - `12-preferences-monitoring.md` — Preferences tabs, DMX/OSC Monitor, Prometheus/Grafana metrics
-- `13-keyboard-reference.md` — consolidated keyboard & mouse reference
+- `13-tracking.md` — LiDAR (OSC) / camera (MediaPipe) / Augmenta tracking sources, blobs in 3D, trigger zones + combinations, record/replay takes
+- `14-show-state-machine.md` — the project state machine: states over scenes, triggers, hold-at-end + requireEnd, cold-start, the desktop Show context + tablet remote + OSC
+- `15-keyboard-reference.md` — consolidated keyboard & mouse reference
+
+> **Added after the initial v0.17.0 pass (app v0.24.0):** chapters **13-tracking** and
+> **14-show-state-machine** were written to close the tracking + interactive-show gap; the keyboard
+> reference moved 13 → 15. Their prose is complete, but their **screenshots are pending capture** —
+> each figure is a `<!-- TODO screenshot: … -->` placeholder to be shot via `scripts/capture-docs.cjs`
+> (the demo project's seed needs an OSC blob feed / trigger zones / a small state graph to populate
+> the tracking + state-graph panels).
 
 ## Per-page template
 

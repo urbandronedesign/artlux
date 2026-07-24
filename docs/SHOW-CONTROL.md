@@ -118,6 +118,9 @@ while enabled.
 `dispatch.ts` · `ShowControlSettings.tsx` · `ShowControlPanel.tsx` · `showControlHost.ts` ·
 `plugin.renderer.ts` · `main.ts`/`renderer.ts` barrels.
 
+The desktop **Show context** panels (Show Deck viewport + Schedule / Playlist / Metrics dock tabs):
+`ShowControlDeck.tsx` · `SchedulePanel.tsx` · `PlaylistPanel.tsx` · `ShowMetricsPanel.tsx`.
+
 ## Metrics wiring
 
 Three series stream as structured JSON over SSE (~1 Hz; only while a tablet is connected):

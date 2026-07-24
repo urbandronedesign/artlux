@@ -54,7 +54,7 @@ the open-time check: the ring remembers failed indices and gives up on a file af
 Every window that shows HAP runs its own decode-ahead ring — the main renderer, plus each projector
 output (`ProjectorApp` sets `hapLocal`, so a mirror decodes timeline layers itself rather than consuming
 streamed frames at ~30 fps). Two rules keep that from multiplying the work by the number of outputs, and
-a new codec (DXV is next — see [ROADMAP.md](ROADMAP.md)) should inherit both:
+any future `.mov` codec should inherit both:
 
 - **`hapManager.decode` dedupes in flight and caches recent frames** (byte-bounded, ~48 MB — one 4K
   HapQ frame is ~8.3 MB, so a count-bounded cache would be enormous). Windows asking for the same
@@ -92,8 +92,11 @@ itself rather than handing the file to `decodeAudioData`.
 ## Adding a codec
 
 Implement a `VideoCodecContribution` (surface player + layer sync + thumbnail) and register it in the
-host `videoCodecRegistry`; the three call sites then dispatch to it by file type. The next planned codec
-is **DXV** (Resolume's codec) — see [ROADMAP.md](ROADMAP.md).
+host `videoCodecRegistry`; the three call sites then dispatch to it by file type — no host changes. Two
+codecs ship today: **HAP** (`.mov`) and **MP4/WebCodecs** (`.mp4`). **DXV was considered and dropped**
+(decision 2026-07-03) — see [ROADMAP.md](ROADMAP.md); since the two shipped codecs don't share an
+extension, `forPath` first-match dispatch needs no probe-order work (that only mattered for a second
+`.mov` codec).
 
 ## Related
 

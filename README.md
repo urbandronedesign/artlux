@@ -29,7 +29,9 @@ fallback), a **Rust** output engine (napi-rs) that owns UDP transmission on a de
 - **WLED-style effects** — gradient palettes, stateful fire2012, and multi-segment fixtures.
 - **Content sources** — video, image, live camera, **DMX in** (Art-Net/sACN), **Spout** (Windows), and **NDI** (network video).
 - **Media library** — a managed asset library (video, image, 3D model, LiDAR take): import (copy-in), previews, usage/missing tracking, relink, and drag-to-place onto the Stage or Timeline.
-- **LiDAR tracking + takes** — receive the OSC blob tracking feed, visualize/project it, and **record takes** to replay an interactive show with no tracker present.
+- **Tracking sources** — the custom **OSC LiDAR blob** feed, **camera pose** (MediaPipe BlazePose, in-renderer WASM), and **Augmenta** optical tracking (OSC v2); visualize/project the blobs, and **record takes** to replay an interactive show with no tracker present.
+- **Interactive show engine** — a project **state machine** (a "Show" graph over scenes): states + transitions driven by manual GO, auto-at-end, OSC, and **LiDAR trigger zones + combinations**, with hold-a-state, global `fromAny` rules, and a cold-start gate that waits for the opening content to decode. ▶ [docs/STATE-MACHINE.md](docs/STATE-MACHINE.md).
+- **Show-control remote** — an embedded tablet **PWA** (scene / cue / transport / state-machine over your LAN), a **wall-clock scheduler**, live metrics, and an unattended **multi-project broadcast playlist**. ▶ [docs/SHOW-CONTROL.md](docs/SHOW-CONTROL.md).
 - **Projector outputs + NDI out** — map each surface fullscreen to a projector (corner-pin / Bézier warp, soft-edge, gamma) and optionally publish each output as an **NDI source**.
 - **Projection mapping & auto-align** — calibrate a real projector (structured-light Gray-code + pose, or **markerless camera auto-align** onto the venue 3D model) and render the scene from its recovered viewpoint; export/import **MPCDI**. On **Quadro / RTX-pro** GPUs, apply geometry **warp + edge-blend at the GPU scanout via NVIDIA NVAPI** (content-agnostic, persistent), with a GLSL fallback everywhere else.
 - **2D + 3D** — drag/resize/rotate/snap on a 2D stage; arrange the same fixtures in a 3D simulator.
@@ -124,6 +126,8 @@ Art-Net + sACN/E1.31
 - [docs/user-guide/](docs/user-guide/README.md) — **illustrated end-user guide**: a screenshot‑driven, task‑oriented page for every screen of the app (interface, surfaces/content, fixtures, routing, effects, timeline, outputs, 3D, calibration, projects/media, preferences) + keyboard reference.
 - [docs/USER_GUIDE.md](docs/USER_GUIDE.md) — the same end-user guide as a single text page (no screenshots).
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — **how the app works today** (canonical).
+- [docs/PLUGINS.md](docs/PLUGINS.md) · [docs/SDK.md](docs/SDK.md) — the **plugin architecture** + the internal plugin SDK.
+- [docs/WORKSPACE.md](docs/WORKSPACE.md) — the context-driven **editor shell** (workspace contexts, layout, UI scaling).
 - [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) — setup, build, test, release, gotchas.
 - [docs/FEATURES.md](docs/FEATURES.md) — feature/usage guide.
 - [examples/](examples/README.md) — **openable template projects + written tutorials** (start with the [audio course](examples/audio/tuto/README.md) or the [state-machine course](examples/state-machine/tuto/README.md)).
@@ -133,9 +137,9 @@ Art-Net + sACN/E1.31
 - [docs/ASSETS.md](docs/ASSETS.md) — media library & asset management (import, usage, relink, consolidate).
 - [docs/TRACKING_TAKES.md](docs/TRACKING_TAKES.md) — record & replay LiDAR blob takes from the timeline.
 - [docs/SURFACES.md](docs/SURFACES.md) — surfaces engine design & roadmap.
-- [docs/UI_REFACTOR.md](docs/UI_REFACTOR.md) — design system + UI architecture.
+- [docs/ROADMAP.md](docs/ROADMAP.md) — plugin-architecture record + what's next.
 - [docs/PROGRESS.md](docs/PROGRESS.md) — build log / decisions.
-- [docs/ARCHITECTURE_PLAN.md](docs/ARCHITECTURE_PLAN.md) — original pre-Electron rewrite roadmap (historical).
+- [docs/archive/](docs/archive/) — historical/superseded docs (the pre-Electron `ARCHITECTURE_PLAN`, the `UI_REFACTOR` notes, audio acceptance records).
 - [CHANGELOG.md](CHANGELOG.md) — release notes.
 
 ## Releases

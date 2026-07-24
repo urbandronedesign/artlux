@@ -68,7 +68,9 @@ Save with **Ctrl/Cmd+S**.
 | 10 | [Calibration](10-calibration.md) | The structured‑light & auto‑align projector calibration wizard |
 | 11 | [Projects, media & broadcast](11-projects-media-broadcast.md) | Projects‑as‑folders, the Media library, Asset Manager, show mode |
 | 12 | [Preferences & monitoring](12-preferences-monitoring.md) | Preferences, the DMX & OSC monitors, Prometheus/Grafana |
-| 13 | [Keyboard & mouse reference](13-keyboard-reference.md) | Every shortcut, by context |
+| 13 | [Tracking](13-tracking.md) | LiDAR / camera (MediaPipe) / Augmenta sources, blobs in 3D, trigger zones, takes |
+| 14 | [Show / state machine](14-show-state-machine.md) | The Show graph over scenes: states, transitions, hold, cold‑start, Show context + tablet |
+| 15 | [Keyboard & mouse reference](15-keyboard-reference.md) | Every shortcut, by context |
 
 For engine internals and protocol details, see the other files in [`docs/`](../) (ARCHITECTURE,
 SURFACES, OUTPUTS, LEDMAP, NDI, TIMELINE, ASSETS, CALIBRATION, OSC, MONITORING).

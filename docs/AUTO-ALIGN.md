@@ -94,17 +94,17 @@ scene, a **projector output** (windowed or a display), and a **darkened room**.
 
 | Area | File |
 |---|---|
-| Markerless per-projector solve | `src/renderer/calib/markerlessController.ts` |
-| Shared Gray-code scan | `src/renderer/calib/slCapture.ts` |
+| Markerless per-projector solve | `plugins/calibration/src/markerlessController.ts` |
+| Shared Gray-code scan | `plugins/calibration/src/slCapture.ts` |
 | Dense decode / RANSAC PnP / guided resection / self-cal (native) | `native/calib/src/lib.rs` |
-| Camera→world ray, CV↔Three math | `src/renderer/calib/cvCamera.ts` |
-| Batch venue raycaster | `src/renderer/calib/venueRaycast.ts` (registered by `Simulator3D/ModelObject.tsx`) |
-| World-space blend | `src/renderer/calib/blendCompute.ts` |
-| Auto-Align wizard | `src/renderer/components/AutoAlignWizard.tsx` (App `calibFlow` switches Board ↔ Auto) |
+| Camera→world ray, CV↔Three math | `plugins/calibration/src/cvCamera.ts` |
+| Batch venue raycaster | `plugins/calibration/src/venueRaycast.ts` (registered by `Simulator3D/ModelObject.tsx`) |
+| World-space blend | `plugins/calibration/src/blendCompute.ts` |
+| Auto-Align wizard | `plugins/calibration/src/AutoAlignWizard.tsx` (App `calibFlow` switches Board ↔ Auto) |
 | NVAPI addon | `native/nvwarp/` (`src/shim.cpp`, `src/lib.rs`, `build.rs`), `src/main/nvwarpManager.ts` |
-| MPCDI codec / region build | `src/main/mpcdi.ts`, `src/renderer/calib/mpcdiData.ts` |
+| MPCDI codec / region build | `src/main/mpcdi.ts`, `plugins/calibration/src/mpcdiData.ts` |
 | Data model | `ProjectorCalibration` / `MpcdiRegion` in `shared/protocol.ts` |
-| Render-from-projector (unchanged) | `src/renderer/projector/ProjectorScene.tsx` |
+| Render-from-projector (unchanged) | `plugins/calibration/src/ProjectorScene.tsx` |
 
 ## Native build prerequisites
 - `calib.node` (incl. the markerless functions + self-cal): `npm run build:calib` — OpenCV 4.11 + LLVM

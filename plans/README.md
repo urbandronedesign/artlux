@@ -50,6 +50,7 @@ block with decisions a human must make before building.
 | [Show-control tablet parity](archive/show-control-tablet-parity.md) | #7 Operator Remote | ✅ **merged 2026-07-11** (Wave 0) — tablet multi-bank + per-cue fire + Kick hard-cuts SSE. *(Same — this table was never updated when Wave 0 landed.)* |
 | [Timeline transport + global/scene scoping + audio scene binding](archive/timeline-transport-and-audio-scoping.md) | (net-new, Wave 3) | ✅ **merged (`wave-3-audio`, 4541743, 2026-07-14).** Wave A live-tested on hardware; Wave B = the show clock, audio lanes, the mixer, audio on scenes/cues. **Superseded P5** of `audio-engine.md`. |
 | [Asset paths: scenes + audio bed](archive/asset-paths-scenes-and-audio.md) | #9 Pack & Hand Off | ✅ **merged (`wave-3-audio`, 4541743, 2026-07-14).** `mapAssetPaths` → per-container visitors over the top level, **every scene**, and the bed. ⚠ Makes a saved project **forward-incompatible** with older builds. |
+| [Video-clip audio](archive/video-clip-audio.md) | (net-new) | ✅ **shipped** (`c2eb46e`) — conform-first: a clip's audio track is conformed once to a WAV cache and the existing audio driver plays it on the clip's playhead, with zero native changes. `getVideoAudio` host service + `ClipAudioInspector`. |
 | [Native audio engine](archive/audio-engine.md) | (net-new, Wave 3) | ✅ **all phases merged.** P0–P4 (bed, spatial, juce_dsp FX, the automation-curve engine), P5 as Wave B (the show clock + scene/cue binding), and **P6** (multichannel: device picker, speaker commissioning, off-lock decoder rebuild, ASIO-behind-a-flag, machine≠show) merged to `main` (`4541743` + `f37f341`, 2026-07-14/15). ⚠ P6 is a **synthetic pass** — venue verification + the JUCE licence election remain (tracked in SEQUENCING). |
 
 ## Active plans
@@ -62,7 +63,6 @@ block with decisions a human must make before building.
 | [MIDI controller support](midi-control.md) | (net-new) | **Plugin** | 🟡 Med | not started (Draft) |
 | [Transport: prev/next edit point](transport-edit-point-navigation.md) | (net-new; Wave A leftover) | **Core** | 🟢 Low | Draft — the `⏮`/`⏭` buttons are **in the transport sketch and were never built**: Wave A's plan narrowed to "the three controls that never had a button" and the two skip buttons dropped out between the drawing and the plan. The *capability* is missing too — there is **no prev/next navigation of any kind** in the timeline. Land **after** `wave-3-audio` merges (it touches `TimelineToolbar.tsx`) |
 | [Timeline undo](timeline-undo.md) | (net-new, Wave 4) | **Core** | 🟡 Med | Draft — **there is no undo for any timeline edit**, and the show engine (FSM/OSC/cues/scheduler) pushes history entries **no human made** onto an **uncapped** stack |
-| [Video-clip audio](video-clip-audio.md) | (net-new) | **Plugin** (2 small core touches) | 🟢 Low-Med | Draft (**conform-first**) — **every video source in ArtLux is silent** and the engine cannot open an MP4/MOV at all. Rather than teach it to (Media Foundation on the audio read thread), **conform the audio track once to a WAV cache** with Chromium's own ffmpeg — then the whole existing audio driver plays it on the clip's playhead, through the commissioned rig, with **zero native changes**. Gated on a 10-minute devtools spike |
 | [Renderer error containment](renderer-error-containment.md) | #10 Ship It | **Core** | 🟠 Med | Draft — **the watchdog is blind to a white screen.** A first-render throw means the heartbeat never fires, so the watchdog **never arms** and an unattended install sits dead until someone drives to the venue |
 
 ## Net-new subsystems (beyond limitation-lifts)
@@ -99,7 +99,7 @@ renders unconditionally, and an edit landing somewhere it cannot be taken back f
 
 The **16-agent adversarial review of the full `wave-3-audio` merge diff** confirmed **39 findings**. The user
 triaged the merge bar to *"Wave 3's own defects + the effect clock"* ([the merge-blocker
-plan](../docs/superpowers/plans/2026-07-14-wave-3-merge-blockers.md), gate 6 in
+plan](../docs/archive/superpowers/plans/2026-07-14-wave-3-merge-blockers.md), gate 6 in
 [SEQUENCING](SEQUENCING.md) ▸ *"The Wave 3 merge gate"*). **These are the ones that were deliberately left out.**
 They are written down here so that "not a merge blocker" cannot quietly become "forgotten". Each is
 *confirmed* — verified by three adversarial lenses that were told to default to REFUTED.

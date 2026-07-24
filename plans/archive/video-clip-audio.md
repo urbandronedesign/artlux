@@ -1,8 +1,10 @@
 # Video-clip audio — a `.mp4`/HAP clip's own soundtrack, through the JUCE engine
 
-> **Status:** **WS0–WS6 BUILT 2026-07-21** — feature complete for v1 (conform-first route; the streaming/
-> Media-Foundation route is demoted to §Fallbacks). Verified end to end in the real app. Typecheck, build and
-> `verify:plugins` clean. **Not committed.**
+> **Status:** ✅ **SHIPPED** — WS0–WS6, conform-first route (the streaming/Media-Foundation route stayed
+> demoted to §Fallbacks). Committed `c2eb46e` ("a video clip's own soundtrack, through the JUCE engine"),
+> wired through `plugins/audio` (`movDemux`/`conform.main`/`conformClient`/`audioFold`/`wavPcm`),
+> `services/videoAudio.ts`, `ClipAudioInspector.tsx`, and the `getVideoAudio` host service. Verified end to
+> end in the real app; typecheck, build and `verify:plugins` clean.
 > **Deferred, deliberately:** live conform status in the clip inspector ("conforming… / no audio track"), a
 > waveform on the video clip, **Conform all** in the Media tab, and a cache-size control in Preferences. All
 > four want the same missing seam — the conform's state lives in the audio plugin and the inspector is core —

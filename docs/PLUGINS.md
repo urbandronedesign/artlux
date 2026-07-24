@@ -12,11 +12,17 @@ backlog (and the calibration extraction) see [ROADMAP.md](ROADMAP.md); for the b
 
 Features were wired by direct import across `App.tsx`, `contentSource.ts`, `ipc.ts`, the preload, etc.
 The plugin architecture makes a feature a **self-contained package** that *registers contributions*
-into the host instead of the host reaching into it — VS-Code style. Shipped so far:
-`plugins/lidar-tracking`, `plugins/ndi`, `plugins/calibration` (Stage 1 — engine + logic; its
-wizard UI is still host-side), `plugins/spout`, `plugins/hap`, `plugins/mp4`, and
-`plugins/mediapipe` (camera BlazePose pose tracking — a renderer-only tracking source, WASM
-in-renderer; see [MEDIAPIPE.md](MEDIAPIPE.md)). Two goals: shrink the core, and let features own their
+into the host instead of the host reaching into it — VS-Code style. **Ten plugins ship today:**
+`plugins/lidar-tracking` (fully inverted — content source, clip-kind, projector data + GPU render,
+3D scene-viz), `plugins/ndi`, `plugins/calibration` (fully inverted through Stage 3 — engine,
+host-services, back-channel, wizards *are* the calib-context viewport, pose orchestration), `plugins/spout`,
+`plugins/hap` (the first `VideoCodec` contribution), `plugins/mp4` (GPU WebCodecs, opt-in via `mp4WebCodecs`),
+`plugins/mediapipe` (camera BlazePose pose tracking — a renderer-only tracking source, WASM in-renderer;
+see [MEDIAPIPE.md](MEDIAPIPE.md)), `plugins/augmenta` (Augmenta OSC-v2 optical tracking, sharing the host
+OSC listener; see [AUGMENTA.md](AUGMENTA.md)), `plugins/audio` (the JUCE sound engine — an
+`automationTarget` provider + `boot` probe; see [AUDIO.md](AUDIO.md)), and `plugins/show-control`
+(cross-process: an embedded HTTP+SSE tablet remote + scheduler + broadcast playlist; adds a `host.show`
+service; see [SHOW-CONTROL.md](SHOW-CONTROL.md)). Two goals: shrink the core, and let features own their
 main + renderer + IPC in one place.
 
 ## Layout
@@ -62,6 +68,9 @@ honest about what's wired end-to-end today:
 | `settingsSectionRegistry` | `SettingsSection` (`id`, `title`, `Component`, `defaults`) | ⏳ scaffolded, unused. No clean first consumer yet: the obvious candidate (OSC receive settings) is **shared core infra** — the OSC listener drives both external control and LiDAR tracking — so it stays core (see Core stays core). |
 | `panelRegistry` | `PanelContribution` (`id`, `mount`, `menuAction?`, `title?`, `icon?`, `appliesTo?`, `grow?`, `bare?`, `HeaderActions?`, `Component`) | ✅ LiDAR/MediaPipe/Augmenta/show-control modals **and every core shell panel**. `mount` is now `'modal' | 'browser' | 'inspector' | 'dock' | 'viewport'`: modals are global (menu-toggled), the other four are placed by whichever `WorkspaceContext` names the panel id. |
 | `contextRegistry` | `WorkspaceContext` (`id`, `title`, `shortTitle?`, `icon`, `cluster`, `order`, `viewport`, `browser?`, `dock?`, `inspector?`, `actions?`, `layout?`, `hint?`) | ✅ core registers 11 contexts in `src/renderer/contexts/index.tsx`. A context is a **manifest of panel ids** — it owns no components — so `extend(id, {browser, dock, inspector, actions})` lets a plugin add itself to a workbench it does not own (the three tracking plugins → `tracking`). Extends queue if the target hasn't registered yet. |
+| `smTriggerRegistry` | `SmTriggerContribution` (`source`, `label`, `fires(params, ctx)`, `describe?`) | ✅ LiDAR registers `lidar.zone` — the state machine calls `fires()` once per frame per candidate edge to drive a transition from a trigger zone / combination. See [STATE-MACHINE.md](STATE-MACHINE.md) + [TRACKING_SYNC.md](TRACKING_SYNC.md). |
+| `videoCodecRegistry` | `VideoCodecContribution` (`id`, `canDecode`, `probe`/`probed`, `aspect`, `openSurface`/`decode` — **keyed by file path** so N consumers of one file share one decoder) | ✅ HAP + MP4. Surfaces, the timeline, and thumbnails dispatch `.mov`/`.mp4` through the registry. See [CODECS.md](CODECS.md). |
+| `automationTargetRegistry` | `AutomationTargetProvider` (`namespaces` — the path heads it owns — + everything automatable right now, for the target picker) | ✅ audio owns `['audio']`; core owns `['surfaces','fixtures','globalBrightness']`. One owner per path head, so an audio lane is the *same object* as any other automation lane. See [AUDIO.md](AUDIO.md). |
 
 A plugin's renderer `activate(ctx)` registers into these via the context (`ctx.contentSources`,
 `ctx.clipKinds`, `ctx.projectorChannels`, `ctx.sceneViz`, `ctx.projectorPanels`, `ctx.settings`,
@@ -137,20 +146,21 @@ window is fully generic.
 ### Activation
 
 - **Renderer:** `src/renderer/host/plugins.ts` holds `const FIRST_PARTY = [lidarTracking, ndi,
-  calibration]` and `activateRendererPlugins(window, hostServices?)`. It builds `RendererPluginContext`
-  — the six registries + `ipc` + `onPlayhead` + `host` (host-services) — and calls each plugin's
-  `activate(ctx)`. The context is activated **once per window**:
+  calibration, spout, hap, mp4, mediapipe, augmenta, showControl, audio]` (**10**) and
+  `activateRendererPlugins(window, hostServices?)`. It builds `RendererPluginContext` — the **eleven
+  contribution registries** + `ipc` + `onPlayhead` + `onRenderStats` + `host` (host-services) — and calls
+  each plugin's `activate(ctx)`. The context is activated **once per window**:
   - `App.tsx` (main editor window) calls `activateRendererPlugins('main', pluginHost)` — `pluginHost`
     is the real `RendererHostServices` (see Host services below). A stable object whose methods delegate
     to live refs, so a plugin captures it once yet always sees current state.
   - each **projector output window** (`ProjectorApp`) calls `activateRendererPlugins('projector')`,
     which uses the inert `NOOP_HOST` (no editor state there) so a channel's `apply()` (data) and
     `renderSource()` (GPU) still run. `ctx.window` tells a plugin which side it's on. Idempotent per window.
-- **Main:** `src/main/host/plugins.ts` holds `FIRST_PARTY = [ndi, calibration]` and
-  `activateMainPlugins(getWindow)`, called from `registerIpc()` in `ipc.ts`. It builds
-  `MainPluginContext` (the `ipc` handle bound to the active window) and activates each. (`lidar-tracking`
-  is renderer-only — its OSC ingestion taps the core `window.artlux.onOscMessage`, so it needs no main
-  plugin.)
+- **Main:** `src/main/host/plugins.ts` holds `FIRST_PARTY = [ndi, calibration, spout, hap, showControl,
+  audio]` (**6** — the plugins with a native/main half) and `activateMainPlugins(getWindow)`, called from
+  `registerIpc()` in `ipc.ts`. It builds `MainPluginContext` (the `ipc` handle bound to the active window)
+  and activates each. (`lidar-tracking`, `mp4`, `mediapipe`, `augmenta` are renderer-only — e.g. LiDAR/
+  Augmenta OSC ingestion taps the core `window.artlux.onOscMessage`, so they need no main plugin.)
 
 ### Host services (`ctx.host`)
 

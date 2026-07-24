@@ -8,7 +8,7 @@ the floor"** behaviour, so ArtLux counts/visualises **one person as one entity**
 The wire format and geometry match our implementation — no parser change needed:
 
 - Addresses: `/SOL` (floor) + `/MUR` (wall), each `…/blobs/blob<n>/{id,tx,ty,u,v}` and
-  `…/specs/Scalex|Scaley`. Matches `BLOB_RE`/`SPEC_RE` in `src/renderer/services/trackingStore.ts`.
+  `…/specs/Scalex|Scaley`. Matches `BLOB_RE`/`SPEC_RE` in `plugins/lidar-tracking/src/trackingStore.ts`.
 - `id` is a **large unique integer** (e.g. `2673`) for an active blob; **`id = 0` means the slot is
   empty** and carries garbage values (`u≈-0.1821`, `v=-1`, `tx=-4`). We filter `id===0`, so empties
   never render.
@@ -58,7 +58,7 @@ Fill this in on-site:
 > raw feed so we can replay and inspect it back at the desk if the live read is too fast.
 
 ### What an on-site recording showed (Take 2, 34 s, 3–4 people)
-Analysed `services/blobClustering.ts` against a real `.lblob`. Findings:
+Analysed `plugins/lidar-tracking/src/blobClustering.ts` against a real `.lblob`. Findings:
 - **Coordinates/ids all match the spec** (`u,v∈[0,1]`, `|tx|,|ty|≤Scale/2`, ids large & unique).
 - **A person's blobs have different ids** (0 of 120 two-blob frames shared an id) → grouping must be
   spatial, confirmed.

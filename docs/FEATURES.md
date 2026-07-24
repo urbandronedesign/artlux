@@ -1,7 +1,7 @@
 # ArtLux — Feature & Usage Guide
 
 How to use ArtLux end-to-end. For the engine internals see
-[ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md); for the build log see [PROGRESS.md](PROGRESS.md).
+[ARCHITECTURE.md](ARCHITECTURE.md); for the build log see [PROGRESS.md](PROGRESS.md).
 
 ## Workspace layout (MadMapper logic)
 - **Title bar** (single frameless strip): ArtLux logo · **File/Edit/View/Window/Help** menus ·
@@ -52,7 +52,10 @@ Select a surface, then in the inspector **Content** section:
   sender (or "Active sender") + refresh. Received natively, downscaled, composited (single live).
 - **NDI** (network video) — receive an NDI stream from another machine/app; pick a source + refresh.
   Requires the free NDI Runtime/Tools. See [NDI.md](NDI.md). (Single live input.)
-- **Effect** — a generative shader fills the surface (rendering arrives in S2; params save now).
+- **Effect** — a generative shader (Solid / Rainbow / Palette Flow / Wave / Fire) fills the surface;
+  linked fixtures sample it like any media (see **Effects & palettes** below).
+- **Tracking** — a people-tracking source (**LiDAR blobs**, **MediaPipe** webcam pose, or **Augmenta**)
+  drawn as markers/skeletons onto the surface (see the tracking sections above).
 
 ## Effects & palettes
 Effects are a **surface content type** — a 2D shader (Solid / Rainbow / Palette Flow / Wave / Fire)
@@ -89,6 +92,90 @@ Record from the timeline's **Takes** strip (independent of the transport), drag 
 tracking lane, then Play/scrub to replay the blobs into the 3D Scene and any *Tracking* projector
 outputs. While a take plays the live feed is suppressed; past the clip it resumes. Takes are `.lblob`
 sidecars in `assets/tracking/`. Details in [TRACKING_TAKES.md](TRACKING_TAKES.md).
+
+## Other tracking sources (people → surfaces, no LiDAR)
+Besides the LiDAR blob feed, two **camera-based** tracking sources feed the same pipeline — each tracked
+person becomes a normalized position that maps onto a surface exactly like a LiDAR blob (a **content
+type** on a surface, a projector self-render, and a 3D-scene overlay). Both are first-party plugins.
+
+- **Camera pose tracking (MediaPipe BlazePose)** — a **webcam** + Google MediaPipe pose model, running
+  **in the renderer** (WebAssembly, GPU delegate) with no extra sensor. Run `npm run assets:mediapipe`
+  once, then select a surface → content **MediaPipe**, pick the camera + model in **Preferences → Pose
+  Tracking (MediaPipe)**, and open **View → Pose Monitor…** for the live feed / fps / tracked count.
+  A **4-point floor calibration** (**View → Pose Floor Calibration…**) maps the down-pointed camera to
+  real floor metres for a world-space preview in the 3D scene. See [MEDIAPIPE.md](MEDIAPIPE.md).
+- **Augmenta optical tracking** — an [Augmenta](https://augmenta.tech) box streaming tracked objects over
+  **OSC v2**. It shares the app's single OSC listener (no extra port): enable OSC receive in **Preferences
+  → OSC / Tracking**, point the box at that port, confirm arrivals in **View → Augmenta Monitor…**, then
+  select a surface → content **Augmenta**. Pre-calibrated (the box reports its field in metres), so no
+  floor wizard. See [AUGMENTA.md](AUGMENTA.md).
+
+## The show — scenes, state machine & interactive triggers
+Turn a pile of looks into a **show that runs itself** — a timed sequence, an unattended attract loop, or a
+live-triggered installation.
+
+### The state machine (the "Show" graph)
+The **state machine** is an optional finite-state graph over your **Scenes**. Each **state** binds a
+Scene (recalled on entry, whole look + its timeline) and can run **entry actions** (play/pause/stop/seek/
+loop/jump-marker/recall/fire-cue); each **transition** is an edge with a **trigger** that moves the show
+on. Author it from the Timeline dock's **state lane → Edit logic** (a node canvas: drag a node's nub onto
+another to wire a transition, double-click a node to force-enter it live, **Build from scenes** to seed one
+node per Scene). The machine runs once per frame **even while the transport is stopped**, so a delay-driven
+show loops with no Play pressed. Triggers:
+
+- **manual** (state-lane button, Ctrl/Cmd+click an edge, or OSC/tablet),
+- **afterDelay** (wall-clock — runs stopped), **atTime / onMarker / onClipEnd / onTimelineEnd** (follow
+  the playhead — need Play),
+- **LiDAR zone** and other **plugin** conditions (see below).
+
+**Hold at end** parks a state on its last frame with the audio bed still playing (the picture waits, the
+room stays alive); **Only after the state has finished** (`requireEnd`) gates an automatic trigger until
+that hold — so a visitor can't cut a film three seconds in, while a manual/OSC/tablet trigger always fires.
+A **⚡ global rule** (`fromAny`) is evaluated from every state at once (e.g. *someone enters the entrance →
+start the welcome*), so you don't redraw one edge per state. **OSC** fires a transition by id
+(`/artlux/state/trigger`). Full reference + worked example projects in [STATE-MACHINE.md](STATE-MACHINE.md)
+and [examples/state-machine/](../examples/state-machine/).
+
+### Per-scene timelines
+Every **Scene owns its own Timeline** (its own tracks/clips/markers/playhead). Recalling a scene
+**warm-swaps** the playback engine to that scene's timeline (pre-rolled to its first frame, so no black
+first frame) and rebinds the editor to it — the thing you edit is the thing that plays, in the main window,
+projectors, and broadcast alike. The scene/state **pill** at the top-left of the Timeline panel shows and
+switches which timeline you're editing (a scene's own, or the shared **Global** timeline). A **preloader**
+keeps only the active state fully live and a small warm window of likely-next states in standby, so steady
+load equals a single-timeline app no matter how many states exist. See
+[SCENE-TIMELINES.md](SCENE-TIMELINES.md).
+
+### Interactive triggers — LiDAR trigger zones
+A **trigger zone** is a named rectangle on a tracking surface that the show machine transitions on. Draw
+zones once in the **Tracking** workbench → **Trigger Zones** dock tab (they're project-scope room geometry,
+shared by every scene; also shown in the 3D scene with live headcount). A transition's **LiDAR zone**
+trigger watches **one zone** — `someone enters` / `everyone leaves` / `occupied for…` / `empty for…` /
+`at least N people` — or a **Combination** of zones (`ALL`/`ANY`, each optionally `NOT`, e.g. *someone in
+the entrance and nobody on the stage*). Occupancy uses an **arm-and-hold** rule so a still-present visitor
+doesn't re-strobe the state. Enter/exit **dwell** is tuned **venue-wide** (a room property, in the tracking
+parameters), with an optional per-zone override; a per-scene **eye toggle** (`activeZoneIds`) can mute a
+zone for a given look. See [TRACKING_SYNC.md](TRACKING_SYNC.md#trigger-zones--making-the-show-react-to-the-room).
+
+### Cold start — the show waits for its content
+Opening a project (editor, `--project=`, broadcast, watchdog relaunch, playlist switch) **holds** the state
+machine until the opening look has actually **decoded** — first frames + a codec's decode-ahead buffer +
+loaded surface media + the audio engine. Until then every projector output draws a dim **PRELOADING SHOW**
+sign (the status bar shows a *Preloading n/m* chip), then the show starts from the top. It **fails open**
+after *Preferences ▸ Engine ▸ Preload wait* (default 15 s), and pressing Play (or an OSC/tablet transport
+command) arms it immediately. Details in [STATE-MACHINE.md](STATE-MACHINE.md#the-cold-start--the-show-waits-for-its-content-servicesbootgatets).
+
+## Spatial audio
+ArtLux plays **object-based, spatialised audio** in step with the show — a native **JUCE** engine with
+**libspatialaudio** ambisonics, decoded to headphones (**HRTF binaural**) or a real **speaker array**
+(**Preferences ▸ Audio** picks the device, channels, and binaural/speakers). Audio rides the show, is
+recalled by Scenes, and is automated by the same curve engine as everything else, mixed in the **Audio**
+panel (bed tracks, the bound timeline's tracks, per-clip insert chains, master). The one thing to hold in
+your head is **three containers, two clocks**: the **bed** (`ProjectData.audio`, one per project) rides the
+**show clock** and plays straight through a scene recall; a **timeline's own audio** and a **video clip's
+soundtrack** ride the **playhead** and **restart** with their scene. Requires `npm run build:audio` (without
+it the audio UI renders and plays silence). Full guide + tutorial in [AUDIO.md](AUDIO.md) and
+[examples/audio/](../examples/audio/README.md).
 
 ## Projects, rigs & preferences
 - **Save / Save As / Open** (File menu or top bar) — native dialogs writing `.artlux` project files
@@ -169,6 +256,34 @@ ArtLux.exe --broadcast --project="C:\path\to\show.artlux"
 It opens every enabled output fullscreen and streams Art-Net, controlled from a **system-tray icon**
 and a global **Ctrl/Cmd+Shift+Q** hotkey (or **File ▸ Launch in Broadcast Mode** from the editor).
 See [OUTPUTS.md](OUTPUTS.md).
+
+## Show-control tablet remote + scheduler + playlist
+Turn any phone/tablet browser into an operator surface, and drive an unattended venue. Enable it in
+**Preferences ▸ Show Control**, note the LAN URL + 4-digit **PIN**, and open the URL on the tablet (or scan
+the **QR** in **View ▸ Show Control…**) — the served PWA needs no install and auto-reconnects across a
+relaunch. Tabs: **Control** (recall scenes, fire cues, transport), **States** (drive the state machine —
+fire manual transitions, jump to any state; the only UI in broadcast mode), **Schedule** (in-project
+wall-clock triggers, e.g. 09:00 recall *Opening* / 18:00 stop, saved with the project), **Projects** (build
+a **time-of-day playlist** that switches whole projects unattended, indefinitely), and **Metrics** (the
+live engine/renderer/system series with sparklines and green/amber/red health). Everything the tablet does
+is mirrored in the app's **Show** workspace context (Show Deck + Schedule / Playlist / Metrics / Show
+Control dock tabs). Commands reuse the same buses as OSC, so App stays the single transport writer. PIN
+pairing → per-device token; an operator **Lock** can freeze or kick remotes. See
+[SHOW-CONTROL.md](SHOW-CONTROL.md).
+
+## Unattended operation: watchdog & monitoring
+For an install that runs for days with nobody watching:
+
+- **Self-healing watchdog** — **off by default**, arms only in `--broadcast`. It detects the ways a show
+  goes dark (renderer/GPU crash, unresponsive window, frozen render loop, sustained Art-Net loss) and
+  recovers with a **full relaunch** into the same broadcast project; a second **Windows Scheduled Task**
+  tier restarts the app if the whole process dies. A crash-loop **circuit breaker** stops it thrashing on a
+  persistent fault. Enable via **Preferences ▸ unattended**. See [WATCHDOG.md](WATCHDOG.md).
+- **Prometheus metrics** — the main process exposes `GET http://127.0.0.1:9464/metrics` (pull model, near
+  zero cost; loopback until you set `ARTLUX_METRICS_HOST=0.0.0.0`): output fps/pps/universes/up plus CPU,
+  RSS, heap and event-loop lag. A ready-made **Grafana** dashboard ships in `monitoring/`. See
+  [MONITORING.md](MONITORING.md). (The same series are viewable in the show-control **Metrics** tab without
+  Grafana.)
 
 ## Keyboard
 - **Ctrl/Cmd+Z** undo · **Ctrl/Cmd+Shift+Z** or **Ctrl/Cmd+Y** redo.

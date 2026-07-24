@@ -6,8 +6,9 @@ automated by the same curve engine that drives everything else. The engine is a 
 **libspatialaudio** ambisonics — every source is a *point in a field*, encoded into a shared B-format bus
 and decoded to headphones (HRTF binaural) or to a real speaker array.
 
-Shipped in **Wave 3**. **Not yet released** — it sits under `## Unreleased` in the repo's `CHANGELOG.md`, and
-`package.json` is still at `v0.21.0`. For the hands-on course, start at
+Shipped in **Wave 3** (its changelog sits under **v0.22.0** in `CHANGELOG.md`). `package.json` is at
+**v0.24.0**; note the last *tagged/distributed* release is **v0.21.0** — v0.22.0–v0.24.0 were prepared
+but not tagged (see the CHANGELOG header). For the hands-on course, start at
 **[`examples/audio/`](../examples/audio/README.md)** — five ready-to-open projects and a six-chapter
 tutorial.
 

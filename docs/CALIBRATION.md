@@ -161,29 +161,33 @@ Index"). Everything downstream — board detect, Gray-code capture, solve — is
                                store ProjectorCalibration       →   matched camera + distortion pass
 ```
 
+Calibration now ships as the first-party plugin **`@artlux/plugin-calibration`** (see
+[PLUGINS.md](PLUGINS.md)); its code lives under `plugins/calibration/src/` (the native solver stays in
+`native/calib`).
+
 - **Native solver** — `native/calib` exposes `detectBoard`, `mapCornersToProjector` (Gray-code decode
   + per-corner local homography), `calibrateProjector`, `solvePnp`. Loaded in main via
-  `src/main/calibManager.ts`; the renderer drives it over IPC.
-- **Gray-code** — `src/renderer/calib/graycode.ts` generates the patterns; the projector window renders
+  `plugins/calibration/src/calibManager.ts`; the renderer drives it over IPC.
+- **Gray-code** — `plugins/calibration/src/graycode.ts` generates the patterns; the projector window renders
   them on a raw 2D overlay (pixel-exact) and frame-syncs an ack so the camera grabs in step. The
   bit-ordering matches the Rust decode exactly (validated: 0 px round-trip).
-- **CV → Three.js** — `src/renderer/calib/cvCamera.ts` converts the OpenCV intrinsics/extrinsics into
+- **CV → Three.js** — `plugins/calibration/src/cvCamera.ts` converts the OpenCV intrinsics/extrinsics into
   a Three.js camera (pose quaternion + an **exact** intrinsic GL projection matrix that represents
   `fx≠fy` and the principal point — validated to 1e-13 px vs OpenCV).
-- **Render-from-projector** — `src/renderer/projector/ProjectorScene.tsx` renders the venue models from
+- **Render-from-projector** — `plugins/calibration/src/ProjectorScene.tsx` renders the venue models from
   that camera, with a lens-distortion post-pass (`@react-three/postprocessing`).
 
 ### Key files
 
 | Area | File |
 |---|---|
-| Wizard UI | `src/renderer/components/CalibWizard.tsx` |
-| SL orchestration | `src/renderer/calib/calibController.ts` |
-| Camera capture | `src/renderer/services/calibCapture.ts` |
-| Gray-code | `src/renderer/calib/graycode.ts` |
-| CV↔Three.js math | `src/renderer/calib/cvCamera.ts` |
-| Render-from-projector | `src/renderer/projector/ProjectorScene.tsx` |
-| Native addon | `native/calib/` (`src/lib.rs`), `src/main/calibManager.ts` |
+| Wizard UI | `plugins/calibration/src/CalibWizard.tsx` |
+| SL orchestration | `plugins/calibration/src/calibController.ts` |
+| Camera capture | `plugins/calibration/src/calibCapture.ts` |
+| Gray-code | `plugins/calibration/src/graycode.ts` |
+| CV↔Three.js math | `plugins/calibration/src/cvCamera.ts` |
+| Render-from-projector | `plugins/calibration/src/ProjectorScene.tsx` |
+| Native addon | `native/calib/` (`src/lib.rs`), `plugins/calibration/src/calibManager.ts` |
 | Frustum overlay | `src/renderer/components/Simulator3D/ProjectorFrustum.tsx` |
 | Data model | `ProjectorCalibration` / `useCalibration` in `shared/protocol.ts` |
 | Embedded 3D split | `src/renderer/App.tsx` (split layout), `useModelUrls.ts` |

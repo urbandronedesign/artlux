@@ -34,10 +34,17 @@ so there is no separate window or bridge. Separate **projector output** windows
 ## Install & run
 ```bash
 npm install
-npm run build:native   # 3 Rust crates → native/*/*.node (gitignored), then the audio engine (optional, warns)
+npm run build:native   # 3 Rust crates (output-engine + spout-receiver + hap) → native/*/*.node
+                       # (gitignored), then the audio engine (optional, warns)
 npm run build:audio    # just the JUCE audio engine — REQUIRED for sound
 npm run dev            # launch the Electron app (electron-vite dev)
 ```
+
+The other three native crates have their own opt-in scripts (not run by `build:native`): **`build:ndi`**
+(the NDI addon; a prebuilt `native/ndi/ndi.node` is committed, so you rarely rebuild it), **`build:calib`**
+(OpenCV projector calibration — needs OpenCV + LLVM in a vcvars64 env, see `scripts/build-calib.ps1`),
+and **`build:nvwarp`** (NVIDIA NVAPI warp/blend — Windows + the NVAPI SDK). All degrade gracefully when
+absent (see [INSTALL.md](INSTALL.md) for the packaged-resources list).
 
 ### Audio engine (`native/audio-engine`) — mandatory to ship, optional to develop
 JUCE + libspatialaudio, built with **cmake-js**, not cargo. `plugins/audio` **graceful-degrades**: if

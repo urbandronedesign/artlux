@@ -1,7 +1,7 @@
 # ArtLux UI/UX Refactor — Design System & Architecture
 
 Durable reference for the MadMapper-class UI refactor. Pair with
-[ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md) (engine) and [PROGRESS.md](PROGRESS.md) (status).
+[ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md) (engine) and [PROGRESS.md](../PROGRESS.md) (status).
 
 ## Goal
 Refactor ArtLux's UI to MadMapper's **logic and visual language** (reference: MadMapper Art-Net
@@ -67,7 +67,7 @@ with token classes (`bg-surface-1`, `text-fg-2`) and swap bespoke rows for kit p
 **Refactor U1–U5 complete.** Open polish backlog: tertiary-text contrast retune, modal focus-trap,
 vendoring the ui-ux-pro-max skill.
 
-## Workspace layout v2 — SUPERSEDED by workspace contexts (see [WORKSPACE.md](WORKSPACE.md))
+## Workspace layout v2 — SUPERSEDED by workspace contexts (see [WORKSPACE.md](../WORKSPACE.md))
 > The fixed three-region shell described below was replaced by the **context-driven shell**
 > (`components/shell/WorkspaceShell.tsx`): the regions survive, but their CONTENTS are now declared by
 > the active `WorkspaceContext` rather than hardcoded in `App.tsx`. `ScenePanel` and `InspectorPanel`

@@ -140,6 +140,8 @@ Select a surface, then choose a type in the Inspector's **Content** grid:
 | **Layer** | A timeline track | The surface shows whatever clip is under the timeline playhead on that track. |
 | **Effect** | An effect + palette | A built-in generative effect (e.g. solid, rainbow, wave, fire) with **Speed** and **Intensity** sliders. No media file needed. |
 | **Tracking** | A tracking **Source** (`SOL`/`MUR`/`SOL_MUR`) | Live **LiDAR blob** positions as content — for interactive floors/walls. Options below. Needs OSC enabled (Preferences → OSC / Tracking). |
+| **MediaPipe** | — (uses a connected webcam) | Camera **body-pose** tracking (Google BlazePose) — each person becomes a marker, like a LiDAR blob, from an ordinary webcam. See below. |
+| **Augmenta** | — (an Augmenta box over OSC) | Optical people/object tracking from a pre-calibrated [Augmenta](https://augmenta.tech) box streaming **OSC v2** (shares the app's OSC listener). See below. |
 
 The top-bar **Play/Pause** is the global transport for video, camera and the timeline (it's only
 enabled when there's something playable). Live sources (camera, Spout, NDI, DMX-in) are real-time.
@@ -167,6 +169,43 @@ the show. (Floor + wall = two surfaces → two projectors, calibrated independen
 
 > Stacking order: in the **Surfaces** list, the top item is front-most. Use the **▲ / ▼** buttons on
 > each surface to bring it forward / send it back (e.g. put a Tracking surface over a video).
+
+### Camera pose tracking (MediaPipe)
+Turn an ordinary webcam into a people tracker — each detected body becomes a marker on the surface,
+exactly like a LiDAR blob, with no special sensor (inference runs in-app, no cloud).
+
+1. Select a surface → content type **MediaPipe**. Set marker size / skeleton / IDs / trails / flip /
+   rotate in the surface inspector.
+2. Pick the camera and model in **Preferences → Pose Tracking (MediaPipe)**.
+3. Open **View → Pose Monitor…** to see the live feed, frame rate and tracked-people count.
+4. For a 3D preview, toggle **Camera pose markers (MediaPipe)** in the 3D Scene panel.
+
+**Floor calibration (real-world position):** when the camera looks *down* at the floor, run **View →
+Pose Floor Calibration…** — drag the four handles onto the corners of a floor rectangle whose real
+size you know, enter its **width × depth** in metres and **Save**. The 3D floor then shows each person
+at their true position. (Accurate for a standing/walking person; a jumping one is momentarily off the
+plane.)
+
+▶ Full detail: [docs/MEDIAPIPE.md](MEDIAPIPE.md).
+
+### Augmenta tracking
+Connect an [Augmenta](https://augmenta.tech) box — a self-contained, pre-calibrated optical tracker
+that streams tracked people/objects over **OSC v2**.
+
+1. **Enable OSC receive** and set the listen port in **Preferences → OSC / Tracking**.
+2. Point the Augmenta box (Fusion) OSC output at this machine on that port — it **shares ArtLux's OSC
+   listener**, so there's no extra port to open.
+3. Open **View → Augmenta Monitor…** and confirm `/au/…` messages are arriving (status dot turns
+   green, with a live object count and field size).
+4. Select a surface → content type **Augmenta** (marker size / trails / IDs / flip / rotate in the
+   inspector).
+5. Toggle **Augmenta field + objects** in the 3D Scene panel for a preview; open a projector output on
+   the surface and the markers self-render there.
+
+Augmenta reports its field size in metres, so it needs **no floor-calibration** — objects sit at their
+real position directly.
+
+▶ Full detail: [docs/AUGMENTA.md](AUGMENTA.md).
 
 ---
 
@@ -319,14 +358,77 @@ show with no tracker connected.
 
 See [TRACKING_TAKES.md](TRACKING_TAKES.md) for details.
 
-**State machine (control layer):** an always-present logic layer (the lane above the tracks; the
-**Edit logic** button opens its editor). It's **disabled by default**. When enabled it can drive the
-transport automatically: build a graph of **states** (each can *play / pause / stop / seek / set loop
-/ jump to a marker* on entry) connected by **transitions** that fire **manually** (buttons on the
-state lane) or automatically **after a delay**, **at a time**, **on a marker**, **when a clip ends**,
-or **when the timeline ends** (the trigger to reach for when the whole show should advance
-unattended). Turn it off any time to return to fully manual control. (The app's Play/Pause button
-always reflects the real state, whether you or the machine changed it.)
+### Per-scene timelines
+Every **Scene** owns its **own** timeline (its own tracks, clips, markers and playhead), so you can
+author a show as a sequence of independent looks. The **◆ Editing: [ scene ▾ ]** pill at the top-left
+of the Timeline panel always shows *which* timeline you're editing and tints the panel with that
+scene's accent colour. Recalling a scene — a **GO**, a cue, or a state-machine entry — **swaps** both
+the editor and the playback engine to that scene's timeline, so what you edit is what plays (stage,
+projectors and broadcast alike). Pick **Global timeline** on the pill (or when no scene is current) to
+edit the shared project timeline instead. A brand-new state starts with an empty timeline — just drag
+media onto it. The **global audio bed keeps playing across a recall**; only the picture restarts.
+
+▶ Full detail: [docs/SCENE-TIMELINES.md](SCENE-TIMELINES.md).
+
+### Building a show — the state machine
+The **state machine** (the project-level "Show" graph) turns a pile of Scenes into a show that runs
+itself — a timed loop, an unattended attract loop, or a live-triggered installation. It's **off by
+default**; open its editor from the Timeline dock's **state lane** (**Edit logic**).
+
+- **States** — each state is a node that **binds one Scene** (recalled on entry) and can run **entry
+  actions** (*play / pause / stop / seek / set loop / jump to marker / recall another scene / fire a
+  cue*). Click **Build from scenes** to seed one node per Scene automatically.
+- **Transitions** — drag from a node's right-edge nub onto another node to connect them, then pick the
+  **trigger** that fires the edge:
+  - **Manual GO** — a button on the state lane, **Ctrl/Cmd+click** the edge, OSC, or the tablet remote.
+  - **After a delay** — N seconds after entry, on a *wall clock* that runs even with the transport
+    stopped (so a delay-only graph loops with no Play).
+  - **At a time / on a marker / when a clip ends / when the timeline ends** — these follow the playhead
+    (need playback running). Reach for **when the timeline ends** to advance the whole show unattended.
+  - **LiDAR zone** — a person enters/leaves a trigger zone (see below).
+- **Hold at end** — set a timeline out-point (the **End state here** button) and turn on **Hold at
+  end** (the snowflake): the state plays to that frame and **freezes there with the audio bed still
+  running**, waiting for a trigger. Pair it with a transition's **Only after the state has finished**
+  guard so an automatic/zone trigger can't cut the film early — a **manual GO always fires anyway**.
+- **Global rules** — mark a transition **⚡ Global rule** and it's evaluated from *every* state (e.g.
+  "someone enters the entrance → welcome"), so you don't redraw it on every node.
+- **Cold start** — opening a project doesn't start the machine until the opening look has **decoded**:
+  the status bar shows a *Preloading n/m* chip and any open projector reads **PRELOADING SHOW** until
+  the picture is ready, then the show starts from the top. It always fails open after the *Preload
+  wait* (Preferences → Engine, default 15 s).
+
+The Play/Pause button always reflects the real transport, whoever changed it. Turn the machine off any
+time to return to fully manual control.
+
+▶ Full detail + a hands-on tutorial: [docs/STATE-MACHINE.md](STATE-MACHINE.md) and the ready-to-open
+example projects in [examples/state-machine/](../examples/state-machine/).
+
+### LiDAR trigger zones — make the show react to the room
+A **trigger zone** is a named area of a tracking surface that the state machine can transition on.
+Zones are **project-scope geometry** — you draw the entrance / stage / doorway *once* and every scene
+and state shares them.
+
+- **Draw them** in the **Tracking** workbench → **Trigger Zones** dock tab: drag on empty space to
+  create a zone, click to select, drag its body to move, drag a corner to resize. Set **People
+  needed** per zone. Live (raw) blobs are drawn on the map so you can see them land, and the same
+  zones appear in the 3D Scene with a live headcount.
+- **Wire a zone to a transition** — in the transition inspector pick trigger **LiDAR zone**, then
+  choose **One zone** (*someone enters / everyone leaves / occupied for N s / empty for N s / at least
+  N people*) or **Combination** (ALL/ANY of several zones, each optionally **NOT** — e.g. "someone in
+  the entrance *and* nobody on the stage").
+- **Dwell is tuned once, on-site** — the venue-wide **Zone enter dwell** (default 0.2 s) and **Zone
+  exit dwell** (default 0.5 s) live in the tracking parameters (next to *Smoothing* / *Merge radius*);
+  every zone follows them unless you tick **Override dwell for this zone**. Raise them if a flickery
+  tracker fires arrivals too eagerly or keeps dropping a standing visitor.
+- **Per-scene listening (optional)** — the **eye** toggle in the Trigger Zones panel sets whether the
+  *current* scene listens to a zone. Every zone is live in every scene by default, so ignore this
+  until you want "the welcome state watches the entrance, the performance state watches the stage."
+
+Zones read the same blob store as take replay, so you can rehearse against a recorded LiDAR **take**
+(or `scripts/lidar-emitter.cjs`) with no tracker connected.
+
+▶ Full detail: [docs/TRACKING_SYNC.md](TRACKING_SYNC.md) (trigger zones + the on-site LiDAR sync
+procedure).
 
 ---
 
@@ -404,6 +506,32 @@ See [ASSETS.md](ASSETS.md) for details.
 **Broadcast (show) mode:** File → **Launch in Broadcast Mode** opens every enabled output fullscreen
 and streams Art-Net/sACN with no editor UI. Quit it from the system-tray icon or with
 **Ctrl/Cmd+Shift+Q**.
+
+### Show-control tablet remote, scheduler & broadcast playlist
+ArtLux can serve a small web app to any phone/tablet on the same LAN, and run a venue unattended on a
+clock — the classic museum / retail / façade install workflow.
+
+1. **Enable it:** Preferences → **Show Control** → tick *Enable the tablet remote*. Note the LAN
+   URL(s) and the 4-digit **PIN** (or open **View → Show Control…** for a QR code to scan — one scan
+   pairs the tablet with no typing).
+2. **On the tablet:** open the URL, enter the PIN once (the device is remembered). You get **Control**
+   (recall scenes, fire cues, transport), **States** (drive the state machine — fire manual
+   transitions, jump to any state), **Schedule**, **Projects** and **Metrics** tabs. Everything works
+   in broadcast mode, where the tablet is the only UI.
+3. **Schedule** — in-project wall-clock triggers saved *with the project* (e.g. 09:00 recall
+   "Opening", 18:00 stop), on chosen weekdays.
+4. **Projects playlist** — point at a folder, scan for projects, build a **time-of-day playlist**,
+   enable it and *Start in broadcast now*: the machine then switches whole projects unattended,
+   indefinitely (each switch relaunches for a fresh, leak-free process, and it resumes on the correct
+   project after a reboot).
+5. **Metrics** — the same live output / renderer / system series ArtLux exposes to Grafana, with
+   sparklines and green/amber/red health — no Grafana required.
+
+Everything on the tablet is also in the app's **Show** workspace context (a Show Deck viewport plus
+Schedule / Playlist / Metrics / Show Control dock tabs), so you can arm an unattended venue from the
+machine itself. The operator panel has a **Lock** that freezes and kicks remotes mid-show.
+
+▶ Full detail: [docs/SHOW-CONTROL.md](SHOW-CONTROL.md).
 
 **Updates:** Help → *Check for Updates…* (Windows/Linux auto-update; macOS prompts you to download).
 

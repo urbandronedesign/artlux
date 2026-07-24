@@ -12,7 +12,7 @@ The transport bar sketched in [timeline-transport-and-audio-scoping.md:98](archi
  ⏮ ⏸ ⏹ ⏭ │ ⟳ Loop │ [I] [O] │ 00:00:33.19 / 00:01:00.00    transport — what is playing
 ```
 
-The Wave A execution plan that built that bar narrowed the scope in its opening line — [2026-07-11-timeline-transport-wave-a.md:618](../docs/superpowers/plans/2026-07-11-timeline-transport-wave-a.md#L618):
+The Wave A execution plan that built that bar narrowed the scope in its opening line — [2026-07-11-timeline-transport-wave-a.md:618](../docs/archive/superpowers/plans/2026-07-11-timeline-transport-wave-a.md#L618):
 
 > "Regroup it, and add the three controls that never had a button: **Stop**, **Set In**, **Set Out**."
 

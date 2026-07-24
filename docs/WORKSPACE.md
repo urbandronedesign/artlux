@@ -97,7 +97,7 @@ not change what was *in* the panels. `BUILTIN_PRESETS`/`applyPreset`/`PresetId` 
 survives only as a one-time migration input (see below).
 
 - **Contract:** `WorkspaceContext` + `ContextRegistry` in [`@artlux/sdk/renderer`](SDK.md); a context is a
-  **manifest of panel ids** and owns no components. Core registers its ten in
+  **manifest of panel ids** and owns no components. Core registers its eleven in
   [`src/renderer/contexts/index.tsx`](../src/renderer/contexts/index.tsx) through exactly the same API a
   plugin uses — there is no privileged core path.
 - **Shell:** [`components/shell/WorkspaceShell.tsx`](../src/renderer/components/shell/WorkspaceShell.tsx)

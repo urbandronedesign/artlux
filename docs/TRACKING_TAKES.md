@@ -36,7 +36,7 @@ replay:   engine.subscribe(playhead) ─► trackingPlayback ─► trackingStor
 ## Where it lives
 
 ```
-src/renderer/services/
+plugins/lidar-tracking/src/
   trackingTake.ts      take format (.lblob), serialize/parse, frameAt (binary search), density, load cache
   trackingRecorder.ts  taps trackingStore.subscribe; start/stop/isRecording/getElapsed; builds a take
   trackingPlayback.ts  subscribes to engine playhead; injects frames; sets/clears the replay override

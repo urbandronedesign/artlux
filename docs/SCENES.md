@@ -124,7 +124,8 @@ In the bottom dock → **Scenes & Cues** tab (next to Timeline,
 - **↻ Update** — re-capture the current **look** into the existing scene (keeps id/name/fade — and the
   scene's own timeline, which `buildSceneSnapshot` never touches).
 - **double-click name** — rename.
-- **fade field** — store a fade time (inactive in this version).
+- **fade field** — the scene's recall fade time, in seconds; a recall crossfades the look over it
+  (`onUpdateSceneFade` → `fadeSec`; see the fade engine above). `0` snaps.
 - **OSC trigger** column — shows the ready-to-copy OSC address for each scene.
 - **🗑** — delete.
 
@@ -205,5 +206,8 @@ OSC ────────────────┘     → App resolves id/
 ## Not in this version (future work)
 
 Red-overlay edit mode (click any control in the Inspector/Stage to cue it — currently authored via
-the capture picker); projector-output fades (corner-pin/warp); auto-play and cue/calendar schedulers;
-MIDI/DMX trigger mapping; cross-project scene portability (asset-path relativization).
+the capture picker); projector-output fades (corner-pin/warp); MIDI/DMX trigger mapping.
+
+*(Since shipped, and no longer future work: wall-clock **schedulers** and a multi-project **broadcast
+playlist** — now in `@artlux/plugin-show-control`, see [SHOW-CONTROL.md](SHOW-CONTROL.md); and portable
+projects with asset-path relativization, see [ASSETS.md](ASSETS.md).)*

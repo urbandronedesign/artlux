@@ -50,6 +50,7 @@ a project-level state machine, scenes/cues, OSC control, and a 3D simulator.
 | Metrics / monitoring | [docs/MONITORING.md](docs/MONITORING.md) |
 | Feature overview / user guide | [docs/FEATURES.md](docs/FEATURES.md), [docs/USER_GUIDE.md](docs/USER_GUIDE.md), `docs/user-guide/` |
 | Build log (chronological) | [docs/PROGRESS.md](docs/PROGRESS.md), [CHANGELOG.md](CHANGELOG.md) |
+| Historical / superseded docs | [docs/archive/](docs/archive/) (pre-Electron `ARCHITECTURE_PLAN`, `UI_REFACTOR`, audio acceptance/plans) |
 
 ## Commands & the working loop
 
@@ -171,7 +172,8 @@ time-of-day multi-project broadcast playlist; adds a `host.show` SDK service + `
 [docs/SHOW-CONTROL.md](docs/SHOW-CONTROL.md)).
 `.mov`/`.mp4` decode dispatches through `videoCodecRegistry` from surfaces, the timeline, and thumbnails.
 The SDK spans content-source, clip-kind, projector (data + GPU + panel), scene-viz, host-services, and
-video-codec contributions. `npm run verify:plugins` guards single-identity. Next codec: DXV — see ROADMAP.
+video-codec contributions. `npm run verify:plugins` guards single-identity. Two codecs ship (HAP + MP4);
+DXV was considered and **dropped** (2026-07-03) — see ROADMAP.
 
 - **Workspaces:** host app + `@artlux/sdk` (`packages/sdk`, subpaths `/main` + `/renderer`) + `plugins/*`.
 - **SDK is internal + UNSTABLE** — no public/versioned API or third-party disk-loading yet.

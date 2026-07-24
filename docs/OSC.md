@@ -146,6 +146,10 @@ origin. `u → x` across the width (centered); `v` runs up each zone (`SOL` towa
 
 ## Architecture
 
+> **LiDAR tracking is now the `@artlux/plugin-lidar-tracking` plugin** — the store, 3D viz, smoothing,
+> GPU blob compositor and projector rendering live under `plugins/lidar-tracking/src/`. Only OSC
+> transport/control (the codec, IPC, and the control-message router) remains in core.
+
 - **Main** `src/main/transport/oscManager.ts` — zero-dependency OSC 1.0 codec over `dgram`
   (decodes single messages **and** `#bundle`s; encodes for the send scaffold). `start(port, cb,
   address?)` binds to one NIC or all interfaces; `localAddresses()` lists this host's IPv4 NICs for
@@ -155,12 +159,15 @@ origin. `u → x` across the width (centered); `v` runs up each zone (`SOL` towa
 - **IPC** `src/main/ipc.ts` — `OSC_CONFIGURE` (bind/unbind), `OSC_LOCAL_ADDRS` (NIC list), `OSC_SEND`
   (scaffold); each received packet's messages are forwarded to the renderer as `OSC_MESSAGE`.
 - **Preload** `src/preload/index.ts` — `configureOsc`, `onOscMessage`, `listLocalAddrs`, `sendOsc`.
-- **Renderer routing** `src/renderer/services/oscController.ts` — splits messages: control prefix →
-  `timeline.dispatchTransportIntent` + `triggerSmTransition`; tracking → `trackingStore`.
-- **Tracking store** `src/renderer/services/trackingStore.ts` — render-free pub/sub (like
+- **Renderer routing** `src/renderer/services/oscController.ts` — handles **control** messages only:
+  control prefix → `timeline.dispatchTransportIntent` + `triggerSmTransition`. It no longer touches
+  tracking; the `@artlux/plugin-lidar-tracking` plugin taps the same OSC stream independently, wiring
+  `window.artlux.onOscMessage` → `trackingStore.ingest` in its own subscription (see
+  `plugins/lidar-tracking/src/plugin.renderer.ts`).
+- **Tracking store** `plugins/lidar-tracking/src/trackingStore.ts` — render-free pub/sub (like
   `dmxSignal`): accumulates per-surface specs + blob slots, coalesces notifications to one per
   animation frame, exposes active blobs + a `snapshot`/`applySnapshot` for bridging.
-- **3D viz** `src/renderer/components/Simulator3D/TrackingViz.tsx` — reconstructs the SOL/MUR zones
+- **3D viz** `plugins/lidar-tracking/src/TrackingViz.tsx` — reconstructs the SOL/MUR zones
   and renders instanced, bloom-lit blob markers; updates matrices in `useFrame` (no React
   re-renders).
 - **Bridge** — `Simulator3D` lives only in the **3D Scene window**, which never sees OSC directly
@@ -172,12 +179,14 @@ origin. `u → x` across the width (centered); `v` runs up each zone (`SOL` towa
 
 ### Projection (TRACKING surface content)
 - **`SourceType.TRACKING`** content (`trackingSource`, `blobSize`, `showIds`, `flipH/flipV`,
-  `rotate`, `calibration`, `bgLayerId`). Smoothing (`services/blobMotion.ts` — One-Euro + bounded
-  prediction) and the blob-instance + overlay compute live in **`services/trackingRenderer.ts`**.
+  `rotate`, `calibration`, `bgLayerId`). Smoothing (`plugins/lidar-tracking/src/blobMotion.ts` —
+  One-Euro + bounded prediction) and the blob-instance + overlay compute live in
+  **`plugins/lidar-tracking/src/trackingRenderer.ts`**.
 - **GPU compositor** — blobs are drawn on the GPU (no CPU radial-gradient rasterization):
-  **`gpu/blobPass.ts`** (WebGL2: radial-falloff blob discs + textured quads, premultiplied alpha,
-  per-context program cache). The **editor stage** renders into a per-surface WebGL2 canvas
-  (`trackingDrawable.ts`, with a 2D fallback). The **projector** renders background + blobs +
+  **`plugins/lidar-tracking/src/blobPass.ts`** (WebGL2: radial-falloff blob discs + textured quads,
+  premultiplied alpha, per-context program cache). The **editor stage** renders into a per-surface
+  WebGL2 canvas (`plugins/lidar-tracking/src/trackingDrawable.ts`, with a 2D fallback). The
+  **projector** renders background + blobs +
   overlay **straight into `ProjectorGL`'s source FBO** (`drawTracking` → `warpFromTexture`) — no
   intermediate canvas, no per-frame full-canvas upload — then warps it with the existing
   corner-pin/Bézier.

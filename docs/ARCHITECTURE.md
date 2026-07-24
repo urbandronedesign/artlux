@@ -1,15 +1,18 @@
 # ArtLux — Architecture (current)
 
 The canonical reference for how ArtLux works today. For the historical pre-Electron rewrite roadmap
-see [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md); for the surfaces design see [SURFACES.md](SURFACES.md);
-for usage see [FEATURES.md](FEATURES.md); for the build log see [PROGRESS.md](PROGRESS.md).
+see [archive/ARCHITECTURE_PLAN.md](archive/ARCHITECTURE_PLAN.md); for the plugin architecture see
+[PLUGINS.md](PLUGINS.md); for the surfaces design see [SURFACES.md](SURFACES.md); for usage see
+[FEATURES.md](FEATURES.md); for the build log see [PROGRESS.md](PROGRESS.md).
 
 ## Overview
-ArtLux is an Electron desktop app that maps content (video / image / camera / Spout / DMX-in /
-generative effects) onto addressable-LED fixtures and streams the result over **Art-Net** and
-**sACN/E1.31**. Pixel work runs on the GPU (**WebGPU** compute, WebGL fallback); UDP output runs in a
-native **Rust** engine. Stack: Electron · React 19 · TypeScript · Vite (electron-vite) · Tailwind ·
-WebGPU · react-three-fiber · Rust (napi-rs).
+ArtLux is an Electron desktop app that maps content (video / image / camera / **Spout** / **NDI** /
+DMX-in / generative effects / **LiDAR tracking**) onto addressable-LED fixtures **and projectors**, and
+streams the result over **Art-Net** and **sACN/E1.31** (plus projector outputs with warp/blend). Pixel
+work runs on the GPU (**WebGPU** compute, WebGL fallback); UDP output runs in a native **Rust** engine;
+sound runs in a native **C++/JUCE** engine. It also carries a timeline NLE, a project **state machine**
+over scenes/cues, OSC control, and a 3D simulator. Stack: Electron · React 19 · TypeScript · Vite
+(electron-vite) · Tailwind · WebGPU · react-three-fiber · Rust (napi-rs) · JUCE.
 
 ## Processes
 - **Main** (`src/main/`): app lifecycle + window, native transport (Art-Net/sACN, ArtPoll discovery,
@@ -21,8 +24,13 @@ WebGPU · react-three-fiber · Rust (napi-rs).
 - **Renderer** (`src/renderer/`): the React UI + the frame-generation loop (Stage + GPU mapper).
 - **Shared** (`shared/`): the IPC contract (`protocol.ts`) and the binary frame codec (`frameCodec.ts`),
   imported by both sides.
-- **Native** (`native/`): two napi-rs Rust crates — `output-engine` (Art-Net/sACN send thread) and
-  `spout-receiver` (Windows Spout, stubbed elsewhere), built to `*.node`.
+- **Native** (`native/`): **six napi-rs Rust crates** — `output-engine` (Art-Net/sACN send thread),
+  `spout-receiver` (Windows Spout), `hap` (HAP codec), `ndi` (NDI video), `calib` (OpenCV projector
+  calibration), `nvwarp` (NVIDIA NVAPI warp/blend) — **plus one C++/JUCE** crate `audio-engine`. All are
+  loaded in main via `process.resourcesPath` paths, packaged as `extraResources`, and **degrade
+  gracefully** when absent. Only `output-engine` + `spout-receiver` + `hap` are built by `build:native`;
+  the rest have their own opt-in scripts (see [DEVELOPMENT.md](DEVELOPMENT.md)). Most are now loaded *by a
+  plugin* rather than core — see [Plugin architecture](#plugin-architecture) below and [PLUGINS.md](PLUGINS.md).
 
 ## Frame pipeline (renderer → hardware)
 Per animation frame, `components/Stage.tsx` `tick()`:
@@ -59,6 +67,44 @@ interface both backends implement.
 - **Controller** = a physical output device (protocol/ip/broadcast/priority/startUniverse); the
   routing spreadsheet (`components/RoutingModal.tsx`) manages controllers + per-fixture patch.
 
+## Plugin architecture
+ArtLux is being restructured into an **in-process, contribution-based plugin system** (VS Code style):
+features become self-contained first-party plugins in `plugins/*`, wired through the internal SDK
+(`@artlux/sdk`, `packages/sdk`, subpaths `/main` + `/renderer`). **Ten plugins ship today** —
+`lidar-tracking`, `ndi`, `calibration`, `spout`, `hap`, `mp4`, `mediapipe`, `augmenta`, `audio`,
+`show-control`. A plugin contributes to **eleven contribution registries** (content source, clip kind,
+projector channel/panel, settings section, scene-viz, panel, context, SM trigger, video codec,
+automation target — `src/renderer/host/registries.ts`) and consumes **host services** it is handed at
+activation. Activation: `src/renderer/host/plugins.ts` (10 renderer plugins) + `src/main/host/plugins.ts`
+(6 with a main half). Cross-process plugins talk over a **generic preload bridge** (`plugin:<ch>`
+channels). Persisted project types stay in core (`shared/protocol.ts` / `renderer/types.ts`); only
+*behaviour* moves into a plugin, so there is **zero project-file migration**. Canonical: [PLUGINS.md](PLUGINS.md);
+API surface: [SDK.md](SDK.md).
+
+## Editor shell — workspace contexts (`src/renderer/components/shell/`)
+The editor UI is **context-driven**: exactly one **workspace context** is active at a time (chosen from
+the left rail), and it declares the whole workbench — browser column, viewport, dock tabs, parameter
+sections and the action bar. A context is a **manifest of panel ids**; it owns no components, so a plugin
+can `contextRegistry.extend()` a context it does not own. `WorkspaceShell` imports zero panels; panels
+read state via `useEditor()/useEditorActions()` (`state/EditorStore.tsx`) — **but App still owns all
+state and every mutation**. Core registers **eleven contexts** (Mapping, 3D, Projection, Calibration,
+Timeline, Scenes, Preferences, Show Machine, Audio, Tracking, Show). `Stage` and the single `TimelinePanel`
+are **persistent viewport elements** hidden with CSS, never unmounted (unmounting `Stage` stops
+`dmx:frame` mid-show). Canonical: [WORKSPACE.md](WORKSPACE.md).
+
+## Show model — timeline · scenes · state machine
+Above the surfaces/output engine sits the **show model**, three layers core persists in `ProjectData`:
+- **Timeline** (`services/timeline.ts`) — a video-layer NLE with **one transport carrying two derived
+  clocks**: the **playhead** (the bound document's time, resets on a scene recall) and the **show clock**
+  (the time the global audio bed rides, which a recall does *not* reset). See [TIMELINE.md](TIMELINE.md).
+- **Scenes & cues** (`services/cueBus.ts`) — look snapshots + a cue grid; **every scene owns its own
+  timeline** and a recall warm-swaps the engine to it (pool-keyed by `scene.id`). See
+  [SCENES.md](SCENES.md) + [SCENE-TIMELINES.md](SCENE-TIMELINES.md).
+- **State machine** (`services/stateMachine.ts`) — a project-level **"Show" graph over scenes**: states,
+  transitions (manual GO / auto-at-end / OSC / **LiDAR trigger zones + combinations**), global `fromAny`
+  rules, hold-at-end, and a cold-start boot gate that holds the show until its opening content decodes.
+  See [STATE-MACHINE.md](STATE-MACHINE.md).
+
 ## Output / transport (`src/main/transport/`)
 `outputManager.ts` prefers the native `output-engine.node` (Rust send thread + pacer + keep-alive +
 sparse + ArtSync) and falls back to TS `artnet.ts`/`sacn.ts`. `discovery.ts` does ArtPoll/ArtPollReply.
@@ -89,17 +135,27 @@ says everything is fine* is the failure this subsystem takes most seriously.
 
 ## IPC (`shared/protocol.ts`)
 Fire-and-forget `.on`/`.send`: `dmx:configure`, `dmx:frame`, `dmx:status`, `dmx:stats`,
-`input:configure`/`input:frame`, `spout:configure`/`spout:frame`, `menu:action`, `app:open-external`.
+`input:configure`/`input:frame`, `osc:configure`/`osc:message`/`osc:send`/`osc:local-addrs`,
+`tracking:save-take`, `menu:action`, `app:open-external`.
 Request/response `invoke`/`handle`: `project:save`/`open`/`load-path`,
 `project:new-folder`/`open-folder`/`collect-assets`, `rig:export`/`import`, `prefs:get`/`set`,
-`artnet:discover`, `spout:list`, `app:get-info`.
+`artnet:discover`, `asset:show-in-folder`, `app:get-info`.
+- **Plugin channels are namespaced** `plugin:<ch>` and go over the generic preload bridge
+  (`pluginInvoke`/`pluginSend`/`pluginOn`) — Spout (`plugin:spout:*`), NDI (`plugin:ndi:*`), HAP
+  (`plugin:hap:*`), calibration (`plugin:calib:*`), etc. — because contextIsolation means a plugin cannot
+  add named preload methods. Show-control runs its own embedded HTTP+SSE server (not IPC) for the tablet
+  remote. See [PLUGINS.md](PLUGINS.md#the-generic-plugin-ipc-bridge).
+- **Projector windows** talk to the main window over a **MessagePort** bridge
+  (`renderer/projector/bridge.ts`), *not* IPC.
 
 ## Persistence (`src/main/persistence.ts`)
-All file I/O is in main (renderer is sandboxed). Projects are `.artlux` JSON
-(`{ version, surfaces, fixtures, controllers, settings, globalBrightness, groups, scenes, scene3D,
-timeline }`); rigs are `.artrig` (fixtures' patch/wiring only). Preferences live in
-`userData/artlux-prefs.json` (`appSettings`, `globalBrightness`, `recentFiles`, `lastProjectPath`,
-`fixtureTemplates`) and auto-restore on launch.
+All file I/O is in main (renderer is sandboxed). Projects are `.artlux` JSON — `ProjectData` in
+`shared/protocol.ts`: `{ version, fixtures, surfaces, controllers, globalBrightness, groups, scenes,
+cueBanks, scene3D, timeline, stateMachine, schedule, audio, assets, projectorOutputs, outputSpans, … }`.
+Note **`settings` was removed (P6)** — `AppSettings` is *the machine, not the show*, so it lives in
+Prefs, and a project no longer carries it. Rigs are `.artrig` (fixtures' patch/wiring only). Preferences
+live in `userData/artlux-prefs.json` (`appSettings`, `globalBrightness`, `recentFiles`,
+`lastProjectPath`, `fixtureTemplates`) and auto-restore on launch.
 
 ## Portable projects (`src/main/projectFolder.ts`)
 A project can be a **folder** — `project.artlux` + `assets/{video,models,images}/` — so it's
@@ -141,6 +197,10 @@ is why it drove no audio.) Used for low-overhead runs and automated output tests
 | Routing UI | `src/renderer/components/RoutingModal.tsx` |
 | Main / window / CLI | `src/main/index.ts`, `src/main/menu.ts` |
 | Transport | `src/main/transport/{outputManager,artnet,sacn,discovery,input,spoutManager}.ts` |
-| Native | `native/output-engine/`, `native/spout-receiver/` |
+| Native | `native/{output-engine,spout-receiver,hap,ndi,calib,nvwarp,audio-engine}/` |
+| Plugin host | `src/renderer/host/{registries,plugins}.ts`, `src/main/host/plugins.ts`, `packages/sdk/` |
+| Editor shell | `src/renderer/components/shell/WorkspaceShell.tsx`, `contexts/index.tsx`, `state/EditorStore.tsx` |
+| Show model | `src/renderer/services/{timeline,cueBus,stateMachine}.ts` |
+| Plugins | `plugins/{lidar-tracking,ndi,calibration,spout,hap,mp4,mediapipe,augmenta,audio,show-control}/` |
 | IPC / codec | `shared/protocol.ts`, `shared/frameCodec.ts` |
 | Types | `src/renderer/types.ts` |
