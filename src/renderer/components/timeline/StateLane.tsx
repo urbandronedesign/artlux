@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { StateMachine } from '../../types';
 import { timeline as engine } from '../../services/timeline';
 import { GUTTER, SM_LANE_H } from './geometry';
-import { Workflow, ChevronsRight } from 'lucide-react';
+import { Workflow, ChevronsRight, Zap } from 'lucide-react';
 
 interface Props {
   sm: StateMachine;
@@ -17,11 +17,26 @@ interface Props {
 // the current state's outgoing manual transitions, and time-anchored trigger markers on the track.
 export const StateLane: React.FC<Props> = ({ sm, pxPerSec, width, onTrigger, onEdit, onToggle }) => {
   const [currentId, setCurrentId] = useState<string | null>(null);
+  // IS THE STATE'S PICTURE OVER? (Timeline.holdAtEnd — the playhead is parked on the last frame while
+  // the show plays on.) It has no event of its own, so it is POLLED at 4 Hz and only committed when it
+  // CHANGES — a hold lasts seconds to minutes, and this lane must not re-render per frame during
+  // playback. Without this readout a hold is invisible: `playing` is true, the timecode is frozen, and
+  // from across a venue that is indistinguishable from a show that has hung.
+  const [held, setHeld] = useState(false);
 
   useEffect(() => engine.subscribeSmState(setCurrentId), []);
+  useEffect(() => {
+    const id = window.setInterval(() => setHeld(h => (h === engine.isBoundHeld() ? h : !h)), 250);
+    return () => window.clearInterval(id);
+  }, []);
 
   const current = sm.states.find(s => s.id === currentId) ?? null;
-  const manualOut = sm.transitions.filter(t => t.from === currentId && t.trigger.kind === 'manual');
+  // The current state's own manual transitions, PLUS global rules (fromAny), which are firable from
+  // wherever the show happens to be — that is what makes them global, and the runtime honours them on
+  // this path too (stateMachine.triggerManual). A global pointing at the state we are already in is
+  // excluded for the same reason tick() skips it: pressing it would re-enter and restart the scene.
+  const manualOut = sm.transitions.filter(t => t.trigger.kind === 'manual'
+    && (t.fromAny ? t.to !== currentId : t.from === currentId));
   const timeTriggers = sm.transitions.filter(t => t.trigger.kind === 'atTime' && t.trigger.time != null);
   const dim = !sm.enabled;
 
@@ -35,6 +50,10 @@ export const StateLane: React.FC<Props> = ({ sm, pxPerSec, width, onTrigger, onE
         <span className="text-micro text-fg-2 truncate" title={current ? current.name : 'no state'}>
           {sm.enabled ? (current ? current.name : (sm.states.length ? '—' : 'empty')) : 'disabled'}
         </span>
+        {held && (
+          <span className="shrink-0 px-1 h-4 rounded bg-warn/20 text-warn text-micro inline-flex items-center"
+            title="This state's timeline has finished and is holding its last frame. The show is still running — the audio bed and the global automation play on — and any transition waiting on 'only after the state has finished' can now fire.">HOLDING</span>
+        )}
         <button onClick={onEdit} className="ml-auto text-micro text-fg-3 hover:text-fg-1 underline">edit</button>
       </div>
 
@@ -43,10 +62,17 @@ export const StateLane: React.FC<Props> = ({ sm, pxPerSec, width, onTrigger, onE
         <div className="absolute left-1 top-0 bottom-0 flex items-center gap-1 z-10">
           {sm.enabled && manualOut.map(t => {
             const to = sm.states.find(s => s.id === t.to);
+            // `requireEnd` gates the AUTOMATIC path only — a human press always fires (stateMachine's
+            // triggerManual). So the button is NOT disabled; it is flagged EARLY, so the operator knows
+            // they are about to cut the state's picture before it has finished and still gets to decide.
+            const early = !!t.requireEnd && !held;
             return (
-              <button key={t.id} onClick={() => onTrigger(t.id)} title={`Trigger → ${to?.name ?? '?'}`}
-                className="px-1.5 h-5 rounded bg-surface-2 border border-line-1 text-micro text-fg-1 hover:bg-accent hover:text-black inline-flex items-center gap-1">
-                <ChevronsRight size={10} /> {to?.name ?? '?'}
+              <button key={t.id} onClick={() => onTrigger(t.id)}
+                title={early
+                  ? `→ ${to?.name ?? '?'} — this state's timeline hasn't finished yet; firing now cuts it`
+                  : `Trigger → ${to?.name ?? '?'}${t.fromAny ? ' (global rule — available from every state)' : ''}`}
+                className={`px-1.5 h-5 rounded bg-surface-2 border text-micro inline-flex items-center gap-1 text-fg-1 hover:bg-accent hover:text-black ${early ? 'border-dashed border-warn/70' : t.fromAny ? 'border-warn/60' : 'border-line-1'}`}>
+                {t.fromAny ? <Zap size={10} /> : <ChevronsRight size={10} />} {to?.name ?? '?'}{early ? ' ⏱' : ''}
               </button>
             );
           })}

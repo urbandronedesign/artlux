@@ -95,7 +95,9 @@ export const StateMachineViewport: React.FC = () => {
       sm={stateMachine}
       markers={timeline.markers ?? []}
       layers={timeline.layers}
-      scenes={scenes.map((s) => ({ id: s.id, name: s.name, accent: s.accent, clipCount: s.timeline.clips.length }))}
+      // …plus whether the state ENDS BY HOLDING its last frame, which is what a ⏱ (requireEnd) edge
+      // out of it waits for. LOOP WINS in the engine, so a looping timeline never claims to hold.
+      scenes={scenes.map((s) => ({ id: s.id, name: s.name, accent: s.accent, clipCount: s.timeline.clips.length, holdsAtEnd: !!s.timeline.holdAtEnd && !s.timeline.loop }))}
       cues={cueBanks.flatMap((b) => b.cues.map((c) => ({ id: c.id, name: c.name })))}
       onChange={a.setStateMachine}
       // Editing a state's timeline binds that scene AND takes you to the timeline — the graph is no

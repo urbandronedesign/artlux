@@ -916,7 +916,21 @@ const App: React.FC = () => {
     fixtures: fixtures.map(f => ({ ...f, colorData: [] })),
     globalBrightness,
     groups,
-    scene3D,
+    // ⚠ `trackingZones` IS STRIPPED, AND FOR THE SAME CLASS OF REASON `timeline` IS OMITTED ABOVE.
+    //
+    // A TRIGGER ZONE IS THE ROOM, NOT THE LOOK. It is a rectangle taped to a real floor: it does not
+    // change shape because the lighting changed. But it lived on Scene3D, Scene3D rides in this
+    // snapshot, and recall assigns the whole object — so every scene silently carried a COPY of the
+    // zones as they were when it was captured, and the first GO onto a scene captured BEFORE the zones
+    // were drawn replaced the live list with nothing. Every zone vanished from the panel and the 3D
+    // scene, and every zone-driven transition went inert — a show that simply stops reacting to people,
+    // with nothing logged and nothing on screen to explain it.
+    //
+    // So the GEOMETRY stays at project scope (the live scene3D, saved once in ProjectData.scene3D) and
+    // never travels; what DOES travel is `activeZoneIds` — which of the room's zones this look listens
+    // to — because that genuinely is part of the look. See handleRecallScene, which preserves the live
+    // list on the way back in, and docs/TRACKING_SYNC.md.
+    scene3D: { ...scene3D, trackingZones: undefined },
     projectorOutputs,
   });
   const handleCaptureScene = () => {
@@ -967,7 +981,12 @@ const App: React.FC = () => {
     setFixtures(scene.fixtures.map(f => ({ ...f, colorData: [] })));
     setGlobalBrightness(scene.globalBrightness);
     if (scene.groups) setGroups(scene.groups);
-    if (scene.scene3D) setScene3D(scene.scene3D);
+    // THE ROOM SURVIVES THE RECALL. `trackingZones` is project-scope geometry and is stripped from the
+    // snapshot (see buildSceneSnapshot) — but an OLD scene, captured before that rule existed, still
+    // carries its own copy in the file, so this must not simply assign `scene.scene3D`. Keeping the live
+    // list is both the migration and the invariant: a GO can change WHICH zones a look listens to
+    // (activeZoneIds, which does travel), never which zones exist.
+    if (scene.scene3D) setScene3D(prev => ({ ...scene.scene3D!, trackingZones: prev.trackingZones }));
     if (scene.projectorOutputs) setProjectorOutputs(scene.projectorOutputs);
     setSelectedFixtureId(null);
     setSelectedFixtureIds([]);
@@ -1143,7 +1162,9 @@ const App: React.FC = () => {
     activeAccent: activeScene?.accent ?? GLOBAL_ACCENT,
     index: activeScene ? scenes.findIndex(s => s.id === activeScene.id) : -1,
     total: scenes.length,
-    scenes: scenes.map(s => ({ id: s.id, name: s.name, accent: s.accent, clipCount: s.timeline.clips.length })),
+    // `holdsAtEnd` mirrors the engine's own rule (LOOP WINS — a wrapping clock never reaches an end),
+    // so the graph never advertises a hold the transport will not perform.
+    scenes: scenes.map(s => ({ id: s.id, name: s.name, accent: s.accent, clipCount: s.timeline.clips.length, holdsAtEnd: !!s.timeline.holdAtEnd && !s.timeline.loop })),
     onSelect: (sid: string | null) => { if (sid) enterAuthor(sid); else exitToGlobal(); },
     onSave: handleSaveState,
     onPrev: () => authorStep(-1),
@@ -2180,6 +2201,10 @@ const App: React.FC = () => {
         duration: timelineEngine.getDuration(),
         showEnd: timelineEngine.getGlobalEnd(),
         showEnded: timelineEngine.isShowAtEndBound(),
+        // …and the SAME publication for the OTHER clock: the current state's picture has finished and
+        // is being HELD on its last frame while the show plays on (Timeline.holdAtEnd). It reports
+        // playing:true with a frozen timecode, so anything that displays or reconciles has to be told.
+        held: timelineEngine.isBoundHeld(),
         currentStateId: currentSmStateRef.current,
         stateElapsedSec: timelineEngine.getSmElapsedSec(),
         activeSceneId: activeSceneIdRef.current,

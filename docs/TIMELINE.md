@@ -99,6 +99,29 @@ Timeline    { layers, clips, duration, fps?, markers?, inPoint?, outPoint?, loop
   playhead and the output doesn't cut to black), and the engine emits a `pause` TransportIntent (it
   never writes `playing` itself — App owns that).
 
+  **`Timeline.holdAtEnd` — the third outcome.** A clock that runs out can now do one of three things,
+  and the third is what an interactive show is written in:
+
+  | | at `end` | `playing` | the bed + global automation |
+  |---|---|---|---|
+  | **Loop on** | wraps to `start` | untouched | keep running |
+  | **Loop off** | parks on the last frame, emits `pause` | → false | **stop** (both clocks are gated on `playing`) |
+  | **Hold at end** | parks on the last frame, emits **nothing** | untouched | **keep running** |
+
+  A **hold** is "this state's picture is over; the show is not". The scene clock freezes on the last
+  frame, the projectors and the LED output keep showing it, and the audio bed plus the global
+  automation play straight through — so a state can end and *wait* for a trigger (a person walking into
+  a LiDAR zone) without the room going silent. **Loop wins:** `holdAtEnd` is ignored while `loop` is on,
+  because a wrapping clock never reaches an end.
+
+  It still pulses `hitEnd` exactly once, so an `onTimelineEnd` transition out of a held state fires
+  normally. The hold is **published, not inferred**: `getStatus().held` — the twin of `showEnded` on the
+  other clock, and required for the same reason (a consumer must never reconcile against a frozen
+  clock; see the audio driver). `SmTransition.requireEnd` is the guard that waits on it.
+
+  Authored in the toolbar: **Hold at end** (the snowflake, next to Loop) or **End state here**, which
+  sets the out-point at the playhead and turns the hold on in one click.
+
   This reverses the v0.12.0 change that made the clock unbounded. That change left **Length** and
   **Loop** as controls that did nothing: `duration` was a hint nothing read, and Loop needed an in/out
   region settable only via the undocumented `I`/`O` keys. Projects saved under the old rule may hold
@@ -296,6 +319,7 @@ clips.
 | 8 | **Loop wrap of the GLOBAL region** (`globalDoc.loop === true`) | unaffected (unless `G`, where it *is* the same wrap) | **WRAPS over `[globalStart, globalEnd)`**, re-anchoring `showOriginMs` | the show-clock branch in `frame()`. The driver reads the backward jump as a seek and restarts the bed — **correct: the show looped** |
 | 9 | **End-stop of the GLOBAL region** (`globalDoc.loop === false`) | unaffected (unless `G`) | **PARKS at `globalEnd − 1/fps`**, and **`showEnded` goes TRUE** | the show-clock branch. **No intent, no `hitEnd`** — but the park is *published*, and the audio driver **stops the bed and skips `reconcile()`** on it. `playing` is no signal here: a scene looping underneath keeps it true |
 | 10 | **End-stop of the BOUND (scene) timeline** (loop off) | parks on the last frame | **FREEZES — but only if the `pause` actually lands.** If the FSM re-armed the clock in the same tick the pause is swallowed, `playing` stays true, and the bed rolls on: **an auto-advancing show never freezes its bed** | falls out of the existing end-stop latch — no new mechanism |
+| 10b | **HOLD at the end of the BOUND doc** (`holdAtEnd`, loop off) | parks on the last frame, **for as long as the hold lasts** | **KEEPS RUNNING — unconditionally.** Not "if the pause is swallowed" (row 10) but *by construction*: the hold raises no `pause` at all, so nothing can stop the bed. This is the whole reason the mode exists | the same park, minus the emit. `held` is **re-derived every frame** (never latched — a latch would have to be cleared by all seven re-anchor sites) and published on `getStatus().held`; the audio driver silences the two **playhead**-clocked containers on it, exactly as it silences the bed on `showEnded` |
 | 11 | **Document edit of the BOUND doc** (Length lowered, `O` at the playhead, fps changed) | conditionally jumps + emits `pause` | **DOES NOT MOVE** | `clampPlayheadIntoDoc` never touches `showOriginMs` |
 | 11b | **Document edit of the GLOBAL doc while a SCENE is bound** (`setData`'s guard does *not* run — `activeTimeline` is the scene's) | unaffected | **RE-ANCHORED INTO THE NEW REGION, SILENTLY** — no intent, no pulse, no phantom recall. ⚠ **But it is audible:** dropping the global Length 300 → 60 while `showTime` is at 300 **is** a −240 s move — the driver reads it as a seek and **the bed hard-cuts**; if the new region has already ended it *stops* (row 9) | `setGlobalDoc` re-anchors into `[globalStart, globalEnd)` in the same call, deterministically, and **never synthesises a transport event** |
 | 12 | **Play from the parked end** | restarts the bound doc | **restarts the SHOW clock iff `showAtEndBound()`** | `setPlaying(true)` **and** App's `play` intent handler — **both**. A `play` arriving while `playing` is already true never reaches `setPlaying()`, and an FSM hopping between *looping* scenes keeps `playing` true forever; without the second site a show that ran out its global Length has a **permanently dead bed** and nothing says so |
@@ -319,6 +343,7 @@ Rationale for every row (and the design calls behind it) lives in
 | `getShowTime()` | the show clock, in seconds. Always `0` in a mirror window. |
 | `getGlobalStart()` / `getGlobalEnd()` | the show's playable range. |
 | `isShowAtEndBound()` | the show clock is **parked** at the global end (loop off). A driver reconciling against `showTime` **must** check this. |
+| `isBoundHeld()` | the **bound** doc is holding its last frame (`Timeline.holdAtEnd`) while the transport runs on. Same contract as the row above, on the other clock: reconcile against `playhead` and you **must** check this. Surfaced as `getStatus().held`, and as `SmContext.held` for `SmTransition.requireEnd`. |
 | `showSeek(sec)` | move the show clock explicitly (Stop, project open, New Project). No-op when `external`. |
 
 ## State-machine control layer (v0.12.0)

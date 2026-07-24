@@ -26,7 +26,8 @@ It is modelled on **AutomataUI** (nodes = looks, edges = transitions, a "lock ti
 - A **state** is a node. It usually **binds one Scene** (`sceneId`) — entering the state **recalls
   that Scene** (the whole look: surfaces, fixtures, brightness, groups, 3D, projector outputs, and —
   if the Scene owns one — its timeline). *A node is a look.*
-- A **transition** is a directed edge with a **trigger**. While the machine is `enabled`, the runtime
+- A **transition** is a directed edge with a **trigger** — and optionally a **guard** (`requireEnd`:
+  *not until this state's picture has finished* — see **hold at end**). While the machine is `enabled`, the runtime
   watches the **current state's outgoing** transitions and, when one fires, **enters** the target
   state (recall + entry actions + optional crossfade).
 - Entering a state can also run **entry actions** (play / pause / stop / seek / loop / jump-to-marker /
@@ -73,12 +74,15 @@ SmTransition {
   id: string;
   from: string; to: string;      // SmState.id → SmState.id
   trigger: SmTrigger;
+  fromAny?: boolean;             // a GLOBAL RULE — evaluated from every state (see below); `from` unused
+  requireEnd?: boolean;          // GUARD: only once the source state's timeline is HELD (see below)
   fadeSec?: number;              // "transition time": scene crossfade applied on arrival at `to`
   c1?, c2?: {x,y};               // bezier control handles (curved edge — cosmetic)
 }
 
-SmTrigger { kind: 'manual'|'afterDelay'|'atTime'|'onMarker'|'onClipEnd'|'onTimelineEnd';
-            seconds?, time?, markerId?, layerId? }
+SmTrigger { kind: 'manual'|'afterDelay'|'atTime'|'onMarker'|'onClipEnd'|'onTimelineEnd'|'plugin';
+            seconds?, time?, markerId?, layerId?,
+            source?, params? }      // 'plugin' — a plugin-owned condition (e.g. 'lidar.zone')
 
 SmAction  { kind: 'play'|'pause'|'stop'|'seek'|'setLoop'|'jumpMarker'|'recallScene'|'fireCue';
             seekTo?, loopOn?, markerId?, sceneId?, cueId? }
@@ -104,6 +108,7 @@ The runtime evaluates them in array order and fires **at most one per frame** (n
 | `onMarker` | the **playhead** crosses timeline marker `markerId` | `markerId` | **playhead** |
 | `onClipEnd` | the active clip on track `layerId` **ends** (a gap appears under the playhead) | `layerId` | **playhead** — **does not fire** for a clip that runs to the end of the timeline: the non-looping end-stop parks the playhead *inside* that clip (no gap ever opens), so a final, full-length clip never fires this. Use `onTimelineEnd` for "the show finished". |
 | `onTimelineEnd` | the bound timeline reaches its **end** while playing and **not looping** | — | **playhead** — a loop wrap is **not** an end and does not fire it |
+| `plugin` | a **plugin-owned** condition fires — today: a person enters/leaves a **LiDAR trigger zone**, a crowd threshold, a dwell ([TRACKING_SYNC.md](TRACKING_SYNC.md#trigger-zones--making-the-show-react-to-the-room)) | `source`, `params` | **the world** — evaluated every frame, transport or no transport |
 
 ### The dual-clock rule (the #1 gotcha)
 
@@ -141,6 +146,60 @@ scene-less state does if it carries a `play` **entry action**. So:
 
 Playhead crossings use a `prev → current` window that survives loop/seek wraps; a deliberate `seek`
 re-anchors `prev` so one jump doesn't fire every intermediate trigger along the way.
+
+---
+
+## The state that ends and waits — **hold at end** + `requireEnd`
+
+A state normally ends by being *left*. An interactive show needs the other shape: **play the look to a
+chosen point, freeze there, and wait for someone to walk in.** Two pieces do that, and they are
+deliberately separate — one is a property of the *picture*, the other of the *edge*.
+
+**1. `Timeline.holdAtEnd` — where the state ends.** Set the timeline's **out-point** where the state
+should finish (the ruler handle, **O**, or the toolbar's **End state here**, which does both in one
+click) and turn on **Hold at end** (the snowflake, next to Loop). The playhead then parks on that last
+frame and **stays there with the transport still running**:
+
+- the picture holds on the projectors and the LED output (it is the same park a stopped timeline does);
+- the **audio bed and the global automation play straight through** — this is the entire difference
+  from the plain end-stop, which emits `pause`, and `playing: false` freezes the show clock too. A
+  room waiting for a visitor stays alive instead of going silent;
+- the state machine is told: `SmContext.held` goes true and stays true for the whole hold.
+
+**Loop wins** — a looping timeline never reaches an end, so `holdAtEnd` is ignored while Loop is on
+(the toggle greys out and says why). `onTimelineEnd` still fires exactly once on the hold frame, so a
+held state that *has* such an edge auto-advances as before.
+
+**2. `SmTransition.requireEnd` — "only after the state has finished".** Tick **Only after the state has
+finished** in the transition inspector and that edge cannot fire until its source state is held. It is
+a **guard, not a trigger**: the trigger still has to fire, this only decides whether it may.
+
+Without it, a live trigger cuts the picture: a visitor entering a zone three seconds into a twenty-second
+film jumps the show. The guard binds the **automatic** path — a zone rule, an `afterDelay`, any trigger
+that fires without a human — because that is the cut nobody chose.
+
+**It does not bind a human.** A **manual** button (the state lane, Ctrl+click on an edge), OSC, and the
+show-control tablet all fire regardless: an operator reaching for GO during a show has a reason the
+machine cannot see, and a control that silently refuses reads as broken. So an early manual trigger is
+**flagged, not blocked** — the state-lane button shows a dashed ⏱ border while the state is still
+running — and the decision stays theirs. `requestEnter` (double-click a node, the tablet's state list)
+remains the bypass that skips the graph entirely.
+
+```
+   ┌──────────── Attract ────────────┐        ┌──────────── Reaction ───────────┐
+   │  timeline: 0 ──▶ out-point      │        │                                 │
+   │  hold at end ▪ frozen last frame│──⏱ ▶──▶│  plays from its first frame     │
+   └─────────────────────────────────┘        └─────────────────────────────────┘
+         bed + global automation keep running throughout
+         edge: automatic trigger (a zone, afterDelay, …) + requireEnd
+               (a manual/OSC/tablet trigger fires anyway — flagged early, not blocked)
+```
+
+**Where you can see it:** a **HOLDING** chip in the state lane, a ⏱ prefix on every gated edge in the
+graph, a snowflake badge on states that hold, a warn-coloured out-handle on the ruler, and
+`host.show.getStatus().held` on the tablet. It has to be visible somewhere: a hold reports
+`playing: true` with a frozen timecode, which from the back of a venue is exactly what a hung show
+looks like.
 
 ### Lock time (dwell)
 
@@ -366,6 +425,65 @@ Also true of the hold:
   (`playing: false`, no current state) and an operator would press GO over a gate about to open.
 
 ---
+
+## Global rules — a trigger that fires from **any** state
+
+A transition normally leaves one source state. An installation usually has a few rules that must work
+*whatever the show is doing* — *someone walks into the entrance → start the welcome* — and drawing that
+edge from every state (and re-drawing it whenever a state is added) is how an installation quietly stops
+responding in the one state somebody forgot.
+
+Set **`fromAny`** and the transition is evaluated from every state. In the graph editor: the **⚡ Global
+rule** button, a **Global rules** list in the inspector column, and a **⚡ badge** on any state a global
+rule can reach. It is *listed*, never drawn as an edge — a rule with no source node is not an edge, and
+drawing one from nowhere (or from everywhere) would misrepresent how it fires.
+
+Three rules keep it predictable, all in `tick()`:
+
+| | |
+|---|---|
+| **Explicit beats global** | the current state's own transitions are evaluated first, so a state can always override a house rule |
+| **Never re-enters its own target** | a global whose `to` **is** the current state is skipped. Its condition is usually a *level* (somebody standing in a zone) and entry restarts the state's timeline — without this it would re-seek to frame 0 sixty times a second behind a frozen picture, reporting itself healthy |
+| **Still one transition per frame** | globals join the same single-fire budget; no cascades |
+
+`requireEnd` applies to a global exactly as to an edge, and a global `manual` rule appears as a button in
+the **state lane** (and over OSC / the tablet) from wherever the show currently is.
+
+## Plugin triggers — reacting to the room
+
+`kind: 'plugin'` is **one** core trigger kind for every condition a plugin owns. The project stores
+only the shape (`source` + opaque `params`); what the condition *means* lives in whichever plugin
+registered that `source` (`SmTriggerContribution` — see [SDK.md](SDK.md)). So the next trigger source —
+camera pose, Augmenta, a DMX level, an audio threshold — needs **no core change and no file
+migration**, and a project naming a source this build has no plugin for is **inert**, never truthy.
+
+Shipped today: **`lidar.zone`** — LiDAR trigger zones
+([TRACKING_SYNC.md](TRACKING_SYNC.md#trigger-zones--making-the-show-react-to-the-room)). Pick
+**LiDAR zone** in the transition inspector's trigger dropdown and the plugin's own editor appears
+(zone · when · seconds/people). The edge label in the graph then describes the *rule* —
+*Entrance: someone enters* — instead of just naming the destination.
+
+The canonical interactive state combines all three pieces:
+
+```
+Attract ──[hold at end]──▶ frozen last frame, bed still playing
+        ──[LiDAR zone: someone enters + ⏱ only after the state has finished]──▶ Reaction
+Reaction ──[LiDAR zone: empty for 30s]──▶ Attract
+        ⚡ global: [entrance ∧ ¬stage] ──▶ Welcome     (from wherever the show is)
+```
+
+### A trigger is evaluated even while its guard is closed
+
+`tick()` asks a transition's trigger **every frame**, then lets `requireEnd` decide whether to act. The
+order matters because a trigger source can be **stateful**: a zone rule remembers whether it has been
+armed since the state was entered, and it only sees the frames on which it is asked.
+
+Checking the guard first blinded it for exactly the window the guard exists to cover — a visitor walked
+into the zone at t=3 while the film played, the guard swallowed the question, and when the hold opened at
+t=12 the source was being asked for the first time. It saw somebody merely *standing* there, not
+*arriving*, and the show never advanced: the visitor had to walk out and back in. **The guard suppresses
+the action, not the evaluation.** Core triggers are stateless tests, so asking them under a closed guard
+costs nothing. It is part of the `SmTriggerContribution` contract — see [SDK.md](SDK.md).
 
 ## Triggering from outside the app
 

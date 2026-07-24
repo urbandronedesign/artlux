@@ -25,6 +25,10 @@ interface Props {
   // LOOP REGION as if it were broken content is a false alarm on a normal authoring workflow.
   overrunFrom: number | null;
   overrunTo: number | null;
+  // Timeline.holdAtEnd — the end is where the STATE ENDS and freezes, not merely where playback stops.
+  // Marks the out-handle, because that one authored point now means two quite different things and an
+  // operator has to be able to see which from the ruler.
+  holdAtEnd: boolean;
   onSeekDown: (e: React.PointerEvent) => void;
   onMarkerSeek: (time: number) => void;
   onMarkerDelete: (id: string) => void;
@@ -41,7 +45,7 @@ const shortTc = (t: number, fps: number) => {
   return s.startsWith('00:') ? s.slice(3) : s;
 };
 
-export const TimelineRuler: React.FC<Props> = ({ pxPerSec, width, height, fps, markers, inPoint, outPoint, bandStart, bandEnd, overrunFrom, overrunTo, onSeekDown, onMarkerSeek, onMarkerDelete, onMarkerNote, onMoveInDown, onMoveOutDown }) => {
+export const TimelineRuler: React.FC<Props> = ({ pxPerSec, width, height, fps, markers, inPoint, outPoint, bandStart, bandEnd, overrunFrom, overrunTo, holdAtEnd, onSeekDown, onMarkerSeek, onMarkerDelete, onMarkerNote, onMoveInDown, onMoveOutDown }) => {
   const [editing, setEditing] = useState<{ id: string; note: string } | null>(null);
   const step = chooseTickStep(pxPerSec);
   const ticks: number[] = [];
@@ -69,10 +73,15 @@ export const TimelineRuler: React.FC<Props> = ({ pxPerSec, width, height, fps, m
         </div>
       )}
       {outPoint != null && (
-        <div onPointerDown={onMoveOutDown} title="Out — drag to move"
+        <div onPointerDown={onMoveOutDown}
+          title={holdAtEnd ? 'State end — the picture freezes here and the show plays on. Drag to move.' : 'Out — drag to move'}
           className="absolute top-0 bottom-0 w-2 -ml-1 cursor-ew-resize z-10 flex justify-center group"
           style={{ left: outPoint * pxPerSec }}>
-          <div className="w-0.5 h-full bg-accent group-hover:w-1 transition-[width]" />
+          <div className={`w-0.5 h-full group-hover:w-1 transition-[width] ${holdAtEnd ? 'bg-warn' : 'bg-accent'}`} />
+          {/* A HOLD reads differently from a stop and must LOOK different: the state ends here and the
+              last frame stays on the wall. One dot on the handle, no extra hit area (the handle's own
+              8px target must not be split by a child that swallows the pointerdown). */}
+          {holdAtEnd && <div className="absolute top-0.5 w-1.5 h-1.5 rounded-full bg-warn pointer-events-none" />}
         </div>
       )}
 

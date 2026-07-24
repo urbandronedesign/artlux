@@ -178,6 +178,11 @@ export const CLIENT_HTML = `<!doctype html>
     // starts pressing GO over a gate that was about to open on its own a second later.
     if(status&&status.booting) h+='<div class="card" style="border-color:var(--warn)"><div class="name">Loading show content&hellip;</div>'+
       '<div class="meta">The show starts by itself when it is ready'+(status.bootPending?(' &mdash; '+status.bootPending+' item(s) left'):'')+'.</div></div>';
+    // …AND THE MIRROR-IMAGE CASE. A HELD state is playing (bed, automation, the frozen picture on the
+    // wall) with a stopped timecode — indistinguishable here from a show that has hung. It is waiting
+    // for a trigger, so an operator's correct action is usually to wait, not to press anything.
+    else if(status&&status.held) h+='<div class="card" style="border-color:var(--warn)"><div class="name">Holding &mdash; this state has finished</div>'+
+      '<div class="meta">The last frame is held and the show is still running. Waiting for a trigger.</div></div>';
     h+='<div class="card transport"><div class="row">'+
        '<button class="btn pri" data-act="tp" data-a="play">&#9654; Play</button>'+
        '<button class="btn" data-act="tp" data-a="pause">&#10074;&#10074; Pause</button>'+

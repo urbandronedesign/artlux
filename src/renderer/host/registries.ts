@@ -16,6 +16,7 @@ import type {
   SettingsSection, SettingsSectionRegistry,
   PanelContribution, PanelRegistry,
   SceneVizContribution, SceneVizRegistry,
+  SmTriggerContribution, SmTriggerRegistry,
   ProjectorPanelContribution, ProjectorPanelRegistry,
   VideoCodecContribution, VideoCodecRegistry,
   AutomationTargetProvider, AutomationTargetRegistry,
@@ -71,6 +72,19 @@ const sceneVizzes: SceneVizContribution<Scene3D>[] = [];
 export const sceneVizRegistry: SceneVizRegistry<Scene3D> = {
   register(v) { sceneVizzes.push(v); },
   all() { return sceneVizzes.slice(); },
+};
+
+// ── State-machine triggers (plugin-owned show-graph conditions) ─────────────────────────────
+// Keyed by `source`, the string persisted in `SmTrigger.source`. A MISS IS THE IMPORTANT CASE and is
+// deliberately silent: a project can name a trigger this build has no plugin for (the plugin is
+// disabled, or the file came from a newer version), and the FSM must then treat that edge as INERT —
+// never truthy. Same rule as an automation lane whose namespace has no provider: the data persists,
+// it just does not evaluate.
+const smTriggers = new Map<string, SmTriggerContribution>();
+export const smTriggerRegistry: SmTriggerRegistry = {
+  register(t) { smTriggers.set(t.source, t); },
+  get(source) { return smTriggers.get(source); },
+  all() { return [...smTriggers.values()]; },
 };
 
 // ── Video codecs (pluggable decoders for non-<video> file content, e.g. HAP) ────────────────

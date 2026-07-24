@@ -35,6 +35,7 @@ What that one transport carries is **two derived times** (Wave B):
 | drives | the BOUND timeline's video, its own `Timeline.audio`, its automation lanes, the state machine | the global audio bed (`ProjectData.audio`) and the GLOBAL timeline's automation (the base layer) |
 | bounded by | the BOUND doc's `[timelineStart, timelineEnd)` | the GLOBAL doc's `[timelineStart, timelineEnd)` |
 | on a scene recall | **RESETS** to the scene's in-point | **NEVER RESETS** — the bed plays on |
+| at the end, with **hold at end** on | **PARKS** on the last frame and stays there | **KEEPS RUNNING** — the state ends, the show doesn't ([STATE-MACHINE.md](STATE-MACHINE.md#the-state-that-ends-and-waits--hold-at-end--requireend)) |
 | on exit to Global | **RECONVERGES**: `playhead := showTime` | unchanged |
 | on a seek | always moves | only while **Global is bound** (the pill) — i.e. only while the two clocks are the **same number** |
 | anchor | `originMs` | `showOriginMs` |

@@ -472,6 +472,44 @@ export interface SceneVizRegistry<Scene = unknown> {
   all(): SceneVizContribution<Scene>[];
 }
 
+// ─── State-machine trigger contribution ─────────────────────────────────────────────────────
+// A condition the show graph can transition on, owned by a plugin: a person entering a LiDAR trigger
+// zone, a pose appearing on a camera, a DMX channel crossing a level. The host persists only the
+// SHAPE (`SmTrigger { kind: 'plugin', source, params }` — core project data, so a file opens on any
+// build); everything about WHAT the condition means lives here.
+//
+// The FSM evaluates the CURRENT state's outgoing transitions once per frame and fires at most one, so
+// `fires` is on the frame path: it must be cheap and side-effect-free. Do the sampling elsewhere (a
+// store fed by the plugin's own per-frame hook) and answer from it.
+//
+// ⚠ RETURN AN EDGE, NOT A LEVEL, unless a level is genuinely what the author asked for. A state can be
+// re-entered while the world is still in the condition that caused the last hop — someone is standing
+// in the zone — and a level test then fires again on the first frame of the new state, forever. That is
+// why `ctx.stateEnteredAtSec` is handed over: compare your own event's timestamp (or sequence counter)
+// against it and only fire for something that happened SINCE the state was entered.
+export interface SmTriggerEvalContext {
+  nowSec: number;             // the FSM's monotonic wall clock (the same one `afterDelay` rides)
+  stateEnteredAtSec: number;  // when the CURRENT state was entered, on that clock
+  held: boolean;              // the bound timeline is holding its last frame (see ShowService.getStatus)
+}
+
+export interface SmTriggerContribution {
+  source: string;             // stable id, persisted in the project — e.g. 'lidar.zone'
+  label: string;              // shown in the transition inspector's trigger dropdown
+  /** Evaluate the condition. Cheap, side-effect-free, called once per frame per candidate edge. */
+  fires(params: Record<string, unknown>, ctx: SmTriggerEvalContext): boolean;
+  /** One-line summary of a configured trigger, for the graph editor's edge label. */
+  describe?(params: Record<string, unknown>): string;
+  /** Params editor mounted in the transition inspector. Omit for a parameterless trigger. */
+  Inspector?: ComponentType<{ params: Record<string, unknown>; onChange: (p: Record<string, unknown>) => void }>;
+}
+
+export interface SmTriggerRegistry {
+  register(t: SmTriggerContribution): void;
+  get(source: string): SmTriggerContribution | undefined;
+  all(): SmTriggerContribution[];
+}
+
 // ─── Plugin IPC bridge (renderer side) ──────────────────────────────────────────────────────
 // The host preload exposes three generic forwarders so a plugin can talk to its own main-process
 // entry without per-plugin preload methods (contextIsolation keeps plugin code out of preload).
@@ -562,9 +600,21 @@ export interface ShowService<SM = unknown, Scene = unknown, Bank = unknown, Entr
   // `currentStateId`, but one is an operator decision and the other is a two-second wait that will end
   // by itself. Showing "STOPPED" through a preload is how an operator ends up pressing GO over a gate
   // that was about to open. `bootPending` is how many items are still outstanding (0 when not booting).
+  //
+  // `held` is `showEnded`'s twin on the OTHER clock: THE CURRENT STATE'S PICTURE HAS FINISHED AND THE
+  // SHOW HAS NOT. The bound timeline is parked on its last frame (Timeline.holdAtEnd) while the
+  // transport keeps running, so the bed and the global automation play on underneath — that is the
+  // point of holding rather than pausing. Everything `showEnded`'s note says about reconciling against
+  // a frozen clock applies here to the PLAYHEAD-clocked containers, and the same way round: `held` is
+  // playhead-scoped and must never silence the bed, exactly as `showEnded` is bed-scoped and must
+  // never silence a scene.
+  //
+  // A REMOTE MUST SHOW IT. A hold reports `playing: true` with a frozen timecode — indistinguishable,
+  // on a tablet at the back of a room, from a show that has hung. False there for the same reason
+  // `showEnded` is: a projector runs no state machine.
   getStatus(): {
     playing: boolean; playhead: number; showTime: number; duration: number;
-    showEnd: number; showEnded: boolean;
+    showEnd: number; showEnded: boolean; held: boolean;
     currentStateId: string | null; stateElapsedSec: number;
     activeSceneId: string | null; lastFiredTransitionId: string | null;
     booting: boolean; bootPending: number;
@@ -757,6 +807,7 @@ export interface RendererPluginContext<C = unknown, SurfaceT = unknown, Clip = u
   panels: PanelRegistry;
   contexts: ContextRegistry;
   sceneViz: SceneVizRegistry;
+  smTriggers: SmTriggerRegistry;
   projectorPanels: ProjectorPanelRegistry;
   videoCodecs: VideoCodecRegistry;
   automationTargets: AutomationTargetRegistry;

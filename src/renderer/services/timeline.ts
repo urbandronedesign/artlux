@@ -1,7 +1,7 @@
 import { Timeline, VideoClip, SurfaceContent, LayerBlendMode, StateMachine, isContentClip, defaultTimeline, timelineEnd, timelineStart, timelineDuration } from '../types';
 import { getBlobUrl, ensureBlobUrl } from './mediaCache';
 import * as contentSource from './contentSource';
-import { clipKindRegistry, videoCodecRegistry } from '../host/registries';
+import { clipKindRegistry, videoCodecRegistry, smTriggerRegistry } from '../host/registries';
 import { automationTargetRegistry } from '../host/registries';
 import { sampleLane, type Cursor } from './automation';
 import { videoAudioOf } from './videoAudio';
@@ -132,6 +132,23 @@ let prevPlayhead = 0; // previous frame's playhead — for FSM crossing detectio
 // per frame for the whole trip. Cleared by any seek and by pressing play again.
 let endLatched = false;
 let hitEnd = false; // true for exactly the frame the playhead reached the end — feeds the FSM trigger
+// ── THE HOLD (Timeline.holdAtEnd) ────────────────────────────────────────────────────────────────
+// TRUE FOR EVERY FRAME THE SCENE CLOCK IS PARKED ON ITS LAST FRAME WITH THE TRANSPORT STILL RUNNING.
+// The state's picture is over; the SHOW is not. `playing` is untouched, so the show clock, the audio
+// bed and the global automation run straight through it — which is the entire difference between a
+// hold and the plain end-stop (that one emits `pause`, and `playing:false` freezes both clocks).
+//
+// ⚠ DERIVED PER FRAME, NEVER LATCHED, and that is a correctness argument rather than a style one. A
+// latch would have to be cleared by mainSeek, swap's two arms, setPlaying, the loop wrap, the
+// document-edit clamp and setGlobalDoc — seven sites, the same seven that re-anchor originMs (see the
+// show-clock note above). One missed site leaves the machine believing a running show is still held:
+// `requireEnd` transitions fire early and the audio driver keeps a container silenced. Recomputing it
+// where the park actually happens makes every one of those sites correct by construction, for free.
+//
+// Read by: the FSM (SmContext.held → SmTransition.requireEnd), the audio driver (via
+// host.show.getStatus().held — a frozen clock must not be reconciled against; see isBoundHeld) and
+// the HOLDING chips in the UI.
+let held = false;
 const SLEW = 0.1; // fraction of residual drift a mirror window corrects per transport update
 
 // The project-level state machine (set by App via setStateMachine). Lives here — not in `data` — so
@@ -160,7 +177,18 @@ const armedSubs = new Set<(a: boolean) => void>();
 const clipActive = (layerId: string, t: number): boolean => activeClip(layerId, t) != null;
 // Per-frame context handed to the FSM runtime. `atEnd` is the one-frame end-of-timeline pulse (hitEnd,
 // reset at the top of every frame) — the FSM's 'onTimelineEnd' trigger, and hitEnd's only reader.
-const smContext = (): SmContext => ({ markers: data.markers ?? [], clipActive, emit: emitIntent, recallScene: (id, fadeSec) => cueBus.requestRecall(id, fadeSec), fireCue: (id) => cueBus.requestFireCue(id), nowSec: frameNowSec, atEnd: hitEnd });
+// PLUGIN-OWNED TRIGGERS, resolved here so stateMachine.ts keeps importing nothing but types. An
+// UNREGISTERED source is INERT (false), never truthy: a project may name a trigger whose plugin is
+// disabled or newer than this build, and an unknown condition must not advance a show. A source that
+// THROWS is inert too — a plugin's evaluation bug must not take the state machine down with it, and
+// the FSM tick's own try/catch is too coarse (it would skip every other transition that frame).
+const pluginTrigger = (source: string, params: Record<string, unknown>, stateEnteredAtSec: number): boolean => {
+  const t = smTriggerRegistry.get(source);
+  if (!t) return false;
+  try { return !!t.fires(params, { nowSec: frameNowSec, stateEnteredAtSec, held }); }
+  catch (e) { console.error(`[timeline] trigger source "${source}" threw`, e); return false; }
+};
+const smContext = (): SmContext => ({ markers: data.markers ?? [], clipActive, emit: emitIntent, recallScene: (id, fadeSec) => cueBus.requestRecall(id, fadeSec), fireCue: (id) => cueBus.requestFireCue(id), nowSec: frameNowSec, atEnd: hitEnd, held, pluginTrigger });
 
 const ensureBlob = (path: string): void => { void ensureBlobUrl(path, 'video/mp4'); };
 
@@ -672,6 +700,10 @@ function frame(now: number): void {
   raf = requestAnimationFrame(frame); // reschedule first so a throw below can never kill the loop
   try {
     hitEnd = false; // one frame only: set below when the playhead lands on the end, read by the FSM tick
+    // Cleared here and re-established below on every frame the hold branch actually parks — so ANY
+    // other outcome (a seek, a recall's swap, loop switched on, the transport stopped, the document
+    // edited shorter) drops it without needing to know it exists. See the flag's own note.
+    held = false;
     // The end-stop's `pause` intent is RAISED in the clock below but only EMITTED after fsm.tick() —
     // see the deferral just past the tick. Frame-local: it must never survive into the next frame.
     let pausePending = false;
@@ -749,11 +781,27 @@ function frame(now: number): void {
             // never-sampled sub-frame window (prev, end) is missed — the same accepted ~1-frame gap as
             // the loop wrap above.
             prevPlayhead = Math.min(prevPlayhead, t);
+            // ── HOLD vs STOP — the only thing Timeline.holdAtEnd changes. ────────────────────────
+            // The park above is IDENTICAL either way, and deliberately so: every line of it (the
+            // last-frame clamp, the re-anchor at `b`, the prevPlayhead clamp) encodes a shipped bug,
+            // and a held show must hold the same picture a stopped one does — on the projectors and
+            // on the LED output alike. What differs is what we TELL the rest of the app.
+            //
+            // A hold does not touch `playing`, so this branch is re-entered every frame: the raw
+            // clock passes `b`, we re-anchor at `b` and re-park at `b - eps`. That is stable, not a
+            // sawtooth (the re-anchor is exactly why), and it is what keeps `held` true without a
+            // latch. `endLatched` still gates the ONE-FRAME hitEnd pulse, so 'onTimelineEnd' fires
+            // exactly once on a hold too — a held state that HAS such an edge still auto-advances.
+            const holding = !!data.holdAtEnd;
+            if (holding) held = true;
             // Latch: emit ONCE, not every frame until App's state round-trips back to us.
             if (!endLatched) {
               endLatched = true;
               hitEnd = true;                 // consumed by the FSM tick below, this frame only
-              pausePending = true;           // NOT emitted here — deferred until after fsm.tick(). See below.
+              // …but NEVER the pause when holding. `playing` is what the SHOW clock is gated on, so
+              // pausing here is what stops the bed and the global automation in a room that is
+              // waiting for a person to walk in. Holding writes nothing to the transport at all.
+              if (!holding) pausePending = true; // NOT emitted here — deferred until after fsm.tick(). See below.
             }
           }
         }
@@ -1260,6 +1308,21 @@ export const timeline = {
   // React no-op and would otherwise leave the engine latched at the end forever — playing, frozen, and
   // reporting itself healthy. Same position-based test the Play button uses (see setPlaying).
   isAtEndBound(): boolean { return atEndBound(); },
+  // IS THE SCENE CLOCK HELD ON ITS LAST FRAME (Timeline.holdAtEnd) WHILE THE TRANSPORT RUNS ON?
+  //
+  // The twin of isShowAtEndBound(), asked of the BOUND document instead of the global one, and
+  // published for the same non-obvious reason: A FROZEN CLOCK MUST NOT BE RECONCILED AGAINST. The
+  // audio driver's drift re-lock compares each sounding clip's DESIRED offset (derived from the
+  // clock) against its ESTIMATED one (derived from the wall clock) — park the clock and desired
+  // freezes while estimated runs on, so it re-seeks every playhead-clocked clip back to the same
+  // offset every ~50 ms, forever. That is a buzz, not silence.
+  //
+  // `playing` is NOT the signal (a hold deliberately leaves it true), and the hold is silent on the
+  // intent channel by design — so, exactly like the show-clock park, it is published as a READABLE
+  // STATE. Scoped to the PLAYHEAD-clocked containers (this timeline's own audio + video-clip
+  // soundtracks); the BED rides the show clock and must play straight through a hold, which is the
+  // whole point of holding instead of pausing.
+  isBoundHeld(): boolean { return held; },
   // FSM control layer (main window). App subscribes to intents and turns them into transport state.
   subscribeIntent(cb: (i: TransportIntent) => void): () => void { intentSubs.add(cb); return () => { intentSubs.delete(cb); }; },
   // Inject a transport intent from outside the FSM (e.g. external OSC control). Flows through the

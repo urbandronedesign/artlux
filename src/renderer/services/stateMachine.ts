@@ -11,7 +11,9 @@ import { StateMachine, SmState, SmTransition, SmAction, Marker } from '../types'
 // timeline transport is stopped; `atTime`/`onMarker`/`onClipEnd` use the timeline playhead and only
 // fire when it advances. `onTimelineEnd` is the odd one out: every other playhead trigger is a
 // CROSSING, and a clean stop at the end crosses nothing — so the engine hands it to us as a
-// one-frame edge (ctx.atEnd) instead of a time we could test.
+// one-frame edge (ctx.atEnd) instead of a time we could test. `ctx.held` is the same event as a
+// LEVEL — the state's timeline is parked on its last frame while the show plays on — and is what
+// SmTransition.requireEnd waits on.
 
 export type TransportIntent =
   | { kind: 'play' }
@@ -28,6 +30,22 @@ export interface SmContext {
   fireCue: (cueId: string) => void;       // fire a granular Cue by id (routed via cueBus to App)
   nowSec: number;                          // monotonic wall clock (seconds) — drives afterDelay
   atEnd: boolean;                          // the timeline reached its end THIS frame (see 'onTimelineEnd')
+  // THE STATE'S PICTURE IS OVER AND THE SHOW IS STILL RUNNING — the bound timeline is parked on its
+  // last frame with the transport alive (Timeline.holdAtEnd). Unlike `atEnd` this is a LEVEL, not a
+  // one-frame edge: it stays true for as long as the hold lasts, which is what lets a transition WAIT
+  // on it (SmTransition.requireEnd) rather than having to catch a single frame.
+  held: boolean;
+  // PLUGIN-OWNED TRIGGERS ('plugin' kind). The FSM asks; it never knows what it is asking about.
+  //
+  // Passed as a FUNCTION rather than the registry itself, so this module keeps importing nothing but
+  // types — it is the piece of the app most worth being able to reason about in isolation, and a
+  // registry import would drag the whole contribution graph (and every plugin) into it. The engine
+  // (services/timeline.ts) closes over the real registry when it builds the context.
+  //
+  // Contract for an implementor: cheap, side-effect-free, and EDGE-shaped where that matters — see
+  // `stateEnteredAtSec`, which is how a source distinguishes "someone just walked in" from "someone
+  // is standing here", the difference between a show that advances once and one that never settles.
+  pluginTrigger: (source: string, params: Record<string, unknown>, stateEnteredAtSec: number) => boolean;
 }
 
 let currentStateId: string | null = null;
@@ -87,6 +105,24 @@ function enter(sm: StateMachine, stateId: string, playhead: number, ctx: SmConte
   notify();
 }
 
+// THE `requireEnd` GUARD — "not until this state's picture has finished".
+//
+// It is not a trigger: the trigger still has to fire, this only decides whether it MAY. It exists for
+// the AUTOMATIC path, where the thing about to cut a twenty-second film three seconds in is a visitor
+// who wandered into a trigger zone — something nobody chose and nobody can see coming.
+//
+// ⚠ IT DOES NOT BIND A HUMAN. triggerManual() — the state-lane button, Ctrl+click on an edge, OSC, the
+// show-control tablet — fires regardless. An operator reaching for a button during a show has a reason
+// the machine does not have access to (the room emptied, the artist walked off, the fire alarm), and a
+// control that silently refuses is worse than a cut: they press it again, harder, while nothing
+// happens. The UI marks such a button as early instead, so the consequence is visible and the decision
+// stays theirs. (`requestEnter()` remains the bypass that skips the graph entirely.)
+//
+// A state whose timeline does NOT hold (it loops, or it has no holdAtEnd) never satisfies this — which
+// is exactly what the author asked for, and why the editor only offers the checkbox as an explicit
+// opt-in rather than defaulting it on.
+const gated = (tr: SmTransition, ctx: SmContext): boolean => !!tr.requireEnd && !ctx.held;
+
 // Crossing test for an absolute time T over the prev→cur playhead window (handles loop/backward
 // wrap when cur < prev: the window covers prev→end and start→cur).
 function crossed(T: number, prev: number, cur: number): boolean {
@@ -122,6 +158,12 @@ function triggerFires(tr: SmTransition, fromState: SmState | undefined, playhead
     // The single frame the bound timeline reached its end while playing and not looping (a loop wrap is
     // not an end). Set by the engine's end-stop; a one-frame pulse, so this can't re-fire while parked.
     case 'onTimelineEnd': return ctx.atEnd;
+    // A plugin owns the condition. `stateEnteredAtWall` is handed over because most live triggers are
+    // EDGES measured from the state's entry ("a person arrived SINCE we got here"), and the source has
+    // no other way to know when that was. An unregistered source is INERT — a project can name a
+    // trigger this build has no plugin for (a disabled plugin, a newer version), and that must never
+    // be truthy; the registry lookup in the host returns false for it.
+    case 'plugin': return !!g.source && ctx.pluginTrigger(g.source, g.params ?? {}, stateEnteredAtWall);
   }
   // Exhaustiveness: a new SmTriggerKind that forgets its case above becomes a COMPILE error here rather
   // than a trigger that silently never fires. The runtime `return false` still stands — a project file
@@ -153,9 +195,40 @@ export function tick(sm: StateMachine | undefined, playhead: number, prev: numbe
   }
 
   const from = sm.states.find(s => s.id === currentStateId);
+
+  // EVALUATE, THEN GATE — the order is load-bearing, and it used to be the other way round.
+  //
+  // A trigger source can be STATEFUL (a LiDAR zone rule remembers whether it has been armed since the
+  // state was entered), and it only sees the frames on which it is ASKED. Skipping the question while a
+  // transition's guard is closed therefore blinded it for exactly the window the guard exists to cover:
+  // the visitor walked into the zone at t=3 while the film played, `requireEnd` swallowed the question,
+  // and when the hold opened the gate at t=12 the source was being asked for the first time — it saw
+  // somebody merely STANDING there, not ARRIVING, and the show never advanced. The person had to walk
+  // out and back in. That is the exact flow the hold was built for.
+  //
+  // So the guard suppresses the ACTION, never the evaluation. Core triggers are stateless tests
+  // (crossings, a one-frame end pulse) so asking them under a closed guard costs nothing and changes
+  // nothing. It is a documented part of the SmTriggerContribution contract — see docs/SDK.md.
+  const fires = (tr: SmTransition): boolean => {
+    const fired = triggerFires(tr, from, playhead, prev, ctx);   // ALWAYS ask — keeps stateful sources warm
+    return fired && !gated(tr, ctx);
+  };
+
+  // 1. THE CURRENT STATE'S OWN EDGES — explicit beats global.
   for (const tr of sm.transitions) {
-    if (tr.from !== currentStateId) continue;
-    if (triggerFires(tr, from, playhead, prev, ctx)) { enter(sm, tr.to, playhead, ctx, tr); return; }
+    if (tr.fromAny || tr.from !== currentStateId) continue;
+    if (fires(tr)) { enter(sm, tr.to, playhead, ctx, tr); return; }
+  }
+  // 2. GLOBAL RULES — evaluated from whatever state we are in.
+  //
+  // ⚠ SKIP ONE WHOSE TARGET IS THE STATE WE ARE ALREADY IN. Its condition is typically a LEVEL that
+  // stays true for as long as somebody stands in a zone, so a self-targeting global would re-enter the
+  // same state on every frame — and entry is idempotent-and-restarting, so the scene's timeline would
+  // seek back to frame 0 sixty times a second: a frozen picture, a hammered decoder, and a machine
+  // reporting itself perfectly healthy.
+  for (const tr of sm.transitions) {
+    if (!tr.fromAny || tr.to === currentStateId) continue;
+    if (fires(tr)) { enter(sm, tr.to, playhead, ctx, tr); return; }
   }
 }
 
@@ -163,6 +236,12 @@ export function tick(sm: StateMachine | undefined, playhead: number, prev: numbe
 export function triggerManual(sm: StateMachine | undefined, transitionId: string, playhead: number, ctx: SmContext): void {
   if (!sm || !sm.enabled) return;
   lastNowSec = ctx.nowSec;
-  const tr = sm.transitions.find(t => t.id === transitionId && t.from === currentStateId);
+  // A GLOBAL rule is firable from anywhere, so it qualifies whatever the current state is — that is the
+  // whole point of it, and it must hold on this path too or the lane button, OSC and the tablet would
+  // each refuse a rule the machine itself would honour.
+  const tr = sm.transitions.find(t => t.id === transitionId && (t.fromAny ? t.to !== currentStateId : t.from === currentStateId));
+  // NOTE the absence of gated(): requireEnd guards the AUTOMATIC path only. A human firing this by hand
+  // has context the machine does not, and a control that silently no-ops teaches them it is broken. The
+  // UI flags an early press instead (StateLane), so the choice is informed, not blocked. See gated().
   if (tr) enter(sm, tr.to, playhead, ctx, tr);
 }

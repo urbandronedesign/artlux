@@ -52,6 +52,11 @@ export interface ShowStatus {
   // gate that was about to open by itself. `bootPending` = items still outstanding.
   booting?: boolean;
   bootPending?: number;
+  // THE STATE FINISHED AND THE SHOW IS STILL RUNNING. The current state's timeline is holding its last
+  // frame (Timeline.holdAtEnd) waiting for a trigger, so the transport reports `playing: true` with a
+  // FROZEN playhead — which, on a tablet at the back of a room, is exactly what a hung show looks
+  // like. It is the opposite problem to `booting` above and needs the same answer: say which it is.
+  held?: boolean;
   ts: number;
 }
 

@@ -330,13 +330,27 @@ export type SmTriggerKind =
   | 'atTime'             // when the playhead crosses absolute `time`
   | 'onMarker'           // when the playhead crosses marker `markerId`
   | 'onClipEnd'          // when the active clip on `layerId` ends (a gap appears)
-  | 'onTimelineEnd';     // when the bound timeline reaches its end (not looping) — auto-advance
+  | 'onTimelineEnd'      // when the bound timeline reaches its end (not looping) — auto-advance
+  // THE WORLD OUTSIDE THE TIMELINE. A trigger whose condition a PLUGIN owns and evaluates: a person
+  // entering a LiDAR trigger zone, a pose appearing on a camera, a DMX channel crossing a level.
+  //
+  // ONE core kind for all of them, on purpose. The persisted SHAPE is core — `kind`, `source`,
+  // `params` — so a project file opens on any build and an unknown source is INERT rather than
+  // corrupting (see triggerFires' exhaustiveness note). The BEHAVIOUR is not: it lives in whichever
+  // plugin registered `source`, which is what "core stays core" means here. Adding the next trigger
+  // source (mediapipe, augmenta, an audio level, an OSC value) needs no change to this file at all.
+  | 'plugin';
 export interface SmTrigger {
   kind: SmTriggerKind;
   seconds?: number;      // afterDelay
   time?: number;         // atTime
   markerId?: string;     // onMarker
   layerId?: string;      // onClipEnd
+  // 'plugin' — which registered trigger source evaluates this, and its own opaque parameters. Core
+  // never parses `params`; it hands the object back to the source that authored it (same contract as
+  // an AutomationLane's targetPath tail, which only its provider understands).
+  source?: string;                     // e.g. 'lidar.zone'
+  params?: Record<string, unknown>;
 }
 export interface SmState {
   id: string;
@@ -353,6 +367,30 @@ export interface SmTransition {
   from: string;          // SmState.id
   to: string;            // SmState.id
   trigger: SmTrigger;
+  // GUARD: this transition may only fire once the SOURCE state's timeline has FINISHED — i.e. while
+  // the scene clock is HELD on its last frame (Timeline.holdAtEnd; see the engine's hold branch). It
+  // gates the TRIGGER, it is not one: the trigger still has to fire, this only says "not yet".
+  //
+  // Why it exists: the interactive shape this whole feature serves is "play the state's picture to its
+  // end, freeze there, THEN let a person advance it". Without the guard a visitor who walks into a
+  // trigger zone three seconds into a twenty-second clip CUTS IT — the show becomes unwatchable in
+  // exactly the venue it was built for. `manual`/OSC transitions are gated too, deliberately: an
+  // operator's GO on a state authored to run out is the same mistake, just slower.
+  requireEnd?: boolean;
+  // A GLOBAL RULE — evaluated from EVERY state, not just `from`. ("Someone walks into the entrance →
+  // start the welcome", whatever the show happens to be doing.)
+  //
+  // The machine otherwise has no wildcard edge: a transition always leaves one source state, so making
+  // a look reachable from everywhere meant hand-drawing an edge from every state and re-drawing them
+  // all whenever a state was added — which is how an installation silently stops responding in the one
+  // state somebody forgot.
+  //
+  // `from` is then meaningless (the editor lists these separately instead of drawing them, because a
+  // rule with no source node is not an edge). Two rules keep it from running away, both in tick():
+  // the current state's OWN edges are tried first — explicit beats global — and a global whose target
+  // IS the current state is skipped, or a held condition would re-enter that state every frame and
+  // restart its scene timeline forever.
+  fromAny?: boolean;
   fadeSec?: number;      // AutomataUI "transition time": scene crossfade applied on the target state
   c1?: { x: number; y: number }; // cubic-bezier control handle 1 (canvas coords) — curved edge
   c2?: { x: number; y: number }; // cubic-bezier control handle 2 (canvas coords)
@@ -414,6 +452,21 @@ export interface Timeline {
   inPoint?: number | null;  // timeline range start (export/loop region) — NOT clip trim
   outPoint?: number | null; // timeline range end
   loop?: boolean;        // when true, playback wraps over [timelineStart, timelineEnd); else it pauses at the end
+  // THE STATE ENDED, AND THE SHOW DID NOT. Reaching the end HOLDS the scene clock on the last frame
+  // instead of pausing the transport. LOOP WINS — ignored while `loop` is true (a wrap is not an end).
+  //
+  // A scene owns its timeline, so this is per-STATE: "play this look to <out-point>, freeze there, and
+  // wait for something to move the machine on" — the shape an interactive, tracker-driven installation
+  // is written in. The distinction from the plain end-stop is the whole point: the end-stop emits a
+  // `pause`, and `playing: false` freezes the SHOW clock too, so the global audio bed and the global
+  // automation stop dead while the room waits for a person. A HOLD writes nothing to `playing`: only
+  // this document's playhead parks, the bed plays on underneath, and the machine is told (SmContext.held)
+  // so a transition can be gated on it (SmTransition.requireEnd).
+  //
+  // The end is still `timelineEnd()` — the out-point, or Length. There is no separate "stop marker":
+  // the out-handle already IS the authored end of a state, and one clock bound is easier to reason
+  // about than two. See the engine's non-looping end branch (services/timeline.ts).
+  holdAtEnd?: boolean;
   trackingTakes?: TrackingTakeRef[]; // recorded LiDAR-blob take library (drag onto a tracking lane)
   automation?: AutomationLane[];     // keyframe curves over the playhead (P4)
   // A timeline's OWN audio — audio that plays with THIS timeline's picture and restarts when it does.
@@ -452,7 +505,8 @@ export interface Timeline {
 }
 export const defaultTimeline = (): Timeline => ({
   layers: [], clips: [], duration: 60, fps: 30, markers: [], inPoint: null, outPoint: null,
-  loop: false, trackingTakes: [], automation: [], audio: { tracks: [], clips: [] }, boundedDuration: true,
+  loop: false, holdAtEnd: false, trackingTakes: [], automation: [], audio: { tracks: [], clips: [] },
+  boundedDuration: true,
 });
 
 // The timeline's playable range. `duration` (the "Length" field) IS the end — as of Wave A it once
@@ -796,6 +850,11 @@ export const normalizeTimeline = (t: Partial<Timeline> | null | undefined): Time
     // Round-trip is exact: an authored `true`/`false` passes through byte-for-byte; only junk (which
     // carries no recoverable authored intent) becomes ABSENT, which `?? false` reads as "off".
     loop: boolOrAbsent(t.loop) ?? false,
+    // Same treatment as `loop`, and it fails in the same direction: a hand-edited `"holdAtEnd": "no"`
+    // is a truthy string, and truthiness is what the engine's end branch tests. Junk must read as OFF
+    // — turning a hold ON by accident freezes a show that was authored to run through, and reports
+    // itself as playing while it does. An authored true/false round-trips byte-for-byte.
+    holdAtEnd: boolOrAbsent(t.holdAtEnd) ?? false,
     automation: normalizeAutomation(t.automation),
     // BACK-COMPAT (Wave A) — see Timeline.boundedDuration for the whole story. `duration` used to be a
     // hint that never bounded playback, so old projects legitimately hold clips past it. Now that it IS
@@ -1006,6 +1065,14 @@ export const normalizeStateMachine = (sm: Partial<StateMachine> | null | undefin
     })),
     transitions: objectsIn(sm.transitions).map((t) => ({
       ...(t as unknown as SmTransition),
+      // The guard is read as TRUTHINESS in tick(), so junk fails the WRONG way: `"requireEnd": "no"`
+      // would hold the transition until the state's timeline ends — and on a state that loops, or has
+      // no hold authored at all, that is never. The show sits on one look with a green status. Coerce
+      // to ABSENT (= ungated), the behaviour every project written before this field already has.
+      requireEnd: boolOrAbsent(t.requireEnd),
+      // Junk here is far worse than junk in `requireEnd`: a truthy string would promote an ordinary
+      // edge into a rule that fires from EVERY state in the show. Coerce to absent (= a normal edge).
+      fromAny: boolOrAbsent(t.fromAny),
       trigger:
         !!t.trigger && typeof t.trigger === 'object' && !Array.isArray(t.trigger)
           ? (t.trigger as SmTrigger)

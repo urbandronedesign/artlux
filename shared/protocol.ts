@@ -524,6 +524,32 @@ export interface MediapipeFloor {
   depth: number;                 // floor rectangle depth (z), metres
 }
 
+// A TRIGGER ZONE on a tracking surface — an area of the real venue that the show can react to.
+// (@artlux/plugin-lidar-tracking owns the behaviour; only the persisted shape is core, exactly like
+// `SourceType.TRACKING` and the trackingSmoothing/trackingMergeRadius settings below.)
+//
+// NORMALIZED, NOT METRES, and that is the load-bearing decision: blobs arrive as `u`/`v` in [0..1] on
+// a named surface, so a normalized rect is what the test actually compares against — no unit
+// conversion in the hot path, and no re-authoring when the venue re-measures itself. The tracker
+// publishes its scale live (`specs/Scalex|Scaley`), so metres are a DISPLAY concern, derivable at any
+// time; the reverse is not true, because a stored metre value silently means something else the day
+// the zone is rescaled.
+//
+// ⚠ ORIGIN IS BOTTOM-LEFT, Y UP — the blob protocol's own convention (trackingStore), NOT screen
+// space. `v0` is the LOW edge. Anything drawing this in a top-left DOM box must flip (screenUV).
+export interface TrackingZone {
+  id: string;
+  name: string;                  // readable — it is what the trigger UI lists and what an operator debugs by
+  surface: string;               // SOL | MUR | SOL_MUR — a trackingStore surface key
+  u0: number; v0: number;        // rect corners, normalized [0..1]; stored min→max (u0<u1, v0<v1)
+  u1: number; v1: number;
+  color?: string;
+  // OCCUPANCY, with hysteresis — the difference between a trigger and a tripwire that fires forever.
+  minBlobs?: number;             // people needed before the zone counts as occupied (default 1, AFTER people-merge)
+  enterSec?: number;             // must stay occupied this long before it latches (debounce, default 0.2)
+  exitSec?: number;              // must stay empty this long before it un-latches (hysteresis, default 0.5)
+}
+
 export interface Scene3D {
   models: SceneModel[];
   lightIntensity: number;             // per-fixture venue light gain
@@ -537,6 +563,17 @@ export interface Scene3D {
   trackingLabels?: boolean;           // show each blob's tracking id
   trackingMergePeople?: boolean;      // merge nearby blobs into one "person" (venue emits 2 blobs/person)
   trackingMergeRadius?: number;       // merge radius in metres (blobs within this distance = same person)
+  // THE ROOM. Project scope — deliberately STRIPPED from a scene's look snapshot (App.buildSceneSnapshot),
+  // because a zone is a rectangle on a real floor and does not change shape when the lighting does.
+  trackingZones?: TrackingZone[];     // named trigger areas the show machine can react to (see TrackingZone)
+  // …AND THE LOOK'S SUBSCRIPTION TO IT. Which of the room's zones this scene actually listens to. Unlike
+  // `trackingZones` above, this one DOES travel in the snapshot: "the welcome state watches the entrance;
+  // the performance state watches the stage" is part of what a look IS.
+  //
+  // ABSENT ⇒ EVERY ZONE IS LIVE, and that default is load-bearing: every project and every scene captured
+  // before this field existed must keep behaving exactly as it did. An empty ARRAY is different and means
+  // what it says — this look listens to nothing.
+  activeZoneIds?: string[];
   mediapipeViz?: boolean;             // overlay the camera-pose (MediaPipe) tracked-people markers in 3D
   mediapipeFloor?: MediapipeFloor;    // camera→floor homography for real-world pose position preview
   augmentaViz?: boolean;              // overlay the Augmenta field + tracked-object markers in 3D (@artlux/plugin-augmenta)
@@ -563,6 +600,7 @@ export const defaultScene3D = (): Scene3D => ({
   trackingLabels: true,
   trackingMergePeople: false,
   trackingMergeRadius: 0.8,
+  trackingZones: [],
 });
 
 // ---- Asset library -----------------------------------------------------------

@@ -25,7 +25,9 @@
 // estimated source offset — which is ALSO why the show clock's park (getStatus().showEnded) must
 // short-circuit the BED: drift re-locking against a frozen number re-seeks forever. `showEnded` is
 // BED-SCOPED — the show ending must not silence a scene's own audio, which is on the playhead and knows
-// nothing about the show's end.
+// nothing about the show's end. `getStatus().held` is the same rule on the OTHER clock (the bound
+// timeline parked on its last frame while the show plays on) and is scoped just as strictly the other
+// way: it silences the two PLAYHEAD-clocked containers and never the bed.
 //
 // The engine has NO envelope (it takes a flat gain per clip), so a clip's fadeIn/fadeOut is a
 // JS-scheduled gain, recomputed each frame from the clip-local time (fadeGain). Bus effects and sends
@@ -728,15 +730,33 @@ export const plugin: RendererPlugin = {
       for (const id of [...sounding]) if (!live.has(id)) stopSounding(id);
     };
 
-    // THE TWO CLOCKS, ROUTED. `showEnded` is BED-SCOPED and nothing else: the SHOW being over says nothing
-    // about a scene that is still looping underneath it.
-    const reconcile = (showTime: number, playhead: number, showEnded: boolean, nowMs: number) => {
+    // THE TWO CLOCKS, ROUTED, AND EACH WITH ITS OWN PARK.
+    //
+    // `showEnded` is BED-SCOPED and nothing else: the SHOW being over says nothing about a scene that is
+    // still looping underneath it. `held` is its exact mirror image on the PLAYHEAD — the current state's
+    // picture has finished and is frozen on its last frame while the show plays on (Timeline.holdAtEnd) —
+    // and is just as strictly scoped the other way: a held state must NEVER silence the bed, because the
+    // bed playing through the hold is the entire reason a hold exists instead of a pause.
+    //
+    // Both exist for the same reason: A FROZEN CLOCK MUST NOT BE RECONCILED AGAINST. See the drift re-lock
+    // in reconcileContainer — `desired` freezes while `estimated` runs on, so it re-seeks to the same
+    // offset every ~50 ms forever. A buzz, not silence.
+    const reconcile = (showTime: number, playhead: number, showEnded: boolean, held: boolean, nowMs: number) => {
       // THE SHOW IS OVER (global loop off, the show clock PARKED at showEnd — a frozen number). Reconciling
       // the bed against it is not a no-op, it is a 50 ms buzz loop (see the drift re-lock above). Stop the
       // BED and skip it. `stopSounding` per clip, NOT stopAllSounding() — that clears the shared sent*
       // maps wholesale and would take the bound timeline's clips down with it.
       if (showEnded) { for (const c of bed.clips) if (sounding.has(c.id)) stopSounding(c.id); }
       else reconcileContainer(bed.clips, bed.tracks, showTime, nowMs);      // THE BED — show clock
+      // …AND THE SAME TREATMENT FOR THE PLAYHEAD'S OWN PARK. A HELD state's picture is a still frame, so
+      // its sound is over: stop both playhead-clocked containers and skip them. Per clip, never
+      // stopAllSounding() — that clears the shared sent* maps wholesale and would take the BED down with
+      // it, which is precisely the thing a hold must not do.
+      if (held) {
+        for (const c of tlAudio.clips) if (sounding.has(c.id)) stopSounding(c.id);
+        for (const c of vidAudio.clips) if (sounding.has(c.id)) stopSounding(c.id);
+        return;
+      }
       reconcileContainer(tlAudio.clips, tlAudio.tracks, playhead, nowMs);   // the BOUND timeline's own audio — playhead
       // VIDEO CLIPS' OWN SOUNDTRACKS — the playhead, exactly like the container above, and deliberately
       // NOT gated on `showEnded`: that is bed-scoped. A scene looping under a finished show keeps its
@@ -825,7 +845,7 @@ export const plugin: RendererPlugin = {
       if (prevPlaying && !playing) {
         stopAllSounding();                                                    // paused → freeze BOTH containers
       } else if (playing && !prevPlaying) {
-        stopAllSounding(); reconcile(showTime, playhead, st.showEnded, nowMs); // resume → hard resync both
+        stopAllSounding(); reconcile(showTime, playhead, st.showEnded, st.held, nowMs); // resume → hard resync both
       } else if (playing) {
         // Surgical, per container. stopSounding(id) deletes only THAT clip's sent* entries; stopAllSounding()
         // clears the shared maps wholesale and would drag the other container down with it. Do not
@@ -835,7 +855,7 @@ export const plugin: RendererPlugin = {
         // video's sound with its picture, not leave it running from the outgoing scene's offset.
         if (phSeeked) for (const c of tlAudio.clips) if (sounding.has(c.id)) stopSounding(c.id);
         if (phSeeked) for (const c of vidAudio.clips) if (sounding.has(c.id)) stopSounding(c.id);
-        reconcile(showTime, playhead, st.showEnded, nowMs);
+        reconcile(showTime, playhead, st.showEnded, st.held, nowMs);
       }
       prevPlaying = playing; prevShowTime = showTime; prevPlayhead = playhead; prevWallMs = nowMs;
     };

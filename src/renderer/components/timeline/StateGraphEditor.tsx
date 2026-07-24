@@ -1,9 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { StateMachine, SmState, SmTransition, SmRegion, SmAction, SmActionKind, SmTriggerKind, Marker, VideoLayer } from '../../types';
+import { StateMachine, SmState, SmTransition, SmRegion, SmAction, SmActionKind, SmTrigger, SmTriggerKind, Marker, VideoLayer } from '../../types';
 import { timeline as engine } from '../../services/timeline';
-import { Plus, Star, Trash2, ArrowRight, Wand2, SquareDashed, Film } from 'lucide-react';
+import { smTriggerRegistry } from '../../host/registries';
+import { Plus, Star, Trash2, ArrowRight, Wand2, SquareDashed, Film, Snowflake, Zap } from 'lucide-react';
 
-export interface SceneRef { id: string; name: string; clipCount?: number }
+// `holdsAtEnd` = this scene's timeline ends by FREEZING on its last frame (Timeline.holdAtEnd, Loop
+// off) rather than by stopping. It is what a `requireEnd` transition out of this state waits for, so
+// the node has to show it: a gated edge leaving a state that never holds is a show that stops here.
+export interface SceneRef { id: string; name: string; clipCount?: number; holdsAtEnd?: boolean }
 export interface CueRef { id: string; name: string }
 
 interface Props {
@@ -33,7 +37,17 @@ const R = 34;                 // state node radius
 const D = R * 2;
 const CW = 2600, CH = 1700;   // canvas coordinate space
 const ACTION_KINDS: SmActionKind[] = ['play', 'pause', 'stop', 'seek', 'setLoop', 'jumpMarker', 'recallScene', 'fireCue'];
+// The CORE kinds only. Plugin-owned sources ('plugin' kind — a LiDAR trigger zone, a camera pose, a
+// DMX level) are appended at render time from the registry, one entry per registered source, so this
+// list never has to learn about them. The dropdown's value for those is `plugin:<source>`; nothing
+// but this file's two small helpers below ever sees that encoding.
 const TRIGGER_KINDS: SmTriggerKind[] = ['manual', 'afterDelay', 'atTime', 'onMarker', 'onClipEnd', 'onTimelineEnd'];
+const triggerValue = (t: SmTrigger): string => (t.kind === 'plugin' ? `plugin:${t.source ?? ''}` : t.kind);
+const triggerFromValue = (v: string, prev: SmTrigger): SmTrigger =>
+  // Switching to a plugin source keeps nothing from the old trigger but its identity — the params of
+  // an `atTime` mean nothing to a zone rule, and carrying them over would persist junk into the file.
+  v.startsWith('plugin:') ? { kind: 'plugin', source: v.slice(7), params: prev.source === v.slice(7) ? prev.params : {} }
+    : { kind: v as SmTriggerKind };
 const uid = () => crypto.randomUUID();
 
 type Vec = { x: number; y: number };
@@ -115,6 +129,16 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
     setSel(null);
   };
   const removeTransition = (id: string) => { patch({ transitions: sm.transitions.filter(t => t.id !== id) }); setSel(null); };
+  // A GLOBAL RULE — no source node, so it cannot be created by dragging a link nub the way an edge is.
+  // Starts `manual` (inert until an operator picks a trigger) and targets the initial state, because a
+  // rule that fired the moment it was created would hijack a running show mid-authoring.
+  const addGlobalRule = () => {
+    const to = sm.initialStateId ?? sm.states[0]?.id;
+    if (!to) return;
+    const t: SmTransition = { id: uid(), from: '', to, fromAny: true, trigger: { kind: 'manual' } };
+    patch({ transitions: [...sm.transitions, t] });
+    setSel({ kind: 'transition', id: t.id });
+  };
 
   // One node per scene, laid out in a grid, each pre-bound to its scene — seeds a show graph fast.
   const buildFromScenes = () => {
@@ -234,14 +258,26 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
   };
   const liveCenter = (s: SmState): Vec => { const p = nodePos(s); const o = memberOffset(s); return { x: p.x + o.x + R, y: p.y + o.y + R }; };
 
+  // Rules evaluated from every state — they have no source node, so the canvas cannot draw them and the
+  // inspector lists them instead. `globalTargets` is what puts the ⚡ badge on the states they can reach.
+  const globalRules = sm.transitions.filter(t => t.fromAny);
+  const globalTargets = new Set(globalRules.map(t => t.to));
+
   const selState = sel?.kind === 'state' ? sm.states.find(s => s.id === sel.id) ?? null : null;
   const selTrans = sel?.kind === 'transition' ? sm.transitions.find(t => t.id === sel.id) ?? null : null;
   const selRegion = sel?.kind === 'region' ? regions.find(r => r.id === sel.id) ?? null : null;
 
   const trLabel = (t: SmTransition) => {
     const to = sm.states.find(s => s.id === t.to);
-    const base = to ? `to${cap(to.name.replace(/\s+/g, ''))}` : 'transition';
-    return t.fadeSec != null ? `${base} [${t.fadeSec}]` : base;
+    // A plugin trigger describes ITSELF ("Entrance: someone enters") — "toReaction" says where the
+    // edge goes but not what fires it, and for a live trigger that is the half worth reading.
+    const src = t.trigger.kind === 'plugin' ? smTriggerRegistry.get(t.trigger.source ?? '') : undefined;
+    const desc = src?.describe?.(t.trigger.params ?? {});
+    const base = desc ?? (to ? `to${cap(to.name.replace(/\s+/g, ''))}` : 'transition');
+    // The `requireEnd` guard changes WHEN an edge can fire, so it belongs on the edge itself — reading
+    // a graph should not require selecting every transition to discover which ones are gated.
+    const label = t.requireEnd ? `⏱ ${base}` : base;
+    return t.fadeSec != null ? `${label} [${t.fadeSec}]` : label;
   };
 
   return (
@@ -252,6 +288,8 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
           <button onClick={addRegion} className="flex items-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-mini text-fg-1 hover:bg-surface-3"><SquareDashed size={12} /> Region</button>
           <button onClick={buildFromScenes} disabled={!scenes.length} title={scenes.length ? 'Create one state per scene' : 'No scenes captured yet'}
             className="flex items-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-mini text-fg-1 hover:bg-surface-3 disabled:opacity-40"><Wand2 size={12} /> Build from scenes</button>
+          <button onClick={addGlobalRule} disabled={!sm.states.length} title={sm.states.length ? 'A rule evaluated from EVERY state — for a trigger that must work whatever the show is doing' : 'Add a state first'}
+            className="flex items-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-mini text-fg-1 hover:bg-surface-3 disabled:opacity-40"><Zap size={12} /> Global rule</button>
           {linkFrom && <span className="text-micro text-accent">drag onto a target state to connect…</span>}
           <span className="ml-auto text-micro text-fg-3">dbl-click empty: add · dbl-click state: fire · drag nub: link · Ctrl+click edge: fire · Ctrl+wheel: zoom</span>
         </div>
@@ -348,6 +386,20 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
                           a scene with no timeline of its own — was deleted on 2026-07-14: every scene owns
                           one now (types.ts), so there is no such state left to label. */}
                       {scene && <span className={`text-micro ${isInit ? 'text-black/60' : 'text-fg-3'}`}>{scene.clipCount ? `${scene.clipCount} clip${scene.clipCount === 1 ? '' : 's'}` : 'empty'}</span>}
+                      {/* This state ENDS BY HOLDING its last frame — the thing a gated (⏱) edge out of
+                          it waits for. Pinned to the node's edge rather than stacked in the body: the
+                          node is 68px across and its four text rows are already full. */}
+                      {scene?.holdsAtEnd && (
+                        <span title="This state's timeline holds its last frame at the end — the show keeps running. Transitions marked ⏱ wait for it."
+                          className="absolute -top-1 -left-1 w-3.5 h-3.5 rounded-full bg-warn text-black flex items-center justify-center"><Snowflake size={9} /></span>
+                      )}
+                      {/* Reachable from ANYWHERE by a global rule. Without this the canvas would quietly
+                          under-report the graph: an edge-less state that the show can jump into at any
+                          moment looks, on the canvas, like a state nothing can reach. */}
+                      {globalTargets.has(s.id) && (
+                        <span title="A global rule can enter this state from anywhere — see Global rules in the inspector."
+                          className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-warn text-black flex items-center justify-center"><Zap size={9} /></span>
+                      )}
                       {/* link nub */}
                       <div title="Drag onto another state to connect" onPointerDown={(e) => beginLink(e, s.id)}
                         className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-accent border border-surface-0 cursor-crosshair" />
@@ -365,6 +417,25 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
 
           {/* inspector */}
           <div className="w-72 shrink-0 border-l border-line-1 bg-surface-1 overflow-auto p-3 text-mini">
+            {/* GLOBAL RULES — listed, never drawn. A rule with no source node is not an edge, and
+                inventing one (from where? every node?) would misrepresent how it fires. Pinned above the
+                selection inspector because it is the one part of the graph the canvas cannot show. */}
+            {globalRules.length > 0 && (
+              <div className="mb-3 pb-3 border-b border-line-1 space-y-1">
+                <div className="flex items-center gap-1">
+                  <Zap size={12} className="text-warn" />
+                  <span className="text-fg-2 font-medium">Global rules</span>
+                  <span className="text-fg-3 text-micro">from any state</span>
+                </div>
+                {globalRules.map(t => (
+                  <button key={t.id} onClick={() => setSel({ kind: 'transition', id: t.id })}
+                    className={`w-full text-left px-1.5 py-1 rounded border ${sel?.kind === 'transition' && sel.id === t.id ? 'border-accent bg-surface-2' : 'border-line-1 bg-surface-0'}`}>
+                    <span className="text-fg-1">{trLabel(t)}</span>
+                    <span className="text-fg-3"> → {sm.states.find(s => s.id === t.to)?.name ?? '?'}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             {selState && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
@@ -413,13 +484,37 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
                   <button onClick={() => removeTransition(selTrans.id)} className="text-fg-3 hover:text-red-400"><Trash2 size={12} /></button>
                 </div>
                 <div className="text-fg-3">
-                  {sm.states.find(s => s.id === selTrans.from)?.name} <ArrowRight size={10} className="inline" /> {sm.states.find(s => s.id === selTrans.to)?.name}
+                  {selTrans.fromAny
+                    ? <span className="text-warn">⚡ any state</span>
+                    : sm.states.find(s => s.id === selTrans.from)?.name}
+                  {' '}<ArrowRight size={10} className="inline" />{' '}
+                  {/* A GLOBAL RULE'S TARGET IS EDITABLE HERE and nowhere else: it has no source node, so
+                      it was never drawn as an edge you could re-drag onto a different state. */}
+                  {selTrans.fromAny
+                    ? (
+                      <select value={selTrans.to} onChange={(e) => patchTransition(selTrans.id, { to: e.target.value })}
+                        className="bg-surface-0 border border-line-1 rounded px-1 py-0.5 text-fg-1 focus:border-accent outline-none">
+                        {sm.states.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                      </select>
+                    )
+                    : sm.states.find(s => s.id === selTrans.to)?.name}
                 </div>
+                {selTrans.fromAny && (
+                  <div className="text-fg-3 italic text-micro">
+                    A <span className="text-warn">global rule</span> — evaluated from every state. The
+                    current state’s own transitions are tried first, and it is skipped while
+                    “{sm.states.find(s => s.id === selTrans.to)?.name}” is already the current state.
+                  </div>
+                )}
                 <label className="block">
                   <span className="text-fg-3 text-micro">Trigger</span>
-                  <select value={selTrans.trigger.kind} onChange={(e) => patchTransition(selTrans.id, { trigger: { kind: e.target.value as SmTriggerKind } })}
+                  <select value={triggerValue(selTrans.trigger)}
+                    onChange={(e) => patchTransition(selTrans.id, { trigger: triggerFromValue(e.target.value, selTrans.trigger) })}
                     className="w-full mt-0.5 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent outline-none">
                     {TRIGGER_KINDS.map(k => <option key={k} value={k}>{k}</option>)}
+                    {/* Plugin-owned sources, listed by their own label. A show that reacts to the ROOM
+                        is authored here, next to the timeline triggers, not in a separate world. */}
+                    {smTriggerRegistry.all().map(t => <option key={t.source} value={`plugin:${t.source}`}>{t.label}</option>)}
                   </select>
                 </label>
                 {selTrans.trigger.kind === 'afterDelay' && (
@@ -441,7 +536,35 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
                 )}
                 {/* onTimelineEnd takes no parameter — it fires on the frame the timeline ends. */}
                 {selTrans.trigger.kind === 'onTimelineEnd' && <div className="text-fg-3 italic">Fires when the timeline reaches its end with Loop OFF. A loop wrap is not an end.</div>}
+                {/* A PLUGIN-OWNED TRIGGER edits its own params. The host mounts whatever the source
+                    registered and knows nothing about what it configures — that is the entire seam.
+                    A source with no Inspector is parameterless; a source that is not registered (its
+                    plugin is off, or the file is from a newer build) says so rather than silently
+                    showing an empty box for a trigger that will never fire. */}
+                {selTrans.trigger.kind === 'plugin' && (() => {
+                  const src = smTriggerRegistry.get(selTrans.trigger.source ?? '');
+                  if (!src) return <div className="text-warn italic">Unknown trigger source “{selTrans.trigger.source}” — its plugin is not active, so this transition can never fire.</div>;
+                  if (!src.Inspector) return <div className="text-fg-3 italic">{src.label} — no parameters.</div>;
+                  return <src.Inspector params={selTrans.trigger.params ?? {}}
+                    onChange={(params) => patchTransition(selTrans.id, { trigger: { ...selTrans.trigger, params } })} />;
+                })()}
                 {selTrans.trigger.kind === 'manual' && <div className="text-fg-3 italic">Fires from the state-lane button, Ctrl+click on the edge, or OSC.</div>}
+                {/* THE GUARD, not a trigger: the trigger above still has to fire, this decides whether
+                    it MAY. It is the piece that makes a live trigger (a person walking into a LiDAR
+                    zone) safe on a state that is showing a film — without it the film gets cut. */}
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input type="checkbox" checked={!!selTrans.requireEnd} className="mt-0.5"
+                    onChange={(e) => patchTransition(selTrans.id, { requireEnd: e.target.checked || undefined })} />
+                  <span>
+                    <span className="text-fg-2">Only after the state has finished</span>
+                    <span className="block text-fg-3 text-micro">
+                      Holds the <span className="text-fg-2">automatic</span> trigger until the source
+                      state&rsquo;s timeline is holding its last frame (Hold at end, in the timeline
+                      toolbar). A manual/OSC/tablet trigger still fires — it is flagged early, not blocked.
+                      A state that loops, or has no hold, never satisfies this.
+                    </span>
+                  </span>
+                </label>
                 <NumField label="Transition time (s) — scene crossfade on arrival" value={selTrans.fadeSec ?? 0} onChange={(v) => patchTransition(selTrans.id, { fadeSec: v || undefined })} />
               </div>
             )}

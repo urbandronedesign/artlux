@@ -974,6 +974,18 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   const addMarker = () => onChange({ ...timeline, markers: [...(timeline.markers ?? []), { id: crypto.randomUUID(), time: engine.getPlayhead(), color: '#f5a623' }] });
   const setIn = () => { const t = engine.getPlayhead(); const out = timeline.outPoint != null && timeline.outPoint <= t ? null : timeline.outPoint ?? null; onChange({ ...timeline, inPoint: t, outPoint: out }); };
   const setOut = () => { const t = engine.getPlayhead(); const inp = timeline.inPoint != null && timeline.inPoint >= t ? null : timeline.inPoint ?? null; onChange({ ...timeline, inPoint: inp, outPoint: t }); };
+  // Hold at end. LOOP WINS in the engine (a wrap is never an end), so turning the hold on turns Loop
+  // OFF rather than leaving a toggle that visibly says "on" and does nothing — the failure mode this
+  // repo keeps meeting is a control that reports a state the clock does not honour.
+  const toggleHold = () => onChange({ ...timeline, holdAtEnd: !timeline.holdAtEnd, loop: timeline.holdAtEnd ? timeline.loop : false });
+  // "End state here" — the two halves of authoring a state's end, in one click. Reuses setOut's
+  // degenerate-in-point guard (an in-point at or past the new out would make timelineStart ignore the
+  // region and wedge the transport in a 0.1 s window — see timelineStart in types.ts).
+  const endStateHere = () => {
+    const t = engine.getPlayhead();
+    const inp = timeline.inPoint != null && timeline.inPoint >= t ? null : timeline.inPoint ?? null;
+    onChange({ ...timeline, inPoint: inp, outPoint: t, holdAtEnd: true, loop: false });
+  };
   // Region handles (ruler drag). Snapped like everything else, and kept ordered: an in past the out
   // (or vice versa) would make timelineEnd() ignore the region — clamp instead of relying on that.
   // The loop region is now LIVE (the clock wraps over it), and onChange is not cheap here: it re-enters
@@ -1322,6 +1334,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
         hasRegion={hasTimelineRegion(timeline)}
         onZoom={onZoom} onZoomFit={onZoomFit} onAddTrack={addLayer}
         loop={!!timeline.loop} onToggleLoop={toggleLoop}
+        holdAtEnd={!!timeline.holdAtEnd} onToggleHold={toggleHold} onEndStateHere={endStateHere}
         smEnabled={sm.enabled} onToggleSm={toggleSm} onEditLogic={() => goToContext('machine')}
         maximized={maximized} onToggleMax={() => onToggleMax?.()}
       />
@@ -1343,6 +1356,8 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
               bandStart={bandOn ? timelineStart(draftTimeline) : null}
               bandEnd={bandOn ? timelineEnd(draftTimeline) : null}
               overrunFrom={overrunAt != null ? lengthEnd : null} overrunTo={overrunAt}
+              // Loop wins in the engine, so the ruler must not advertise a hold that will never happen.
+              holdAtEnd={!!timeline.holdAtEnd && !timeline.loop}
               onSeekDown={startSeekDrag}
               onMarkerSeek={(t) => engine.seek(t)}
               onMarkerDelete={(id) => onChange({ ...timeline, markers: (timeline.markers ?? []).filter(m => m.id !== id) })}

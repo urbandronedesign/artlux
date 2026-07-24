@@ -357,6 +357,104 @@ check(
   },
 );
 
+// ── Transport: a HOLD must not pause, and a frozen clock must be gated ────────────────────────
+check(
+  'the end-of-timeline HOLD stays silent on the transport',
+  'Timeline.holdAtEnd exists precisely so the state\'s picture can end WITHOUT stopping the show: ' +
+  'the transport keeps running, so the global audio bed and the global automation play on while the ' +
+  'room waits for a trigger. `playing` is what the show clock is gated on — so if the hold branch ' +
+  'ever raises the end-stop\'s pause, the bed dies at every state end and the only symptom is silence.',
+  () => {
+    const src = read('src/renderer/services/timeline.ts');
+    const problems = [];
+    if (!src.includes('data.holdAtEnd')) return 'services/timeline.ts no longer reads data.holdAtEnd — the hold is gone';
+    // The pause must be raised only under an explicit not-holding test. Matching the ASSIGNMENT (not
+    // the identifier) so a surviving declaration can never satisfy this.
+    const raises = src.match(/^.*pausePending = true.*$/gm) ?? [];
+    if (raises.length !== 1) problems.push(`expected exactly one \`pausePending = true\`, found ${raises.length}`);
+    else if (!/if \(!holding\)/.test(raises[0])) problems.push('the end-stop raises `pausePending` without a `if (!holding)` guard — a hold would stop the bed');
+    // `held` must be re-derived every frame, never latched: a latch has to be cleared by all seven
+    // clock-re-anchor sites, and a missed one leaves the machine believing a running show is held.
+    if (!/^\s*held = false;/m.test(src)) problems.push('`held` is never reset at the top of frame() — it must be derived per frame, not latched');
+    if (!src.includes('isBoundHeld()')) problems.push('the engine no longer publishes isBoundHeld() — the audio driver cannot see the park');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'a held playhead silences its own audio containers',
+  'Reconciling an audio container against a FROZEN clock is not a no-op: `desired` freezes while ' +
+  '`estimated` runs on, so the driver re-seeks every sounding clip to the same offset every ~50ms. ' +
+  'That is a buzz, not silence — the same defect getStatus().showEnded exists to prevent on the show ' +
+  'clock. A hold freezes the PLAYHEAD, so its two playhead-clocked containers need the same gate.',
+  () => {
+    const f = 'plugins/audio/src/plugin.renderer.ts';
+    if (!exists(f)) return null; // the audio plugin is optional at build time
+    const src = read(f);
+    const problems = [];
+    if (!src.includes('st.held')) problems.push('the audio driver never reads getStatus().held');
+    if (!/if \(held\)/.test(src)) problems.push('reconcile() has no `if (held)` branch — a held state would buzz instead of going silent');
+    // Scope: a hold must never take the BED down with it (that is the whole point of holding).
+    if (/if \(held\)[\s\S]{0,400}?stopAllSounding\(\)/.test(src)) problems.push('the held branch calls stopAllSounding() — it would silence the audio bed, which must play through a hold');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── FSM: a guard suppresses the ACTION, never the EVALUATION ──────────────────────────────────
+check(
+  'the FSM evaluates a transition\'s trigger before applying its guard',
+  'A trigger source can be STATEFUL (a LiDAR zone rule remembers whether it has been armed since the ' +
+  'state was entered) and it only sees the frames on which it is ASKED. Checking requireEnd FIRST ' +
+  'blinded it for exactly the window the guard exists to cover: a visitor walked into the zone while ' +
+  'the film played, the guard swallowed the question, and when the hold opened the gate the source saw ' +
+  'somebody merely STANDING there rather than ARRIVING — the show never advanced and the person had to ' +
+  'walk out and back in.',
+  () => {
+    const src = read('src/renderer/services/stateMachine.ts');
+    const problems = [];
+    // The evaluation must not sit behind a `continue` on the guard.
+    if (/if \(gated\([^)]*\)\) continue;/.test(src)) problems.push('tick() still skips evaluation when the guard is closed (`if (gated(...)) continue`)');
+    if (!/triggerFires\([^)]*\)[\s\S]{0,120}?!gated\(/.test(src)) problems.push('could not find the "evaluate, then gate" pairing — triggerFires() must run BEFORE gated() decides');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'a global rule cannot re-enter the state it targets',
+  'A fromAny rule\'s condition is typically a LEVEL that stays true while somebody stands in a zone. ' +
+  'Entry is idempotent-and-restarting, so a global whose target is the CURRENT state would re-enter it ' +
+  'every frame — seeking its scene timeline back to frame 0 sixty times a second behind a frozen ' +
+  'picture, with the machine reporting itself perfectly healthy.',
+  () => {
+    const src = read('src/renderer/services/stateMachine.ts');
+    if (!src.includes('fromAny')) return 'stateMachine.ts no longer handles fromAny — global rules are gone';
+    return /tr\.to === currentStateId\) continue/.test(src)
+      ? null : 'the global-rule loop does not skip a transition whose `to` IS the current state';
+  },
+);
+
+// ── Zones: the room is not part of a look ─────────────────────────────────────────────────────
+check(
+  'a scene snapshot never carries the trigger zones',
+  'A trigger zone is a rectangle taped to a real floor — it does not change shape because the lighting ' +
+  'did. Zones live on Scene3D, Scene3D rides in the look snapshot, and recall assigns the whole object: ' +
+  'so every scene silently carried a COPY, and the first GO onto a scene captured BEFORE the zones were ' +
+  'drawn replaced the live list with nothing. Every zone vanished and every zone-driven transition went ' +
+  'inert, with nothing logged and nothing on screen to explain it.',
+  () => {
+    const src = read('src/renderer/App.tsx');
+    const snap = fnBody(src, 'buildSceneSnapshot');
+    const problems = [];
+    if (!snap) problems.push('could not find buildSceneSnapshot in App.tsx');
+    else if (!/trackingZones:\s*undefined/.test(snap)) problems.push('buildSceneSnapshot does not strip `trackingZones` — a scene would capture the room');
+    // …and the other half: the recall must not assign a scene's (possibly older) scene3D wholesale.
+    const recall = fnBody(src, 'handleRecallScene');
+    if (!recall) problems.push('could not find handleRecallScene in App.tsx');
+    else if (!/trackingZones:\s*prev\.trackingZones/.test(recall)) problems.push('handleRecallScene does not preserve the live `trackingZones` — an old scene would still wipe them');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
