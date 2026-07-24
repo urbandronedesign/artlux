@@ -108,6 +108,29 @@ A **trigger zone** is a named area of a tracking surface that the **show machine
 *someone enters the entrance zone → play the reaction state.* Zones are the bridge between the blob
 feed documented above and [STATE-MACHINE.md](STATE-MACHINE.md).
 
+## How it fits together — zones, transitions, states, scenes
+
+The one-paragraph mental model, because it is easy to conflate four things that are deliberately
+separate:
+
+- **Zones are the room, and they are always present.** They are project-scope geometry, shared by every
+  scene and every state. You draw the entrance / stage / doorway **once**; nothing recreates or loses
+  them when the show changes look.
+- **Each transition chooses what it watches** — **one zone**, or a **combination** of zones (`ALL`/`ANY`,
+  each optionally `NOT`). Different transitions can watch different zones independently.
+
+A transition fires when its zone condition becomes true **and** two gates are open:
+
+| Gate | Meaning | Default |
+|---|---|---|
+| **Which state you're in** | a transition only fires from its **source state** (the state you drew it out of) — unless it is a **⚡ global rule** (`fromAny`), which is evaluated from every state | you draw one edge per state that should react; a global rule reacts everywhere |
+| **Whether the current scene listens to the zone** | each scene has an optional **active set** (the eye toggle in the Trigger Zones panel, `Scene3D.activeZoneIds`) — a zone switched off for a scene is *unanswerable* there, and any rule naming it is inert in that scene | **every zone is live in every scene** — so unless you deliberately switch one off, this gate is always open |
+
+So the accurate summary: **the zones always exist; each transition picks a zone or a combo; and it fires
+when that condition becomes true, provided the show is in the right state (or the rule is global) and the
+current scene has not switched that zone off.** If you never touch the per-scene eye toggles, drop that
+last clause — every zone is simply live everywhere.
+
 ## The model
 
 `Scene3D.trackingZones: TrackingZone[]` — persisted project data (a core type in
