@@ -114,6 +114,7 @@ const api: ArtluxApi = {
     // Asset library
     importAssets: (projectFile: string, type) => ipcRenderer.invoke(IPC.IMPORT_ASSETS, projectFile, type),
     importAssetFile: (projectFile: string, srcPath: string, type, name?: string) => ipcRenderer.invoke(IPC.IMPORT_ASSET_FILE, projectFile, srcPath, type, name),
+    scanAssets: (projectFile: string, knownPaths: string[]) => ipcRenderer.invoke(IPC.SCAN_ASSETS, projectFile, knownPaths),
     showItemInFolder: (path: string) => ipcRenderer.send(IPC.SHOW_ITEM_IN_FOLDER, path),
     assetExists: (paths: string[]) => ipcRenderer.invoke(IPC.ASSET_EXISTS, paths),
     getPathForFile: (file: File) => webUtils.getPathForFile(file),

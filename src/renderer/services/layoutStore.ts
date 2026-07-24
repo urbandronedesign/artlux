@@ -1,4 +1,4 @@
-import { DockTab } from '../types';
+import { DockTab, type MediaView } from '../types';
 
 // Serializable editor layout — panel sizes, visibility, tab selections, and the active workspace
 // preset. Persisted as a SINGLE top-level `Prefs.layoutState` object (Prefs.setPrefs is a one-level
@@ -22,6 +22,11 @@ export interface WorkspaceLayout {
   // selections
   leftTab: 'scene' | 'media';
   dockTab: DockTab;
+  // Media library tile size (Explorer's large/medium/list). Panel-local, but it is view ergonomics
+  // that must survive a restart — the same reason `leftTab` is here rather than in the project. NOT
+  // banked per context (CONTEXT_KEYS): the operator picks a density because of their screen and their
+  // media, not because of which workbench they walked in from.
+  mediaView: MediaView;
   // which preset is active; flips to 'custom' the moment the user hand-tweaks anything
   activePreset: string;
   // ── Workspace contexts ──────────────────────────────────────────────────────────────────
@@ -57,6 +62,7 @@ export const DEFAULT_LAYOUT: WorkspaceLayout = {
   timelineMax: false,
   leftTab: 'scene',
   dockTab: DockTab.FIXTURE_EDITOR,
+  mediaView: 'medium',
   activePreset: 'edit',
   activeContext: 'mapping',
   contexts: {},

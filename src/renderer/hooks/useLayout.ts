@@ -7,3 +7,12 @@ import { layoutStore, type WorkspaceLayout } from '../services/layoutStore';
 export function useLayout(): WorkspaceLayout {
   return useSyncExternalStore(layoutStore.subscribe, layoutStore.get);
 }
+
+// Subscribe to ONE layout value. A panel that only cares about a single key must not re-render on
+// every other key: layoutStore.set() fires per pointer tick during a resize drag, so a sidebar reading
+// the whole object (MediaPanel, which rebuilds a usage index per render) would re-render all the way
+// through someone dragging the dock. `sel` must return a primitive — React bails out on Object.is, so
+// a fresh object/array every call defeats the point and re-renders anyway.
+export function useLayoutValue<T>(sel: (l: WorkspaceLayout) => T): T {
+  return useSyncExternalStore(layoutStore.subscribe, () => sel(layoutStore.get()));
+}

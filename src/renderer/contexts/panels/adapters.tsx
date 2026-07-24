@@ -25,6 +25,7 @@ export const MediaBrowserPanel: React.FC = () => {
       selectedSurfaceId={selectedSurfaceId}
       hasProjectFolder={!!currentProjectPath}
       onImport={a.importAssets}
+      onScan={a.scanAssets}
       onRemoveAsset={a.removeAsset}
       onRelinkAsset={a.relinkAsset}
       onUseOnSurface={a.useAssetOnSurface}

@@ -1,8 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Film, Image as ImageIcon, Box, Music, FolderOpen, Link2, Trash2, MonitorPlay, Search } from 'lucide-react';
-import { AssetEntry, AssetType, Timeline, timelineAudioClips } from '../types';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Film, Image as ImageIcon, Box, Music, FolderOpen, Link2, Trash2, MonitorPlay, Search, RefreshCw, X, LayoutGrid, Grid3x3, List } from 'lucide-react';
+import { AssetEntry, AssetType, MediaView, Timeline, timelineAudioClips } from '../types';
 import { AssetChip } from './AssetChip';
 import { libraryItems, usageIndex, normPath, typeLabel, type ProjectRefs } from '../services/assetLibrary';
+import { layoutStore } from '../services/layoutStore';
+import { useLayoutValue } from '../hooks/useLayout';
 
 interface Props {
   assets: AssetEntry[];
@@ -14,6 +16,8 @@ interface Props {
   selectedSurfaceId: string | null;
   hasProjectFolder: boolean;
   onImport: (type: AssetType) => void;
+  /** Adopt media copied into assets/ by hand; resolves with how many entries were added. */
+  onScan: () => Promise<number>;
   onRemoveAsset: (asset: AssetEntry) => void;
   onRelinkAsset: (asset: AssetEntry) => void;
   onUseOnSurface: (asset: AssetEntry) => void;
@@ -33,13 +37,46 @@ const fmtBytes = (n?: number) => n == null ? '' : n > 1e6 ? `${(n / 1e6).toFixed
 // screen twice, so the manager was deleted and the one part it uniquely had — this inspector — moved
 // here. The usage rows resolve names across EVERY timeline / surface list / scene3D the index was
 // built from, because an id can come from a captured scene rather than the live doc.
-export const MediaPanel: React.FC<Props> = ({ assets, timeline, refs, selectedSurfaceId, hasProjectFolder, onImport, onRemoveAsset, onRelinkAsset, onUseOnSurface, onSelectSurface }) => {
+export const MediaPanel: React.FC<Props> = ({ assets, timeline, refs, selectedSurfaceId, hasProjectFolder, onImport, onScan, onRemoveAsset, onRelinkAsset, onUseOnSurface, onSelectSurface }) => {
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [missing, setMissing] = useState<Set<string>>(new Set());
+  // Scan result. "Found nothing" and "haven't scanned" must not look the same — an operator who copied
+  // files into the wrong folder needs to see that the scan RAN and came back empty, or they'll click
+  // again forever. Cleared on unmount so a stale count can't outlive the panel.
+  const [scan, setScan] = useState<{ busy: boolean; added: number | null }>({ busy: false, added: null });
+  // Tile density, straight off the layout store (prefs-backed) rather than local state — it must
+  // survive a restart and a trip through another context, like every other view ergonomic. Read with
+  // the single-value selector: this panel is always mounted and rebuilds a usage index per render, so
+  // it must not wake up for every dock-resize tick. (See useLayoutValue.)
+  const view = useLayoutValue(l => l.mediaView);
 
   const items = useMemo(() => libraryItems(assets, timeline), [assets, timeline]);
+
+  // The scan is a main-process directory walk, so it can outlive this panel (context switch, project
+  // close). Guard the state write — re-armed on mount so StrictMode's double-invoke doesn't leave the
+  // flag stuck false.
+  const alive = useRef(true);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  // The result line is transient — it answers "did that do anything?" and then gets out of the way,
+  // rather than holding a row of a narrow column for the rest of the session.
+  const scanMsgTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (scanMsgTimer.current) clearTimeout(scanMsgTimer.current); }, []);
+  const runScan = async () => {
+    if (scan.busy) return;
+    if (scanMsgTimer.current) clearTimeout(scanMsgTimer.current);
+    setScan({ busy: true, added: null });
+    try {
+      const added = await onScan();
+      if (!alive.current) return;
+      setScan({ busy: false, added });
+      scanMsgTimer.current = setTimeout(() => { if (alive.current) setScan({ busy: false, added: null }); }, 6000);
+    } catch (e) {
+      console.error('[media] scan failed', e);
+      if (alive.current) setScan({ busy: false, added: null });
+    }
+  };
 
   // Missing-on-disk detection (batched).
   useEffect(() => {
@@ -89,6 +126,13 @@ export const MediaPanel: React.FC<Props> = ({ assets, timeline, refs, selectedSu
     return id;
   };
 
+  const viewBtn = (v: MediaView, icon: React.ReactNode, label: string) => (
+    <button onClick={() => layoutStore.set({ mediaView: v })} title={`${label} view`} aria-pressed={view === v}
+      className={`inline-flex items-center justify-center w-6 h-5 ${view === v ? 'bg-accent text-black' : 'bg-surface-2 text-fg-3 hover:text-fg-1'}`}>
+      {icon}
+    </button>
+  );
+
   const chip = (label: string, value: Filter, icon?: React.ReactNode) => (
     <button onClick={() => setFilter(value)}
       className={`inline-flex items-center gap-1 px-1.5 h-5 rounded text-micro border ${filter === value ? 'bg-accent text-black border-transparent' : 'bg-surface-2 text-fg-2 border-line-1 hover:text-fg-1'}`}>
@@ -103,6 +147,21 @@ export const MediaPanel: React.FC<Props> = ({ assets, timeline, refs, selectedSu
         <span className="text-mini font-semibold text-fg-1">Media Library</span>
       </div>
 
+      {/* SEARCH — first thing under the title and the full width of the column. It used to be a 80px
+          box wedged at the end of the wrapping filter row, which is where you look last and the
+          narrowest it could possibly be, for the control that answers "where is that file". */}
+      <div className="px-2 py-1.5 border-b border-line-1">
+        <div className="flex items-center gap-1.5 bg-surface-2 border border-line-1 rounded px-1.5 h-6">
+          <Search size={11} className="text-fg-3 shrink-0" />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search media"
+            className="bg-transparent outline-none text-mini w-full min-w-0 text-fg-1" />
+          {query && (
+            <button onClick={() => setQuery('')} title="Clear search"
+              className="shrink-0 text-fg-3 hover:text-fg-1 no-press"><X size={11} /></button>
+          )}
+        </div>
+      </div>
+
       {/* import + project-folder hint */}
       <div className="px-2 py-1.5 flex items-center gap-1 border-b border-line-1">
         <span className="text-micro text-fg-3 mr-1">Import</span>
@@ -110,12 +169,26 @@ export const MediaPanel: React.FC<Props> = ({ assets, timeline, refs, selectedSu
         <button onClick={() => onImport('image')} disabled={!hasProjectFolder} title="Import image" className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40"><ImageIcon size={12} /></button>
         <button onClick={() => onImport('model')} disabled={!hasProjectFolder} title="Import 3D model" className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40"><Box size={12} /></button>
         <button onClick={() => onImport('audio')} disabled={!hasProjectFolder} title="Import audio" className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40"><Music size={12} /></button>
+        {/* Scan — for media copied into assets/ outside the app (Explorer, a USB drive, a sync tool).
+            Import is the supported route; this is the one that rescues everything that came the other
+            way, which on a venue machine is most of it. */}
+        <button onClick={() => void runScan()} disabled={!hasProjectFolder || scan.busy}
+          title="Scan the project's assets folder for media added outside ArtLux"
+          className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40 text-micro text-fg-2 ml-auto">
+          <RefreshCw size={12} className={scan.busy ? 'animate-spin' : undefined} /> Scan
+        </button>
       </div>
       {!hasProjectFolder && (
         <div className="px-2 py-1 text-micro text-warn border-b border-line-1">Create a project folder (File → New Project) to import media.</div>
       )}
+      {/* Scan feedback — an empty result must read as "ran, found nothing", not as nothing happening. */}
+      {scan.added != null && (
+        <div className="px-2 py-1 text-micro text-fg-3 border-b border-line-1">
+          {scan.added > 0 ? `Scan: added ${scan.added} file${scan.added === 1 ? '' : 's'}.` : 'Scan: no new media in the project’s assets folder.'}
+        </div>
+      )}
 
-      {/* filter + search */}
+      {/* type filter + view density */}
       <div className="px-2 py-1.5 flex flex-wrap items-center gap-1 border-b border-line-1">
         {chip('All', 'all')}
         {chip('Video', 'video', <Film size={10} />)}
@@ -123,22 +196,30 @@ export const MediaPanel: React.FC<Props> = ({ assets, timeline, refs, selectedSu
         {chip('Model', 'model', <Box size={10} />)}
         {chip('Take', 'take')}
         {chip('Audio', 'audio', <Music size={10} />)}
-        <div className="flex items-center gap-1 ml-auto bg-surface-2 border border-line-1 rounded px-1 h-5">
-          <Search size={10} className="text-fg-3" />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="search"
-            className="bg-transparent outline-none text-micro w-20 text-fg-1" />
+        {/* Explorer's large / medium / list. Persisted in the workspace layout, so the density an
+            operator picked for their screen is still there tomorrow. */}
+        <div className="flex items-center ml-auto rounded border border-line-1 overflow-hidden">
+          {viewBtn('large', <LayoutGrid size={11} />, 'Large icons')}
+          {viewBtn('medium', <Grid3x3 size={11} />, 'Medium icons')}
+          {viewBtn('list', <List size={11} />, 'List')}
         </div>
       </div>
 
-      {/* grid */}
+      {/* grid / list */}
       <div className="flex-1 min-h-0 overflow-auto p-2">
         {filtered.length === 0 ? (
-          <div className="text-fg-3 italic text-mini px-1 py-2">No media. Import files or record a take.</div>
+          <div className="text-fg-3 italic text-mini px-1 py-2">
+            {items.length ? 'No media matches this filter.' : 'No media. Import files, scan the assets folder, or record a take.'}
+          </div>
         ) : (
-          <div className="grid grid-cols-2 gap-2">
+          // auto-fill rather than a fixed column count: the browser column is resizable, so a fixed
+          // `grid-cols-2` meant tiny tiles when narrow and two absurd ones when wide. Tile WIDTH is what
+          // the view picks; how many fit is the column's business.
+          <div className={view === 'list' ? 'flex flex-col gap-px' : 'grid gap-2'}
+            style={view === 'list' ? undefined : { gridTemplateColumns: `repeat(auto-fill, minmax(${view === 'large' ? 132 : 74}px, 1fr))` }}>
             {filtered.map(a => (
               <AssetChip key={a.id} asset={a} usageCount={usageOf(a)} missing={missing.has(normPath(a.path))}
-                selected={selectedId === a.id}
+                selected={selectedId === a.id} view={view}
                 onClick={() => setSelectedId(a.id)}
                 onDoubleClick={() => { if ((a.type === 'video' || a.type === 'image') && selectedSurfaceId) onUseOnSurface(a); }} />
             ))}

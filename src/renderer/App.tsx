@@ -37,7 +37,7 @@ import { dmxSignal } from './services/dmxSignal';
 import { perfMonitor } from './services/perfMonitor';
 import { getDrawable, getDrawableGeneration, resolveSource } from './services/surfaceMedia';
 import { timeline as timelineEngine, GLOBAL_POOL } from './services/timeline';
-import { usageForPath, normPath, type ProjectRefs } from './services/assetLibrary';
+import { usageForPath, normPath, libraryItems, type ProjectRefs } from './services/assetLibrary';
 import { setCoreStateView } from './services/automationTargets.core';
 import * as timelinePreloader from './services/timelinePreloader';
 import { nextAccent, GLOBAL_ACCENT } from './sceneAccent';
@@ -1769,6 +1769,32 @@ const App: React.FC = () => {
       const entries = await window.artlux?.importAssets?.(currentProjectPath, type);
       if (entries && entries.length) setAssets(prev => [...prev, ...entries]);
   };
+  // Scan the project's assets/ folder for media that was copied in by hand (Explorer/Finder, a USB
+  // drive, a sync tool) and adopt it into the library. Nothing on disk is touched — main only reports
+  // files it found that we don't already list, so this is idempotent. Returns how many were added, for
+  // the panel's status line.
+  //
+  // The "known" list is the LIBRARY's own view (imported assets + the recorded takes the global
+  // timeline owns), not just `assets`: main skips .lblob files anyway, but the dedupe must be stated
+  // against what the user actually sees, or the day a take category becomes scannable it silently
+  // doubles every take. Appending is still guarded here by path — the async round-trip means an import
+  // could have landed in between.
+  const handleScanAssets = async (): Promise<number> => {
+      if (!currentProjectPath) { window.alert('Create a project folder first (File → New Project) to scan for media.'); return 0; }
+      const known = libraryItems(assets, timeline).map(a => a.path);
+      const found = await window.artlux?.scanAssets?.(currentProjectPath, known);
+      if (!found || !found.length) return 0;
+      // Re-filter inside the updater against the CURRENT list (not the snapshot `known` was built
+      // from) — an import can have completed during the await. The count reported is the updater's own
+      // work, captured before the state write, so the status line can never claim rows it didn't add.
+      const have = new Set(assets.map(a => normPath(a.path)));
+      const fresh = found.filter(a => !have.has(normPath(a.path)));
+      if (fresh.length) setAssets(prev => {
+          const seen = new Set(prev.map(a => normPath(a.path)));
+          return [...prev, ...fresh.filter(a => !seen.has(normPath(a.path)))];
+      });
+      return fresh.length;
+  };
   // A media file dropped straight onto the timeline is copied into the project by the Timeline, then
   // registered here so it appears in the Media library — same as an explicit import. Dedupe by path.
   const handleRegisterAsset = (entry: AssetEntry) => {
@@ -2748,6 +2774,7 @@ const App: React.FC = () => {
     sceneConfig: handleSceneConfig,
     saveScene: handleSceneSave,
     importAssets: handleImportAssets,
+    scanAssets: handleScanAssets,
     removeAsset: handleRemoveAsset,
     relinkAsset: handleRelinkAsset,
     useAssetOnSurface: handleUseAssetOnSurface,

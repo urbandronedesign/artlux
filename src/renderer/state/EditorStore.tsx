@@ -121,6 +121,8 @@ export interface EditorActions {
   saveScene(): void;
   // media
   importAssets(type: AssetType): void;
+  /** Adopt media copied into assets/ by hand → how many entries were added. */
+  scanAssets(): Promise<number>;
   removeAsset(asset: AssetEntry): void;
   relinkAsset(asset: AssetEntry): void;
   useAssetOnSurface(asset: AssetEntry): void;

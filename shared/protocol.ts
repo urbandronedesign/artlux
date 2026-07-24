@@ -112,6 +112,8 @@ export const IPC = {
   IMPORT_ASSETS: 'asset:import',
   /** Renderer → main (invoke): copy one already-known file into assets/<cat>/ → AssetEntry (e.g. a recorded take). */
   IMPORT_ASSET_FILE: 'asset:import-file',
+  /** Renderer → main (invoke): walk the project's assets/ for media the library doesn't have → AssetEntry[]. */
+  SCAN_ASSETS: 'asset:scan',
   /** Renderer → main: reveal a file in the OS file manager. */
   SHOW_ITEM_IN_FOLDER: 'asset:show-in-folder',
   /** Renderer → main (invoke): which of these paths exist on disk → boolean[]. */
@@ -832,6 +834,12 @@ export interface ArtluxApi {
   importAssets(projectFile: string, type: AssetType): Promise<AssetEntry[]>;
   /** Copy a known file into the project's assets/ as an asset of `type` → AssetEntry (or null). */
   importAssetFile(projectFile: string, srcPath: string, type: AssetType, name?: string): Promise<AssetEntry | null>;
+  /**
+   * Walk the project's assets/ tree and return entries for media files the library doesn't have yet
+   * (files copied in by hand, outside Import). `knownPaths` is every path the library holds today.
+   * Copies nothing and modifies nothing on disk — the caller appends what it gets back.
+   */
+  scanAssets(projectFile: string, knownPaths: string[]): Promise<AssetEntry[]>;
   /** Reveal a file in the OS file manager. */
   showItemInFolder(path: string): void;
   /** Which of these paths exist on disk. */

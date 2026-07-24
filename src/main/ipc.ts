@@ -127,6 +127,8 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
         projectFolder.importAssets(getWindow(), projectFile, type));
     ipcMain.handle(IPC.IMPORT_ASSET_FILE, (_e, projectFile: string, srcPath: string, type: AssetType, name?: string) =>
         projectFolder.importAssetFile(projectFile, srcPath, type, name));
+    ipcMain.handle(IPC.SCAN_ASSETS, (_e, projectFile: string, knownPaths: string[]) =>
+        projectFolder.scanAssets(projectFile, knownPaths ?? []));
     ipcMain.on(IPC.SHOW_ITEM_IN_FOLDER, (_e, path: string) => { if (path) shell.showItemInFolder(path); });
     ipcMain.handle(IPC.ASSET_EXISTS, (_e, paths: string[]) => (paths ?? []).map((p) => !!p && existsSync(p)));
     ipcMain.handle(IPC.PICK_VIDEO, async () => {

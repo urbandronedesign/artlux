@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+### Media Library — **Scan** for media added by hand
+
+Import copies files into the project, but on a venue machine most media arrives the other way round:
+someone drops it into `assets/video/` in Explorer, off a USB stick or a sync tool. Those files were
+**invisible in the library forever** — they showed up only if something happened to reference them *and*
+Collect Assets ran.
+
+The Media panel's import row now has a **⟳ Scan** button. It walks the project's own `assets/` tree
+(recursively, into sub-folders you made yourself) and adds a library entry for every media file the
+library doesn't already have — **reading only: nothing is copied, moved or rewritten**, so it is safe to
+run at any time and running it twice does nothing. Files are typed by extension rather than by which
+folder they sit in, dot-files and unknown extensions are skipped, and `.lblob` takes are left to the
+timeline that owns them. The result is reported in the panel ("added 3 files" / "no new media"), because
+a scan that found nothing must not look like a click that did nothing. See
+[docs/ASSETS.md](docs/ASSETS.md#scan-media-added-by-hand).
+
+### Media Library — search on top, and large / medium / list views
+
+The search box was an 80px input wedged at the end of the wrapping filter row — the last place you look,
+at the narrowest it could be, for the control that answers *"where is that file"*. It is now the **first
+row under the title and spans the full width of the column**, with a clear (×).
+
+The grid was a hard `grid-cols-2`: two absurd tiles when the browser column was wide, two cramped ones
+when it was narrow. Tiles now **auto-fill** the available width, and a switch at the right of the filter
+row picks the density — **large icons / medium icons / list**, as in Explorer. List view trades
+thumbnails for names, which is what you want when the show has two hundred files. The choice persists in
+prefs (`WorkspaceLayout.mediaView`), so the density you picked for your screen is still there tomorrow.
+
+Also added: `useLayoutValue(sel)` — subscribe to ONE layout key. `layoutStore.set()` fires per pointer
+tick during a resize drag, so an always-mounted sidebar reading the whole layout object would re-render
+(and rebuild its usage index) all the way through someone dragging the dock.
+
 ## v0.23.0
 
 > **Also carries everything under v0.22.0 below.** That version was prepared — package.json bumped, its

@@ -1102,6 +1102,10 @@ export function readPatchPolicy(data: any): PatchPolicy {
 // @artlux/sdk/renderer + `contextRegistry`), which drives the panels themselves and not just the
 // centre stage. See docs/WORKSPACE.md.
 
+// How the Media library draws its assets — Explorer's "large icons / medium icons / list". A view
+// preference, so it lives in the workspace layout (prefs) next to `leftTab`, not in the project.
+export type MediaView = 'large' | 'medium' | 'list';
+
 // Bottom dock tabs.
 export enum DockTab {
   MONITOR = 'MONITOR',

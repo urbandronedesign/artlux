@@ -1,5 +1,5 @@
 import { dialog, type BrowserWindow } from 'electron';
-import { closeSync, copyFileSync, existsSync, mkdirSync, openSync, readSync, statSync } from 'node:fs';
+import { closeSync, copyFileSync, existsSync, mkdirSync, openSync, readdirSync, readSync, statSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { basename, dirname, extname, isAbsolute, join, relative, sep } from 'node:path';
 import type { ProjectData, CollectResult, NewProjectFolder, AssetEntry, AssetType } from '../../shared/protocol';
@@ -24,6 +24,18 @@ const ASSET_CATEGORIES: Record<string, string[]> = {
 const TYPE_CATEGORY: Record<AssetType, string> = {
   video: 'video', image: 'images', model: 'models', take: 'tracking', audio: 'audio',
 };
+
+// …and back: category → the library type an entry in ProjectData.assets gets. `tracking` is absent ON
+// PURPOSE — a recorded take's library entry IS its Timeline.trackingTakes row (assetLibrary.takeToAsset
+// aggregates them for display), so minting an assets[] entry for a `.lblob` would show the take twice
+// and give the second copy no take to play. Anything this map has no answer for is left alone.
+const CATEGORY_TYPE: Record<string, AssetType> = {
+  video: 'video', images: 'image', models: 'model', audio: 'audio',
+};
+
+// Path identity for library de-duplication (Windows: separators + case). Mirrors the renderer's
+// assetLibrary.normPath — both sides must agree or a scan re-adds what the library already has.
+const normKey = (p: string): string => (p || '').replace(/\\/g, '/').toLowerCase();
 
 function categoryFor(path: string): string | null {
   const ext = extname(path).slice(1).toLowerCase();
@@ -336,6 +348,64 @@ export function importAssetFile(projectFile: string, srcPath: string, type: Asse
   return copyIntoAssets(root, srcPath, type, name);
 }
 
+// ---- Scan: adopt files dropped into assets/ by hand -------------------------------------------
+// Import is the supported path, but an operator loading a show from a USB drive copies media into
+// `assets/video/` in Explorer and expects the library to know about it — before this, those files were
+// invisible in the Media panel forever (they only appeared if something happened to reference them and
+// Collect Assets ran). Scan walks the project's own assets/ tree and returns an AssetEntry for every
+// media file the library does not already have.
+//
+// NOTHING IS COPIED OR MOVED and no existing entry is touched: a scan only ever ADDS rows pointing at
+// files that are already inside the project folder, so it is safe to run at any time and running it
+// twice is a no-op. Categorisation is by EXTENSION, not by which folder the file sits in — an operator
+// dropping a .mp4 into `assets/images/` still gets a video.
+const SCAN_MAX_DEPTH = 8;   // assets/<cat>/<their own tree> — deep enough for any real layout
+const SCAN_MAX_FILES = 5000; // a backstop against someone pointing this at a media server mount
+
+function scanDir(dir: string, depth: number, out: string[]): void {
+  if (depth > SCAN_MAX_DEPTH || out.length >= SCAN_MAX_FILES) return;
+  let entries;
+  try { entries = readdirSync(dir, { withFileTypes: true }); }
+  catch (e) { console.error('[projectFolder] scan: unreadable dir', dir, e); return; }
+  for (const d of entries) {
+    if (out.length >= SCAN_MAX_FILES) return;
+    if (d.name.startsWith('.')) continue;                 // .DS_Store, .git, dot-dirs
+    const full = join(dir, d.name);
+    // Symlinks/junctions report neither isFile nor isDirectory here, so they are skipped — which also
+    // means a link loop can't send this walk spinning.
+    if (d.isDirectory()) scanDir(full, depth + 1, out);
+    else if (d.isFile()) out.push(full);
+  }
+}
+
+// Walk <root>/assets/ and return library entries for media files not already in `knownPaths`
+// (the caller passes every path the library holds today — imported assets AND recorded takes).
+export function scanAssets(projectFile: string, knownPaths: string[]): AssetEntry[] {
+  const root = dirname(projectFile);
+  const assetsDir = join(root, 'assets');
+  if (!existsSync(assetsDir)) return [];
+
+  const files: string[] = [];
+  scanDir(assetsDir, 0, files);
+  if (files.length >= SCAN_MAX_FILES) console.warn(`[projectFolder] scan: stopped at ${SCAN_MAX_FILES} files under ${assetsDir}`);
+
+  const have = new Set((knownPaths ?? []).map(normKey));
+  const found: AssetEntry[] = [];
+  for (const f of files) {
+    const cat = categoryFor(f);
+    const type = cat ? CATEGORY_TYPE[cat] : undefined;
+    if (!type) continue;                                  // unknown extension, or a .lblob take
+    const key = normKey(f);
+    if (have.has(key)) continue;
+    have.add(key);
+    try {
+      found.push({ id: randomUUID(), name: basename(f, extname(f)), type, path: f, size: statSync(f).size, addedAt: new Date().toISOString() });
+    } catch { /* vanished between the walk and the stat — skip */ }
+  }
+  found.sort((a, b) => a.name.localeCompare(b.name));
+  return found;
+}
+
 // Copy every external asset into <root>/assets/<category>/ and remap references to point there.
 // Returns remapped data with *absolute* paths (the renderer applies it, then a save relativizes).
 function collectInto(root: string, data: ProjectData): CollectResult {
@@ -382,16 +452,14 @@ function collectInto(root: string, data: ProjectData): CollectResult {
   // Ensure every collected media file has a library entry, so it shows in the Media tab. Clips and
   // surfaces can reference files that were never imported (e.g. dragged straight onto the timeline);
   // without this they play but stay invisible in the library. Takes live in trackingTakes, not here.
-  const CAT_TYPE: Record<string, AssetType> = { video: 'video', images: 'image', models: 'model', audio: 'audio' };
-  const norm = (p: string) => (p || '').replace(/\\/g, '/').toLowerCase();
-  const have = new Set<string>((out.assets ?? []).map((a) => norm(a?.path)));
+  const have = new Set<string>((out.assets ?? []).map((a) => normKey(a?.path)));
   const added: AssetEntry[] = [];
   for (const dest of new Set(remap.values())) {
     if (!isInside(assetsDir, dest)) continue;          // only in-project files belong in the library
     const cat = categoryFor(dest);
-    const type = cat ? CAT_TYPE[cat] : undefined;
+    const type = cat ? CATEGORY_TYPE[cat] : undefined;
     if (!type) continue;                               // unknown type, or a tracking take → skip
-    const key = norm(dest);
+    const key = normKey(dest);
     if (have.has(key)) continue;
     have.add(key);
     try {
