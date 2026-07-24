@@ -85,6 +85,10 @@ export const ProjectorApp: React.FC = () => {
   const [size, setSize] = useState({ w: window.innerWidth, h: window.innerHeight });
   const [connected, setConnected] = useState(false);
   const [name, setName] = useState('');
+  // The main window's cold-start hold, mirrored here (see bridge.ts 'boot'). The REF is what the frame
+  // loop reads — it must not wait for a React commit to stop drawing — and the state drives the sign.
+  const bootingRef = useRef(false);
+  const [boot, setBoot] = useState<{ booting: boolean; ready: number; total: number }>({ booting: false, ready: 0, total: 0 });
 
   // Re-register this window's surfaces with surfaceMedia. Media is only ACQUIRED for content this
   // window renders itself; a slice and its source own no media, so they are always safe to register
@@ -188,6 +192,9 @@ export const ProjectorApp: React.FC = () => {
           // A mirror is TOLD the show clock, never derives it — an effect SURFACE is drawn against it.
           engine.setExternalShowTime(m.showTime);
           resync(m.playing);
+        } else if (m.t === 'boot') {
+          bootingRef.current = m.booting;
+          setBoot({ booting: m.booting, ready: m.ready, total: m.total });
         } else if (m.t === 'brightness') {
           brightnessRef.current = m.value;
         } else if (m.t === 'pluginData') {
@@ -226,6 +233,17 @@ export const ProjectorApp: React.FC = () => {
       if (meshRef.current.src !== warp) meshRef.current = { src: warp, mesh: warp ? tessellateBezier(warp, RENDER_TESS) : null };
       const mesh = meshRef.current.mesh;
       const opts = { cornerPin: pinRef.current, warp: mesh, softEdge: softRef.current, gamma: gammaRef.current, brightness: brightnessRef.current, colorGain: colorGainRef.current, blackLift: blackLiftRef.current, aa: AA_SAMPLES };
+      // ── THE COLD-START HOLD ─────────────────────────────────────────────────────────────────────
+      // The main window is still decoding a freshly-opened project, so THIS OUTPUT SHOWS NOTHING —
+      // black under the "PRELOADING SHOW" sign below. Half a look is worse than none: the warm pool has
+      // parked layer 1 on its first frame while layers 2-4 are still empty, and a venue reading that as
+      // "the show is broken" is exactly the call an operator should not have to make. Held at the DRAW,
+      // not at the source, so everything else (transport, config, warp geometry, calibration overlays)
+      // keeps flowing and the moment the gate arms the real picture is already there.
+      //
+      // ⚠ The sign is DOM, so an NDI send of this output carries the BLACK, not the words. That is the
+      // right way round — an NDI consumer is another machine's input, not a person to be told things.
+      if (bootingRef.current) { gl.draw(null, opts); return; }
       // A projector channel may GPU-render this surface's content itself (e.g. LiDAR tracking): the
       // plugin composites a source texture, we warp it — no CPU canvas, no host knowledge of content.
       const rch = s ? projectorChannelRegistry.all().find((c) => c.renderSource && c.appliesTo?.(s)) : undefined;
@@ -365,6 +383,21 @@ export const ProjectorApp: React.FC = () => {
       ))}
 
       {!connected && <div style={overlayCenter}>Waiting for the main window… {name}</div>}
+
+      {/* PRELOADING SHOW — the cold-start hold, said on the output itself. Read from the floor of a
+          venue, not from the operator's screen: big, dim (this is a projector pointed at a wall, and a
+          white flash between shows is worse than the wait), and it names the output so a wall of six
+          projectors tells you WHICH one you are looking at. It disappears by itself. */}
+      {boot.booting && (
+        <div style={overlayCenter}>
+          <div style={{ textAlign: 'center', color: '#8a8f98' }}>
+            <div style={{ font: '600 clamp(18px, 3.2vw, 54px) system-ui', letterSpacing: '0.14em' }}>PRELOADING SHOW</div>
+            <div style={{ marginTop: '1.2em', font: '400 clamp(11px, 1.1vw, 18px) system-ui', color: '#5a5f68' }}>
+              {name}{boot.total > 0 ? ` · ${boot.ready}/${boot.total}` : ''}
+            </div>
+          </div>
+        </div>
+      )}
 
       {editing && (
         <>

@@ -302,6 +302,31 @@ default **15 s**, machine-scoped) the machine is armed regardless and the log na
 [boot] armed by TIMEOUT after 15.0s — 1 item(s) never became ready: Ghost: nope.png
 ```
 
+### On the outputs: **PRELOADING SHOW**
+
+A projector window is pointed at a *wall*, and half a look is worse than none — one layer parked on its
+first frame while the rest are still black reads, from the floor of a venue, as *the show is broken*.
+So while the gate holds, every open output window **draws nothing** and shows a dim, centred
+**PRELOADING SHOW** sign naming its surface (`Front wall · 0/1`), which clears by itself. This is the
+same in **broadcast and in the editor** — one `ProjectorApp`, one code path.
+
+The state crosses the MessagePort as `{ t: 'boot', booting, ready, total }` ([bridge.ts](../src/renderer/projector/bridge.ts)),
+pushed on every gate change **and** with the config, because a window can open *into* a preload —
+broadcast opens its outputs from the very project load that started the wait. It is enforced at the
+**draw** (`gl.draw(null, …)`, off a ref so the frame loop never waits for a React commit), so transport,
+geometry and calibration overlays keep flowing underneath and the real picture is already there the
+instant the gate arms.
+
+Two consequences worth knowing:
+
+- The sign is **DOM**, so an **NDI send** of that output carries the black, not the words. That is the
+  right way round: an NDI consumer is another machine's input, not a person to be told things.
+- **The LED output is not held.** `Stage` keeps sampling and publishing `dmx:frame` throughout — that is
+  a hard invariant (unmounting it stops Art-Net mid-show) — so fixtures show whatever the surfaces have
+  during the wait, usually the opening frame or black. Blanking them for the hold would be a one-line
+  change on the compositor's master brightness, deliberately not taken: it changes the most
+  safety-critical path in the app for a case nobody has yet asked to be dark.
+
 Also true of the hold:
 
 - **It holds the machine, not the app.** `Stage` keeps compositing and publishing `dmx:frame`
@@ -392,3 +417,8 @@ Point a surface at a file that does not exist and it instead logs `[boot] armed 
 — … Ghost: nope.png` and starts anyway. Both were verified against
 `electron . --headless --project=<file>` (measured: ~6 s of genuine load on a cold boot, which is
 exactly the window the show used to run through black and silent).
+
+**The output sign:** give the project a projector output (a *windowed* output needs no second monitor)
+and open it — the window reads `PRELOADING SHOW · <surface> · 0/1` over black, and clears itself when
+the gate arms. Verified in broadcast with a windowed output: sign up at +5.9 s, gone at +20.9 s (the
+15 s fail-open), with the output's centre pixel read back as `[0,0,0]` throughout the hold.

@@ -232,6 +232,28 @@ check(
   },
 );
 
+check(
+  'a projector draws nothing while the show is preloading',
+  'An output window that keeps drawing through the cold-start hold puts a HALF-LOADED look on a real ' +
+  'projector — one layer parked on its first frame, the rest still black — which reads to a venue as ' +
+  '"the show is broken". The hold is enforced at the DRAW (a ref, not React state: the frame loop must ' +
+  'not wait for a commit), with the PRELOADING SHOW sign over it.',
+  () => {
+    const src = read('src/renderer/projector/ProjectorApp.tsx');
+    if (!/if \(bootingRef\.current\) \{ gl\.draw\(null/.test(src)) {
+      return 'the frame loop must early-return with gl.draw(null, opts) while bootingRef.current is set';
+    }
+    if (!src.includes('PRELOADING SHOW')) return 'the projector says nothing while it holds — the sign is gone';
+    // The state has to REACH the window, and on both doors: the live gate subscription and the config
+    // push (a window can open INTO a preload — broadcast opens its outputs from that very project load).
+    const app = read('src/renderer/App.tsx');
+    const pushes = (app.match(/t: 'boot'/g) ?? []).length;
+    return pushes >= 2 ? null
+      : `App pushes the 'boot' message ${pushes}× — it needs both the live bootGate.subscribe fan-out AND ` +
+        'the one in pushProjectorState, or a window opened mid-preload never learns it is preloading';
+  },
+);
+
 // ── UI: the interaction-state floor ───────────────────────────────────────────────────────────
 check(
   'the interaction-state floor is overridable',

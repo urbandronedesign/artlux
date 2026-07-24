@@ -2516,6 +2516,10 @@ const App: React.FC = () => {
       });
       port.postMessage({ t: 'timeline', timeline: activeTimeline }); // the current scene's timeline, not global
       port.postMessage({ t: 'edit', on: editingOutputIds.includes(surfaceId) });
+      // The cold-start hold. Sent HERE as well as on every gate change because a window can open INTO a
+      // preload — broadcast opens its outputs from the same project load that started the wait — and a
+      // window that missed the change event would put a half-loaded look on a real projector.
+      { const b = bootGate.get(); port.postMessage({ t: 'boot', booting: b.booting, ready: b.ready, total: b.total }); }
       // Render-from-projector: while the calibration panel is open it owns the projector's calib mode;
       // otherwise drive it here — render the 3D venue scene when this output opts in and has a full pose.
       if (surfaceId !== calibratingOutputId) {
@@ -2560,6 +2564,14 @@ const App: React.FC = () => {
   useEffect(() => {
       for (const surfaceId of projectorPortsRef.current.keys()) pushProjectorStateRef.current(surfaceId);
   }, [surfaces, projectorOutputs, activeTimeline, isVideoPlaying, editingOutputIds, projectorFpsCap, projectorBrightness, scene3D, calibratingOutputId, nvAvailable]);
+  // Mirror the cold-start hold to every open output window, render-free (bootGate is a plain service,
+  // so this never touches React state). While the gate holds, each projector draws BLACK + "PRELOADING
+  // SHOW" instead of a half-decoded look; the release message is what puts the real picture up. Fires at
+  // the gate's poll rate for the second or two it is holding, and never again after that.
+  useEffect(() => bootGate.subscribe((p) => {
+      const msg: MainToProjector = { t: 'boot', booting: p.booting, ready: p.ready, total: p.total };
+      for (const port of projectorPortsRef.current.values()) port.postMessage(msg);
+  }), []);
   // Live projector-brightness push (no full config re-send) — drives slider drag render-free.
   const pushProjectorBrightnessRef = useRef<(v: number) => void>(() => {});
   pushProjectorBrightnessRef.current = (v: number) => {

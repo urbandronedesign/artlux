@@ -32,6 +32,13 @@ export type MainToProjector =
   // every generative surface on every projector would be frozen at 0.
   | { t: 'transport'; playing: boolean; playhead: number; showTime: number }
   | { t: 'brightness'; value: number }                        // projector-content master brightness (live drag)
+  // THE COLD-START HOLD, MIRRORED TO THE OUTPUT. While the main window is waiting for a freshly-opened
+  // project's content to decode (services/bootGate), this window must not put a HALF-LOADED PICTURE on a
+  // real projector — a warm pool's first frame with three of four layers still black is not the show, it
+  // just looks like the show is broken. So the window draws NOTHING and says "PRELOADING SHOW" instead,
+  // which an operator in a venue can read from the floor. Pushed on every gate change and once with the
+  // config (a window opened mid-preload has to learn the state it missed).
+  | { t: 'boot'; booting: boolean; ready: number; total: number }
   | { t: 'edit'; on: boolean }                                // toggle corner-pin / mesh editing
   | { t: 'frame'; bitmap: ImageBitmap }                       // streamed source frame (camera/Spout/DMX-in/NDI + video/layer, decoded once in main)
   // The streamed source has NOTHING to show (a timeline clip ended, a live source dropped). Without

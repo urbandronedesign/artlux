@@ -18,9 +18,14 @@ It **always fails open**: after *Preferences ▸ Engine ▸ Preload wait* (defau
 regardless and the log names what never loaded. Live sources — camera, NDI, Spout, DMX-in, tracking —
 are never waited on; one dark venue because a sending machine was off is not a trade worth making.
 
-Pressing Play during the wait starts it immediately. `Stage` keeps publishing frames throughout, the
-status bar shows a *Preloading n/m* chip, and the show-control tablet says "Loading show content" rather
-than showing a stopped transport. Every cold start goes through the same door — editor open,
+**The outputs say so too.** While the gate holds, every open projector window draws nothing and shows a
+dim **PRELOADING SHOW** sign naming its surface — in the editor exactly as in broadcast. A projector is
+pointed at a wall, and half a look (one layer on its first frame, the rest black) reads as *the show is
+broken* to anyone standing in the room. It clears by itself. The LED output is not held: `Stage` must
+keep publishing frames or Art-Net stops, so fixtures show whatever the surfaces have during the wait.
+
+Pressing Play during the wait starts it immediately. The status bar shows a *Preloading n/m* chip, and
+the show-control tablet says "Loading show content" rather than showing a stopped transport. Every cold start goes through the same door — editor open,
 `--project=`, the watchdog's relaunch, the playlist's next show. See
 [docs/STATE-MACHINE.md](docs/STATE-MACHINE.md#the-cold-start--the-show-waits-for-its-content-servicesbootgatets).
 
