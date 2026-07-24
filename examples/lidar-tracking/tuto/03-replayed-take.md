@@ -180,8 +180,7 @@ here, looping `demo.lblob`, with **no venue and no emitter**.
    gives the canonical installation state: *play the look, freeze on the last frame, advance when someone
    walks in.*
 
-<!-- TODO screenshot (manual): images/zone-trigger-inspector.png — in the Show Machine, select a transition, set its trigger to "LiDAR zone", and capture the One-zone vs Combination inspector. Needs a drawn zone + a zone-triggered transition, which this demo project doesn't ship. -->
-_Screenshot: the LiDAR-zone trigger inspector (One zone vs Combination) — build it in the Show Machine as described above._
+![The Show Machine's LiDAR-zone trigger inspector — Trigger: LiDAR zone, the One zone / Combination toggle, the Zone and When dropdowns, and the "Only after the state has finished" guard](images/zone-trigger-inspector.png)
 <!-- TODO screenshot: the transition inspector with trigger = LiDAR zone. LEFT: One-zone mode (Zone dropdown + When = "someone enters"); RIGHT: Combination mode (Fires when ALL/ANY + two zone terms, one with NOT toggled), with the live occupancy dots. -->
 
 Because it all reads `trackingStore`, drop the **demo take** on the tracking lane (or run the emitter),
