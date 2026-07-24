@@ -6,7 +6,7 @@ import { goToContext } from '../../contexts/nav';
 import * as selection from '../../services/selection';
 import { ContentEditor } from '../ContentEditor';
 import { GUTTER, RULER_H, LANE_H, MIN_LANE_H, MAX_LANE_H, PAGE_SECS, laneHeight, clamp, fmtClock, fmtTimecode } from './geometry';
-import { splitClipAt, bladeAt, rippleDelete, liftDelete } from './operations';
+import { splitClipAt, bladeAt, rippleDelete, liftDelete, nearestFreeStart, freeSpanAt } from './operations';
 import { collectSnapPoints, snap, type SnapPoint } from './snapping';
 import { AudioLane, type AudioDragMode } from './AudioLane';
 import { ensurePeaks, probeAudioDuration, sourceDurationFor } from './audioPeaks';
@@ -289,7 +289,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   const timeRef = useRef<HTMLSpanElement>(null);
   const bedTimeRef = useRef<HTMLSpanElement>(null);
   // Each drag carries the docKey it STARTED on (see docKey above) — the commit is refused across a rebind.
-  const dragRef = useRef<{ mode: DragMode; clip: VideoClip; docKey: string; x0: number; points: ReturnType<typeof collectSnapPoints> } | null>(null);
+  const dragRef = useRef<{ mode: DragMode; clip: VideoClip; docKey: string; x0: number; points: ReturnType<typeof collectSnapPoints>; others: VideoClip[] } | null>(null);
   const audioDragRef = useRef<{ mode: AudioDragMode; clip: AudioClip; source: 'bed' | 'timeline'; docKey: string; x0: number; points: SnapPoint[] } | null>(null);
   // The window listeners of the two ref-held drags, torn down as a unit (pointerup AND pointercancel).
   const dragAbort = useRef<AbortController | null>(null);
@@ -473,6 +473,12 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     const px = pxRef.current; const ds = (e.clientX - d.x0) / px; const c = d.clip;
     const thr = 8 / px; const en = snapRefEnabled.current; const pts = d.points;
     const srcCap = (c.sourceDuration ?? Infinity) - c.inPoint;
+    // ONE TRACK, ONE CLIP AT A TIME. The neighbours are snapshotted from the gesture's own document —
+    // the same `docKey` guard the commit uses — so a clip cannot be dragged or trimmed on top of
+    // another and quietly disappear underneath it (activeClip takes the LAST match, so the covered
+    // clip stays in the document, invisible and unpickable). Clamping happens AFTER snapping: a snap
+    // that would land inside a neighbour is overruled by the occupancy, never the other way round.
+    const others = d.others;
     if (d.mode === 'move') {
       const rawStart = Math.max(0, c.start + ds);
       let st = rawStart, guide: number | null = null;
@@ -481,14 +487,21 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
         if (!s.snapped) { const e2 = snap(rawStart + c.duration, pts, thr); if (e2.snapped) s = { t: e2.t - c.duration, snapped: true, guideTime: e2.guideTime }; }
         if (s.snapped) { st = Math.max(0, s.t); guide = s.guideTime; }
       }
-      setDraft({ ...c, start: st }); showGuide(guide);
+      const placed = nearestFreeStart(others, st, c.duration);
+      if (Math.abs(placed - st) > 1e-4) guide = null; // the clip is not where the guide promised
+      setDraft({ ...c, start: placed }); showGuide(guide);
     } else if (d.mode === 'r') {
-      let dur = clamp(c.duration + ds, 0.1, srcCap); let guide: number | null = null;
-      if (en) { const e2 = snap(c.start + dur, pts, thr); if (e2.snapped) { dur = clamp(e2.t - c.start, 0.1, srcCap); guide = e2.guideTime; } }
+      // The right edge stops at the next clip: `to` is the free room after this one (Infinity if none).
+      const room = freeSpanAt(others, c.start + c.duration / 2).to - c.start;
+      let dur = clamp(c.duration + ds, 0.1, Math.min(srcCap, room)); let guide: number | null = null;
+      if (en) { const e2 = snap(c.start + dur, pts, thr); if (e2.snapped) { dur = clamp(e2.t - c.start, 0.1, Math.min(srcCap, room)); guide = e2.guideTime; } }
       setDraft({ ...c, duration: dur }); showGuide(guide);
     } else {
-      let delta = clamp(ds, -c.inPoint, c.duration - 0.1); let guide: number | null = null;
-      if (en) { const s = snap(c.start + delta, pts, thr); if (s.snapped) { delta = clamp(s.t - c.start, -c.inPoint, c.duration - 0.1); guide = s.guideTime; } }
+      // The left edge stops at the previous clip's end.
+      const floor = freeSpanAt(others, c.start + c.duration / 2).from;
+      const minDelta = Math.max(-c.inPoint, floor - c.start);
+      let delta = clamp(ds, minDelta, c.duration - 0.1); let guide: number | null = null;
+      if (en) { const s = snap(c.start + delta, pts, thr); if (s.snapped) { delta = clamp(s.t - c.start, minDelta, c.duration - 0.1); guide = s.guideTime; } }
       setDraft({ ...c, start: Math.max(0, c.start + delta), inPoint: Math.max(0, c.inPoint + delta), duration: c.duration - delta }); showGuide(guide);
     }
   }, [showGuide]);
@@ -514,7 +527,14 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   const onStartDrag = useCallback((e: React.PointerEvent, clip: VideoClip, mode: DragMode) => {
     e.stopPropagation(); e.preventDefault();
     setSelected(clip.id); setSelectedSource('video');
-    dragRef.current = { mode, clip: { ...clip }, docKey: docKeyRef.current, x0: e.clientX, points: collectSnapPoints(timelineRef.current, engine.getPlayhead(), clip.id) };
+    dragRef.current = {
+      mode, clip: { ...clip }, docKey: docKeyRef.current, x0: e.clientX,
+      points: collectSnapPoints(timelineRef.current, engine.getPlayhead(), clip.id),
+      // The occupancy this gesture must respect: the other clips on THIS track, snapshotted once.
+      // Snapshotted for the same reason `points` is — pointermove runs 60×/s and must not walk the
+      // document, and the gesture is abandoned anyway if a recall rebinds the panel underneath it.
+      others: timelineRef.current.clips.filter(c => c.layerId === clip.layerId && c.id !== clip.id),
+    };
     dragAbort.current?.abort();
     const ac = new AbortController(); dragAbort.current = ac;
     window.addEventListener('pointermove', onDragMove, { signal: ac.signal });
@@ -1036,6 +1056,18 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   };
   const bladeAtPlayhead = () => onChange({ ...timeline, clips: bladeAt(timeline.clips, engine.getPlayhead()) });
 
+  // WHERE A NEW CLIP MAY LAND. Every creation path funnels through here: the drop point is a WISH,
+  // and the track's existing clips decide. Nudging the newcomer into the nearest free space is the
+  // only honest outcome — dropping it on top would hide it under the clip already there (activeClip
+  // takes the LAST match) and the operator would have authored an invisible clip, saved forever.
+  //
+  // ⚠ CALL IT AT THE MOMENT OF CREATION, NOT AT DROP. Three of these paths probe the file's duration
+  // first (an IPC read + a decode), and the length is exactly what decides whether a gap fits — a
+  // position computed before the probe would be answering a different question. It also re-reads the
+  // live document, which may have moved across that await.
+  const freeStartOn = (layerId: string, desired: number, duration: number): number =>
+    nearestFreeStart(timelineRef.current.clips.filter(c => c.layerId === layerId), Math.max(0, desired), duration);
+
   // --- drop a video (or a recorded take) onto a lane → create a clip ---
   const onDropFile = (e: React.DragEvent, layerId: string) => {
     e.preventDefault();
@@ -1047,7 +1079,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       if (!takeId) return;
       const ref = (tl.trackingTakes ?? []).find(t => t.id === takeId);
       if (!ref) return;
-      const start = clientXToTime(e.clientX);
+      const start = freeStartOn(layerId, clientXToTime(e.clientX), ref.duration);
       onChangeRef.current({ ...tl, clips: [...tl.clips, { id: crypto.randomUUID(), layerId, name: ref.name, path: ref.path, kind: 'tracking', takeId: ref.id, start, duration: ref.duration, inPoint: 0, sourceDuration: ref.duration }] });
       return;
     }
@@ -1060,13 +1092,13 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       const name = asset.path.split(/[\\/]/).pop()?.replace(/\.[^.]+$/, '') ?? 'clip';
       // Images have no intrinsic duration → place a default-length IMAGE content clip.
       if (asset.type === 'image') {
-        onChangeRef.current({ ...timelineRef.current, clips: [...timelineRef.current.clips, { id: crypto.randomUUID(), layerId, name, content: { type: SourceType.IMAGE, url: asset.path }, path: asset.path, start, duration: DEFAULT_CONTENT_DURATION, inPoint: 0 }] });
+        onChangeRef.current({ ...timelineRef.current, clips: [...timelineRef.current.clips, { id: crypto.randomUUID(), layerId, name, content: { type: SourceType.IMAGE, url: asset.path }, path: asset.path, start: freeStartOn(layerId, start, DEFAULT_CONTENT_DURATION), duration: DEFAULT_CONTENT_DURATION, inPoint: 0 }] });
         return;
       }
       // Audio goes on an AUDIO lane (AudioLane's own onDrop → onDropAudioAsset); a video lane genuinely
       // cannot hold it, and a take was already rejected above.
       if (asset.type !== 'video') return;
-      const addClip = (d: number) => onChangeRef.current({ ...timelineRef.current, clips: [...timelineRef.current.clips, { id: crypto.randomUUID(), layerId, name, path: asset.path, start, duration: d, inPoint: 0, sourceDuration: d }] });
+      const addClip = (d: number) => onChangeRef.current({ ...timelineRef.current, clips: [...timelineRef.current.clips, { id: crypto.randomUUID(), layerId, name, path: asset.path, start: freeStartOn(layerId, start, d), duration: d, inPoint: 0, sourceDuration: d }] });
       void (async () => {
         const url = await ensureBlobUrl(asset.path, mimeForPath(asset.path));
         if (!url) { addClip(5); return; }
@@ -1097,14 +1129,14 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       }
       // Images have no intrinsic duration → place a default-length IMAGE content clip.
       if (isImage) {
-        onChangeRef.current({ ...timelineRef.current, clips: [...timelineRef.current.clips, { id: crypto.randomUUID(), layerId, name, content: { type: SourceType.IMAGE, url: path }, path, start, duration: DEFAULT_CONTENT_DURATION, inPoint: 0 }] });
+        onChangeRef.current({ ...timelineRef.current, clips: [...timelineRef.current.clips, { id: crypto.randomUUID(), layerId, name, content: { type: SourceType.IMAGE, url: path }, path, start: freeStartOn(layerId, start, DEFAULT_CONTENT_DURATION), duration: DEFAULT_CONTENT_DURATION, inPoint: 0 }] });
         return;
       }
       // Video: probe duration from the dropped File in memory (independent of where we stored it).
       const url = URL.createObjectURL(file);
       const v = document.createElement('video');
       v.preload = 'metadata';
-      const place = (d: number) => { URL.revokeObjectURL(url); onChangeRef.current({ ...timelineRef.current, clips: [...timelineRef.current.clips, { id: crypto.randomUUID(), layerId, name, path, start, duration: d, inPoint: 0, sourceDuration: d }] }); };
+      const place = (d: number) => { URL.revokeObjectURL(url); onChangeRef.current({ ...timelineRef.current, clips: [...timelineRef.current.clips, { id: crypto.randomUUID(), layerId, name, path, start: freeStartOn(layerId, start, d), duration: d, inPoint: 0, sourceDuration: d }] }); };
       v.onloadedmetadata = () => place(v.duration && isFinite(v.duration) ? v.duration : 5);
       v.onerror = () => place(5);
       v.src = url;
@@ -1129,7 +1161,8 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   const createContentClip = (layerId: string, start: number, content: SurfaceContent) => {
     const clip: VideoClip = {
       id: crypto.randomUUID(), layerId, name: contentLabel(content), content,
-      path: content.url ?? '', start: Math.max(0, start), duration: DEFAULT_CONTENT_DURATION, inPoint: 0,
+      path: content.url ?? '', start: freeStartOn(layerId, start, DEFAULT_CONTENT_DURATION),
+      duration: DEFAULT_CONTENT_DURATION, inPoint: 0,
     };
     onChangeRef.current({ ...timelineRef.current, clips: [...timelineRef.current.clips, clip] });
     setSelected(clip.id); setSelectedSource('video');

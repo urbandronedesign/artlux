@@ -1,5 +1,7 @@
 import { ensureBlobUrl, mimeForPath } from './mediaCache';
 import { videoCodecRegistry } from '../host/registries';
+import * as bootGate from './bootGate';
+import { timeline as engine } from './timeline';
 
 // Async thumbnail extraction + LRU cache for timeline filmstrips. Frames are decoded at a fixed
 // small size (good cache reuse across zoom) and quantized in time so adjacent strip slots share
@@ -19,6 +21,10 @@ interface Entry { bmp: ImageBitmap; path: string; qt: number; }
 const cache = new Map<string, Entry>(); // key -> entry (insertion order = LRU)
 const inFlight = new Set<string>();
 const subs = new Set<(path: string) => void>();
+// Paths whose thumbnails were refused while the cold-start gate held. A Filmstrip asks from its
+// RENDER, so a refusal is permanent unless something repaints it — and a stopped timeline never
+// does. Waking them the moment the gate arms is what makes the deferral a delay instead of a loss.
+const deferred = new Set<string>();
 
 const qtime = (t: number) => Math.max(0, Math.round(t / Q) * Q);
 const keyOf = (path: string, qt: number) => `${path}@${qt.toFixed(2)}`;
@@ -28,6 +34,21 @@ export function onThumb(cb: (path: string) => void): () => void {
   return () => { subs.delete(cb); };
 }
 const emit = (path: string) => subs.forEach(cb => cb(path));
+
+// The gate armed: wake every strip that asked while it was held, so they repaint and re-request.
+//
+// ⚠ NOT ON THE ARM ITSELF. Releasing the held work at the instant the show starts just MOVES the
+// contention onto the first seconds of playback — measured: the frame rate dipped to 35 fps with 45
+// long frames in the two seconds after arming, which is precisely the window this whole gate exists
+// to protect. The strips wait another beat; nobody is looking at a filmstrip in the first second of a
+// show, and the pump below then feeds them one at a time.
+const WAKE_DELAY_MS = 2500;
+bootGate.subscribe((p) => {
+  if (p.booting || deferred.size === 0) return;
+  const paths = [...deferred];
+  deferred.clear();
+  setTimeout(() => { for (const path of paths) emit(path); }, WAKE_DELAY_MS);
+});
 
 function store(key: string, e: Entry): void {
   cache.set(key, e);
@@ -96,8 +117,20 @@ function getLoader(path: string): VideoLoader {
 }
 
 function pumpVideo(): void {
-  while (videoBusy < VIDEO_MAX && videoQueue.length) {
+  // The <video> path is the EXPENSIVE one: its loader blob-reads the WHOLE FILE over IPC to seek in it
+  // (99 MB + 127 MB of library video in one measured startup). While a show is running it takes the
+  // same one-job-at-a-time, one-per-second budget as the codec path — see nextJobDelay.
+  while (videoBusy < (engine.isPlaying() ? 1 : VIDEO_MAX) && videoQueue.length) {
+    const wait = nextJobDelay();
+    if (wait > 0) { setTimeout(pumpVideo, wait); return; }
+    // ⚠ NO WHOLE-FILE READ WHILE THE SHOW IS RUNNING. Throttling this one does not help, because the
+    // cost is not the RATE, it is the SINGLE JOB: opening a loader blob-reads the entire file over IPC
+    // (99 MB and 127 MB in a measured startup), which stalls the main process mid-read and cost ~20
+    // dropped frames per file even at one job per second. A loader that already exists is free to
+    // re-seek, so strips that were built while stopped keep filling. The rest wait for the transport.
+    if (engine.isPlaying() && !loaders.has(videoQueue[0].path)) { setTimeout(pumpVideo, PLAYING_GAP_MS); return; }
     const job = videoQueue.shift()!;
+    lastJob = performance.now();
     videoBusy++;
     getLoader(job.path).grab(job.qt)
       .then(bmp => { if (bmp) { store(job.key, { bmp, path: job.path, qt: job.qt }); emit(job.path); } })
@@ -110,8 +143,25 @@ function pumpVideo(): void {
 let codecBusy = false;
 const codecQueue: { path: string; qt: number; key: string }[] = [];
 
+// A THUMBNAIL YIELDS TO PLAYBACK. Serial was not enough: back-to-back full-frame decodes go through
+// the same native decoder, the same IPC and the same GPU upload the live show is using, so a filmstrip
+// filling in 300 slots is a sustained tax on every frame. While the transport is RUNNING they are
+// spaced out; stopped (authoring, when the strip is what you are looking at) they run flat out.
+const PLAYING_GAP_MS = 1000;
+let lastJob = 0;
+
+// How long before the next thumbnail job may start. Zero while the transport is STOPPED — that is
+// authoring, when the strip is the thing you are looking at. While it RUNS, one job per second across
+// BOTH pumps: a single job is a full-frame decode or a whole-file read, and the measured cost of
+// letting them go at it was 11-15 dropped frames per window on an otherwise flat 60 fps.
+const nextJobDelay = (): number =>
+  (engine.isPlaying() ? Math.max(0, PLAYING_GAP_MS - (performance.now() - lastJob)) : 0);
+
 async function pumpCodec(): Promise<void> {
   if (codecBusy || !codecQueue.length) return;
+  const wait = nextJobDelay();
+  if (wait > 0) { setTimeout(() => { void pumpCodec(); }, wait); return; }
+  lastJob = performance.now();
   codecBusy = true;
   const job = codecQueue.shift()!;
   try {
@@ -135,6 +185,13 @@ async function pumpCodec(): Promise<void> {
 
 function schedule(path: string, qt: number, key: string): void {
   if (inFlight.has(key)) return;
+  // A FILMSTRIP NEVER COMPETES WITH A SHOW STARTING. Both paths below are expensive in exactly the way
+  // a cold start cannot afford: the codec path decodes a full frame per slot, and the <video> path
+  // reads the WHOLE FILE over IPC to seek in it (measured: 99 MB + 127 MB of library video read during
+  // one startup, for strips nobody was looking at yet, while the playback decode ring sat starved).
+  // The gate releases in a second or two, and `deferred` below is what brings the strips back — a
+  // Filmstrip only re-asks when something makes it repaint, and a paused timeline repaints nothing.
+  if (bootGate.isBooting()) { deferred.add(path); return; }
   inFlight.add(key);
   if (videoCodecRegistry.forPath(path)) { codecQueue.push({ path, qt, key }); void pumpCodec(); }
   else { videoQueue.push({ path, qt, key }); pumpVideo(); }

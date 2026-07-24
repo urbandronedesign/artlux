@@ -287,12 +287,26 @@ while `bootGate` polls readiness at ~10 Hz, then armed. What it waits for:
 | Waited on | Ready when |
 |---|---|
 | the opening scene's timeline pool (the frame each layer **starts** on) | the `<video>` is seeked and `readyState >= 2`, or the codec's `probed()` has answered |
+| a codec layer's **decode-ahead buffer**, not just its first frame (`VideoCodec.preRoll`, 0.3 s) | the codec reports that much decoded — and the gate's polling is what fills it |
 | the loaded surfaces' own `VIDEO` / `IMAGE` media | `surfaceMedia.getDrawable()` returns something |
 | whatever a plugin registers (`host.boot.registerProbe`) — today the audio plugin's engine loads + conforms | the plugin says so |
 
 **Never waited on:** live sources (camera / NDI / Spout / DMX-in / tracking), effects, `LAYER` /
 `PROGRAM` / `SLICE` surfaces, and any layer with nothing under the timeline's start. A live feed may
 legitimately never arrive; blocking on one would hold a venue dark because a sending machine was off.
+
+**A first frame is not a buffer.** The gate originally armed as soon as each layer had *one* decoded
+frame — and a decode-ahead codec starts empty, so the show opened by missing the next hundred: the
+compositor paints the nearest decoded neighbour, which is a visible stutter for the first ten seconds
+(measured on a 1080p60 HAP show: 167 ring misses in the first ten seconds, then ~none for the rest of
+the run). `VideoCodec.preRoll(path, atSec, aheadSec)` closes that: it **tops up and reports**, so the
+gate's own polling primes the ring. Codecs that don't implement it behave exactly as before.
+
+**The gate also silences the housekeeping.** Filmstrips and waveforms decode media for looks, on the
+same decoder, IPC bridge and GPU the show is trying to start on — see
+[TIMELINE.md](TIMELINE.md#key-design-decisions-read-before-extending) for the three rules that bound
+them. Together with the pre-roll, that took a real show's first run from *61 → 22 → 61 fps with 251 ring
+misses* to **61 fps on every sample with 43 misses, all of them before the show started**.
 
 **It always fails open.** After *Preferences ▸ Engine ▸ Preload wait* (`AppSettings.bootPreloadSec`,
 default **15 s**, machine-scoped) the machine is armed regardless and the log names what never came:
@@ -326,6 +340,14 @@ Two consequences worth knowing:
   during the wait, usually the opening frame or black. Blanking them for the hold would be a one-line
   change on the compositor's master brightness, deliberately not taken: it changes the most
   safety-critical path in the app for a case nobody has yet asked to be dark.
+
+**And the show starts at the top.** When the gate releases *on its own* (ready or timed out), both clocks
+are seeked back to their in-points before the machine's first tick. This is not belt-and-braces: the
+transport is **running from launch** (`isVideoPlaying` starts `true`), so the playhead advances for the
+whole hold — a project that took 11 s to preload used to start its show **11 seconds in**, with the bed
+already playing under a picture that had not appeared. It is skipped when the gate was armed by the
+OPERATOR (`armedBy: 'manual'` — someone reached past the wait and pressed Play); their playhead is
+theirs. The seek runs synchronously inside the release, so it lands before the first FSM frame.
 
 Also true of the hold:
 

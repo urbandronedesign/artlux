@@ -171,6 +171,17 @@ export const ProjectorApp: React.FC = () => {
           const eff = resolveSource(m.surface, [m.surface, ...sourcesRef.current]) ?? m.surface;
           effTypeRef.current = eff.content.type;
           resync(m.playing);
+          // DECODE ONLY WHAT THIS WINDOW DRAWS. A projector renders exactly one surface, but the
+          // engine's mirror loop walked every layer in the document — so each output ran its own
+          // decode ring over the whole show, and a window showing an IMAGE still decoded the
+          // timeline's HAP video. At most two layers matter here: the one this surface (or the
+          // surface a SLICE crops) is bound to, and a TRACKING surface's background layer — that one
+          // stays in the set deliberately, because this window decodes it at display rate whereas the
+          // streamed `layerFrame` fallback arrives at ~30 fps.
+          const local: string[] = [];
+          if (eff.content.type === SourceType.LAYER && eff.content.layerId) local.push(eff.content.layerId);
+          if (eff.content.type === SourceType.TRACKING && eff.content.bgLayerId) local.push(eff.content.bgLayerId);
+          engine.setLocalLayers(local);
           if (!STREAMED.has(eff.content.type)) { frameRef.current?.close(); frameRef.current = null; }
         } else if (m.t === 'frame') {
           frameRef.current?.close();

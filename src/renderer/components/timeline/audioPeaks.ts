@@ -11,6 +11,22 @@
 // driver's syncLoaded → audioClient.loadClip). Core decides WHERE the clip sits; the engine decides how
 // it sounds. Chromium decodes wav/flac/ogg/mp3 natively; mimeForPath (services/mediaCache.ts) maps them.
 import { ensureBlobUrl, mimeForPath } from '../../services/mediaCache';
+import * as bootGate from '../../services/bootGate';
+
+// ⚠ A WAVEFORM MUST NEVER PULL A WHOLE VIDEO INTO MEMORY.
+//
+// `ensureBlobUrl` reads the ENTIRE file over IPC, and `decodeAudioData` then copies it again — for a
+// clip's own soundtrack that meant reading the VIDEO. Measured on a real show: a 1 GB HAP `.mov` read
+// whole in 2.3 s, main's RSS from 125 MB to 3.7 GB (the size of the whole assets folder), the main
+// process's event loop stalled 1.7 s, and — because every HAP frame decode is answered on that same
+// thread — the playback ring starved for its first ten seconds. All to draw a waveform nobody had
+// asked to see yet.
+//
+// A video's sound is not core's to decode anyway: the audio plugin CONFORMS it (main-side demux → a
+// cached WAV) precisely because Chromium's ffmpeg refuses a HAP `.mov` outright (docs/CODECS.md). So
+// core decodes peaks for AUDIO CONTAINERS only; a video source gets no waveform rather than a
+// gigabyte of I/O. Nothing else changes — the clip still plays, still trims, still shows its name.
+const AUDIO_CONTAINER = /\.(wav|aiff?|flac|ogg|oga|mp3|m4a|aac)$/i;
 
 const PEAK_BUCKETS = 2048;                       // fixed resolution; the lane downsamples to its pixel width
 const peaks = new Map<string, Float32Array>();   // path → normalized |peak| per bucket
@@ -65,6 +81,16 @@ export function subscribePeaks(cb: () => void): () => void {
 }
 const notify = () => { for (const cb of subs) { try { cb(); } catch { /* a bad subscriber must not break a decode */ } } };
 
+// Peaks asked for while the cold-start gate held. Kicked once it arms — see ensurePeaks.
+const deferred = new Set<string>();
+bootGate.subscribe((p) => {
+  if (p.booting || deferred.size === 0) return;
+  const paths = [...deferred];
+  deferred.clear();
+  for (const path of paths) ensurePeaks(path);
+  notify();
+});
+
 // ⚠ OfflineAudioContext, NOT AudioContext. A live AudioContext OPENS AN OUTPUT STREAM ON THE DEFAULT
 // DEVICE — and this app's entire audio path is a native JUCE engine driving that same device
 // (audioClient.configure({ deviceType, deviceName, channels, sampleRate, bufferSize, mode, layout })).
@@ -77,6 +103,14 @@ let ctx: OfflineAudioContext | null = null;      // lazily created: one per deco
 // Kick off a decode for `path` if we don't have it. Fire-and-forget.
 export function ensurePeaks(path: string): void {
   if (!path || peaks.has(path) || pending.has(path) || failed.has(path)) return;
+  // Audio containers only — see AUDIO_CONTAINER. `failed` (not a silent return) so the lane asks once
+  // and never again, and so sourceDurationFor stops retrying a file it will never decode here.
+  if (!AUDIO_CONTAINER.test(path)) { failed.add(path); return; }
+  // A COSMETIC DECODE NEVER COMPETES WITH A SHOW STARTING. While the cold-start gate holds, the whole
+  // machine is trying to get the first frame on stage (services/bootGate); a waveform can wait the two
+  // seconds. `deferred` + the subscription below is what brings it back: a lane asks from its RENDER,
+  // and a stopped timeline does not repaint on its own.
+  if (bootGate.isBooting()) { deferred.add(path); return; }
   // A retry inside its cooldown is a WAIT, not an attempt: cost it nothing and take no IPC. This runs
   // before `pending.add` precisely so a 60 Hz caller falls straight through here (see RETRY_COOLDOWN_MS).
   const due = retryAfter.get(path);

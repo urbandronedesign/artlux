@@ -87,6 +87,10 @@ let external = false; // true in mirror windows (Scene/projector) — playhead s
 // can decode it — and a VISIBLE window (the fullscreen projector) runs full-speed, whereas the
 // hidden broadcast main window throttles its rAF and starves the streamed-frame pump.
 let hapLocal = false;
+// The layers THIS window actually draws (mirror windows only; null = every layer). See the frame
+// loop's layer sync — a projector renders one surface, so decoding the whole document there is work
+// nobody ever looks at, multiplied by the number of outputs.
+let localLayers: Set<string> | null = null;
 let playhead = 0;
 // Monotonic clock anchor: performance.now() (ms) corresponding to playhead==0. The playhead is
 // derived as (now - originMs), so it never accumulates rAF-jitter drift and the source-frame
@@ -357,6 +361,12 @@ function warmPoolVideos(pool: LayerPool, t: Timeline): void {
   }
 }
 
+// How much decoded material a codec layer must hold before the show is allowed to start. Matched to
+// the HAP ring's own 300 ms look-ahead: less and the buffer is still filling when playback begins,
+// more and the venue waits for material the ring would evict anyway. The gate's timeout is the
+// backstop — a source that cannot reach this never holds the show past the operator's patience.
+const PREROLL_SEC = 0.3;
+
 // ── COLD-START READINESS OF A POOL ───────────────────────────────────────────────────────────────
 // "Would promoting this pool put a PICTURE on stage, or black?" — asked by services/bootGate while the
 // FSM is held. Re-drives the pre-roll first (idempotent, see above), so a blob that landed since the
@@ -382,7 +392,18 @@ function poolReadiness(poolKey: string, t: Timeline): { ready: boolean; pending:
       // A codec pulls frames on demand, so there is no element to watch — the honest "it is open and it
       // is really this codec" signal is the probe having ANSWERED (true or false: false means the host
       // falls back to a <video>, which is a decision, not a wait).
-      if (codec.probed(sc.clip.path) === undefined) pending.push(`${name} (${codec.id})`);
+      const probed = codec.probed(sc.clip.path);
+      if (probed === undefined) { pending.push(`${name} (${codec.id})`); continue; }
+      // …AND THEN WAIT FOR A BUFFER, NOT A FRAME. A codec that decodes ahead starts EMPTY, so a show
+      // armed on "the first frame exists" opens by missing the next hundred: the compositor paints the
+      // nearest decoded neighbour and the first seconds visibly stutter (measured: 167 misses in the
+      // first ten seconds of a 1080p60 HAP show, then ~none). preRoll both TOPS UP and reports, and the
+      // gate's polling is what fills it. Clip-local time, because that is the source offset the layer
+      // opens on. Codecs without preRoll behave exactly as before.
+      if (probed && codec.preRoll) {
+        const at = Math.max(0, sc.startT - sc.clip.start + sc.clip.inPoint);
+        if (!codec.preRoll(sc.clip.path, at, PREROLL_SEC)) pending.push(`${name} (buffering)`);
+      }
       continue;
     }
     const lv = pool.get(l.id);
@@ -836,8 +857,17 @@ function frame(now: number): void {
     }
     // Main window decodes everything; mirror windows decode only HAP locally (when hapLocal),
     // otherwise they consume streamed frames and skip decoding entirely.
+    //
+    // ⚠ AND A MIRROR DECODES ONLY WHAT IT SHOWS. A projector window renders exactly ONE surface, but
+    // this loop used to walk EVERY layer in the document — so a wall of three outputs ran four decode
+    // rings (main + three mirrors) over every HAP layer in the show, and a projector whose surface is
+    // an IMAGE decoded the timeline's video anyway. Each ring is a real cost: native decode, disk
+    // reads, IPC, and a GPU upload per frame. `localLayers` is the set that window actually draws
+    // (ProjectorApp pushes it from its config); null = no filter, which is what the MAIN window wants
+    // and what a mirror falls back to before its first config arrives.
     if (!external || hapLocal) for (const l of data.layers) {
       if (clipKindRegistry.get(l.kind ?? '')?.skipVideoSync) continue; // non-video lanes (e.g. tracking takes) — see the plugin's clip-kind contribution
+      if (external && localLayers && !localLayers.has(l.id)) continue;
       try { syncLayer(l.id, playhead); } catch (e) { console.error('[timeline] syncLayer error', e); }
     }
     // Composite the whole-timeline program once per frame when a surface routes to it (main window
@@ -1077,6 +1107,26 @@ export const timeline = {
   },
   setExternal(e: boolean): void { external = e; },
   setHapLocal(v: boolean): void { hapLocal = v; },
+  // Restrict this window's local layer decode to the layers it draws (mirror windows). Pass null to
+  // decode every layer — the main window's behaviour, and a mirror's default until its first config.
+  // Layers dropped from the set release what they held, or a window that stops showing a layer keeps
+  // its decoder and its <video> alive for the rest of the show.
+  setLocalLayers(ids: string[] | null): void {
+    const next = ids ? new Set(ids) : null;
+    if (next && localLayers && next.size === localLayers.size && [...next].every(id => localLayers!.has(id))) return;
+    const prev = localLayers;
+    localLayers = next;
+    if (!external || !next) return;
+    for (const l of data.layers) {
+      if (next.has(l.id) || (prev && !prev.has(l.id))) continue; // still shown, or already not decoded
+      const lv = layerVideos.get(l.id);
+      if (!lv) continue;
+      lv.el.pause(); lv.el.removeAttribute('src');
+      lv.srcPath = null; lv.clipId = null; lv.mode = null;
+      for (const c of videoCodecRegistry.all()) c.releaseLayer(l.id);
+      contentSource.release(layerKey(l.id));
+    }
+  },
   seek(sec: number): void {
     // PLAYBACK is bounded by [timelineStart, timelineEnd); SEEKING is not. Only the floor is enforced
     // here: the canvas still renders clips that overrun `Length`, so scrubbing past the end has to keep

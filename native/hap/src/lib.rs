@@ -81,7 +81,28 @@ pub fn open(path: String) -> napi::Result<HapInfo> {
         has_alpha: matches!(&v.codec, b"Hap5" | b"HapM" | b"HapA"),
     };
     let file = File::open(&path).map_err(|e| err(format!("open {path}: {e}")))?;
-    decoders().lock().unwrap().insert(path, Decoder { mov: v, file });
+    decoders()
+        .lock()
+        .unwrap()
+        .insert(path.clone(), Decoder { mov: v, file });
+
+    // ── REFUSE WHAT WE CANNOT DECODE, HERE, ONCE ────────────────────────────────────────────────
+    // The container parse above only proves the fourcc starts with "Hap" — it says nothing about the
+    // frame payload, and HAP Q Alpha (HapM) carries a multi-image section this decoder does not read.
+    // Without this check `open()` succeeded, `probed()` reported "yes, this is HAP", the codec CLAIMED
+    // the file, and then every single frame failed: the renderer's decode-ahead ring re-issues a failed
+    // frame on every rAF, so the app sat in a full-speed retry loop — three concurrent decodes per
+    // frame, each doing a real seek+read of a multi-MB sample before erroring, each logging a warning —
+    // with black on the output. Failing at the door instead makes `probe()` return false, and the host's
+    // existing fallback (a plain <video>) takes over with ONE log line.
+    //
+    // Header-only (no Snappy, no block copy) and only frame 0, so the cost is one small read per file.
+    if info.frame_count > 0 {
+        if let Err(e) = read_sample(&path, 0).and_then(|(buf, _, _)| hap::probe_frame(&buf).map(|_| ())) {
+            decoders().lock().unwrap().remove(&path); // don't hold a handle to a file we refuse to play
+            return Err(err(format!("{} [{}]: {e}", path, info.codec)));
+        }
+    }
     Ok(info)
 }
 
@@ -243,6 +264,41 @@ mod tests {
         let d = hap::decode_frame(&frame).unwrap();
         assert_eq!(d.format, HapFormat::Dxt1);
         assert_eq!(d.data, payload);
+    }
+
+    // THE VARIANT WE REFUSE, AND THE REASON THE REFUSAL EXISTS. A HapM sample opens with a
+    // Multi-Image section (0x0D) whose payload is two complete single-texture sections. Before
+    // `probe_frame`, this reached the app as "valid HAP" and then failed on every frame forever.
+    // Both doors must agree: probe_frame (open) and decode_frame (playback).
+    #[test]
+    fn refuses_multi_image_hapm() {
+        // Multi-image container holding one YCoCg-DXT5 image (the real thing also carries an RGTC1
+        // alpha image; one is enough to prove the container itself is rejected).
+        let payload: Vec<u8> = (0..64u8).collect();
+        let mut inner = header(payload.len(), 0xA, 0x0F); // None, ScaledYCoCg
+        inner.extend_from_slice(&payload);
+        let mut frame = vec![
+            (inner.len() & 0xff) as u8,
+            ((inner.len() >> 8) & 0xff) as u8,
+            ((inner.len() >> 16) & 0xff) as u8,
+            0x0D, // Multi-Image — the WHOLE type byte, not a compressor/format nibble pair
+        ];
+        frame.extend_from_slice(&inner);
+
+        let probe = hap::probe_frame(&frame).unwrap_err();
+        assert!(probe.contains("HapM"), "probe must name the variant, got: {probe}");
+        let decode = hap::decode_frame(&frame).err().expect("decode must refuse it too");
+        assert!(decode.contains("HapM"), "decode must agree with probe, got: {decode}");
+    }
+
+    #[test]
+    fn probe_accepts_what_decode_accepts() {
+        let payload: Vec<u8> = (0..64u8).collect();
+        let compressed = snap::raw::Encoder::new().compress_vec(&payload).unwrap();
+        let mut frame = header(compressed.len(), 0xB, 0x0F); // Snappy, ScaledYCoCg (Hap Q)
+        frame.extend_from_slice(&compressed);
+        assert_eq!(hap::probe_frame(&frame).unwrap(), HapFormat::ScaledYCoCg);
+        assert_eq!(hap::decode_frame(&frame).unwrap().format, HapFormat::ScaledYCoCg);
     }
 
     #[test]

@@ -254,6 +254,89 @@ check(
   },
 );
 
+// ── Codecs: a mirror window decodes only what it draws ────────────────────────────────────────
+check(
+  'projector windows decode only the layers they show',
+  'A projector renders ONE surface, but the engine\'s mirror layer loop walks the whole document. ' +
+  'Ungated, every output window runs its own decode ring over every HAP layer in the show — a window ' +
+  'showing an IMAGE decoded the timeline\'s video too — so native decode, disk reads, IPC and GPU ' +
+  'uploads all multiply by (1 + number of outputs). Nothing breaks; the frame rate just falls per ' +
+  'projector opened.',
+  () => {
+    const eng = read('src/renderer/services/timeline.ts');
+    if (!/if \(external && localLayers && !localLayers\.has\(l\.id\)\) continue;/.test(eng)) {
+      return 'the mirror layer-sync loop in timeline.ts must skip layers outside `localLayers`';
+    }
+    const proj = read('src/renderer/projector/ProjectorApp.tsx');
+    return proj.includes('setLocalLayers(')
+      ? null
+      : 'ProjectorApp never calls engine.setLocalLayers() — the filter exists but no window sets it, ' +
+        'so every mirror still decodes the whole document';
+  },
+);
+
+check(
+  'an undecodable HAP is refused once, not retried forever',
+  'The decode-ahead ring re-fills from getFrame() on EVERY rAF. With no memory of a failure it ' +
+  're-requested a frame that cannot decode three times a frame, forever — each attempt a real ' +
+  'seek+read of a multi-MB sample in main, each logging — with black on the output. HAP Q Alpha ' +
+  '(HapM) is exactly such a file, and open() used to accept it because it only read the container.',
+  () => {
+    const dec = read('plugins/hap/src/hapDecode.ts');
+    const problems = [];
+    if (!dec.includes('failed.has(idx)') || !dec.includes('markFailed(')) {
+      problems.push('hapDecode must record failed frame indices and stop re-requesting them');
+    }
+    // The native door: open() has to validate a frame header, not just the container fourcc.
+    const rs = raw('native/hap/src/lib.rs');
+    if (!rs.includes('hap::probe_frame(')) problems.push('native open() must probe_frame() sample 0 before accepting a file');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── Cold start: cosmetic decoding must never race the show ────────────────────────────────────
+check(
+  'filmstrips and waveforms yield to the cold-start gate',
+  'Both decode media for LOOKS, on the same native decoder, IPC bridge and GPU the live show uses. ' +
+  'Ungated they run at project-open: one measured startup read 99 MB + 127 MB of library video and a ' +
+  '1 GB HAP file WHOLE over IPC (main RSS 125 MB → 3.7 GB, its event loop stalled 1.7 s), which starved ' +
+  'the playback decode ring for the first ten seconds — a visible stutter at the one moment an audience ' +
+  'is guaranteed to be watching.',
+  () => {
+    const problems = [];
+    const thumbs = read('src/renderer/services/thumbnailCache.ts');
+    if (!thumbs.includes('bootGate.isBooting()')) problems.push('thumbnailCache does not check bootGate.isBooting()');
+    // Deferral without a wake-up is a LOSS: a Filmstrip asks from its render, and a stopped timeline
+    // never repaints on its own.
+    if (!thumbs.includes('bootGate.subscribe(')) problems.push('thumbnailCache defers work but never wakes it when the gate arms');
+    const peaks = read('src/renderer/components/timeline/audioPeaks.ts');
+    if (!peaks.includes('bootGate.isBooting()')) problems.push('audioPeaks does not check bootGate.isBooting()');
+    // A waveform must not pull a whole video into memory — see AUDIO_CONTAINER.
+    if (!/AUDIO_CONTAINER\.test\(path\)/.test(peaks)) problems.push('audioPeaks will blob-read a non-audio container to draw a waveform');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── Timeline: one track, one clip at a time ───────────────────────────────────────────────────
+check(
+  'clips cannot be stacked on a track',
+  'activeClip() resolves an overlap by taking the LAST match, so a clip dropped on top of another ' +
+  'does not corrupt playback — it becomes invisible and unpickable while still living in the ' +
+  'document, saved and reloaded forever. Every placement path must land in free space.',
+  () => {
+    const tl = read('src/renderer/components/timeline/Timeline.tsx');
+    const problems = [];
+    if (!tl.includes('nearestFreeStart(')) problems.push('Timeline never calls nearestFreeStart — a drag can stack clips');
+    if (!tl.includes('freeStartOn(')) problems.push('Timeline has no freeStartOn() — drops can stack clips');
+    if (!tl.includes('freeSpanAt(')) problems.push('Timeline never calls freeSpanAt — a trim can slide under its neighbour');
+    // Every clip-creation site must go through the placement helper, not raw `start`.
+    const creates = (tl.match(/clips: \[\.\.\.(timelineRef\.current|tl)\.clips, \{/g) ?? []).length;
+    const placed = (tl.match(/start: freeStartOn\(/g) ?? []).length;
+    if (placed < creates) problems.push(`${creates} clip-creation site(s) but only ${placed} use freeStartOn()`);
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── UI: the interaction-state floor ───────────────────────────────────────────────────────────
 check(
   'the interaction-state floor is overridable',

@@ -2564,6 +2564,27 @@ const App: React.FC = () => {
   useEffect(() => {
       for (const surfaceId of projectorPortsRef.current.keys()) pushProjectorStateRef.current(surfaceId);
   }, [surfaces, projectorOutputs, activeTimeline, isVideoPlaying, editingOutputIds, projectorFpsCap, projectorBrightness, scene3D, calibratingOutputId, nvAvailable]);
+  // ── THE SHOW STARTS AT THE TOP ────────────────────────────────────────────────────────────────
+  // The gate armed on its own, so a show is about to begin: put BOTH clocks back on their in-points
+  // first. In the ordinary case this is a no-op — opening a project already restarted them (swap with
+  // transport:'restart' + showClock:'reset') — but the hold lasts seconds, and seconds are enough for
+  // the playhead to have moved: an operator scrubbing the ruler while the strips filled, a stray seek
+  // from OSC or the tablet, an FSM `seek` left over from the outgoing show. Starting a venue's first
+  // run three seconds in, or mid-clip, is the kind of thing nobody notices until it is on the wall.
+  //
+  // ⚠ NOT WHEN THE OPERATOR ARMED IT. `armedBy: 'manual'` means a human reached past the wait and
+  // pressed Play; the playhead is then theirs, and yanking it back to zero under their hands would be
+  // the app arguing with them. That is exactly why the gate reports WHY it released.
+  //
+  // Runs SYNCHRONOUSLY inside the release, before the machine can tick: bootGate sets `armed` and then
+  // notifies in the same call, so the seek lands ahead of the first FSM frame rather than one frame
+  // into the show. Both clocks, because a scene may be bound (the playhead is the scene's) while the
+  // bed still rides the global one — seek() only moves them together while they coincide.
+  useEffect(() => bootGate.subscribe((p) => {
+      if (p.booting || p.armedBy === null || p.armedBy === 'manual') return;
+      timelineEngine.seek(timelineEngine.getStart());
+      timelineEngine.showSeek(timelineEngine.getGlobalStart());
+  }), []);
   // Mirror the cold-start hold to every open output window, render-free (bootGate is a plain service,
   // so this never touches React state). While the gate holds, each projector draws BLACK + "PRELOADING
   // SHOW" instead of a half-decoded look; the release message is what puts the real picture up. Fires at

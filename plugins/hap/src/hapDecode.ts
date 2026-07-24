@@ -48,30 +48,54 @@ export function isHap(path: string): boolean | undefined {
 // don't thrash it, while still holding a deeper buffer of *completed* frames than the old fixed
 // count did. Each frame is small (raw BC blocks): ~1MB (1080p DXT1) … ~4MB (4K DXT5).
 type Frame = HapFrame;
-type Pipe = { cache: Map<number, Frame>; inflight: Set<number> };
+type Pipe = { cache: Map<number, Frame>; inflight: Set<number>; failed: Set<number> };
 const pipes = new Map<string, Pipe>();
 const LEAD_MS = 300;      // how far ahead of the playhead to keep decoded
 const TRAIL_FRAMES = 2;   // a couple kept behind (loop wrap / tiny back-steps)
 const MAX_INFLIGHT = 3;   // concurrent decodes per source (caps IPC + threadpool pressure)
+// Distinct frames that may fail before we stop believing the file is playable at all. A real HAP
+// stream is all-intra and self-contained, so one bad frame is a bad frame — three is a bad FILE.
+const GIVE_UP_AFTER = 3;
 
 function getPipe(path: string): Pipe {
   let p = pipes.get(path);
-  if (!p) { p = { cache: new Map(), inflight: new Set() }; pipes.set(path, p); }
+  if (!p) { p = { cache: new Map(), inflight: new Set(), failed: new Set() }; pipes.set(path, p); }
   return p;
+}
+
+// ⚠ A FAILED DECODE MUST BE REMEMBERED, OR IT BECOMES A FULL-SPEED RETRY LOOP.
+// `fill()` runs from getFrame() on EVERY rAF. Nothing cached the failure, so a frame that could not be
+// decoded was re-requested the very next frame — three concurrent decodes per frame, forever, each
+// doing a real seek + read of a multi-MB sample in main before erroring, each logging. That is the
+// shape of an undecodable variant (HAP Q Alpha / HapM, refused at open since — see native/hap), a
+// truncated file, or a sample lost to a bad copy. The picture is black either way; the retry storm is
+// what took the frame rate down with it.
+function markFailed(path: string, p: Pipe, idx: number): void {
+  p.failed.add(idx);
+  if (p.failed.size < GIVE_UP_AFTER || infos.get(path) === null) return;
+  // Enough distinct frames have failed that this is not a bad frame, it is a bad file. Publish it
+  // through the SAME signal probe() uses — `infos[path] = null` makes isHap() false. A timeline LAYER
+  // re-asks `probed()` every frame, so it falls through to syncVideoLayer immediately; a SURFACE was
+  // classified at acquire time and stays black until the next open/acquire. Either way the requests
+  // stop, which is the point. Said once per file, at error level: the output is black and the operator
+  // needs to know why.
+  infos.set(path, null);
+  console.error(`[hap] giving up on ${path} — ${p.failed.size} frames failed to decode; the file is not playable as HAP`);
 }
 
 function request(path: string, idx: number): void {
   const info = infos.get(path);
   if (!info || idx < 0 || idx >= info.frameCount) return;
   const p = getPipe(path);
-  if (p.cache.has(idx) || p.inflight.has(idx)) return;
+  if (p.cache.has(idx) || p.inflight.has(idx) || p.failed.has(idx)) return;
   p.inflight.add(idx);
   ((window.artlux?.pluginInvoke?.('hap:decode', path, idx) as Promise<HapFrame | null> | undefined) ?? Promise.resolve(null))
     .then((f) => {
       p.inflight.delete(idx);
       if (f) p.cache.set(idx, f);
+      else markFailed(path, p, idx); // resolved null = the decoder is absent or refused this frame
     })
-    .catch(() => { p.inflight.delete(idx); });
+    .catch(() => { p.inflight.delete(idx); markFailed(path, p, idx); });
 }
 
 // Keep the ring filled around `idx`: evict frames outside the retain window (measured
@@ -94,10 +118,35 @@ function fill(path: string, idx: number): void {
   let slots = MAX_INFLIGHT - p.inflight.size;
   for (let d = 0; d <= ahead && slots > 0; d++) {
     const k = (idx + d) % fc;
-    if (p.cache.has(k) || p.inflight.has(k)) continue;
+    if (p.cache.has(k) || p.inflight.has(k) || p.failed.has(k)) continue; // `failed`: never re-ask
     request(path, k);
     slots--;
   }
+}
+
+// Top up the ring around the frame at `atSec` and report whether `aheadSec` of material is decoded.
+// The cold-start gate (services/bootGate, via the codec's preRoll) polls this while it holds the show,
+// so the POLLING is what primes the buffer — see the SDK's preRoll contract.
+//
+// A show used to start on an empty ring: the first seconds asked for frames nobody had decoded yet and
+// the compositor painted the nearest neighbour instead — 167 misses in the first ten seconds of a
+// 1080p60 HAP show, i.e. a visible stutter exactly when the audience is watching. `asked`/`missed`
+// deliberately do NOT count these: nothing is on screen yet, so a pre-roll miss is not a dropped frame.
+export function preRoll(path: string, atSec: number, aheadSec: number): boolean {
+  const info = infos.get(path);
+  if (info === null) return true;            // probed and it is not HAP — nothing here to wait for
+  if (!info || info.frameCount <= 0) { void ensureOpen(path); return false; } // not probed yet
+  const start = Math.max(0, Math.min(Math.round(atSec * info.fps), info.frameCount - 1));
+  const want = Math.max(1, Math.min(Math.ceil(aheadSec * info.fps), info.frameCount));
+  fill(path, start);                          // issue the decodes (bounded by MAX_INFLIGHT)
+  const p = getPipe(path);
+  let have = 0;
+  for (let d = 0; d < want; d++) {
+    const k = (start + d) % info.frameCount;
+    if (p.cache.has(k)) have++;
+    else if (p.failed.has(k)) have++;         // this frame will never arrive; don't hold the show for it
+  }
+  return have >= want;
 }
 
 // --- Ring health (diagnostics) ---------------------------------------------------------------

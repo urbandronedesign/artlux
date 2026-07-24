@@ -2,6 +2,66 @@
 
 ## Unreleased
 
+### The first run of a show is smooth
+
+A show's opening seconds were the worst seconds it had: on a real 1080p60 HAP project the editor went
+61 → 22 → 61 fps over the first half-minute, with 251 decode-ring misses (each one a repeated frame on
+the wall) and frame times spiking past 200 ms. Three causes, all measured, all fixed:
+
+- **The show started on an empty decode buffer.** The cold-start gate waited for each layer's *first
+  frame*, and a decode-ahead codec starts empty — so playback opened by missing the next hundred
+  frames. Codecs can now report a primed buffer (`VideoCodec.preRoll`), and the gate's polling is what
+  fills it. 167 of those misses lived in the first ten seconds; they are gone.
+- **A waveform pulled a whole video into memory.** Drawing a clip's soundtrack blob-read the *source
+  video* — a 1 GB HAP `.mov` read whole in 2.3 s, main's resident memory from 125 MB to 3.7 GB, its
+  event loop stalled 1.7 s, and every HAP frame decode is answered on that same thread. Waveforms now
+  decode audio containers only; a video's sound belongs to the audio conform.
+- **Filmstrips competed with the show.** Thumbnails held off while the gate holds (and for a beat
+  after — releasing them *on* the arm merely moved the stutter into the first seconds of playback),
+  one job per second while the transport runs, and never a fresh whole-file read mid-show.
+
+- **The show did not start at the top.** The transport runs from launch, so the playhead advanced for
+  the entire preload: a project that took 11 s to get ready began its show **11 seconds in**, with the
+  audio bed already playing under a picture that had not appeared. Both clocks are now rewound to their
+  in-points the moment the gate releases — unless the operator armed it themselves by pressing Play,
+  in which case the playhead is theirs.
+
+Same project, same machine, after: **61 fps on every sample from launch to steady state**, zero long
+main-thread tasks, and 1.27 GB of startup file reads reduced to 0.5 MB.
+
+### Clips can no longer be stacked on a track
+
+Two clips could be dropped at the same spot on the same track. The engine tolerates it — `activeClip()`
+takes the last match — so nothing broke visibly, and that was the problem: the covered clip stayed in
+the document, invisible and unpickable, saved and reloaded forever. (One real project carried two copies
+of the same file overlapping by 29.9 s.) Drags now slide against their neighbour, trims stop at it, and
+every drop lands at the nearest free start — computed at creation, not at drop, since three paths probe
+the file's duration first and the length decides whether a gap fits. See
+[docs/TIMELINE.md](docs/TIMELINE.md#key-design-decisions-read-before-extending).
+
+### HAP: an unplayable file fails once, and one decode serves every window
+
+Two defects found while investigating a report of 20 fps with HAP on two surfaces and one output.
+Neither is confirmed as that operator's cause — measurements ruled out the canvas reads, the IPC
+bandwidth, and the surface→output topology, and their picture plays normally — but both are real.
+
+**An undecodable HAP used to retry forever, at full speed.** `open()` accepted any `Hap*` fourcc without
+decoding anything, so the codec claimed files it could not play — **HAP Q Alpha (`HapM`)** above all, a
+multi-image format carrying two textures where the decoder reads one. Every frame then failed, and the
+renderer's decode-ahead ring re-issued three decodes per frame, forever, each doing a real seek + read
+of a multi-MB sample in main and logging a warning, with black on the output. Now the native `open()`
+validates the first frame's section header and refuses the file with one line naming the variant
+(re-export as Hap Alpha `Hap5` for transparency); the ring remembers failed frames and gives up on a
+file after a few; the main-side warning is once per path. See [docs/CODECS.md](docs/CODECS.md) for the
+variant table.
+
+**Decode work no longer multiplies by the number of outputs.** Every projector window runs its own
+decode ring, and main had neither an in-flight dedupe nor a cache — so two windows asking for the same
+frame ran the native decode twice. Worse, a mirror walked *every* layer in the document, so a projector
+showing an image still decoded the timeline's HAP video. Decodes are now shared (in-flight dedupe + a
+byte-bounded recent-frame cache), and a projector decodes only the layer it actually draws. Both guarded
+by `npm run verify:invariants`.
+
 ### The show waits for its content before it starts
 
 Opening a project used to start the show on the **next frame**. Everything that loads content is

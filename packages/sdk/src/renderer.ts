@@ -199,6 +199,26 @@ export interface VideoCodecContribution {
 
   setPlaying(playing: boolean): void;      // affects surface playback clocks
   preWarm(path: string): void;             // open/probe ahead of playback
+
+  /**
+   * OPTIONAL — "is there a decoded BUFFER here, not just a first frame?"
+   *
+   * Asked by the host's cold-start gate before it lets a freshly-opened show start (see BootService).
+   * A codec that decodes ahead into a ring starts EMPTY: the first seconds of playback then miss the
+   * exact frame over and over and paint a neighbour instead, which is a visible stutter at the one
+   * moment an audience is guaranteed to be watching. Measured on a 1080p60 HAP show: 167 missed
+   * frames in the first ten seconds, then ~none for the rest of the run.
+   *
+   * `atSec` is CLIP-LOCAL (the source time the layer opens on) and `aheadSec` is how much decoded
+   * material the host wants behind the start. Return true when that much is ready.
+   *
+   * ⚠ IT MUST ALSO KICK THE DECODE. The gate polls this ~10×/s while it holds, and that polling is
+   * what fills the ring — a pure predicate would answer "no" forever. Implement it as "top up, then
+   * report", and keep it cheap and synchronous.
+   *
+   * Omit it and the host only waits for the first frame, exactly as before.
+   */
+  preRoll?(path: string, atSec: number, aheadSec: number): boolean;
   // One-shot frame at a source time (seconds) for the thumbnail cache (bypasses the playback
   // prefetch ring; uses its own shared GL context so it never disturbs a live layer's decode).
   thumbnail(path: string, timeSec: number): Promise<CanvasImageSource | null>;

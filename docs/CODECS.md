@@ -7,7 +7,7 @@ first-party codecs ship today; the default `<video>` element handles everything 
 
 | Codec | Plugin | Formats | Path |
 |---|---|---|---|
-| **HAP** | `@artlux/plugin-hap` | HAP / HAP Q / HAP Alpha in `.mov` | native decode (main) → **WebGL2 BC-decompress** on the GPU (renderer) |
+| **HAP** | `@artlux/plugin-hap` | HAP / HAP Q / HAP Alpha in `.mov` (**not** HAP Q Alpha) | native decode (main) → **WebGL2 BC-decompress** on the GPU (renderer) |
 | **MP4 / WebCodecs** | `@artlux/plugin-mp4` | `.mp4`/`.m4v` (H.264/H.265) | **WebCodecs** decode + `mp4box` demux, **renderer-only**, **opt-in** |
 | *(default)* | — (host) | any browser-playable video | HTML `<video>` element |
 
@@ -24,6 +24,45 @@ multi-layer, high-resolution playback in VJ/mapping tools.
   all three paths share one decoder identity.
 - A frame is re-uploaded to the GPU only when the decoded index actually advances (no redundant
   uploads).
+
+### Which HAP variants play
+
+| fourcc | Name | Texture(s) | Status |
+|---|---|---|---|
+| `Hap1` | HAP | RGB DXT1 (BC1) | ✅ |
+| `Hap5` | HAP Alpha | RGBA DXT5 (BC3) | ✅ — **this is the transparency-capable variant to export** |
+| `HapY` | HAP Q | scaled YCoCg DXT5 | ✅ |
+| `HapA` | HAP Alpha-Only | A_RGTC1 (BC4) | ✅ |
+| `HapM` | **HAP Q Alpha** | scaled YCoCg **+ a second** A_RGTC1 texture | ❌ **not decoded** |
+
+`HapM` is a **multi-image** format: one frame carries two textures, and the decoder reads one. It is
+**refused at open** (`native/hap`: `hap::probe_frame` validates sample 0's section header, so the
+container fourcc alone can no longer let a file through), which logs a single line naming the variant
+and hands the file to the host's normal fallback — a plain `<video>`, which cannot decode HAP either,
+so the surface is black. **Re-export as Hap Alpha (`Hap5`)** for transparency, or Hap Q (`HapY`) if you
+do not need it.
+
+⚠ **Why the refusal is at the door.** The renderer's decode-ahead ring re-fills on every rAF, so a frame
+that cannot decode used to be re-requested three times a frame, forever — each attempt a real seek +
+read of a multi-MB sample in main, each logging a warning. That is a full-speed retry loop with black on
+the output, and it costs far more frame rate than the missing picture does. Two guards now stand behind
+the open-time check: the ring remembers failed indices and gives up on a file after a few
+(`hapDecode.markFailed`), and the main-side decode warns **once per path**.
+
+### One decode serves every window
+
+Every window that shows HAP runs its own decode-ahead ring — the main renderer, plus each projector
+output (`ProjectorApp` sets `hapLocal`, so a mirror decodes timeline layers itself rather than consuming
+streamed frames at ~30 fps). Two rules keep that from multiplying the work by the number of outputs, and
+a new codec (DXV is next — see [ROADMAP.md](ROADMAP.md)) should inherit both:
+
+- **`hapManager.decode` dedupes in flight and caches recent frames** (byte-bounded, ~48 MB — one 4K
+  HapQ frame is ~8.3 MB, so a count-bounded cache would be enormous). Windows asking for the same
+  `(path, index)` a frame or two apart share **one** native decode.
+- **A mirror decodes only the layers it draws.** `timeline.setLocalLayers()` scopes the mirror's layer
+  sync; `ProjectorApp` pushes its surface's layer id on every `config` (plus a `TRACKING` surface's
+  background layer, which it wants at display rate). Before this, a projector showing an `IMAGE`
+  decoded the whole timeline's video anyway. Guarded by `npm run verify:invariants`.
 
 ## MP4 / WebCodecs (`@artlux/plugin-mp4`)
 

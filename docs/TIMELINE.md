@@ -110,6 +110,18 @@ Timeline    { layers, clips, duration, fps?, markers?, inPoint?, outPoint?, loop
 
 ## Key design decisions (read before extending)
 
+- **One track, one clip at a time.** Two clips on a track may **touch** (one ends exactly where the
+  next begins) but never **overlap**. The engine tolerates an overlap — `activeClip()` takes the *last*
+  matching clip — which is precisely why the UI must not author one: the covered clip does not break
+  playback, it becomes **invisible and unpickable while still living in the document**, saved and
+  reloaded forever. (A real show shipped two copies of the same file overlapping by 29.9 s from an
+  accidental double-drop.) Placement is therefore clamped, never rejected silently: a drag **slides
+  against** its neighbour, a trim **stops at** it, and a drop lands at the nearest free start —
+  `nearestFreeStart()` / `freeSpanAt()` in [`operations.ts`](../src/renderer/components/timeline/operations.ts),
+  which are pure and generic over `TimeClip` so the audio lanes can adopt them unchanged. Every
+  clip-creation path goes through `freeStartOn()`, and it is called at the moment of **creation**, not
+  of drop — three paths probe the file's duration first, and the length is what decides whether a gap
+  fits. Guarded by `npm run verify:invariants`.
 - **Engine boundary.** Do not read `muted/solo/enabled` in `services/timeline.ts` `syncLayer()` — that
   would change playback and break the scope invariant. They only dim/highlight in the UI. (Making
   `enabled` actually hide a track would be a deliberate engine change.)
@@ -118,6 +130,21 @@ Timeline    { layers, clips, duration, fps?, markers?, inPoint?, outPoint?, loop
   `hapDecode.decodeFrameRaw()` (a one-shot IPC decode that bypasses the playback decode-ahead ring) and
   rasterizes on a dedicated `hapGL` key `'__thumb__'` (never a live layer's canvas/context). Cache is
   LRU-bounded and time-quantized so adjacent strip slots share frames.
+
+  **A separate path is not a free one, and that had to be measured.** Filmstrips and waveforms share the
+  native decoder, the IPC bridge and the GPU with the live show, so three rules now bound them:
+  1. **Nothing runs while the cold-start gate holds** (services/bootGate). Work asked for during the
+     hold is remembered and woken ~2.5 s *after* the show arms — releasing it *on* the arm just moved
+     the contention onto the first seconds of playback (measured: 35 fps, 45 long frames).
+  2. **While the transport runs, one job per second across both pumps**, and **no new `<video>` loader
+     at all** — opening one blob-reads the WHOLE file over IPC (99 MB and 127 MB of library video in one
+     measured startup), which stalls the main process mid-read and cost ~20 dropped frames *per file*
+     even at one job per second. Stopped, both pumps run flat out: that is authoring, when the strip is
+     what you are looking at.
+  3. **A waveform never decodes a video.** `audioPeaks` reads audio containers only. It used to
+     `ensureBlobUrl` a clip's own source to draw its soundtrack — for a 1 GB HAP `.mov` that meant a 2.3 s
+     whole-file read, main's RSS from 125 MB to 3.7 GB, and its event loop stalled 1.7 s. A video's sound
+     belongs to the audio plugin's conform (main-side demux → cached WAV), not to a waveform.
 - **Ephemeral vs persisted.** Tool mode, snapping toggle, selection, zoom, hover, and the live drag
   draft are **component state** — they must not enter `Timeline` (it broadcasts to the Scene/projector
   on every change and dirties the project). Only data fields persist.

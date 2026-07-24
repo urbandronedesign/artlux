@@ -45,6 +45,10 @@ export interface BootProgress {
   pending: string[];   // what is still missing (capped for display)
   elapsedSec: number;
   timedOut: boolean;   // armed by the deadline rather than by everything being ready
+  // WHY the gate released, on the notification that releases it (null while holding, and before the
+  // first project is opened). It is the difference between a show STARTING — which should begin at the
+  // top — and an operator who reached past the wait and pressed Play, whose playhead is theirs.
+  armedBy: 'ready' | 'timeout' | 'manual' | null;
 }
 
 const DEFAULT_TIMEOUT_SEC = 15;
@@ -59,6 +63,7 @@ let total = 0;          // workload measured on the first poll; 0 until measured
 let measured = false;
 let pending: string[] = [];
 let timedOut = false;
+let armedBy: BootProgress['armedBy'] = null;
 
 const probes = new Map<string, ReadyProbe>();
 const subs = new Set<(p: BootProgress) => void>();
@@ -70,6 +75,7 @@ const progress = (): BootProgress => ({
   pending,
   elapsedSec: spec ? (performance.now() - startMs) / 1000 : 0,
   timedOut,
+  armedBy,
 });
 
 const notify = (): void => { const p = progress(); subs.forEach(cb => cb(p)); };
@@ -121,6 +127,7 @@ function finish(byTimeout: boolean, elapsedSec: number): void {
   const outstanding = pending.slice(0, MAX_LISTED);
   const more = pending.length - outstanding.length;
   timedOut = byTimeout;
+  armedBy = byTimeout ? 'timeout' : 'ready';
   if (byTimeout) {
     // ERROR, not warn: the show is about to open on a hole. This line is what the venue log will be
     // read for the morning after.
@@ -154,6 +161,7 @@ export function hold(next: { poolKey: string; timeline: Timeline; surfaces: Surf
   measured = false;
   total = 0;
   timedOut = false;
+  armedBy = null;
   pending = [];
   engine.setArmed(false);
   if (poll) clearInterval(poll);
@@ -168,6 +176,7 @@ export function hold(next: { poolKey: string; timeline: Timeline; surfaces: Surf
 export function armNow(reason: string): void {
   if (!spec) return;
   console.log(`[boot] armed early: ${reason}`);
+  armedBy = 'manual';
   release();
 }
 

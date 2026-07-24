@@ -24,6 +24,13 @@ const SECTION_DECODE_INSTRUCTIONS: u8 = 0x01;
 const SECTION_CHUNK_COMPRESSOR_TABLE: u8 = 0x02;
 const SECTION_CHUNK_SIZE_TABLE: u8 = 0x03;
 const SECTION_CHUNK_OFFSET_TABLE: u8 = 0x04;
+/// Multi-Image container: the whole type byte, NOT a (compressor, format) nibble pair. Its payload is
+/// a sequence of complete single-texture sections — HapM (HAP Q Alpha) carries two, a scaled-YCoCg
+/// colour texture plus an A_RGTC1 alpha texture. We decode ONE texture per frame, so this is the one
+/// HAP variant we cannot play, and it gets its own name here rather than falling into
+/// `texture_format`'s "unsupported format 0x0D", which reads like a corrupt file rather than a
+/// feature we never wrote.
+const SECTION_MULTI_IMAGE: u8 = 0x0D;
 
 pub struct Decoded {
     pub format: HapFormat,
@@ -64,14 +71,44 @@ fn snappy_decode(src: &[u8]) -> Result<Vec<u8>, String> {
     dec.decompress_vec(src).map_err(|e| format!("snappy: {e}"))
 }
 
-/// Decode one HAP frame (a single texture; multi-image HapM is not yet supported).
+/// What a frame's top-level section says it is — or WHY we cannot decode it. Split out of
+/// `decode_frame` so `open()` can ask the same question from the header alone (see `probe_frame`);
+/// one classifier, so a variant can never be accepted at open and then rejected every frame after.
+fn classify(ty: u8) -> Result<HapFormat, String> {
+    if ty == SECTION_MULTI_IMAGE {
+        return Err(
+            "multi-image HAP (HAP Q Alpha / HapM) is not supported — re-export as Hap Q (HapY) \
+             or Hap Alpha (Hap5)"
+                .into(),
+        );
+    }
+    let second_stage = (ty >> 4) & 0x0F;
+    if !matches!(
+        second_stage,
+        COMPRESSOR_NONE | COMPRESSOR_SNAPPY | COMPRESSOR_COMPLEX
+    ) {
+        return Err(format!("unsupported HAP compressor 0x{second_stage:X}"));
+    }
+    texture_format(ty & 0x0F)
+}
+
+/// HEADER-ONLY validation of a frame: no Snappy pass, no block copy — just "could we decode this?".
+/// Called once per file by `open()` so an undecodable variant is refused at the door instead of
+/// failing on every frame forever (the renderer's decode-ahead ring re-requests a failed frame on
+/// every rAF, so "fails per frame" is a full-speed retry storm, not a one-off error).
+pub fn probe_frame(buf: &[u8]) -> Result<HapFormat, String> {
+    let (ty, _start, _len, _next) = read_header(buf, 0)?;
+    classify(ty)
+}
+
+/// Decode one HAP frame (a single texture; multi-image HapM is refused — see `classify`).
 pub fn decode_frame(buf: &[u8]) -> Result<Decoded, String> {
     let (ty, data_start, data_len, _next) = read_header(buf, 0)?;
     if data_start + data_len > buf.len() {
         return Err("HAP section overruns frame".into());
     }
     let second_stage = (ty >> 4) & 0x0F;
-    let format = texture_format(ty & 0x0F)?;
+    let format = classify(ty)?;
     let section = &buf[data_start..data_start + data_len];
 
     let data = match second_stage {

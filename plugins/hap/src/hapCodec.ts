@@ -41,6 +41,9 @@ export const hapCodec: VideoCodecContribution = {
 
   setPlaying: (p) => hapPlayer.setPlaying(p),
   preWarm: (path) => { void hapDecode.ensureOpen(path); },
+  // Cold start: fill the decode-ahead ring before the host lets the show run, so playback does not
+  // open on an empty buffer (see hapDecode.preRoll and the SDK's contract).
+  preRoll: (path, atSec, aheadSec) => hapDecode.preRoll(path, atSec, aheadSec),
 
   // One-shot decode (bypasses the playback prefetch ring) onto a single dedicated GL canvas — used by
   // the thumbnail cache so scrubbing thumbnails never re-centers a live layer's decode-ahead window.
