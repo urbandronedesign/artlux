@@ -36,8 +36,8 @@ Layout lives in a module-singleton pub/sub store (the `cueBus`/`helpBus` idiom):
 [`src/renderer/services/layoutStore.ts`](../src/renderer/services/layoutStore.ts).
 
 - **`WorkspaceLayout`** — one serializable object: panel **sizes** (`dockHeight`, `helpWidth`,
-  `splitRatio`), **visibility** (`showLeft/Right/Help`, `dockOpen`, `splitView`, `timelineMax`),
-  **selections** (`leftTab`, `dockTab`), and `activePreset`.
+  `splitRatio`, `bottomHeight`, `leftWidth`, `rightWidth`), **visibility** (`showLeft/Right/Help`,
+  `dockOpen`, `splitView`, `timelineMax`), **selections** (`leftTab`, `dockTab`), and `activePreset`.
 - **Persistence:** debounced (~300ms) write of the whole object to **one top-level `Prefs.layoutState`**
   key. It's one object on purpose — `setPrefs` is a one-level shallow merge, so a single top-level field
   is safe to patch (same rule as `modalPositions`; see [SDK.md](SDK.md) → `useDraggable`).
@@ -61,8 +61,29 @@ useResizable({ axis: 'x'|'y', min, max: number|(()=>number), invert?, mode?: 'de
 
 - `mode:'delta'` (default) adds pointer movement to `value` (px); `invert` grows the panel as the pointer
   moves toward it. `mode:'ratio'` computes a 0–1 fraction from `containerRef`'s box.
-- Callers: the split divider (App.tsx, `ratio` + `splitHostRef`), the dock top edge (`Dock.tsx`, `invert`,
-  dynamic `max: () => innerHeight-120`), the help left edge (`HelpPanel.tsx`, `invert`).
+- Callers: the split divider (`WorkspaceShell.tsx`, `ratio` + `splitHostRef`), the dock top edge
+  (`Dock.tsx`, `invert`, dynamic `max: () => innerHeight-120`), the help left edge (`HelpPanel.tsx`,
+  `invert`), the bottom region's top edge, and the **two side columns** (below).
+
+### The two side columns
+
+The browser column and the parameter column are dragged from their inner edges — a 2px handle
+overlapping the viewport, the same idiom as the bottom region — and **double-click resets** either to
+its default (288 / 320px, the `w-72` / `w-80` they used to be hard-coded to). Both widths ride
+`leftWidth` / `rightWidth`, so they are banked **per context** (`CONTEXT_KEYS`) and persisted with
+everything else: a wide media browser in Timeline does not force a wide outliner in Mapping.
+
+Two details that are easy to get wrong:
+
+- **The clamp is applied at render, not written back.** `max` is dynamic — `innerWidth − 420 − the
+  other column` — because the window is also UI-scaled 80–200%, so a static cap either starves the
+  viewport at 100% or wastes half a 4K panel. What it guarantees is ~420px of work area between the
+  two columns; they are `shrink-0`, so without it the *viewport* is what collapses. A saved width
+  wider than the current window is clamped **for display only** — un-maximizing must not permanently
+  shrink a column the operator sized on a big screen. The shell re-renders on `window resize` so the
+  clamp actually tracks the window.
+- **The collapse transition is dropped during a drag.** `transition-all duration-med` animates the
+  show/hide toggle; left on during a resize the column trails the pointer by the whole duration.
 
 ## Workspace contexts (replaces the old presets)
 

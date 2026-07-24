@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+### The browser and parameter columns resize — and stay resized
+
+Every workbench's side columns were hard-coded (288px / 320px). That was fine for an outliner and wrong
+for everything else: a media library at 288px shows two tiles, a wide fixture patch reads as a column of
+ellipses, and on a 4K panel both looked like slivers next to the viewport.
+
+Both columns now **drag from their inner edge** — a handle over the viewport edge, the same idiom as the
+dock and the timeline region — and **double-click resets** either to its default. The widths are banked
+**per context** like every other size, so a wide media browser in Timeline does not force a wide
+outliner in Mapping, and they persist to prefs, so they survive a restart.
+
+The cap is the window width minus the other column minus ~420px, rather than a fixed number: the app is
+also UI-scaled 80–200%, so a static cap either starves the viewport at 100% or wastes half a 4K panel.
+A saved width too wide for the current window is clamped **for display only** — un-maximizing never
+permanently shrinks a column you sized on a big screen. See
+[docs/WORKSPACE.md](docs/WORKSPACE.md#the-two-side-columns).
+
 ### Media Library — **Scan** for media added by hand
 
 Import copies files into the project, but on a venue machine most media arrives the other way round:

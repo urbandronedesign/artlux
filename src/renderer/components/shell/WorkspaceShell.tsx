@@ -1,7 +1,7 @@
 import React from 'react';
 import type { PanelContribution, SelectionSnapshot } from '@artlux/sdk/renderer';
 import { contextRegistry, panelRegistry } from '../../host/registries';
-import { layoutStore } from '../../services/layoutStore';
+import { layoutStore, DEFAULT_LAYOUT } from '../../services/layoutStore';
 import { useLayout } from '../../hooks/useLayout';
 import { useResizable } from '../../hooks/useResizable';
 import { CollapsibleSection } from '../CollapsibleSection';
@@ -90,6 +90,44 @@ export const WorkspaceShell: React.FC<Props> = ({ viewports, selection, drawers 
     onChange: (h) => layoutStore.set({ bottomHeight: h }),
   });
 
+  // The two side columns. Widths are px in the layout store, so they are banked per context
+  // (CONTEXT_KEYS) and persisted like every other size — drag them in Mapping and Mapping keeps them.
+  //
+  // The cap is dynamic and it subtracts THE OTHER COLUMN, because the window is also UI-scaled
+  // 80–200%: a static cap either starves the viewport at 100% or wastes half a 4K panel. What it
+  // actually guarantees is that the work area between the columns never drops below ~420px — the
+  // columns are `shrink-0`, so without this the viewport, not the column, is what collapses.
+  const VIEWPORT_FLOOR = 420;
+  const sideMax = (other: number) => Math.max(240, window.innerWidth - VIEWPORT_FLOOR - other);
+  const [resizingSide, setResizingSide] = React.useState(false);
+  // Re-render on window resize so the clamp below actually tracks the window. The stored width is
+  // NEVER rewritten from here: un-maximizing must not permanently shrink a column the operator sized
+  // on a big screen — it is clamped for display and comes back at full width when the room returns.
+  const [, bumpOnResize] = React.useReducer((n: number) => n + 1, 0);
+  React.useEffect(() => {
+    window.addEventListener('resize', bumpOnResize);
+    return () => window.removeEventListener('resize', bumpOnResize);
+  }, []);
+  // A hidden column costs nothing, so it doesn't count against the other one's cap.
+  const otherLeft = layout.showRight ? layout.rightWidth : 0;
+  const otherRight = layout.showLeft ? layout.leftWidth : 0;
+  const leftW = Math.max(200, Math.min(layout.leftWidth, sideMax(otherLeft)));
+  const rightW = Math.max(220, Math.min(layout.rightWidth, sideMax(otherRight)));
+  const onLeftResize = useResizable({
+    axis: 'x', value: leftW, min: 200, max: () => sideMax(otherLeft),
+    onChange: (w) => layoutStore.set({ leftWidth: w }),
+    onCommit: () => setResizingSide(false),
+  });
+  const onRightResize = useResizable({
+    axis: 'x', invert: true, value: rightW, min: 220, max: () => sideMax(otherRight),
+    onChange: (w) => layoutStore.set({ rightWidth: w }),
+    onCommit: () => setResizingSide(false),
+  });
+  // The collapse animation (`transition-all`) must not run during a drag, or the column trails the
+  // pointer by the transition duration and the resize feels like it is on ice.
+  const startSide = (h: (e: React.PointerEvent) => void) => (e: React.PointerEvent) => { setResizingSide(true); h(e); };
+  const sideTransition = resizingSide ? '' : 'transition-all duration-med';
+
   if (!context) return null; // registry empty — nothing to render (never happens once core registers)
 
   const resolve = (ids: string[] | undefined): PanelContribution[] =>
@@ -135,12 +173,25 @@ export const WorkspaceShell: React.FC<Props> = ({ viewports, selection, drawers 
         <div className="flex flex-1 min-h-0">
           {/* Browser */}
           {browserPanels.length > 0 && (
-            <div className={`h-full border-r border-line-1 bg-surface-1 transition-all duration-med ${layout.showLeft ? 'w-72' : 'w-0 overflow-hidden border-none'}`}>
-              <div className="w-72 h-full flex flex-col overflow-hidden">
+            <div
+              className={`h-full shrink-0 relative border-r border-line-1 bg-surface-1 ${sideTransition} ${layout.showLeft ? '' : 'overflow-hidden border-none'}`}
+              style={{ width: layout.showLeft ? leftW : 0 }}
+            >
+              {/* The inner column keeps its full width while the outer one animates to 0, so the
+                  panels slide out instead of being squeezed into an unreadable sliver first. */}
+              <div className="h-full flex flex-col overflow-hidden" style={{ width: leftW }}>
                 {browserPanels.map((p) => (
                   <PanelSection key={p.id} panel={p} contextId={context.id} selection={selection} />
                 ))}
               </div>
+              {layout.showLeft && (
+                <div
+                  onPointerDown={startSide(onLeftResize)}
+                  onDoubleClick={() => layoutStore.set({ leftWidth: DEFAULT_LAYOUT.leftWidth })}
+                  title="Drag to resize · double-click to reset"
+                  className="absolute top-0 -right-1 w-2 h-full cursor-col-resize z-10 hover:bg-accent/30"
+                />
+              )}
             </div>
           )}
 
@@ -196,8 +247,19 @@ export const WorkspaceShell: React.FC<Props> = ({ viewports, selection, drawers 
 
           {/* Parameters */}
           {(context.inspector?.length ?? 0) > 0 && (
-            <div className={`h-full border-l border-line-1 bg-surface-1 transition-all duration-med ${layout.showRight ? 'w-80' : 'w-0 overflow-hidden border-none'}`}>
-              <div className="w-80 h-full overflow-y-auto">
+            <div
+              className={`h-full shrink-0 relative border-l border-line-1 bg-surface-1 ${sideTransition} ${layout.showRight ? '' : 'overflow-hidden border-none'}`}
+              style={{ width: layout.showRight ? rightW : 0 }}
+            >
+              {layout.showRight && (
+                <div
+                  onPointerDown={startSide(onRightResize)}
+                  onDoubleClick={() => layoutStore.set({ rightWidth: DEFAULT_LAYOUT.rightWidth })}
+                  title="Drag to resize · double-click to reset"
+                  className="absolute top-0 -left-1 w-2 h-full cursor-col-resize z-10 hover:bg-accent/30"
+                />
+              )}
+              <div className="h-full overflow-y-auto" style={{ width: rightW }}>
                 {inspectorPanels.length === 0 ? (
                   <div className="p-4 text-center text-fg-3 text-mini italic">
                     Nothing selected — pick an object to edit its parameters.

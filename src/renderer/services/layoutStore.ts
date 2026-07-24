@@ -12,6 +12,8 @@ export interface WorkspaceLayout {
   helpWidth: number;     // px, clamped 240..560
   splitRatio: number;    // 0.2..0.85 — the 2D stage's fraction of the split host
   bottomHeight: number;  // px — the full-width bottom region (WorkspaceContext.bottom)
+  leftWidth: number;     // px — the browser column (clamped in the shell)
+  rightWidth: number;    // px — the parameter column (clamped in the shell)
   // visibility
   showLeft: boolean;
   showRight: boolean;
@@ -43,7 +45,8 @@ export interface WorkspaceLayout {
 // cannot name a plugin's dock panel); it supersedes `dockTab`, which stays until the dock is
 // decomposed into panels.
 export type ContextLayout = Partial<Pick<WorkspaceLayout,
-  'dockHeight' | 'splitRatio' | 'bottomHeight' | 'showLeft' | 'showRight' | 'dockOpen' | 'splitView'>> & {
+  'dockHeight' | 'splitRatio' | 'bottomHeight' | 'leftWidth' | 'rightWidth'
+  | 'showLeft' | 'showRight' | 'dockOpen' | 'splitView'>> & {
   dockPanel?: string;
   /** The `WorkspaceContext.layoutRev` this slice was banked against — see resolveContextLayout(). */
   rev?: number;
@@ -54,6 +57,10 @@ export const DEFAULT_LAYOUT: WorkspaceLayout = {
   helpWidth: 320,
   splitRatio: 0.5,
   bottomHeight: 340,
+  // The old hard-coded Tailwind widths of the two columns (w-72 / w-80) — so an install that has
+  // never dragged them looks exactly as it did before they became resizable.
+  leftWidth: 288,
+  rightWidth: 320,
   showLeft: true,
   showRight: true,
   showHelp: false,
@@ -69,7 +76,7 @@ export const DEFAULT_LAYOUT: WorkspaceLayout = {
 };
 
 // The ergonomic keys banked per context — one list, used by both directions of a context switch.
-const CONTEXT_KEYS = ['dockHeight', 'splitRatio', 'bottomHeight', 'showLeft', 'showRight', 'dockOpen', 'splitView'] as const;
+const CONTEXT_KEYS = ['dockHeight', 'splitRatio', 'bottomHeight', 'leftWidth', 'rightWidth', 'showLeft', 'showRight', 'dockOpen', 'splitView'] as const;
 
 let state: WorkspaceLayout = DEFAULT_LAYOUT;
 const subs = new Set<() => void>();
