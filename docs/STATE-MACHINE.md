@@ -265,6 +265,61 @@ transport over the bridge, they don't run the FSM).
 
 ---
 
+## The cold start — the show waits for its content (`services/bootGate.ts`)
+
+**Opening a project does not start the machine. Decoding the opening look does.**
+
+Everything that loads content is fire-and-forget: `timeline.warmPool()` kicks blob reads, codec probes
+and first-frame seeks and returns immediately; `contentSource.acquire()` does the same for a surface's
+own media; the audio plugin conforms and loads on its own schedule. Before the gate existed, the FSM
+initialized on the **very next frame** after `applyProjectData` — entered `initialStateId`, ran its
+`play` entry action, and the transport ran over decoders that held nothing:
+
+- a `<video>` below `readyState 2` is **undrawable**, and `buildProgram()` clears to black, so the
+  opening seconds went out **black on the projectors and on the Art-Net output** alike;
+- a bed clip is **silent** until the audio engine has loaded it (measured: ~6 s on a cold boot);
+- an `afterDelay` on the opening state rides a **wall clock that started at entry**, so a 5 s dwell
+  could expire before its content had ever appeared on stage.
+
+So on every project open the machine is **held** (`timeline.setArmed(false)` — the *tick* is skipped)
+while `bootGate` polls readiness at ~10 Hz, then armed. What it waits for:
+
+| Waited on | Ready when |
+|---|---|
+| the opening scene's timeline pool (the frame each layer **starts** on) | the `<video>` is seeked and `readyState >= 2`, or the codec's `probed()` has answered |
+| the loaded surfaces' own `VIDEO` / `IMAGE` media | `surfaceMedia.getDrawable()` returns something |
+| whatever a plugin registers (`host.boot.registerProbe`) — today the audio plugin's engine loads + conforms | the plugin says so |
+
+**Never waited on:** live sources (camera / NDI / Spout / DMX-in / tracking), effects, `LAYER` /
+`PROGRAM` / `SLICE` surfaces, and any layer with nothing under the timeline's start. A live feed may
+legitimately never arrive; blocking on one would hold a venue dark because a sending machine was off.
+
+**It always fails open.** After *Preferences ▸ Engine ▸ Preload wait* (`AppSettings.bootPreloadSec`,
+default **15 s**, machine-scoped) the machine is armed regardless and the log names what never came:
+
+```
+[boot] content ready in 5.8s (2 item(s)) — arming the show
+[boot] armed by TIMEOUT after 15.0s — 1 item(s) never became ready: Ghost: nope.png
+```
+
+Also true of the hold:
+
+- **It holds the machine, not the app.** `Stage` keeps compositing and publishing `dmx:frame`
+  throughout (unmounting it would stop Art-Net), surfaces show whatever they already have, and the warm
+  pool has each layer parked on its first frame — so the wall shows frame 0 held, then starts.
+- **It is not `stateMachine.enabled`.** That flag is persisted project data; flipping it to wait would
+  write the show back to disk disabled. The arm is engine state and is never saved.
+- **A human outranks it.** Pressing Play (or an OSC/tablet transport command) during the hold arms it
+  immediately — `App` is the single writer of `playing`, so that one seam covers every path.
+- **Every cold start funnels through `applyProjectData`** — editor open, `--project=`, the watchdog's
+  relaunch, the show-control playlist's next show — so one call site covers all of them, and a playlist
+  switch simply restarts the wait against the incoming project.
+- **The status bar says so** (a "Preloading n/m" chip), and so does the tablet: `host.show.getStatus()`
+  carries `booting` + `bootPending`, because a preload and a stopped show otherwise look identical
+  (`playing: false`, no current state) and an operator would press GO over a gate about to open.
+
+---
+
 ## Triggering from outside the app
 
 ### OSC (see [OSC.md](OSC.md))
@@ -321,6 +376,7 @@ it (or drive `requestEnter`/OSC). Regions group such states visually but don't w
 | [`src/renderer/components/timeline/StateGraphEditor.tsx`](../src/renderer/components/timeline/StateGraphEditor.tsx) | the node-graph authoring modal |
 | [`src/renderer/components/timeline/StateLane.tsx`](../src/renderer/components/timeline/StateLane.tsx) | live current-state lane + manual buttons |
 | [`src/renderer/services/cueBus.ts`](../src/renderer/services/cueBus.ts) | React-free bus the FSM recalls Scenes / fires Cues through |
+| [`src/renderer/services/bootGate.ts`](../src/renderer/services/bootGate.ts) | the cold-start gate — holds the machine until the opening look is decoded |
 
 ## Verify
 
@@ -329,3 +385,10 @@ it (or drive `requestEnter`/OSC). Regions group such states visually but don't w
 with **no** Play it should cycle Calm → Rise → Burn → Calm on the 2D stage and the LED strip. Then open
 `02-triggers-and-actions.artlux`, press the state-lane **manual** button to leave *Idle*, press Play,
 and watch it walk through `afterDelay` → `atTime` → `onMarker` → `onClipEnd` → loop.
+
+**The cold-start gate:** open a project with real media and watch the status bar — a *Preloading n/m*
+chip appears until the opening look is decoded, and the console logs `[boot] content ready in …`.
+Point a surface at a file that does not exist and it instead logs `[boot] armed by TIMEOUT after 15.0s
+— … Ghost: nope.png` and starts anyway. Both were verified against
+`electron . --headless --project=<file>` (measured: ~6 s of genuine load on a cold boot, which is
+exactly the window the show used to run through black and silent).

@@ -1059,6 +1059,12 @@ export interface AppSettings {
   // Video decode
   mp4WebCodecs?: boolean; // decode .mp4/.m4v via the WebCodecs plugin (frame-accurate; no HW-session cap)
                           // instead of the default <video> element. Off by default → unchanged behaviour.
+  // Cold start: how long the show waits for its opening content to decode before the state machine is
+  // armed anyway (services/bootGate). The gate ALWAYS fails open — this is how much patience a venue
+  // has for a missing/slow asset, not whether it waits forever. Absent ⇒ 15s. MACHINE-scoped like
+  // everything else here: the same show on a slower disk deserves a longer wait, and that is a
+  // property of the building, not of the project.
+  bootPreloadSec?: number;
   // Namespace for plugin-private settings that don't warrant a core field. A plugin keys by its id
   // (`settings.plugins?.['my-plugin']`) and owns the shape. Cross-app persisted settings that the host
   // also reads (like mp4WebCodecs) stay top-level core fields; this is for genuinely plugin-local prefs.

@@ -535,11 +535,19 @@ export interface ShowService<SM = unknown, Scene = unknown, Bank = unknown, Entr
   // A mirror/projector window runs NO show clock: `showTime` is always 0 and `showEnded` always false
   // there (`showEnd` still reads the global document's length). Nothing show-clock-driven exists in a
   // projector — the audio driver early-returns for non-main windows — so this is a floor, not a lie.
+  //
+  // `booting` says THE SHOW HAS NOT STARTED YET BECAUSE ITS CONTENT IS STILL LOADING — the host holds the
+  // state machine on a cold project open until the opening look is decoded (see the `boot` service
+  // below). A remote MUST distinguish it from a stopped show: both report `playing: false` and a null
+  // `currentStateId`, but one is an operator decision and the other is a two-second wait that will end
+  // by itself. Showing "STOPPED" through a preload is how an operator ends up pressing GO over a gate
+  // that was about to open. `bootPending` is how many items are still outstanding (0 when not booting).
   getStatus(): {
     playing: boolean; playhead: number; showTime: number; duration: number;
     showEnd: number; showEnded: boolean;
     currentStateId: string | null; stateElapsedSec: number;
     activeSceneId: string | null; lastFiredTransitionId: string | null;
+    booting: boolean; bootPending: number;
   };
   // The timeline's live selection (ephemeral — never persisted, never in the document, never React state
   // in between). A panel with an inspector that FOLLOWS what the operator clicked subscribes here.
@@ -679,6 +687,33 @@ export interface AudioService<Mix = unknown, TlAudio = unknown, TlClip = unknown
   subscribe(cb: () => void): () => void;  // fires when EITHER container changes (the bed, or the bound timeline)
 }
 
+// ─── Cold-start readiness ─────────────────────────────────────────────────────────────────────
+// "Wait for the content, THEN play." On a cold project open the host HOLDS the state machine until the
+// look the show opens on is actually decoded, then arms it — otherwise the FSM's `play` entry action
+// runs over empty decoders and the opening seconds go out black, on the projectors and on the LED
+// output alike (a <video> under readyState 2 is undrawable). The host already waits on what it owns:
+// the opening scene's timeline pool and the surfaces' own VIDEO/IMAGE media.
+//
+// A PLUGIN THAT OWNS LOADING OF ITS OWN registers a probe here — the audio plugin's conforms and engine
+// loads are the first, so a show no longer opens with its bed silent for the first bar.
+//
+// THE CONTRACT, AND IT IS SHORT:
+//   · Register ONCE at activate(), not per project — the host re-polls every registered probe on each
+//     open. Poll rate is ~10 Hz, so a probe must be a CHEAP synchronous read of state you already keep,
+//     never a decode, an await, or an IPC round-trip.
+//   · `pending` names what is missing, for the status readout and the timeout log. Return ready:true
+//     when you have nothing outstanding — including when your feature is disabled or absent.
+//   · NEVER block on something that may never arrive (a live network feed, a camera). The gate fails
+//     open on a deadline, but a probe that is structurally unable to finish just burns the venue's
+//     patience on every single start.
+//   · A probe that throws is treated as ready and logged. Your readiness bug must not hold a show.
+export interface BootService {
+  /** Register a cold-start readiness probe. Returns an unregister. */
+  registerProbe(id: string, probe: () => { ready: boolean; pending?: string[] }): () => void;
+  /** Is the host holding the show for a preload right now? */
+  isBooting(): boolean;
+}
+
 export interface RendererHostServices {
   projectorOutputs: ProjectorOutputsService;
   surfaces: SurfacesService;
@@ -687,6 +722,7 @@ export interface RendererHostServices {
   settings: SettingsService;
   show: ShowService;
   audio: AudioService;
+  boot: BootService;
 }
 
 // ─── Renderer plugin context ────────────────────────────────────────────────────────────────

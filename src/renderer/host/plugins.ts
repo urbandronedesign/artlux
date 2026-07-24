@@ -41,7 +41,9 @@ const NOOP_HOST: RendererHostServices = {
   show: {
     getStateMachine: () => ({}), getScenes: () => [], getCueBanks: () => [], getSchedule: () => [],
     setFsmEnabled: () => {}, setSchedule: () => {}, subscribe: () => () => {},
-    getStatus: () => ({ playing: false, playhead: 0, showTime: 0, duration: 0, showEnd: 0, showEnded: false, currentStateId: null, stateElapsedSec: 0, activeSceneId: null, lastFiredTransitionId: null }),
+    // `booting: false` is the honest answer here, not a stub: the cold-start gate holds the SHOW MACHINE,
+    // which only the main window runs. A projector is never waiting on a preload.
+    getStatus: () => ({ playing: false, playhead: 0, showTime: 0, duration: 0, showEnd: 0, showEnded: false, currentStateId: null, stateElapsedSec: 0, activeSceneId: null, lastFiredTransitionId: null, booting: false, bootPending: 0 }),
     // No editor state here ⇒ no timeline, no selection. Never fires.
     getSelection: () => null, subscribeSelection: () => () => {},
     recallScene: () => {}, fireCue: () => {}, fireColumn: () => {}, transport: () => {},
@@ -61,6 +63,9 @@ const NOOP_HOST: RendererHostServices = {
     getVideoAudio: () => ({ tracks: [], clips: [] }),
     subscribe: () => () => {},
   },
+  // Cold-start readiness. A projector window loads no project and holds no show machine, so a probe
+  // registered here would be polled by nobody — accept it and drop it, like every other write above.
+  boot: { registerProbe: () => () => {}, isBooting: () => false },
 };
 
 function makeContext(win: 'main' | 'projector', host: RendererHostServices): RendererPluginContext {

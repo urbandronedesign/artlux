@@ -45,6 +45,13 @@ export interface ShowStatus {
   stateElapsedSec: number;
   activeSceneId: string | null;
   lastFiredTransitionId: string | null; // pulses; the client flashes the edge
+  // THE SHOW IS LOADING, NOT STOPPED. On a cold project open (launch, a watchdog relaunch, the
+  // playlist's next show) the host holds the state machine until the opening content is decoded. That
+  // reads as `playing:false` + `currentStateId:null` — identical to a show an operator stopped — so
+  // without this the tablet would say STOPPED through a preload and an operator would press GO over a
+  // gate that was about to open by itself. `bootPending` = items still outstanding.
+  booting?: boolean;
+  bootPending?: number;
   ts: number;
 }
 

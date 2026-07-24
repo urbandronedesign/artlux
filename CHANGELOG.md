@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+### The show waits for its content before it starts
+
+Opening a project used to start the show on the **next frame**. Everything that loads content is
+fire-and-forget, so the state machine entered its initial state and ran its `play` action over decoders
+that held nothing: a `<video>` below `readyState 2` is undrawable and the compositor clears to black, so
+the opening seconds went out **black on the projectors and on Art-Net**, with the bed silent under them
+(measured on a cold boot: ~6 s of genuine load) — and an `afterDelay` on the opening state burned its
+dwell while the audience looked at nothing.
+
+The machine is now **held** on every project open until the opening look is actually decoded — the first
+frame of each of the opening scene's layers, the surfaces' own video/image media, and the audio plugin's
+engine loads and conforms (plugins register their own readiness through the new `host.boot` service).
+It **always fails open**: after *Preferences ▸ Engine ▸ Preload wait* (default 15 s) the show starts
+regardless and the log names what never loaded. Live sources — camera, NDI, Spout, DMX-in, tracking —
+are never waited on; one dark venue because a sending machine was off is not a trade worth making.
+
+Pressing Play during the wait starts it immediately. `Stage` keeps publishing frames throughout, the
+status bar shows a *Preloading n/m* chip, and the show-control tablet says "Loading show content" rather
+than showing a stopped transport. Every cold start goes through the same door — editor open,
+`--project=`, the watchdog's relaunch, the playlist's next show. See
+[docs/STATE-MACHINE.md](docs/STATE-MACHINE.md#the-cold-start--the-show-waits-for-its-content-servicesbootgatets).
+
+Also fixed on the way: a warm pool whose blob landed *after* its pre-roll pass waited for a later
+`warm()` that, for the scene the show opens on, never came — that pool promoted on an empty element.
+
 ### The browser and parameter columns resize — and stay resized
 
 Every workbench's side columns were hard-coded (288px / 320px). That was fine for an outliner and wrong

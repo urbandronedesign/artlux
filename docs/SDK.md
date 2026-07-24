@@ -60,6 +60,7 @@ state there); `projectors.onMessage` only fires in the main window (it owns the 
 | `scene3D` | `get`/`patch`/`subscribe` | Read + patch the 3D scene (venue, camMask, markerMap, tracking flags). |
 | `projectors` | `send(surfaceId,msg)` / `onMessage(cb)` | main→projector send + projector→main back-channel (patternShown/crosshair/confirm). |
 | `settings` | `get()` / `subscribe(cb)` | **Read-only** view of persisted `AppSettings`. For UI with no props path (e.g. a modal panel). Editing goes through a `SettingsSection`. |
+| `boot` | `registerProbe(id, fn)` / `isBooting()` | **Cold start.** On a project open the host holds the state machine until the opening look is decoded, then arms it (see [STATE-MACHINE.md](STATE-MACHINE.md#the-cold-start--the-show-waits-for-its-content-servicesbootgatets)). A plugin that loads content of its own registers a probe so the show also waits for *it* — the audio plugin does, or a show would open with its bed silent for the first bar. Register **once at activate**; the probe is polled ~10 Hz and must be a cheap synchronous read (no await, no IPC). **Never block on something that may never arrive** (a live feed, a camera) — the gate fails open on a deadline, but such a probe burns the venue's patience on every start. A throwing probe is treated as ready and logged. |
 
 ### The generic IPC bridge (`ctx.ipc` main-side, preload forwarders renderer-side)
 

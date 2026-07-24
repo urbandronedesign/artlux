@@ -206,3 +206,28 @@ export function getDrawable(s: Surface): Drawable | null {
   // which is worse than the bug it fixes.
   return contentSource.getDrawable(s.id, s.content, timeline.getShowTime());
 }
+
+// ── COLD-START READINESS OF THE SURFACES ─────────────────────────────────────────────────────────
+// "Which surfaces would composite BLACK right now?" — asked by services/bootGate while the FSM is held
+// on a cold project open. A file-backed surface (VIDEO/IMAGE) is ready when its drawable exists;
+// getDrawable already encodes exactly that (readyState >= 2 for a <video>, `complete && naturalWidth`
+// for an <img>, a decoded frame for a codec), so this is a filter over it, not a second definition.
+//
+// EVERYTHING ELSE IS READY BY OMISSION, and that is the load-bearing half:
+//   · CAMERA / SPOUT / NDI / DMX_IN / TRACKING — a live feed may never arrive (the sending machine is
+//     off, the camera is unplugged). Blocking a venue's start on one would hold the house dark.
+//   · EFFECT — generative, ready the moment it is asked.
+//   · NONE / LAYER / PROGRAM / SLICE — own no media (the timeline's readiness is the pool's, judged by
+//     timeline.poolReady; a slice is as ready as the surface it crops).
+export function pendingMedia(surfaces: Surface[]): string[] {
+  const pending: string[] = [];
+  for (const s of surfaces) {
+    const t = s.content.type;
+    if (t !== SourceType.VIDEO && t !== SourceType.IMAGE) continue;
+    if (!s.content.url) continue; // nothing to load — an unconfigured surface is not a reason to wait
+    if (contentSource.getDrawable(s.id, s.content, 0)) continue;
+    const name = s.content.url.split(/[\\/]/).pop() || s.content.url;
+    pending.push(`${s.name || s.id}: ${name}`);
+  }
+  return pending;
+}

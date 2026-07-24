@@ -82,6 +82,7 @@ const SYNC_THRESHOLD = 0.05; // s — per-clip source-offset drift (retime / mis
 let unsubTick: (() => void) | null = null;
 let unsubMix: (() => void) | null = null;
 let unsubCfg: (() => void) | null = null;
+let unsubBoot: (() => void) | null = null; // cold-start readiness probe (host.boot)
 
 // The fallbacks for a junk container, as SHARED FROZEN CONSTANTS — never fresh literals. readTlAudio runs
 // EVERY FRAME and pruneOrphans gates on the clip array's IDENTITY, so a fresh `[]` per call would defeat
@@ -301,6 +302,12 @@ export const plugin: RendererPlugin = {
     // makes the check a check on the SOURCE rather than on the NAME of the source.
     const srcPath = new Map<string, string>();
     let loadGen = 0;                              // generation of the newest syncLoaded pass — see syncLoaded
+    // THE NATIVE ENGINE IS MISSING (build:audio never ran / the addon failed to load). Set from the ONE
+    // signal that says so unambiguously: loadClip RESOLVING null (see the no-meta branch in syncLoaded).
+    // Read only by the cold-start probe — an absent engine loads nothing, ever, so a probe that waited
+    // for residency would hold EVERY project open for the full preload timeout on a machine with no
+    // audio addon. The plugin graceful-degrades to silence; the gate must degrade with it.
+    let engineAbsent = false;
     const sounding = new Set<string>();           // clips the engine is currently playing
     const sentGain = new Map<string, number>();   // last gain pushed, per sounding clip
     const sentOffset = new Map<string, number>(); // last source offset seeked, per sounding clip
@@ -477,6 +484,7 @@ export const plugin: RendererPlugin = {
         srcPath.set(clip.id, clip.path); // record the ATTEMPTED path, so a failure is remembered per-source
         try {
           const meta = await audioClient.loadClip(clip.id, clip.path);
+          engineAbsent = !meta; // see the no-meta branch below — null means the ENGINE is missing, not the file
           if (meta) {
             // Re-check against a FRESH allClips(): the containers can have changed across the await (a
             // scene recall swapped the bound timeline out from under this load). Same id AND same path —
@@ -848,12 +856,44 @@ export const plugin: RendererPlugin = {
       void syncLoaded().then(syncClips);
     });
     unsubTick = ctx.onPlayhead(tick);
+
+    // ── COLD START: THE SHOW WAITS FOR ITS SOUND ─────────────────────────────────────────────────
+    // The host holds the state machine on a project open until the opening look is decoded, and asks
+    // every registered probe whether it is ready (see the SDK's BootService). Without this one, the
+    // PICTURE would be gated and the SOUND would not: a bed clip is silent until audioClient.loadClip
+    // resolves and a video clip's audio is silent until its conform lands, so the show would open on a
+    // correct first frame with nothing under it — the first bar missing, every single start.
+    //
+    // Ready ⇔ every clip we WANT is accounted for. Deliberately not `loading.size === 0`: that is empty
+    // both when the loads are done AND in the instant before syncLoaded has started them, so it would
+    // report ready on the first poll of a cold start and gate nothing at all. `failed` counts as
+    // accounted-for — a broken file is answered, not pending, and must not burn the venue's patience on
+    // every start. Cheap: two set lookups per clip, no IPC, no await.
+    unsubBoot = ctx.host.boot.registerProbe('audio', () => {
+      if (engineAbsent) return { ready: true }; // no engine ⇒ nothing will ever load; don't hold the show
+      const pending: string[] = [];
+      for (const c of allClips()) {
+        if (!c.path || loaded.has(c.id) || failed.has(c.id)) continue;
+        pending.push(`audio: ${c.path.split(/[\\/]/).pop() || c.path}`);
+      }
+      // The conforms behind the video-audio container. readVideoAudio() DROPS a clip whose conform has
+      // not landed (it cannot play a .mp4), so those clips are invisible to allClips() above — checking
+      // only the mapped container would call the sound ready precisely because it is missing.
+      if (videoAudioOn) {
+        const raw = (host.audio.getVideoAudio() as Partial<TlAudio>) ?? {};
+        for (const c of Array.isArray(raw.clips) ? raw.clips : EMPTY_CLIPS) {
+          if (conformOf(c.path) === undefined) pending.push(`conform: ${c.path.split(/[\\/]/).pop() || c.path}`);
+        }
+      }
+      return { ready: pending.length === 0, pending };
+    });
   },
 
   deactivate(): void {
     unsubTick?.(); unsubTick = null;
     unsubMix?.(); unsubMix = null;
     unsubCfg?.(); unsubCfg = null;
+    unsubBoot?.(); unsubBoot = null;
     audioClient.stopAll();
   },
 };

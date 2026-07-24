@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { PanelLeft, PanelRight, Activity, Wifi, Workflow } from 'lucide-react';
+import { PanelLeft, PanelRight, Activity, Wifi, Workflow, Hourglass } from 'lucide-react';
 import { helpBus, type HelpText, type HelpLang } from '../services/helpBus';
 import { timeline as engine } from '../services/timeline';
+import * as bootGate from '../services/bootGate';
 import { StateMachine } from '../types';
 
 // The Edit / Perform / Calib preset switcher that used to live here was REMOVED: workspace contexts
@@ -60,6 +61,28 @@ const ShowStateChip: React.FC<{ sm: StateMachine }> = ({ sm }) => {
   );
 };
 
+// THE COLD START, VISIBLE. Between opening a project and the show machine being armed, the app is
+// deliberately doing nothing — it is waiting for the opening look to decode (services/bootGate). Without
+// a readout that reads as "the app ignored my project", so the operator opens it again. Only rendered
+// while the gate is actually holding; it costs one subscription and re-renders ~10×/s for a second or
+// two, then never again.
+const BootChip: React.FC = () => {
+  const [p, setP] = useState(bootGate.get());
+  useEffect(() => bootGate.subscribe(setP), []);
+  if (!p.booting) return null;
+  const what = p.pending.length ? p.pending.slice(0, 6).join('\n') : 'starting…';
+  return (
+    <>
+      <div className="flex items-center gap-1.5" title={`Preloading show content — the state machine starts when it is decoded:\n${what}`}>
+        <Hourglass size={12} className="text-warn" />
+        <span className="text-fg-2">Preloading</span>
+        <span className="num text-fg-3">{p.ready}/{p.total}</span>
+      </div>
+      <div className="h-3 w-px bg-line-2" />
+    </>
+  );
+};
+
 export const StatusBar: React.FC<Props> = ({ help, lang, renderFps, connected, outputStats, leftOpen, onToggleLeft, rightOpen, onToggleRight, targetIp, stateMachine }) => {
   const [hint, setHint] = useState<HelpText | null>(null);
   useEffect(() => helpBus.subscribe(setHint), []);
@@ -87,6 +110,7 @@ export const StatusBar: React.FC<Props> = ({ help, lang, renderFps, connected, o
     </div>
 
     <div className="flex items-center gap-4 shrink-0">
+      <BootChip />
       <ShowStateChip sm={stateMachine} />
       <div className="flex items-center gap-1.5" title="Render FPS">
         <Activity size={12} className="text-ok" />

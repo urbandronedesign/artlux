@@ -135,6 +135,23 @@ const SLEW = 0.1; // fraction of residual drift a mirror window corrects per tra
 let projectSm: StateMachine | undefined;
 let frameNowSec = 0; // wall clock (seconds) sampled each frame — the FSM's standalone clock
 
+// ── THE COLD-START ARM ───────────────────────────────────────────────────────────────────────────
+// The FSM is HELD while a freshly-opened project's first look is still loading (services/bootGate).
+// warmPool() is fire-and-forget — it kicks blob reads, codec probes and first-frame seeks and returns
+// immediately — so on the frame after applyProjectData the machine would otherwise initialize, enter
+// `initialStateId`, run its `play` entry action and start the show against decoders that hold NOTHING:
+// a <video> below readyState 2 is undrawable and buildProgram clears to black, so the opening seconds
+// go out black on the projectors AND on the LED output. Worse, 'afterDelay' rides a WALL clock that
+// starts the moment the state is entered — an opening state with a 5s dwell can expire before its
+// content ever appeared on stage.
+//
+// It gates ONLY fsm.tick(). Not the clock (nothing plays yet — `playing` is false until something
+// asks), not syncLayer (the pre-roll needs the compositor to keep drawing what it has), and not the
+// end-stop's deferred pause (see the tick site). Defaults to TRUE so every window/path that never
+// opens a project — mirrors, a bare session, the projector — behaves exactly as before.
+let armed = true;
+const armedSubs = new Set<(a: boolean) => void>();
+
 // Is a clip live under the playhead on this layer? (for the FSM 'onClipEnd' trigger)
 const clipActive = (layerId: string, t: number): boolean => activeClip(layerId, t) != null;
 // Per-frame context handed to the FSM runtime. `atEnd` is the one-frame end-of-timeline pulse (hitEnd,
@@ -308,6 +325,13 @@ function startClip(t: Timeline, layerId: string): { clip: VideoClip; startT: num
 // Pre-roll a standby pool: for each layer, create a paused <video> seeked to the exact first frame the
 // timeline shows at its start, so readyState climbs to >=2 BEFORE the swap (no black/partial first
 // frame). Video/codec only — content/live clips are lazy and only ever acquired by the ACTIVE pool.
+//
+// ⚠ IT MUST BE SAFE TO CALL REPEATEDLY ON A POOL THAT IS ALREADY WARM, and it is called that way:
+// setData, warmPool, swap's cold fallback and — every poll — the boot gate's poolReady() below. The
+// seek is therefore conditional. Assigning `currentTime` unconditionally RESTARTS the seek even when
+// the element is already parked on that exact frame: readyState drops back under 2, the element is
+// undrawable again, and a gate that polls at 10 Hz would hold a pool one seek short of ready forever
+// while the compositor showed black.
 function warmPoolVideos(pool: LayerPool, t: Timeline): void {
   for (const l of t.layers) {
     if (clipKindRegistry.get(l.kind ?? '')?.skipVideoSync) continue;
@@ -316,13 +340,55 @@ function warmPoolVideos(pool: LayerPool, t: Timeline): void {
     const codec = videoCodecRegistry.forPath(sc.clip.path);
     if (codec) { codec.preWarm(sc.clip.path); continue; } // codec frames are pulled on demand; preWarm suffices
     const url = getBlobUrl(sc.clip.path);
-    if (!url) { ensureBlob(sc.clip.path); continue; } // not loaded yet — pre-roll on a later warm() pass
+    // Not read yet. ensureBlobUrl dedupes by path, so asking again is free — and asking again is the
+    // POINT: on a cold project open the blob lands AFTER this pass, and the pre-roll used to wait for
+    // "a later warm() pass" that, for the scene the show opens on, never came. The pool then promoted
+    // on an empty element and the show started on black. poolReady() re-drives this every poll.
+    if (!url) { ensureBlob(sc.clip.path); continue; }
     const lv = getLayerVideo(l.id, pool);
     if (lv.srcPath !== sc.clip.path) { lv.el.src = url; lv.srcPath = sc.clip.path; }
     lv.el.pause();
-    const target = sc.startT - sc.clip.start + sc.clip.inPoint;
-    try { lv.el.currentTime = Math.max(0, target); } catch { /* seek once metadata lands */ }
+    const target = Math.max(0, sc.startT - sc.clip.start + sc.clip.inPoint);
+    // Half a source frame of slop: exact equality never holds (a decoder lands on the nearest frame
+    // boundary, not on the number we asked for), and re-asking is what the note above forbids.
+    if (!lv.el.seeking && Math.abs(lv.el.currentTime - target) > frameSec(t) / 2) {
+      try { lv.el.currentTime = target; } catch { /* seek once metadata lands */ }
+    }
   }
+}
+
+// ── COLD-START READINESS OF A POOL ───────────────────────────────────────────────────────────────
+// "Would promoting this pool put a PICTURE on stage, or black?" — asked by services/bootGate while the
+// FSM is held. Re-drives the pre-roll first (idempotent, see above), so a blob that landed since the
+// last poll is turned into a seeked <video> here rather than waiting for a warm() nobody will call.
+//
+// Only the frame the timeline OPENS on is judged: that is the one the audience sees on GO. Layers with
+// nothing under the start, content/live clips (lazy by design, and a live receiver may never arrive)
+// and non-video lanes are all `ready` by omission — a boot gate that waited on an NDI feed would hold
+// a venue dark until the sending machine woke up.
+function poolReadiness(poolKey: string, t: Timeline): { ready: boolean; pending: string[] } {
+  if (external) return { ready: true, pending: [] };
+  let pool = pools.get(poolKey);
+  if (!pool) { pool = new Map(); pools.set(poolKey, pool); }
+  warmPoolVideos(pool, t);
+  const pending: string[] = [];
+  for (const l of t.layers) {
+    if (clipKindRegistry.get(l.kind ?? '')?.skipVideoSync) continue;
+    const sc = startClip(t, l.id);
+    if (!sc || isContentClip(sc.clip)) continue;
+    const name = sc.clip.path.split(/[\\/]/).pop() || sc.clip.path;
+    const codec = videoCodecRegistry.forPath(sc.clip.path);
+    if (codec) {
+      // A codec pulls frames on demand, so there is no element to watch — the honest "it is open and it
+      // is really this codec" signal is the probe having ANSWERED (true or false: false means the host
+      // falls back to a <video>, which is a decision, not a wait).
+      if (codec.probed(sc.clip.path) === undefined) pending.push(`${name} (${codec.id})`);
+      continue;
+    }
+    const lv = pool.get(l.id);
+    if (!lv || lv.srcPath !== sc.clip.path || lv.el.readyState < 2) pending.push(name);
+  }
+  return { ready: pending.length === 0, pending };
 }
 
 // Tear down per-layer <video>s in a pool that its timeline no longer references. Codec/content release
@@ -741,7 +807,12 @@ function frame(now: number): void {
     // Ticks every frame regardless of `playing` so the standalone wall clock advances while stopped.
     if (!external) {
       frameNowSec = now / 1000;
-      try { fsm.tick(projectSm, playhead, prevPlayhead, smContext()); } catch (e) { console.error('[timeline] fsm error', e); }
+      // `armed`: HELD during a cold start until the first look is resident — see the flag's own note.
+      // Only the TICK is skipped. frameNowSec above still advances (getSmElapsedSec and any later
+      // afterDelay measure from the arm, not from the load), and the deferred pause below still
+      // emits: the end-stop can only have raised it under `playing`, and a transport that is running
+      // during a boot hold is one a human started, which arms the gate anyway.
+      if (armed) try { fsm.tick(projectSm, playhead, prevPlayhead, smContext()); } catch (e) { console.error('[timeline] fsm error', e); }
       // THE END-STOP'S `pause`, DEFERRED TO HERE — the whole point of the 'onTimelineEnd' feature.
       //
       // The end-stop and the FSM edge it feeds happen on the SAME frame: hitEnd is set up in the clock
@@ -1151,6 +1222,20 @@ export const timeline = {
   getSmElapsedSec(): number { return fsm.getStateElapsedSec(); },
   // Register the project-level state machine to drive each frame. App calls this whenever it changes.
   setStateMachine(sm: StateMachine | undefined): void { projectSm = sm; },
+  // ── THE COLD-START ARM (services/bootGate owns the policy; this is only the seam) ──────────────
+  // Hold the machine while a freshly-opened project's first look loads, then arm it. Deliberately NOT
+  // `stateMachine.enabled`: that flag is PERSISTED PROJECT DATA, and flipping it off to wait would
+  // write the show back to disk disabled the next time anything called buildProjectData().
+  setArmed(a: boolean): void {
+    if (a === armed) return;
+    armed = a;
+    armedSubs.forEach(cb => cb(a));
+  },
+  isArmed(): boolean { return armed; },
+  subscribeArmed(cb: (armed: boolean) => void): () => void { armedSubs.add(cb); cb(armed); return () => { armedSubs.delete(cb); }; },
+  // Is this pool's FIRST FRAME decoded and drawable? Re-drives the pre-roll as a side effect. See
+  // poolReadiness — the boot gate polls it, and nothing else should need it.
+  poolReady(poolKey: string, t: Timeline): { ready: boolean; pending: string[] } { return poolReadiness(poolKey, t); },
   // Fire a manual FSM transition out of the current state (wired to the state-lane buttons).
   triggerSmTransition(id: string): void { if (!external) fsm.triggerManual(projectSm, id, playhead, smContext()); },
   // Force-enter a state by id, independent of the timeline (UI double-click test + future external

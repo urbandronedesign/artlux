@@ -192,6 +192,46 @@ check(
   },
 );
 
+// ── Cold start: the show waits for its content ────────────────────────────────────────────────
+check(
+  'opening a project holds the show machine',
+  'warmPool()/swap() are fire-and-forget, so without the hold the FSM initializes on the NEXT frame, ' +
+  'enters its initial state and runs its `play` entry action over decoders that hold nothing: the ' +
+  'opening seconds go out BLACK on the projectors and on Art-Net, with an afterDelay dwell already ' +
+  'burning. Nothing throws and the show reports itself healthy — the only witness is the audience.',
+  () => {
+    const src = read('src/renderer/App.tsx');
+    const body = fnBody(src, 'applyProjectData');
+    if (!body) return 'could not find applyProjectData in App.tsx';
+    if (!body.includes('bootGate.hold(')) {
+      return 'applyProjectData does not call bootGate.hold() — every cold start (editor open, --project=, ' +
+             'the watchdog relaunch, the playlist switch) funnels through it, so the hold has to live there';
+    }
+    // The gate is only a gate while something can still arm it. armNow on transport start is what keeps
+    // a human pressing Play from being ignored for the whole timeout.
+    return src.includes('bootGate.armNow(') ? null
+      : 'nothing calls bootGate.armNow() — an operator pressing Play during a preload would be held ' +
+        'until the timeout expired';
+  },
+);
+
+check(
+  'the FSM tick is gated on the cold-start arm',
+  'The hold has exactly one enforcement point: skipping fsm.tick() while unarmed. If the tick runs ' +
+  'anyway, bootGate still reports "booting", the status chip still shows a preload, and the show ' +
+  'starts on black regardless — a gate that lies is worse than no gate.',
+  () => {
+    const src = read('src/renderer/services/timeline.ts');
+    if (!/if \(armed\) try \{ fsm\.tick\(/.test(src)) return 'frame() must call fsm.tick() only under `if (armed)`';
+    // `enabled` is PERSISTED PROJECT DATA — holding the show by flipping it would write the show back
+    // to disk disabled on the next save.
+    const gate = read('src/renderer/services/bootGate.ts');
+    return gate.includes('setFsmEnabled') || /enabled\s*:/.test(gate)
+      ? 'bootGate must not touch StateMachine.enabled — that flag is persisted project data; hold via timeline.setArmed()'
+      : null;
+  },
+);
+
 // ── UI: the interaction-state floor ───────────────────────────────────────────────────────────
 check(
   'the interaction-state floor is overridable',

@@ -40,6 +40,7 @@ import { timeline as timelineEngine, GLOBAL_POOL } from './services/timeline';
 import { usageForPath, normPath, libraryItems, type ProjectRefs } from './services/assetLibrary';
 import { setCoreStateView } from './services/automationTargets.core';
 import * as timelinePreloader from './services/timelinePreloader';
+import * as bootGate from './services/bootGate';
 import { nextAccent, GLOBAL_ACCENT } from './sceneAccent';
 import * as oscController from './services/oscController';
 import { useLayout } from './hooks/useLayout';
@@ -1441,6 +1442,17 @@ const App: React.FC = () => {
       // Opening a project RESETS the show clock (the bed's time restarts with the show); a scene recall
       // never does. Both reach swap() with transport:'restart' and cannot be told apart in there.
       timelineEngine.swap(curKey, curTl, { transport: 'restart', showClock: 'reset' });
+      // ── WAIT FOR THE CONTENT, THEN PLAY ────────────────────────────────────────────────────────
+      // HOLD the state machine until the look above is actually decoded. warm()/swap() are
+      // fire-and-forget: without this the FSM would initialize on the very next frame, enter its
+      // initial state and run its `play` entry action over empty decoders — the show's opening
+      // seconds out BLACK on the projectors and on Art-Net, with an 'afterDelay' dwell already
+      // burning. bootGate arms it when the first frame of every layer + the surfaces' own media are
+      // resident, or after the venue's timeout (it always fails open). See services/bootGate.ts.
+      //
+      // EVERY cold start funnels through applyProjectData — editor open, --project=, the watchdog's
+      // relaunch, the show-control playlist's next show — so this one call covers all of them.
+      bootGate.hold({ poolKey: curKey, timeline: curTl, surfaces: surf });
       // Asset library: use saved assets; migrate a legacy take-only project (trackingTakes but no
       // assets) so recorded takes still appear in the library. Takes stay owned by the timeline.
       setAssets(Array.isArray(data?.assets) ? data.assets as AssetEntry[] : []);
@@ -2015,7 +2027,15 @@ const App: React.FC = () => {
   // Effects flush in declaration order. The engine's setData guard needs the engine's `playing` to be
   // still true when the new document lands, so setData has to run first in the flush. Hoisting this one
   // above it kills that guard silently. See the full note on the setData effect.
-  useEffect(() => { timelineEngine.setPlaying(isVideoPlaying); }, [isVideoPlaying]);
+  useEffect(() => {
+      timelineEngine.setPlaying(isVideoPlaying);
+      // A TRANSPORT THAT STARTS DURING A PRELOAD ENDS IT. The boot gate holds only the state machine,
+      // so nothing but a human (Play/space, the tablet remote) or an external controller (OSC) can get
+      // here while it is holding — and an explicit "start the show NOW" outranks waiting for a decode.
+      // This one seam covers every path because App is the single writer of `playing`. No-op when the
+      // gate isn't holding.
+      if (isVideoPlaying) bootGate.armNow('the transport was started');
+  }, [isVideoPlaying]);
   // The FSM control layer drives transport by emitting intents; App turns them into React state so
   // App stays the single writer of `playing` (the setPlaying effect above then drives the engine).
   useEffect(() => timelineEngine.subscribeIntent((i) => {
@@ -2164,6 +2184,10 @@ const App: React.FC = () => {
         stateElapsedSec: timelineEngine.getSmElapsedSec(),
         activeSceneId: activeSceneIdRef.current,
         lastFiredTransitionId: lastFiredTransitionRef.current,
+        // A PRELOAD IS NOT A STOPPED SHOW. Both report playing:false with no current state; one is the
+        // operator's decision, the other is a wait that ends by itself. See the SDK's comment.
+        booting: bootGate.isBooting(),
+        bootPending: bootGate.get().pending.length,
       }),
       // The timeline's live selection. Straight through to the render-free singleton Timeline.tsx writes:
       // it never enters App state, so clicking a clip re-renders the timeline panel and nothing else. The
@@ -2219,6 +2243,14 @@ const App: React.FC = () => {
       // them). The whole argument is on patchBoundTimelineClipRef above and in the SDK's AudioService.
       patchTimelineClip: (clipId, patch) => patchBoundTimelineClipRef.current(clipId, patch as Partial<AudioClip>),
       subscribe: (cb) => { audioSubs.current.add(cb); return () => { audioSubs.current.delete(cb); }; },
+    },
+    // Cold-start readiness: a plugin that loads content of its own (the audio plugin's conforms + engine
+    // loads) registers a probe, and the show is held until it reports ready. Straight through to the
+    // service singleton — the gate is App-independent by design (it must keep polling across the very
+    // renders a project open causes). See services/bootGate.ts and the SDK's BootService.
+    boot: {
+      registerProbe: (id, probe) => bootGate.registerProbe(id, probe),
+      isBooting: () => bootGate.isBooting(),
     },
   }), []);
   useEffect(() => { outputSubs.current.forEach(cb => cb()); }, [projectorOutputs]);
@@ -2689,6 +2721,11 @@ const App: React.FC = () => {
       })();
       // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // The venue's patience for a cold start. Pushed on every settings change (not read once at hold
+  // time): in broadcast the machine's real prefs land ASYNCHRONOUSLY, and can arrive after the project
+  // they configure has already started loading. bootGate re-reads it on every poll.
+  useEffect(() => { bootGate.setTimeoutSec(settings.bootPreloadSec ?? 15); }, [settings.bootPreloadSec]);
 
   // Persist settings + master brightness (debounced) so they survive restarts.
   useEffect(() => {

@@ -172,6 +172,12 @@ export const CLIENT_HTML = `<!doctype html>
     var s=snapshot||{scenes:[],banks:[]};
     var active=status?status.activeSceneId:null;
     var h='';
+    // THE SHOW IS LOADING, NOT STOPPED. A cold start (launch, a watchdog relaunch, the playlist's next
+    // show) holds the state machine until the opening content is decoded, and that is indistinguishable
+    // from a stopped show on this screen — same dead transport, no current state. Say so, or an operator
+    // starts pressing GO over a gate that was about to open on its own a second later.
+    if(status&&status.booting) h+='<div class="card" style="border-color:var(--warn)"><div class="name">Loading show content&hellip;</div>'+
+      '<div class="meta">The show starts by itself when it is ready'+(status.bootPending?(' &mdash; '+status.bootPending+' item(s) left'):'')+'.</div></div>';
     h+='<div class="card transport"><div class="row">'+
        '<button class="btn pri" data-act="tp" data-a="play">&#9654; Play</button>'+
        '<button class="btn" data-act="tp" data-a="pause">&#10074;&#10074; Pause</button>'+

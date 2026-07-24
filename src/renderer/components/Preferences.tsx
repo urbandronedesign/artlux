@@ -289,6 +289,11 @@ export const Preferences: React.FC<Props> = ({ settings, onChange }) => {
           <Toggle label="Keep-alive" checked={settings.keepAlive} onChange={(v) => onChange({ keepAlive: v })} title="Re-send last frame at FPS so receivers never starve" />
           <Toggle label="Synchronous output (ArtSync)" checked={settings.artNetSync} onChange={(v) => onChange({ artNetSync: v })} title="Send ArtSync (0x5200) after each frame so nodes latch + output simultaneously (tear-free multi-universe)" />
           <Slider label="Gamma" value={settings.gamma} min={1} max={3} step={0.05} format={(v) => v.toFixed(2)} onChange={(v) => onChange({ gamma: v })} />
+          {/* Cold start: how long to wait for the opening content to decode before the show machine is
+              armed anyway. The gate ALWAYS fails open — this is the venue's patience for a slow disk or
+              a missing asset, not a choice about whether to wait forever. See services/bootGate.ts. */}
+          <NumberField label="Preload wait (s)" labelWidth={LBL} value={settings.bootPreloadSec ?? 15} step={1} min={1} max={120}
+            onChange={(v) => onChange({ bootPreloadSec: Math.max(1, Math.min(120, Math.round(v))) })} />
         </Section></Tile>
 
         <Tile><GpuSection /></Tile>
