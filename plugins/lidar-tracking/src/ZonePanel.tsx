@@ -222,9 +222,11 @@ export const ZonePanel: React.FC<PanelProps> = () => {
       // A click, not a drag: silently ignored. Creating a zero-area zone would make a trigger that can
       // never fire and an operator who cannot see why.
       if (tooSmall) return;
+      // NO dwell baked in: a fresh zone FOLLOWS THE VENUE-WIDE dwell (the on-site knob in the tracking
+      // parameters). It only carries enterSec/exitSec once the operator deliberately overrides it below.
       const z: TrackingZone = {
         id: uid(), name: `Zone ${list.length + 1}`, surface, ...r,
-        color: PALETTE[list.length % PALETTE.length], minBlobs: 1, enterSec: 0.2, exitSec: 0.5,
+        color: PALETTE[list.length % PALETTE.length], minBlobs: 1,
       };
       commit([...list, z]);
       setSelId(z.id);
@@ -312,20 +314,47 @@ export const ZonePanel: React.FC<PanelProps> = () => {
                 onChange={(e) => patchZone(sel.id, { minBlobs: Math.max(1, Math.floor(Number(e.target.value) || 1)) })}
                 className="w-full mt-0.5 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent outline-none" />
             </label>
-            <div className="grid grid-cols-2 gap-2">
-              <label className="block">
-                <span className="text-fg-3 text-micro">Enter dwell (s)</span>
-                <input type="number" min={0} step={0.1} value={sel.enterSec ?? 0.2}
-                  onChange={(e) => patchZone(sel.id, { enterSec: Math.max(0, Number(e.target.value) || 0) })}
-                  className="w-full mt-0.5 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent outline-none" />
-              </label>
-              <label className="block">
-                <span className="text-fg-3 text-micro">Exit dwell (s)</span>
-                <input type="number" min={0} step={0.1} value={sel.exitSec ?? 0.5}
-                  onChange={(e) => patchZone(sel.id, { exitSec: Math.max(0, Number(e.target.value) || 0) })}
-                  className="w-full mt-0.5 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent outline-none" />
-              </label>
-            </div>
+            {/* DWELL: venue-wide by default, per-zone only if the operator deliberately overrides. The
+                on-site knob lives in the tracking parameters (Smoothing / Merge radius / Zone dwell) so
+                the whole room can be tuned at once; this override is for the odd zone that needs to be
+                quicker or slower than the rest. Toggling the override ON seeds the fields from the venue
+                value (so it is a starting point, not a jump); toggling OFF clears both back to inherit. */}
+            {(() => {
+              const overriding = sel.enterSec != null || sel.exitSec != null;
+              const venue = zones.getVenueDwell();
+              return (
+                <div className="space-y-1.5">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input type="checkbox" checked={overriding}
+                      onChange={(e) => patchZone(sel.id, e.target.checked
+                        ? { enterSec: venue.enterSec, exitSec: venue.exitSec }
+                        : { enterSec: undefined, exitSec: undefined })} />
+                    <span className="text-fg-2">Override dwell for this zone</span>
+                  </label>
+                  {overriding ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <label className="block">
+                        <span className="text-fg-3 text-micro">Enter dwell (s)</span>
+                        <input type="number" min={0} step={0.1} value={sel.enterSec ?? venue.enterSec}
+                          onChange={(e) => patchZone(sel.id, { enterSec: Math.max(0, Number(e.target.value) || 0) })}
+                          className="w-full mt-0.5 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent outline-none" />
+                      </label>
+                      <label className="block">
+                        <span className="text-fg-3 text-micro">Exit dwell (s)</span>
+                        <input type="number" min={0} step={0.1} value={sel.exitSec ?? venue.exitSec}
+                          onChange={(e) => patchZone(sel.id, { exitSec: Math.max(0, Number(e.target.value) || 0) })}
+                          className="w-full mt-0.5 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent outline-none" />
+                      </label>
+                    </div>
+                  ) : (
+                    <div className="text-fg-3 text-micro">
+                      Following venue: enter {venue.enterSec}s · exit {venue.exitSec}s
+                      <span className="text-fg-2"> (tracking parameters)</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             {/* The dwells are the difference between a trigger and a tripwire — say what they are FOR,
                 because their right values are venue-specific and nobody guesses them from the label. */}
             <div className="text-fg-3 italic text-micro">
@@ -340,7 +369,7 @@ export const ZonePanel: React.FC<PanelProps> = () => {
 
         {/* Escape hatch for a surface the tracker has not announced yet (nothing to drag on). */}
         <button onClick={() => {
-          const z: TrackingZone = { id: uid(), name: `Zone ${list.length + 1}`, surface, u0: 0.35, v0: 0.35, u1: 0.65, v1: 0.65, color: PALETTE[list.length % PALETTE.length], minBlobs: 1, enterSec: 0.2, exitSec: 0.5 };
+          const z: TrackingZone = { id: uid(), name: `Zone ${list.length + 1}`, surface, u0: 0.35, v0: 0.35, u1: 0.65, v1: 0.65, color: PALETTE[list.length % PALETTE.length], minBlobs: 1 };
           commit([...list, z]); setSelId(z.id);
         }} className="w-full inline-flex items-center justify-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3">
           <Plus size={12} /> Zone in the centre

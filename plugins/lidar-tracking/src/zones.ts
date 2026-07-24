@@ -58,12 +58,16 @@ export interface ZoneState {
 }
 
 const DEF_MIN_BLOBS = 1;
-const DEF_ENTER_SEC = 0.2;
+const DEF_ENTER_SEC = 0.2;   // ultimate fallback when neither the venue nor the zone sets a dwell
 const DEF_EXIT_SEC = 0.5;
 
 let zones: TrackingZone[] = [];
 let mergePeople = false;
 let mergeRadius = 0.8;
+// VENUE-WIDE dwell (Scene3D.trackingZoneEnterSec/ExitSec) — the default every zone follows unless it
+// carries its own override. Tuned once, on-site, in the tracking parameters. See configure().
+let venueEnterSec = DEF_ENTER_SEC;
+let venueExitSec = DEF_EXIT_SEC;
 // WHICH ZONES THE CURRENT LOOK LISTENS TO (Scene3D.activeZoneIds). `null` = every zone, which is what an
 // absent field means and what every project written before per-scene zones existed gets.
 let activeIds: Set<string> | null = null;
@@ -79,10 +83,15 @@ const blank = (id: string): ZoneState => ({ id, count: 0, occupied: false, occup
 // Push the authored zones + the people-merge settings + this look's active set (all from Scene3D).
 // Zone states are kept across a re-configure so editing a zone's NAME or COLOUR does not re-fire its
 // triggers; a zone that disappears — or that this look does not listen to — takes its state with it.
-export function configure(next: TrackingZone[] | undefined, merge: boolean, radiusM: number, active?: string[]): void {
+export function configure(next: TrackingZone[] | undefined, merge: boolean, radiusM: number, active?: string[], enterSec?: number, exitSec?: number): void {
   zones = Array.isArray(next) ? next : [];
   mergePeople = merge;
   mergeRadius = radiusM;
+  // Guard the venue dwell: a hand-edited or missing value must not poison the clock. A non-finite or
+  // negative number falls back to the shipped default rather than making every zone's latch never fire
+  // (a 0 enter is legal — "latch the instant presence is seen" — so only reject < 0 and non-finite).
+  venueEnterSec = typeof enterSec === 'number' && Number.isFinite(enterSec) && enterSec >= 0 ? enterSec : DEF_ENTER_SEC;
+  venueExitSec = typeof exitSec === 'number' && Number.isFinite(exitSec) && exitSec >= 0 ? exitSec : DEF_EXIT_SEC;
   // An absent list means EVERY zone (back-compat, and the sane default for a project with one look).
   // An empty ARRAY is a real answer — this look listens to nothing — so only `undefined` opts out.
   activeIds = Array.isArray(active) ? new Set(active) : null;
@@ -99,6 +108,9 @@ function isActive(id: string): boolean {
 export function isZoneActive(id: string): boolean { return isActive(id); }
 
 export function getZones(): TrackingZone[] { return zones; }
+// The venue-wide dwell a zone falls back to — so the panel can show the inherited value on a zone that
+// carries no override of its own.
+export function getVenueDwell(): { enterSec: number; exitSec: number } { return { enterSec: venueEnterSec, exitSec: venueExitSec }; }
 export function getState(zoneId: string): ZoneState | undefined { return states.get(zoneId); }
 export function getStates(): ZoneState[] { return [...states.values()]; }
 export function subscribe(cb: () => void): () => void { subs.add(cb); return () => { subs.delete(cb); }; }
@@ -141,8 +153,10 @@ export function evaluate(nowMs: number): void {
     if (st.count !== count) { st.count = count; changed = true; }
 
     const enough = count >= (z.minBlobs ?? DEF_MIN_BLOBS);
-    const enterMs = (z.enterSec ?? DEF_ENTER_SEC) * 1000;
-    const exitMs = (z.exitSec ?? DEF_EXIT_SEC) * 1000;
+    // A zone's own dwell is an OVERRIDE; absent, it follows the venue-wide value tuned in the tracking
+    // parameters. minBlobs stays per-zone (a crowd zone and a tripwire want different thresholds).
+    const enterMs = (z.enterSec ?? venueEnterSec) * 1000;
+    const exitMs = (z.exitSec ?? venueExitSec) * 1000;
     const pr = presence.get(z.id) ?? { lastSeenMs: 0, runStartMs: 0 };
 
     if (enough) {

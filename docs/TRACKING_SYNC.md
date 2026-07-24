@@ -120,7 +120,7 @@ TrackingZone {
   u0, v0, u1, v1,          // normalized rect [0..1], origin BOTTOM-LEFT (the blob convention, Y up)
   color?,
   minBlobs?,               // people needed to count as occupied (default 1, AFTER people-merge)
-  enterSec?, exitSec?,     // dwell in / dwell out (defaults 0.2 / 0.5)
+  enterSec?, exitSec?,     // dwell OVERRIDE; absent ⇒ follows the venue-wide dwell (below)
 }
 ```
 
@@ -157,7 +157,28 @@ and the transition inspector says so rather than letting it be discovered during
 - **drag on empty space** to draw a new zone;
 - **click** a zone to select it, **drag its body** to move, **drag a corner** to resize;
 - the **eye** toggle sets whether the *current scene* listens to it (dim + hollow = ignored here);
-- the list carries **People needed**, **Enter dwell** and **Exit dwell**.
+- the list carries **People needed** per zone; **dwell follows the venue-wide value** unless you tick
+  **Override dwell for this zone**.
+
+### The dwell is tuned once, on-site
+
+The enter/exit dwell is a property of the **room** — how hard the real tracker flickers — not of any one
+zone, and the value that works against the recording is rarely the value that works in the venue. So it
+is a **venue-wide** control, in **the tracking parameters** (the same inspector as *Smoothing* and
+*Merge radius*): **Zone enter dwell** / **Zone exit dwell**. Every zone follows it; nudge it once and the
+whole room retunes.
+
+- **Enter dwell** (default **0.2 s**) — how long presence must last before a zone latches *occupied*.
+  Raise it if a flickery tracker fires arrivals too eagerly.
+- **Exit dwell** (default **0.5 s**) — how long absence must last before it clears. This is also the
+  **gap tolerance**: a person who briefly vanishes (the feed drops blobs constantly) does not end the
+  state they are standing in until they have really been gone this long. Raise it if a standing visitor
+  keeps dropping out.
+
+A single zone can still opt out with **Override dwell for this zone** — for the odd entrance that must
+react faster, or a lounge that must hold longer, than the rest of the room. (Zones drawn before this
+control existed carried a baked `0.2 / 0.5`; those are cleared to *follow venue* on load, so the knob
+moves them too. A zone you had deliberately set to any other value is kept as an override.)
 
 Live blobs are drawn on the map as you work — **raw**, not people-merged, because this is the diagnostic
 view and the venue's two-blobs-per-person has to be visible rather than mysterious. The same zones appear

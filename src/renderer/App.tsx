@@ -1484,6 +1484,20 @@ const App: React.FC = () => {
       setScene3D(() => {
           const s = data?.scene3D ? { ...defaultScene3D(), ...data.scene3D } : defaultScene3D();
           if (!Array.isArray(s.models)) s.models = [];
+          // MIGRATE ZONE DWELL to the venue-wide model. The first zones shipped with enterSec/exitSec
+          // BAKED at 0.2 / 0.5; those are now the DEFAULT every zone follows, tuned once in the tracking
+          // parameters. A zone that still carries exactly the shipped defaults was never deliberately
+          // overridden — strip them so the on-site knob moves it. A zone with any OTHER value is a real
+          // override and is left alone. Harmless if it re-runs: a value that already equals the default
+          // simply gets dropped again, and the effective dwell never changes (venue default is 0.2/0.5).
+          if (Array.isArray(s.trackingZones)) {
+              s.trackingZones = (s.trackingZones as { enterSec?: number; exitSec?: number }[]).map((z) => {
+                  const out = { ...z };
+                  if (out.enterSec === 0.2) delete out.enterSec;
+                  if (out.exitSec === 0.5) delete out.exitSec;
+                  return out;
+              }) as typeof s.trackingZones;
+          }
           // Migrate a legacy single venue model into the models array.
           if (s.modelPath && s.models.length === 0) {
               s.models = [{

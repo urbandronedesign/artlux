@@ -106,10 +106,11 @@ export const plugin: RendererPlugin = {
       // through the host scene service. Push them on every scene change; configure() is idempotent
       // and deliberately keeps existing zone STATE, so renaming a zone does not re-fire its triggers.
       const pushZones = (): void => {
-        const s = ctx.host.scene3D.get() as { trackingZones?: TrackingZone[]; activeZoneIds?: string[]; trackingMergePeople?: boolean; trackingMergeRadius?: number };
+        const s = ctx.host.scene3D.get() as { trackingZones?: TrackingZone[]; activeZoneIds?: string[]; trackingMergePeople?: boolean; trackingMergeRadius?: number; trackingZoneEnterSec?: number; trackingZoneExitSec?: number };
         // `activeZoneIds` rides the LOOK (a scene recall replaces it), while `trackingZones` is the room
         // and does not — so a GO arrives here as a change of which zones are listened to, nothing more.
-        zones.configure(s.trackingZones, !!s.trackingMergePeople, s.trackingMergeRadius ?? 0.8, s.activeZoneIds);
+        // The venue-wide dwell (the on-site knob) rides along too; a zone follows it unless it overrides.
+        zones.configure(s.trackingZones, !!s.trackingMergePeople, s.trackingMergeRadius ?? 0.8, s.activeZoneIds, s.trackingZoneEnterSec, s.trackingZoneExitSec);
       };
       pushZones();
       sceneUnsub = ctx.host.scene3D.subscribe(pushZones);

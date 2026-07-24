@@ -563,6 +563,15 @@ export interface Scene3D {
   trackingLabels?: boolean;           // show each blob's tracking id
   trackingMergePeople?: boolean;      // merge nearby blobs into one "person" (venue emits 2 blobs/person)
   trackingMergeRadius?: number;       // merge radius in metres (blobs within this distance = same person)
+  // VENUE-WIDE ZONE DWELL — the on-site tuning knob for every trigger zone at once. A zone's occupancy
+  // latches once presence has lasted `enter` seconds and clears once absence has lasted `exit` seconds;
+  // the right values depend on how hard the real tracker flickers, which is a property of the ROOM, not
+  // of any one zone — so they live here, in the tracking parameters, next to the merge radius, rather
+  // than being retyped into every zone. A zone MAY still override them (TrackingZone.enterSec/exitSec);
+  // absent there ⇒ it follows these. Absent here ⇒ 0.2 / 0.5 (the shipped defaults, tuned to the
+  // recording — see docs/TRACKING_SYNC.md).
+  trackingZoneEnterSec?: number;
+  trackingZoneExitSec?: number;
   // THE ROOM. Project scope — deliberately STRIPPED from a scene's look snapshot (App.buildSceneSnapshot),
   // because a zone is a rectangle on a real floor and does not change shape when the lighting does.
   trackingZones?: TrackingZone[];     // named trigger areas the show machine can react to (see TrackingZone)
@@ -600,6 +609,8 @@ export const defaultScene3D = (): Scene3D => ({
   trackingLabels: true,
   trackingMergePeople: false,
   trackingMergeRadius: 0.8,
+  trackingZoneEnterSec: 0.2,
+  trackingZoneExitSec: 0.5,
   trackingZones: [],
 });
 

@@ -226,6 +226,12 @@ export const SceneTrackingPanel: React.FC = () => {
           <NumRow label="Smoothing" value={scene3D.trackingSmoothing ?? 0.5} step={0.05} onChange={(v) => a.sceneConfig({ trackingSmoothing: Math.max(0, Math.min(1, v)) })} />
           <NumRow label="Predict (ms)" value={scene3D.trackingPredictMs ?? 80} step={10} onChange={(v) => a.sceneConfig({ trackingPredictMs: Math.max(0, Math.min(300, v)) })} />
           <Toggle label="Show IDs" checked={scene3D.trackingLabels !== false} onChange={(v) => a.sceneConfig({ trackingLabels: v })} />
+          {/* THE ON-SITE ZONE DWELL. The venue-wide default every trigger zone follows — the value you
+              reach for when arrivals feel laggy or a standing visitor drops out, because the real room
+              flickers differently from the recording it was tuned against. A zone can still override it
+              in the Trigger Zones panel; this moves all the rest at once. See docs/TRACKING_SYNC.md. */}
+          <NumRow label="Zone enter dwell (s)" value={scene3D.trackingZoneEnterSec ?? 0.2} step={0.05} onChange={(v) => a.sceneConfig({ trackingZoneEnterSec: Math.max(0, Math.min(10, v)) })} />
+          <NumRow label="Zone exit dwell (s)" value={scene3D.trackingZoneExitSec ?? 0.5} step={0.05} onChange={(v) => a.sceneConfig({ trackingZoneExitSec: Math.max(0, Math.min(10, v)) })} />
         </div>
       )}
       <Toggle label="Camera pose markers (MediaPipe)" checked={scene3D.mediapipeViz ?? false} onChange={(v) => a.sceneConfig({ mediapipeViz: v })} />
