@@ -21,6 +21,7 @@
 
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <juce_dsp/juce_dsp.h>
+#include <algorithm>   // std::min — NOT juce::jmin for size_t; see the note in DelayFx::process
 #include <cmath>
 #include <map>
 #include <memory>
@@ -186,7 +187,15 @@ public:
   // 64 channels, so that is reachable the moment the channel picker grows past 8.
   void process(juce::dsp::AudioBlock<float>& b) noexcept override {
     const size_t n = b.getNumSamples();
-    const size_t c = juce::jmin<size_t>(nch, b.getNumChannels(), ptrs.size());
+    // std::min, NOT juce::jmin<size_t> — and this is a PORTABILITY bug, not a style preference.
+    // juce_dsp declares jmin overloads for SIMDRegister<Type>, so naming the template argument
+    // explicitly drags SIMDRegister<size_t> into overload resolution. On arm64 macOS `size_t` is
+    // `unsigned long` while the NEON header only defines SIMDNativeOps for `unsigned long long`
+    // (uint64_t on that ABI), so the instantiation is undefined and the compile HARD-FAILS —
+    // "implicit instantiation of undefined template 'juce::dsp::SIMDNativeOps<unsigned long>'".
+    // It compiled clean on Windows and Linux, where the two types coincide, which is why this
+    // reached CI and took the macOS leg of the v0.25.0 release down on its own.
+    const size_t c = std::min({ nch, b.getNumChannels(), ptrs.size() });
     for (size_t ch = 0; ch < c; ++ch) ptrs[ch] = b.getChannelPointer(ch);
     for (size_t i = 0; i < n; ++i) {
       // The delay length is shared across channels, so set it ONCE per sample (outside the channel
@@ -238,7 +247,7 @@ public:
   // UNcompressed — which breaks the channel-linking guarantee that is the whole point of this class.
   void process(juce::dsp::AudioBlock<float>& b) noexcept override {
     const size_t n = b.getNumSamples();
-    const size_t c = juce::jmin<size_t>(b.getNumChannels(), ptrs.size());
+    const size_t c = std::min(b.getNumChannels(), ptrs.size()); // std::min — see DelayFx::process
     for (size_t ch = 0; ch < c; ++ch) ptrs[ch] = b.getChannelPointer(ch);
     const float slope = 1.0f - 1.0f / ratio;
     for (size_t i = 0; i < n; ++i) {
