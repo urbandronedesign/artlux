@@ -123,6 +123,7 @@ Art-Net + sACN/E1.31
 
 ## Documentation
 
+- [docs/LAUNCHER.md](docs/LAUNCHER.md) — **the Launcher**: the small separate app that installs ArtLux, checks the machine, finds your projects and ships the example gallery. Start here if you are putting ArtLux on a machine.
 - [docs/user-guide/](docs/user-guide/README.md) — **illustrated end-user guide**: a screenshot‑driven, task‑oriented page for every screen of the app (interface, surfaces/content, fixtures, routing, effects, timeline, outputs, 3D, calibration, projects/media, preferences) + keyboard reference.
 - [docs/USER_GUIDE.md](docs/USER_GUIDE.md) — the same end-user guide as a single text page (no screenshots).
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — **how the app works today** (canonical).
@@ -144,8 +145,25 @@ Art-Net + sACN/E1.31
 
 ## Releases
 
+### Installing
+
+**The easiest way onto a Windows machine is the [Launcher](docs/LAUNCHER.md)** —
+`ArtLuxLauncher_<version>_x64-setup.exe` on the
+[releases page](https://github.com/urbandronedesign/artlux/releases). It downloads ArtLux, verifies
+it against the checksum GitHub published, installs the NDI and VC++ runtimes and the firewall rules,
+and checks the machine can actually run a show. Installing the `.exe` by hand still works and is
+documented in [docs/INSTALL.md](docs/INSTALL.md).
+
+Both are unsigned, so Windows SmartScreen warns on first run — **More info → Run anyway**. That is
+[a deliberate, permanent decision](docs/LAUNCHER.md#licence-and-signing), which is also why the
+launcher verifies every download: with no signature, the checksum is the only integrity guarantee
+this project offers.
+
+### Cutting one
+
 Pushing a `v*` tag triggers a GitHub Actions matrix build that produces per-OS installers and
-publishes a Release.
+publishes a Release. The launcher releases separately on a **`launcher-v*`** tag
+([why, and why they are pre-releases](docs/LAUNCHER.md#releasing)).
 
 > ## ⚠ READ THE LICENCE BEFORE PUSHING A `v*` TAG.
 > Every installer bundles `audio-engine.node`, which has **JUCE** and **libspatialaudio** linked into it
