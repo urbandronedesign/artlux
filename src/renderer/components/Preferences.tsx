@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Cpu, Radar, Check, Radio, Monitor, ShieldAlert } from 'lucide-react';
 import { AppSettings } from '../types';
 import type { ArtNetDevice, UnattendedPrefs, WatchdogStatus } from '../../../shared/protocol';
-import { Section, Field, NumberField, Toggle, Select, Slider, Button } from './ui';
+import { Section, Field, NumberField, Toggle, Select, Slider, Button, useConfirm } from './ui';
 import { Tooltip } from './ui/Tooltip';
 import { help } from '../services/helpBus';
 import { settingsSectionRegistry } from '../host/registries';
@@ -178,6 +178,7 @@ const GpuSection: React.FC = () => {
 // Preferences — the `settings` context's viewport (it was a draggable modal until it grew past
 // output+engine into appearance, watchdog, GPU and every plugin's own SettingsSection).
 export const Preferences: React.FC<Props> = ({ settings, onChange }) => {
+  const confirm = useConfirm();
   const [scanning, setScanning] = useState(false);
   const [scanned, setScanned] = useState(false);
   const [devices, setDevices] = useState<ArtNetDevice[]>([]);
@@ -242,7 +243,16 @@ export const Preferences: React.FC<Props> = ({ settings, onChange }) => {
               <option value="sacn">sACN (E1.31)</option>
             </Select>
           </Field>
-          <Toggle label="Output enabled" checked={settings.outputEnabled} onChange={(v) => onChange({ outputEnabled: v })} />
+          {/* Guarded: turning this off stops ALL Art-Net/sACN output — a live stage goes dark. Confirm
+              before killing it; turning it back on is unguarded. */}
+          <Toggle label="Output enabled" checked={settings.outputEnabled} onChange={async (v) => {
+            if (!v && !(await confirm({
+              title: 'Disable all DMX output?',
+              message: 'This stops every Art-Net / sACN frame — any live fixtures and projectors driven by DMX go dark.',
+              confirmLabel: 'Disable output', danger: true,
+            }))) return;
+            onChange({ outputEnabled: v });
+          }} />
           <Field label="Target IP" labelWidth={LBL}>
             <Tooltip id="general.dmx-target-ip">
               <input
