@@ -32,8 +32,10 @@ export const Dock: React.FC<Props> = ({ open, onToggle, tabs, activeTab, onTab, 
     {open && onResize && (
       <div onPointerDown={onResizeDown} title="Drag to resize" className="absolute -top-1 left-0 right-0 h-2 cursor-row-resize z-10 hover:bg-accent/30" />
     )}
-    <div className="h-[34px] shrink-0 flex items-center justify-between px-2 border-b border-line-1 bg-surface-2">
-      <div className="flex items-center gap-1" role="tablist" aria-label="Dock panels">
+    <div className="h-[34px] shrink-0 flex items-center justify-between px-2 border-b border-line-1 bg-surface-2 gap-2">
+      {/* overflow-x-auto + min-w-0: plugin contexts (tracking, show) append tabs that used to overflow
+          INTO the collapse button with no scroll (the ActionBar got this; the Dock didn't). */}
+      <div className="flex items-center gap-1 overflow-x-auto min-w-0" role="tablist" aria-label="Dock panels">
         {tabs.map((t) => {
           const active = open && t.id === activeTab;
           return (
@@ -42,7 +44,7 @@ export const Dock: React.FC<Props> = ({ open, onToggle, tabs, activeTab, onTab, 
               onClick={() => { if (!open) onToggle(); onTab(t.id); }}
               role="tab"
               aria-selected={active}
-              className={`flex items-center gap-1.5 h-6 px-2 rounded-sm text-mini transition-colors ${
+              className={`flex items-center gap-1.5 h-6 px-2 rounded-sm text-mini transition-colors shrink-0 ${
                 active ? 'bg-accent/15 text-accent' : 'text-fg-2 hover:text-fg-1 hover:bg-surface-3'
               }`}
             >
