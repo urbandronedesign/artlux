@@ -216,17 +216,42 @@ function Test-IgnorableImport {
 
 function Find-ArtLuxInstall {
   if ($InstallDir) { return $InstallDir }
-  $keys = @(
-    'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
-    'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
-    'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
+  # Each Uninstall hive paired with the SOFTWARE root holding electron-builder's PRODUCT key.
+  #
+  # WHY THE PRODUCT KEY, and why this used to be broken: electron-builder's NSIS writes the Uninstall
+  # entry with an EMPTY InstallLocation, and puts the real path in
+  #   HK__:\SOFTWARE\<product-guid>\InstallLocation
+  # where <product-guid> is the Uninstall subkey's OWN NAME (a UUIDv5 of the appId, so it is stable
+  # across versions). This function required a non-empty InstallLocation on the Uninstall entry, so
+  # the registry branch never matched on ANY real install -- verified against a live 0.25.0 install,
+  # where InstallLocation is '' and the product key reads 'C:\Program Files\ArtLux'.
+  #
+  # It "worked" only by falling through to the path guesses at the bottom, which is not the same
+  # thing: those return the FIRST location that exists, so on a machine carrying both a legacy
+  # per-user install and a current per-machine one (the double-install state docs/INSTALL.md warns
+  # about) every res.*/imp.* check silently audited the WRONG directory.
+  $roots = @(
+    @{ Uninstall = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*';             Product = 'HKLM:\SOFTWARE' },
+    @{ Uninstall = 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*';             Product = 'HKCU:\SOFTWARE' },
+    @{ Uninstall = 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'; Product = 'HKLM:\SOFTWARE\WOW6432Node' }
   )
-  foreach ($k in $keys) {
-    $hit = Get-ItemProperty $k -ErrorAction SilentlyContinue |
+  foreach ($r in $roots) {
+    $hit = Get-ItemProperty $r.Uninstall -ErrorAction SilentlyContinue |
       Where-Object { $_.DisplayName -like 'ArtLux*' } | Select-Object -First 1
-    if ($hit -and $hit.InstallLocation -and (Test-Path $hit.InstallLocation)) { return $hit.InstallLocation }
+    if (-not $hit) { continue }
+    # 1. InstallLocation on the Uninstall entry -- empty today, but honour it if it is ever populated.
+    if ($hit.InstallLocation -and (Test-Path $hit.InstallLocation)) { return $hit.InstallLocation }
+    # 2. The product key named after this Uninstall subkey. This is where the path actually lives.
+    $prod = Get-ItemProperty (Join-Path $r.Product $hit.PSChildName) -ErrorAction SilentlyContinue
+    if ($prod -and $prod.InstallLocation -and (Test-Path $prod.InstallLocation)) { return $prod.InstallLocation }
+    # 3. DisplayIcon is '<dir>\ArtLux.exe,0' -- drop the icon index, take the directory.
+    if ($hit.DisplayIcon) {
+      $exe = ($hit.DisplayIcon -split ',')[0].Trim('"')
+      if ($exe -and (Test-Path $exe)) { return (Split-Path -Parent $exe) }
+    }
   }
-  # NSIS per-user default, and the common per-machine location.
+  # Last resort only: the NSIS per-user default and the common per-machine location. Reaching here
+  # means no registry entry matched, so this is a guess -- see the double-install caveat above.
   foreach ($p in @("$env:LOCALAPPDATA\Programs\ArtLux", "$env:LOCALAPPDATA\Programs\artlux", "$env:ProgramFiles\ArtLux")) {
     if (Test-Path $p) { return $p }
   }
@@ -664,9 +689,16 @@ if ($env:OS -ne 'Windows_NT') {
 $repoRoot = Split-Path -Parent $PSScriptRoot
 if (-not (Test-Path (Join-Path $repoRoot 'package.json'))) { $repoRoot = '' }
 
-Write-Host ''
-Write-Host '  ArtLux preflight' -ForegroundColor White
-Write-Host "  mode: $Mode   host: $env:COMPUTERNAME   $(Get-Date -Format 'yyyy-MM-dd HH:mm')" -ForegroundColor DarkGray
+# The banner is for a human reading a console. Suppressed under -Json because that switch means the
+# caller is a PROGRAM parsing stdout, and three lines of prose in front of the document make it
+# unparseable -- `preflight.ps1 -Json | ConvertFrom-Json` failed with "Invalid JSON primitive: ArtLux".
+# Write-Host does not go to the success stream, so this is invisible when dot-sourced, but it lands
+# squarely in stdout for a child process, which is the only way anything outside this repo runs it.
+if (-not $Json) {
+  Write-Host ''
+  Write-Host '  ArtLux preflight' -ForegroundColor White
+  Write-Host "  mode: $Mode   host: $env:COMPUTERNAME   $(Get-Date -Format 'yyyy-MM-dd HH:mm')" -ForegroundColor DarkGray
+}
 
 if ($Mode -eq 'runtime' -or $Mode -eq 'all') { Invoke-RuntimeChecks }
 if ($Mode -eq 'dev' -or $Mode -eq 'all') { Invoke-DevChecks -Root $repoRoot }
