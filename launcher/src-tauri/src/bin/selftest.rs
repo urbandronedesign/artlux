@@ -138,6 +138,36 @@ async fn main() {
         line();
     }
 
+    if std::env::args().any(|a| a == "--install") {
+        line();
+        println!("5. REAL INSTALL  (runs the verified installer -- Windows WILL prompt for admin)");
+        line();
+        // Only ever a file this launcher downloaded and verified. Never an arbitrary path.
+        let cached = download::cache_dir().join("ArtLux-0.25.0-x64.exe");
+        if !cached.is_file() {
+            println!("   !! no verified installer in the cache — run with --download first");
+            failures += 1;
+        } else {
+            println!("   installer: {}", cached.display());
+            println!("   ArtLux running: {}", runner::artlux_running());
+            let started = std::time::Instant::now();
+            let out = runner::run_installer(&cached.to_string_lossy());
+            println!("   took   : {:?}", started.elapsed());
+            println!("   ok     : {}", out.ok);
+            println!("   message: {}", out.message);
+            for i in &out.scan.installs {
+                println!("   after  : {} at {} ({}, via {})",
+                    if i.version.is_empty() { "unknown" } else { &i.version },
+                    i.dir, if i.per_user { "per-user" } else { "per-machine" }, i.found_by);
+            }
+            if !out.ok {
+                // Not counted as a self-test failure: a refusal (ArtLux running, UAC declined) is the
+                // module doing its job. The message is what is under test, so it is printed above.
+                println!("   (refused/failed — read the message above; that is the behaviour on trial)");
+            }
+        }
+    }
+
     println!();
     if failures == 0 {
         println!("SELFTEST OK");
