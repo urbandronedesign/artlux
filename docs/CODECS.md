@@ -93,10 +93,13 @@ itself rather than handing the file to `decodeAudioData`.
 
 Implement a `VideoCodecContribution` (surface player + layer sync + thumbnail) and register it in the
 host `videoCodecRegistry`; the three call sites then dispatch to it by file type — no host changes. Two
-codecs ship today: **HAP** (`.mov`) and **MP4/WebCodecs** (`.mp4`). **DXV was considered and dropped**
-(decision 2026-07-03) — see [ROADMAP.md](ROADMAP.md); since the two shipped codecs don't share an
-extension, `forPath` first-match dispatch needs no probe-order work (that only mattered for a second
-`.mov` codec).
+codecs ship today: **HAP** (`.mov`) and **MP4/WebCodecs** (`.mp4`). Two were considered and **dropped** —
+**DXV** (2026-07-03) and **DDS image sequences** (2026-07-25: cheap to build, but resolution buys nothing
+on the Art-Net path and uncompressed BC blocks cost *more* disk than the same content as HAP). Both are
+reasoned out in [ROADMAP.md](ROADMAP.md) — **read the DDS entry before proposing any GPU-texture-on-disk
+format**, it also records two SDK gaps (no main-side contribution seam for multi-file assets; no
+`duration()` on the codec contract). Since no shipped codec shares an extension, `forPath` first-match
+dispatch needs no probe-order work (that only mattered for a second `.mov` codec).
 
 ## Related
 

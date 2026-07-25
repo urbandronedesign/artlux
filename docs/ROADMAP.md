@@ -57,10 +57,11 @@ the three consumers (`contentSource` surfaces, timeline LAYER engine, `thumbnail
 path to the first codec whose `canDecode` matches. New codecs slot in with **no host changes** — just a
 new plugin + `videoCodecRegistry.register`.
 
-Shipped: **HAP** (`.mov`) and **native MP4 / WebCodecs** (`.mp4`/`.m4v`). **DXV is NOT planned** (decision
-2026-07-03) — dropped from the roadmap. Since the two shipped codecs don't share an extension, the
-`forPath` first-match dispatch is unambiguous and needs no probe-order work (that gap only mattered for a
-second `.mov` codec like DXV).
+Shipped: **HAP** (`.mov`) and **native MP4 / WebCodecs** (`.mp4`/`.m4v`). Two further codecs were
+evaluated and **are NOT planned**: **DXV** (decision 2026-07-03) and **DDS image sequences** (decision
+2026-07-25, reasoning below). Neither shipped codec shares an extension — and `.dds` would not have
+collided either — so the `forPath` first-match dispatch stays unambiguous and needs no probe-order work
+(that gap only ever mattered for a second `.mov` codec like DXV).
 
 - ~~**Native MP4**~~ ✅ **shipped + working** (`plugins/mp4`, renderer-only) — GPU-accelerated H.264/H.265
   via `WebCodecs VideoDecoder` (`hardwareAcceleration:'prefer-hardware'`) + `mp4box` demux, registered as
@@ -87,6 +88,71 @@ second `.mov` codec like DXV).
     decoder. **Rig-confirmed working** (loop seam continuous; timeline scrub + timeline loop play cleanly on
     every pass — a loop-back freeze was fixed by detecting the playhead moving backward via lastWantUs).
     Still deferred (minor): HEVC/H.265 on-rig verify. (Full detail in the plugin-architecture memory.)
+
+### DDS image sequences — evaluated, NOT planned (2026-07-25)
+
+A folder of numbered `.dds` files played as a third `VideoCodec`. Recorded because it *looks* like free
+performance — "DDS is already GPU-compressed, so the GPU does everything and we only ever hold two
+frames" — and the reasons that doesn't follow are non-obvious.
+
+**What it would have bought (both real):** **BC7**, which HAP cannot carry (HAP is BC1/BC3 only and bands
+visibly on gradients), and resolutions HAP's *encoder* tooling chokes on.
+
+**It would have been the cheapest codec we've added.** DDS is a 128-byte header (+20 for a DX10 header)
+over **raw BC blocks** — the exact shape [`hapGL.uploadFrame`](../plugins/hap/src/hapGL.ts) already
+pushes through `compressedTexSubImage2D`. No Rust crate, no `build:native`, **no decode step at all**.
+The only genuinely new logic is a header parse, a real BC format table (hap's `glFormat` is a two-case
+`dxt1 ? DXT1 : DXT5` shortcut), and sequence discovery.
+
+**Why it was dropped anyway, in order of weight:**
+
+1. **Resolution buys nothing on the Art-Net path.** `WebGPUMapper.renderSurfaces`
+   ([WebGPUMapper.ts](../src/renderer/gpu/WebGPUMapper.ts)) draws each surface into an atlas rect sized
+   to *that surface's LED density*, then does one `copyExternalImageToTexture`; the preview composite is
+   512² and throttled. Past ~2× LED density the extra pixels are discarded before an LED ever samples
+   them. Huge-res pays only on **projector** outputs, capped at projector native res — so both drivers
+   above aimed at a narrower target than they appeared to.
+2. **It costs MORE disk than HAP for the same pictures.** DDS blocks are uncompressed; HAP's Snappy
+   layer buys 1.3–2× that DDS does not get. 4K BC7 ≈ 8.3 MB/frame (250–500 MB/s — fine); 8K BC7 at
+   60 fps is **~2.0 GB/s sustained**, a good NVMe flat out with nothing left for the OS, the audio
+   engine, or a second layer. **Two 8K DDS layers is not achievable on any transport.** That is a
+   physical limit, and it caps the "resolutions HAP can't encode" argument exactly where it mattered.
+3. **The work isn't playback — it's that nothing in ArtLux treats a folder as one asset.**
+   `copyIntoAssets` ([projectFolder.ts](../src/main/projectFolder.ts)) is a single `copyFileSync`, so
+   *Collect Assets* on a 10 000-frame sequence copies frame 0 and the venue plays a still. Worse:
+   without the extension in `ASSET_CATEGORIES`, `categoryFor` returns null and `collectInto` leaves the
+   path on the author's drive **without adding it to `missing`** — a clean bill of health on a project
+   that plays nothing. `scanDir`'s `SCAN_MAX_FILES = 5000` would also be exhausted by one sequence,
+   silently truncating the rest of the library walk.
+
+**If this is ever revisited, do not re-derive these:**
+
+- **Size the read-ahead ring in BYTES, not frames.** DJV/tlRender — the professional reference for this
+  exact problem — sizes its cache in gigabytes (`PlayerCacheOptions.videoGB = 4.0`), derives
+  `maxFrames = budget / bytesPerFrame`, clamps `readBehind` (0.5 s) first and gives all remaining budget
+  to read-ahead, direction-aware, 16 requests in flight (`tlRender/Timeline/PlayerOptions.h`,
+  `PlayerPrivate.cpp:149-222`). HAP's `LEAD_MS = 300` is the wrong knob here — at 8K BC7 it is 600 MB
+  per source. Note tlRender has **no** DDS or compressed-GPU-texture path of its own: it is the
+  reference for *scheduling*, not for upload.
+- **Address a sequence by its head file, not its folder** — that keeps `AssetEntry.path` a real file, so
+  `existsSync`, `mapAssetPaths` relativize/resolve, thumbnail keying and the drag chip all keep working
+  untouched.
+- **Exporters ship mip chains.** `compressedTexImage2D` demands *exactly* the mip-0 byte count; slice to
+  `mip0Bytes` in main, before the IPC clone.
+- **A `.dds` must never reach the `<video>` fallback.** `openSurface → false` sends it through
+  `mediaCache.ensureBlobUrl` into a whole-file IPC read and a **permanent, never-revoked blob URL**, for
+  a format `<video>` can never play. HAP is safe there only because a non-HAP `.mov` genuinely *is*
+  playable.
+
+**Two SDK gaps this surfaced — they outlive the decision:**
+
+- **`@artlux/sdk/main` is IPC-only** ([main.ts](../packages/sdk/src/main.ts): `MainPluginIpc`,
+  `MainPluginContext`, `MainPlugin`). There is no main-side *contribution* seam, so no plugin can teach
+  `projectFolder.ts` that a path is a multi-file unit. A `MediaSequence` contribution
+  (`matches`/`expand`) would be the fix for any future multi-file media.
+- **`VideoCodecContribution` has no `duration()`** ([renderer.ts](../packages/sdk/src/renderer.ts)).
+  `Timeline.tsx`'s OS-file drop probes length by building a `<video>` on the dropped `File`, so any
+  format it can't probe that way lands on the hardcoded 5 s fallback.
 
 ---
 
@@ -305,7 +371,9 @@ The plugin-extraction arc is essentially done, so forward work shifts from *extr
   capability model → sandboxing → disk loading. Tracked in [SDK.md](SDK.md); future work.
 
 *(Explicitly **not** planned: **DXV** codec — dropped 2026-07-03; the two shipped codecs don't share an
-extension, so no probe-order work is needed.)*
+extension, so no probe-order work is needed. **DDS image sequences** — dropped 2026-07-25; cheap to build
+but resolution buys nothing on the Art-Net path and uncompressed blocks cost more disk than HAP. Both are
+reasoned out under [Video codecs](#video-codecs-via-the-videocodec-contribution).)*
 
 ## Deferred backlog (accumulated from shipped plugins)
 
