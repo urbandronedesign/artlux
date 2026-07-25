@@ -216,10 +216,12 @@ distributing.
 
 ### What is still open
 
-- **Two Starter seats have not been registered yet**, and nobody has confirmed the reading above with JUCE.
-  Both before the first tag — the full checklist is in [`NOTICE`](NOTICE) ("Before the first `v*` tag").
-  Nothing in the code or build is involved: JUCE comes in via CMake `FetchContent`, there is no licence key,
-  and the EULA imposes no splash or attribution requirement.
+*The JUCE side is closed:* **both authors hold an active free Starter seat**, each registered personally
+(confirmed 2026-07-25), which is §1.7 satisfied and what keeps the revenue test on the individual definition.
+Nothing in the code or build was involved — JUCE comes in via CMake `FetchContent`, there is no licence key,
+and the EULA imposes no splash or attribution requirement. **Standing rule:** a new contributor needs their
+own free seat before they build or touch `native/audio-engine`, because `build:audio` fetches and compiles
+JUCE locally. See [`NOTICE`](NOTICE) for the clauses and the one question still worth asking JUCE.
 *Copyright is settled:* the two authors hold it **as individuals**; no company, studio or institution is a
 party to the work or a JUCE licensee for it (`NOTICE` (g)).
 - **HRTF/SOFA data terms** shipped with libspatialaudio are unreviewed.

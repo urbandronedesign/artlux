@@ -196,37 +196,43 @@ DECISIONS + WHAT IS STILL OPEN  —  recorded here rather than assumed
   (e) DISTRIBUTION IS ALREADY WIRED. `package.json`'s `extraResources` ships
       `audio-engine.node` into every installer, and pushing a `v*` tag runs a CI matrix
       that PUBLISHES A GITHUB RELEASE. Building and running locally raises none of the
-      above. PUBLISHING A RELEASE raises all of it. The pre-tag checklist is below.
+      above. PUBLISHING A RELEASE raises all of it — which is why the seats below exist.
 
 --------------------------------------------------------------------------------------
-BEFORE THE FIRST `v*` TAG — the Starter election's own to-do list
+THE STARTER ELECTION: DONE, AND WHAT KEEPS IT TRUE
 --------------------------------------------------------------------------------------
 
-  [ ] 1. REGISTER A STARTER SEAT EACH on juce.com (§1.7: "Every Framework User
-         contributing to or modifying source code ... requires a Licence"). Two people
-         touch native/audio-engine, so two seats. Free, but not automatic — and nothing in
-         the build or the code changes: JUCE arrives via CMake FetchContent, there is no
-         licence key to enter, and the EULA imposes no splash or attribution requirement.
+  [x] SEATS — BOTH AUTHORS HOLD AN ACTIVE FREE STARTER SEAT (confirmed 2026-07-25), each
+      registered personally rather than to any company, studio or institution. That is
+      §1.7 satisfied ("Every Framework User contributing to or modifying source code ...
+      requires a Licence") and it is what keeps §1.2.1's revenue test on the INDIVIDUAL
+      definition — income from use of the Framework, which is zero — instead of an entity's
+      entire revenue. Nothing in the build or the code was involved: JUCE arrives via CMake
+      FetchContent, there is no licence key, and the EULA imposes no splash or attribution
+      requirement.
 
-  [ ] 2. THE SEATS ARE PERSONAL. Registered to the two authors as individuals — never to a
-         company, studio or institution. §1.2.1 counts such an entity's ENTIRE revenue
-         against the $20,000 cap, JUCE-related or not, so the moment one of them were the
-         licensee the election would stop applying. Personal seats keep the test at zero.
-
-  [ ] 3. GET THE READING CONFIRMED IN WRITING by JUCE (sales@juce.com), and file the reply
-         beside this file. Ask both questions in one mail:
-           a) two individuals, sole copyright holders, distributing a free non-commercial
-              application with no donations or sponsorship as public GitHub releases — is a
-              personal Starter seat each the correct election?
-           b) if a Starter seat is ever replaced or a contributor's circumstances change,
-              do binaries ALREADY published stay covered? (The EULA text does not say, and
-              §1.10's "keep seats active" is written for subscription tiers only.)
+  Who §1.7 actually reaches, for whenever a THIRD person joins — the history is unambiguous:
+      native/audio-engine (where JUCE is included, compiled and linked): 18 of 18 commits
+        by Bérenger; Zaki none.
+      plugins/audio (the TypeScript half — talks to the addon over IPC, links no JUCE):
+        43 Bérenger, 6 Zaki.
+    So the JUCE code has exactly one author today. But `npm run build:audio` (and
+    `build:native`, which calls it) FETCHES AND COMPILES JUCE locally, and the EULA attaches
+    on "downloading, installing, or using the Framework" — so anyone who so much as builds
+    the audio engine on their machine has triggered it. THE RULE: a new contributor gets
+    their own free Starter seat before they build or touch native/audio-engine. It costs
+    nothing and it is the one step that is easy to skip.
 
   ONGOING, for as long as ArtLux is distributed: take NO money for it in any form. §1.2.1's
   individual test counts "donations, sponsorship, advertising, and any other indirect
   revenue" from use of the Framework. A tip jar or a sponsored build would start counting
   toward the cap that is currently, comfortably, zero. LICENSE §2 already forbids charging;
   this is the same rule seen from JUCE's side.
+
+  WORTH ASKING JUCE ONCE (sales@juce.com), not a blocker — file the reply beside this file:
+  if a seat is ever dropped or a contributor's circumstances change, do binaries ALREADY
+  published stay covered? The EULA text does not say, and §1.10's "keep seats active to
+  continue Distributing" is written for subscription tiers, which Starter is not.
 
   (g) WHO OWNS THE COPYRIGHT — RESOLVED 2026-07-25: the two authors, as individuals. No
       company, studio or institution is a party to the work or holds any claim in it, and
