@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Film, Image as ImageIcon, Box, Music, FolderOpen, Link2, Trash2, MonitorPlay, Search, RefreshCw, X, LayoutGrid, Grid3x3, List } from 'lucide-react';
+import { Film, Image as ImageIcon, Box, Music, FolderOpen, Link2, Trash2, MonitorPlay, Search, RefreshCw, X, LayoutGrid, Grid3x3, List, Loader2 } from 'lucide-react';
 import { AssetEntry, AssetType, MediaView, Timeline, timelineAudioClips } from '../types';
 import { AssetChip } from './AssetChip';
 import { libraryItems, usageIndex, normPath, typeLabel, type ProjectRefs } from '../services/assetLibrary';
@@ -17,7 +17,7 @@ interface Props {
   refs: ProjectRefs;
   selectedSurfaceId: string | null;
   hasProjectFolder: boolean;
-  onImport: (type: AssetType) => void;
+  onImport: (type: AssetType) => void | Promise<void>; // may be awaited to show a busy state
   /** Adopt media copied into assets/ by hand; resolves with how many entries were added. */
   onScan: () => Promise<number>;
   onRemoveAsset: (asset: AssetEntry) => void;
@@ -48,6 +48,10 @@ export const MediaPanel: React.FC<Props> = ({ assets, timeline, refs, selectedSu
   // files into the wrong folder needs to see that the scan RAN and came back empty, or they'll click
   // again forever. Cleared on unmount so a stale count can't outlive the panel.
   const [scan, setScan] = useState<{ busy: boolean; added: number | null }>({ busy: false, added: null });
+  // Which import is in flight (video/image/model/audio) — a large file copy can take several seconds,
+  // and a frozen toolbar with no feedback reads as "nothing happened". onImport resolves when the copy
+  // finishes; the active button spins and all four are disabled meanwhile.
+  const [importing, setImporting] = useState<AssetType | null>(null);
   // Tile density, straight off the layout store (prefs-backed) rather than local state — it must
   // survive a restart and a trip through another context, like every other view ergonomic. Read with
   // the single-value selector: this panel is always mounted and rebuilds a usage index per render, so
@@ -65,6 +69,11 @@ export const MediaPanel: React.FC<Props> = ({ assets, timeline, refs, selectedSu
   // rather than holding a row of a narrow column for the rest of the session.
   const scanMsgTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (scanMsgTimer.current) clearTimeout(scanMsgTimer.current); }, []);
+  const doImport = async (type: AssetType) => {
+    if (importing) return;
+    setImporting(type);
+    try { await onImport(type); } finally { if (alive.current) setImporting(null); }
+  };
   const runScan = async () => {
     if (scan.busy) return;
     if (scanMsgTimer.current) clearTimeout(scanMsgTimer.current);
@@ -169,10 +178,10 @@ export const MediaPanel: React.FC<Props> = ({ assets, timeline, refs, selectedSu
       {/* import + project-folder hint */}
       <div className="px-2 py-1.5 flex items-center gap-1 border-b border-line-1">
         <span className="text-micro text-fg-3 mr-1">Import</span>
-        <Tooltip id="media.import-video"><button onClick={() => onImport('video')} disabled={!hasProjectFolder} title="Import video" {...help('media.import-video')} className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40"><Film size={12} /></button></Tooltip>
-        <Tooltip id="media.import-image"><button onClick={() => onImport('image')} disabled={!hasProjectFolder} title="Import image" {...help('media.import-image')} className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40"><ImageIcon size={12} /></button></Tooltip>
-        <Tooltip id="media.import-model"><button onClick={() => onImport('model')} disabled={!hasProjectFolder} title="Import 3D model" {...help('media.import-model')} className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40"><Box size={12} /></button></Tooltip>
-        <Tooltip id="media.import-audio"><button onClick={() => onImport('audio')} disabled={!hasProjectFolder} title="Import audio" {...help('media.import-audio')} className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40"><Music size={12} /></button></Tooltip>
+        <Tooltip id="media.import-video"><button onClick={() => void doImport('video')} disabled={!hasProjectFolder || !!importing} title="Import video" {...help('media.import-video')} className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40">{importing === 'video' ? <Loader2 size={12} className="animate-spin" /> : <Film size={12} />}</button></Tooltip>
+        <Tooltip id="media.import-image"><button onClick={() => void doImport('image')} disabled={!hasProjectFolder || !!importing} title="Import image" {...help('media.import-image')} className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40">{importing === 'image' ? <Loader2 size={12} className="animate-spin" /> : <ImageIcon size={12} />}</button></Tooltip>
+        <Tooltip id="media.import-model"><button onClick={() => void doImport('model')} disabled={!hasProjectFolder || !!importing} title="Import 3D model" {...help('media.import-model')} className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40">{importing === 'model' ? <Loader2 size={12} className="animate-spin" /> : <Box size={12} />}</button></Tooltip>
+        <Tooltip id="media.import-audio"><button onClick={() => void doImport('audio')} disabled={!hasProjectFolder || !!importing} title="Import audio" {...help('media.import-audio')} className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40">{importing === 'audio' ? <Loader2 size={12} className="animate-spin" /> : <Music size={12} />}</button></Tooltip>
         {/* Scan — for media copied into assets/ outside the app (Explorer, a USB drive, a sync tool).
             Import is the supported route; this is the one that rescues everything that came the other
             way, which on a venue machine is most of it. */}
@@ -267,13 +276,13 @@ export const MediaPanel: React.FC<Props> = ({ assets, timeline, refs, selectedSu
                   className="block w-full text-left text-micro px-1.5 py-1 rounded bg-surface-2 hover:bg-surface-3 text-fg-1 truncate">Surface · {surfName(id)}</button>
               ))}
               {selUsage?.clipIds.map(id => (
-                <div key={`c${id}`} className="text-micro px-1.5 py-1 rounded bg-surface-2 text-fg-2 truncate">Clip · {clipName(id)}</div>
+                <div key={`c${id}`} title={`Clip · ${clipName(id)}`} className="text-micro px-1.5 py-1 rounded bg-surface-2 text-fg-2 truncate">Clip · {clipName(id)}</div>
               ))}
               {selUsage?.modelIds.map(id => (
-                <div key={`m${id}`} className="text-micro px-1.5 py-1 rounded bg-surface-2 text-fg-2 truncate">Scene model · {modelName(id)}</div>
+                <div key={`m${id}`} title={`Scene model · ${modelName(id)}`} className="text-micro px-1.5 py-1 rounded bg-surface-2 text-fg-2 truncate">Scene model · {modelName(id)}</div>
               ))}
               {selUsage?.audioClipIds.map(id => (
-                <div key={`a${id}`} className="text-micro px-1.5 py-1 rounded bg-surface-2 text-fg-2 truncate">Audio clip · {audioClipName(id)}</div>
+                <div key={`a${id}`} title={`Audio clip · ${audioClipName(id)}`} className="text-micro px-1.5 py-1 rounded bg-surface-2 text-fg-2 truncate">Audio clip · {audioClipName(id)}</div>
               ))}
             </div>
           </div>

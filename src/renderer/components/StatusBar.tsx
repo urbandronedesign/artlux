@@ -55,8 +55,10 @@ const ShowStateChip: React.FC<{ sm: StateMachine }> = ({ sm }) => {
       <Tooltip id="general.show-state">
         <div className="flex items-center gap-1.5" title={`State machine — in "${state.name}"${lock}`} {...helpTip('general.show-state')}>
           <Workflow size={12} className="text-accent" />
-          <span className="text-fg-2 truncate max-w-[140px]">{state.name}</span>
-          <span ref={elapsedRef} className="num text-fg-3">00:00</span>
+          {/* Polite live region: the state NAME changes rarely, so AT announces show transitions.
+              (Elapsed ticks every frame and is deliberately NOT announced.) */}
+          <span className="text-fg-2 truncate max-w-[140px]" role="status" aria-live="polite">{state.name}</span>
+          <span ref={elapsedRef} className="num text-fg-3" aria-hidden="true">00:00</span>
         </div>
       </Tooltip>
       <div className="h-3 w-px bg-line-2" />
@@ -131,10 +133,22 @@ export const StatusBar: React.FC<Props> = ({ help, lang, renderFps, connected, o
       </Tooltip>
       <div className="h-3 w-px bg-line-2" />
       <Tooltip id="general.output-connection">
-        <div className="flex items-center gap-1.5" title={`Target: ${targetIp}`} {...helpTip('general.output-connection')}>
-          <Wifi size={12} className={connected ? 'text-accent' : 'text-fg-3'} />
-          <span className={connected ? 'text-accent' : 'text-fg-3'}>{connected ? 'LIVE' : 'OFFLINE'}</span>
-        </div>
+        {/* Honest state: LIVE means packets are actually flowing (pps > 0), not merely that the socket
+            is configured. "READY" = socket up but no frames yet — previously both read as LIVE. */}
+        {(() => {
+          const flowing = connected && !!outputStats && outputStats.pps > 0;
+          const label = !connected ? 'OFFLINE' : flowing ? 'LIVE' : 'READY';
+          const color = flowing ? 'text-ok' : connected ? 'text-warn' : 'text-fg-3';
+          const tip = !connected ? `Output off — Target: ${targetIp}`
+            : flowing ? `Sending — Target: ${targetIp}`
+            : `Socket ready, no frames yet — Target: ${targetIp}`;
+          return (
+            <div className="flex items-center gap-1.5" title={tip} {...helpTip('general.output-connection')}>
+              <Wifi size={12} className={color} />
+              <span className={color}>{label}</span>
+            </div>
+          );
+        })()}
       </Tooltip>
       {outputStats && (outputStats.pps > 0 || outputStats.universes > 0) && (
         <>
@@ -147,6 +161,16 @@ export const StatusBar: React.FC<Props> = ({ help, lang, renderFps, connected, o
         </>
       )}
     </div>
+
+    {/* Screen-reader status. The visual chips update imperatively / every frame; this is the one place
+        the show-critical connection state is announced. Assertive because a mid-show output drop is
+        exactly what an operator must not miss. Text is stable across renders, so AT speaks it only when
+        it actually flips — the per-frame FPS is intentionally never announced. */}
+    <span className="sr-only" role="status" aria-live="assertive">
+      {!connected ? 'Art-Net output offline'
+        : (outputStats && outputStats.pps > 0) ? 'Art-Net output live, sending frames'
+        : 'Art-Net output ready, no frames yet'}
+    </span>
   </div>
   );
 };

@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import { Fixture, FixtureTemplate, LedShape, ColorOrder, RGBWMode } from '../types';
 import { Hash, Grid3x3, Cable, Minus, Plus, Save, PackagePlus, Trash2, Library, Route, Upload, Download, Eraser, AlertTriangle } from 'lucide-react';
-import { Field, NumberField, Select, Toggle, Segmented, Button } from './ui';
+import { Field, NumberField, Select, Toggle, Segmented, Button, useToast } from './ui';
 import { Tooltip } from './ui/Tooltip';
 import { help } from '../services/helpBus';
 
@@ -64,6 +64,7 @@ export const FixtureEditor: React.FC<Props> = ({
   onAddFromTemplate,
   onRemoveTemplate,
 }) => {
+  const toast = useToast();
   const up = (updates: Partial<Fixture>) => fixture && onUpdateFixture(fixture.id, updates);
   const shape = fixture?.shape ?? LedShape.LINE;
   const cpp = fixture?.channelsPerPixel ?? 4;
@@ -84,9 +85,9 @@ export const FixtureEditor: React.FC<Props> = ({
         const parsed = JSON.parse(ev.target?.result as string);
         const map: number[] = Array.isArray(parsed) ? parsed : parsed.map;
         if (Array.isArray(map) && map.every((n) => typeof n === 'number')) up({ ledMap: map });
-        else alert('Unrecognized ledmap format (expected an array or {"map":[...]})');
+        else toast.error('Unrecognized ledmap format', 'Expected a JSON array of numbers, or {"map":[…]}. Re-export from the source, or check the file.');
       } catch {
-        alert('Failed to parse ledmap JSON');
+        toast.error('Failed to parse ledmap JSON', 'The file isn’t valid JSON. Open it in a text editor to check for a stray comma or truncation.');
       }
     };
     reader.readAsText(file);

@@ -7,3 +7,4 @@ export { Select } from './Select';
 export { Toggle } from './Toggle';
 export { Segmented } from './Segmented';
 export { ListRow } from './ListRow';
+export { FeedbackProvider, useToast, useConfirm } from './feedback';

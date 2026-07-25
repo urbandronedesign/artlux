@@ -25,7 +25,7 @@ export const UpdateNotice: React.FC<Props> = ({ event, userInitiated, onDownload
   if ((s === 'checking' || s === 'not-available') && !userInitiated) return null;
 
   return (
-    <div className="fixed bottom-9 right-3 z-toast w-72 bg-surface-1 border border-line-1 rounded-md shadow-e3 text-xs">
+    <div role="status" aria-live={s === 'error' ? 'assertive' : 'polite'} className="fixed bottom-9 right-3 z-toast w-72 bg-surface-1 border border-line-1 rounded-md shadow-e3 text-xs">
       <div className="flex items-start gap-2 p-3">
         <div className="mt-0.5 text-accent shrink-0">
           {s === 'downloaded' ? <CheckCircle2 size={15} className="text-ok" />

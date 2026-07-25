@@ -59,6 +59,7 @@ import { collectFadeableTargets, getByPath, setByPath, isFadeablePath, type Stat
 import { trackingPlayback, trackingDrawable, resetPeopleTracking } from '@artlux/plugin-lidar-tracking';
 import { Columns2, Maximize2, Minimize2 } from 'lucide-react';
 import { useHistory } from './hooks/useHistory';
+import { useToast, useConfirm } from './components/ui';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
@@ -138,8 +139,11 @@ const DEFAULT_SETTINGS: AppSettings = {
 };
 
 const App: React.FC = () => {
-  const { 
-      state: fixtures, 
+  // In-app feedback (replaces blocking native window.confirm/alert). See components/ui/feedback.
+  const toast = useToast();
+  const confirm = useConfirm();
+  const {
+      state: fixtures,
       set: setFixtures, 
       undo, 
       redo, 
@@ -435,7 +439,10 @@ const App: React.FC = () => {
     setModelNaturalSizes(s => (s[id] === maxDim ? s : { ...s, [id]: maxDim }));
   const handleSceneConfig = (patch: Partial<Scene3D>) => setScene3D(s => ({ ...s, ...patch }));
   // --- 3D model CRUD (driven by the in-window scene panel; App owns scene3D) ---
-  const addSceneModel = (m: SceneModel) => { recordHistory(); setScene3D(s => ({ ...s, models: [...(s.models ?? []), m] })); handleSelectModel(m.id); };
+  // No recordHistory() here: the undo stack snapshots the FIXTURES array only, so recording a
+  // fixtures snapshot before a scene-model change made Ctrl+Z pop an unrelated snapshot AND clear
+  // redo, while the model stayed changed. 3D-model edits are simply not on the (fixture-scoped) stack.
+  const addSceneModel = (m: SceneModel) => { setScene3D(s => ({ ...s, models: [...(s.models ?? []), m] })); handleSelectModel(m.id); };
   const handleAddModel = async () => {
     const path = await window.artlux?.pickModel?.();
     if (!path) return;
@@ -447,8 +454,8 @@ const App: React.FC = () => {
     const count = (scene3D.models ?? []).length;
     addSceneModel({ id: crypto.randomUUID(), name: `Screen ${count + 1}`, kind: 'plane', path: '', position: { x: count * 2, y: 1.2, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: 2, visible: true });
   };
-  const handleUpdateModel = (id: string, patch: Partial<SceneModel>) => { recordHistory(); setScene3D(s => ({ ...s, models: (s.models ?? []).map(m => m.id === id ? { ...m, ...patch } : m) })); };
-  const handleRemoveModel = (id: string) => { recordHistory(); setScene3D(s => ({ ...s, models: (s.models ?? []).filter(m => m.id !== id) })); if (selectedModelId === id) setSelectedModelId(null); };
+  const handleUpdateModel = (id: string, patch: Partial<SceneModel>) => { setScene3D(s => ({ ...s, models: (s.models ?? []).map(m => m.id === id ? { ...m, ...patch } : m) })); };
+  const handleRemoveModel = (id: string) => { setScene3D(s => ({ ...s, models: (s.models ?? []).filter(m => m.id !== id) })); if (selectedModelId === id) setSelectedModelId(null); };
   const [sceneSaved, setSceneSaved] = useState(false);
   const sceneSavedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleSceneSave = () => { handleSaveProject().then((path) => { if (path) { setSceneSaved(true); if (sceneSavedTimer.current) clearTimeout(sceneSavedTimer.current); sceneSavedTimer.current = setTimeout(() => setSceneSaved(false), 1500); } }); };
@@ -514,7 +521,18 @@ const App: React.FC = () => {
     const z = new Map(ordered.map((s, idx) => [s.id, idx]));
     setSurfaces(surfaces.map(s => ({ ...s, zIndex: z.get(s.id)! })));
   };
-  const handleRemoveSurface = (id: string) => {
+  const handleRemoveSurface = async (id: string) => {
+    // Deleting a surface also removes its projector output (the reconciler then closes that window) —
+    // a mapped projector goes dark. Confirm, and say so when an output is attached. Not undoable.
+    const surf = surfaces.find(s => s.id === id);
+    const hasOutput = projectorOutputs.some(o => o.surfaceId === id);
+    if (!await confirm({
+      title: `Delete surface "${surf?.name ?? id}"?`,
+      message: hasOutput
+        ? 'Its projector output is removed too — that display goes dark. This can’t be undone.'
+        : 'This can’t be undone.',
+      confirmLabel: 'Delete', danger: true,
+    })) return;
     setSurfaces(surfaces.filter(s => s.id !== id));
     setProjectorOutputs(prev => prev.filter(o => o.surfaceId !== id)); // reconciler closes its window
     if (selectedSurfaceId === id) setSelectedSurfaceId(null);
@@ -766,7 +784,16 @@ const App: React.FC = () => {
     setControllers(next);
     if ('startUniverse' in patch) setFixtures(autoPatch(fixtures, next, patchPolicy));
   };
-  const handleRemoveController = (id: string) => {
+  const handleRemoveController = async (id: string) => {
+    const ctrl = controllers.find(c => c.id === id);
+    const patched = fixtures.filter(f => f.controllerId === id).length;
+    if (!await confirm({
+      title: `Remove output "${ctrl?.name ?? id}"?`,
+      message: patched > 0
+        ? `${patched} fixture${patched === 1 ? '' : 's'} patched to it will be unassigned and re-patched to the default target.`
+        : 'This output device will be removed.',
+      confirmLabel: 'Remove', danger: true,
+    })) return;
     const next = controllers.filter(c => c.id !== id);
     setControllers(next);
     setFixtures(autoPatch(fixtures.map(f => f.controllerId === id ? { ...f, controllerId: undefined } : f), next, patchPolicy));
@@ -1051,7 +1078,13 @@ const App: React.FC = () => {
     timelineEngine.swap(scene.id, tl, { transport: 'restart', holdMs: (scene.fadeSec ?? 0) * 1000 });
     for (const port of projectorPortsRef.current.values()) port.postMessage({ t: 'timeline', timeline: tl });
   };
-  const handleRemoveScene = (id: string) => {
+  const handleRemoveScene = async (id: string) => {
+    const sc = scenes.find(s => s.id === id);
+    if (!await confirm({
+      title: `Delete scene "${sc?.name ?? id}"?`,
+      message: 'Its look, timeline and cues are removed. This can’t be undone.',
+      confirmLabel: 'Delete', danger: true,
+    })) return;
     setScenes(scenes.filter(s => s.id !== id));
     // If it was the current scene, fall back to global first (releasePool won't drop the active pool).
     if (activeSceneId === id) {
@@ -1083,7 +1116,8 @@ const App: React.FC = () => {
   // Create a new state: a Scene (current look + EMPTY timeline + stable accent) + a bound SmState node,
   // then drop straight into author mode on its empty timeline — the "new state → empty timeline" flow.
   const handleCreateState = () => {
-    recordHistory();
+    // No recordHistory(): creating a state adds a Scene + SmState node, not a fixtures change — the
+    // fixture-scoped undo stack has nothing to record, and recording here only clobbered redo.
     const id = generateId();
     const accent = nextAccent(scenes.map(s => s.accent), id);
     const scene: Scene = { id, name: `State ${scenes.length + 1}`, fadeSec: 0, ...buildSceneSnapshot(), timeline: defaultTimeline(), accent };
@@ -1526,21 +1560,39 @@ const App: React.FC = () => {
 
   // Save to the current file (Save) or prompt for a location (Save As / first save).
   const handleSaveProject = async () => {
-      const path = await window.artlux?.saveProject?.(buildProjectData(), currentProjectPath ?? undefined);
-      if (path) { setCurrentProjectPath(path); refreshRecents(); }
-      return path ?? null;
+      try {
+          const path = await window.artlux?.saveProject?.(buildProjectData(), currentProjectPath ?? undefined);
+          if (path) { setCurrentProjectPath(path); refreshRecents(); toast.success('Project saved'); }
+          return path ?? null; // null = the user cancelled the Save dialog (not an error)
+      } catch (err) {
+          toast.error('Save failed', String((err as Error)?.message ?? err));
+          return null;
+      }
   };
   const handleSaveAs = async () => {
-      const path = await window.artlux?.saveProject?.(buildProjectData(), undefined);
-      if (path) { setCurrentProjectPath(path); refreshRecents(); }
+      try {
+          const path = await window.artlux?.saveProject?.(buildProjectData(), undefined);
+          if (path) { setCurrentProjectPath(path); refreshRecents(); toast.success('Project saved'); }
+      } catch (err) {
+          toast.error('Save failed', String((err as Error)?.message ?? err));
+      }
   };
   const handleOpenProject = async () => {
-      const res = await window.artlux?.openProject?.();
-      if (res) { applyProjectData(res.data); setCurrentProjectPath(res.path); refreshRecents(); }
+      try {
+          const res = await window.artlux?.openProject?.();
+          if (res) { applyProjectData(res.data); setCurrentProjectPath(res.path); refreshRecents(); }
+      } catch (err) {
+          toast.error('Could not open project', String((err as Error)?.message ?? err));
+      }
   };
   const handleOpenRecent = async (path: string) => {
-      const data = await window.artlux?.loadProjectPath?.(path);
-      if (data) { applyProjectData(data); setCurrentProjectPath(path); refreshRecents(); }
+      try {
+          const data = await window.artlux?.loadProjectPath?.(path);
+          if (data) { applyProjectData(data); setCurrentProjectPath(path); refreshRecents(); }
+          else toast.error('Could not open project', 'The file could not be read.');
+      } catch (err) {
+          toast.error('Could not open project', String((err as Error)?.message ?? err));
+      }
   };
 
   // Rig = patch/wiring/routing/geometry only (no effects/segments/scenes/media).
@@ -1783,43 +1835,64 @@ const App: React.FC = () => {
   // references to point there, then save (which stores them as folder-relative paths).
   const handleCollectAssets = async () => {
       if (!currentProjectPath) {
-          window.alert('Create a project folder first (File → New Project), then collect assets.');
+          toast.warn('No project folder yet', 'Create one with File → New Project, then collect assets.');
           return;
       }
       const folder = currentProjectPath.replace(/\\/g, '/').split('/').slice(0, -1).join('/');
-      if (!window.confirm(`Collect Assets copies every external file into\n  ${folder}/assets/\nand overwrites\n  ${currentProjectPath}\n\nThis modifies your project in place and can't be undone. Continue?`)) return;
-      const res = await window.artlux?.collectAssets?.(currentProjectPath, buildProjectData());
-      if (!res) return;
-      applyProjectData(res.data);
-      await window.artlux?.saveProject?.(res.data, currentProjectPath);
-      refreshRecents();
-      const lines = [`Collected ${res.copied} asset${res.copied === 1 ? '' : 's'} into the project folder.`];
-      if (res.skipped) lines.push(`${res.skipped} already collected or not collectable.`);
-      if (res.missing.length) lines.push(`Missing (not found on disk):\n${res.missing.join('\n')}`);
-      window.alert(lines.join('\n'));
+      if (!await confirm({
+          title: 'Collect assets into the project folder?',
+          message: `Copies every external file into\n  ${folder}/assets/\nand overwrites\n  ${currentProjectPath}\n\nThis modifies your project in place and can't be undone.`,
+          confirmLabel: 'Collect', danger: true,
+      })) return;
+      try {
+          const res = await window.artlux?.collectAssets?.(currentProjectPath, buildProjectData());
+          if (!res) return;
+          applyProjectData(res.data);
+          await window.artlux?.saveProject?.(res.data, currentProjectPath);
+          refreshRecents();
+          const detail: string[] = [];
+          if (res.skipped) detail.push(`${res.skipped} already collected or not collectable.`);
+          if (res.missing.length) detail.push(`Missing (not found on disk): ${res.missing.length}`);
+          toast.success(`Collected ${res.copied} asset${res.copied === 1 ? '' : 's'}`, detail.join(' '));
+      } catch (err) {
+          toast.error('Collect failed', String((err as Error)?.message ?? err));
+      }
   };
 
   // Non-destructive: collect a self-contained copy into a fresh folder, leaving the current file and
   // working directory untouched (pick target → collect → save the copy; no applyProjectData). Offers
   // to open the copy afterwards.
   const handleCollectCopyToFolder = async () => {
-      const res = await window.artlux?.collectAssetsTo?.(buildProjectData());
-      if (!res) return;
-      await window.artlux?.saveProject?.(res.data, res.projectFile);
-      refreshRecents();
-      const lines = [`Collected a copy to\n  ${res.projectFile}`, ``, `${res.copied} asset${res.copied === 1 ? '' : 's'} copied.`];
-      if (res.skipped) lines.push(`${res.skipped} already collected or not collectable.`);
-      if (res.missing.length) lines.push(`Missing (not found on disk):\n${res.missing.join('\n')}`);
-      lines.push(``, 'Your current project was not modified. Open the copy now?');
-      if (window.confirm(lines.join('\n'))) handleOpenRecent(res.projectFile);
+      try {
+          const res = await window.artlux?.collectAssetsTo?.(buildProjectData());
+          if (!res) return;
+          await window.artlux?.saveProject?.(res.data, res.projectFile);
+          refreshRecents();
+          const extra: string[] = [];
+          if (res.skipped) extra.push(`${res.skipped} already collected.`);
+          if (res.missing.length) extra.push(`${res.missing.length} missing.`);
+          toast.success(`Copied ${res.copied} asset${res.copied === 1 ? '' : 's'} to a new folder`, extra.join(' '));
+          if (await confirm({
+              title: 'Open the collected copy?',
+              message: `Saved to\n  ${res.projectFile}\n\nYour current project was not modified.`,
+              confirmLabel: 'Open copy',
+          })) handleOpenRecent(res.projectFile);
+      } catch (err) {
+          toast.error('Collect copy failed', String((err as Error)?.message ?? err));
+      }
   };
 
   // ---- Asset library ----
   // Import media of a type: copy into the project's assets/<cat>/ and add library entries.
+  // Returns a Promise so the caller (MediaPanel) can show a busy state during the multi-second copy.
   const handleImportAssets = async (type: AssetType) => {
-      if (!currentProjectPath) { window.alert('Create a project folder first (File → New Project) to import media.'); return; }
-      const entries = await window.artlux?.importAssets?.(currentProjectPath, type);
-      if (entries && entries.length) setAssets(prev => [...prev, ...entries]);
+      if (!currentProjectPath) { toast.warn('No project folder yet', 'Create one with File → New Project to import media.'); return; }
+      try {
+          const entries = await window.artlux?.importAssets?.(currentProjectPath, type);
+          if (entries && entries.length) { setAssets(prev => [...prev, ...entries]); toast.success(`Imported ${entries.length} file${entries.length === 1 ? '' : 's'}`); }
+      } catch (err) {
+          toast.error('Import failed', String((err as Error)?.message ?? err));
+      }
   };
   // Scan the project's assets/ folder for media that was copied in by hand (Explorer/Finder, a USB
   // drive, a sync tool) and adopt it into the library. Nothing on disk is touched — main only reports
@@ -1832,7 +1905,7 @@ const App: React.FC = () => {
   // doubles every take. Appending is still guarded here by path — the async round-trip means an import
   // could have landed in between.
   const handleScanAssets = async (): Promise<number> => {
-      if (!currentProjectPath) { window.alert('Create a project folder first (File → New Project) to scan for media.'); return 0; }
+      if (!currentProjectPath) { toast.warn('No project folder yet', 'Create one with File → New Project to scan for media.'); return 0; }
       const known = libraryItems(assets, timeline).map(a => a.path);
       const found = await window.artlux?.scanAssets?.(currentProjectPath, known);
       if (!found || !found.length) return 0;
@@ -1855,13 +1928,17 @@ const App: React.FC = () => {
   };
   // Remove a library entry. Recorded takes live on the timeline, so removing a take also drops it
   // from trackingTakes (and any clips referencing it). References to imported assets are left as-is.
-  const handleRemoveAsset = (asset: AssetEntry) => {
+  const handleRemoveAsset = async (asset: AssetEntry) => {
       const usedTake = asset.type === 'take';
       // Count references the SAME way the library badges do — across every surface list (live + each
       // scene's look snapshot), every scene3D, every timeline and the audio bed. `refs === 0` short-
       // circuits the confirm below, so anything this count can't see is deleted with no warning at all.
       const refs = usageForPath(asset.path, projectRefs).count;
-      if (refs > 0 && !window.confirm(`"${asset.name}" is used in ${refs} place(s). Remove it from the library anyway?`)) return;
+      if (refs > 0 && !await confirm({
+          title: `Remove "${asset.name}"?`,
+          message: `It is used in ${refs} place${refs === 1 ? '' : 's'}. Removing it from the library leaves those references reading as missing (recoverable).`,
+          confirmLabel: 'Remove', danger: true,
+      })) return;
       // NB: removing a library entry never removes the CLIPS that reference it — video, audio (bed or
       // Timeline.audio) or content. The reference survives and reads as missing, which is recoverable;
       // deleting the user's placement is not. (A take is the one exception below, because a take's
@@ -1894,7 +1971,11 @@ const App: React.FC = () => {
       // The TRUE count — deduped exactly like the badge (Capture Scene aliases ids across scenes, so a
       // raw tally would multiply one authored reference by the number of scenes it was cloned into).
       const refCount = usageForPath(oldPath, projectRefs).count;
-      if (!window.confirm(`Relink "${asset.name}"\n\nfrom:  ${fileName(oldPath)}\nto:    ${fileName(newPath)}\n\nThis updates ${refCount} reference${refCount === 1 ? '' : 's'} and can't be undone. Continue?`)) return;
+      if (!await confirm({
+          title: `Relink "${asset.name}"?`,
+          message: `from:  ${fileName(oldPath)}\nto:    ${fileName(newPath)}\n\nThis updates ${refCount} reference${refCount === 1 ? '' : 's'} and can't be undone.`,
+          confirmLabel: 'Relink', danger: true,
+      })) return;
       // Path equality is normalised (Windows backslashes + case), the same rule the usage count above
       // matched with — or the count and the rewrite could disagree about what "the old path" is.
       const isOld = (p: string | undefined | null): boolean => !!p && normPath(p) === normPath(oldPath);
@@ -1930,7 +2011,7 @@ const App: React.FC = () => {
           timeline: relinkTimeline(s.timeline),
       })));
       setAudioMix(m => ({ ...m, clips: m.clips.map(c => isOld(c.path) ? { ...c, path: newPath } : c) })); // the audio bed
-      window.alert(`Relinked "${asset.name}" — ${refCount} reference${refCount === 1 ? '' : 's'} updated.`);
+      toast.success(`Relinked "${asset.name}"`, `${refCount} reference${refCount === 1 ? '' : 's'} updated.`);
   };
   // Set the selected surface's content to a video/image asset.
   const handleUseAssetOnSurface = (asset: AssetEntry) => {
@@ -1950,7 +2031,7 @@ const App: React.FC = () => {
   const handleLaunchBroadcast = async () => {
       const path = await handleSaveProject();
       if (path) window.artlux?.relaunchBroadcast?.(path);
-      else window.alert('Save the project to a file first, then launch broadcast mode.');
+      else toast.warn('Save first', 'Save the project to a file, then launch broadcast mode.');
   };
 
   // App info for the About modal.
@@ -1987,6 +2068,7 @@ const App: React.FC = () => {
           case 'save-template': handleSaveTemplate(); break;
           case 'remove-fixture': if (selectedFixtureId) handleRemoveFixture(selectedFixtureId); break;
           case 'about': setAboutOpen(true); break;
+          case 'command-palette': window.dispatchEvent(new Event('artlux:toggle-command-palette')); break;
           case 'help-panel': setShowHelp((v) => !v); break;
           case 'help-search': openHelp(); break;
           case 'shortcuts': openShortcuts(); break;
