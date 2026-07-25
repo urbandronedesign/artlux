@@ -11,7 +11,7 @@
 //! found — "found via product key InstallLocation" is the whole point of install.rs, and a green
 //! test tick would hide it.
 
-use artlux_launcher::{download, install, releases, runner};
+use artlux_launcher::{download, install, projects, releases, runner};
 
 fn line() {
     println!("{}", "-".repeat(78));
@@ -165,6 +165,115 @@ async fn main() {
                 // module doing its job. The message is what is under test, so it is printed above.
                 println!("   (refused/failed — read the message above; that is the behaviour on trial)");
             }
+        }
+    }
+
+    line();
+    println!("6. PROJECT SCAN");
+    line();
+    // A FIXTURE FIRST, because the de-dup rule is the one thing that cannot be checked by eye on a
+    // real disk: a portable folder and a loose file look the same in a list until you count them.
+    // Tree built here:
+    //   fixture/loose.artlux                  -> 1 entry (file)
+    //   fixture/myshow/project.artlux         -> 1 entry (folder, named "myshow")
+    //   fixture/myshow/assets/nested.artlux   -> 0 entries: inside a portable folder, not descended
+    //   fixture/deep/a/b/c/buried.artlux      -> 1 entry (depth is within budget)
+    {
+        let fx = std::env::temp_dir().join("artlux-scan-fixture");
+        let _ = std::fs::remove_dir_all(&fx);
+        let mk = |p: &std::path::Path, body: &str| {
+            std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+            std::fs::write(p, body).unwrap();
+        };
+        mk(&fx.join("loose.artlux"), r#"{"version":"1.2","timestamp":"2026-07-25T00:00:00Z"}"#);
+        mk(&fx.join("myshow").join("project.artlux"), r#"{"version":"1.1","timestamp":"2026-07-24T00:00:00Z"}"#);
+        mk(&fx.join("myshow").join("assets").join("nested.artlux"), "{}");
+        mk(&fx.join("deep").join("a").join("b").join("c").join("buried.artlux"), r#"{"version":"1.2"}"#);
+
+        let res = projects::scan(&[fx.to_string_lossy().into_owned()], |_| {});
+        for e in &res.entries {
+            println!("   {:<10} {:<12} {}", e.kind, e.name, e.path);
+        }
+        let names: Vec<&str> = res.entries.iter().map(|e| e.name.as_str()).collect();
+        if res.entries.len() != 3 {
+            println!("   !! expected 3 entries, got {} — the folder/loose de-dup rule is wrong", res.entries.len());
+            failures += 1;
+        }
+        if !names.contains(&"myshow") {
+            println!("   !! the portable folder was not listed under its FOLDER name");
+            failures += 1;
+        }
+        if names.contains(&"nested") {
+            println!("   !! descended into a portable project's assets/ — that copy must not be listed");
+            failures += 1;
+        }
+        if !names.contains(&"buried") {
+            println!("   !! a project 4 levels down was missed");
+            failures += 1;
+        }
+        // version comes from the 4 KiB head read, never a full parse
+        if res.entries.iter().find(|e| e.name == "loose").and_then(|e| e.version.clone()).as_deref() != Some("1.2") {
+            println!("   !! the head read did not recover the project version");
+            failures += 1;
+        }
+        let _ = std::fs::remove_dir_all(&fx);
+    }
+
+    // Then the real machine, which is about volume and time rather than correctness.
+    let cfg = projects::load_config();
+    let roots = projects::effective_roots(&cfg);
+    println!("   roots ({}):", roots.len());
+    for r in &roots {
+        println!("     {r}");
+    }
+    let t = std::time::Instant::now();
+    let res = projects::scan(&roots, |_| {});
+    println!(
+        "   walked {} dirs, found {} project(s) in {:?}{}",
+        res.scanned, res.entries.len(), t.elapsed(),
+        match &res.stopped { Some(s) => format!(" — STOPPED EARLY: {s}"), None => " — complete".into() }
+    );
+    for e in res.entries.iter().take(8) {
+        println!("     {:<8} {:<28} {}", e.kind, e.name, e.path);
+    }
+    let rec = projects::recents();
+    println!("   ArtLux recents still on disk: {}", rec.len());
+
+    if std::env::args().any(|a| a == "--open") {
+        line();
+        println!("7. OPEN A PROJECT IN ARTLUX");
+        line();
+        match (scan.installs.first(), projects::scan(&projects::effective_roots(&projects::load_config()), |_| {}).entries.first()) {
+            (Some(inst), Some(proj)) => {
+                println!("   exe    : {}", inst.exe);
+                println!("   project: {}", proj.path);
+                // Cold: nothing running, so this must START ArtLux.
+                let a = runner::open_project(&inst.exe, &proj.path);
+                println!("   cold  -> ok={} started_new={} : {}", a.ok, a.started_new, a.message);
+                if !a.ok || !a.started_new {
+                    println!("   !! expected a fresh start when ArtLux was not running");
+                    failures += 1;
+                }
+                // Wait for it to actually be up, then open again: the single-instance lock should
+                // swallow the second process, so this must report a RETARGET, not a new start.
+                let mut up = false;
+                for _ in 0..60 {
+                    std::thread::sleep(std::time::Duration::from_millis(500));
+                    if runner::artlux_running() { up = true; break; }
+                }
+                println!("   artlux up: {up}");
+                if up {
+                    let b = runner::open_project(&inst.exe, &proj.path);
+                    println!("   warm  -> ok={} started_new={} : {}", b.ok, b.started_new, b.message);
+                    if b.started_new {
+                        println!("   !! claimed a fresh start while ArtLux was already running");
+                        failures += 1;
+                    }
+                }
+                let _ = std::process::Command::new("taskkill").args(["/IM", "ArtLux.exe", "/F"]).output();
+                println!("   (ArtLux closed)");
+            }
+            _ => println!("   skipped: need both an install and at least one project"),
         }
     }
 

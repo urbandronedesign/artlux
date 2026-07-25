@@ -14,7 +14,7 @@
 // exercised without a GUI; the commands below are a thin transport layer over it.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use artlux_launcher::{download, install, releases, runner};
+use artlux_launcher::{download, install, projects, releases, runner};
 use tauri::{AppHandle, Emitter};
 
 /// Every ArtLux install on this machine, plus whether the legacy double-install state is present.
@@ -71,6 +71,59 @@ fn run_installer(path: String) -> runner::InstallOutcome {
     runner::run_installer(&path)
 }
 
+// ---------------------------------------------------------------------------------------------
+// Projects
+// ---------------------------------------------------------------------------------------------
+
+#[tauri::command]
+fn get_config() -> projects::Config {
+    projects::load_config()
+}
+
+#[tauri::command]
+fn set_config(config: projects::Config) -> Result<(), String> {
+    projects::save_config(&config)
+}
+
+/// The roots actually in effect — configured, or the OS defaults when never configured. Separate
+/// from get_config so the UI can SHOW the defaults without writing them into the config file: a
+/// baked-in default is wrong forever once the user's Documents folder moves.
+#[tauri::command]
+fn get_effective_roots() -> Vec<String> {
+    projects::effective_roots(&projects::load_config())
+}
+
+/// Walk the library roots. Runs on a blocking thread — it is filesystem-bound and would otherwise
+/// stall the async runtime that the download shares.
+#[tauri::command]
+async fn scan_projects(app: AppHandle) -> Result<projects::ScanResult, String> {
+    let roots = projects::effective_roots(&projects::load_config());
+    tauri::async_runtime::spawn_blocking(move || {
+        projects::scan(&roots, move |p| {
+            let _ = app.emit("projects://progress", p);
+        })
+    })
+    .await
+    .map_err(|e| format!("the scan could not be started: {e}"))
+}
+
+#[tauri::command]
+fn cancel_scan() {
+    projects::request_cancel();
+}
+
+/// ArtLux's own recent files, read-only, dead paths pruned.
+#[tauri::command]
+fn recent_projects() -> Vec<projects::ProjectEntry> {
+    projects::recents()
+}
+
+/// Open a project in the installed ArtLux.
+#[tauri::command]
+fn open_project(exe: String, project: String) -> runner::OpenOutcome {
+    runner::open_project(&exe, &project)
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -82,6 +135,13 @@ fn main() {
             download_installer,
             cancel_download,
             run_installer,
+            get_config,
+            set_config,
+            get_effective_roots,
+            scan_projects,
+            cancel_scan,
+            recent_projects,
+            open_project,
         ])
         .run(tauri::generate_context!())
         .expect("error while running the ArtLux Launcher");

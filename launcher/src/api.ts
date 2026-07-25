@@ -46,6 +46,51 @@ export interface Progress {
   done: boolean;
 }
 
+export interface ProjectEntry {
+  path: string;
+  root: string | null;
+  name: string;
+  kind: 'file' | 'folder';
+  mtime_ms: number;
+  size: number;
+  version: string | null;
+  saved_at: string | null;
+  source: 'root' | 'recent';
+}
+
+export interface ScanProgress { scanned: number; found: number; current: string; done: boolean }
+
+export interface ScanResult {
+  entries: ProjectEntry[];
+  roots: string[];
+  /** null = the walk finished. Otherwise it did NOT, and the UI must say so. */
+  stopped: string | null;
+  scanned: number;
+}
+
+export interface LauncherConfig {
+  library_roots?: string[] | null;
+  workspace_dir?: string | null;
+}
+
+export interface OpenOutcome { ok: boolean; message: string; started_new: boolean }
+
+export const getConfig = () => invoke<LauncherConfig>('get_config');
+export const setConfig = (config: LauncherConfig) => invoke<void>('set_config', { config });
+export const getEffectiveRoots = () => invoke<string[]>('get_effective_roots');
+export const scanProjects = () => invoke<ScanResult>('scan_projects');
+export const cancelScan = () => invoke<void>('cancel_scan');
+export const recentProjects = () => invoke<ProjectEntry[]>('recent_projects');
+export const openProject = (exe: string, project: string) => invoke<OpenOutcome>('open_project', { exe, project });
+export const onScanProgress = (cb: (p: ScanProgress) => void) =>
+  listen<ScanProgress>('projects://progress', (e) => cb(e.payload));
+
+/** ms epoch -> a date a human reads. Empty for 0, which is "we could not read it". */
+export function when(ms: number): string {
+  if (!ms) return '';
+  return new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
 export const scanInstalls = () => invoke<InstallScan>('scan_installs');
 export const artluxRunning = () => invoke<boolean>('artlux_running');
 export const resolveLatest = () => invoke<ReleaseInfo>('resolve_latest');

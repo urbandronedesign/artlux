@@ -7,5 +7,6 @@
 
 pub mod download;
 pub mod install;
+pub mod projects;
 pub mod releases;
 pub mod runner;

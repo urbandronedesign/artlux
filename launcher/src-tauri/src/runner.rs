@@ -113,6 +113,49 @@ pub fn artlux_running() -> bool {
     }
 }
 
+#[derive(Debug, Serialize)]
+pub struct OpenOutcome {
+    pub ok: bool,
+    pub message: String,
+    /// False when an ArtLux was already up and we retargeted it instead of starting one.
+    pub started_new: bool,
+}
+
+/// Open a project in ArtLux.
+///
+/// `ArtLux.exe --project=<abs>` is the ONLY contract for this -- there is no file association and no
+/// protocol handler (docs/LAUNCHER.md). It also did not work in editor mode until the change that
+/// preceded this launcher: main parsed the flag, forwarded it, and the renderer dropped it, so the
+/// editor opened empty with nothing in any log to say why.
+///
+/// A plain (unelevated) spawn, unlike the installer: ArtLux is not manifested for elevation, so
+/// CreateProcess is correct here and a UAC prompt would be wrong.
+///
+/// WHEN ARTLUX IS ALREADY RUNNING the single-instance lock swallows this process and it EXITS 0 --
+/// an exit code proves nothing either way. So we look first and report which of the two things
+/// happened, rather than reporting success we did not observe.
+pub fn open_project(exe: &str, project: &str) -> OpenOutcome {
+    if !std::path::Path::new(exe).is_file() {
+        return OpenOutcome { ok: false, message: format!("ArtLux is not where it should be: {exe}"), started_new: false };
+    }
+    if !std::path::Path::new(project).is_file() {
+        return OpenOutcome { ok: false, message: format!("That project file is gone: {project}"), started_new: false };
+    }
+    let was_running = artlux_running();
+    match Command::new(exe).arg(format!("--project={project}")).spawn() {
+        Ok(_) => OpenOutcome {
+            ok: true,
+            message: if was_running {
+                "ArtLux was already running — it switched to this project.".into()
+            } else {
+                "Opening in ArtLux…".into()
+            },
+            started_new: !was_running,
+        },
+        Err(e) => OpenOutcome { ok: false, message: format!("Could not start ArtLux: {e}"), started_new: false },
+    }
+}
+
 /// Run a VERIFIED installer. `path` must have come from download::fetch_verified.
 pub fn run_installer(path: &str) -> InstallOutcome {
     let before = install::scan();
