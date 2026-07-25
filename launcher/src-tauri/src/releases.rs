@@ -68,6 +68,21 @@ fn is_app_tag(tag: &str) -> bool {
     rest.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false)
 }
 
+/// Is this actually a base64 SHA-512? Always 88 characters, base64 alphabet, ending `==`.
+///
+/// Checked where the metadata is PARSED, not where the download is compared. An empty or truncated
+/// value would otherwise sail through and surface as "the download does not match the checksum" —
+/// which sends the user to re-download a file that was never the problem. And a value that is empty
+/// on both sides would compare EQUAL, printing a cheerful match having proved nothing, which is
+/// strictly worse than not checking at all because it ends the conversation.
+fn is_base64_sha512(s: &str) -> bool {
+    s.len() == 88
+        && s.ends_with("==")
+        && s[..86]
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '/')
+}
+
 /// Minimal reader for the handful of top-level scalars electron-builder writes.
 ///
 /// Deliberately not a YAML dependency: this file is machine-generated with a fixed shape, and the
@@ -150,7 +165,8 @@ pub async fn resolve_latest() -> Result<ReleaseInfo, String> {
     let file = yaml_top_level(&yml, "path")
         .ok_or("latest.yml carries no installer filename")?;
     let sha512_b64 = yaml_top_level(&yml, "sha512")
-        .ok_or("latest.yml carries no sha512 — refusing to offer an unverifiable download")?;
+        .filter(|s| is_base64_sha512(s))
+        .ok_or("latest.yml carries no usable sha512 — refusing to offer a download that cannot be verified")?;
 
     // The launcher is Windows-only, so a latest.yml naming anything else means we are reading the
     // wrong metadata file (latest-mac.yml / latest-linux.yml) and must not proceed.
@@ -211,7 +227,8 @@ pub async fn resolve_launcher_latest() -> Result<ReleaseInfo, String> {
     let version = yaml_top_level(&yml, "version").ok_or("launcher-latest.yml carries no version")?;
     let file = yaml_top_level(&yml, "path").ok_or("launcher-latest.yml carries no installer filename")?;
     let sha512_b64 = yaml_top_level(&yml, "sha512")
-        .ok_or("launcher-latest.yml carries no sha512 — refusing to offer an unverifiable download")?;
+        .filter(|s| is_base64_sha512(s))
+        .ok_or("launcher-latest.yml carries no usable sha512 — refusing to offer a download that cannot be verified")?;
     let size = yml
         .lines()
         .find_map(|l| l.trim().strip_prefix("size:").and_then(|v| v.trim().parse::<u64>().ok()))
@@ -226,6 +243,11 @@ pub async fn resolve_launcher_latest() -> Result<ReleaseInfo, String> {
         size,
         notes_url: rel.html_url,
     })
+}
+
+/// Exposed so the self-test can assert the shape rule without duplicating it.
+pub fn is_base64_sha512_for_test(s: &str) -> bool {
+    is_base64_sha512(s)
 }
 
 /// Exposed so the self-test can assert the app/launcher tag split without duplicating the rule.

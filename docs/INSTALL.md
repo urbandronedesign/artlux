@@ -61,12 +61,27 @@ Every release publishes `latest.yml` next to the installer, carrying a **base64*
 comparing the wrong encoding makes a good file look corrupt):
 
 ```powershell
-# What GitHub published for this release:
-(Invoke-WebRequest "https://github.com/urbandronedesign/artlux/releases/download/v<version>/latest.yml").Content
-
-# What you actually downloaded, in the same encoding:
-[Convert]::ToBase64String((Get-FileHash .\ArtLux-<version>-x64.exe -Algorithm SHA512).Hash -split '(?<=\G..)(?=.)' | ForEach-Object { [byte]"0x$_" })
+powershell -ExecutionPolicy Bypass -File scripts\verify-download.ps1 -File .\ArtLux-<version>-x64.exe
 ```
+
+It works out which release the file belongs to from its name, fetches the checksum GitHub published,
+and compares. **Read the exit code, not just the text** -- it distinguishes the three outcomes, and
+only one of them is a pass:
+
+| Exit | Meaning |
+|---|---|
+| `0` | the file is the one we published |
+| `1` | **MISMATCH -- do not run it** |
+| `2` | it could **not** verify (no network, bad tag, malformed metadata). **This is not a pass.** |
+
+That last row is the point of the script. The dangerous outcome is not a mismatch, it is a check
+that quietly compares nothing against nothing and prints something reassuring -- so an expected
+value that is missing, empty, truncated, or hex instead of base64 is refused outright rather than
+compared. The Launcher applies the same rule when it parses release metadata.
+
+> The snippet that used to be here was worse than nothing: it did not even parse (a pipeline inside a
+> method-call argument list is a PowerShell syntax error), and it left the comparison of two 88-character
+> strings to the reader's eye.
 
 The **Launcher** ([LAUNCHER.md](LAUNCHER.md)) does this comparison for you and refuses to run an
 installer that does not match, which is the main reason to prefer it for venue installs. The launcher

@@ -159,6 +159,10 @@
           "to": "scripts/preflight.ps1"
         },
         {
+          "from": "scripts/verify-download.ps1",
+          "to": "scripts/verify-download.ps1"
+        },
+        {
           "from": "scripts/install-watchdog-task.ps1",
           "to": "scripts/install-watchdog-task.ps1"
         },

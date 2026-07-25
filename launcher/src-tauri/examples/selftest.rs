@@ -92,6 +92,25 @@ async fn main() {
         println!("   !! the app/launcher tag filter is wrong — a launcher release could be served as ArtLux");
         failures += 1;
     }
+    // The metadata shape guard. An unverifiable checksum must be refused where it is PARSED --
+    // an empty value compared against an empty value is a match that proves nothing.
+    let shapes = [
+        ("real 88-char base64", "y2JIiu71ozboGUBvb01TI5RmTnxCfvlOvF4seANkWTPkPaj88F/5wg2lV10IU8nTtuIPBldUZ91KAoysbXXvVg==", true),
+        ("empty", "", false),
+        ("whitespace", "   ", false),
+        ("hex, not base64", "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789", false),
+        ("truncated", "y2JIiu71ozboGUBv==", false),
+        ("no padding", "y2JIiu71ozboGUBvb01TI5RmTnxCfvlOvF4seANkWTPkPaj88F/5wg2lV10IU8nTtuIPBldUZ91KAoysbXXvVgAA", false),
+        ("illegal char", "y2JIiu71ozboGUBvb01TI5RmTnxCfvlOvF4seANkWTPkPaj88F/5wg2lV10IU8nTtuIPBldUZ91KAoysbXX!Vg==", false),
+    ];
+    for (label, value, want) in shapes {
+        let got = releases::is_base64_sha512_for_test(value);
+        println!("   sha512 shape  {:<20} accepted={}", label, got);
+        if got != want {
+            println!("   !! '{label}' should be {}", if want { "accepted" } else { "REFUSED" });
+            failures += 1;
+        }
+    }
     println!("   this launcher: {}", releases::own_version());
     match releases::resolve_launcher_latest().await {
         Ok(r) => println!("   published launcher: {} ({})", r.version, r.tag),
