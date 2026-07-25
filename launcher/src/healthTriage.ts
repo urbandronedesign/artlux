@@ -108,5 +108,5 @@ export const STATUS_COLOR: Record<string, string> = {
   PASS: 'var(--ok)',
   WARN: 'var(--warn)',
   FAIL: 'var(--danger)',
-  SKIP: 'var(--fg-2)',
+  SKIP: 'var(--text-2)',
 };

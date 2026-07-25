@@ -6,13 +6,14 @@
   "description": "ArtLux Launcher — installs ArtLux, checks the machine, and opens projects.",
   "comment": "Deliberately NOT a member of the root npm workspaces (packages/*, plugins/*). The root lockfile must stay reproducible for the app build; a UI dep tree for a separate product in it is how `npm ci` broke in v0.18.0. Install with `npm install` from inside this folder.",
   "scripts": {
-    "dev": "node scripts/sync-preflight.cjs && vite",
-    "build": "node scripts/sync-preflight.cjs && tsc --noEmit && vite build",
+    "dev": "node scripts/sync-preflight.cjs && node scripts/sync-tokens.cjs && vite",
+    "build": "node scripts/sync-preflight.cjs && node scripts/sync-tokens.cjs && tsc --noEmit && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
     "start": "tauri dev",
     "package": "tauri build",
-    "sync:preflight": "node scripts/sync-preflight.cjs"
+    "sync:preflight": "node scripts/sync-preflight.cjs",
+    "sync:tokens": "node scripts/sync-tokens.cjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.9.0",

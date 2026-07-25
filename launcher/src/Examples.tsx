@@ -49,9 +49,9 @@ export function Examples({ install }: { install: InstallInfo | null }) {
 
   if (!install) {
     return (
-      <section className="card" style={{ padding: 18 }}>
-        <div className="label" style={{ marginBottom: 8 }}>Examples</div>
-        <div style={{ marginBottom: 4 }}>ArtLux is not installed yet.</div>
+      <section className="panel">
+        <div className="panel-title" style={{ marginBottom: 8 }}>Examples</div>
+        <div className="text-xs" style={{ marginBottom: 2 }}>ArtLux is not installed yet.</div>
         {/* An empty state names the next action rather than only reporting emptiness. */}
         <div className="caption">The example projects ship inside the app — install it from the Install tab and they appear here.</div>
       </section>
@@ -60,24 +60,25 @@ export function Examples({ install }: { install: InstallInfo | null }) {
 
   return (
     <>
-      <section className="card" style={{ padding: 18 }}>
-        <div className="label" style={{ marginBottom: 6 }}>Example projects</div>
-        <div className="caption" style={{ marginBottom: 4 }}>
+      <section className="panel">
+        <div className="panel-title" style={{ marginBottom: 6 }}>Example projects</div>
+        <div className="caption" style={{ marginBottom: 8 }}>
           Each set is copied into your workspace before it opens, so you can save your changes.
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span className="mono dim" style={{ fontSize: 11, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{workspace}</span>
+        <div className="row">
+          <span className="mono text-mini fg-2 grow truncate">{workspace}</span>
           <button className="btn" onClick={changeWorkspace} disabled={!!busy}>Change…</button>
         </div>
       </section>
 
       {sets.map((s) => (
-        <section key={s.id} className="card" style={{ padding: 18 }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 6 }}>
-            <span style={{ fontWeight: 600, fontSize: 14 }}>{s.title}</span>
+        <section key={s.id} className="panel">
+          <div className="row" style={{ alignItems: 'baseline', marginBottom: 4 }}>
+            {/* Size carries hierarchy: a set title is a step above its own body. */}
+            <span className="text-sm fw-semi">{s.title}</span>
             <span className="caption">{s.projects.length} projects · {mb(s.size)}{s.has_tutorial ? ' · tutorial included' : ''}</span>
           </div>
-          {s.blurb && <div className="dim" style={{ fontSize: 12, marginBottom: 12 }}>{s.blurb}</div>}
+          {s.blurb && <div className="text-mini fg-2" style={{ marginBottom: 12 }}>{s.blurb}</div>}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {s.projects.map((p, i) => (
               <button
@@ -95,13 +96,13 @@ export function Examples({ install }: { install: InstallInfo | null }) {
       ))}
 
       {note && !error && (
-        <section className="card" style={{ padding: 14, borderColor: 'var(--ok)' }}>
-          <div style={{ color: 'var(--ok)', fontSize: 12 }}>✓ {note}</div>
+        <section className="panel panel-ok panel-tight">
+          <div className="text-mini fw-semi" style={{ color: 'var(--ok)' }}>✓ {note}</div>
         </section>
       )}
       {error && (
-        <section className="card" style={{ padding: 14, borderColor: 'var(--danger)' }}>
-          <div style={{ color: 'var(--danger)', fontSize: 12 }}>✕ {error}</div>
+        <section className="panel panel-danger panel-tight">
+          <div className="text-mini fw-semi" style={{ color: 'var(--danger)' }}>✕ {error}</div>
         </section>
       )}
     </>

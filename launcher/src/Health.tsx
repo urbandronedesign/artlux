@@ -19,14 +19,14 @@ const REPAIRABLE_IDS = ['vcredist', 'ndi.runtime'];
 function Row({ item }: { item: PreflightItem }) {
   const t = triage(item.id);
   return (
-    <div style={{ display: 'flex', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--line-2)' }}>
+    <div className="list-row" style={{ alignItems: 'flex-start' }}>
       {/* Status is a WORD as well as a colour — colour alone is not a signal. */}
-      <span style={{ color: STATUS_COLOR[item.status] ?? 'var(--fg-2)', minWidth: 44, fontWeight: 600, fontSize: 11 }}>
+      <span className="text-mini fw-semi" style={{ color: STATUS_COLOR[item.status] ?? 'var(--text-2)', flex: '0 0 42px' }}>
         {item.status}
       </span>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12 }}>{item.name}</div>
-        {item.detail && <div className="dim" style={{ fontSize: 11 }}>{item.detail}</div>}
+      <div className="grow">
+        <div className="text-xs">{item.name}</div>
+        {item.detail && <div className="text-mini fg-2">{item.detail}</div>}
         {/* Curated framing when we have it; otherwise the script's own remedy, verbatim. */}
         {t ? (
           <div className="caption" style={{ marginTop: 2 }}>{t.plain}</div>
@@ -83,9 +83,9 @@ export function Health({ install }: { install: InstallInfo | null }) {
 
   if (state && !state.available) {
     return (
-      <section className="card" style={{ padding: 18 }}>
-        <div className="label" style={{ marginBottom: 8 }}>Machine check</div>
-        <div className="caption">The check script is not available in this build.</div>
+      <section className="panel">
+        <div className="panel-title" style={{ marginBottom: 8 }}>Machine check</div>
+        <div className="text-mini fg-2">The check script is not available in this build.</div>
       </section>
     );
   }
@@ -103,10 +103,10 @@ export function Health({ install }: { install: InstallInfo | null }) {
 
   return (
     <>
-      <section className="card" style={{ padding: 18 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-          <div className="label">Machine check</div>
-          <div style={{ flex: 1 }} />
+      <section className="panel">
+        <div className="row" style={{ marginBottom: 8 }}>
+          <span className="panel-title">Machine check</span>
+          <span className="grow" />
           <button className="btn" onClick={check} disabled={!!busy}>
             {busy === 'checking' ? 'Checking…' : report ? 'Re-check' : 'Check this machine'}
           </button>
@@ -140,31 +140,31 @@ export function Health({ install }: { install: InstallInfo | null }) {
       </section>
 
       {groups.map((g) => (
-        <section key={g.sev} className="card" style={{ padding: 18, borderColor: g.sev === 'blocking' ? 'var(--danger)' : undefined }}>
-          <div className="label" style={{ marginBottom: 6 }}>{SEVERITY_LABEL[g.sev]}</div>
+        <section key={g.sev} className={'panel' + (g.sev === 'blocking' ? ' panel-danger' : '')}>
+          <div className="section-label" style={{ marginBottom: 6 }}>{SEVERITY_LABEL[g.sev]}</div>
           {g.items.map((it) => <Row key={it.id} item={it} />)}
         </section>
       ))}
 
       {report && notable.length === 0 && (
-        <section className="card" style={{ padding: 18, borderColor: 'var(--ok)' }}>
-          <div style={{ color: 'var(--ok)', fontWeight: 600 }}>✓ Nothing to fix on this machine.</div>
+        <section className="panel panel-ok panel-tight">
+          <div className="text-mini fw-semi" style={{ color: 'var(--ok)' }}>✓ Nothing to fix on this machine.</div>
         </section>
       )}
 
       {quiet.length > 0 && (
-        <section className="card" style={{ padding: 18 }}>
-          <button className="btn btn-ghost" style={{ border: 0, padding: 0 }} onClick={() => setShowPassed((v) => !v)}>
-            <span className="label">{showPassed ? '▾' : '▸'} {quiet.length} checks passed or not applicable</span>
+        <section className="panel">
+          <button className="btn btn-ghost" style={{ padding: 0 }} aria-expanded={showPassed} onClick={() => setShowPassed((v) => !v)}>
+            <span className="section-label">{showPassed ? '▾' : '▸'} {quiet.length} checks passed or not applicable</span>
           </button>
           {showPassed && <div style={{ marginTop: 8 }}>{quiet.map((it) => <Row key={it.id} item={it} />)}</div>}
         </section>
       )}
 
-      {note && <section className="card" style={{ padding: 14 }}><div style={{ fontSize: 12 }}>{note}</div></section>}
+      {note && <section className="panel panel-tight"><div className="text-mini fg-2">{note}</div></section>}
       {error && (
-        <section className="card" style={{ padding: 14, borderColor: 'var(--danger)' }}>
-          <div style={{ color: 'var(--danger)', fontSize: 12 }}>✕ {error}</div>
+        <section className="panel panel-danger panel-tight">
+          <div className="text-mini fw-semi" style={{ color: 'var(--danger)' }}>✕ {error}</div>
         </section>
       )}
     </>

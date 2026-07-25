@@ -1,76 +1,232 @@
+/* The launcher's stylesheet — ArtLux's design system, in plain CSS.
+ *
+ * The app expresses the system through Tailwind utilities. The launcher has no Tailwind (it would
+ * mean the app's postcss config and its dependency tree — see vite.config.ts), so the same
+ * decisions are expressed as classes here, using the SAME token names and values: tokens.css is
+ * generated from src/renderer/styles/tokens.css on every build, never hand-copied.
+ *
+ * Everything below is docs/DESIGN-SYSTEM.md, not invention. Where a rule looks arbitrary it is
+ * quoted from there, because the point is that the launcher does not look like a different product.
+ */
 @import './tokens.css';
 
-/* Type scale mirrors docs/DESIGN-SYSTEM.md: 10px is a hard floor, and the dim tier (--fg-3) never
- * co-occurs with the two smallest sizes. IBM Plex is the app's face; the launcher ships no font
- * files, so it names the family and falls back rather than loading a webfont a venue may be offline
- * for. */
-* { box-sizing: border-box; }
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
 
+/* §2 Typography. IBM Plex is the app's face; the launcher ships no font files (a venue may be
+ * offline on first run), so it names the family and falls back to the system UI face rather than
+ * fetching a webfont. tabular-nums is the body default there, so columns never jitter. */
 body {
   margin: 0;
   background: var(--surface-0);
-  color: var(--fg-1);
+  color: var(--text-1);
   font-family: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  font-size: 13px;
+  font-size: 12px; /* text-xs — "default body in panels" */
   line-height: 1.5;
+  font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
-  /* A launcher is chrome, not a document: selecting its labels by dragging is never intended. */
+  /* Chrome, not a document: dragging to select its labels is never intended. */
   user-select: none;
   cursor: default;
 }
 
-code, .mono { font-family: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace; font-variant-numeric: tabular-nums; }
+/* §2.1 Type scale — the named steps. 10px is the hard floor; nothing below it. */
+.text-micro { font-size: var(--fs-micro); }
+.text-mini  { font-size: var(--fs-mini); }
+.text-xs    { font-size: 12px; }
+.text-md    { font-size: var(--fs-md); }
+.text-sm    { font-size: 14px; }
 
-/* THE INTERACTION FLOOR — the same idea as the app's `:where()` base-layer film (see
- * docs/DESIGN-SYSTEM.md and the interaction-states invariant): hover/press feedback is a floor that
- * applies to every control, not per-button work. :where() keeps specificity at 0 so any component
- * style still wins. */
-:where(button, [role='button'], summary):not(:disabled):not(.no-press):hover {
-  filter: brightness(1.14);
-}
-:where(button, [role='button'], summary):not(:disabled):not(.no-press):active {
-  filter: brightness(0.92);
-}
-button { font: inherit; color: inherit; cursor: default; }
-button:disabled { opacity: 0.45; }
+/* §2.2 Weight hierarchy — headings 600, labels 500, body 400. Hierarchy is carried by weight and
+ * size, never by colour alone. */
+.fw-semi { font-weight: 600; }
+.fw-med  { font-weight: 500; }
 
-/* Never remove a focus ring without replacing it. */
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* §2.4 Data is monospace. */
+.mono { font-family: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace; }
+
+/* Text tiers. --text-3 is the dimmest token and must not carry text smaller than it already does,
+ * so `.caption` is text-2 at 10px rather than text-3: instructional text an operator must read is
+ * text-2 MINIMUM. */
+.fg-1 { color: var(--text-1); }
+.fg-2 { color: var(--text-2); }
+.fg-3 { color: var(--text-3); }
+
+/* §2.3 The panel-header standard — ONE recipe, so "this is a title" always reads the same. */
+.panel-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-1);
+}
+/* Section label WITHIN a panel — a step down from the title, never the same size as its body. */
+.section-label {
+  font-size: var(--fs-mini);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-2);
+}
+/* Caption / meta. text-2 at 10px (see the tier note above). */
+.caption {
+  font-size: var(--fs-micro);
+  color: var(--text-2);
+}
+
+/* §3 Spacing — a two-tier rhythm so groups read as groups: ~4px within, ~12px between. Whitespace
+ * defines sections, not just the near-invisible hairlines. */
+.stack-1 > * + * { margin-top: 4px; }
+.stack-3 > * + * { margin-top: 12px; }
+.row { display: flex; align-items: center; gap: 10px; }
+.grow { flex: 1; min-width: 0; }
+
+/* §4.1 The hover/press film — a FLOOR, not per-button work.
+ *
+ * Same rule as the app: a 5% white inset on hover, 12% on active, composited over whatever the
+ * control already is, so a tinted control keeps its tint and merely brightens. :where() weighs zero
+ * so any component style still wins — that is load-bearing, not decoration.
+ *
+ * (The launcher's first version used filter: brightness(), which washes out a tinted button instead
+ * of lighting it, and behaves differently on the accent fill than on a surface.) */
+:where(button, [role='button'], summary, .pressable):where(:not(:disabled)):where(:not([aria-disabled='true'])):where(:not(.no-press)):hover {
+  box-shadow: inset 0 0 0 999px rgb(255 255 255 / 0.05);
+}
+:where(button, [role='button'], summary, .pressable):where(:not(:disabled)):where(:not([aria-disabled='true'])):where(:not(.no-press)):active {
+  box-shadow: inset 0 0 0 999px rgb(255 255 255 / 0.12);
+}
+
+/* §4.2 Focus is always visible. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* §4.3 Disabled is a visible floor: opacity 0.4–0.5, never lower, and the cursor changes. */
+button:disabled,
+[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * Primitives — the kit the app has as components (§5), as classes.
+ * ------------------------------------------------------------------------------------------- */
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: default;
+  border: 0;
+  background: none;
+}
 
 .btn {
   border: 1px solid var(--line-2);
   background: var(--surface-2);
-  color: var(--fg-1);
-  border-radius: var(--radius-md);
-  padding: 7px 14px;
-  transition: filter var(--duration-fast) var(--ease-out);
+  color: var(--text-1);
+  border-radius: var(--r-md);
+  padding: 6px 12px;
+  font-size: var(--fs-mini);
+  font-weight: 500;
+  transition: box-shadow var(--dur-fast) var(--ease-out);
 }
-.btn-primary { background: var(--accent); border-color: var(--accent); color: #042326; font-weight: 600; }
-.btn-ghost { background: transparent; }
+/* The primary action. Dark ink on accent, because #27b6c4 with white text is under AA. */
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #06232a;
+  font-weight: 600;
+}
+.btn-ghost { background: transparent; border-color: transparent; }
+.btn-sm { padding: 3px 8px; font-size: var(--fs-micro); }
 
-.card {
+/* Panels sit on surface-1 over the surface-0 ground, separated by whitespace rather than by
+ * stacking bordered bands — five of those with no rest between reads as one block. */
+.panel {
   background: var(--surface-1);
   border: 1px solid var(--line-2);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-e1);
+  border-radius: var(--r-lg);
+  box-shadow: var(--e-1);
+  padding: 16px;
+}
+.panel-tight { padding: 12px 16px; }
+/* An outcome band: the semantic colour on the border, never colour alone — every one carries a
+ * glyph and a word (§6). */
+.panel-ok     { border-color: var(--ok); }
+.panel-warn   { border-color: var(--warn); }
+.panel-danger { border-color: var(--danger); }
+
+/* Scannable rows use line-2 — NEVER line-1, and never alpha-reduced: a divider a user scans at
+ * ~1.15:1 has effectively vanished. */
+.list-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+}
+.list-row:last-child { border-bottom: 0; }
+
+.rail-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 10px;
+  border-radius: var(--r-md);
+  font-size: var(--fs-mini);
+  font-weight: 500;
+  color: var(--text-2);
+  background: transparent;
+}
+/* Active is not tint alone: it carries a weight and text-tier change too (§6). */
+.rail-item[aria-current='page'] {
+  background: var(--surface-2);
+  color: var(--text-1);
+  font-weight: 600;
 }
 
-.label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-2); }
-/* --fg-2, NOT --fg-3, at this size. The dim tier must never carry the two smallest sizes: the
- * contrast drops below WCAG AA and the text stops being readable on a projector-lit desk. The app
- * enforces this with the `the dim text tier stays WCAG-AA legible` invariant; the launcher is a
- * separate build with no such guard, so the rule has to be respected by hand. It matters most here
- * of all: .caption carries the licence restriction, which LICENSE §3 requires a build to SHOW. */
-.caption { font-size: 10px; color: var(--fg-2); }
-.dim { color: var(--fg-2); }
-/* --fg-3 exists for larger, genuinely secondary text. Kept so the token is used correctly somewhere
- * rather than sitting unused and being reached for at the wrong size later. */
-.subtle { font-size: 12px; color: var(--fg-3); }
+.input {
+  background: var(--surface-2);
+  border: 1px solid var(--line-2);
+  color: var(--text-1);
+  border-radius: var(--r-md);
+  padding: 5px 9px;
+  font: inherit;
+  font-size: var(--fs-mini);
+}
+.input::placeholder { color: var(--text-2); }
 
-/* Progress. A bar with a real byte count under it — a 238 MB download on a venue uplink needs a
- * number that visibly moves, not just a filling rectangle. */
-.bar { height: 6px; background: var(--surface-3); border-radius: 3px; overflow: hidden; }
-.bar > i { display: block; height: 100%; background: var(--accent); transition: width var(--duration-med) var(--ease-out); }
+.bar {
+  height: 6px;
+  background: var(--surface-3);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+.bar > i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width var(--dur-med) var(--ease-out);
+}
 
-@keyframes spin { to { transform: rotate(360deg); } }
-.spin { animation: spin 900ms linear infinite; }
+.truncate { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; min-width: 0; }
+/* A long path is distinguished by its TAIL, so it truncates from the left. */
+.path-tail { direction: rtl; text-align: right; }
+
+/* Scrollbars, matching the app's. */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--surface-1); }
+::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #4a4a4a; }
+
+/* §1.5 Motion — and prefers-reduced-motion is honoured globally, as in the app. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

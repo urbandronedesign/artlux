@@ -182,9 +182,20 @@ runs the same code against the real machine and the live release feed with no GU
 name a path to execute — it can only hand back a path the Rust produced *and verified*. That matters
 because this program runs a downloaded executable with Administrator rights.
 
-**Styling copies ArtLux's tokens, it does not import them** — a separate product cannot reach into
-the app's renderer. [`src/tokens.css`](../launcher/src/tokens.css) carries a provenance header; change
-a value there and in `src/renderer/styles/tokens.css` together.
+**Styling is [docs/DESIGN-SYSTEM.md](DESIGN-SYSTEM.md), and the tokens are GENERATED, not copied.**
+`launcher/scripts/sync-tokens.cjs` regenerates `launcher/src/tokens.css` from
+`src/renderer/styles/tokens.css` on every build, exactly as the machine check is regenerated — a
+separate product cannot import from the app's renderer, and a hand-written copy is a fork with no
+mechanism to notice it has drifted. It drifted immediately when it was one: wrong `--accent-hover`
+and `--accent-press`, an opaque `--accent-dim` instead of a 14% tint, and half the tokens renamed
+(`--fg-1` for `--text-1`, `--radius-md` for `--r-md`). None of that shows in a screenshot; it just
+makes the launcher quietly a different product.
+
+The app expresses the system through Tailwind utilities. The launcher has no Tailwind — that would
+mean the app's PostCSS config and its dependency tree — so `src/styles.css` restates the same
+decisions as classes over the same tokens: the named type scale, the panel-header recipe, the
+`:where()` hover/press film (5% / 12% white inset, *not* a brightness filter, which washes out a
+tinted control), the focus ring, and the disabled floor.
 
 ---
 
