@@ -472,7 +472,7 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-fg-2 font-medium">State</span>
-                  <button onClick={() => removeState(selState.id)} className="text-fg-3 hover:text-red-400 inline-flex items-center gap-1"><Trash2 size={12} /></button>
+                  <button onClick={() => removeState(selState.id)} className="text-fg-3 hover:text-danger inline-flex items-center gap-1"><Trash2 size={12} /></button>
                 </div>
                 <label className="block">
                   <span className="text-fg-3 text-micro">Name</span>
@@ -521,7 +521,7 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-fg-2 font-medium">Transition</span>
-                  <button onClick={() => removeTransition(selTrans.id)} className="text-fg-3 hover:text-red-400"><Trash2 size={12} /></button>
+                  <button onClick={() => removeTransition(selTrans.id)} className="text-fg-3 hover:text-danger"><Trash2 size={12} /></button>
                 </div>
                 <div className="text-fg-3">
                   {selTrans.fromAny
@@ -618,7 +618,7 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-fg-2 font-medium">Region</span>
-                  <button onClick={() => removeRegion(selRegion.id)} className="text-fg-3 hover:text-red-400"><Trash2 size={12} /></button>
+                  <button onClick={() => removeRegion(selRegion.id)} className="text-fg-3 hover:text-danger"><Trash2 size={12} /></button>
                 </div>
                 <label className="block">
                   <span className="text-fg-3 text-micro">Name</span>
@@ -675,7 +675,7 @@ const ActionRow: React.FC<{ action: SmAction; markers: Marker[]; scenes: SceneRe
         className="flex-1 bg-surface-1 border border-line-1 rounded px-1 py-0.5 text-fg-1 focus:border-accent outline-none">
         {ACTION_KINDS.map(k => <option key={k} value={k}>{k}</option>)}
       </select>
-      <button onClick={onRemove} className="text-fg-3 hover:text-red-400"><Trash2 size={11} /></button>
+      <button onClick={onRemove} className="text-fg-3 hover:text-danger"><Trash2 size={11} /></button>
     </div>
     {action.kind === 'seek' && <NumField label="Seek to (s)" value={action.seekTo ?? 0} onChange={(v) => onChange({ ...action, seekTo: v })} />}
     {action.kind === 'setLoop' && (

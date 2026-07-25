@@ -296,7 +296,7 @@ export const CueBankPanel: React.FC<Props> = ({
                                         {/* A scene that recalls audio SAYS SO, always — not only on hover. In an unattended
                                             install the operator has to be able to see which scenes touch the sound. */}
                                         {!!sceneAudioEntries(s).length && <span className="text-accent shrink-0" title={`${sceneAudioEntries(s).length} audio param(s) recalled`}>♪{sceneAudioEntries(s).length}</span>}
-                                        <span className="opacity-0 group-hover:opacity-100 flex gap-1">
+                                        <span className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 flex gap-1">
                                             {onUpdateSceneAudio && <Tooltip id="scenes.bind-audio"><button onClick={() => { setAudioSceneId(s.id); setSelCueId(null); setMode('edit'); setAddOpen(true); }}
                                                 {...help('scenes.bind-audio')} title="Bind audio params to this scene" className="hover:text-fg-1"><Music size={10} /></button></Tooltip>}
                                             {onEditScene && <Tooltip id="scenes.edit-timeline"><button onClick={() => onEditScene(s.id)} {...help('scenes.edit-timeline')} title="Edit this state's timeline" className="hover:text-fg-1"><Film size={10} /></button></Tooltip>}
@@ -338,7 +338,7 @@ export const CueBankPanel: React.FC<Props> = ({
                                         </div>
                                         <div className="flex items-center justify-between text-fg-3">
                                             <span>{cueEntries(cue.entries).length}p · {(cue.fadeSec ?? 0).toFixed(1)}s</span>
-                                            <button onClick={(e) => { e.stopPropagation(); removeCue(cue.id); }} className="opacity-0 group-hover:opacity-100 hover:text-danger" title="Delete cue"><Trash2 size={10} /></button>
+                                            <button onClick={(e) => { e.stopPropagation(); removeCue(cue.id); }} className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 hover:text-danger" title="Delete cue" aria-label="Delete cue"><Trash2 size={10} /></button>
                                         </div>
                                     </div></Tooltip>
                                 );

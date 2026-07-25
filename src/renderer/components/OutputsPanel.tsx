@@ -127,7 +127,7 @@ export const OutputsPanel: React.FC<Props> = ({
             onToggleEditMany={onToggleEditMany}
           />
 
-          <div className="border border-line-1 rounded-md divide-y divide-line-1">
+          <div className="border border-line-2 rounded-md divide-y divide-line-2">
             <div className={`grid ${COLS} gap-2 px-2 py-1 text-micro uppercase tracking-wider text-fg-3`}>
               <span>Surface</span><span>Output</span><span>Display</span><span>Status</span><span>Align</span><span></span>
             </div>
@@ -175,7 +175,7 @@ export const OutputsPanel: React.FC<Props> = ({
                         disabled={!live}
                         title="Align corners/mesh on the projector"
                         {...help('outputs.align')}
-                        className={`flex items-center gap-1 px-1.5 py-1 rounded-sm text-micro disabled:opacity-30 ${
+                        className={`flex items-center gap-1 px-1.5 py-1 rounded-sm text-micro disabled:opacity-40 ${
                           editingOutputIds.includes(s.id) ? 'bg-accent text-black' : 'bg-surface-2 text-fg-2 hover:text-fg-1'
                         }`}
                       >
@@ -186,7 +186,7 @@ export const OutputsPanel: React.FC<Props> = ({
                       onClick={() => onResetCorners(s.id)}
                       disabled={!live}
                       title="Reset warp to fullscreen"
-                      className="p-1 rounded-sm text-fg-3 hover:text-fg-1 disabled:opacity-30"
+                      className="p-1 rounded-sm text-fg-3 hover:text-fg-1 disabled:opacity-40"
                     >
                       <Undo2 size={12} />
                     </button>
@@ -194,7 +194,7 @@ export const OutputsPanel: React.FC<Props> = ({
                       onClick={() => onCalibrate(s.id)}
                       disabled={!live}
                       title="Calibrate projector (structured light + pose)"
-                      className={`p-1 rounded-sm disabled:opacity-30 ${o?.calibration ? 'text-accent' : 'text-fg-3 hover:text-fg-1'}`}
+                      className={`p-1 rounded-sm disabled:opacity-40 ${o?.calibration ? 'text-accent' : 'text-fg-3 hover:text-fg-1'}`}
                     >
                       <Aperture size={12} />
                     </button>
@@ -203,7 +203,7 @@ export const OutputsPanel: React.FC<Props> = ({
                     onClick={() => setExpanded(isOpen ? null : s.id)}
                     disabled={!live}
                     title="Warp / soft-edge / gamma"
-                    className={`p-1 rounded-sm justify-self-center disabled:opacity-30 ${isOpen ? 'text-accent' : 'text-fg-3 hover:text-fg-1'}`}
+                    className={`p-1 rounded-sm justify-self-center disabled:opacity-40 ${isOpen ? 'text-accent' : 'text-fg-3 hover:text-fg-1'}`}
                   >
                     <Settings2 size={13} />
                   </button>

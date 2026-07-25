@@ -60,7 +60,7 @@ export const PerfPanel: React.FC = () => {
   const janky = s.longFrames > 0 || s.frameP99 > 20;
 
   const Metric: React.FC<{ label: string; value: string; warn?: boolean }> = ({ label, value, warn }) => (
-    <div className="flex items-baseline justify-between gap-4 px-3 py-1.5 border-b border-line-1/60">
+    <div className="flex items-baseline justify-between gap-4 px-3 py-1.5 border-b border-line-2">
       <span className="text-micro uppercase tracking-wider text-fg-3">{label}</span>
       <span className={`num text-mini ${warn ? 'text-danger' : 'text-fg-1'}`}>{value}</span>
     </div>
@@ -68,8 +68,10 @@ export const PerfPanel: React.FC = () => {
 
   return (
     <div className="h-full overflow-auto bg-surface-1 text-fg-1">
-      <div className="flex items-center gap-2 px-3 h-8 border-b border-line-1">
-        <span className="text-micro font-bold uppercase tracking-wider text-fg-2">Render Performance</span>
+      <div className="flex items-center gap-2 px-3 h-8 border-b border-line-2">
+        {/* Panel-header standard (design system §2.3): a title anchors the hierarchy — it must not be
+            the 10px floor, the same size as its own body rows. */}
+        <span className="text-xs font-semibold uppercase tracking-wider text-fg-1">Render Performance</span>
         <span className={`text-micro font-bold ${janky ? 'text-warn' : 'text-ok'}`}>
           {janky ? '⚠ jank' : 'nominal'}
         </span>
