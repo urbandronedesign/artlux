@@ -668,6 +668,29 @@ check(
 );
 
 check(
+  'a window that must appear never depends on ready-to-show alone',
+  'READY-TO-SHOW DOES NOT ALWAYS FIRE in a packaged build. The editor window has known this for a long ' +
+  'time and reveals on three paths (ready-to-show + did-finish-load + a backstop timer) because relying ' +
+  'on the event alone once left the app running with NO WINDOW AT ALL. The splash then shipped in ' +
+  'v0.25.0 with a single `once(ready-to-show)` and hit exactly that: on the packaged Windows build the ' +
+  'event never arrived, showInactive() never ran, and the window existed while being invisible — and ' +
+  'because its close deadlines are measured from the show time, `Date.now() - 0` read as "long past" ' +
+  'and destroyed it silently. Nothing throws, nothing logs an error, the feature is simply absent.',
+  () => {
+    const problems = [];
+    for (const f of ['src/main/splashWindow.ts', 'src/main/index.ts']) {
+      const src = read(f);
+      if (!/ready-to-show/.test(src)) continue; // this file doesn't reveal a window
+      if (!/did-finish-load/.test(src)) problems.push(`${f} reveals on ready-to-show with no did-finish-load path`);
+      if (!/setTimeout\(\s*reveal|setTimeout\(\s*revealEditor|setTimeout\(revealEditor|setTimeout\(reveal/.test(src)) {
+        problems.push(`${f} has no backstop timer for the case ready-to-show never fires`);
+      }
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
   'the credit + licence line have one source and are actually shown',
   'LICENSE §3 requires a build to show the authorship credit and the non-commercial restriction — so ' +
   'these strings are a licence obligation, not chrome, and a UI that quietly dropped them would put the ' +

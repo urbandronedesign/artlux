@@ -72,6 +72,13 @@ drifted from `package.json`'s description, and its footer credited a party that 
 - **The MIT HRTF dataset was reviewed** and is MIT-licensed ("Copyright (c) 2007 Aristotel Digenis · Credit:
   Bill Gardner and Keith Martin"), so it is redistributable with that credit — which `NOTICE` now carries. No
   SOFA dataset is bundled at all (MySofa is deliberately not provided), so no SOFA terms attach.
+- **The splash reveals on three paths, not one.** `ready-to-show` **does not always fire in a packaged
+  build** — the editor window has known that for a long time, which is why it reveals on three. The splash
+  was first cut relying on that event alone, and in the packaged installer it never arrived: the window was
+  created and never shown, and because its close deadlines are measured from the show time, `Date.now() - 0`
+  read as "long past" and destroyed it silently. It now reveals on `ready-to-show`, `did-finish-load` and a
+  backstop timer, and refuses to close a window that was never shown. `verify:invariants` fails any
+  main-process window reveal that depends on `ready-to-show` alone.
 
 ## v0.24.0
 

@@ -64,12 +64,34 @@ let editorVisible = false;
 let completedAt = 0;    // when the last row landed — DWELL_MS is measured from here
 let closing = false;    // the exit fade has started; every close path is idempotent past this
 let hardTimer: NodeJS.Timeout | null = null;
+let recheckTimer: NodeJS.Timeout | null = null;
 
 function destroy(): void {
   if (hardTimer) { clearTimeout(hardTimer); hardTimer = null; }
+  if (recheckTimer) { clearTimeout(recheckTimer); recheckTimer = null; }
   unsubscribe?.(); unsubscribe = null;
   if (win && !win.isDestroyed()) win.destroy();
   win = null;
+}
+
+// REVEAL THE SPLASH. Three paths into one idempotent function, for the same reason the editor window
+// has three (see the comment in index.ts): `ready-to-show` DOES NOT ALWAYS FIRE in a packaged build.
+// This shipped in v0.25.0 relying on that event alone, and on the packaged Windows build it never
+// arrived — so showInactive() was never called, `shownAt` stayed 0, and the splash existed as a window
+// nobody could see. Worse, `Date.now() - 0` then satisfied every timing floor at once, so it destroyed
+// itself immediately and silently: the log read "closing after 1784993242235ms".
+function reveal(): void {
+  if (!win || win.isDestroyed() || shownAt) return;
+  win.showInactive(); // not show(): never steal focus from the editor coming up behind it
+  shownAt = Date.now();
+  maybeClose();
+}
+
+// One pending re-check at a time. maybeClose is driven by report pushes AND by its own deadlines, and
+// without a single slot each push queued another timer.
+function scheduleRecheck(ms: number): void {
+  if (recheckTimer) clearTimeout(recheckTimer);
+  recheckTimer = setTimeout(() => { recheckTimer = null; maybeClose(); }, Math.max(20, ms) + 20);
 }
 
 /** Both waves reported. Not a promise that everything loaded — only that nothing more is coming. */
@@ -83,17 +105,21 @@ const reportComplete = (): boolean => {
 // only shape how long we linger past it.
 function maybeClose(): void {
   if (!win || win.isDestroyed() || closing) return;
-  if (!editorVisible) return;
+  // NEVER close a window that was never shown. Every deadline below is measured from `shownAt`, so
+  // while it is 0 the arithmetic is meaningless — and it does not fail safe, it fails INVISIBLE: it
+  // reads as "all deadlines long past" and tears the splash down before anyone sees it. That is the
+  // v0.25.0 bug. The hard timer in open() remains the ultimate backstop if reveal() never runs at all.
+  if (!shownAt || !editorVisible) return;
   const complete = reportComplete();
   if (complete && !completedAt) completedAt = Date.now();
-  const waitedForReport = Date.now() - shownAt >= GRACE_MS;
-  if (!complete && !waitedForReport) return; // the grace timer (below) will call back
+  const sinceShown = Date.now() - shownAt;
+  if (!complete && sinceShown < GRACE_MS) { scheduleRecheck(GRACE_MS - sinceShown); return; }
   // Both floors: readable since it appeared, AND readable since the last row landed.
   const remaining = Math.max(
-    MIN_MS - (Date.now() - shownAt),
+    MIN_MS - sinceShown,
     completedAt ? DWELL_MS - (Date.now() - completedAt) : 0,
   );
-  if (remaining > 0) { setTimeout(maybeClose, remaining); return; }
+  if (remaining > 0) { scheduleRecheck(remaining); return; }
   fadeAndClose();
 }
 
@@ -118,9 +144,7 @@ export function noteEditorVisible(): void {
   editorVisible = true;
   if (shownAt) console.log(`[splash] editor visible at ${Date.now() - shownAt}ms`);
   if (win && !win.isDestroyed()) win.setAlwaysOnTop(false);
-  // Re-check when the grace expires, in case the renderer's wave never comes at all.
-  setTimeout(maybeClose, Math.max(0, GRACE_MS - (Date.now() - shownAt)) + 50);
-  maybeClose();
+  maybeClose(); // schedules its own re-check against the grace/dwell deadlines
 }
 
 export function open(): void {
@@ -161,14 +185,14 @@ export function open(): void {
   });
 
   win.on('closed', () => { unsubscribe?.(); unsubscribe = null; win = null; });
-  win.once('ready-to-show', () => {
-    if (!win || win.isDestroyed()) return;
-    // showInactive, not show(): the splash must not steal focus from the editor window that is coming
-    // up behind it, or the first thing an operator types goes into a window with no input.
-    win.showInactive();
-    shownAt = Date.now();
-    maybeClose();
-  });
+  // THREE ways in, exactly like the editor window, because the first one is not reliable:
+  //   ready-to-show   the fast path — first paint is ready, so nothing flashes
+  //   did-finish-load always fires, and is what saved the editor from the same bug
+  //   a timer         for the configuration where neither arrives
+  // reveal() is idempotent, so whichever wins is the only one that counts.
+  win.once('ready-to-show', reveal);
+  win.webContents.once('did-finish-load', reveal);
+  setTimeout(reveal, 900);
   // The zoom factor is what makes the whole document scale with the window we sized above.
   win.webContents.on('did-finish-load', () => { win?.webContents.setZoomFactor(scale); });
 
@@ -182,7 +206,15 @@ export function open(): void {
   // Absolute backstop. If the renderer never reports (a crash on boot, a project that wedges the
   // editor), the splash still goes away — it must not become the only window on screen.
   hardTimer = setTimeout(() => {
-    if (win && !win.isDestroyed()) console.warn('[splash] closing on the hard deadline — the editor never finished reporting');
+    if (win && !win.isDestroyed()) {
+      // Say WHICH kind of overrun this is. A complete report here does not mean the deadline logic
+      // failed: opening a heavy project blocks the main event loop for seconds at a time (synchronous
+      // HAP opens, file reads), so the dwell timer simply cannot run on schedule. The first message
+      // used to claim the editor never reported even when it plainly had, which is a log that lies.
+      console.warn(reportComplete()
+        ? `[splash] hard deadline (${HARD_MS}ms) — the report WAS complete; the main process was too busy loading to run the close timer`
+        : `[splash] hard deadline (${HARD_MS}ms) — the editor never finished reporting`);
+    }
     destroy();
   }, HARD_MS);
 
