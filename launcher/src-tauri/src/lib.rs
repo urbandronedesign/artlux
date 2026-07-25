@@ -6,6 +6,7 @@
 //! code against the real machine and the real release feed.
 
 pub mod download;
+pub mod examples;
 pub mod install;
 pub mod projects;
 pub mod releases;

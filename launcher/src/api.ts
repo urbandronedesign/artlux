@@ -91,6 +91,23 @@ export function when(ms: number): string {
   return new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
+export interface ExampleSet {
+  id: string;
+  title: string;
+  blurb: string;
+  projects: string[];
+  project_names: string[];
+  size: number;
+  has_tutorial: boolean;
+}
+
+export interface CopyResult { dir: string; project: string; renamed: boolean; message: string }
+
+export const listExamples = (installDir: string) => invoke<ExampleSet[]>('list_examples', { installDir });
+export const getWorkspace = () => invoke<string>('get_workspace');
+export const copyExample = (installDir: string, setId: string, project: string) =>
+  invoke<CopyResult>('copy_example', { installDir, setId, project });
+
 export const scanInstalls = () => invoke<InstallScan>('scan_installs');
 export const artluxRunning = () => invoke<boolean>('artlux_running');
 export const resolveLatest = () => invoke<ReleaseInfo>('resolve_latest');
@@ -103,8 +120,10 @@ export const downloadInstaller = (r: ReleaseInfo) =>
 
 export const onProgress = (cb: (p: Progress) => void) => listen<Progress>('download://progress', (e) => cb(e.payload));
 
-/** Bytes → a size a human reads at a glance. */
+/** Bytes → a size a human reads at a glance. KB below a megabyte: a 41 KB example set rendered as
+ *  "0.0 MB" reads as empty, which is the one thing it is not. */
 export function mb(n: number): string {
   if (n <= 0) return '—';
+  if (n < 1024 * 1024) return `${Math.max(1, Math.round(n / 1024))} KB`;
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }

@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Credits, Wordmark, APP_TAGLINE } from './brand';
 import { Projects } from './Projects';
+import { Examples } from './Examples';
 import {
   artluxRunning, cancelDownload, downloadInstaller, isNewer, mb, onProgress,
   resolveLatest, runInstaller, scanInstalls,
@@ -20,7 +21,7 @@ type Phase = 'idle' | 'checking' | 'downloading' | 'installing';
 const TABS = [
   { id: 'install', label: 'Install', ready: true },
   { id: 'projects', label: 'Projects', ready: true },
-  { id: 'examples', label: 'Examples', ready: false, why: 'The example gallery lands after Projects.' },
+  { id: 'examples', label: 'Examples', ready: true },
   { id: 'health', label: 'Health', ready: false, why: 'The machine check (preflight) lands last.' },
 ] as const;
 
@@ -126,6 +127,7 @@ export default function App() {
         {/* Content */}
         <main style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
           {tab === 'projects' && <Projects install={primary} />}
+          {tab === 'examples' && <Examples install={primary} />}
           {tab === 'install' && <>
           <section className="card" style={{ padding: 18 }}>
             <div className="label" style={{ marginBottom: 10 }}>On this machine</div>

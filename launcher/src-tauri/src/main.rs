@@ -14,7 +14,7 @@
 // exercised without a GUI; the commands below are a thin transport layer over it.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use artlux_launcher::{download, install, projects, releases, runner};
+use artlux_launcher::{download, examples, install, projects, releases, runner};
 use tauri::{AppHandle, Emitter};
 
 /// Every ArtLux install on this machine, plus whether the legacy double-install state is present.
@@ -124,6 +124,54 @@ fn open_project(exe: String, project: String) -> runner::OpenOutcome {
     runner::open_project(&exe, &project)
 }
 
+// ---------------------------------------------------------------------------------------------
+// Examples
+// ---------------------------------------------------------------------------------------------
+
+/// The example sets inside an install. Empty when ArtLux is not installed yet — the tab says so
+/// rather than showing an unexplained blank.
+#[tauri::command]
+fn list_examples(install_dir: String) -> Vec<examples::ExampleSet> {
+    examples::list(&install_dir)
+}
+
+/// Where copies land. Computed, never written into the config until the user changes it: a baked-in
+/// default is wrong forever once Documents moves.
+#[tauri::command]
+fn get_workspace() -> String {
+    let cfg = projects::load_config();
+    cfg.workspace_dir
+        .unwrap_or_else(|| examples::default_workspace().to_string_lossy().into_owned())
+}
+
+/// Copy a set into the workspace, then hand back the project to open.
+///
+/// Also ADDS the workspace to the library roots if no root already covers it. Without that the
+/// projects the user just created never appear under Projects, which reads as "the launcher is
+/// broken" rather than "the folder is not being watched".
+#[tauri::command]
+fn copy_example(install_dir: String, set_id: String, project: String) -> Result<examples::CopyResult, String> {
+    let mut cfg = projects::load_config();
+    let ws = cfg
+        .workspace_dir
+        .clone()
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(examples::default_workspace);
+
+    let res = examples::copy_set(&install_dir, &set_id, &project, &ws)?;
+
+    let ws_str = ws.to_string_lossy().to_ascii_lowercase();
+    let roots = projects::effective_roots(&cfg);
+    let covered = roots.iter().any(|r| ws_str.starts_with(&r.to_ascii_lowercase()));
+    if !covered {
+        let mut next = roots;
+        next.push(ws.to_string_lossy().into_owned());
+        cfg.library_roots = Some(next);
+        let _ = projects::save_config(&cfg);
+    }
+    Ok(res)
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -142,6 +190,9 @@ fn main() {
             cancel_scan,
             recent_projects,
             open_project,
+            list_examples,
+            get_workspace,
+            copy_example,
         ])
         .run(tauri::generate_context!())
         .expect("error while running the ArtLux Launcher");

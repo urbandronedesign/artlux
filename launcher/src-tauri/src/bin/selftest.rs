@@ -11,7 +11,7 @@
 //! found — "found via product key InstallLocation" is the whole point of install.rs, and a green
 //! test tick would hide it.
 
-use artlux_launcher::{download, install, projects, releases, runner};
+use artlux_launcher::{download, examples, install, projects, releases, runner};
 
 fn line() {
     println!("{}", "-".repeat(78));
@@ -275,6 +275,63 @@ async fn main() {
             }
             _ => println!("   skipped: need both an install and at least one project"),
         }
+    }
+
+    line();
+    println!("8. EXAMPLE GALLERY");
+    line();
+    if let Some(inst) = scan.installs.first() {
+        let sets = examples::list(&inst.dir);
+        if sets.is_empty() {
+            println!("   !! no example sets found in {}", examples::examples_dir(&inst.dir).display());
+            failures += 1;
+        }
+        for s in &sets {
+            println!("   {:<16} {:>7} KB  {} project(s){}  \"{}\"",
+                s.id, s.size / 1024, s.projects.len(),
+                if s.has_tutorial { ", tutorial" } else { "" },
+                s.title);
+            if !s.blurb.is_empty() {
+                let b: String = s.blurb.chars().take(96).collect();
+                println!("       {b}…");
+            }
+        }
+        // Copy into a throwaway workspace so the operator's real one is untouched.
+        if let Some(set) = sets.iter().find(|s| s.id == "state-machine") {
+            let ws = std::env::temp_dir().join("artlux-ws-selftest");
+            let _ = std::fs::remove_dir_all(&ws);
+            match examples::copy_set(&inst.dir, &set.id, &set.projects[0], &ws) {
+                Ok(r) => {
+                    println!("   copy 1: {}", r.message);
+                    // tuto/ must NOT come across, README.md must.
+                    let tuto = std::path::Path::new(&r.dir).join("tuto");
+                    let readme = std::path::Path::new(&r.dir).join("README.md");
+                    if tuto.exists() { println!("   !! tuto/ was copied — it is docs, already reachable in-app"); failures += 1; }
+                    if !readme.is_file() { println!("   !! README.md was not copied — the set's own explanation"); failures += 1; }
+                    if !std::path::Path::new(&r.project).is_file() { println!("   !! the project to open is not in the copy"); failures += 1; }
+                    // The whole point: the copy must be writable.
+                    match std::fs::OpenOptions::new().append(true).open(&r.project) {
+                        Ok(_) => println!("   copy is writable — Save will work"),
+                        Err(e) => { println!("   !! the copy is NOT writable: {e}"); failures += 1; }
+                    }
+                    // Collision: a second copy must NOT merge into the first.
+                    match examples::copy_set(&inst.dir, &set.id, &set.projects[0], &ws) {
+                        Ok(r2) => {
+                            println!("   copy 2: {}", r2.message);
+                            if !r2.renamed || r2.dir.eq_ignore_ascii_case(&r.dir) {
+                                println!("   !! the second copy landed on top of the first");
+                                failures += 1;
+                            }
+                        }
+                        Err(e) => { println!("   !! second copy failed: {e}"); failures += 1; }
+                    }
+                }
+                Err(e) => { println!("   !! copy failed: {e}"); failures += 1; }
+            }
+            let _ = std::fs::remove_dir_all(&ws);
+        }
+    } else {
+        println!("   skipped: ArtLux is not installed");
     }
 
     println!();
