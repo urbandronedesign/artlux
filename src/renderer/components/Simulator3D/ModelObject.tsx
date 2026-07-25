@@ -113,13 +113,18 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
     group.scale.set(sx, sy, sz);
   }, [group, model.position, model.rotation, model.scale, model.scaleXYZ]);
 
-  // Record history on drag start, commit the new transform on drag end. Scale is per-axis — the gizmo's
-  // X/Y/Z handles scale each axis independently and we persist all three.
+  // Record history on the first real drag movement, commit the new transform on drag end. Scale is
+  // per-axis — the gizmo's X/Y/Z handles scale each axis independently and we persist all three.
+  // Latch on `objectChange`, not `mouseDown` (which fires on a grab that never drags), so a click on a
+  // handle no longer pushes a junk undo entry. Mirrors the Stage drag latch. See plans/timeline-undo.md.
+  const moved = useRef(false);
   useEffect(() => {
     const c = controls.current;
     if (!c || !selected) return;
-    const onDown = () => onRecordHistory();
+    const onDown = () => { moved.current = false; };
+    const onChange = () => { if (!moved.current) { moved.current = true; onRecordHistory(); } };
     const onUp = () => {
+      if (!moved.current) return; // pure click on a handle — nothing to record or commit
       onCommit(model.id, {
         position: { x: group.position.x, y: group.position.y, z: group.position.z },
         rotation: { x: group.rotation.x / DEG, y: group.rotation.y / DEG, z: group.rotation.z / DEG },
@@ -127,8 +132,9 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
       });
     };
     c.addEventListener('mouseDown', onDown);
+    c.addEventListener('objectChange', onChange);
     c.addEventListener('mouseUp', onUp);
-    return () => { c.removeEventListener('mouseDown', onDown); c.removeEventListener('mouseUp', onUp); };
+    return () => { c.removeEventListener('mouseDown', onDown); c.removeEventListener('objectChange', onChange); c.removeEventListener('mouseUp', onUp); };
   }, [selected, group, model.id, onCommit, onRecordHistory]);
 
   if (!model.visible) return null;

@@ -57,11 +57,12 @@ function template(): MenuItemConstructorOptions[] {
     {
       label: 'Edit',
       submenu: [
-        // Scope is honest: the history stack snapshots the fixtures array only (add/remove/patch
-        // fixtures, template/rig import, scene recall). Surfaces, scenes, 3D models, controllers and
-        // cues are NOT on this stack — labelling it plain "Undo" implied a global undo it never had.
-        passthrough('Undo Fixture Edit', 'CmdOrCtrl+Z', 'undo'),
-        passthrough('Redo Fixture Edit', 'CmdOrCtrl+Shift+Z', 'redo'),
+        // Document-wide undo: the history stack now snapshots the whole authored document (fixtures,
+        // surfaces, groups, scenes + their timelines, the global timeline, cue banks, the state machine,
+        // audio bed, 3D scene, brightness) — one linear stack, cleared on New/Open. Controllers,
+        // projector outputs and the asset library are deliberately excluded. See plans/timeline-undo.md.
+        passthrough('Undo', 'CmdOrCtrl+Z', 'undo'),
+        passthrough('Redo', 'CmdOrCtrl+Shift+Z', 'redo'),
         { type: 'separator' },
         { role: 'cut' },
         { role: 'copy' },

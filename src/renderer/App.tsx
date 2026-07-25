@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useSyncExternalStore } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, useSyncExternalStore } from 'react';
 import { Fixture, Surface, SurfaceContent, SourceType, AppSettings, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, normalizeCueBanks, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, timelineAudioTracks, sceneAudioEntries, cueEntries, isAddressableEntry, type AudioClip, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType, type PatchPolicy, readPatchPolicy } from './types';
 import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge, WINDOWED_DISPLAY } from '../../shared/protocol';
 import type { ProjectorCalibration } from '../../shared/protocol';
@@ -104,6 +104,26 @@ const BROADCAST = QS.get('broadcast') === '1';
 const HEADLESS = QS.get('headless') === '1';
 // True for both hidden run modes — used to share the offscreen-Stage render branch + project loader.
 const SHOW_ENGINE = BROADCAST || HEADLESS;
+
+// Who caused a state change. Threaded into the two functions that both an operator AND the show can
+// reach (handleRecallScene, applyCues, fireColumn). ONLY an 'operator' edit may push undo history —
+// a show event (FSM hop, cue GO, OSC, tablet, scheduler) must never, or an unattended install fills
+// the undo stack with changes nobody made. DEFAULT IS 'show' at every such call site: a caller that
+// forgets the argument records NOTHING, which is the safe failure. See plans/timeline-undo.md §5.2.
+type EditOrigin = 'operator' | 'show';
+
+// A snapshot of the UNDOABLE document — the authored slices Ctrl+Z reverts, whole and untorn. This is
+// a renderer-local interface: NEVER persisted, NEVER sent over IPC, so it adds no .artlux schema
+// change and no migration. Deliberately NOT ProjectData: controllers, projectorOutputs/outputSpans,
+// the managed asset library, the schedule and machine settings are excluded — reverting a projector
+// calibration or a controller mapping mid-show is a footgun, not a feature. See plans/timeline-undo.md.
+interface DocSnapshot {
+  fixtures: Fixture[]; surfaces: Surface[]; groups: FixtureGroup[];
+  scenes: Scene[];              // each Scene carries its OWN cloned Timeline
+  timeline: Timeline;           // the global doc
+  cueBanks: CueBank[]; stateMachine: StateMachine; audioMix: AudioMix;
+  scene3D: Scene3D; globalBrightness: number;
+}
 const QUERY_PROJECT = QS.get('project') || '';
 // Perf HUD debug flag: `?perf=1` forces it on; otherwise it persists via localStorage (toggle: Ctrl+Alt+P).
 const PERF_FLAG = QS.get('perf') === '1';
@@ -142,15 +162,11 @@ const App: React.FC = () => {
   // In-app feedback (replaces blocking native window.confirm/alert). See components/ui/feedback.
   const toast = useToast();
   const confirm = useConfirm();
-  const {
-      state: fixtures,
-      set: setFixtures, 
-      undo, 
-      redo, 
-      canUndo, 
-      canRedo,
-      record: recordHistory
-  } = useHistory<Fixture[]>([
+  // Fixtures are now a plain state slice (they used to BE the history hook's present). The document
+  // history that Ctrl+Z drives is the separate stack below, which snapshots fixtures alongside every
+  // other authored slice. recordHistory / undo / redo are defined further down (after every slice it
+  // snapshots is in scope) — see the "document history" block.
+  const [fixtures, setFixtures] = useState<Fixture[]>([
     {
       id: 'fix-1',
       name: 'Main Arch',
@@ -159,7 +175,10 @@ const App: React.FC = () => {
       colorData: [], surfaceId: 'surf-1'
     }
   ]);
-  
+  // The ONE document-history primitive (undo/redo). Holds only past/future snapshots; the live
+  // document is assembled from the slices into docRef below.
+  const { record: historyRecord, undo: historyUndo, redo: historyRedo, reset: resetHistory } = useHistory<DocSnapshot>();
+
   const [selectedFixtureId, setSelectedFixtureId] = useState<string | null>('fix-1');
   // Full multi-selection set (for grouping/bulk ops); selectedFixtureId is the "primary"
   // member that drives the inspector + on-stage transform gizmo.
@@ -323,6 +342,55 @@ const App: React.FC = () => {
   useEffect(() => {
     setCoreStateView(() => ({ surfaces: surfacesRef.current, fixtures: fixturesRef.current, globalBrightness: brightnessRef.current }));
   }, []);
+
+  // ─────────────────────────────── DOCUMENT HISTORY (undo / redo) ───────────────────────────────
+  // The live snapshot of the undoable document — reassembled every render (cheap: ~10 pointer reads
+  // into a fresh object, no clone). record()/undo()/redo() read THIS ref, so they capture the current
+  // COMMITTED state without needing a live mirror per slice. Because every writer of these slices
+  // updates immutably, the references it holds are never mutated out from under it.
+  const docRef = useRef<DocSnapshot>({
+    fixtures, surfaces, groups, scenes, timeline, cueBanks, stateMachine, audioMix, scene3D, globalBrightness,
+  });
+  docRef.current = { fixtures, surfaces, groups, scenes, timeline, cueBanks, stateMachine, audioMix, scene3D, globalBrightness };
+
+  // Restore a snapshot by fanning its slices back out to the owning setters. Every imperative service
+  // re-syncs FOR FREE off these setters — surfaceMedia/contentSource/timelineEngine and the GPU LED
+  // mapper are all useEffect-keyed on this state (see Stage.tsx and the effects below), and restoring a
+  // scene/timeline re-fires the engine + projector fan-out via the [activeTimeline, activeSceneId]
+  // effect — so an undo needs no imperative re-init. Setting a slice to an unchanged reference is a
+  // no-op (React bails on Object.is), so an undo that touched one slice does not churn the others.
+  const applySnapshot = useCallback((d: DocSnapshot) => {
+    setFixtures(d.fixtures);
+    setSurfaces(d.surfaces);
+    setGroups(d.groups);
+    setScenes(d.scenes);
+    setTimeline(d.timeline);
+    setCueBanks(d.cueBanks);
+    setStateMachine(d.stateMachine);
+    setAudioMix(d.audioMix);
+    setScene3D(d.scene3D);
+    setGlobalBrightness(d.globalBrightness);
+  }, []);
+
+  // The SHOW_ENGINE gate lives here: broadcast/headless has no operator and no editor UI, so the undo
+  // stack must not exist there — an FSM hopping states all night would otherwise fill it with changes
+  // nobody made (plans/timeline-undo.md §5.2). recordHistory captures the PRE-mutation document (this
+  // render's docRef reflects state before a handler's setState); undo/redo swap it for a neighbour.
+  const recordHistory = useCallback(() => {
+    if (SHOW_ENGINE) return;
+    historyRecord(docRef.current);
+  }, [historyRecord]);
+  const undo = useCallback(() => {
+    if (SHOW_ENGINE) return;
+    const prev = historyUndo(docRef.current);
+    if (prev) applySnapshot(prev);
+  }, [historyUndo, applySnapshot]);
+  const redo = useCallback(() => {
+    if (SHOW_ENGINE) return;
+    const next = historyRedo(docRef.current);
+    if (next) applySnapshot(next);
+  }, [historyRedo, applySnapshot]);
+  // ──────────────────────────────────────────────────────────────────────────────────────────────
   // The GLOBAL timeline's lanes run as a BASE under every scene: the audio bed is global and survives
   // scene swaps, so its curves must too. A scene's own lane on the same targetPath shadows the base one.
   useEffect(() => { timelineEngine.setBaseAutomation(timeline.automation ?? []); }, [timeline.automation]);
@@ -380,20 +448,26 @@ const App: React.FC = () => {
   }, [settings]);
 
   useEffect(() => {
+    // No operator in broadcast/headless — the global undo/redo/select keybindings have no place there,
+    // and undo()/redo() are no-ops in that mode anyway (see the SHOW_ENGINE gate above).
+    if (SHOW_ENGINE) return;
     const handleKeyDown = (e: KeyboardEvent) => {
+        // A text field owns Ctrl+Z / Ctrl+Y for its OWN native undo/redo — do not hijack it to revert the
+        // whole document while someone is un-typing a character in the Length field or a marker note.
+        // Same predicate the selectAll branch and useTimelineKeys use. (Requirement: plans/timeline-undo.md.)
+        const el = e.target as HTMLElement | null;
+        const typing = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
         // Bindings resolve through the keymap (registry defaults + the user's saved overrides). redo is
         // checked before undo because Ctrl+Shift+Z would otherwise satisfy undo's Ctrl+Z on some layouts.
-        if (keymap.matches(e, 'global.redo')) {
+        if (!typing && keymap.matches(e, 'global.redo')) {
             redo();
             e.preventDefault();
         }
-        else if (keymap.matches(e, 'global.undo')) {
+        else if (!typing && keymap.matches(e, 'global.undo')) {
             undo();
             e.preventDefault();
         }
         else if (keymap.matches(e, 'global.selectAll')) {
-            const el = e.target as HTMLElement | null;
-            const typing = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
             if (!typing && fixturesRef.current.length) {
                 handleSelectFixtures(fixturesRef.current.map(f => f.id));
                 e.preventDefault();
@@ -501,6 +575,7 @@ const App: React.FC = () => {
   };
   const handleSelectAllFixtures = () => handleSelectFixtures(fixtures.map(f => f.id));
   const handleAddSurface = () => {
+    recordHistory();
     const id = generateId();
     const z = surfaces.reduce((m, s) => Math.max(m, s.zIndex), -1) + 1;
     setSurfaces([...surfaces, {
@@ -513,6 +588,7 @@ const App: React.FC = () => {
   // Move a surface in the stage z-order (renumbers zIndex by back→front position so ordering stays
   // clean). 'up' = toward the front (drawn later / on top), 'down' = toward the back.
   const handleMoveSurface = (id: string, dir: 'up' | 'down') => {
+    recordHistory();
     const ordered = [...surfaces].sort((a, b) => (a.zIndex - b.zIndex) || (surfaces.indexOf(a) - surfaces.indexOf(b)));
     const i = ordered.findIndex(s => s.id === id);
     const j = dir === 'up' ? i + 1 : i - 1;
@@ -731,6 +807,10 @@ const App: React.FC = () => {
   };
 
   const handleUpdateSurface = (id: string, patch: Partial<Surface>) => {
+    // Records like handleUpdateFixture does (the inspector's NumberInputs commit discretely, and the
+    // on-stage drag bypasses this via raw setSurfaces + the Stage moved-latch, so this never fires
+    // per-frame). One inspector edit = one undo entry.
+    recordHistory();
     const next = surfaces.map(s => s.id === id ? { ...s, ...patch } : s);
     dropTakenOverLegs({ surfaces, fixtures, globalBrightness }, { surfaces: next, fixtures, globalBrightness });
     setSurfaces(next);
@@ -1004,8 +1084,10 @@ const App: React.FC = () => {
   // starts a render-free transition that animates the fadeable numerics from their old values to the
   // new ones (Stage pump overrides them per-frame, no React re-render). Every field beyond
   // fixtures/globalBrightness is presence-guarded so older minimal scenes still load.
-  const handleRecallScene = (scene: Scene) => {
-    recordHistory();
+  const handleRecallScene = (scene: Scene, origin: EditOrigin = 'show') => {
+    // Only a human clicking GO records history. A recall reached through the show (FSM/OSC/cue/tablet/
+    // scheduler) passes no origin → 'show' → no record. See plans/timeline-undo.md §5.2.
+    if (origin === 'operator') recordHistory();
     // Capture the pre-recall view for the fade's "from" before committing the target.
     const fromView = { surfaces, fixtures, globalBrightness };
     const toView = { surfaces: scene.surfaces ?? surfaces, fixtures: scene.fixtures, globalBrightness: scene.globalBrightness };
@@ -1142,7 +1224,16 @@ const App: React.FC = () => {
     if (next) enterAuthor(next.id);
   };
   // Timeline edits write back to the OWNER: the active scene's own timeline, else the shared global one.
+  // handleTimelineChange IS THE OPERATOR SEAM. It is what record() means for a timeline edit. Every
+  // caller of it is a human gesture in the timeline panel (the dock + fullscreen TimelinePanel) — there
+  // are no others, by construction. Every writer of a bound timeline document that is NOT a human
+  // gesture (an FSM entry action, an OSC message, a cue GO, the scheduler, an asset relink) calls
+  // setScenes/setTimeline DIRECTLY and must keep doing so — routing a show event through here would
+  // fill an unattended install's undo stack with changes nobody made. Each timeline commit fires this
+  // exactly once per gesture (drafts commit on pointerup — see Timeline.tsx), so one record() here is
+  // one undo entry per gesture, no latch needed. See plans/timeline-undo.md §5.1-5.2.
   const handleTimelineChange = (next: Timeline) => {
+    recordHistory();
     if (activeSceneId) setScenes(prev => prev.map(s => s.id === activeSceneId ? { ...s, timeline: next } : s));
     else setTimeline(next);
   };
@@ -1266,9 +1357,10 @@ const App: React.FC = () => {
   // Commit the new state (discrete params + final numerics snap immediately) then animate the
   // fadeable numerics from their old values to the new ones via the render-free transition engine.
   // Accepts several cues so a column-fire fades them as one batch.
-  const applyCues = (cues: Cue[]) => {
+  const applyCues = (cues: Cue[], origin: EditOrigin = 'show') => {
     if (!cues.length) return;
-    recordHistory();
+    // Operator GO records; a cue fired by the show (default 'show') does not. See §5.2.
+    if (origin === 'operator') recordHistory();
     const fromView: StateView = { surfaces, fixtures, globalBrightness };
     let next: StateView = { surfaces, fixtures, globalBrightness };
     const legs: transitions.FadeLeg[] = [];
@@ -1321,13 +1413,13 @@ const App: React.FC = () => {
     }
   };
   // Fire a column: its row-0 scene if present, else every cue in the column (bottom-to-top).
-  const fireColumn = (bankRef: string, col: number) => {
+  const fireColumn = (bankRef: string, col: number, origin: EditOrigin = 'show') => {
     const bank = cueBanks.find(b => b.id === bankRef) ?? cueBanks.find(b => b.name === bankRef);
     if (!bank) return;
     const cell = bank.sceneCells.find(sc => sc.col === col);
     const scene = cell ? scenes.find(s => s.id === cell.sceneId) : undefined;
-    if (scene) { handleRecallScene(scene); return; }
-    applyCues(bank.cues.filter(c => c.col === col).sort((a, b) => b.row - a.row));
+    if (scene) { handleRecallScene(scene, origin); return; }
+    applyCues(bank.cues.filter(c => c.col === col).sort((a, b) => b.row - a.row), origin);
   };
   // Held in refs so the once-subscribed cueBus listeners always see the latest closures.
   const fireCueRef = useRef<(ref: string) => void>(() => {});
@@ -1400,12 +1492,15 @@ const App: React.FC = () => {
 
   // Apply a loaded project (or rig-free project) to app state. Strips live colorData.
   const applyProjectData = (data: any) => {
+      // Opening a project CLEARS the undo stack — this document has no shared history with the outgoing
+      // one. Without this, one Ctrl+Z after File→Open would restore the PREVIOUS project's whole document
+      // over the just-opened one (plans/timeline-undo.md §5.3). reset() replaces the old record()-here.
+      resetHistory();
       // Surfaces: use the saved ones, or fall back to a default full-stage surface
       // (back-compat with pre-surfaces projects).
       const surf = Array.isArray(data?.surfaces) && data.surfaces.length ? data.surfaces as Surface[] : defaultSurfaces();
       setSurfaces(surf);
       if (data?.fixtures && Array.isArray(data.fixtures)) {
-          recordHistory();
           // Default-link any unlinked fixture to the first surface (strict per-surface). Repair legacy
           // corruption: a non-array `segments` (e.g. `{"0":…}` from a pre-fix cue write) is always
           // garbage — coerce it back to undefined so Stage's `segments.map` can't throw on load.
@@ -1659,7 +1754,9 @@ const App: React.FC = () => {
   // *remember* to extend is a list that will drift again. It is returned from the function that does the
   // resetting, so it cannot.
   const resetToNewProject = (st: ReturnType<typeof makeNewProjectState>) => {
-      recordHistory();
+      // File→New clears the undo stack — the fresh document shares no history with the outgoing one
+      // (plans/timeline-undo.md §5.3). reset() replaces the old record()-here.
+      resetHistory();
       setSurfaces(st.surfaces);
       setFixtures(st.fixtures);
       setControllers([]);
@@ -3235,14 +3332,17 @@ const App: React.FC = () => {
                         getCurrentState={() => ({ surfaces, fixtures, globalBrightness })}
                         oscPrefix={settings.oscControlPrefix}
                         onCaptureScene={handleCaptureScene}
-                        onRecallScene={handleRecallScene}
+                        // These three are the OPERATOR GO surfaces (a human clicking the deck) → 'operator',
+                        // so they push undo history. The show-driven recalls/cues route through cueBus →
+                        // recallByRefRef/fireCueRef/fireColumnRef and inherit the 'show' default (no record).
+                        onRecallScene={(scene) => handleRecallScene(scene, 'operator')}
                         onUpdateScene={handleUpdateScene}
                         onRenameScene={handleRenameScene}
                         onRemoveScene={handleRemoveScene}
                         onUpdateSceneFade={handleUpdateSceneFade}
                         onUpdateSceneAudio={handleUpdateSceneAudio}
-                        onFireCue={(cue) => applyCues([cue])}
-                        onFireColumn={fireColumn}
+                        onFireCue={(cue) => applyCues([cue], 'operator')}
+                        onFireColumn={(bank, col) => fireColumn(bank, col, 'operator')}
                         onEditScene={enterAuthor}
                         onPreloadScene={(s) => timelinePreloader.warm(s.id, s.timeline)}
                         activeSceneId={activeSceneId}

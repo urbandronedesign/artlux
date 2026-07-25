@@ -42,18 +42,27 @@ export const PlaneObject: React.FC<Props> = ({ model, selected, mode, onSelect, 
     group.scale.set(sx, sy, sz);
   }, [group, model.position, model.rotation, model.scale, model.scaleXYZ]);
 
+  // Latch history on the first real drag movement (objectChange), not on the gizmo grab (mouseDown),
+  // so a click on a handle that never drags no longer pushes a junk undo entry, and skip the commit
+  // when nothing moved. Mirrors the Stage drag latch. See plans/timeline-undo.md §5.1/§5.5.
+  const moved = useRef(false);
   useEffect(() => {
     const c = controls.current;
     if (!c || !selected) return;
-    const onDown = () => onRecordHistory();
-    const onUp = () => onCommit(model.id, {
-      position: { x: group.position.x, y: group.position.y, z: group.position.z },
-      rotation: { x: group.rotation.x / DEG, y: group.rotation.y / DEG, z: group.rotation.z / DEG },
-      scaleXYZ: [Math.max(0.0001, group.scale.x), Math.max(0.0001, group.scale.y), Math.max(0.0001, group.scale.z)],
-    });
+    const onDown = () => { moved.current = false; };
+    const onChange = () => { if (!moved.current) { moved.current = true; onRecordHistory(); } };
+    const onUp = () => {
+      if (!moved.current) return; // pure click on a handle — nothing to record or commit
+      onCommit(model.id, {
+        position: { x: group.position.x, y: group.position.y, z: group.position.z },
+        rotation: { x: group.rotation.x / DEG, y: group.rotation.y / DEG, z: group.rotation.z / DEG },
+        scaleXYZ: [Math.max(0.0001, group.scale.x), Math.max(0.0001, group.scale.y), Math.max(0.0001, group.scale.z)],
+      });
+    };
     c.addEventListener('mouseDown', onDown);
+    c.addEventListener('objectChange', onChange);
     c.addEventListener('mouseUp', onUp);
-    return () => { c.removeEventListener('mouseDown', onDown); c.removeEventListener('mouseUp', onUp); };
+    return () => { c.removeEventListener('mouseDown', onDown); c.removeEventListener('objectChange', onChange); c.removeEventListener('mouseUp', onUp); };
   }, [selected, group, model.id, onCommit, onRecordHistory]);
 
   if (!model.visible) return null;

@@ -125,6 +125,33 @@ check(
   },
 );
 
+// ── Undo/redo: the document-history safety rules ──────────────────────────────────────────────
+// Each clause here encodes a bug the widening would otherwise re-introduce (plans/timeline-undo.md):
+// an unbounded stack an unattended show fills, a Ctrl+Z after File→Open that pastes the previous
+// project, and a show event recorded as an operator edit.
+check(
+  'the undo stack is bounded and cleared on New/Open, and the show never records',
+  'Without a depth cap the stack grows forever; without reset() on project load one Ctrl+Z restores ' +
+  'the previous project; without the origin gate an FSM hopping states all night fills the stack.',
+  () => {
+    const problems = [];
+    const hook = read('src/renderer/hooks/useHistory.ts');
+    if (!/MAX_DEPTH/.test(hook)) problems.push('useHistory.ts has no MAX_DEPTH cap on the stack');
+    const src = read('src/renderer/App.tsx');
+    const apply = fnBody(src, 'applyProjectData');
+    const reset = fnBody(src, 'resetToNewProject');
+    if (!apply || !reset) return 'could not find applyProjectData / resetToNewProject in App.tsx';
+    if (!apply.includes('resetHistory(')) problems.push('applyProjectData does not resetHistory() — undo would cross a project open');
+    if (!reset.includes('resetHistory(')) problems.push('resetToNewProject does not resetHistory() — undo would cross File→New');
+    const recall = fnBody(src, 'handleRecallScene');
+    const cues = fnBody(src, 'applyCues');
+    if (!recall || !cues) return 'could not find handleRecallScene / applyCues in App.tsx';
+    if (!recall.includes("origin === 'operator'")) problems.push('handleRecallScene records unconditionally — a show recall would push history');
+    if (!cues.includes("origin === 'operator'")) problems.push('applyCues records unconditionally — a show cue would push history');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Shell: context switching must carry the layout revision ───────────────────────────────────
 check(
   'context switches go through goToContext()',

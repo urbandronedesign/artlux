@@ -27,12 +27,18 @@ export const FixtureGizmo: React.FC<Props> = ({ fixture, mode, onRecordHistory, 
     anchor.scale.setScalar(fixture.scale3D && fixture.scale3D > 0 ? fixture.scale3D : 1);
   }, [anchor, fixture]);
 
-  // Record history at drag start; commit transform at drag end.
+  // Record history on the first real drag movement; commit transform at drag end. TransformControls
+  // fires mouseDown on GRAB — even a click that never drags — so recording there pushed a junk undo
+  // entry per click. Latch on `objectChange` (an actual transform) instead, and skip the commit when
+  // nothing moved. Mirrors the Stage drag latch. See plans/timeline-undo.md §5.1/§5.5.
+  const moved = useRef(false);
   useEffect(() => {
     const c = controls.current;
     if (!c || !fixture) return;
-    const onDown = () => onRecordHistory();
+    const onDown = () => { moved.current = false; };
+    const onChange = () => { if (!moved.current) { moved.current = true; onRecordHistory(); } };
     const onUp = () => {
+      if (!moved.current) return; // pure click on a handle — nothing to record or commit
       const p = anchor.position, e = anchor.rotation;
       onCommit(fixture.id, {
         position3D: { x: p.x, y: p.y, z: p.z },
@@ -41,9 +47,11 @@ export const FixtureGizmo: React.FC<Props> = ({ fixture, mode, onRecordHistory, 
       });
     };
     c.addEventListener('mouseDown', onDown);
+    c.addEventListener('objectChange', onChange);
     c.addEventListener('mouseUp', onUp);
     return () => {
       c.removeEventListener('mouseDown', onDown);
+      c.removeEventListener('objectChange', onChange);
       c.removeEventListener('mouseUp', onUp);
     };
   }, [anchor, fixture, onCommit, onRecordHistory]);

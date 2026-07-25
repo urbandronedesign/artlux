@@ -515,7 +515,10 @@ export const Stage: React.FC<StageProps> = ({
   }, [tick]);
 
   // --- Surface drag (self-contained; cyan rectangles) ---
-  const surfaceDrag = useRef<{ mode: 'move' | 'resize' | 'rotate' | null; id: string | null; sx: number; sy: number; init: { x: number; y: number; w: number; h: number; r: number } | null }>({ mode: null, id: null, sx: 0, sy: 0, init: null });
+  // `moved` is a per-gesture history latch: a surface drag streams to state at pointer rate via the
+  // render-free onUpdateSurfaces, so — exactly like the fixture drag above — we record ONCE, on the
+  // first real move, not per frame and not on a click that never drags. See plans/timeline-undo.md §5.1.
+  const surfaceDrag = useRef<{ mode: 'move' | 'resize' | 'rotate' | null; id: string | null; sx: number; sy: number; init: { x: number; y: number; w: number; h: number; r: number } | null; moved: boolean }>({ mode: null, id: null, sx: 0, sy: 0, init: null, moved: false });
 
   const onSurfaceMove = useCallback((e: MouseEvent) => {
     const st = surfaceDrag.current;
@@ -526,6 +529,8 @@ export const Stage: React.FC<StageProps> = ({
     const cur = surfacesRef.current;
     const idx = cur.findIndex(s => s.id === st.id);
     if (idx === -1) return;
+    // First real move of this gesture → one undo entry for the whole drag.
+    if (!st.moved) { st.moved = true; onRecordHistory(); }
     const init = st.init;
     const next = { ...cur[idx] };
     // Snap a normalized coord to the nearest grid line when snapping + grid are both on.
@@ -544,10 +549,10 @@ export const Stage: React.FC<StageProps> = ({
       next.rotation = Math.atan2(e.clientY - cy, e.clientX - cx) * 180 / Math.PI + 90;
     }
     const arr = [...cur]; arr[idx] = next; surfacesRef.current = arr; onUpdateSurfaces(arr);
-  }, [onUpdateSurfaces]);
+  }, [onUpdateSurfaces, onRecordHistory]);
 
   const onSurfaceUp = useCallback(() => {
-    surfaceDrag.current = { mode: null, id: null, sx: 0, sy: 0, init: null };
+    surfaceDrag.current = { mode: null, id: null, sx: 0, sy: 0, init: null, moved: false };
     window.removeEventListener('mousemove', onSurfaceMove);
     window.removeEventListener('mouseup', onSurfaceUp);
   }, [onSurfaceMove]);
@@ -558,7 +563,7 @@ export const Stage: React.FC<StageProps> = ({
     onSelectSurface(id);
     const s = surfacesRef.current.find(x => x.id === id);
     if (!s) return;
-    surfaceDrag.current = { mode, id, sx: e.clientX, sy: e.clientY, init: { x: s.x, y: s.y, w: s.width, h: s.height, r: s.rotation } };
+    surfaceDrag.current = { mode, id, sx: e.clientX, sy: e.clientY, init: { x: s.x, y: s.y, w: s.width, h: s.height, r: s.rotation }, moved: false };
     window.addEventListener('mousemove', onSurfaceMove);
     window.addEventListener('mouseup', onSurfaceUp);
   };
