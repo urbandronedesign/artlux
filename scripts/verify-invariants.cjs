@@ -490,6 +490,96 @@ check(
   },
 );
 
+// ── A11y/UX floors from the deep UI/UX audit (docs/DESIGN-SYSTEM.md) ──────────────────────────
+// Each encodes a shipped defect: the app compiled and ran, but a keyboard/AT user was locked out, a
+// save failed silently, or 10px text sat at 3.1:1. A typechecker sees none of them.
+
+check(
+  'the dim text tier stays WCAG-AA legible',
+  'text-3 (fg-3) is the app\'s meta/label tier and is used at 10–11px. At the old #6a6a6a it was 3.10:1 ' +
+  'on surface-2 — below the 4.5:1 floor — across 113 sites. It was raised to #8a8a8a (4.86:1). Darkening ' +
+  'it again silently reintroduces the failure everywhere the tier is used.',
+  () => {
+    const problems = [];
+    const tok = read('src/renderer/styles/tokens.css');
+    if (!/--text-3:\s*#8a8a8a/i.test(tok)) problems.push('tokens.css --text-3 is not #8a8a8a (must stay AA on the chrome surfaces)');
+    const tw = read('tailwind.config.js');
+    if (!/3:\s*'#8a8a8a'/i.test(tw)) problems.push('tailwind.config.js fg.3 is not #8a8a8a (must mirror the token)');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'no blocking native dialogs in the renderer',
+  'window.confirm / window.alert steal focus, are unthemed (a white box over the OLED console), block the ' +
+  'JS thread and expose no aria. Every confirmation/notice must route through the in-app substrate ' +
+  '(useConfirm / useToast in components/ui/feedback). A native dialog behind a fullscreen projector can ' +
+  'hang the operator mid-show.',
+  () => {
+    const bad = [];
+    for (const f of [...walk('src/renderer'), ...walk('plugins')]) {
+      const src = read(f);
+      if (/window\.(confirm|alert)\s*\(/.test(src) || /(^|[^.\w])alert\s*\(/.test(src)) bad.push(f);
+    }
+    return bad.length ? `native window.confirm/alert/alert() found: ${bad.join(', ')}` : null;
+  },
+);
+
+check(
+  'the StatusBar announces output state to assistive tech',
+  'The StatusBar is where an operator scans for "is output live". It updates imperatively / every frame, ' +
+  'so without an aria-live region a screen-reader user never hears LIVE↔OFFLINE flip — the one status a ' +
+  'venue operator must not miss. (The per-frame FPS is deliberately NOT in a live region.)',
+  () => {
+    const src = read('src/renderer/components/StatusBar.tsx');
+    return /aria-live=/.test(src) ? null : 'StatusBar.tsx has no aria-live region';
+  },
+);
+
+check(
+  'the kit never suppresses the focus ring without a replacement',
+  'A global :focus-visible ring is the keyboard-focus floor. `focus:outline-none` (not focus-visible:) in ' +
+  'a kit primitive kills it for every consumer, leaving keyboard users with no visible focus. The kit must ' +
+  'either keep the global ring or draw its own (focus-visible:ring/outline).',
+  () => {
+    const bad = [];
+    for (const f of walk('src/renderer/components/ui')) {
+      const src = read(f);
+      // focus:outline-none is the offender; focus-visible:outline-none paired with a ring is fine.
+      if (/[^-]focus:outline-none/.test(src) && !/focus-visible:(ring|outline)/.test(src)) bad.push(f);
+    }
+    return bad.length ? `focus:outline-none without a replacement ring: ${bad.join(', ')}` : null;
+  },
+);
+
+check(
+  'ListRow stays keyboard-operable',
+  'ListRow is the primary selection primitive (surfaces/fixtures/scenes). As a bare <div onClick> it made ' +
+  'the whole object-browser flow mouse-only and invisible to AT. It must carry a role and an onKeyDown so ' +
+  'Enter/Space select — regressing it silently re-breaks keyboard selection everywhere it is used.',
+  () => {
+    const src = read('src/renderer/components/ui/ListRow.tsx');
+    const problems = [];
+    if (!/role="button"/.test(src)) problems.push('ListRow lost role="button"');
+    if (!/onKeyDown/.test(src)) problems.push('ListRow lost its onKeyDown (Enter/Space activation)');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'the renderer keeps its error containment + feedback substrate',
+  'A top-level ErrorBoundary keeps a render throw from unmounting Stage (which would stop Art-Net), and ' +
+  'FeedbackProvider is the only sanctioned place for toasts/confirms. Both are mounted at the editor entry; ' +
+  'dropping either silently removes containment or leaves feedback nowhere to go.',
+  () => {
+    const src = read('src/renderer/index.tsx');
+    const problems = [];
+    if (!/ErrorBoundary/.test(src)) problems.push('index.tsx no longer mounts the ErrorBoundary');
+    if (!/FeedbackProvider/.test(src)) problems.push('index.tsx no longer mounts the FeedbackProvider');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
