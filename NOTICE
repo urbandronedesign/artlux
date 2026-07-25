@@ -117,7 +117,16 @@ the two kinds of use, because they carry very different obligations:
     `native/audio-engine/build` archived for each tagged release, or be able to reproduce
     it from the pinned CMake tags.
 
-  HRTF/SOFA data shipped with libspatialaudio may carry its own terms. Not yet reviewed.
+  MIT HRTF C Library            (vendored inside libspatialaudio, compiled in via HAVE_MIT_HRTF)
+    The built-in HRTF dataset the binaural decode uses when no SOFA file is supplied —
+    source/mit_hrtf/ in the libspatialaudio tree, which is what our build actually compiles.
+    Licence: MIT, per its own file headers: "Copyright (c) 2007 Aristotel Digenis /
+    Credit: Bill Gardner and Keith Martin / Licence: MIT". Permissive and redistributable;
+    the credit above is the attribution.
+    REVIEWED 2026-07-25. We deliberately do NOT provide MySofa (find_package(MySofa QUIET)
+    stays unsatisfied — see native/audio-engine/CMakeLists.txt), so NO SOFA dataset is
+    bundled or redistributed and no third-party SOFA terms attach. A user who supplies their
+    own SOFA file at runtime brings their own terms with it, which is theirs to honour.
 
 --------------------------------------------------------------------------------------
 2. LOADED AT RUNTIME — NOT redistributed by us
@@ -240,7 +249,7 @@ THE STARTER ELECTION: DONE, AND WHAT KEEPS IT TRUE
       the checklist above must be registered to, and the two are the same fact seen from the
       two sides. Recorded here because it was raised and decided, not assumed.
 
-  (f) STILL OPEN: HRTF/SOFA data terms (section 1), and the fact that `appId`
+  (f) STILL OPEN: the fact that `appId`
       (`com.urbandronedesign.artlux`) and the GitHub publish owner still name
       urbandronedesign. Those two are MACHINE IDENTIFIERS — the installer's upgrade
       identity and the release URL — and changing them would orphan every already-

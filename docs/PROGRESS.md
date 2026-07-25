@@ -503,6 +503,12 @@ Shipped across **v0.3.0** and **v0.3.1** (see `CHANGELOG.md`; UI detail in `arch
   `LICENSE` §3 obligation. Both negative-tested.
 - **Found in passing:** `bg-bg-stage` was documented in DESIGN-SYSTEM §1.1 but the `bg` key was never in
   `tailwind.config.js`, so the class silently rendered transparent. Fixed.
+- **Both authors hold a free personal JUCE Starter seat** (§1.7), which is also what keeps §1.2.1's revenue
+  test on the individual definition. The MIT HRTF dataset was reviewed — MIT-licensed, credit to Digenis /
+  Gardner / Martin — and no SOFA data is bundled, closing that notice item.
+- **v0.25.0 is the first release since v0.21.0**: v0.22–v0.24 were each prepared and never tagged, so this
+  is also the first *distributed* build to carry a LICENSE, a settled JUCE election, and notices that match
+  what the installer actually ships.
 
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.

@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.25.0
+
+> **The first release since v0.21.0.** v0.22.0, v0.23.0 and v0.24.0 were each prepared — version bumped,
+> changelog written — and never tagged, so no build was distributed. This release therefore carries all
+> three of those sections below as well as this one. It is also the **first release published with a
+> `LICENSE`**, a settled JUCE election, and third-party notices that match what the installer actually
+> ships (see [`NOTICE`](NOTICE)).
 
 ### A startup splash that says what actually loaded — and who made it, under what licence
 
@@ -63,11 +69,13 @@ drifted from `package.json`'s description, and its footer credited a party that 
 - New [DESIGN-SYSTEM §9](docs/DESIGN-SYSTEM.md) documents the splash: sizes, the four bands, and the rules
   that are load-bearing rather than taste (why red is confined to a badge, why `off` isn't a problem, why
   nothing 10–11px is on the dim text tier).
+- **The MIT HRTF dataset was reviewed** and is MIT-licensed ("Copyright (c) 2007 Aristotel Digenis · Credit:
+  Bill Gardner and Keith Martin"), so it is redistributable with that credit — which `NOTICE` now carries. No
+  SOFA dataset is bundled at all (MySofa is deliberately not provided), so no SOFA terms attach.
 
 ## v0.24.0
 
-> Carries everything under v0.23.0 and v0.22.0 below: those were prepared (version bumped, changelog
-> written) but never tagged, so no build was distributed. The last RELEASED version is **v0.21.0**.
+> Prepared but **never tagged** — no build was distributed. Released as part of v0.25.0 above.
 
 ### Keyboard shortcuts are configurable
 
