@@ -1,0 +1,10 @@
+{
+  "$schema": "../gen/schemas/windows-schema.json",
+  "identifier": "default",
+  "description": "The launcher's own window. Everything privileged (registry reads, downloads, spawning the installer) goes through explicit #[tauri::command]s in Rust, so no filesystem or shell capability is granted to the web layer.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "opener:allow-open-url"
+  ]
+}

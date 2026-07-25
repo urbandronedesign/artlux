@@ -1,0 +1,33 @@
+[package]
+name = "artlux-launcher"
+version = "0.1.0"
+edition = "2021"
+description = "ArtLux Launcher — installs ArtLux, checks the machine, and opens projects."
+authors = ["Zaki Jawhari", "Bérenger Recoules"]
+license = "SEE LICENSE IN ../../LICENSE"
+# Deliberately NOT part of a Cargo workspace. There is no root Cargo.toml in this repo: the six napi
+# crates under native/ are independent with their own lockfiles, on purpose. Sharing a lockfile and a
+# target dir with them would let a launcher dependency bump perturb a shipped .node.
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# rustls rather than the platform TLS stack: one less thing that behaves differently on a locked-down
+# venue PC, and no OpenSSL build dependency.
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
+tokio = { version = "1", features = ["fs", "io-util", "macros", "rt-multi-thread"] }
+futures-util = "0.3"
+sha2 = "0.10"
+base64 = "0.22"
+semver = "1"
+winreg = "0.55"
+
+[profile.release]
+lto = true
+opt-level = "s"   # a bootstrapper's size is part of its argument for existing
+strip = true
