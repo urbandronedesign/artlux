@@ -15,8 +15,8 @@ export const HELP_TOPICS: HelpTopic[] = [
     id: 'getting-started',
     title: { en: 'Getting started', fr: 'Démarrage' },
     body: {
-      en: 'ArtLux maps video, images and live sources onto LED fixtures (Art-Net / sACN) and projector outputs. Create or open a project (File menu), add surfaces on the Stage, drop content onto them, then patch fixtures in Routing. Open the 3D Scene to lay out fixtures in real-world space.',
-      fr: "ArtLux mappe des vidéos, images et sources live sur des fixtures LED (Art-Net / sACN) et des sorties projecteur. Créez ou ouvrez un projet (menu Fichier), ajoutez des surfaces sur la scène, déposez-y du contenu, puis patchez les fixtures dans Routing. Ouvrez la Scène 3D pour disposer les fixtures dans l'espace réel.",
+      en: 'ARTLux maps video, images and live sources onto LED fixtures (Art-Net / sACN) and projector outputs. Create or open a project (File menu), add surfaces on the Stage, drop content onto them, then patch fixtures in Routing. Open the 3D Scene to lay out fixtures in real-world space.',
+      fr: "ARTLux mappe des vidéos, images et sources live sur des fixtures LED (Art-Net / sACN) et des sorties projecteur. Créez ou ouvrez un projet (menu Fichier), ajoutez des surfaces sur la scène, déposez-y du contenu, puis patchez les fixtures dans Routing. Ouvrez la Scène 3D pour disposer les fixtures dans l'espace réel.",
     },
   },
   {

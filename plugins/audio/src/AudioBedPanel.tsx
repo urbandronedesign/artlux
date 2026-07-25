@@ -883,7 +883,7 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
                 without this badge the app would look healthy again the moment it was closed. 0.3. */}
             {!engineUp && (
               <span className="shrink-0 px-1.5 h-5 inline-flex items-center rounded bg-warn/15 text-warn text-micro whitespace-nowrap"
-                title="ArtLux started without its audio engine — there is no sound. Authoring and saving still work normally. Expected audio-engine.node in the app's resources; from source, run npm run build:audio.">
+                title="ARTLux started without its audio engine — there is no sound. Authoring and saving still work normally. Expected audio-engine.node in the app's resources; from source, run npm run build:audio.">
                 no audio engine
               </span>
             )}
@@ -897,7 +897,7 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
                 "your show is running and the room cannot hear it." */}
             {!deviceLive && (
               <span className="shrink-0 px-1.5 h-5 inline-flex items-center rounded bg-danger/15 text-danger text-micro whitespace-nowrap"
-                title="THE AUDIO OUTPUT DEVICE IS GONE — the room is silent, and the show is still running. Usually a bumped USB cable or a driver reload. Reconnect it, then open Preferences ▸ Audio and pick it again; sound returns with no restart. (ArtLux will not do this for you — it does not re-open a device on its own.)">
+                title="THE AUDIO OUTPUT DEVICE IS GONE — the room is silent, and the show is still running. Usually a bumped USB cable or a driver reload. Reconnect it, then open Preferences ▸ Audio and pick it again; sound returns with no restart. (ARTLux will not do this for you — it does not re-open a device on its own.)">
                 <AlertTriangle size={10} className="mr-1" /> no output device
               </span>
             )}

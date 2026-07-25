@@ -37,7 +37,7 @@ export const mediaHelp: HelpEntry[] = [
   {
     id: 'media.scan',
     title: 'Scan Assets Folder',
-    short: 'Scan the project’s assets folder for media added outside ArtLux.',
+    short: 'Scan the project’s assets folder for media added outside ARTLux.',
     body: 'Adopts files copied into assets/ by hand — via Explorer, a USB drive or a sync tool — so they appear in the library without re-importing. On a venue machine this rescues most of the media.',
     group: 'Media',
     keywords: ['scan', 'rescan', 'adopt', 'refresh', 'folder'],

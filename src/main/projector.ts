@@ -133,7 +133,7 @@ function createProjectorWindow(getMain: () => BrowserWindow | null, surfaceId: s
     ...geom,
     backgroundColor: '#000000',
     show: false,
-    title: 'ArtLux — Output',
+    title: 'ARTLux — Output',
     webPreferences: {
       preload: APP_PRELOAD,
       contextIsolation: true,

@@ -14,7 +14,7 @@ function open(initialId?: string): void {
   if (win && !win.isDestroyed()) { win.focus(); return; } // singleton: focus the existing window
   win = new BrowserWindow({
     width: 820, height: 940, minWidth: 480, minHeight: 400,
-    title: 'ArtLux — Docs & Tutorials',
+    title: 'ARTLux — Docs & Tutorials',
     autoHideMenuBar: true,
     webPreferences: {
       preload: APP_PRELOAD,

@@ -46,7 +46,7 @@ export const AudioEngineMissing: React.FC<Props> = ({ open, onClose }) => {
 
         <div className="p-5">
           <p className="text-xs text-fg-1 leading-relaxed">
-            ArtLux started without its audio engine. The app works normally, but{' '}
+            ARTLux started without its audio engine. The app works normally, but{' '}
             <strong className="text-warn">there will be no sound</strong> — the audio bed, scene audio and
             the mixer are all disabled.
           </p>

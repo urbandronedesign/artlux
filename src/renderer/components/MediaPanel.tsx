@@ -186,7 +186,7 @@ export const MediaPanel: React.FC<Props> = ({ assets, timeline, refs, selectedSu
             Import is the supported route; this is the one that rescues everything that came the other
             way, which on a venue machine is most of it. */}
         <Tooltip id="media.scan"><button onClick={() => void runScan()} disabled={!hasProjectFolder || scan.busy}
-          title="Scan the project's assets folder for media added outside ArtLux" {...help('media.scan')}
+          title="Scan the project's assets folder for media added outside ARTLux" {...help('media.scan')}
           className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40 text-micro text-fg-2 ml-auto">
           <RefreshCw size={12} className={scan.busy ? 'animate-spin' : undefined} /> Scan
         </button></Tooltip>

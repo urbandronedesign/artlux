@@ -7,20 +7,38 @@
 // EventSource /events?token=…; sends commands/config as JSON POSTs with a Bearer token. The client
 // code below intentionally uses NO template literals so it nests safely inside this exported one.
 
+import { WORDMARK, ICON_MARK } from '../../../shared/brandMarks';
+
+// The app wordmark, inline. It has to be inline for two independent reasons: this document makes no
+// external requests, and `currentColor` only inherits into an inline <svg> — an <img> could not pick
+// up the tablet client's own palette. All-double-quoted so it nests safely inside the single-quoted
+// strings the client code below builds its markup with.
+const WORDMARK_SVG =
+  `<svg viewBox="0 0 ${WORDMARK.width} ${WORDMARK.height}" fill="currentColor" role="img" aria-label="ARTLux"><path d="${WORDMARK.path}"/></svg>`;
+
 export const CLIENT_HTML = `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#0b0d12" />
-<title>ArtLux Show Control</title>
+<title>ARTLux Show Control</title>
+<!-- Inline so the tab/home-screen icon survives a tablet that has no route back to the app for
+     assets. iOS ignores SVG for apple-touch-icon, so both point at the rasterised tile: without
+     this, "Add to Home Screen" left the operator with a blank, unlabelled square. -->
+<link rel="icon" href="${ICON_MARK.png180}" />
+<link rel="apple-touch-icon" href="${ICON_MARK.png180}" />
+<meta name="apple-mobile-web-app-title" content="ARTLux" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
 <style>
   :root { --bg:#0b0d12; --panel:#151923; --panel2:#1c2230; --line:#2a3244; --fg:#e8ecf4; --fg2:#9aa6bd; --fg3:#5f6b82; --accent:#5b8cff; --ok:#34d399; --warn:#fbbf24; --bad:#f87171; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { margin:0; height:100%; background:var(--bg); color:var(--fg); font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; overscroll-behavior:none; }
   #app { display:flex; flex-direction:column; height:100dvh; }
   header { display:flex; align-items:center; gap:10px; padding:10px 14px; padding-top:calc(10px + env(safe-area-inset-top)); background:var(--panel); border-bottom:1px solid var(--line); }
-  header .title { font-weight:600; letter-spacing:.2px; }
+  header .title { display:flex; align-items:center; gap:8px; font-weight:600; letter-spacing:.2px; }
+  /* The wordmark is a tight ink box, so height alone sizes it; width:auto keeps the aspect. */
+  header .title svg { height:13px; width:auto; display:block; color:var(--fg); }
   header .sp { flex:1; }
   .dot { width:9px; height:9px; border-radius:50%; background:var(--fg3); }
   .dot.on { background:var(--ok); } .dot.off { background:var(--bad); }
@@ -62,6 +80,7 @@ export const CLIENT_HTML = `<!doctype html>
   .muted { color:var(--fg3); font-size:13px; }
   .pair { max-width:340px; margin:12vh auto 0; text-align:center; }
   .pair h1 { font-size:20px; margin:0 0 6px; } .pair p { color:var(--fg2); font-size:13px; }
+  .pair .brand svg { height:26px; width:auto; margin:0 auto 10px; color:var(--fg); }
   .pair input { text-align:center; font-size:28px; letter-spacing:10px; margin:18px 0; }
   .err { color:var(--bad); font-size:13px; min-height:18px; }
   .hint { color:var(--fg3); font-size:12px; margin-top:6px; }
@@ -93,7 +112,8 @@ export const CLIENT_HTML = `<!doctype html>
   function pairView(){
     app.innerHTML=''+
       '<div class="pair">'+
-      '<h1>ArtLux Show Control</h1>'+
+      '<div class="brand">${WORDMARK_SVG}</div>'+
+      '<h1>Show Control</h1>'+
       '<p>Enter the PIN shown in the app (Preferences &rsaquo; Show Control, or the Show Control panel).</p>'+
       '<input id="pin" inputmode="numeric" maxlength="4" placeholder="0000" value="'+esc(queryPin())+'" />'+
       '<div class="err" id="perr"></div>'+
@@ -158,7 +178,7 @@ export const CLIENT_HTML = `<!doctype html>
   function shell(inner){
     var nav=''; for(var i=0;i<TABS.length;i++){ nav+='<button data-act="tab" data-tab="'+TABS[i][0]+'" class="'+(tab===TABS[i][0]?'active':'')+'">'+TABS[i][1]+'</button>'; }
     app.innerHTML=''+
-      '<header><span class="dot '+(connected?'on':'off')+'"></span><span class="title">Show Control</span>'+
+      '<header><span class="dot '+(connected?'on':'off')+'"></span><span class="title">${WORDMARK_SVG}<span>Show Control</span></span>'+
       '<span class="lock '+(locked?'show':'')+'">&#128274; LOCKED</span><span class="sp"></span>'+
       '<span class="badge">'+mode+'</span></header>'+
       '<nav>'+nav+'</nav><main id="main"></main>';

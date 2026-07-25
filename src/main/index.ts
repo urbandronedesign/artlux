@@ -188,9 +188,9 @@ function setupBroadcastControls(): void {
     const label = PROJECT_PATH ? basename(PROJECT_PATH) : '(last project)';
     try {
         broadcastTray = new Tray(APP_ICON);
-        broadcastTray.setToolTip(`ArtLux Broadcast — ${label}`);
+        broadcastTray.setToolTip(`ARTLux Broadcast — ${label}`);
         broadcastTray.setContextMenu(Menu.buildFromTemplate([
-            { label: `ArtLux Broadcast — ${label}`, enabled: false },
+            { label: `ARTLux Broadcast — ${label}`, enabled: false },
             { type: 'separator' },
             { label: 'Quit Broadcast', click: () => app.quit() },
         ]));

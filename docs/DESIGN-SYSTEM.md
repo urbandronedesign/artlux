@@ -210,7 +210,38 @@ are how the app grew keyboard-unreachable rows and missing labels.
 
 ---
 
-## 7. Governance
+## 7. Brand marks — one source, never hand-drawn
+
+The app names itself in two shapes, and **both are generated**, never typed out or drawn by hand:
+
+| Mark | What it is | Where it belongs |
+|---|---|---|
+| **Wordmark** — `ARTLux` | Outlines cut from **IBM Plex Sans 700**, the UI typeface, at a tight ink box. Flat monochrome, `fill="currentColor"`. | Title bar, About dialog, show-control tablet header |
+| **Icon mark** — the `A` tile | The *same* `A` glyph, white, centred on a flat black rounded tile. Carries its own colours (a taskbar icon has no CSS to inherit) and is **deliberately not accent teal** — it is the one mark that never sits on ArtLux chrome, so it answers to the OS shell. Flat, not a ramp: at 16px a gradient is three identical greys. | `.ico`/`.png`/favicon, About dialog, tablet home-screen icon |
+
+**Pipeline.** `npm run gen:brand` → [`scripts/gen-wordmark.cjs`](../scripts/gen-wordmark.cjs) reads the
+bundled `@fontsource` WOFF and emits `build/wordmark.svg`, `build/icon.svg` and
+[`shared/brandMarks.ts`](../shared/brandMarks.ts); [`scripts/gen-icon.cjs`](../scripts/gen-icon.cjs) then
+rasterises the tile to `icon.png` / a 7-size `icon.ico` / the renderer favicon. **All outputs are
+committed**, so packaging needs no font tooling.
+
+**Rules:**
+- Draw a mark ONLY via [`components/brand/AppMark.tsx`](../src/renderer/components/brand/AppMark.tsx)
+  (`<AppWordmark>` / `<AppIconMark>`). Guarded — see Governance below.
+- Never `<img src="…wordmark.svg">`. An `<img>` is an opaque document, so `currentColor` cannot reach
+  it and the wordmark stops being recolourable, which is the whole point of the monochrome treatment.
+- Recolour the wordmark with a text colour class at the use site (`text-fg-1`, `text-accent`, …). Do
+  not regenerate an asset to change its colour.
+- Changing the logo means editing `gen-wordmark.cjs` and re-running `npm run gen:brand` — nothing else.
+
+**Why it is generated.** The mark used to exist three times over: `build/icon.svg` as a hand-written
+teal `A`, plus a `sky-400 → blue-600` CSS tile in the title bar and an accent one in About. They had
+already drifted to different colours. Nothing failed — it compiled, booted, threw nothing, and simply
+branded the app two ways at once.
+
+---
+
+## 8. Governance
 
 These `check(...)` guards in [`scripts/verify-invariants.cjs`](../scripts/verify-invariants.cjs) keep the
 system from regressing (run by `npm run verify`):
@@ -221,5 +252,7 @@ system from regressing (run by `npm run verify`):
 - **A live region exists** — the StatusBar carries at least one `aria-live` region.
 - **Focus rings survive** — `focus:outline-none` without a replacement ring is flagged.
 - **Rows stay operable** — `ListRow` carries a `role` and an `onKeyDown`.
+- **The logo has one source** — `shared/brandMarks.ts` + `components/brand/AppMark.tsx` must exist and be
+  wired, MenuBar/About must render the mark, and no other file may hand-draw a lettered gradient tile.
 - Plus the pre-existing floors (interaction film overridable, one type/color/z/shadow vocabulary — see
   [UI-UX-AUDIT.md](UI-UX-AUDIT.md) Guardrails).

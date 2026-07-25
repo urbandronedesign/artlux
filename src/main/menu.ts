@@ -120,7 +120,7 @@ function template(): MenuItemConstructorOptions[] {
         { label: 'Documentation', click: () => shell.openExternal(DOCS) },
         { label: 'GitHub Repository', click: () => shell.openExternal(REPO) },
         { type: 'separator' },
-        { label: 'About ArtLux', click: () => send('about') },
+        { label: 'About ARTLux', click: () => send('about') },
       ],
     },
   ];

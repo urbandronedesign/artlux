@@ -57,7 +57,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
           <div className="max-w-lg w-full bg-surface-1 border border-line-2 rounded-lg shadow-e3 p-6">
             <div className="flex items-center gap-2 text-danger mb-3">
               <AlertTriangle size={18} aria-hidden />
-              <h1 className="text-sm font-semibold uppercase tracking-wider">ArtLux hit an unexpected error</h1>
+              <h1 className="text-sm font-semibold uppercase tracking-wider">ARTLux hit an unexpected error</h1>
             </div>
             <p className="text-fg-2 text-xs mb-4">
               The interface stopped rendering. Your project on disk is untouched. Reload to recover; if it
@@ -71,7 +71,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
               onClick={() => window.location.reload()}
               className="flex items-center gap-2 bg-accent text-black font-medium rounded-md px-3 py-1.5 text-xs"
             >
-              <RotateCcw size={14} aria-hidden /> Reload ArtLux
+              <RotateCcw size={14} aria-hidden /> Reload ARTLux
             </button>
           </div>
         </div>

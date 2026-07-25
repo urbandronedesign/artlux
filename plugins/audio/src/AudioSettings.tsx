@@ -233,7 +233,7 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
                 <>The engine is loaded and the show is still running, but <span className="text-fg-2">{device}</span> —
                 the interface it was playing through — has disappeared. Usually a bumped USB cable, a driver
                 reload, or Windows power-cycling the device.{' '}
-                <strong className="text-fg-2">ArtLux will not re-open it on its own.</strong></>
+                <strong className="text-fg-2">ARTLux will not re-open it on its own.</strong></>
               ) : (
                 <>The engine is loaded, but no output device could be opened on this machine. Authoring, saving
                 and every non-audio output (DMX, projectors, OSC) work normally — there is simply nowhere to
@@ -298,7 +298,7 @@ export const AudioSettings: React.FC<{ settings: any; onChange: (patch: any) => 
             driver type; this says what the groups MEAN. Do not shorten it to "choose a device". */}
         <div className="text-micro text-fg-3 mt-1">
           Devices are grouped by <span className="text-fg-2">driver type</span>. For a multichannel interface
-          choose <span className="text-fg-2">Exclusive Mode</span> — it hands ArtLux the card's discrete outputs.
+          choose <span className="text-fg-2">Exclusive Mode</span> — it hands ARTLux the card's discrete outputs.
           Shared mode routes through the Windows mixer and will usually give you stereo, whatever the card can do.
         </div>
         {opened && (

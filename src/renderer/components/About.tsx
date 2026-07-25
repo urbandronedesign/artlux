@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { X, Github, BookOpen, RefreshCw, Download, RotateCcw, ExternalLink, Check } from 'lucide-react';
 import type { AppInfo, UpdateEvent } from '../../../shared/protocol';
 import { Button } from './ui';
+import { AppIconMark, AppWordmark } from './brand/AppMark';
 import { useDraggableModal } from '../hooks/useDraggableModal';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
@@ -42,7 +43,7 @@ export const About: React.FC<Props> = ({ open, onClose, info }) => {
         ref={trapRef}
         role="dialog"
         aria-modal="true"
-        aria-label="About ArtLux"
+        aria-label="About ARTLux"
         className="w-[400px] bg-surface-1 border border-line-2 rounded-lg shadow-e3 animate-modal-in overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
@@ -51,8 +52,11 @@ export const About: React.FC<Props> = ({ open, onClose, info }) => {
         </div>
 
         <div className="p-6 flex flex-col items-center text-center">
-          <div className="w-16 h-16 bg-gradient-to-br from-accent to-accent-press rounded-lg flex items-center justify-center font-bold text-3xl text-black shadow-e2">A</div>
-          <div className="mt-3 text-lg font-bold text-fg-1 tracking-wide">ARTLUX</div>
+          {/* The mark as the OS shows it, over the wordmark. Both are generated from one source, so
+              this dialog can no longer disagree with the taskbar icon — which it did: this was a
+              hand-rolled accent tile with a text "A", next to the word ARTLUX set in the UI font. */}
+          <AppIconMark size={64} className="shadow-e2" decorative />
+          <AppWordmark height={22} className="mt-3 text-fg-1" />
           <div className="num text-xs text-fg-3 mt-0.5">Version {info?.version ?? '—'}</div>
           <p className="mt-3 text-xs text-fg-2 leading-relaxed">
             GPU-accelerated addressable-LED pixel mapping for Art-Net / sACN.

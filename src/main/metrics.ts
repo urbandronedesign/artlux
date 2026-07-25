@@ -1,4 +1,4 @@
-// Prometheus metrics exposition for ArtLux.
+// Prometheus metrics exposition for ARTLux.
 //
 // Pull model: this tiny HTTP server only does work when a collector (Prometheus,
 // VictoriaMetrics, Grafana Agent, …) scrapes GET /metrics — typically every 15s.
@@ -18,7 +18,7 @@ import { app } from 'electron';
 
 const register = new Registry();
 
-// Static labels on every series so multiple ArtLux instances / modes are distinguishable.
+// Static labels on every series so multiple ARTLux instances / modes are distinguishable.
 register.setDefaultLabels({
     app: 'artlux',
     version: app.getVersion(),
@@ -143,7 +143,7 @@ export function start(): void {
         }
         if (req.url === '/' || req.url === '/health') {
             res.writeHead(200, { 'Content-Type': 'text/plain' });
-            res.end('ArtLux metrics — see /metrics\n');
+            res.end('ARTLux metrics — see /metrics\n');
             return;
         }
         res.writeHead(404);

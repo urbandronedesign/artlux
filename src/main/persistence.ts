@@ -81,7 +81,7 @@ export async function saveProject(win: BrowserWindow | null, data: ProjectData, 
     const opts = {
       title: 'Save Project',
       defaultPath: 'artlux-project.artlux',
-      filters: [{ name: 'ArtLux Project', extensions: ['artlux', 'json'] }],
+      filters: [{ name: 'ARTLux Project', extensions: ['artlux', 'json'] }],
     };
     const res = win ? await dialog.showSaveDialog(win, opts) : await dialog.showSaveDialog(opts);
     if (res.canceled || !res.filePath) return null;
@@ -97,7 +97,7 @@ export async function openProject(win: BrowserWindow | null): Promise<OpenProjec
   const opts = {
     title: 'Open Project',
     properties: ['openFile' as const],
-    filters: [{ name: 'ArtLux Project', extensions: ['artlux', 'json'] }],
+    filters: [{ name: 'ARTLux Project', extensions: ['artlux', 'json'] }],
   };
   const res = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
   if (res.canceled || !res.filePaths[0]) return null;
@@ -135,7 +135,7 @@ export async function exportRig(win: BrowserWindow | null, rig: RigData): Promis
   const opts = {
     title: 'Export Rig',
     defaultPath: 'artlux-rig.artrig',
-    filters: [{ name: 'ArtLux Rig', extensions: ['artrig', 'json'] }],
+    filters: [{ name: 'ARTLux Rig', extensions: ['artrig', 'json'] }],
   };
   const res = win ? await dialog.showSaveDialog(win, opts) : await dialog.showSaveDialog(opts);
   if (res.canceled || !res.filePath) return null;
@@ -146,7 +146,7 @@ export async function importRig(win: BrowserWindow | null): Promise<RigData | nu
   const opts = {
     title: 'Import Rig',
     properties: ['openFile' as const],
-    filters: [{ name: 'ArtLux Rig', extensions: ['artrig', 'json'] }],
+    filters: [{ name: 'ARTLux Rig', extensions: ['artrig', 'json'] }],
   };
   const res = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
   if (res.canceled || !res.filePaths[0]) return null;

@@ -30,6 +30,7 @@
     "build:nvwarp": "powershell -ExecutionPolicy Bypass -File scripts/build-nvwarp.ps1",
     "package": "npm run verify:invariants && npm run prepack:assets && node scripts/build-audio.cjs && electron-vite build && npm run verify:resources && electron-builder --publish never",
     "package:dir": "npm run verify:invariants && npm run prepack:assets && node scripts/build-audio.cjs && electron-vite build && npm run verify:resources && electron-builder --dir",
+    "gen:brand": "node scripts/gen-wordmark.cjs && node scripts/gen-icon.cjs",
     "gen:icon": "node scripts/gen-icon.cjs",
     "docs:capture": "node scripts/capture-docs.cjs",
     "docs:html": "node scripts/build-docs-html.cjs"
@@ -61,6 +62,7 @@
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
     "marked": "^18.0.5",
+    "opentype.js": "^2.0.0",
     "png-to-ico": "^3.0.1",
     "postcss": "^8.5.15",
     "puppeteer-core": "^25.2.1",

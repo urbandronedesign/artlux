@@ -2,8 +2,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Minus, X, ChevronRight } from 'lucide-react';
 import type { WindowCommand } from '../../../shared/protocol';
 import { CONTEXT_MENU_ITEMS, contextAction } from '../../../shared/protocol';
+import { AppWordmark } from './brand/AppMark';
 
-// Custom window title bar (VSCode-style) for the frameless editor window: the ArtLux mark, the
+// Custom window title bar (VSCode-style) for the frameless editor window: the ARTLux mark, the
 // File/Edit/View/Window/Help menus as app-styled dropdowns, a draggable spacer, and the
 // minimize / maximize / close controls. The native application menu stays registered in main, so
 // keyboard accelerators (Ctrl+S, Ctrl+Shift+M, …) keep working — this bar only handles the mouse.
@@ -123,7 +124,7 @@ function buildMenus(recents: string[]): Menu[] {
         { label: 'Documentation', href: DOCS },
         { label: 'GitHub Repository', href: REPO },
         { sep: true },
-        { label: 'About ArtLux', action: 'about' },
+        { label: 'About ARTLux', action: 'about' },
       ],
     },
   ];
@@ -180,9 +181,11 @@ export const MenuBar: React.FC<Props> = ({ onMenuAction, actions }) => {
       style={DRAG}
       className="relative z-menubar flex h-8 shrink-0 items-stretch bg-surface-2 border-b border-line-1 select-none"
     >
-      {/* Logo */}
-      <div className="flex items-center pl-2 pr-1" style={NODRAG}>
-        <div className="w-[18px] h-[18px] rounded-md bg-gradient-to-br from-sky-400 to-blue-600 flex items-center justify-center text-white font-bold text-xs leading-none shadow-e1">A</div>
+      {/* Logo. 14px of ink sits on the same optical line as the 13px menu labels beside it. This used
+          to be a hand-rolled sky→blue gradient tile with a text "A" in it, which matched neither the
+          taskbar icon nor the About dialog; it now comes from the one generated mark. */}
+      <div className="flex items-center pl-2 pr-2" style={NODRAG}>
+        <AppWordmark height={14} className="text-fg-1" />
       </div>
 
       {/* Menus — APG menubar: Left/Right move between menus, Down/Enter open one and focus its first
