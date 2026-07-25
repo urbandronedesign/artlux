@@ -10,8 +10,10 @@
 Shortcuts used to be a static prose list in the Help panel, hand-maintained and quietly out of step with
 the real bindings, with the actual keys hardcoded across a dozen independent handlers. That list is gone.
 There is now one registry of every rebindable action, one keymap the handlers consult, and a full-page
-editor (**Help ▸ Keyboard Shortcuts…**): search an action, **Record** a new combination, and it applies
-and persists at once — with per-action and **Reset all**. Colliding keys are blocked *within a scope*
+editor (**Help ▸ Keyboard Shortcuts…**): an Excel-style table, one ruled row per action grouped by
+category. **Click a shortcut cell and press the keys** — the cell records directly, no separate button —
+and it applies and persists at once, with a per-row reset and **Reset all**. Colliding keys are blocked
+*within a scope*
 (Global / Timeline / State graph / Projector), while the same key may be reused across scopes on purpose,
 since a Timeline shortcut only fires while the timeline is focused. Overrides are saved to
 `artlux-prefs.json` as deltas from the shipped defaults. See [docs/SHORTCUTS.md](docs/SHORTCUTS.md).
