@@ -14,6 +14,8 @@ export const Section: React.FC<Props> = ({ title, icon, defaultOpen = true, chil
   return (
     <div className="border-b border-line-1">
       <button
+        type="button"
+        aria-expanded={open}
         onClick={() => setOpen(!open)}
         className="w-full px-3 py-2 bg-surface-2 hover:bg-surface-3 flex items-center justify-between transition-colors"
       >

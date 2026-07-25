@@ -23,7 +23,9 @@ export const Button: React.FC<Props> = ({ variant = 'tonal', size = 'md', classN
   // Same opt-in as IconButton: a `data-help-id` (from helpBus' `help(id)`) auto-wraps the button in
   // Tooltip so the hint gains a "? Learn more" deep-link. Without it, renders exactly as before.
   const helpId = (rest as Record<string, unknown>)['data-help-id'];
-  const btn = <button className={`${base} ${sizes[size]} ${variants[variant]} ${className}`} {...rest} />;
+  // Default type="button" (before {...rest}, so a caller can still pass type="submit"): these live
+  // outside <form>s today, but a future form wrapper would otherwise make them submit/reload.
+  const btn = <button type="button" className={`${base} ${sizes[size]} ${variants[variant]} ${className}`} {...rest} />;
   return typeof helpId === 'string' ? <Tooltip id={helpId}>{btn}</Tooltip> : btn;
 };
 
@@ -38,6 +40,7 @@ export const IconButton: React.FC<IconBtnProps> = ({ active = false, className =
   const helpId = (rest as Record<string, unknown>)['data-help-id'];
   const btn = (
     <button
+      type="button"
       // Icon-only buttons need an accessible name; fall back to the tooltip text.
       aria-label={rest['aria-label'] ?? (typeof rest.title === 'string' ? rest.title : undefined)}
       aria-pressed={active || undefined}
