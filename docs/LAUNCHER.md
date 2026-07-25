@@ -217,8 +217,16 @@ plugin's, and is inert while it is unused.
 | 4 | Health: run `preflight.ps1`, triage as data, repair via `-Fix` | **done** |
 | 5 | CI on `launcher-v*`, self-update | **done** |
 
-Still open: **code signing.** `build.yml` sets `CSC_IDENTITY_AUTO_DISCOVERY: 'false'` and there is no
-Authenticode step, so both products ship unsigned and SmartScreen warns on first run. The path is
-documented in [INSTALL.md](INSTALL.md#windows-smartscreen--the-warning-you-will-see-first), but the
-launcher is now the *first* thing a venue executes, which makes it the strongest candidate for a
-certificate.
+**Code signing: decided — both products stay unsigned.** `build.yml` sets
+`CSC_IDENTITY_AUTO_DISCOVERY: 'false'`, there is no Authenticode step, and none is planned: a
+certificate is a recurring cost and an annual renewal for a project that takes no money. SmartScreen
+therefore warns on first run of both the app and the launcher; the procedure is in
+[INSTALL.md](INSTALL.md#windows-smartscreen--the-warning-you-will-see-first) and is permanent.
+
+Two consequences worth holding on to, because they change what the code owes the user:
+
+- **The sha512 comparison is the only integrity guarantee this project has.** With no signature,
+  `download.rs` refusing a mismatched file is not belt-and-braces — it is the entire mechanism, and
+  it is why that refusal is a hard error that deletes the file rather than a warning.
+- **The launcher is the safer way to install**, and can be recommended as such: it verifies every
+  download automatically, where a human downloading the `.exe` by hand has to remember to.

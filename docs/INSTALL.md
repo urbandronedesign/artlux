@@ -73,9 +73,15 @@ installer that does not match, which is the main reason to prefer it for venue i
 itself is unsigned too, so it gets the same SmartScreen prompt once — after that it is a normal
 installed app.
 
-> Signing would remove all of the above. It needs an Authenticode certificate (an OV cert still
-> accumulates SmartScreen reputation slowly; an EV cert is trusted immediately) plus a signing step in
-> the release workflow. Until that happens, this section is the procedure.
+> **This is settled, not pending.** ArtLux and its launcher ship unsigned by decision — an
+> Authenticode certificate is a recurring cost and an annual renewal for a non-commercial,
+> educational project that takes no money (see [LICENSE](../LICENSE)). So the section above is not a
+> temporary workaround: it is the procedure, and it applies to every release.
+>
+> What follows from that: **the checksum is the only integrity guarantee this project offers.** With
+> no signature to vouch for a download, verifying it is not optional diligence — it is the whole
+> mechanism. Prefer the launcher for venue installs, because it does that comparison on every
+> download and refuses a mismatch outright.
 
 ---
 
