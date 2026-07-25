@@ -109,6 +109,10 @@
         "to": "examples"
       },
       {
+        "from": "scripts/lidar-emitter.cjs",
+        "to": "scripts/lidar-emitter.cjs"
+      },
+      {
         "from": "docs",
         "to": "docs",
         "filter": [
