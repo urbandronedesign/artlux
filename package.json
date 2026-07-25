@@ -35,6 +35,8 @@
     "docs:html": "node scripts/build-docs-html.cjs"
   },
   "dependencies": {
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "@fontsource/ibm-plex-sans": "^5.3.0",
     "@mediapipe/tasks-vision": "^0.10.22",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",

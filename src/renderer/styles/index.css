@@ -1,3 +1,14 @@
+/* Self-hosted UI + data typefaces (offline — no CDN, safe for the venue machine).
+   IBM Plex Sans carries the interface; IBM Plex Mono carries numeric/DMX/timer data.
+   Latin subsets only (the app is English-only). Weights: Sans 400/500/600, Mono 400/500.
+   These REPLACE the former `Inter` reference, which was named but never bundled and so
+   silently fell back to Segoe UI on Windows. */
+@import '@fontsource/ibm-plex-sans/latin-400.css';
+@import '@fontsource/ibm-plex-sans/latin-500.css';
+@import '@fontsource/ibm-plex-sans/latin-600.css';
+@import '@fontsource/ibm-plex-mono/latin-400.css';
+@import '@fontsource/ibm-plex-mono/latin-500.css';
+
 @import './tokens.css';
 
 @tailwind base;
@@ -11,7 +22,7 @@
   body {
     background-color: var(--bg-stage);
     color: var(--text-1);
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: 'IBM Plex Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     font-variant-numeric: tabular-nums;
   }
   /* Universal keyboard focus indication. Kit primitives opt out with

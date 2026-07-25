@@ -24,7 +24,8 @@ a project-level state machine, scenes/cues, OSC control, and a 3D simulator.
 | **Plugin SDK — API surface + stability policy** | [docs/SDK.md](docs/SDK.md) |
 | **Plugin-architecture roadmap + next extraction plan** | [docs/ROADMAP.md](docs/ROADMAP.md) |
 | **Unattended self-healing watchdog (crash/hang recovery + OS supervisor)** | [docs/WATCHDOG.md](docs/WATCHDOG.md) |
-| **UI/UX + design-token conventions (read before adding UI)** | [docs/UI-UX-AUDIT.md](docs/UI-UX-AUDIT.md) |
+| **Design system — tokens, type, primitives, patterns (READ before adding UI)** | [docs/DESIGN-SYSTEM.md](docs/DESIGN-SYSTEM.md) |
+| UI/UX audit history + token-adherence guardrails | [docs/UI-UX-AUDIT.md](docs/UI-UX-AUDIT.md) |
 | **Workspace contexts (the editor shell), layout + high-DPI UI scaling** | [docs/WORKSPACE.md](docs/WORKSPACE.md) |
 | **Configurable keyboard shortcuts (registry + editor + rebinding)** | [docs/SHORTCUTS.md](docs/SHORTCUTS.md) |
 | Surfaces engine (content/mapping model) | [docs/SURFACES.md](docs/SURFACES.md) |

@@ -20,7 +20,8 @@ module.exports = {
         // Semantic surface/text tokens (layered dark).
         surface: { 0: '#0d0d0d', 1: '#161616', 2: '#1e1e1e', 3: '#2a2a2a', 4: '#404040' },
         line: { 1: '#2a2a2a', 2: '#383838' },
-        fg: { 1: '#e8e8e8', 2: '#9a9a9a', 3: '#6a6a6a' },
+        // text-3 raised #6a6a6a → #8a8a8a for WCAG AA (4.86:1); see tokens.css.
+        fg: { 1: '#e8e8e8', 2: '#9a9a9a', 3: '#8a8a8a' },
         danger: '#e5484d',
         ok: '#3fb950',
         warn: '#e3b341',
@@ -30,9 +31,12 @@ module.exports = {
       // Named type-scale steps. NEW keys only — `xs`/`sm`/`lg` keep their Tailwind
       // defaults so existing classes don't shift. `micro` is the 10px floor.
       fontSize: { xxs: '0.65rem', micro: '10px', mini: '11px', md: '13px' },
+      // Self-hosted via @fontsource (see styles/index.css). `sans` carries the UI;
+      // `mono` is for numeric/DMX/timer data (`font-mono`). These are really bundled
+      // now — the former `Inter` here was named but never shipped (→ Segoe UI fallback).
       fontFamily: {
-        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'sans-serif'],
-        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
+        sans: ['"IBM Plex Sans"', 'system-ui', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'sans-serif'],
+        mono: ['"IBM Plex Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
       },
       // Named stacking tiers — values preserve ArtLux's existing global overlay order
       // (see the App.tsx z-[100]/z-[110] coordination comment), so migrating z-[NNN]
