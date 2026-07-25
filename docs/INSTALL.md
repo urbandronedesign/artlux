@@ -35,6 +35,50 @@ camera driver, physical NIC/VLAN/multicast configuration.
 
 ---
 
+## Windows SmartScreen — the warning you will see first
+
+**ArtLux is not code-signed.** `.github/workflows/build.yml` sets `CSC_IDENTITY_AUTO_DISCOVERY: 'false'`
+and there is no Authenticode step, so every `.exe` we publish is unsigned. Windows therefore shows
+**"Windows protected your PC — Microsoft Defender SmartScreen prevented an unrecognised app from
+starting"** on a downloaded installer, with only a **Don't run** button visible.
+
+This is expected, and it is the point at which people quietly give up or — worse — assume the download
+is corrupt and go looking for another copy. Tell whoever installs it what to expect **before** they see
+it.
+
+**To proceed:** click **More info**, then **Run anyway**.
+
+If there is no "More info" link, Windows has kept the file's mark-of-the-web and is refusing outright.
+Unblock it first, then run it again:
+
+```powershell
+# The Properties dialog has the same switch: right-click the .exe -> Properties -> tick "Unblock".
+Unblock-File -Path .\ArtLux-<version>-x64.exe
+```
+
+**Verify what you are about to run.** Since the signature cannot vouch for it, the checksum has to.
+Every release publishes `latest.yml` next to the installer, carrying a **base64** SHA-512 (not hex —
+comparing the wrong encoding makes a good file look corrupt):
+
+```powershell
+# What GitHub published for this release:
+(Invoke-WebRequest "https://github.com/urbandronedesign/artlux/releases/download/v<version>/latest.yml").Content
+
+# What you actually downloaded, in the same encoding:
+[Convert]::ToBase64String((Get-FileHash .\ArtLux-<version>-x64.exe -Algorithm SHA512).Hash -split '(?<=\G..)(?=.)' | ForEach-Object { [byte]"0x$_" })
+```
+
+The **Launcher** ([LAUNCHER.md](LAUNCHER.md)) does this comparison for you and refuses to run an
+installer that does not match, which is the main reason to prefer it for venue installs. The launcher
+itself is unsigned too, so it gets the same SmartScreen prompt once — after that it is a normal
+installed app.
+
+> Signing would remove all of the above. It needs an Authenticode certificate (an OV cert still
+> accumulates SmartScreen reputation slowly; an EV cert is trusted immediately) plus a signing step in
+> the release workflow. Until that happens, this section is the procedure.
+
+---
+
 ## Machine 1 — the build machine (already has ArtLux installed)
 
 The common case, and the one with a trap: releases before 2026-07-22 installed **per-user** into
