@@ -291,7 +291,30 @@ If a release re-run is needed, clear the broken one first:
   from v0.4.0 onward (Windows/Linux; macOS links to the Releases page, no Developer ID). See
   `src/main/updater.ts`.
 
+- **A changed app icon does not appear on upgraded machines, and that is expected.** Windows caches
+  shell icons per executable path and does not re-read the `.exe` when it changes; ArtLux installs to
+  the same path every time, so upgrades keep showing the previous icon while *clean* installs show the
+  new one immediately. Don't chase it as a packaging bug — verify the build instead by opening the app
+  and checking the title bar / **Help ▸ About ARTLux**, which draw the mark from the renderer rather
+  than the shell cache. Recovery steps for a venue PC:
+  [INSTALL.md → The app icon lags behind an upgrade](INSTALL.md#the-app-icon-lags-behind-an-upgrade-windows-icon-cache).
+
 Before tagging, smoke-test locally with `npm run package:dir` so CI won't fail on a packaging error.
+
+**Verifying an icon change before you ship it.** `npm run gen:brand` regenerates the marks, but the
+raster the OS actually shows is only proven by looking inside the built binary — extract it from the
+packaged `.exe` rather than trusting `build/icon.ico` or an Explorer thumbnail (both can be stale):
+
+```powershell
+npm run package:dir
+Add-Type -AssemblyName System.Drawing
+$exe = (Get-ChildItem 'release/win-unpacked/*.exe' | Select-Object -First 1).FullName
+[System.Drawing.Icon]::ExtractAssociatedIcon($exe).ToBitmap().Save("$PWD\icon-check.png")
+```
+
+Check it at **16px** too, not just at full size — the `.ico` carries 7 sizes and a mark that reads
+well at 256px can be an illegible smudge in the taskbar. See
+[DESIGN-SYSTEM.md § 7](DESIGN-SYSTEM.md#7-brand-marks--one-source-never-hand-drawn) for the pipeline.
 
 ### macOS signing
 No Apple Developer account → the app is **ad-hoc signed** in `scripts/mac-adhoc-sign.cjs`

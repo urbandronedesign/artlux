@@ -195,6 +195,7 @@ and the **projector calibration** wizard opens without an "addon unavailable" me
 | Tablet remote unreachable | Network profile + port 8788 | Profile is Public, or the rule was never added (UAC declined). |
 | Camera pose tracking does nothing | On the **build** machine: `preflight.ps1 -Mode dev` → `MediaPipe offline assets` | Built without `npm run assets:mediapipe`; the assets are bundled into `app.asar` at build time, so this can only be fixed by rebuilding. |
 | Two ArtLux entries in Apps & Features | Uninstall strings | The per-user → per-machine migration was skipped. Uninstall the `/currentuser` one. |
+| **Taskbar / Explorer still show the OLD app icon after an upgrade** | Open the app — is the icon correct in the About dialog and the title bar? | **Nothing is wrong with the install.** Windows caches shell icons per executable path and does not re-read the `.exe` just because it changed. See below. |
 
 Quick repair on a machine that is already installed, without rebuilding anything. `-Fix` is deliberately
 narrow: it installs **only** the NDI Runtime and the VC++ redistributable, via winget, and only when the
@@ -206,6 +207,43 @@ powershell -ExecutionPolicy Bypass -File preflight.ps1 -Mode runtime -Fix
 
 If a resource is missing from `resources/` (`opencv_world4110.dll`, an addon), `-Fix` cannot help —
 that is a broken **installer**, and the fix is to rebuild it on the build machine and reinstall.
+
+### The app icon lags behind an upgrade (Windows icon cache)
+
+**Symptom.** You ship a build with a changed app icon, upgrade a machine, and the taskbar, Explorer,
+the Start menu and any pinned shortcut keep showing the *previous* icon — sometimes for days.
+
+**This is not a packaging fault, and it is not worth debugging as one.** Windows caches shell icons in
+a per-user database keyed by executable path + index, and it does not re-read the `.exe` merely because
+the file changed underneath it. ArtLux installs to the same path every time (`%ProgramFiles%\ArtLux\
+ArtLux.exe`), which is exactly the case the cache gets wrong. A *first* install on a clean machine has
+no stale entry and shows the new icon immediately — so this only ever bites an **upgrade**.
+
+**Confirm it is the cache, not the build,** before touching anything: open the app and look at the
+title bar and **Help ▸ About ARTLux**. Those draw the mark from the renderer, never from the shell
+cache. If they are correct, the installed build is correct and only Explorer is lying.
+
+Clearing it (each step is cheap; stop as soon as the icon is right):
+
+```powershell
+# 1. Nudge the shell — enough on most machines.
+ie4uinit.exe -show
+
+# 2. Delete the cache and restart Explorer. Closes every Explorer window; harmless mid-show,
+#    but it does NOT touch ArtLux — the show keeps running.
+taskkill /f /im explorer.exe
+Remove-Item "$env:LOCALAPPDATA\IconCache.db" -Force -ErrorAction SilentlyContinue
+Remove-Item "$env:LOCALAPPDATA\Microsoft\Windows\Explorer\iconcache*.db" -Force -ErrorAction SilentlyContinue
+Start-Process explorer.exe
+
+# 3. Log off / on, or reboot. Always works.
+```
+
+**Pinned taskbar shortcuts are a separate, stickier cache.** A pin stores its own icon reference, so a
+pinned ArtLux can keep the old mark even after the cache is cleared. Unpin and re-pin it.
+
+> **On a venue PC, none of this is urgent** — the icon is cosmetic and the show is unaffected. If you
+> are on site and short of time, leave it; the next reboot fixes it.
 
 ---
 

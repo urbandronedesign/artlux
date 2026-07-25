@@ -233,6 +233,12 @@ committed**, so packaging needs no font tooling.
 - Recolour the wordmark with a text colour class at the use site (`text-fg-1`, `text-accent`, …). Do
   not regenerate an asset to change its colour.
 - Changing the logo means editing `gen-wordmark.cjs` and re-running `npm run gen:brand` — nothing else.
+- **A new icon does not reach an already-installed machine on upgrade.** Windows caches shell icons per
+  executable path, so the taskbar/Explorer keep the old mark while the in-app wordmark and About dialog
+  update immediately. That asymmetry is the OS, not the build — see
+  [INSTALL.md → The app icon lags behind an upgrade](INSTALL.md#the-app-icon-lags-behind-an-upgrade-windows-icon-cache)
+  and, before shipping one, [DEVELOPMENT.md → Release process](DEVELOPMENT.md#release-process) for how to
+  verify the raster inside the packaged `.exe` (check it at 16px, not just at full size).
 
 **Why it is generated.** The mark used to exist three times over: `build/icon.svg` as a hand-written
 teal `A`, plus a `sky-400 → blue-600` CSS tile in the title bar and an accent one in About. They had
