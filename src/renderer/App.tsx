@@ -126,6 +126,7 @@ interface DocSnapshot {
   scene3D: Scene3D; globalBrightness: number;
 }
 const QUERY_PROJECT = QS.get('project') || '';
+const QUERY_NEW_PROJECT = QS.get('newProject') || '';
 // Perf HUD debug flag: `?perf=1` forces it on; otherwise it persists via localStorage (toggle: Ctrl+Alt+P).
 const PERF_FLAG = QS.get('perf') === '1';
 
@@ -1918,11 +1919,11 @@ const App: React.FC = () => {
       };
   };
 
-  // New Project always creates a *folder* (project.artlux + assets/ tree) and prompts where to put
-  // it, then saves immediately — so there's always a destination for imported/collected media.
-  const handleNewProject = async () => {
-      const res = await window.artlux?.newProjectFolder?.();
-      if (!res) return; // user cancelled the folder dialog → keep the current project
+  // Write a clean document into an ALREADY-PREPARED folder. Shared by the menu (which picks the
+  // folder with a dialog) and by `--new-project=` (where the launcher picked it), so the definition
+  // of "a new project" exists once. Splitting the dialog from the save is the whole point: the
+  // launcher gets to choose WHERE, and never what a project IS.
+  const writeNewProjectTo = async (projectFile: string) => {
       const st = makeNewProjectState();
       // Save from the fresh values directly — setState above hasn't applied to THIS closure yet, so
       // buildProjectData() still reads the OUTGOING show out of it, field by field.
@@ -1935,8 +1936,17 @@ const App: React.FC = () => {
       // code that writes it out are the same code, so they cannot disagree again.
       const clean = resetToNewProject(st);
       const data = { ...buildProjectData(), ...clean };
-      const path = await window.artlux?.saveProject?.(data, res.projectFile);
+      const path = await window.artlux?.saveProject?.(data, projectFile);
       if (path) { setCurrentProjectPath(path); refreshRecents(); }
+      return path;
+  };
+
+  // New Project always creates a *folder* (project.artlux + assets/ tree) and prompts where to put
+  // it, then saves immediately — so there's always a destination for imported/collected media.
+  const handleNewProject = async () => {
+      const res = await window.artlux?.newProjectFolder?.();
+      if (!res) return; // user cancelled the folder dialog → keep the current project
+      await writeNewProjectTo(res.projectFile);
   };
 
   const handleOpenProjectFolder = async () => {
@@ -2991,6 +3001,26 @@ const App: React.FC = () => {
       // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // EDITOR: `--new-project=<folder>`. The launcher owns choosing where a project goes; ArtLux owns
+  // what one IS. So main lays out the folder (assets/ tree) and this writes the same clean document
+  // the File menu writes — through writeNewProjectTo, not a second copy of the reset list, because
+  // that list already drifted three times when it existed twice.
+  useEffect(() => {
+      if (SHOW_ENGINE || !QUERY_NEW_PROJECT) return;
+      (async () => {
+          try {
+              const prepared = await window.artlux?.prepareProjectFolder?.(QUERY_NEW_PROJECT);
+              if (!prepared) { toast.error('Could not create the project', 'The folder could not be prepared.'); return; }
+              console.log(`[editor] creating a project from --new-project=: ${prepared.projectFile}`);
+              const saved = await writeNewProjectTo(prepared.projectFile);
+              if (!saved) toast.error('Could not create the project', 'The project file could not be written.');
+          } catch (err) {
+              toast.error('Could not create the project', String((err as Error)?.message ?? err));
+          }
+      })();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Restore persisted prefs (settings + master brightness + recents + last project) on launch.
   useEffect(() => {
       if (SHOW_ENGINE) return; // broadcast/headless restore AppSettings themselves (above, before project load); the rest of this effect is editor-only UI state (layout, recents, templates) that show mode has no use for
@@ -3022,7 +3052,7 @@ const App: React.FC = () => {
           // Reopen the last project — UNLESS an explicit --project= was given, which owns the load in
           // its own effect above. Without this guard the two race and the document is whichever IPC
           // happened to resolve last, so `--project=X` intermittently lands on the previous project.
-          if (prefs.lastProjectPath && !QUERY_PROJECT) {
+          if (prefs.lastProjectPath && !QUERY_PROJECT && !QUERY_NEW_PROJECT) {
               const data = await window.artlux?.loadProjectPath?.(prefs.lastProjectPath);
               if (data) { applyProjectData(data); setCurrentProjectPath(prefs.lastProjectPath); }
           }

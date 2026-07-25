@@ -6,8 +6,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  addLibraryRoot, cancelScan, getConfig, getEffectiveRoots, onScanProgress, openProject, pickFolder,
-  recentProjects, removeLibraryRoot, resetLibraryRoots, scanProjects, when,
+  addLibraryRoot, cancelScan, createProject, getConfig, getEffectiveRoots, onScanProgress,
+  openProject, pickFolder, recentProjects, removeLibraryRoot, resetLibraryRoots, scanProjects, when,
   type InstallInfo, type ProjectEntry, type ScanProgress, type ScanResult,
 } from './api';
 
@@ -68,6 +68,8 @@ export function Projects({ install }: { install: InstallInfo | null }) {
   // distinction the config's Option<Vec<_>> carries, so Reset is only offered when it would do
   // something.
   const [edited, setEdited] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [creating, setCreating] = useState(false);
   const unlisten = useRef<(() => void) | null>(null);
 
   const rescan = useCallback(async () => {
@@ -101,6 +103,24 @@ export function Projects({ install }: { install: InstallInfo | null }) {
     rescan();
     return () => { unlisten.current?.(); };
   }, [rescan]);
+
+  // The launcher picks WHERE; ArtLux writes WHAT. Nothing here knows the shape of a project file.
+  const create = async () => {
+    if (!install) { setNote('ArtLux is not installed yet - install it from the Install tab first.'); return; }
+    if (!newName.trim() || creating) return;
+    setCreating(true); setNote('');
+    try {
+      const r = await createProject(install.exe, newName.trim());
+      setNote(r.message + ' ArtLux is opening it.');
+      setNewName('');
+      // The folder exists now but its project file does not until ArtLux saves, so a rescan has to
+      // wait for that; the operator can Rescan when they are back.
+    } catch (e) {
+      setNote(String(e));
+    } finally {
+      setCreating(false);
+    }
+  };
 
   const open = async (p: ProjectEntry) => {
     if (!install) { setNote('ArtLux is not installed yet — install it from the Install tab first.'); return; }
@@ -150,6 +170,19 @@ export function Projects({ install }: { install: InstallInfo | null }) {
         <div className="row" style={{ marginBottom: 10 }}>
           <span className="panel-title">Your projects</span>
           <span className="grow" />
+          <input
+            className="input"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') create(); }}
+            placeholder="New project name..."
+            aria-label="Name for a new project"
+            style={{ width: 170 }}
+          />
+          <button className="btn btn-primary" onClick={create} disabled={creating || !newName.trim()}>
+            {creating ? 'Creating...' : 'Create'}
+          </button>
+          <span style={{ width: 1, height: 18, background: 'var(--line-2)' }} />
           <input
             className="input"
             value={filter}

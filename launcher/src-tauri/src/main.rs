@@ -241,6 +241,43 @@ fn set_workspace(path: String) -> Result<String, String> {
     Ok(path)
 }
 
+/// Create a new project: the launcher makes the folder, ArtLux writes the document.
+#[tauri::command]
+async fn create_project(exe: String, name: String) -> Result<projects::NewProject, String> {
+    let cfg = projects::load_config();
+    let ws = cfg
+        .workspace_dir
+        .clone()
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(examples::default_workspace);
+
+    let made = projects::create_project_folder(&ws, &name)?;
+
+    // Same rule as copying an example: if nothing already covers the workspace, watch it -- or the
+    // project just created never appears under Projects, which reads as the launcher being broken.
+    let mut cfg = cfg;
+    let ws_str = ws.to_string_lossy().to_ascii_lowercase();
+    let roots = projects::effective_roots(&cfg);
+    if !roots.iter().any(|r| ws_str.starts_with(&r.to_ascii_lowercase())) {
+        let mut next = roots;
+        next.push(ws.to_string_lossy().into_owned());
+        cfg.library_roots = Some(next);
+        let _ = projects::save_config(&cfg);
+    }
+
+    // Blocking: it waits up to a minute for ArtLux to write the file, which must not sit on the
+    // async runtime the download shares.
+    let dir = made.dir.clone();
+    let file = made.project_file.clone();
+    let out = tauri::async_runtime::spawn_blocking(move || runner::new_project(&exe, &dir, &file))
+        .await
+        .map_err(|e| format!("the project could not be created: {e}"))?;
+    if !out.ok {
+        return Err(out.message);
+    }
+    Ok(made)
+}
+
 /// Open a project in the installed ArtLux.
 #[tauri::command]
 fn open_project(exe: String, project: String) -> runner::OpenOutcome {
@@ -381,6 +418,7 @@ fn main() {
             cancel_scan,
             recent_projects,
             open_project,
+            create_project,
             list_examples,
             get_workspace,
             copy_example,

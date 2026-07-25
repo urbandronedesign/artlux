@@ -30,6 +30,11 @@ const HEADLESS = argv.includes('--headless');
 const BROADCAST = argv.includes('--broadcast');
 const projectArg = argv.find((a) => a.startsWith('--project='));
 const PROJECT_PATH = projectArg ? projectArg.slice('--project='.length) : '';
+// --new-project=<folder>: lay out that folder as a project and save a clean document into it. The
+// folder is created if absent. Used by the launcher, which owns picking WHERE a project goes but
+// must not own what a project IS -- that lives in the renderer's resetToNewProject().
+const newProjectArg = argv.find((a) => a.startsWith('--new-project='));
+const NEW_PROJECT_PATH = newProjectArg ? newProjectArg.slice('--new-project='.length) : '';
 const RUN_MODE = HEADLESS ? 'headless' : BROADCAST ? 'broadcast' : 'editor';
 
 // Single instance: a watchdog / OS-supervisor respawn (or a stray double-launch) must never run two
@@ -84,6 +89,14 @@ app.commandLine.appendSwitch('disable-features', disabledFeatures.join(','));
 if (process.env.ARTLUX_CDP_PORT) {
     app.commandLine.appendSwitch('remote-debugging-port', process.env.ARTLUX_CDP_PORT);
     app.commandLine.appendSwitch('remote-allow-origins', '*');
+}
+
+// What the editor's renderer is told to do on boot. Empty -> the untitled document, exactly as
+// before, so a plain launch is byte-identical.
+function editorQuery(): Record<string, string> | null {
+    if (NEW_PROJECT_PATH) return { newProject: NEW_PROJECT_PATH };
+    if (PROJECT_PATH) return { project: PROJECT_PATH };
+    return null;
 }
 
 function createWindow(): void {
@@ -182,10 +195,12 @@ function createWindow(): void {
         // why. That matters beyond the CLI: it is the only contract an EXTERNAL program (the launcher)
         // has for "open this project", since there is no file association and no protocol handler.
         // Empty path → no query at all, so a plain launch is byte-identical to before.
-        mainWindow.loadURL(PROJECT_PATH ? `${devUrl}/?${new URLSearchParams({ project: PROJECT_PATH })}` : devUrl);
+        const q = editorQuery();
+        mainWindow.loadURL(q ? `${devUrl}/?${new URLSearchParams(q)}` : devUrl);
     } else {
         const file = join(__dirname, '../renderer/index.html');
-        if (PROJECT_PATH) mainWindow.loadFile(file, { query: { project: PROJECT_PATH } });
+        const q = editorQuery();
+        if (q) mainWindow.loadFile(file, { query: q });
         else mainWindow.loadFile(file);
     }
 }

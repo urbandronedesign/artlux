@@ -82,6 +82,10 @@ export const scanProjects = () => invoke<ScanResult>('scan_projects');
 export const cancelScan = () => invoke<void>('cancel_scan');
 export const recentProjects = () => invoke<ProjectEntry[]>('recent_projects');
 export const openProject = (exe: string, project: string) => invoke<OpenOutcome>('open_project', { exe, project });
+
+export interface NewProject { dir: string; project_file: string; renamed: boolean; message: string }
+/** Makes the FOLDER and asks ArtLux to write the project into it. The launcher never writes one. */
+export const createProject = (exe: string, name: string) => invoke<NewProject>('create_project', { exe, name });
 export const onScanProgress = (cb: (p: ScanProgress) => void) =>
   listen<ScanProgress>('projects://progress', (e) => cb(e.payload));
 

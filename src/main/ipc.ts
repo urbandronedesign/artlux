@@ -75,6 +75,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     });
     // Portable projects: create/open a project folder + collect assets into it.
     ipcMain.handle(IPC.PROJECT_NEW_FOLDER, () => projectFolder.newProjectFolder(getWindow()));
+    ipcMain.handle(IPC.PROJECT_PREPARE_FOLDER, (_e, root: string) => projectFolder.prepareNewProjectFolder(root));
     ipcMain.handle(IPC.PROJECT_OPEN_FOLDER, async () => {
         const projectFile = await projectFolder.pickProjectFolder(getWindow());
         if (!projectFile) return null;

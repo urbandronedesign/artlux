@@ -194,6 +194,19 @@ function scaffold(root: string): void {
   for (const cat of Object.keys(ASSET_CATEGORIES)) mkdirSync(join(root, 'assets', cat), { recursive: true });
 }
 
+// Make `root` into a project folder: the assets/ tree, and where its project file will go. It does
+// NOT write project.artlux — the renderer saves a clean document there, because what "clean" means
+// lives in resetToNewProject() and must not be defined twice (see App.tsx: that list drifted three
+// times when it was).
+//
+// Split out from the dialog so a folder chosen by something OTHER than the dialog — the launcher,
+// via `--new-project=` — is prepared identically. Two ways to start a project, one way to lay one out.
+export function prepareNewProjectFolder(root: string): NewProjectFolder {
+  mkdirSync(root, { recursive: true });
+  scaffold(root);
+  return { root, projectFile: join(root, PROJECT_FILENAME) };
+}
+
 export async function newProjectFolder(win: BrowserWindow | null): Promise<NewProjectFolder | null> {
   const opts = {
     title: 'New Project Folder',
@@ -202,9 +215,7 @@ export async function newProjectFolder(win: BrowserWindow | null): Promise<NewPr
   };
   const res = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
   if (res.canceled || !res.filePaths[0]) return null;
-  const root = res.filePaths[0];
-  scaffold(root);
-  return { root, projectFile: join(root, PROJECT_FILENAME) };
+  return prepareNewProjectFolder(res.filePaths[0]);
 }
 
 // Pick a project folder and return the path to its project file (the caller loads it via

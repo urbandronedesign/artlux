@@ -194,6 +194,63 @@ pub fn spawn_installer_detached(path: &str) -> Result<(), String> {
         .map_err(|e| format!("could not start the launcher installer: {e}"))
 }
 
+/// Ask ArtLux to create a project in an already-made folder.
+///
+/// `--new-project=<folder>` is the second half of the split this launcher relies on: it chose WHERE,
+/// ArtLux decides WHAT. The clean-document definition stays in the renderer, where it is already
+/// shared with the File menu.
+///
+/// Unelevated, like open_project: ArtLux is not manifested for elevation. And the same
+/// single-instance caveat applies -- a running copy swallows this and exits 0 -- so the caller is
+/// told which of the two happened rather than being handed a meaningless exit code.
+pub fn new_project(exe: &str, folder: &str, project_file: &str) -> OpenOutcome {
+    if !std::path::Path::new(exe).is_file() {
+        return OpenOutcome { ok: false, message: format!("ArtLux is not where it should be: {exe}"), started_new: false };
+    }
+    let was_running = artlux_running();
+    if was_running {
+        // second-instance only routes --project=, so a running ArtLux would swallow this and do
+        // nothing at all. Say so instead of appearing to succeed.
+        return OpenOutcome {
+            ok: false,
+            message: "ArtLux is already running. Close it first - a second launch cannot create a project in the copy that is open.".into(),
+            started_new: false,
+        };
+    }
+    if let Err(e) = Command::new(exe).arg(format!("--new-project={folder}")).spawn() {
+        return OpenOutcome { ok: false, message: format!("Could not start ArtLux: {e}"), started_new: false };
+    }
+
+    // WAIT FOR THE FILE, do not assume it. `--new-project=` exists only in ArtLux builds newer than
+    // this launcher's own release cadence allows us to assume -- 0.25.0, the current release, does
+    // not have it, and an older app simply IGNORES an unknown flag: it opens on an untitled document
+    // and nothing is ever written. Spawning and reporting success would leave the operator with an
+    // empty folder and an app that looks fine, which is the failure mode this whole launcher exists
+    // to stop shipping.
+    //
+    // A version gate would have to guess which release first carried the flag. Watching for the file
+    // it is supposed to produce needs no guess and stays true whatever the numbering does.
+    let target = std::path::Path::new(project_file);
+    for _ in 0..60 {
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        if target.is_file() {
+            return OpenOutcome { ok: true, message: "Created, and open in ArtLux.".into(), started_new: true };
+        }
+    }
+    OpenOutcome {
+        ok: false,
+        started_new: true,
+        // Concatenated literals, not a backslash continuation: the continuation kept the source
+        // indentation and the operator got this sentence with a corridor of blanks through it.
+        message: concat!(
+            "ArtLux opened but did not create the project. This version is older than the launcher ",
+            "and does not understand being asked to create one — update ArtLux from the Install tab, ",
+            "or use File ▸ New Project inside it. The empty folder was left in place.",
+        )
+        .into(),
+    }
+}
+
 /// Remove an install, given its `QuietUninstallString` from the registry.
 ///
 /// Exists for ONE case: the legacy per-user install that a per-machine installer cannot replace.

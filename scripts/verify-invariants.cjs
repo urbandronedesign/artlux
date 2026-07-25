@@ -712,8 +712,16 @@ check(
     //    the right region.
     const i = src.indexOf('} else if (devUrl) {');
     if (i < 0) problems.push('could not find the editor load branch in main/index.ts — this check needs updating');
-    else if (!/PROJECT_PATH/.test(src.slice(i, i + 600))) {
-      problems.push('the editor branch of createWindow no longer forwards PROJECT_PATH to the renderer');
+    else {
+      // The branch may forward the path directly or through a helper; what matters is that SOMETHING
+      // carrying the flag reaches the renderer. Follow one level of indirection rather than pinning
+      // this to a spelling — the first version broke the moment the two flags were factored into
+      // editorQuery(), reporting a regression that had not happened.
+      const branch = src.slice(i, i + 600);
+      const viaHelper = /editorQuery\(/.test(branch) && /function editorQuery[\s\S]{0,300}PROJECT_PATH/.test(src);
+      if (!/PROJECT_PATH/.test(branch) && !viaHelper) {
+        problems.push('the editor branch of createWindow no longer forwards PROJECT_PATH to the renderer');
+      }
     }
 
     // 2. The second-instance handler must read --project= out of the argv it is handed.
@@ -723,9 +731,29 @@ check(
       problems.push("the second-instance handler ignores the incoming argv's --project=");
     }
 
-    // 3. The renderer must consume it OUTSIDE the show-engine guard. Two uses are expected: the
-    //    broadcast/headless loader, and the editor-only one.
-    const app = read('src/renderer/App.tsx');
+    // 3. The same for --new-project=, which is how the launcher creates a project. It carries an
+    //    extra hazard the plain flag does not: the renderer must write the clean document through
+    //    the SAME helper the File menu uses. A second copy of "what a new project contains" is the
+    //    duplication App.tsx records as having drifted three times.
+    if (!/--new-project=/.test(src)) problems.push('main/index.ts no longer parses --new-project=');
+    const appSrc = read('src/renderer/App.tsx');
+    if (!/QUERY_NEW_PROJECT/.test(appSrc)) {
+      problems.push('App.tsx never reads the newProject query — the launcher could not create a project');
+    }
+    // CALL sites only: the definition is `const writeNewProjectTo = async (…)`, which this pattern
+    // deliberately does not match. Two calls are expected — the File menu and the CLI flag — and
+    // fewer means one of them has grown its own copy of the clean-document list.
+    const writers = (appSrc.match(/writeNewProjectTo\(/g) || []).length;
+    if (writers < 2) {
+      problems.push(
+        `writeNewProjectTo is called ${writers}x (want the menu path and the --new-project= path) — ` +
+        'one entry point is no longer sharing the clean-document definition',
+      );
+    }
+
+    // 4. The renderer must consume --project= OUTSIDE the show-engine guard. Two uses are expected:
+    //    the broadcast/headless loader, and the editor-only one.
+    const app = appSrc;
     const uses = (app.match(/QUERY_PROJECT/g) || []).length;
     if (uses < 2) {
       problems.push(`App.tsx references QUERY_PROJECT ${uses}x — the editor-mode load is gone (show mode is the other use)`);

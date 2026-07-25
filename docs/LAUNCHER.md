@@ -97,6 +97,21 @@ redirected to OneDrive is still found — six levels deep, skipping system folde
 build output. A directory containing `project.artlux` is a **portable project**: it is listed once,
 under the folder's name, and not descended into.
 
+**New projects start here too.** Type a name beside **Create** and the launcher makes the folder in
+your workspace, then asks ArtLux to write the project into it.
+
+> The launcher creates the FOLDER; it never writes `project.artlux`. What a new project *contains*
+> is defined once, in the renderer's `resetToNewProject()` — a list whose own comment records it
+> drifting three times while it merely existed twice inside the app. A fourth copy, in Rust, in a
+> separate product, with nothing tying them together, would be strictly worse. So the launcher owns
+> **where** a project goes and ArtLux owns **what** one is.
+>
+> ⚠ **This needs an ArtLux newer than 0.25.0.** `--new-project=` does not exist in 0.25.0, and an
+> older build ignores an unknown flag entirely: it opens on an untitled document and writes nothing.
+> The launcher therefore WAITS for the project file to appear rather than assuming, and says plainly
+> that the installed version is too old — because spawning and reporting success would leave an empty
+> folder and an app that looks fine.
+
 **The folders are yours to change.** "Where it looks" lists them with **Add a folder…** and
 **Remove** beside each. Removing all of them is a real, kept state — the launcher searches nowhere
 and says so — which is different from never having configured it; **Reset** appears only once you
@@ -207,7 +222,8 @@ it breaks a shipped product that this repository does not build. Treat each as a
 ### 1. The CLI
 
 ```
-ArtLux.exe --project=<absolute path to a .artlux file>
+ArtLux.exe --project=<absolute path to a .artlux file>      # open an existing project
+ArtLux.exe --new-project=<absolute path to a folder>        # lay it out and write a clean project
 ```
 
 The **only** contract for "open this project": there is no file association and no protocol handler.
@@ -221,8 +237,13 @@ Parsed in [`src/main/index.ts`](../src/main/index.ts), consumed by an editor-mod
   The second process **exits 0 regardless** — the single-instance lock swallows it — so an exit code
   proves nothing. Probe for a running `ArtLux.exe` before spawning.
 
+- `--new-project=` is **newer than 0.25.0**. An ArtLux without it ignores the flag silently, so a
+  caller must watch for `project.artlux` to appear rather than trust the spawn.
+
 Guarded by the `--project= reaches the document in every run mode` check in
-[`scripts/verify-invariants.cjs`](../scripts/verify-invariants.cjs).
+[`scripts/verify-invariants.cjs`](../scripts/verify-invariants.cjs) — which also asserts that both
+entry points write the clean document through the *same* helper, so neither can grow its own copy of
+what a new project contains.
 
 ### 2. Locating an install
 

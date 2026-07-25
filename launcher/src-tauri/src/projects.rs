@@ -311,6 +311,102 @@ pub fn scan<F: Fn(ScanProgress)>(roots: &[String], on_progress: F) -> ScanResult
     ScanResult { entries, roots: roots.to_vec(), stopped, scanned }
 }
 
+/// Characters Windows will not accept in a folder name, plus the ones that would make a path
+/// argument ambiguous. Rejected rather than silently stripped: a user who typed `Show: A` and got a
+/// folder called `Show A` has been quietly corrected, and will look for the name they typed.
+const ILLEGAL_NAME: &[char] = &['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
+
+/// Reserved DOS device names. Creating `CON` or `NUL` as a directory fails in ways that read as a
+/// permissions problem rather than as "that name is special".
+const RESERVED: &[&str] = &[
+    "con", "prn", "aux", "nul", "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8",
+    "com9", "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9",
+];
+
+#[derive(Debug, Clone, Serialize)]
+pub struct NewProject {
+    pub dir: String,
+    /// Where the project file WILL be. ArtLux writes it; the launcher never does.
+    pub project_file: String,
+    /// True when the requested name was taken and a numbered one was used instead.
+    pub renamed: bool,
+    pub message: String,
+}
+
+/// Create the FOLDER for a new project. Deliberately not the project file.
+///
+/// What a project *contains* is defined once, in the renderer's `resetToNewProject()` — a list whose
+/// own comment records it drifting three times while it existed twice inside the app. Writing a
+/// fourth copy here, in another language, in a separate product, with nothing tying them together,
+/// would be strictly worse. So the launcher owns WHERE a project goes and ArtLux owns WHAT one is:
+/// this makes the directory and hands the path to `ArtLux.exe --new-project=`.
+pub fn create_project_folder(workspace: &Path, name: &str) -> Result<NewProject, String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err("give the project a name".into());
+    }
+    if let Some(bad) = trimmed.chars().find(|c| ILLEGAL_NAME.contains(c) || (*c as u32) < 0x20) {
+        return Err(format!("a folder name cannot contain {bad:?}"));
+    }
+    // WHITESPACE IS TRIMMED, NOT REFUSED, and the difference from the rule above is deliberate.
+    // A trailing space is invisible, always accidental, and trimmed by every name field in every
+    // program — refusing it would be pedantry. An illegal character is something the user can SEE
+    // and meant to type, so silently rewriting `Show: A` to `Show A` would be overruling them.
+    //
+    // A trailing DOT is its own case: Windows strips it when creating the directory, so `Show.`
+    // becomes `Show` on disk and stops matching what was typed. That one is refused, because the
+    // alternative is a folder the user cannot find by the name they gave it.
+    if trimmed.ends_with('.') {
+        return Err("a folder name cannot end with a dot".into());
+    }
+    if RESERVED.contains(&trimmed.to_ascii_lowercase().as_str()) {
+        return Err(format!("'{trimmed}' is a name Windows reserves for a device"));
+    }
+
+    fs::create_dir_all(workspace)
+        .map_err(|e| format!("could not create {}: {e}", workspace.display()))?;
+
+    // Numbered from what is TAKEN, never from a count: with "Show" and "Show 3" present, counting
+    // proposes "Show 3" again and the new project merges into an existing one.
+    let mut dir = workspace.join(trimmed);
+    let mut renamed = false;
+    if dir.exists() {
+        renamed = true;
+        let mut n = 2;
+        loop {
+            let candidate = workspace.join(format!("{trimmed} {n}"));
+            if !candidate.exists() {
+                dir = candidate;
+                break;
+            }
+            n += 1;
+            if n > 999 {
+                return Err(format!("there are already too many projects called '{trimmed}'"));
+            }
+        }
+    }
+    fs::create_dir_all(&dir).map_err(|e| format!("could not create {}: {e}", dir.display()))?;
+
+    // Fail here rather than at the operator's first Save. The workspace can be a network share or a
+    // folder they do not own, and a project they cannot save into is worse than one never made.
+    let probe = dir.join(".artlux-write-test");
+    fs::write(&probe, b"")
+        .map_err(|e| format!("created {} but cannot write into it ({e}) - choose a different workspace", dir.display()))?;
+    let _ = fs::remove_file(&probe);
+
+    let final_name = dir.file_name().unwrap_or_default().to_string_lossy().into_owned();
+    Ok(NewProject {
+        message: if renamed {
+            format!("A project called '{trimmed}' already existed, so this one is '{final_name}'.")
+        } else {
+            format!("Created '{final_name}'.")
+        },
+        project_file: dir.join(PROJECT_FILENAME).to_string_lossy().into_owned(),
+        dir: dir.to_string_lossy().into_owned(),
+        renamed,
+    })
+}
+
 /// ArtLux's own recent files, READ-ONLY.
 ///
 /// Merged in so a project living outside every root -- a USB stick, another drive -- is still one

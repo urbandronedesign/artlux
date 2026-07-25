@@ -122,6 +122,8 @@ export const IPC = {
   PICK_VIDEO: 'app:pick-video',
   /** Renderer → main (invoke): pick/create a project folder → { root, projectFile }. */
   PROJECT_NEW_FOLDER: 'project:new-folder',
+  /** Renderer -> main: lay out an ALREADY-CHOSEN folder as a project (assets/ tree). No dialog. */
+  PROJECT_PREPARE_FOLDER: 'project:prepare-folder',
   /** Renderer → main (invoke): pick a project folder → { path, data } (paths resolved absolute). */
   PROJECT_OPEN_FOLDER: 'project:open-folder',
   /** Renderer → main (invoke): copy external assets into the project's assets/ → CollectResult. */
@@ -851,6 +853,8 @@ export interface ArtluxApi {
   loadProjectPath(path: string): Promise<ProjectData | null>;
   // Portable projects (folder + asset collection)
   newProjectFolder(): Promise<NewProjectFolder | null>;
+  /** Prepare a folder the caller already picked (the launcher's --new-project= path). */
+  prepareProjectFolder(root: string): Promise<NewProjectFolder>;
   openProjectFolder(): Promise<OpenProjectResult | null>;
   collectAssets(projectFile: string, data: ProjectData): Promise<CollectResult | null>;
   /** Pick a fresh folder and collect a self-contained copy there (leaves the current project untouched). */

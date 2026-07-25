@@ -491,6 +491,126 @@ async fn main() {
         if missing.ok { println!("   !! a missing uninstaller reported success"); failures += 1; }
     }
 
+    line();
+    println!("11. NEW PROJECT (the launcher makes the FOLDER; ArtLux writes the document)");
+    line();
+    {
+        let ws = std::env::temp_dir().join("artlux-newproj-selftest");
+        let _ = std::fs::remove_dir_all(&ws);
+
+        // Names that must be REFUSED rather than silently corrected. A user who typed `Show: A` and
+        // got `Show A` has been quietly overruled and will look for the name they typed.
+        let bad = [
+            ("empty", ""),
+            ("whitespace", "   "),
+            ("illegal colon", "Show: A"),
+            ("path separator", "Show/A"),
+            ("backslash", r"Show\A"),
+            ("wildcard", "Show*"),
+            ("trailing dot", "Show."),
+            ("reserved device", "NUL"),
+            ("reserved, cased", "CoN"),
+        ];
+        for (label, name) in bad {
+            match projects::create_project_folder(&ws, name) {
+                Ok(p) => {
+                    println!("   !! '{label}' was ACCEPTED and made {}", p.dir);
+                    failures += 1;
+                }
+                Err(e) => println!("   refused {:<18} {}", label, e),
+            }
+        }
+
+        // Trailing whitespace is TRIMMED, not refused -- invisible, always accidental, and trimmed by
+        // every name field there is. Asserted explicitly so the difference from the refusals above
+        // stays a decision rather than an accident.
+        match projects::create_project_folder(&ws, "  Trimmed  ") {
+            Ok(t) => {
+                let leaf = std::path::Path::new(&t.dir).file_name().unwrap_or_default().to_string_lossy().into_owned();
+                println!("   trimmed  : '  Trimmed  ' -> '{leaf}'");
+                if leaf != "Trimmed" { println!("   !! whitespace was not trimmed"); failures += 1; }
+            }
+            Err(e) => { println!("   !! a name with surrounding spaces was refused: {e}"); failures += 1; }
+        }
+
+        // The happy path, then the collision rule.
+        match projects::create_project_folder(&ws, "My Show") {
+            Ok(a) => {
+                println!("   created  : {}", a.dir);
+                if !std::path::Path::new(&a.dir).is_dir() { println!("   !! the folder was not created"); failures += 1; }
+                // The launcher must NOT have written a project file — that is ArtLux's job.
+                if std::path::Path::new(&a.project_file).exists() {
+                    println!("   !! the launcher wrote a project file; only ArtLux may define one");
+                    failures += 1;
+                }
+                match projects::create_project_folder(&ws, "My Show") {
+                    Ok(b) => {
+                        println!("   again    : {}", b.message);
+                        if !b.renamed || b.dir.eq_ignore_ascii_case(&a.dir) {
+                            println!("   !! the second project landed on top of the first");
+                            failures += 1;
+                        }
+                    }
+                    Err(e) => { println!("   !! second create failed: {e}"); failures += 1; }
+                }
+            }
+            Err(e) => { println!("   !! 'My Show' was refused: {e}"); failures += 1; }
+        }
+        let _ = std::fs::remove_dir_all(&ws);
+    }
+
+    if std::env::args().any(|a| a == "--create") {
+        line();
+        println!("12. CREATE A PROJECT FOR REAL (launcher makes the folder, ArtLux writes it)");
+        line();
+        // The whole chain minus the button's onClick: WebView2 does not receive synthetic keystrokes,
+        // so the React handler is the one link automation cannot drive here.
+        match scan.installs.first() {
+            Some(inst) => {
+                let ws = std::env::temp_dir().join("artlux-create-e2e");
+                let _ = std::fs::remove_dir_all(&ws);
+                match projects::create_project_folder(&ws, "Venue Test") {
+                    Ok(made) => {
+                        println!("   folder : {}", made.dir);
+                        println!("   file   : {} (does not exist yet: {})", made.project_file, !std::path::Path::new(&made.project_file).exists());
+                        let out = runner::new_project(&inst.exe, &made.dir, &made.project_file);
+                        println!("   spawn  : ok={} {}", out.ok, out.message);
+                        let appeared = std::path::Path::new(&made.project_file).is_file();
+                        // ON AN OLD ARTLUX THE REFUSAL IS THE CORRECT OUTCOME, not a failure: 0.25.0
+                        // has no --new-project= and ignores the flag entirely. What must never happen
+                        // is ok=true with no file -- a success nobody observed.
+                        if out.ok && !appeared {
+                            println!("   !! reported success while writing nothing");
+                            failures += 1;
+                        } else if !out.ok && !appeared {
+                            println!("   correctly refused: the installed ArtLux predates the flag");
+                        }
+                        if appeared {
+                            let text = std::fs::read_to_string(&made.project_file).unwrap_or_default();
+                            let v: serde_json::Value = serde_json::from_str(&text).unwrap_or_default();
+                            let count = |k: &str| v.get(k).and_then(|x| x.as_array()).map(|a| a.len()).unwrap_or(0);
+                            println!("   written: version={} surfaces={} fixtures={} cueBanks={}",
+                                v.get("version").and_then(|x| x.as_str()).unwrap_or("?"),
+                                count("surfaces"), count("fixtures"), count("cueBanks"));
+                            let leaked: Vec<&str> = ["scenes","assets","projectorOutputs","schedule","controllers"]
+                                .into_iter().filter(|k| count(k) != 0).collect();
+                            println!("   leaked : {}", if leaked.is_empty() { "nothing".to_string() } else { leaked.join(", ") });
+                            if !leaked.is_empty() { failures += 1; }
+                            // assets/ tree, laid out by main via prepareNewProjectFolder.
+                            let assets = std::path::Path::new(&made.dir).join("assets");
+                            println!("   assets : {}", if assets.is_dir() { "laid out" } else { "MISSING" });
+                            if !assets.is_dir() { failures += 1; }
+                        }
+                        let _ = std::process::Command::new("taskkill").args(["/IM", "ArtLux.exe", "/F"]).output();
+                    }
+                    Err(e) => { println!("   !! {e}"); failures += 1; }
+                }
+                let _ = std::fs::remove_dir_all(&ws);
+            }
+            None => println!("   skipped: ArtLux is not installed"),
+        }
+    }
+
     println!();
     if failures == 0 {
         println!("SELFTEST OK");
