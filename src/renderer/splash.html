@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="/icon.png" />
+    <title>ARTLux</title>
+    <!-- surface-0, inline: this document is the FIRST thing on screen at launch, so the background
+         cannot wait for the stylesheet chunk to arrive or the splash opens as a white rectangle. -->
+    <style>html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #0d0d0d; }</style>
+  </head>
+  <body>
+    <div id="root" style="height:100vh"></div>
+    <script type="module" src="/splash.tsx"></script>
+  </body>
+</html>

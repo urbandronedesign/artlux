@@ -31,4 +31,10 @@ export const plugin: MainPlugin = {
   },
 
   deactivate(): void { ndi.stopAllSenders(); ndi.stopRecv(); },
+
+  // Reported on the startup splash. Without the addon (or the NDI runtime it links) every NDI source
+  // and every NDI-out silently does nothing — the one failure mode that looks exactly like success.
+  status: () => ndi.available()
+    ? { state: 'ok', detail: 'native addon loaded' }
+    : { state: 'degraded', detail: 'addon or NDI runtime missing — install the NDI Runtime' },
 };

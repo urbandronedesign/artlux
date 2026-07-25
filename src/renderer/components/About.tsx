@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { X, Github, BookOpen, RefreshCw, Download, RotateCcw, ExternalLink, Check } from 'lucide-react';
 import type { AppInfo, UpdateEvent } from '../../../shared/protocol';
+import {
+  APP_EXPLAINER, AUTHORS_LINE, CREDIT_LABEL, LICENSE_HEADLINE, LICENSE_DEPS, COPYRIGHT,
+} from '../../../shared/credits';
 import { Button } from './ui';
 import { AppIconMark, AppWordmark } from './brand/AppMark';
 import { useDraggableModal } from '../hooks/useDraggableModal';
@@ -58,10 +61,9 @@ export const About: React.FC<Props> = ({ open, onClose, info }) => {
           <AppIconMark size={64} className="shadow-e2" decorative />
           <AppWordmark height={22} className="mt-3 text-fg-1" />
           <div className="num text-xs text-fg-3 mt-0.5">Version {info?.version ?? '—'}</div>
-          <p className="mt-3 text-xs text-fg-2 leading-relaxed">
-            GPU-accelerated addressable-LED pixel mapping for Art-Net / sACN.
-            WebGPU compute · native Rust output engine · 2D + 3D.
-          </p>
+          {/* One source with the startup splash (shared/credits.ts). This paragraph used to be written
+              out here and had already drifted from package.json's own description. */}
+          <p className="mt-3 text-xs text-fg-2 leading-relaxed">{APP_EXPLAINER}</p>
 
           <div className="flex gap-2 mt-4">
             <Button variant="tonal" size="sm" onClick={() => open_(REPO)}><Github size={13} /> GitHub</Button>
@@ -98,9 +100,17 @@ export const About: React.FC<Props> = ({ open, onClose, info }) => {
             </div>
           </div>
 
-          <div className="mt-5 pt-3 border-t border-line-1 w-full text-micro text-fg-3 leading-relaxed">
-            © urbandronedesign · BSD/MIT components
-            <br />Electron · React · WebGPU · Rust (napi-rs) · Spout2
+          {/* Credit + licence. Not chrome: LICENSE §3 requires a build to show these, and the strings
+              come from shared/credits.ts so About and the startup splash cannot disagree. The line
+              this replaced credited an entity that is not an author of the work. */}
+          <div className="mt-5 pt-3 border-t border-line-1 w-full text-xs text-fg-2 leading-relaxed">
+            <div className="text-micro uppercase tracking-wider text-fg-2">{CREDIT_LABEL}</div>
+            <div className="mt-0.5 font-medium text-fg-1">{AUTHORS_LINE}</div>
+            <div className="mt-2">{LICENSE_HEADLINE}</div>
+            <div className="mt-0.5">{LICENSE_DEPS}</div>
+            <div className="mt-2 text-fg-3">
+              {COPYRIGHT} · Electron · React · WebGPU · Rust (napi-rs) · Spout2 — BSD/MIT components
+            </div>
           </div>
         </div>
       </div>

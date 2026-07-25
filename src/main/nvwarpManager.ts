@@ -44,6 +44,10 @@ console.log(
 );
 
 export function isAvailable(): boolean { return hw; }
+// Did the ADDON load at all — a different question from `isAvailable()` (did NVAPI answer). The startup
+// splash needs both to say something true: no addon is "missing", addon-without-NVAPI is "stub build /
+// non-pro GPU", and both fall back to the GLSL warp rather than failing.
+export function isLoaded(): boolean { return !!native; }
 
 // Resolve an Electron display.id → NVAPI displayId by nearest desktop-rect origin. NVAPI source rects
 // are physical px; Electron bounds are DIP, so we scale by the display's scaleFactor. Best-effort —

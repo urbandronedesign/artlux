@@ -20,4 +20,13 @@ export const plugin: MainPlugin = {
   },
 
   deactivate(): void { spout.stop(); },
+
+  // Reported on the startup splash. Spout is a Windows-only GPU-sharing API, so an absent receiver
+  // off Windows is EXPECTED ('off'), not a broken install ('degraded') — the splash must not cry wolf
+  // on a mac where Spout could never have worked.
+  status: () => spout.available()
+    ? { state: 'ok', detail: 'native receiver loaded' }
+    : process.platform === 'win32'
+      ? { state: 'degraded', detail: 'native receiver unavailable' }
+      : { state: 'off', detail: 'Windows only' },
 };

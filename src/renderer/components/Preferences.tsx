@@ -184,6 +184,7 @@ export const Preferences: React.FC<Props> = ({ settings, onChange }) => {
   const [devices, setDevices] = useState<ArtNetDevice[]>([]);
   const [localAddrs, setLocalAddrs] = useState<string[]>([]);
   const [uiScaleValue, setUiScaleValue] = useState(1); // main-window zoom factor; applied in main
+  const [showSplash, setShowSplash] = useState(true);  // Prefs.showSplash; absent = on (main's default)
 
   useEffect(() => {
     window.artlux?.listLocalAddrs?.().then((a) => setLocalAddrs(a ?? [])).catch(() => setLocalAddrs([]));
@@ -192,6 +193,7 @@ export const Preferences: React.FC<Props> = ({ settings, onChange }) => {
       const p = await window.artlux?.getPrefs?.();
       const s = typeof p?.uiScale === 'number' ? p.uiScale : await window.artlux?.detectUiScale?.();
       if (typeof s === 'number') setUiScaleValue(s);
+      setShowSplash(p?.showSplash !== false); // main reads it the same way — only an explicit false is off
     })();
   }, []);
 
@@ -234,6 +236,12 @@ export const Preferences: React.FC<Props> = ({ settings, onChange }) => {
               if (typeof d === 'number') applyScale(d);
             }}>Reset to detected</Button>
           </div>
+          {/* Editor-only by construction: broadcast/headless never open the splash whatever this says
+              (main/splashWindow.ts), so an unattended venue PC is unaffected either way. */}
+          <Toggle label="Startup splash" checked={showSplash} onChange={(v) => {
+            setShowSplash(v);
+            window.artlux?.setPrefs?.({ showSplash: v });
+          }} title="Show the credits + plugin/native load report at launch" />
         </Section></Tile>
 
         <Tile><Section title="DMX Output" icon={<Cpu size={12} />}>

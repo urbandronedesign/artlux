@@ -61,6 +61,7 @@ export default defineConfig({
           index: resolve(__dirname, 'src/renderer/index.html'),
           projector: resolve(__dirname, 'src/renderer/projector.html'),
           docs: resolve(__dirname, 'src/renderer/docs.html'),
+          splash: resolve(__dirname, 'src/renderer/splash.html'),
         },
       },
     },

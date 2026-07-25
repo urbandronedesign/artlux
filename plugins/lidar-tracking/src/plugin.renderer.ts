@@ -149,4 +149,10 @@ export const plugin: RendererPlugin = {
     sceneUnsub?.(); sceneUnsub = null;
     frameUnsub?.(); frameUnsub = null;
   },
+
+  // On the startup splash. Renderer-only and native-free, so there is nothing here that can be
+  // "unavailable" — it reports WHAT IT CONTRIBUTED, which is the useful answer for a plugin whose
+  // whole job is adding surface area. Whether blobs are actually arriving is a live question the OSC
+  // Monitor answers; a boot line must not pretend to know it.
+  status: () => ({ state: 'ok', detail: 'tracking content · lane · trigger zones · 3D viz' }),
 };

@@ -4,6 +4,7 @@ import {
     type ProjectData, type RigData, type Prefs, type UpdateEvent,
     type DisplayInfo, type OscConfig, type OscMessage,
     type WindowCommand, type RenderStats, type WatchdogEvent,
+    type BootEntry, type BootReport,
 } from '../../shared/protocol';
 
 const api: ArtluxApi = {
@@ -72,6 +73,21 @@ const api: ArtluxApi = {
     },
     getAppInfo: () => ipcRenderer.invoke(IPC.APP_INFO),
     openExternal: (url: string) => ipcRenderer.send(IPC.OPEN_EXTERNAL, url),
+    // Startup splash. The splash window loads THIS preload (like the docs window), so its three
+    // methods live here rather than in a second bridge.
+    reportBootStatus: (entries: BootEntry[]) => ipcRenderer.send(IPC.SPLASH_RENDERER_REPORT, entries),
+    splashReady: () => ipcRenderer.send(IPC.SPLASH_READY),
+    onBootReport: (cb: (r: BootReport) => void) => {
+        const listener = (_e: unknown, report: BootReport) => cb(report);
+        ipcRenderer.on(IPC.SPLASH_REPORT, listener);
+        return () => { ipcRenderer.removeListener(IPC.SPLASH_REPORT, listener); };
+    },
+    splashDismiss: () => ipcRenderer.send(IPC.SPLASH_DISMISS),
+    onSplashFadeOut: (cb: () => void) => {
+        const listener = () => cb();
+        ipcRenderer.on(IPC.SPLASH_FADE_OUT, listener);
+        return () => { ipcRenderer.removeListener(IPC.SPLASH_FADE_OUT, listener); };
+    },
     relaunchBroadcast: (projectPath: string) => ipcRenderer.send(IPC.APP_RELAUNCH_BROADCAST, projectPath),
     // Unattended watchdog (self-healing for broadcast/show installs)
     getWatchdogStatus: () => ipcRenderer.invoke(IPC.WATCHDOG_STATUS),

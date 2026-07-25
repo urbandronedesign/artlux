@@ -89,4 +89,8 @@ export const plugin: RendererPlugin = {
   },
 
   deactivate(): void { oscUnsub?.(); oscUnsub = null; },
+
+  // On the startup splash. Shares the host's OSC listener rather than binding its own port, so there is
+  // no socket here that could fail — only contributions to report.
+  status: () => ({ state: 'ok', detail: 'OSC v2 tracking source · monitor · 3D viz' }),
 };

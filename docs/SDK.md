@@ -49,6 +49,32 @@ talks to its own main-process half). All are handed to the plugin in its `activa
 Registries are plain Map/array singletons in `src/renderer/host/registries.ts` (+ main transports). The
 host reads them from the compositor, timeline, projector bridge, Preferences, and the panel/menu host.
 
+### `status?()` — the plugin's own boot report (both processes)
+
+Optional on `MainPlugin` **and** `RendererPlugin`, called by the host immediately after `activate()`:
+
+```ts
+status?(): { state: 'ok' | 'degraded' | 'off' | 'error'; detail?: string }
+```
+
+It exists because **graceful degradation is silent by construction.** A missing `.node` disables its
+feature, logs one line, and the app boots looking perfectly healthy — so "there is no NDI on this machine"
+or "the audio UI works and nothing ever plays" cost real minutes to diagnose on a load-in. The host
+collects these into the boot report the startup splash renders (`main/bootReport.ts`).
+
+- `degraded` = activated, but something it needs is missing (addon, runtime, DLL). `off` = deliberately
+  inactive (a setting is off, or the feature can't apply to this platform/GPU) — **use `off`, not
+  `degraded`, when nothing is wrong**, or the splash cries wolf on a normal machine.
+- `error` is filled in **by the host** when `activate()` throws. A plugin never reports it.
+- **Cheap and synchronous.** It runs on the path a venue is waiting on: report what is already knowable,
+  never probe hardware. A `status()` that throws is logged and treated as `ok` — the plugin is up, only
+  its self-report is broken.
+- **Say only what your half knows.** A main half knows whether its addon loaded; a renderer half knows
+  what it contributed. Neither may speak for the other, and neither should guess at a setting that
+  arrives with the project *after* activation ("codec registered — opt-in via Video settings", not "GPU
+  decode active"). The splash merges a cross-process plugin's two halves at the display edge, worst state
+  winning (`components/splash/bootRows.ts`).
+
 ### Host services (`ctx.host`) — `RendererHostServices`
 
 Capabilities a *feature* plugin needs to reach back into app state. Generic/opaque in the SDK; the host

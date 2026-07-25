@@ -148,6 +148,16 @@ export const IPC = {
    * someone toggled it off and on again, while the frame pump kept posting to the dead port.
    */
   PROJECTOR_CLOSED: 'projector:closed',
+  /** Main → splash window: the whole boot report, re-sent on every change (see BootReport). */
+  SPLASH_REPORT: 'splash:report',
+  /** Splash window → main: mounted and listening — send the report now (it may already be complete). */
+  SPLASH_READY: 'splash:ready',
+  /** Splash window → main: close me (the user clicked or pressed Esc). */
+  SPLASH_DISMISS: 'splash:dismiss',
+  /** Main → splash window: run your exit fade — you are about to be destroyed. */
+  SPLASH_FADE_OUT: 'splash:fade-out',
+  /** Editor renderer → main: this window's plugin activation results, for the splash's console. */
+  SPLASH_RENDERER_REPORT: 'splash:renderer-report',
 } as const;
 
 export interface UpdateEvent {
@@ -161,6 +171,35 @@ export interface UpdateEvent {
 export interface AppInfo {
   name: string;
   version: string;
+}
+
+// ─── The boot report (what the startup splash's console shows) ───────────────────────────────
+// One row per thing that had to load: the host's own native addons, then each plugin half. The
+// states mirror @artlux/sdk's PluginState — duplicated here rather than imported because the
+// preload and the splash window must not depend on the SDK, and this is the IPC contract.
+//
+// This exists because every native-backed feature graceful-degrades: a missing .node disables the
+// feature, logs one line, and the app boots looking perfectly healthy. On a load-in nobody is
+// reading a terminal, so "why is there no NDI" cost real time to answer. Now it is on screen at
+// startup, and it is the truth — each row is written when that thing's load actually returned.
+export type BootState = 'ok' | 'degraded' | 'off' | 'error';
+
+export interface BootEntry {
+  /** Which layer this loaded in. 'native' = host-owned addon; the rest are plugin halves. */
+  group: 'native' | 'main' | 'renderer';
+  id: string;         // 'ndi', 'output-engine', … (a plugin's two halves share one id)
+  name?: string;      // human label; falls back to id
+  detail?: string;    // one short phrase: 'native addon unavailable', 'video codec registered'
+  state: BootState;
+  ms?: number;        // how long it took to load/activate; absent when it never ran
+}
+
+export interface BootReport {
+  entries: BootEntry[];
+  /** Host natives + main-process plugins have all reported. */
+  mainDone: boolean;
+  /** The editor renderer has reported its plugin halves (the second and last wave). */
+  rendererDone: boolean;
 }
 
 // Spout (SpoutConfig/SpoutFrame) → @artlux/plugin-spout; NDI (NdiConfig/NdiFrame/NdiSendConfig) →
@@ -700,6 +739,9 @@ export interface Prefs {
   layoutState?: unknown;
   /** Unattended self-healing watchdog config (broadcast/show installs). Absent = defaults, disabled. */
   unattended?: UnattendedPrefs;
+  /** Show the startup splash (credits + licence + the plugin/native boot console). Default: true.
+      Editor mode only — headless/broadcast never open it regardless (see main/splashWindow.ts). */
+  showSplash?: boolean;
   /** User keyboard-shortcut overrides, keyed by stable shortcut id → its bound chords (e.g. ["Ctrl+Z"]).
       Renderer-owned blob (the full registry of default bindings lives in the renderer, this stores only
       the deltas the user changed). Absent / missing keys = the registry default. */
@@ -845,6 +887,18 @@ export interface ArtluxApi {
   onMenuAction(cb: (action: string) => void): () => void;
   getAppInfo(): Promise<AppInfo>;
   openExternal(url: string): void;
+  // Startup splash (its own window; see main/splashWindow.ts). The editor renderer uses only
+  // reportBootStatus — the other three are the splash window's own side of the conversation.
+  /** Editor renderer → main: this window's plugin activation results (the splash's second wave). */
+  reportBootStatus(entries: BootEntry[]): void;
+  /** Splash → main: mounted; send the report. */
+  splashReady(): void;
+  /** Main → splash: the full report, re-sent on every change (idempotent — render it as-is). */
+  onBootReport(cb: (r: BootReport) => void): () => void;
+  /** Splash → main: close the splash window now. */
+  splashDismiss(): void;
+  /** Main → splash: run the exit fade; the window is destroyed a beat later regardless. */
+  onSplashFadeOut(cb: () => void): () => void;
   /** Save-then-relaunch into broadcast mode (no editor UI; outputs + Art-Net only). */
   relaunchBroadcast(projectPath: string): void;
   // Unattended watchdog (self-healing for broadcast/show installs — see docs/WATCHDOG.md)

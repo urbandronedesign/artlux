@@ -6,6 +6,7 @@ import { buildAppMenu } from './menu';
 import { setupUpdater } from './updater';
 import { registerProjectorWindows, closeAllProjectors } from './projector';
 import { registerDocsWindow } from './docsWindow';
+import * as splash from './splashWindow';
 import { applyUiScale } from './uiScale';
 import { ndiManager as ndi } from '@artlux/plugin-ndi/main'; // app lifecycle (recv cap / quit) — transitional host→plugin seam
 import { spoutManager as spout } from '@artlux/plugin-spout/main'; // broadcast cap — transitional host→plugin seam
@@ -108,6 +109,11 @@ function createWindow(): void {
     // idempotent, guarded by isVisible so we only bring it up once.
     const revealEditor = () => {
         if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) { mainWindow.show(); mainWindow.focus(); }
+        // The splash is only allowed to sit above windows until the editor is genuinely on screen; from
+        // here it drops always-on-top and closes as soon as the boot report is complete. Called from
+        // every reveal path (all three are idempotent), so a config where ready-to-show never fires
+        // still hands the screen over.
+        splash.noteEditorVisible();
     };
     if (!HEADLESS && !BROADCAST) {
         mainWindow.on('ready-to-show', revealEditor);
@@ -224,6 +230,12 @@ app.whenReady().then(() => {
     // Broadcast (show) mode lifts the Spout/NDI receive downscale caps to 1080p for full-HD
     // projector output + NDI; the editor keeps the lighter defaults (512² / 720p) for preview.
     if (BROADCAST) { ndi.setRecvCap(1920, 1080); spout.setCap(1920, 1080); }
+    // The startup splash. Registered in every mode (it opens nothing by itself) but OPENED only in the
+    // editor: in broadcast — the watchdog's relaunch mode — an always-on-top window would flash over
+    // live fullscreen projector output, unattended, on every self-heal. Opened BEFORE registerIpc so it
+    // is already loading while the main plugins activate, and so it catches their report as it fills.
+    splash.registerSplash();
+    if (!HEADLESS && !BROADCAST && persistence.getPrefs().showSplash !== false) splash.open();
     registerIpc(() => mainWindow);
     metrics.start(); // Prometheus /metrics endpoint (loopback by default; ARTLUX_METRICS=0 to disable)
     if (!HEADLESS && !BROADCAST) { buildAppMenu(() => mainWindow); setupUpdater(() => mainWindow); }

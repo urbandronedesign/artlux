@@ -16,4 +16,9 @@ export const plugin: RendererPlugin = {
     // editor ships with the plugin. Cast at this boundary (ctx.settings is generic/unknown in the SDK).
     ctx.settings.register({ id: 'video', title: 'Video', icon: React.createElement(Film, { size: 12 }), Component: VideoSettings } as unknown as SettingsSection);
   },
+
+  // On the startup splash. The codec is REGISTERED here but stays inert until the mp4WebCodecs setting
+  // is on (mp4Codec.canDecode returns false while off), and that setting arrives with the project —
+  // after activation. So the honest boot line is "registered, opt-in", never "GPU decode active".
+  status: () => ({ state: 'ok', detail: 'codec registered — opt-in via Video settings' }),
 };

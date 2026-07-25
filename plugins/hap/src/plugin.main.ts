@@ -15,4 +15,10 @@ export const plugin: MainPlugin = {
   },
 
   deactivate(): void { hap.closeAll(); },
+
+  // Reported on the startup splash. Without the decoder a HAP .mov still plays — through <video>,
+  // which cannot read HAP, so it plays as nothing. Worth seeing at startup.
+  status: () => hap.available()
+    ? { state: 'ok', detail: 'native decoder loaded' }
+    : { state: 'degraded', detail: 'native decoder unavailable — HAP .movs will not play' },
 };

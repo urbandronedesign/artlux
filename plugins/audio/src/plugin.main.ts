@@ -74,4 +74,12 @@ export const plugin: MainPlugin = {
   deactivate(): void {
     engine.close();
   },
+
+  // Reported on the startup splash, and this is THE one that needed saying: without audio-engine.node
+  // the whole audio UI renders, every transport control works, meters read zero, and nothing ever
+  // makes a sound — silently, by design (`npm run build:audio` only WARNS on failure). `available` is
+  // "did the addon load", NOT "is there a device"; a device is a later, separate question.
+  status: () => engine.available
+    ? { state: 'ok', detail: 'JUCE engine loaded' }
+    : { state: 'degraded', detail: 'native engine missing — nothing will play (npm run build:audio)' },
 };

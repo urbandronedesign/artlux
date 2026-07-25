@@ -147,16 +147,22 @@ Art-Net + sACN/E1.31
 Pushing a `v*` tag triggers a GitHub Actions matrix build that produces per-OS installers and
 publishes a Release.
 
-> ## 🛑 DO NOT PUSH A `v*` TAG UNTIL THE LICENSING BELOW IS SETTLED.
+> ## ⚠ READ THE LICENCE BEFORE PUSHING A `v*` TAG.
 > Every installer bundles `audio-engine.node`, which has **JUCE** and **libspatialaudio** linked into it
-> (`extraResources`, `package.json`). This repo currently has **no `LICENSE`, no `NOTICE`, and no `license`
-> field in `package.json`** — so the tag workflow is the only thing standing between here and a **publicly
-> distributed binary carrying two copyleft dependencies with no notice.** See **Licensing** below.
+> (`extraResources`, `package.json`). The elections are now made and written down — [`LICENSE`](LICENSE),
+> [`NOTICE`](NOTICE), and the `license` field — but a tag is still the moment every obligation attaches, so
+> re-read **Licensing** below (and JUCE's own terms) before you publish.
 
 ## Licensing
 
-**ArtLux is a non-commercial project, built and maintained for education and research.** It is not sold, it
-is not licensed for a fee, and it generates no revenue. Full third-party inventory: **[`NOTICE`](NOTICE)**.
+**ArtLux is licensed for education and non-commercial use only — no commercial work is permitted.** The
+operative text is **[`LICENSE`](LICENSE)** (Non-Commercial Educational Licence, © Zaki Jawhari and Bérenger
+Recoules). **It is not an open-source licence**: it withholds the commercial rights every OSI-approved licence
+grants. Full third-party inventory: **[`NOTICE`](NOTICE)**.
+
+The app states this itself — the startup splash and the About dialog carry the credit and the restriction, and
+that is a licence requirement (`LICENSE` §3), not decoration. The strings have one source,
+[`shared/credits.ts`](shared/credits.ts).
 
 That context matters, and it is worth being precise about *why*:
 
@@ -170,28 +176,60 @@ That context matters, and it is worth being precise about *why*:
 matrix that **publishes a GitHub Release**. Nothing stands between this repo and a public binary except that
 nobody has pushed a tag.
 
-### What is unresolved
+### What was decided
 
-- **The JUCE licence has not been elected.** JUCE is dual-licensed — a commercial tier, or **AGPLv3**, which
-  is strong copyleft and would reach *this entire application* on distribution. Being educational and
-  non-commercial affects **which tier applies**; it does not remove the need to pick one. **JUCE's terms
-  change between major versions — read them at [juce.com](https://juce.com), and do not trust any figure
-  quoted in this repository.**
-- **`JUCE_DISPLAY_SPLASH_SCREEN=0` is set** (`native/audio-engine/CMakeLists.txt`). That flag is
-  **licence-gated**: disabling JUCE's splash is permitted under AGPL and under paid tiers, and historically
-  **not** under the free tier. It was set for engineering reasons — the addon is headless and has no window
-  to draw one in — with **no licence decision behind it.** It needs reconciling with whichever tier is chosen.
-- **libspatialaudio is LGPL-2.1 and is *statically* linked.** LGPL allows that, but a static link carries a
-  **relinking obligation** a dynamic link does not. Not yet addressed.
-- **ArtLux has no `LICENSE` file**, so it is "all rights reserved" by default. Coherent for a private research
-  project; **incoherent with electing JUCE's AGPL option**, which would require this application to be offered
-  under AGPL-compatible terms.
+- **JUCE 8 → the free Starter tier, held by the two authors personally.** JUCE is dual-licensed: **AGPLv3**,
+  or the JUCE 8 EULA (Starter free up to $20k revenue · Indie · Pro · Educational free for academics).
+  **AGPLv3 is expressly not elected** — it is strong copyleft that would reach this whole application on
+  distribution *and* would grant recipients the commercial rights `LICENSE` §2 withholds.
+  **Educational was considered and rejected despite the authors qualifying for it**, because §1.2.4's last
+  sentence makes it non-perpetual — it "shall only come into effect and endure for the period of time the
+  Education Licence requirements are met", i.e. it ends at graduation and takes the right to keep
+  distributing with it — and because it bars "promotional" use, which catches exhibitions, open days and
+  showreels. **JUCE's terms change between major versions — read them at [juce.com](https://juce.com), and do
+  not trust any figure quoted in this repository.**
+- **`JUCE_DISPLAY_SPLASH_SCREEN=0` is reconciled** (`native/audio-engine/CMakeLists.txt`). The JUCE 8 EULA
+  states no splash or attribution requirement on any tier, so the flag is consistent with Starter — and the
+  addon genuinely has no window to draw one in. ArtLux's own splash names JUCE regardless.
+- **libspatialaudio's LGPL static-link relinking obligation is discharged by a written offer** (`LICENSE` §5):
+  object files + build instructions on request. Honouring it means keeping a reproducible audio-engine build
+  per tagged release.
+- **ArtLux has a `LICENSE`** — non-commercial, educational. Coherent with Starter, which imposes no copyleft.
 
-> **None of this blocks development, and none of it blocks the merge.** It blocks the **first published
-> release** — which is one `git push --tags` away. Settle it before you tag, not after.
->
-> *Nothing here is legal advice. It is an engineer's inventory of what is linked, what is loaded, and what has
-> not been decided — written down so the decision gets made on purpose.*
+#### The Starter revenue test, precisely
+
+Starter is **free and perpetual**, capped at **$20,000 annual revenue** — but *whose* revenue depends on who
+the licensee is, and the EULA's two definitions differ in a way that matters:
+
+| Licensee | What §1.2.1 counts |
+|---|---|
+| **An individual** | "the total revenue or funding generated by that individual or entity's **use of the Framework** from all sources, including donations, sponsorship, advertising" — **JUCE-related income only.** ArtLux is free, takes no donations, and `LICENSE` §2 forbids charging for it → **zero**. |
+| **A company** | "the total revenue or funding received by the entity **and all its Affiliates** … from all sources, **whether it be received in connection with the entity's use of the Framework or not**, without offsets of any kind" — **all income, JUCE-related or not.** |
+
+So the licensee must be **the two authors as individuals** — never a company, studio or institution, whose
+revenue counts in full whether it came from JUCE work or not. Also **§1.7** — "Every Framework User
+contributing to or modifying source code … requires
+a Licence" — so that is **two Starter seats, one each**, free but not automatic. §1.10's "keep seats active to
+keep distributing" applies to *subscription* tiers only, so a perpetual Starter cannot retroactively strand a
+published release. If the cap is ever exceeded, **§1.14** gives no grace period: upgrade the tier or stop
+distributing.
+
+### What is still open
+
+- **Two Starter seats have not been registered yet**, and nobody has confirmed the reading above with JUCE.
+  Both before the first tag — the full checklist is in [`NOTICE`](NOTICE) ("Before the first `v*` tag").
+  Nothing in the code or build is involved: JUCE comes in via CMake `FetchContent`, there is no licence key,
+  and the EULA imposes no splash or attribution requirement.
+*Copyright is settled:* the two authors hold it **as individuals**; no company, studio or institution is a
+party to the work or a JUCE licensee for it (`NOTICE` (g)).
+- **HRTF/SOFA data terms** shipped with libspatialaudio are unreviewed.
+- `appId` (`com.urbandronedesign.artlux`) and the GitHub release owner still say *urbandronedesign*. Those are
+  **machine identifiers** — installer upgrade identity and release URL — and changing them would orphan every
+  installed machine and its watchdog task. Authorship is `LICENSE` + [`shared/credits.ts`](shared/credits.ts).
+
+> *Nothing here is legal advice. It is an engineer's record of what is linked, what is loaded, and what was
+> decided — written down so the decisions were made on purpose. Have a lawyer read `LICENSE` before you rely
+> on it, especially clause 2.*
 
 ### macOS install note
 
@@ -213,4 +251,7 @@ This is a one-time step per install. (Builds are Apple Silicon / arm64.)
 
 **JUCE** (<https://juce.com>) and **libspatialaudio** (<https://github.com/videolabs/libspatialaudio>) are
 **compiled and linked into `audio-engine.node`**, which ships inside every installer — an obligation of a
-different kind from NDI's, and one this repo has not yet discharged. See **[Licensing](#licensing)**.
+different kind from NDI's. JUCE 8 is used under its free **Starter** licence; libspatialaudio is **LGPL-2.1+**
+and statically linked, with the relink offer in [`LICENSE`](LICENSE) §5. See **[Licensing](#licensing)**.
+
+ArtLux was **designed & built by Zaki Jawhari and Bérenger Recoules**.

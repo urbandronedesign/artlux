@@ -642,6 +642,60 @@ check(
   },
 );
 
+check(
+  'the startup splash never opens in headless or broadcast mode',
+  'Broadcast is the WATCHDOG\'S RELAUNCH MODE: an unattended venue PC self-heals into it, mid-show, with ' +
+  'fullscreen projector outputs already on the displays. The splash is alwaysOnTop, so opening it there ' +
+  'would flash a credits window over live output every time the app recovered — and headless has no ' +
+  'screen to open anything on at all. The gate lives at the ONE call site in main/index.ts; nothing ' +
+  'else may call open(). Nothing about this fails at build time: it looks perfect in the editor.',
+  () => {
+    const problems = [];
+    const src = read('src/main/index.ts');
+    // The single call site must be guarded by both mode flags on the same line.
+    const call = src.split(/\r?\n/).find((l) => /splash\.open\(\)/.test(l));
+    if (!call) problems.push('main/index.ts no longer opens the splash at all');
+    else if (!/!HEADLESS/.test(call) || !/!BROADCAST/.test(call)) {
+      problems.push('splash.open() is no longer gated on !HEADLESS && !BROADCAST on its own line');
+    }
+    // And it must be the only call site: a second one elsewhere would bypass that gate.
+    const callers = [...walk('src/main'), ...walk('src/renderer'), ...walk('plugins')]
+      .filter((f) => !f.endsWith('src/main/splashWindow.ts') && !f.endsWith('src/main/index.ts'))
+      .filter((f) => /splash\.open\(|openSplash\(/.test(read(f)));
+    if (callers.length) problems.push(`splash.open() is called outside main/index.ts: ${callers.join(', ')}`);
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
+  'the credit + licence line have one source and are actually shown',
+  'LICENSE §3 requires a build to show the authorship credit and the non-commercial restriction — so ' +
+  'these strings are a licence obligation, not chrome, and a UI that quietly dropped them would put the ' +
+  'build out of compliance with its own licence. They live once in shared/credits.ts (the same pattern as ' +
+  'shared/brandMarks.ts, for the same reason: About already carried a hand-written explainer that had ' +
+  'drifted from package.json\'s description, next to a footer crediting a party that is not an author). ' +
+  'Re-typing an author name or the restriction anywhere else re-opens that drift.',
+  () => {
+    const problems = [];
+    if (!exists('LICENSE')) problems.push('LICENSE is gone — the splash/About text cites clauses that must exist');
+    if (!exists('shared/credits.ts')) return 'shared/credits.ts is gone (the one source for the credit + licence lines)';
+    // Both surfaces must render them, from the module rather than from a literal.
+    for (const f of ['src/renderer/components/splash/SplashScreen.tsx', 'src/renderer/components/About.tsx']) {
+      if (!exists(f)) { problems.push(`${f} is gone — the credit/licence must be visible in the app`); continue; }
+      const src = read(f);
+      if (!/credits/.test(src)) problems.push(`${f} no longer imports shared/credits`);
+      if (!/AUTHORS_LINE/.test(src)) problems.push(`${f} no longer renders the authorship credit (LICENSE §3)`);
+      if (!/LICENSE_HEADLINE/.test(src)) problems.push(`${f} no longer renders the non-commercial licence line (LICENSE §3)`);
+    }
+    // Nobody hardcodes an author's name outside the one source (credits.ts itself excepted).
+    for (const f of [...walk('src/renderer'), ...walk('src/main'), ...walk('plugins'), ...walk('shared')]) {
+      if (f.endsWith('shared/credits.ts')) continue;
+      if (/Jawhari|Recoules/.test(read(f))) problems.push(`${f} hardcodes an author name — import it from shared/credits`);
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);

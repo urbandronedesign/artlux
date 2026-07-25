@@ -14,7 +14,8 @@ import {
 import { timeline } from '../services/timeline';
 import { coreAutomationProvider } from '../services/automationTargets.core';
 import { perfMonitor } from '../services/perfMonitor';
-import type { RendererPlugin, RendererPluginContext, PluginIpc, RendererHostServices } from '@artlux/sdk/renderer';
+import type { RendererPlugin, RendererPluginContext, PluginIpc, RendererHostServices, PluginStatus } from '@artlux/sdk/renderer';
+import type { BootEntry } from '../../../shared/protocol';
 import { plugin as lidarTracking } from '@artlux/plugin-lidar-tracking';
 import { plugin as ndi } from '@artlux/plugin-ndi/renderer';
 import { plugin as calibration } from '@artlux/plugin-calibration/renderer';
@@ -108,7 +109,34 @@ export function activateRendererPlugins(win: 'main' | 'projector', host: Rendere
   // plugins' — the automation engine doesn't privilege core, it just resolves a path's head to an owner.
   automationTargetRegistry.register(coreAutomationProvider);
   const ctx = makeContext(win, host);
+  const report: BootEntry[] = [];
   for (const p of FIRST_PARTY) {
-    try { p.activate(ctx); } catch (e) { console.error(`[plugins] ${p.manifest.id} activate failed`, e); }
+    const t0 = performance.now();
+    try {
+      p.activate(ctx);
+      // No status() = 'ok'. A status() that throws leaves the plugin 'ok' with a warning in the log:
+      // the contributions ARE registered, only the self-report is broken.
+      let st: PluginStatus = { state: 'ok' };
+      if (p.status) {
+        try { st = p.status(); } catch (e) { console.warn(`[plugins] ${p.manifest.id} status() threw`, e); }
+      }
+      report.push({
+        group: 'renderer', id: p.manifest.id, name: p.manifest.name,
+        state: st.state, detail: st.detail, ms: Math.round(performance.now() - t0),
+      });
+    } catch (e) {
+      console.error(`[plugins] ${p.manifest.id} activate failed`, e);
+      const msg = e instanceof Error ? e.message : String(e);
+      report.push({
+        group: 'renderer', id: p.manifest.id, name: p.manifest.name, state: 'error',
+        detail: (msg.split('\n')[0] ?? 'activate failed').slice(0, 120),
+        ms: Math.round(performance.now() - t0),
+      });
+    }
   }
+  // Hand the second (and last) wave to the startup splash, via main. ONLY from the main window: a
+  // projector window activates the same plugins with an inert host, and letting it report would
+  // overwrite the editor's real answers with a window that owns no state — and would fire long after
+  // the splash is gone, during a show.
+  if (win === 'main') window.artlux?.reportBootStatus?.(report);
 }

@@ -19,6 +19,12 @@ module.exports = {
         },
         // Semantic surface/text tokens (layered dark).
         surface: { 0: '#0d0d0d', 1: '#161616', 2: '#1e1e1e', 3: '#2a2a2a', 4: '#404040' },
+        // --bg-stage, the void behind the stage. DESIGN-SYSTEM §1.1 has documented `bg-bg-stage` as the
+        // utility for it all along, but the key was never actually here — so the class silently produced
+        // NOTHING (Tailwind drops unknown colours), and any element written from the doc rendered
+        // transparent over whatever was behind it. The token itself lives in tokens.css and is applied to
+        // <body> from index.css; this makes the documented class true as well.
+        bg: { stage: '#000000' },
         line: { 1: '#2a2a2a', 2: '#383838' },
         // text-3 raised #6a6a6a → #8a8a8a for WCAG AA (4.86:1); see tokens.css.
         fg: { 1: '#e8e8e8', 2: '#9a9a9a', 3: '#8a8a8a' },

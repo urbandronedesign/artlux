@@ -41,6 +41,9 @@ console.log(native ? '[spout] native receiver loaded' : '[spout] native receiver
 
 let timer: NodeJS.Timeout | null = null;
 
+/** Did the native receiver load? Reported on the startup splash — a missing one is otherwise silent. */
+export function available(): boolean { return !!native; }
+
 // Set the aspect-preserving downscale cap (broadcast mode lifts it to 1080p).
 export function setCap(w: number, h: number): void {
   if (native) { try { native.setCap(w, h); } catch (e) { console.warn('[spout] setCap failed', e); } }

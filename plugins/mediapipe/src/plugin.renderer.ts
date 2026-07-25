@@ -87,4 +87,8 @@ export const plugin: RendererPlugin = {
   },
 
   deactivate(): void { /* engine stops itself when its last consumer is released */ },
+
+  // On the startup splash. The WASM runtime + model are fetched lazily on the first MEDIAPIPE surface,
+  // so "did the model load" is unknowable here — report the contributions, not a guess.
+  status: () => ({ state: 'ok', detail: 'webcam pose source · monitor · floor calibration' }),
 };

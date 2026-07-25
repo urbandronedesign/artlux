@@ -472,6 +472,38 @@ Shipped across **v0.3.0** and **v0.3.1** (see `CHANGELOG.md`; UI detail in `arch
 - Gotcha handled: New-folder save builds payload from fresh locals (not `buildProjectData()`) because the
   reset `setState` hasn't applied to the closure yet.
 
+## Startup splash + the licence elections (2026-07-25)
+- **`src/main/splashWindow.ts` + `renderer/splash.html`/`splash.tsx` + `components/splash/`** — its own
+  760×620 frameless window, opened at `whenReady()` **before** `createWindow()`. A window rather than an
+  overlay because the editor window is hidden until `ready-to-show` (4s backstop): an overlay inside
+  `index.html` cannot cover a window that is not visible yet.
+- **`src/main/bootReport.ts`** collects what loaded, in two waves — host natives + main plugin halves
+  during `registerIpc`, then the editor renderer's halves once App mounts — and **re-sends the whole
+  report on every change**, so a splash that attaches late renders a snapshot instead of reassembling a
+  stream it joined. Plugins report through a new optional `status?()` on both SDK halves.
+- **Timing was got wrong twice, and the measurements are why it is what it is.** Anchoring the wait on the
+  editor's *paint* failed: the editor is visible at ~100ms but its plugins don't activate until ~6.3s
+  (5MB of bundles + App mount), so at a 2.5s grace the second wave missed **every** run and the console
+  always showed half a report. And `MIN_MS` from window-show closed the splash ~100ms after the last row
+  landed, so the completed console — the whole point — was never readable. Now: grace measured from the
+  splash's own clock (9s), plus a **dwell measured from report completion** (900ms), plus a hard 14s
+  backstop for "the editor never came up at all". Instrumented in the log (`editor visible at Nms`,
+  `renderer reported N plugin(s) at Nms`, `closing after Nms — report complete|PARTIAL`).
+- **Console height was measured, not guessed:** 14 rows ≈ 245px of well. At 480 and 560 tall the well
+  fitted 6 then 11 rows — and because it auto-scrolls to the tail, the rows cut were always the *first*
+  ones (the native addons). 620 fits the lot.
+- **Licensing, settled and recorded:** `LICENSE` (Non-Commercial Educational, © Jawhari + Recoules), JUCE 8
+  under the free **Starter** tier with **AGPLv3 expressly not elected** (it would grant the commercial
+  rights `LICENSE` §2 withholds), `JUCE_DISPLAY_SPLASH_SCREEN=0` reconciled, and libspatialaudio's LGPL
+  static-link obligation discharged by a written relink offer. `NOTICE` open questions (a)/(b)/(d) closed;
+  the Starter revenue test is still unconfirmed with JUCE and is named as such.
+- **Guards** (`verify:invariants`): `splash.open()` has one call site, gated `!HEADLESS && !BROADCAST`
+  (broadcast is the watchdog's relaunch mode — an always-on-top window over live projector output); and
+  the credit + licence line have one source and are rendered by both the splash and About, which is a
+  `LICENSE` §3 obligation. Both negative-tested.
+- **Found in passing:** `bg-bg-stage` was documented in DESIGN-SYSTEM §1.1 but the `bg` key was never in
+  `tailwind.config.js`, so the class silently rendered transparent. Fixed.
+
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
 - Deferred effects: stateful **fire2012**, **multi-segment** subdivision per fixture.

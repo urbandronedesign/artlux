@@ -106,4 +106,9 @@ export const plugin: MainPlugin = {
     scheduler.stop();
     metricsSampler.stop();
   },
+
+  // Reported on the startup splash. Deliberately says only what is true AT ACTIVATION: the scheduler
+  // is running, but the HTTP server binds later, when the renderer pushes { enabled, port } from the
+  // project's settings. Claiming "server up" here would be a guess — a failed bind logs its own line.
+  status: () => ({ state: 'ok', detail: 'scheduler armed — tablet server binds on config' }),
 };

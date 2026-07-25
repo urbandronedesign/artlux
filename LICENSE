@@ -1,0 +1,59 @@
+ARTLux — Non-Commercial Educational Licence
+Copyright (c) 2026 Zaki Jawhari and Bérenger Recoules. All rights reserved.
+
+This is NOT an open-source licence. It withholds commercial rights that every OSI-approved
+licence grants. Read clause 2 before using this software for anything you are paid for.
+
+1. GRANT
+   Permission is granted, free of charge, to any person obtaining a copy of this software and
+   its documentation (the "Software"), to use, copy, modify, and run the Software for personal
+   study, teaching, and academic research, subject to every clause below.
+
+2. NO COMMERCIAL USE
+   Commercial use is not permitted. This includes, without limitation:
+     (a) paid, sponsored, or ticketed installations, performances, and exhibitions;
+     (b) client, contract, agency, or freelance work, whether or not the Software itself is
+         charged for;
+     (c) use in, or to promote, a commercial product, service, venue, or event;
+     (d) resale, sublicensing, rental, or hosting of the Software for a fee;
+     (e) redistribution for a charge, or bundling with anything sold.
+   Commercial terms are available only by separate written agreement with the authors.
+
+3. ATTRIBUTION
+   The authorship credit and this notice must be preserved in all copies and substantial
+   portions of the Software. Builds must not be altered to remove or obscure the credits shown
+   at startup and in the About dialog.
+
+4. AUDIO ENGINE — JUCE
+   The native audio engine (native/audio-engine) links the JUCE 8 framework, used under the free
+   JUCE Starter licence: https://juce.com/legal/juce-8-licence/
+   The AGPLv3 option that JUCE also offers is expressly NOT elected, because AGPLv3 would grant
+   recipients the commercial rights clause 2 withholds. JUCE is not covered by this licence and
+   remains subject to its own terms; nothing here grants you any right to JUCE.
+
+5. AMBISONICS — libspatialaudio (LGPL, STATICALLY LINKED)
+   The audio engine statically links libspatialaudio (LGPL-2.1-or-later). A static link carries
+   an obligation a dynamic one does not, so: object files and build instructions sufficient to
+   relink the audio engine against a modified libspatialaudio are available on request at
+   ateliernumvr@gmail.com. libspatialaudio remains under its own licence.
+
+6. OTHER THIRD-PARTY SOFTWARE
+   The Software links, loads, and — in the Windows installer — redistributes further third-party
+   components (Electron, React, the Rust crates, the NDI runtime, OpenCV, the MSVC redistributable,
+   and others), each governed by its own terms. The inventory is in NOTICE. Nothing in this licence
+   overrides any of them, and clause 2 does not attempt to restrict them.
+
+7. NO WARRANTY, NO LIABILITY
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
+   BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
+   NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER
+   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN
+   CONNECTION WITH THE SOFTWARE OR ITS USE.
+
+   This Software drives lighting, laser-free projection, and network-controlled electrical
+   hardware. You are solely responsible for the safety, wiring, load, and regulatory compliance
+   of your installation, and for the physical safety of your audience and crew.
+
+8. TERMINATION
+   Any use outside clause 1, or in breach of clause 2 or 3, terminates the permission granted
+   here automatically.

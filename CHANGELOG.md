@@ -1,5 +1,69 @@
 # Changelog
 
+## Unreleased
+
+### A startup splash that says what actually loaded — and who made it, under what licence
+
+ArtLux now opens with its own splash window: the wordmark and version, a plain-language explainer of what
+the program is, **a console reporting every native addon and plugin as it loads**, and the credit +
+licence line. It closes itself once the editor is up and the report is complete; click it or press Esc to
+skip. **Preferences ▸ Appearance ▸ Startup splash** turns it off, and it never opens in `--headless` or
+`--broadcast` — broadcast is the watchdog's relaunch mode, where an always-on-top window would flash over
+live projector output, mid-show, unattended.
+
+The console is the reason it exists. Every native-backed feature in ArtLux **graceful-degrades on
+purpose**: a missing `.node` disables its feature, logs one line, and the app boots looking perfectly
+healthy. On a load-in nobody is reading a terminal, so "why is there no NDI on this machine" — or worse,
+"the audio UI all works and nothing plays" — cost real minutes to diagnose. Now each thing reports itself
+on screen: `✓ loaded` / `! degraded` / `· inactive` / `✕ FAILED`, with what is missing and how long it
+took. Nothing on it is faked — a row appears when that plugin's `activate()` actually returned, the
+progress bar tracks the two real waves (main process, then renderer), and there is no spinner because
+activation is synchronous. A plugin that *throws* at activation used to leave no trace outside
+`console.error`; it is now a red line an operator can read out over the phone.
+
+Plugins report via a new optional `status?()` on both SDK halves ([docs/SDK.md](docs/SDK.md)). `off` is
+kept distinct from `degraded` on purpose: `nvwarp` is `off` on every machine without a Quadro/RTX-pro GPU,
+and a splash that opened on "2 need attention" when nothing is wrong would teach operators to ignore it.
+
+### ArtLux has a licence, and the JUCE question is settled
+
+- **[`LICENSE`](LICENSE)** — a Non-Commercial Educational Licence, © **Zaki Jawhari and Bérenger
+  Recoules**. Education, teaching and academic research are free; **commercial use is not permitted** —
+  paid or sponsored shows, client work, promotion of a commercial product or venue, resale, or
+  redistribution for a charge. It is deliberately **not** an open-source licence.
+- **JUCE 8 → the free Starter tier, one seat per author, held personally**, recorded in [`NOTICE`](NOTICE)
+  with the clauses quoted. JUCE offers AGPLv3 *or* its EULA; **AGPLv3 is expressly not elected**, because it
+  would both force this application's source under AGPL-compatible terms and grant recipients the very
+  commercial rights the licence above withholds. **Educational was rejected despite the authors qualifying
+  for it** — §1.2.4 makes it endure only "for the period of time the Education Licence requirements are met",
+  so it would lapse at graduation and take the right to keep distributing with it, and it bars "promotional"
+  use, which catches exhibitions and open days. Starter is free, perpetual, and its
+  revenue test on an individual counts only income *from use of the Framework* — zero here, and kept there by
+  `LICENSE` §2.
+  `JUCE_DISPLAY_SPLASH_SCREEN=0` is reconciled against that election, and ArtLux's own splash credits
+  JUCE regardless.
+- **libspatialaudio's LGPL static-link relinking obligation** is discharged by a written offer
+  (`LICENSE` §5): object files + build instructions on request.
+- Three of the five open licensing questions in `NOTICE` are now closed; the rest are named as still open,
+  including that nobody has confirmed the Starter revenue test with JUCE. `appId` and the GitHub release
+  owner still read *urbandronedesign* — those are machine identifiers (upgrade identity, release URL) and
+  changing them would orphan installed machines; authorship is `LICENSE` + `shared/credits.ts`.
+
+The credit and the licence line are a **licence requirement** (`LICENSE` §3), not chrome, so they live
+once in `shared/credits.ts` — the same one-source treatment as the brand marks — and both the splash and
+the About dialog are guarded by `verify:invariants` for rendering them. About's explainer had already
+drifted from `package.json`'s description, and its footer credited a party that is not an author.
+
+### Also
+
+- **`bg-bg-stage` was a documented Tailwind class that never existed.** DESIGN-SYSTEM §1.1 has listed it
+  from the start, but the `bg` colour key was missing from `tailwind.config.js`, so anything written from
+  that row rendered **transparent** (Tailwind drops unknown colours silently). Found when the splash
+  console's well had no background. The class is now real.
+- New [DESIGN-SYSTEM §9](docs/DESIGN-SYSTEM.md) documents the splash: sizes, the four bands, and the rules
+  that are load-bearing rather than taste (why red is confined to a badge, why `off` isn't a problem, why
+  nothing 10–11px is on the dim text tier).
+
 ## v0.24.0
 
 > Carries everything under v0.23.0 and v0.22.0 below: those were prepared (version bumped, changelog

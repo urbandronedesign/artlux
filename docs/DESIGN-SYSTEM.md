@@ -24,7 +24,7 @@ exempt** — those are data, not chrome, and correctly use raw hex.
 #### Surfaces (layered dark)
 | Token | Hex | Tailwind | Use |
 |---|---|---|---|
-| `--bg-stage` | `#000000` | `bg-bg-stage` | the void behind the stage |
+| `--bg-stage` | `#000000` | `bg-bg-stage` | the void behind the stage (also the splash console's well) |
 | `--surface-0` | `#0d0d0d` | `bg-surface-0` | deepest chrome (rails, wells) |
 | `--surface-1` | `#161616` | `bg-surface-1` | panels |
 | `--surface-2` | `#1e1e1e` | `bg-surface-2` | raised panels, rows |
@@ -37,6 +37,11 @@ exempt** — those are data, not chrome, and correctly use raw hex.
 | `--text-1` | `#e8e8e8` | `text-fg-1` | **13.7:1** | primary text, headings, values |
 | `--text-2` | `#9a9a9a` | `text-fg-2` | **5.96:1** | secondary text, labels, instructions |
 | `--text-3` | `#8a8a8a` | `text-fg-3` | **4.86:1** | meta / captions — **the dimmest token; nothing below it** |
+
+> **`bg-bg-stage` only became real in 2026-07.** This table documented the utility from the start, but the
+> `bg` key was never in `tailwind.config.js` — Tailwind silently drops an unknown colour, so anything
+> written from this row rendered **transparent**. Caught when the splash console's well showed no
+> background. The token itself was always fine (`tokens.css`, applied to `<body>` from `index.css`).
 
 > `--text-3` was `#6a6a6a` (3.10:1) and failed AA at the 10–11px sizes it is used at — 113 sites. It is now
 > `#8a8a8a`. **Do not** reintroduce a dimmer text color, and **do not** put `text-fg-3` on text smaller than it
@@ -260,5 +265,53 @@ system from regressing (run by `npm run verify`):
 - **Rows stay operable** — `ListRow` carries a `role` and an `onKeyDown`.
 - **The logo has one source** — `shared/brandMarks.ts` + `components/brand/AppMark.tsx` must exist and be
   wired, MenuBar/About must render the mark, and no other file may hand-draw a lettered gradient tile.
+- **The credit + licence line have one source and are shown** — `shared/credits.ts` exists, the splash and
+  About both import it and render `AUTHORS_LINE` + `LICENSE_HEADLINE`, and no other file hardcodes an
+  author's name. This one is a **licence obligation**, not a style rule: [`LICENSE`](../LICENSE) §3 requires
+  a build to show them.
+- **The splash never opens in headless/broadcast** — `splash.open()` has exactly one call site and it is
+  gated on `!HEADLESS && !BROADCAST` (see §9).
 - Plus the pre-existing floors (interaction film overridable, one type/color/z/shadow vocabulary — see
   [UI-UX-AUDIT.md](UI-UX-AUDIT.md) Guardrails).
+
+---
+
+## 9. The startup splash
+
+Its own `BrowserWindow` (`main/splashWindow.ts` + `renderer/splash.html`), **760×560** at 100% UI scale,
+frameless, square-cornered, `surface-0` with a `line-2` hairline border, centred on the primary display's
+work area, `alwaysOnTop` only until the editor window paints.
+
+**Why a window and not an overlay:** the editor window is created hidden and revealed on `ready-to-show`
+with a 4s backstop, so there are seconds where nothing is on screen. React inside `index.html` cannot cover
+a window that isn't visible yet.
+
+**Four bands, top to bottom** — the console is the only one that flexes (`flex-1 min-h-0`; every other band
+is `shrink-0`, because in a fixed-height flex column the last child is what gets crushed — that was the
+dismiss hint, present in the DOM at zero pixels tall):
+
+| Band | Recipe |
+|---|---|
+| Identity | `<AppWordmark height={26}>` in `text-fg-1` (**never** the name as text — §7), version `font-mono text-xs text-fg-3` right-aligned on the same baseline, tagline + explainer `text-xs text-fg-2`, `max-w-[62ch]` |
+| Console | `bg-bg-stage` well, `border-line-1`, `rounded-md`, `font-mono text-mini`, `role="log"` + `aria-live="polite"` + `aria-busy`; rows are a `grid-cols-[14px_168px_1fr_52px]` (glyph · name `text-fg-1` · detail `text-fg-2` · ms, `tabular-nums`) |
+| Phase bar | 2px `surface-3` track, `accent` fill, at 12% / 50% / 100% for the two **real** waves (main process, then renderer) + a summary line |
+| Credits | `border-t border-line-1`; `CREDIT_LABEL` as `text-micro uppercase tracking-wider text-fg-2`, names `text-xs font-medium text-fg-1`, licence `text-xs text-fg-2` |
+
+**Rules that are load-bearing, not taste:**
+- **Status is glyph + colour, never colour alone** (§6): `✓` `text-ok` · `!` `text-warn` · `·` `text-fg-2` ·
+  `✕` `text-danger`. `danger` on near-black is ~4.3:1 — **under AA** for 11px prose — so red is confined to
+  the glyph and a short `FAILED` badge while the readable text stays `fg-1`/`fg-2`.
+- **Nothing 10–11px is `text-fg-3`** (§8's first guard). The dim tier appears only on the 12px version string.
+- **The licence line is not a caption.** It stays 12px on `fg-2`; a legal statement an operator must be able
+  to read is never the dim tier at the 10px floor.
+- **No spinner.** Plugin activation is synchronous per plugin, so a spinner would imply pending work that
+  doesn't exist. A blinking caret (`.animate-caret`) carries the "live" affordance and collapses to a static
+  caret under `prefers-reduced-motion`.
+- **`off` is not a problem.** The summary counts `degraded + error` as "need attention" and `off` separately
+  as "inactive" — `nvwarp` is `off` on every machine without a Quadro/RTX-pro GPU, and a splash that opens on
+  "2 need attention" when nothing is wrong teaches operators to ignore the one time it matters.
+- **Nothing on it is interpolated to look busy.** Each row appears when that thing's `activate()` actually
+  returned, timed with `performance.now()`.
+- **Never in `--headless` / `--broadcast`.** Broadcast is the watchdog's relaunch mode: an always-on-top
+  window over live fullscreen projector output, mid-show, unattended. Guarded (§8). `Prefs.showSplash`
+  turns it off in the editor too (Preferences → Appearance).

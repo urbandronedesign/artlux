@@ -3,7 +3,7 @@
 // Safe to use `node:*` types here. NEVER import `react` / WebGL from this entry: the main bundle
 // must not pull renderer-only deps. STATUS: internal + UNSTABLE (see ./index.ts).
 
-export type { OscMessage, OscConfig, PluginManifest } from './index.ts';
+export type { OscMessage, OscConfig, PluginManifest, PluginState, PluginStatus } from './index.ts';
 
 // ─── Main-process plugin IPC ────────────────────────────────────────────────────────────────
 // The general handle a plugin's main entry uses to talk to its renderer counterpart. The host
@@ -29,4 +29,6 @@ export interface MainPlugin {
   manifest: import('./index.ts').PluginManifest;
   activate(ctx: MainPluginContext): void;
   deactivate?(): void;
+  /** Optional post-activation self-report (see PluginStatus). Cheap + synchronous; no status = 'ok'. */
+  status?(): import('./index.ts').PluginStatus;
 }

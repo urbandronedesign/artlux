@@ -35,3 +35,25 @@ export interface PluginManifest {
   name: string;      // human-readable
   version: string;
 }
+
+// ─── Plugin status (what the startup splash's console reports) ───────────────────────────────
+// Activation already told us "did activate() throw"; it did NOT tell us whether the plugin can
+// actually DO anything. Every native-backed plugin graceful-degrades by design (a missing .node
+// disables a feature and logs one line), which is right for a live show and terrible for a human:
+// the app boots clean, nothing throws, and NDI/Spout/HAP/audio are simply not there. That line
+// existed only in a console nobody reads during a load-in.
+//
+// So a plugin may report a status, and the host surfaces it on the splash and (later) anywhere
+// else it matters. Keep it CHEAP and SYNCHRONOUS — it is called right after activate() during
+// startup, on the path a venue is waiting on. Report what is knowable now; don't probe hardware.
+export type PluginState =
+  | 'ok'        // fully operational
+  | 'degraded'  // activated, but something it needs is missing (native addon, runtime, device)
+  | 'off'       // deliberately inactive — gated behind a setting the user hasn't enabled
+  | 'error';    // activate() threw; the host fills this in, a plugin never reports it itself
+
+export interface PluginStatus {
+  state: PluginState;
+  /** One short human phrase, lower-case, no trailing period: 'native addon unavailable'. */
+  detail?: string;
+}

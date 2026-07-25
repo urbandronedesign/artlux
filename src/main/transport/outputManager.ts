@@ -69,6 +69,12 @@ export function isReady(): boolean {
   return artnet.isReady() || sacn.isReady();
 }
 
+// Is the native Rust send engine loaded — NOT "is output configured" (that's isReady). Without it the
+// TypeScript transport still sends Art-Net/sACN, so this is degraded, not dead: no dedicated send
+// thread, no pacer. The startup splash reports it, because "output looks fine but jitters at 44fps" is
+// otherwise a mystery nobody connects back to a missing .node.
+export function isLoaded(): boolean { return !!native; }
+
 export function sendFrame(frame: ArrayBuffer | Uint8Array): void {
   if (native) {
     native.pushFrame(toBuffer(frame)); // hand off to the dedicated send thread

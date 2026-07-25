@@ -13,7 +13,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ComponentType, ReactNode, CSSProperties, PointerEvent as ReactPointerEvent } from 'react';
 import type { OscMessage, OscConfig } from './index.ts';
 
-export type { OscMessage, OscConfig, PluginManifest } from './index.ts';
+export type { OscMessage, OscConfig, PluginManifest, PluginState, PluginStatus } from './index.ts';
 
 // A drawable surface source — same as the host compositor's `CanvasImageSource`.
 export type Drawable = CanvasImageSource;
@@ -827,6 +827,13 @@ export interface RendererPlugin {
   manifest: import('./index.ts').PluginManifest;
   activate(ctx: RendererPluginContext): void;
   deactivate?(): void;
+  /**
+   * Optional post-activation self-report (see PluginStatus). Cheap + synchronous; no status = 'ok'.
+   * A renderer half reports what it CONTRIBUTED and whether a setting gates it — it must not guess at
+   * native availability, which only the main half can see. Cross-process plugins report from both
+   * halves and the splash merges them, keeping each answer honest about what it actually knows.
+   */
+  status?(): import('./index.ts').PluginStatus;
 }
 
 // ─── useDraggable (the one runtime helper in this entry) ──────────────────────────────────────
