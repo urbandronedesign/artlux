@@ -5,6 +5,7 @@ import { layoutStore, DEFAULT_LAYOUT } from '../../services/layoutStore';
 import { useLayout } from '../../hooks/useLayout';
 import { useResizable } from '../../hooks/useResizable';
 import { CollapsibleSection } from '../CollapsibleSection';
+import { ErrorBoundary } from '../ErrorBoundary';
 import { Dock } from '../Dock';
 import { ContextRail } from './ContextRail';
 import { ActionBar } from './ActionBar';
@@ -48,7 +49,13 @@ interface Props {
 // One browser/inspector panel, with the shell's section chrome unless the panel draws its own.
 const PanelSection: React.FC<{ panel: PanelContribution; contextId: string; selection: SelectionSnapshot }> =
 ({ panel, contextId, selection }) => {
-  const body = <panel.Component contextId={contextId} selection={selection} />;
+  // Contain a panel throw here: this is a SIBLING of the persistent Stage/timeline viewports, so a
+  // crash shows the recovery card and output keeps flowing. (See ErrorBoundary.)
+  const body = (
+    <ErrorBoundary variant="panel" label={panel.title ?? panel.id}>
+      <panel.Component contextId={contextId} selection={selection} />
+    </ErrorBoundary>
+  );
   // A bare panel draws its own chrome, but it still has to participate in the browser column's flex
   // layout: without this wrapper a full-height bare panel (MediaPanel is `h-full`) eats the column and
   // every section stacked under it disappears.
@@ -199,8 +206,9 @@ export const WorkspaceShell: React.FC<Props> = ({ viewports, selection, drawers 
             </div>
           )}
 
-          {/* Viewport + dock */}
-          <div className="flex-1 min-w-0 flex flex-col bg-surface-0">
+          {/* Viewport + dock. `role="main"` is the one landmark a screen-reader user jumps to — the
+              rail is <nav>, and this is the work area. */}
+          <div role="main" aria-label="Workspace" className="flex-1 min-w-0 flex flex-col bg-surface-0">
             <div ref={splitHostRef} className="flex-1 min-h-0 relative flex">
               {/* LEFT pane — every persistent viewport except the 3D scene, plus registry viewports.
                   Width 0 (not unmounted) when a 3D-scene context is maximized. */}
@@ -216,7 +224,9 @@ export const WorkspaceShell: React.FC<Props> = ({ viewports, selection, drawers 
                 ))}
                 {registryViewport && (
                   <div className="absolute inset-0 overflow-auto">
-                    <registryViewport.Component contextId={context.id} selection={selection} />
+                    <ErrorBoundary variant="panel" label={registryViewport.title ?? registryViewport.id}>
+                      <registryViewport.Component contextId={context.id} selection={selection} />
+                    </ErrorBoundary>
                   </div>
                 )}
               </div>
@@ -244,7 +254,11 @@ export const WorkspaceShell: React.FC<Props> = ({ viewports, selection, drawers 
                 height={layout.dockHeight}
                 onResize={(h) => layoutStore.set({ dockHeight: h })}
               >
-                {activeDock && <activeDock.Component contextId={context.id} selection={selection} />}
+                {activeDock && (
+                  <ErrorBoundary variant="panel" label={activeDock.title ?? activeDock.id}>
+                    <activeDock.Component contextId={context.id} selection={selection} />
+                  </ErrorBoundary>
+                )}
               </Dock>
             )}
           </div>
@@ -292,7 +306,9 @@ export const WorkspaceShell: React.FC<Props> = ({ viewports, selection, drawers 
             />
             <div className="flex-1 min-h-0">
               {bottomPanel
-                ? <bottomPanel.Component contextId={context.id} selection={selection} />
+                ? <ErrorBoundary variant="panel" label={bottomPanel.title ?? bottomPanel.id}>
+                    <bottomPanel.Component contextId={context.id} selection={selection} />
+                  </ErrorBoundary>
                 : viewports[bottomId!]}
             </div>
           </div>
