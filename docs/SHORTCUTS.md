@@ -7,11 +7,13 @@ one keymap the handlers consult, and the user's changes are saved to prefs. This
 ## For the user — rebinding a shortcut
 
 1. Open **Help ▸ Keyboard Shortcuts…** (in the app title-bar menu; on macOS, the native Help menu).
-2. The editor is a searchable, full-page overlay. Pick an action on the left (search by name, or browse
-   the category groups); its detail and current binding show on the right.
-3. Click **Record new shortcut** and press the key combination you want. It applies and is **saved
-   immediately** — no separate save step, and it survives restarts.
-4. **Reset to default** restores one action; **Reset all** (top-right) restores everything.
+2. The editor is a searchable, full-page **table** — one row per action, grouped by category. Search at
+   the top narrows the rows.
+3. **Click the shortcut cell** of the row you want and press the key combination — the cell records it
+   automatically (no separate button). It applies and is **saved immediately**, and survives restarts.
+   Press **Esc** while a cell is armed to cancel.
+4. Hover a changed row and click its **↺** to reset that one action; **Reset all** (top-right) restores
+   everything.
 
 **Conflicts are blocked *within a scope*.** If you bind a key already used by another action *in the same
 scope*, the editor refuses it and names the clash. Reusing a key across *different* scopes is allowed on
