@@ -83,6 +83,12 @@ npm run dev                   # electron-vite dev + launch the app (hot-reloads 
 - **Rebuilding a native `.node` while the app runs fails `EBUSY`** — stop dev + kill `electron` first.
 - Native addons **degrade gracefully** when missing/unbuilt (feature disabled + a `[module] unavailable`
   log, never a crash). If a native feature "does nothing," check it built and loaded.
+- **A window that must appear is NOT verifiable in dev.** `ready-to-show` does not always fire in a
+  packaged build, and `npm run dev` / `electron .` always trigger it — so both pass while the shipped app
+  shows nothing. A CDP probe lies too: `ARTLUX_CDP_PORT` forces a paint. Reveal on `ready-to-show` **+
+  `did-finish-load` + a backstop timer**, and verify by launching the packaged `ArtLux.exe` with no CDP
+  port. This cost a day in v0.19.2 (editor window) and shipped again in v0.25.0 (splash) because the rule
+  lived only in DEVELOPMENT.md → Testing. `verify:invariants` now enforces it.
 - This repo **commits directly to `main`** (small, scoped commits). **Push/commit only when asked.** Keep
   the tree buildable + typechecking clean. Releases are driven by a `vX.Y.Z` tag (DEVELOPMENT.md → Release).
 

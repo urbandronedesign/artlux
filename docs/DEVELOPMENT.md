@@ -252,6 +252,16 @@ There is no unit-test runner wired; verification is done ad-hoc with tsc + targe
   `EnumWindows`+`IsWindowVisible` (filter to the ArtLux PIDs) or a screenshot — never via CDP. The fix
   is to reveal on `did-finish-load` (always fires once the page loads) + a backstop timer, not only
   `ready-to-show` (see `createWindow` in `src/main/index.ts`).
+  > **IT HAPPENED AGAIN in v0.25.0 — to the startup splash, which is a second window nobody thought to
+  > apply this to.** `splashWindow.ts` shipped with a lone `once('ready-to-show')`; in the packaged
+  > installer the event never fired, so the window was created and never shown. It then *deleted itself
+  > silently*, because its close deadlines are measured from the show timestamp and `Date.now() - 0`
+  > reads as "every deadline long past" — the log said `closing after 1784993242235ms`. Two lessons on
+  > top of the v0.19.2 ones: **(a)** this rule applies to EVERY window the app must show, not just the
+  > editor — `npm run verify:invariants` now fails any main-process reveal wired to `ready-to-show`
+  > without both a `did-finish-load` path and a backstop timer; **(b)** if a window's lifetime is
+  > computed from when it appeared, guard the not-yet-shown case explicitly, or a zero timestamp turns
+  > "wait" into "destroy immediately". A `[splash] closing after <huge>ms` line is the fingerprint.
 - **Kill test instances after each run.** There is no single-instance lock, so leftover launches
   (especially `--broadcast`, which shows a tray icon + fullscreen projector windows) accumulate and
   look exactly like a bug on next launch. `Get-Process ArtLux,electron | Stop-Process -Force` between

@@ -509,6 +509,19 @@ Shipped across **v0.3.0** and **v0.3.1** (see `CHANGELOG.md`; UI detail in `arch
 - **v0.25.0 is the first release since v0.21.0**: v0.22–v0.24 were each prepared and never tagged, so this
   is also the first *distributed* build to carry a LICENSE, a settled JUCE election, and notices that match
   what the installer actually ships.
+- **The release was cut three times, and both failures are worth keeping.**
+  1. *macOS wouldn't compile.* `juce::jmin<size_t>` drags `SIMDRegister<size_t>` into overload resolution;
+     on arm64 macOS `size_t` is `unsigned long` while JUCE's NEON header only defines `SIMDNativeOps` for
+     `unsigned long long`. Green on Windows and Linux, where the types coincide, for weeks. → `std::min`.
+  2. *The splash never appeared in the packaged installer* — created, never shown, because it revealed on
+     `ready-to-show` alone. **This was already documented in DEVELOPMENT.md → Testing from v0.19.2, where
+     it cost a day on the editor window, and the entry even prescribes the fix.** Nobody re-read it before
+     adding a second window. That doc entry is now the guard's rationale, and `verify:invariants` enforces
+     it so the knowledge no longer depends on someone remembering to look.
+  Both bugs share a shape: **invisible in dev, only real once packaged.** `npm run dev` and `electron .`
+  against `out/` are not valid tests for window reveal (the dev-server load triggers `ready-to-show`), and
+  neither is a CDP probe — `ARTLUX_CDP_PORT` forces a paint, so it falsely passes. Only launching the
+  packaged `ArtLux.exe` with no CDP port proves it.
 
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
