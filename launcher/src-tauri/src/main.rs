@@ -14,7 +14,8 @@
 // exercised without a GUI; the commands below are a thin transport layer over it.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use artlux_launcher::{download, examples, install, projects, releases, runner};
+use artlux_launcher::{download, examples, install, preflight, projects, releases, runner};
+use tauri::Manager;
 use tauri::{AppHandle, Emitter};
 
 /// Every ArtLux install on this machine, plus whether the legacy double-install state is present.
@@ -172,6 +173,73 @@ fn copy_example(install_dir: String, set_id: String, project: String) -> Result<
     Ok(res)
 }
 
+// ---------------------------------------------------------------------------------------------
+// Health (the machine check)
+// ---------------------------------------------------------------------------------------------
+
+/// Which preflight.ps1 to run.
+///
+/// PREFER THE INSTALLED COPY so the check always matches the app version; fall back to the one this
+/// launcher bundles, which is the whole reason a machine can be checked BEFORE anything is
+/// installed. Returning the bundled path when nothing is installed is not a degraded mode -- it is
+/// the primary use case.
+fn preflight_script(app: &AppHandle, install_dir: &str) -> Option<std::path::PathBuf> {
+    if !install_dir.is_empty() {
+        let installed = std::path::Path::new(install_dir)
+            .join("resources").join("scripts").join("preflight.ps1");
+        if installed.is_file() {
+            return Some(installed);
+        }
+    }
+    app.path().resolve("resources/preflight.ps1", tauri::path::BaseDirectory::Resource).ok()
+}
+
+#[derive(serde::Serialize)]
+struct HealthState {
+    /// False on a machine where no script can be found at all — the tab hides rather than erroring.
+    available: bool,
+    winget: bool,
+    script: String,
+}
+
+#[tauri::command]
+fn health_state(app: AppHandle, install_dir: String) -> HealthState {
+    let script = preflight_script(&app, &install_dir);
+    HealthState {
+        available: script.as_ref().map(|p| p.is_file()).unwrap_or(false),
+        winget: preflight::winget_available(),
+        script: script.map(|p| p.to_string_lossy().into_owned()).unwrap_or_default(),
+    }
+}
+
+/// The last report on disk — usually written by the installer itself, so the first launch after an
+/// install already has something real to show without waiting 20 seconds.
+#[tauri::command]
+fn health_cached() -> Option<preflight::PreflightReport> {
+    preflight::read_cached()
+}
+
+#[tauri::command]
+async fn health_run(app: AppHandle, install_dir: String) -> Result<preflight::PreflightReport, String> {
+    let script = preflight_script(&app, &install_dir).ok_or("the machine-check script could not be located")?;
+    let dir = if install_dir.is_empty() { None } else { Some(install_dir) };
+    // Blocking: it shells out to PowerShell for up to ~20s and must not sit on the async runtime.
+    tauri::async_runtime::spawn_blocking(move || preflight::run(&script, dir.as_deref()))
+        .await
+        .map_err(|e| format!("the machine check could not be started: {e}"))?
+}
+
+/// Run the script's own -Fix, elevated and visible. Deliberately returns nothing about what it
+/// installed: the caller re-runs the read-only check and diffs, because an exit code we did not
+/// read is not evidence.
+#[tauri::command]
+async fn health_repair(app: AppHandle, install_dir: String) -> Result<(), String> {
+    let script = preflight_script(&app, &install_dir).ok_or("the machine-check script could not be located")?;
+    tauri::async_runtime::spawn_blocking(move || preflight::repair(&script))
+        .await
+        .map_err(|e| format!("the repair could not be started: {e}"))?
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -193,6 +261,10 @@ fn main() {
             list_examples,
             get_workspace,
             copy_example,
+            health_state,
+            health_cached,
+            health_run,
+            health_repair,
         ])
         .run(tauri::generate_context!())
         .expect("error while running the ArtLux Launcher");

@@ -29,8 +29,12 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
-    "icon": ["icons/icon.ico"],
+    "targets": [
+      "nsis"
+    ],
+    "icon": [
+      "icons/icon.ico"
+    ],
     "copyright": "© Zaki Jawhari and Bérenger Recoules",
     "shortDescription": "Installs ArtLux and opens your projects.",
     "windows": {
@@ -40,6 +44,9 @@
       "webviewInstallMode": {
         "type": "downloadBootstrapper"
       }
-    }
+    },
+    "resources": [
+      "resources/preflight.ps1"
+    ]
   }
 }

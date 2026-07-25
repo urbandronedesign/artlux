@@ -46,6 +46,17 @@ enum Elevated {
     Failed(String),
 }
 
+/// Elevate something and wait, reporting only whether it ran — for callers that must not infer
+/// success from an exit code. The machine-check repair uses this: winget prints its own progress and
+/// raises its own prompts, so the honest thing is to let the user watch it and then re-measure.
+pub fn run_elevated_visible(path: &str, args: &str) -> Result<(), String> {
+    match run_elevated(path, args) {
+        Elevated::Exited(_) => Ok(()),
+        Elevated::Declined => Err("The administrator prompt was declined, so nothing was installed.".into()),
+        Elevated::Failed(why) => Err(why),
+    }
+}
+
 /// Run `path args` elevated, and WAIT for it.
 ///
 /// SEE_MASK_NOCLOSEPROCESS is what makes waiting possible at all -- without it ShellExecuteEx does

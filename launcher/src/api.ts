@@ -108,6 +108,23 @@ export const getWorkspace = () => invoke<string>('get_workspace');
 export const copyExample = (installDir: string, setId: string, project: string) =>
   invoke<CopyResult>('copy_example', { installDir, setId, project });
 
+export interface PreflightItem { group: string; id: string; name: string; status: 'PASS'|'WARN'|'FAIL'|'SKIP'; detail: string; remedy: string }
+export interface PreflightReport {
+  generated_at: string;
+  host: string;
+  mode: string;
+  summary: { pass: number; warn: number; fail: number; skip: number };
+  results: PreflightItem[];
+  /** 'run' | 'cache' — a stale report must never look like a fresh one. */
+  from: string;
+}
+
+export const healthState = (installDir: string) =>
+  invoke<{ available: boolean; winget: boolean; script: string }>('health_state', { installDir });
+export const healthCached = () => invoke<PreflightReport | null>('health_cached');
+export const healthRun = (installDir: string) => invoke<PreflightReport>('health_run', { installDir });
+export const healthRepair = (installDir: string) => invoke<void>('health_repair', { installDir });
+
 export const scanInstalls = () => invoke<InstallScan>('scan_installs');
 export const artluxRunning = () => invoke<boolean>('artlux_running');
 export const resolveLatest = () => invoke<ReleaseInfo>('resolve_latest');

@@ -8,6 +8,7 @@
 pub mod download;
 pub mod examples;
 pub mod install;
+pub mod preflight;
 pub mod projects;
 pub mod releases;
 pub mod runner;

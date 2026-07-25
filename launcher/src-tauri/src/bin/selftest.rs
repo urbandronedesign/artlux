@@ -11,7 +11,7 @@
 //! found — "found via product key InstallLocation" is the whole point of install.rs, and a green
 //! test tick would hide it.
 
-use artlux_launcher::{download, examples, install, projects, releases, runner};
+use artlux_launcher::{download, examples, install, preflight, projects, releases, runner};
 
 fn line() {
     println!("{}", "-".repeat(78));
@@ -332,6 +332,61 @@ async fn main() {
         }
     } else {
         println!("   skipped: ArtLux is not installed");
+    }
+
+    line();
+    println!("9. MACHINE CHECK");
+    line();
+    {
+        // The bundled copy is what makes a PRE-install check possible; in a dev tree it is the one
+        // sync-preflight.cjs wrote. Prefer the installed copy exactly as main.rs does.
+        let bundled = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("resources").join("preflight.ps1");
+        let installed = scan.installs.first().map(|i| std::path::Path::new(&i.dir).join("resources").join("scripts").join("preflight.ps1"));
+        let script = installed.filter(|p| p.is_file()).unwrap_or(bundled);
+        println!("   script: {}", script.display());
+        println!("   winget: {}", preflight::winget_available());
+
+        match preflight::read_cached() {
+            Some(c) => println!("   cached: {} pass / {} warn / {} fail  (from {})", c.summary.pass, c.summary.warn, c.summary.fail, c.from),
+            None => println!("   cached: none yet"),
+        }
+
+        let t = std::time::Instant::now();
+        match preflight::run(&script, scan.installs.first().map(|i| i.dir.as_str())) {
+            Ok(r) => {
+                println!("   ran in {:?}: {} pass / {} warn / {} fail / {} skip (from {})",
+                    t.elapsed(), r.summary.pass, r.summary.warn, r.summary.fail, r.summary.skip, r.from);
+                if r.results.is_empty() {
+                    println!("   !! the report carried no results at all");
+                    failures += 1;
+                }
+                // The wire name the UI actually reads. A serde `rename` applies BOTH ways, so
+                // this field once arrived correctly and went back out under the PowerShell name,
+                // leaving the date blank in the UI with nothing logged.
+                let wire = serde_json::to_value(&r).unwrap_or_default();
+                if wire.get("generated_at").and_then(|v| v.as_str()).unwrap_or("").is_empty() {
+                    println!("   !! serialised report has no `generated_at` — the UI would show no date");
+                    failures += 1;
+                }
+                if r.from != "run" {
+                    println!("   !! a live run reported itself as coming from the cache");
+                    failures += 1;
+                }
+                // The whole reason this parses at all: exit code 1 means "some check FAILed", and a
+                // BOM would have made it unreadable.
+                for it in r.results.iter().filter(|i| i.status != "PASS" && i.status != "SKIP") {
+                    println!("     {:<5} {:<22} {}", it.status, it.id, it.detail);
+                }
+                // The install the script found must be the one we told it about, not a guess.
+                if let (Some(inst), Some(found)) = (scan.installs.first(), r.results.iter().find(|i| i.id == "install.found")) {
+                    if found.status == "PASS" && !found.detail.eq_ignore_ascii_case(&inst.dir) {
+                        println!("   !! -InstallDir was ignored: script found {} but we passed {}", found.detail, inst.dir);
+                        failures += 1;
+                    }
+                }
+            }
+            Err(e) => { println!("   !! {e}"); failures += 1; }
+        }
     }
 
     println!();

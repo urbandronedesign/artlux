@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Credits, Wordmark, APP_TAGLINE } from './brand';
 import { Projects } from './Projects';
 import { Examples } from './Examples';
+import { Health } from './Health';
 import {
   artluxRunning, cancelDownload, downloadInstaller, isNewer, mb, onProgress,
   resolveLatest, runInstaller, scanInstalls,
@@ -18,11 +19,13 @@ import './styles.css';
 
 type Phase = 'idle' | 'checking' | 'downloading' | 'installing';
 
+// All four are live. They carried a `ready`/`why` pair while the later ones were stubs, so a
+// disabled tab could say WHY rather than being a dead control; nothing is disabled now.
 const TABS = [
-  { id: 'install', label: 'Install', ready: true },
-  { id: 'projects', label: 'Projects', ready: true },
-  { id: 'examples', label: 'Examples', ready: true },
-  { id: 'health', label: 'Health', ready: false, why: 'The machine check (preflight) lands last.' },
+  { id: 'install', label: 'Install' },
+  { id: 'projects', label: 'Projects' },
+  { id: 'examples', label: 'Examples' },
+  { id: 'health', label: 'Health' },
 ] as const;
 
 export default function App() {
@@ -110,8 +113,6 @@ export default function App() {
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              disabled={!t.ready}
-              title={t.ready ? undefined : t.why}
               className="btn-ghost"
               style={{
                 border: 0, textAlign: 'left', padding: '7px 10px', borderRadius: 'var(--radius-md)',
@@ -128,6 +129,7 @@ export default function App() {
         <main style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
           {tab === 'projects' && <Projects install={primary} />}
           {tab === 'examples' && <Examples install={primary} />}
+          {tab === 'health' && <Health install={primary} />}
           {tab === 'install' && <>
           <section className="card" style={{ padding: 18 }}>
             <div className="label" style={{ marginBottom: 10 }}>On this machine</div>
