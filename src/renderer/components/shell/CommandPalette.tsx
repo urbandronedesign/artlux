@@ -4,6 +4,7 @@ import type { SelectionSnapshot } from '@artlux/sdk/renderer';
 import { contextRegistry } from '../../host/registries';
 import { goToContext } from '../../contexts/nav';
 import { useEditorActions } from '../../state/EditorStore';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 // Ctrl/Cmd+K — every workspace context and every action any context declares, in one searchable list.
 //
@@ -43,6 +44,7 @@ function score(needle: string, hay: string): number {
 
 export const CommandPalette: React.FC<{ selection: SelectionSnapshot }> = ({ selection }) => {
   const [open, setOpen] = useState(false);
+  const trapRef = useFocusTrap(open);
   const [q, setQ] = useState('');
   const [i, setI] = useState(0);
   const actions = useEditorActions();
@@ -60,8 +62,15 @@ export const CommandPalette: React.FC<{ selection: SelectionSnapshot }> = ({ sel
         setQ(''); setI(0);
       }
     };
+    // Also openable from the Help menu / a visible affordance, so it's discoverable without knowing
+    // the shortcut (it was Ctrl+K-only and listed nowhere).
+    const onOpenEvent = () => { setOpen((v) => !v); setQ(''); setI(0); };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('artlux:toggle-command-palette', onOpenEvent as EventListener);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('artlux:toggle-command-palette', onOpenEvent as EventListener);
+    };
   }, []);
 
   useEffect(() => { if (open) inputRef.current?.focus(); }, [open]);
@@ -125,6 +134,7 @@ export const CommandPalette: React.FC<{ selection: SelectionSnapshot }> = ({ sel
   return (
     <div className="fixed inset-0 z-modal bg-black/50 flex items-start justify-center pt-[12vh]" onClick={() => setOpen(false)}>
       <div
+        ref={trapRef}
         role="dialog" aria-modal="true" aria-label="Command palette"
         className="w-[560px] max-w-[92vw] bg-surface-1 border border-line-2 rounded-lg shadow-e3 overflow-hidden animate-modal-in"
         onClick={(e) => e.stopPropagation()}

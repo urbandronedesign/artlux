@@ -3,6 +3,7 @@ import { X, Github, BookOpen, RefreshCw, Download, RotateCcw, ExternalLink, Chec
 import type { AppInfo, UpdateEvent } from '../../../shared/protocol';
 import { Button } from './ui';
 import { useDraggableModal } from '../hooks/useDraggableModal';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface Props {
   open: boolean;
@@ -27,6 +28,7 @@ export const About: React.FC<Props> = ({ open, onClose, info }) => {
   }, [open, onClose]);
 
   const { positionerStyle, handleProps } = useDraggableModal('about');
+  const trapRef = useFocusTrap(open); // initial focus + Tab trap + return focus to the opener on close
 
   if (!open) return null;
   const open_ = (url: string) => window.artlux?.openExternal?.(url);
@@ -37,6 +39,7 @@ export const About: React.FC<Props> = ({ open, onClose, info }) => {
     <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/60 animate-overlay-in" onClick={onClose}>
       <div style={positionerStyle}>
       <div
+        ref={trapRef}
         role="dialog"
         aria-modal="true"
         aria-label="About ArtLux"

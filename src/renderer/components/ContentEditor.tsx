@@ -31,7 +31,7 @@ interface ContentEditorProps {
 const btnCls = (active: boolean) =>
   `flex flex-col items-center justify-center p-2 rounded border transition-all ${active ? 'bg-sel-surface/10 border-sel-surface text-sel-surface' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3'}`;
 
-export const ContentEditor: React.FC<ContentEditorProps> = ({ content: c, onChange, onTypeChange, layers, showLayerOption = true, surfaces, selfId }) => {
+const ContentEditorImpl: React.FC<ContentEditorProps> = ({ content: c, onChange, onTypeChange, layers, showLayerOption = true, surfaces, selfId }) => {
   // Sliceable = anything that isn't this surface and isn't itself a slice (slices don't nest —
   // any sub-region is expressible as one rect on the original, and refusing it removes every cycle).
   const sliceable = (surfaces ?? []).filter((s) => s.id !== selfId && s.content.type !== SourceType.SLICE);
@@ -61,14 +61,25 @@ export const ContentEditor: React.FC<ContentEditorProps> = ({ content: c, onChan
             <Video size={16} className="mb-1" /><span className="text-micro">Camera</span>
           </button>
         </Tooltip>
+        {/* role="button"+tabIndex make the <label> keyboard-focusable (the global :focus-visible ring
+            shows on it), and Enter/Space opens the hidden file input — a keyboard user could not reach
+            these pickers before (the input is display:none, and a bare <label> isn't focusable). */}
         <Tooltip id="content.video">
-          <label className={`pressable relative cursor-pointer ${btnCls(c.type === SourceType.VIDEO)}`} {...help('content.video')}>
+          <label
+            role="button" tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); (e.currentTarget.querySelector('input') as HTMLInputElement | null)?.click(); } }}
+            className={`pressable relative cursor-pointer ${btnCls(c.type === SourceType.VIDEO)}`} {...help('content.video')}
+          >
             <input type="file" accept="video/*" className="hidden" onChange={(e) => onFile(e, SourceType.VIDEO)} />
             <Monitor size={16} className="mb-1" /><span className="text-micro">Video</span>
           </label>
         </Tooltip>
         <Tooltip id="content.image">
-          <label className={`pressable relative cursor-pointer ${btnCls(c.type === SourceType.IMAGE)}`} {...help('content.image')}>
+          <label
+            role="button" tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); (e.currentTarget.querySelector('input') as HTMLInputElement | null)?.click(); } }}
+            className={`pressable relative cursor-pointer ${btnCls(c.type === SourceType.IMAGE)}`} {...help('content.image')}
+          >
             <input type="file" accept="image/*" className="hidden" onChange={(e) => onFile(e, SourceType.IMAGE)} />
             <ImageIcon size={16} className="mb-1" /><span className="text-micro">Image</span>
           </label>
@@ -259,3 +270,8 @@ export const ContentEditor: React.FC<ContentEditorProps> = ({ content: c, onChan
     </>
   );
 };
+
+// Memoized: the renderer repaints per frame during playback, and a parent re-render would tear down an
+// OPEN native <select> in this inspector (color order, effect, tracking source) mid-interaction — the
+// documented drop-selection hazard. With stable props from the editor store, this now holds its ground.
+export const ContentEditor = React.memo(ContentEditorImpl);

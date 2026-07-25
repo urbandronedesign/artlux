@@ -5,6 +5,7 @@ import { Tooltip } from '../../components/ui/Tooltip';
 import { help } from '../../services/helpBus';
 import { livePreview } from '../../services/livePreview';
 import { useEditor, useEditorActions } from '../../state/EditorStore';
+import { useRovingTabindex } from '../../hooks/useRovingTabindex';
 
 // Browser-column panels — the outliners. These are the four sections `ScenePanel` used to render as
 // one 25-prop component; each is now an independently placeable panel that reads the editor store,
@@ -50,16 +51,22 @@ export const SurfacesPanel: React.FC = () => {
 
   // Front-most on top (the stage draws low→high zIndex). ▲/▼ restack.
   const ordered = [...surfaces].sort((x, y) => (y.zIndex - x.zIndex) || (surfaces.indexOf(y) - surfaces.indexOf(x)));
+  const roving = useRovingTabindex(ordered.length);
 
   return (
-    <div className="p-1 space-y-0.5">
+    <div className="p-1 space-y-0.5" ref={roving.containerRef} onKeyDown={roving.onKeyDown}>
       {ordered.map((s, idx, arr) => {
         const sel = s.id === selectedSurfaceId;
         return (
           <div
             key={s.id}
+            role="button"
+            aria-pressed={sel}
+            aria-label={`Surface ${s.name}`}
+            {...roving.getItemProps(idx)}
             onClick={() => a.selectSurface(s.id)}
             onDoubleClick={() => rename.start(s.id, s.name)}
+            onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); a.selectSurface(s.id); } }}
             className={`pressable flex items-center group px-2 py-1.5 rounded cursor-pointer transition-colors ${sel ? 'bg-sel-surface/20 text-fg-1' : 'text-fg-2 hover:bg-surface-3'}`}
           >
             <Layers size={12} className={`mr-2 ${sel ? 'text-sel-surface' : 'text-fg-3'}`} />
@@ -87,15 +94,20 @@ export const SurfacesPanel: React.FC = () => {
                 ><ChevronDown size={12} /></button>
               </Tooltip>
               <button
-                className="opacity-0 group-hover:opacity-100 p-0.5 hover:text-danger ml-0.5"
+                className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 p-0.5 hover:text-danger ml-0.5"
                 onClick={(e) => { e.stopPropagation(); a.removeSurface(s.id); }}
                 title="Remove Surface"
+                aria-label={`Remove surface ${s.name}`}
               ><Trash2 size={10} /></button>
             </div>
           </div>
         );
       })}
-      {surfaces.length === 0 && <div className="text-fg-3 italic px-2 py-1">No surfaces</div>}
+      {surfaces.length === 0 && (
+        <button type="button" onClick={a.addSurface} className="w-full text-left px-2 py-2 text-mini text-fg-2 hover:text-fg-1 rounded">
+          No surfaces yet — <span className="text-accent">Add Surface</span>
+        </button>
+      )}
     </div>
   );
 };
@@ -130,12 +142,17 @@ export const FixturesPanel: React.FC = () => {
     a.selectFixture(id, e.ctrlKey || e.metaKey);
   };
 
+  const roving = useRovingTabindex(fixtures.length);
+
   return (
     <div className="p-1">
       <div className="mb-1">
         <Tooltip id="general.select-all-fixtures">
           <div
+            role="button"
+            tabIndex={0}
             onClick={a.selectAllFixtures}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); a.selectAllFixtures(); } }}
             className="pressable flex items-center px-2 py-1 text-fg-2 hover:bg-surface-3 rounded cursor-pointer"
             title="Select all fixtures"
             {...help('general.select-all-fixtures')}
@@ -145,32 +162,45 @@ export const FixturesPanel: React.FC = () => {
             {fixtures.length > 0 && <span className="ml-auto text-micro text-fg-3">{fixtures.length}</span>}
           </div>
         </Tooltip>
-        <div className="pl-4 border-l border-line-1 ml-2.5 mt-1 space-y-0.5">
-          {fixtures.map((f) => {
+        <div className="pl-4 border-l border-line-1 ml-2.5 mt-1 space-y-0.5" ref={roving.containerRef} onKeyDown={roving.onKeyDown}>
+          {fixtures.map((f, idx) => {
             const sel = selectedFixtureIds.includes(f.id);
             return (
               <div
                 key={f.id}
+                role="button"
+                aria-pressed={sel}
+                aria-label={`Fixture ${f.name}`}
+                {...roving.getItemProps(idx)}
                 onClick={(e) => onClick(e, f.id)}
                 onDoubleClick={() => rename.start(f.id, f.name)}
+                onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); a.selectFixture(f.id, false); } }}
                 className={`pressable flex items-center group px-2 py-1.5 rounded cursor-pointer transition-colors ${sel ? 'bg-accent/20 text-white' : 'text-fg-2 hover:bg-surface-3'}`}
               >
                 <Box size={12} className={`mr-2 ${sel ? 'text-accent' : 'text-fg-3'}`} />
                 {rename.editingId === f.id
                   ? rename.input('border-accent')
                   : <span className="flex-1 truncate select-none" title="Double-click to rename">{f.name}</span>}
-                <div className="opacity-0 group-hover:opacity-100 flex gap-1">
+                <div className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 flex gap-1">
                   <button
-                    className="p-0.5 hover:text-danger text-fg-3"
+                    className="p-0.5 hover:text-danger text-fg-3 focus-visible:opacity-100"
                     onClick={(e) => { e.stopPropagation(); a.removeFixture(f.id); }}
                     title="Remove Fixture"
+                    aria-label={`Remove fixture ${f.name}`}
                   ><Trash2 size={10} /></button>
                 </div>
-                <div className="w-1 h-1 rounded-full bg-ok ml-2 shadow-[0_0_4px_rgba(63,185,80,0.5)]" />
+                {/* Presence indicator — the same for every fixture, so it's decorative, not a status
+                    an operator must decode by colour. Hidden from AT (a bare green dot conveys nothing
+                    a screen-reader user could act on). */}
+                <div className="w-1 h-1 rounded-full bg-ok ml-2 shadow-[0_0_4px_rgba(63,185,80,0.5)]" title="Patched" aria-hidden="true" />
               </div>
             );
           })}
-          {fixtures.length === 0 && <div className="text-fg-3 italic px-2 py-1">No fixtures</div>}
+          {fixtures.length === 0 && (
+            <button type="button" onClick={a.addFixture} className="w-full text-left px-2 py-2 text-mini text-fg-2 hover:text-fg-1 rounded">
+              No fixtures yet — <span className="text-accent">Add Fixture</span>
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -83,6 +83,16 @@ export const Tooltip: React.FC<TooltipProps> = ({ id, content, children }) => {
     closeTimer.current = window.setTimeout(() => setOpen(false), CLOSE_DELAY);
   }, []);
 
+  // Keyboard focus opens immediately (no hover-intent delay) so the "Learn more" link is available to
+  // Tab into right away — the panel is portaled to <body>, so a delayed open would not exist yet when
+  // the user presses Tab. See onKeyDown on the anchor below.
+  const openNow = useCallback(() => {
+    if (!short) return;
+    clearTimers();
+    computePos();
+    setOpen(true);
+  }, [short, computePos]);
+
   // Reposition on scroll/resize while open (the anchor moves with the layout), and close on ESC.
   useLayoutEffect(() => {
     if (!open) return;
@@ -117,8 +127,16 @@ export const Tooltip: React.FC<TooltipProps> = ({ id, content, children }) => {
     'aria-describedby': open ? uid : childProps['aria-describedby'],
     onMouseEnter: mergeHandler(childProps.onMouseEnter, scheduleOpen),
     onMouseLeave: mergeHandler(childProps.onMouseLeave, scheduleClose),
-    onFocus: mergeHandler(childProps.onFocus, scheduleOpen),
+    onFocus: mergeHandler(childProps.onFocus, openNow),
     onBlur: mergeHandler(childProps.onBlur, scheduleClose),
+    // Tab from the focused control moves into the panel's "Learn more" link (which is portaled to
+    // <body>, so it is otherwise unreachable). clearTimers first so the pending close doesn't fire.
+    onKeyDown: mergeHandler(childProps.onKeyDown, (e: React.KeyboardEvent) => {
+      if (e.key === 'Tab' && !e.shiftKey && open && entry) {
+        const btn = panelRef.current?.querySelector('button');
+        if (btn) { e.preventDefault(); clearTimers(); (btn as HTMLElement).focus(); }
+      }
+    }),
   } as any);
 
   const onLearnMore = () => {
@@ -134,9 +152,12 @@ export const Tooltip: React.FC<TooltipProps> = ({ id, content, children }) => {
           ref={panelRef}
           id={uid}
           role="tooltip"
-          // Hovering the panel keeps it open (the bridge that lets the user reach the link).
+          // Hovering OR focusing the panel keeps it open (the bridge that lets pointer and keyboard
+          // users reach the link); leaving it (blur to elsewhere) schedules the close.
           onMouseEnter={clearTimers}
           onMouseLeave={scheduleClose}
+          onFocus={clearTimers}
+          onBlur={scheduleClose}
           style={{
             position: 'fixed',
             top: pos.placement === 'bottom' ? pos.top : undefined,

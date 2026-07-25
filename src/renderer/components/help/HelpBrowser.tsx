@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Search, HelpCircle } from 'lucide-react';
 import { allHelpEntries, type HelpEntry } from '../../help/registry';
 import { helpNav } from '../../services/helpNav';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 // The searchable Help Page — a Ctrl+K-style centered overlay over the per-function help registry.
 //
@@ -31,6 +32,7 @@ function score(needle: string, hay: string): number {
 
 export const HelpBrowser: React.FC = () => {
   const [open, setOpen] = useState(false);
+  const trapRef = useFocusTrap(open);
   const [q, setQ] = useState('');
   const [selId, setSelId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -106,6 +108,7 @@ export const HelpBrowser: React.FC = () => {
   return (
     <div className="fixed inset-0 z-modal bg-black/50 flex items-start justify-center pt-[10vh]" onClick={close}>
       <div
+        ref={trapRef}
         role="dialog" aria-modal="true" aria-label="Search help"
         className="w-[760px] max-w-[94vw] h-[64vh] bg-surface-1 border border-line-2 rounded-lg shadow-e3 overflow-hidden animate-modal-in flex flex-col"
         onClick={(e) => e.stopPropagation()}

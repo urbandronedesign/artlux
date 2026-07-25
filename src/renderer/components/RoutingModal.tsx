@@ -21,7 +21,10 @@ interface Props {
   onUpdatePatchPolicy: (p: Partial<PatchPolicy>) => void;
 }
 
-const cell = 'w-full bg-surface-0 border border-line-1 rounded-sm px-1 py-0.5 text-fg-1 text-mini focus:border-accent focus:outline-none disabled:opacity-40';
+// focus-visible: (not focus:) keeps the global accent ring for KEYBOARD focus while suppressing it for
+// mouse clicks in the dense grid; the border-accent is the mouse affordance. Dropping the old blanket
+// `focus:outline-none` restored a visible keyboard-focus indicator on every patch cell.
+const cell = 'w-full bg-surface-0 border border-line-1 rounded-sm px-1 py-0.5 text-fg-1 text-mini focus:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-40';
 
 // Routing spreadsheet: manage controllers + patch every fixture (surface link,
 // controller, universe/address, channels) in one grid.

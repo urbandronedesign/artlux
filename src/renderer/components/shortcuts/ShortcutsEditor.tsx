@@ -5,6 +5,7 @@ import { keymap } from '../../shortcuts/keymapStore';
 import { eventToChord, formatChord, isModifierKey } from '../../shortcuts/chord';
 import type { ShortcutDef } from '../../shortcuts/types';
 import { shortcutsNav } from '../../services/shortcutsNav';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 // The full-page Keyboard Shortcuts editor — a centered overlay over the shortcut registry, self-owning
 // its open state via shortcutsNav (App holds no state, like HelpBrowser).
@@ -42,6 +43,7 @@ const Chip: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 
 export const ShortcutsEditor: React.FC = () => {
   const [open, setOpen] = useState(false);
+  const trapRef = useFocusTrap(open);
   const [q, setQ] = useState('');
   // The action whose shortcut cell is currently armed and listening for a key (null = none).
   const [recordingId, setRecordingId] = useState<string | null>(null);
@@ -122,6 +124,7 @@ export const ShortcutsEditor: React.FC = () => {
   return (
     <div className="fixed inset-0 z-modal bg-black/50 flex items-start justify-center pt-[8vh]" onClick={close}>
       <div
+        ref={trapRef}
         role="dialog" aria-modal="true" aria-label="Keyboard shortcuts"
         className="w-[720px] max-w-[94vw] h-[74vh] bg-surface-1 border border-line-2 rounded-lg shadow-e3 overflow-hidden animate-modal-in flex flex-col"
         onClick={(e) => e.stopPropagation()}

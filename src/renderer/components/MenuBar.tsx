@@ -85,12 +85,14 @@ function buildMenus(recents: string[]): Menu[] {
         { label: 'Reload', accel: 'Ctrl+R', cmd: 'reload' },
         { label: 'Toggle Developer Tools', accel: 'Ctrl+Shift+I', cmd: 'devtools' },
         { sep: true },
-        { label: 'OSC Monitor…', accel: 'Ctrl+Shift+M', action: 'osc-monitor' },
-        { label: 'Pose Monitor…', action: 'pose-monitor' },
+        // These navigate to dock tabs / context viewports (per WORKSPACE.md), so no dialog "…". Only
+        // Pose Floor Calibration opens a modal flow and keeps its ellipsis.
+        { label: 'OSC Monitor', accel: 'Ctrl+Shift+M', action: 'osc-monitor' },
+        { label: 'Pose Monitor', action: 'pose-monitor' },
         { label: 'Pose Floor Calibration…', action: 'pose-calibrate' },
-        { label: 'Augmenta Monitor…', action: 'augmenta-monitor' },
-        { label: 'Show Control…', action: 'show-control' },
-        { label: 'Audio Bed…', action: 'audio-bed' },
+        { label: 'Augmenta Monitor', action: 'augmenta-monitor' },
+        { label: 'Show Control', action: 'show-control' },
+        { label: 'Audio Bed', action: 'audio-bed' },
         { sep: true },
         { label: 'Reset Zoom', accel: 'Ctrl+0', cmd: 'zoom-reset' },
         { label: 'Zoom In', accel: 'Ctrl++', cmd: 'zoom-in' },
@@ -109,6 +111,8 @@ function buildMenus(recents: string[]): Menu[] {
     {
       label: 'Help',
       items: [
+        { label: 'Command Palette…', accel: 'Ctrl+K', action: 'command-palette' },
+        { sep: true },
         { label: 'Help Panel', accel: 'F1', action: 'help-panel' },
         { label: 'Search Help…', accel: 'Shift+F1', action: 'help-search' },
         { label: 'Keyboard Shortcuts…', action: 'shortcuts' },
@@ -181,18 +185,36 @@ export const MenuBar: React.FC<Props> = ({ onMenuAction, actions }) => {
         <div className="w-[18px] h-[18px] rounded-md bg-gradient-to-br from-sky-400 to-blue-600 flex items-center justify-center text-white font-bold text-xs leading-none shadow-e1">A</div>
       </div>
 
-      {/* Menus */}
-      <div className="flex items-stretch" style={NODRAG}>
-        {menus.map((m) => (
+      {/* Menus — APG menubar: Left/Right move between menus, Down/Enter open one and focus its first
+          item, Escape closes. Fully mouse- AND keyboard-operable (it was mouse-only before). */}
+      <div className="flex items-stretch" role="menubar" aria-label="Application menu" style={NODRAG}>
+        {menus.map((m, idx) => (
           <div key={m.label} className="relative flex">
             <button
+              data-topmenu
+              role="menuitem"
+              aria-haspopup="menu"
+              aria-expanded={open === m.label}
               className={`px-2 h-full text-md leading-none flex items-center transition-colors ${open === m.label ? 'bg-white/10 text-fg-1' : 'text-fg-2 hover:bg-white/5 hover:text-fg-1'}`}
               onClick={() => setOpen(open === m.label ? null : m.label)}
               onMouseEnter={() => { if (open) setOpen(m.label); }} // hover-switch once the bar is active
+              onKeyDown={(e) => {
+                const tops = Array.from(barRef.current?.querySelectorAll<HTMLElement>('[data-topmenu]') ?? []);
+                if (e.key === 'ArrowRight') { e.preventDefault(); const n = (idx + 1) % menus.length; tops[n]?.focus(); if (open) setOpen(menus[n].label); }
+                else if (e.key === 'ArrowLeft') { e.preventDefault(); const n = (idx - 1 + menus.length) % menus.length; tops[n]?.focus(); if (open) setOpen(menus[n].label); }
+                else if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(m.label); }
+                else if (e.key === 'Escape') { setOpen(null); }
+              }}
             >
               {m.label}
             </button>
-            {open === m.label && <Dropdown items={m.items} onRun={run} />}
+            {open === m.label && (
+              <Dropdown
+                items={m.items}
+                onRun={run}
+                onClose={() => { setOpen(null); barRef.current?.querySelectorAll<HTMLElement>('[data-topmenu]')[idx]?.focus(); }}
+              />
+            )}
           </div>
         ))}
       </div>
@@ -223,20 +245,75 @@ export const MenuBar: React.FC<Props> = ({ onMenuAction, actions }) => {
   );
 };
 
-// One dropdown panel (top-level or a submenu flyout).
-const Dropdown: React.FC<{ items: Item[]; onRun: (i: Extract<Item, { label: string }>) => void; flyout?: boolean }> = ({ items, onRun, flyout }) => {
+// One dropdown panel (top-level or a submenu flyout). Keyboard: Up/Down/Home/End move a roving focus
+// among items, Enter/Space activate, Right opens a submenu, Left/Escape close (Escape on the top-level
+// menu returns focus to the opener via onClose).
+const Dropdown: React.FC<{
+  items: Item[];
+  onRun: (i: Extract<Item, { label: string }>) => void;
+  onClose?: () => void;
+  flyout?: boolean;
+}> = ({ items, onRun, onClose, flyout }) => {
   const [subOpen, setSubOpen] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Focus the first enabled item when the menu opens (keyboard entry from the top bar / parent item).
+  useEffect(() => {
+    if (flyout) return; // a submenu is focused explicitly on ArrowRight (below)
+    const first = menuRef.current?.querySelector<HTMLElement>('[data-menuitem]:not([disabled])');
+    first?.focus();
+  }, [flyout]);
+
+  const itemsOf = () => Array.from(menuRef.current?.querySelectorAll<HTMLElement>(':scope > div > [data-menuitem]:not([disabled])') ?? []);
+  const move = (from: HTMLElement, delta: number) => {
+    const list = itemsOf();
+    const i = list.indexOf(from);
+    const n = (i + delta + list.length) % list.length;
+    list[n]?.focus();
+  };
+
   return (
-    <div className={`absolute ${flyout ? 'left-full -top-1' : 'left-0 top-full'} min-w-[220px] py-1 bg-surface-1 border border-line-2 rounded-md shadow-e3 z-menu-flyout animate-overlay-in`}>
+    <div
+      ref={menuRef}
+      role="menu"
+      className={`absolute ${flyout ? 'left-full -top-1' : 'left-0 top-full'} min-w-[220px] py-1 bg-surface-1 border border-line-2 rounded-md shadow-e3 z-menu-flyout animate-overlay-in`}
+      onKeyDown={(e) => {
+        const target = e.target as HTMLElement;
+        if (!target.hasAttribute('data-menuitem')) return;
+        const list = itemsOf();
+        if (e.key === 'ArrowDown') { e.preventDefault(); move(target, 1); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); move(target, -1); }
+        else if (e.key === 'Home') { e.preventDefault(); list[0]?.focus(); }
+        else if (e.key === 'End') { e.preventDefault(); list[list.length - 1]?.focus(); }
+        else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onClose?.(); }
+      }}
+    >
       {items.map((it, i) => {
-        if ('sep' in it) return <div key={i} className="my-1 h-px bg-line-1" />;
+        if ('sep' in it) return <div key={i} className="my-1 h-px bg-line-1" role="separator" />;
         const item = it;
         const hasSub = !!item.submenu;
         return (
           <div key={item.label} className="relative" onMouseEnter={() => setSubOpen(hasSub ? item.label : null)}>
             <button
+              data-menuitem
+              role="menuitem"
+              aria-haspopup={hasSub ? 'menu' : undefined}
+              aria-expanded={hasSub ? subOpen === item.label : undefined}
               disabled={item.disabled}
               onClick={() => onRun(item)}
+              onKeyDown={(e) => {
+                if (hasSub && (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ')) {
+                  e.preventDefault();
+                  setSubOpen(item.label);
+                  // Focus the submenu's first item after it renders.
+                  window.setTimeout(() => {
+                    (e.currentTarget?.parentElement?.querySelector('[data-menuitem]:not([disabled])') as HTMLElement | null)?.focus();
+                  }, 0);
+                } else if (e.key === 'ArrowLeft' && flyout) {
+                  e.preventDefault(); // close this submenu, back to the parent item
+                  (e.currentTarget.closest('[role="menu"]')?.parentElement?.querySelector('[data-menuitem]') as HTMLElement | null)?.focus();
+                }
+              }}
               className={`w-full flex items-center gap-6 px-3 h-7 text-[12.5px] text-left ${item.disabled ? 'text-fg-3 cursor-default' : 'text-fg-1 hover:bg-accent/20'}`}
             >
               <span className="flex-1 truncate">{item.label}</span>
