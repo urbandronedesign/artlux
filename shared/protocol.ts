@@ -700,6 +700,10 @@ export interface Prefs {
   layoutState?: unknown;
   /** Unattended self-healing watchdog config (broadcast/show installs). Absent = defaults, disabled. */
   unattended?: UnattendedPrefs;
+  /** User keyboard-shortcut overrides, keyed by stable shortcut id → its bound chords (e.g. ["Ctrl+Z"]).
+      Renderer-owned blob (the full registry of default bindings lives in the renderer, this stores only
+      the deltas the user changed). Absent / missing keys = the registry default. */
+  shortcuts?: Record<string, string[]>;
 }
 
 // ─── Unattended watchdog (self-healing for broadcast/show installs) ────────────────────────────

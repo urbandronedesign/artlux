@@ -45,7 +45,9 @@ import { nextAccent, GLOBAL_ACCENT } from './sceneAccent';
 import * as oscController from './services/oscController';
 import { useLayout } from './hooks/useLayout';
 import { layoutStore, type WorkspaceLayout } from './services/layoutStore';
+import { keymap } from './shortcuts/keymapStore';
 import { openHelp } from './services/helpNav';
+import { openShortcuts } from './services/shortcutsNav';
 import { activateRendererPlugins } from './host/plugins';
 import { setEnabled as mp4SetEnabled } from '@artlux/plugin-mp4';
 import type { RendererHostServices, AutomationTargetProvider, AutomationTargetDef } from '@artlux/sdk/renderer';
@@ -375,15 +377,17 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-        if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
-            if (e.shiftKey) redo(); else undo();
-            e.preventDefault();
-        }
-        else if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+        // Bindings resolve through the keymap (registry defaults + the user's saved overrides). redo is
+        // checked before undo because Ctrl+Shift+Z would otherwise satisfy undo's Ctrl+Z on some layouts.
+        if (keymap.matches(e, 'global.redo')) {
             redo();
             e.preventDefault();
         }
-        else if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A')) {
+        else if (keymap.matches(e, 'global.undo')) {
+            undo();
+            e.preventDefault();
+        }
+        else if (keymap.matches(e, 'global.selectAll')) {
             const el = e.target as HTMLElement | null;
             const typing = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
             if (!typing && fixturesRef.current.length) {
@@ -391,8 +395,8 @@ const App: React.FC = () => {
                 e.preventDefault();
             }
         }
-        // Ctrl/Cmd+Alt+P — open the Performance dock tab (renderer frame-time metrics).
-        else if ((e.ctrlKey || e.metaKey) && e.altKey && (e.key === 'p' || e.key === 'P')) {
+        // Open the Performance dock tab (renderer frame-time metrics).
+        else if (keymap.matches(e, 'global.perfDock')) {
             openDockPanel(PERF_PANEL);
             e.preventDefault();
         }
@@ -1985,6 +1989,7 @@ const App: React.FC = () => {
           case 'about': setAboutOpen(true); break;
           case 'help-panel': setShowHelp((v) => !v); break;
           case 'help-search': openHelp(); break;
+          case 'shortcuts': openShortcuts(); break;
           case 'docs-browser': setDocsOpen((v) => !v); break;
           case 'check-updates': setUpdateUserInitiated(true); window.artlux?.checkForUpdates?.(); break;
           case 'undo': undo(); break;
@@ -2732,7 +2737,7 @@ const App: React.FC = () => {
   useEffect(() => {
       if (!nvAvailable) return;
       const onKey = (e: KeyboardEvent) => {
-          if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'W' || e.key === 'w')) { e.preventDefault(); clearAllNvwarp(); }
+          if (keymap.matches(e, 'global.clearNvwarp')) { e.preventDefault(); clearAllNvwarp(); }
       };
       window.addEventListener('keydown', onKey);
       window.addEventListener('beforeunload', clearAllNvwarp);
@@ -2787,6 +2792,9 @@ const App: React.FC = () => {
           layoutStore.hydrate(savedLayout);
           // …then put the active context's own panel sizes back on. See enterActiveContext().
           layoutStore.enterActiveContext(contextLayoutOf(layoutStore.get().activeContext));
+          // Adopt the user's keyboard-shortcut overrides (absent → registry defaults). Migrated keydown
+          // handlers read keymap.matches(); the editor reads/writes through the same store.
+          keymap.hydrate(prefs.shortcuts);
           if (Array.isArray(prefs.fixtureTemplates)) setTemplates(prefs.fixtureTemplates as FixtureTemplate[]);
           if (prefs.lastProjectPath) {
               const data = await window.artlux?.loadProjectPath?.(prefs.lastProjectPath);

@@ -4,6 +4,7 @@ import { layoutStore } from '../../services/layoutStore';
 import { goToContext } from '../../contexts/nav';
 import { useLayout } from '../../hooks/useLayout';
 import { helpBus } from '../../services/helpBus';
+import { keymap } from '../../shortcuts/keymapStore';
 
 // The workspace-context switcher: a 48px icon rail down the far left, one button per registered
 // WorkspaceContext, grouped into the three clusters (Build / Align / Show) with a rule between them.
@@ -38,13 +39,17 @@ export const ContextRail: React.FC = () => {
       if (!e.ctrlKey && !e.metaKey) return;
       if (isTyping()) return;
       const list = contextRegistry.all();
-      if (e.key === 'Tab') {
+      // Next / previous workspace — bindings resolve through the keymap (defaults Ctrl+Tab / Ctrl+Shift+Tab).
+      const prev = keymap.matches(e, 'global.prevContext');
+      if (prev || keymap.matches(e, 'global.nextContext')) {
         const i = list.findIndex((c) => c.id === layoutStore.get().activeContext);
-        const next = (i + (e.shiftKey ? -1 : 1) + list.length) % list.length;
+        const next = (i + (prev ? -1 : 1) + list.length) % list.length;
         e.preventDefault();
         go(list[next].id);
         return;
       }
+      // Ctrl+1..9 direct context jump stays hardcoded — nine numeric variants of one behaviour, not a
+      // per-action binding worth exposing in the editor.
       const n = Number(e.key);
       if (Number.isInteger(n) && n >= 1 && n <= 9 && list[n - 1]) {
         e.preventDefault();

@@ -10,6 +10,7 @@ import { ContextRail } from './ContextRail';
 import { ActionBar } from './ActionBar';
 import { CommandPalette } from './CommandPalette';
 import { HelpBrowser } from '../help/HelpBrowser';
+import { ShortcutsEditor } from '../shortcuts/ShortcutsEditor';
 
 // The context-driven editor shell.
 //
@@ -167,6 +168,7 @@ export const WorkspaceShell: React.FC<Props> = ({ viewports, selection, drawers 
     <div className="flex flex-1 min-h-0">
       <CommandPalette selection={selection} />
       <HelpBrowser />
+      <ShortcutsEditor />
       <ContextRail />
 
       <div className="flex-1 min-w-0 flex flex-col">

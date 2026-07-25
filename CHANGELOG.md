@@ -5,6 +5,17 @@
 > Carries everything under v0.23.0 and v0.22.0 below: those were prepared (version bumped, changelog
 > written) but never tagged, so no build was distributed. The last RELEASED version is **v0.21.0**.
 
+### Keyboard shortcuts are configurable
+
+Shortcuts used to be a static prose list in the Help panel, hand-maintained and quietly out of step with
+the real bindings, with the actual keys hardcoded across a dozen independent handlers. That list is gone.
+There is now one registry of every rebindable action, one keymap the handlers consult, and a full-page
+editor (**Help ▸ Keyboard Shortcuts…**): search an action, **Record** a new combination, and it applies
+and persists at once — with per-action and **Reset all**. Colliding keys are blocked *within a scope*
+(Global / Timeline / State graph / Projector), while the same key may be reused across scopes on purpose,
+since a Timeline shortcut only fires while the timeline is focused. Overrides are saved to
+`artlux-prefs.json` as deltas from the shipped defaults. See [docs/SHORTCUTS.md](docs/SHORTCUTS.md).
+
 ### The first run of a show is smooth
 
 A show's opening seconds were the worst seconds it had: on a real 1080p60 HAP project the editor went

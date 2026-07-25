@@ -111,6 +111,7 @@ function buildMenus(recents: string[]): Menu[] {
       items: [
         { label: 'Help Panel', accel: 'F1', action: 'help-panel' },
         { label: 'Search Help…', accel: 'Shift+F1', action: 'help-search' },
+        { label: 'Keyboard Shortcuts…', action: 'shortcuts' },
         { label: 'Docs & Tutorials', action: 'docs-browser' },
         { sep: true },
         { label: 'Check for Updates…', action: 'check-updates' },

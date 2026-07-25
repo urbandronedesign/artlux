@@ -5,6 +5,7 @@ import { smTriggerRegistry } from '../../host/registries';
 import { Plus, Star, Trash2, ArrowRight, Wand2, SquareDashed, Film, Snowflake, Zap } from 'lucide-react';
 import { Tooltip } from '../ui/Tooltip';
 import { help } from '../../services/helpBus';
+import { keymap } from '../../shortcuts/keymapStore';
 
 // `holdsAtEnd` = this scene's timeline ends by FREEZING on its last frame (Timeline.holdAtEnd, Loop
 // off) rather than by stopping. It is what a `requireEnd` transition out of this state waits for, so
@@ -235,7 +236,7 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
   // Delete the selection with Del/Backspace (unless typing in a field).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+      if (!keymap.matches(e, 'stategraph.deleteSelected')) return;
       const t = document.activeElement?.tagName;
       if (t === 'INPUT' || t === 'SELECT' || t === 'TEXTAREA') return;
       if (!sel) return; e.preventDefault();

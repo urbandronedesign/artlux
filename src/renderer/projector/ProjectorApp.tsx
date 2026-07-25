@@ -8,6 +8,8 @@ import { squareToQuad, applyH } from './homography';
 import { makeBezierWarp, tessellateBezier, evalBezier, BEZIER_CORNERS } from './warp';
 import type { MainToProjector, ProjectorToMain, ProjectorRender } from './bridge';
 import { activateRendererPlugins } from '../host/plugins';
+import { keymap } from '../shortcuts/keymapStore';
+import { eventToChord } from '../shortcuts/chord';
 import { projectorChannelRegistry, projectorPanelRegistry } from '../host/registries';
 import type { ProjectorPanelContext } from '@artlux/sdk/renderer';
 
@@ -139,6 +141,11 @@ export const ProjectorApp: React.FC = () => {
   // External mirror, but decode HAP layers locally: this window is visible/full-speed, so it
   // plays HAP smoothly even when the hidden broadcast main window throttles its frame pump.
   useEffect(() => { engine.setExternal(true); engine.setHapLocal(true); }, []);
+
+  // This is a SEPARATE renderer window (projector.html) with its own module instances, so it must adopt
+  // the user's shortcut overrides itself — the main editor's keymap.hydrate() doesn't reach here. Absent
+  // overrides fall through to the registry defaults, so warp keys work before prefs even resolve.
+  useEffect(() => { window.artlux?.getPrefs?.().then((p) => keymap.hydrate(p?.shortcuts)).catch(() => {}); }, []);
 
   useEffect(() => {
     const onResize = () => setSize({ w: window.innerWidth, h: window.innerHeight });
@@ -327,14 +334,23 @@ export const ProjectorApp: React.FC = () => {
   useEffect(() => {
     if (!editing) return;
     const onKey = (e: KeyboardEvent) => {
+      // Esc-to-dismiss stays hardcoded (universal cancel). Reset + the four nudges resolve through the
+      // keymap (defaults R / arrows) — see shortcuts/registry.ts `projector.*`.
       if (e.key === 'Escape') { setEditing(false); send({ t: 'editOff' }); return; }
-      if (e.key === 'r' || e.key === 'R') {
+      if (keymap.matches(e, 'projector.warpReset')) {
         if (warpRef.current) setWarp(makeBezierWarp(pinRef.current));
         else setPin(defaultCornerPin());
         commit(); return;
       }
-      const dir: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
-      const dxy = dir[e.key];
+      // Shift is an ORTHOGONAL modifier here (×10 step, read below), not part of the binding — so match
+      // each direction against its binding with any leading Shift stripped (mirrors the timeline delete).
+      const bare = eventToChord(e).replace(/^Shift\+/, '');
+      const hit = (id: string) => keymap.resolve(id).includes(bare);
+      const dxy: [number, number] | undefined =
+        hit('projector.warpNudgeLeft')  ? [-1, 0] :
+        hit('projector.warpNudgeRight') ? [1, 0]  :
+        hit('projector.warpNudgeUp')    ? [0, -1] :
+        hit('projector.warpNudgeDown')  ? [0, 1]  : undefined;
       if (!dxy) return;
       e.preventDefault();
       const step = e.shiftKey ? 10 : 1;

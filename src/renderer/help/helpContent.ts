@@ -51,12 +51,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       fr: "La ligne de temps séquence des clips de calques vidéo jusqu'au champ Longueur, qui marque la fin de la ligne de temps. Ajoutez des clips aux calques, utilisez lame/aimant/ripple pour éditer, et activez Boucle pour boucler la région in/out (ou toute la ligne de temps si aucune région n'est définie) — Boucle désactivée, la lecture s'arrête et se fige à la fin. Zoomez à la molette vers le curseur, panoramique au clic-milieu, et appuyez sur F pour agrandir. Le transport (lecture/pause/recherche/stop) peut aussi être piloté par OSC et la machine à états.",
     },
   },
-  {
-    id: 'shortcuts',
-    title: { en: 'Keyboard shortcuts', fr: 'Raccourcis clavier' },
-    body: {
-      en: 'File: Ctrl+N new · Ctrl+O open · Ctrl+S save · Ctrl+Shift+S save as · Ctrl+, preferences. Edit: Ctrl+Z undo · Ctrl+Shift+Z redo. View: Ctrl+Shift+M OSC Monitor · F1 this Help panel. Timeline (when focused): Space play/pause · B blade · M marker · I/O in/out · +/- zoom.',
-      fr: "Fichier : Ctrl+N nouveau · Ctrl+O ouvrir · Ctrl+S enregistrer · Ctrl+Maj+S enregistrer sous · Ctrl+, préférences. Édition : Ctrl+Z annuler · Ctrl+Maj+Z rétablir. Affichage : Ctrl+Maj+M Moniteur OSC · F1 ce panneau d'aide. Ligne de temps (au focus) : Espace lecture/pause · B lame · M marqueur · I/O in/out · +/- zoom.",
-    },
-  },
+  // The "Keyboard shortcuts" topic was removed here: shortcuts are now a configurable, rebindable system
+  // (see src/renderer/shortcuts/) surfaced in the full-page editor (Preferences ▸ Edit shortcuts…), not a
+  // static hand-maintained prose list that drifts from the real bindings.
 ];

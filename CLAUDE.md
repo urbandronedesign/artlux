@@ -26,6 +26,7 @@ a project-level state machine, scenes/cues, OSC control, and a 3D simulator.
 | **Unattended self-healing watchdog (crash/hang recovery + OS supervisor)** | [docs/WATCHDOG.md](docs/WATCHDOG.md) |
 | **UI/UX + design-token conventions (read before adding UI)** | [docs/UI-UX-AUDIT.md](docs/UI-UX-AUDIT.md) |
 | **Workspace contexts (the editor shell), layout + high-DPI UI scaling** | [docs/WORKSPACE.md](docs/WORKSPACE.md) |
+| **Configurable keyboard shortcuts (registry + editor + rebinding)** | [docs/SHORTCUTS.md](docs/SHORTCUTS.md) |
 | Surfaces engine (content/mapping model) | [docs/SURFACES.md](docs/SURFACES.md) |
 | Outputs / controllers / routing | [docs/OUTPUTS.md](docs/OUTPUTS.md) |
 | LED map / fixture geometry | [docs/LEDMAP.md](docs/LEDMAP.md) |
