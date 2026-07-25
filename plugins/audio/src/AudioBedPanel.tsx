@@ -60,7 +60,7 @@
 // App, that survives every recall, so it has nothing to rebind to and its gestures must never be abandoned.
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Plus, Music, Trash2, Volume2, VolumeX, Headphones, AlertTriangle, Play, Pause, SkipBack, Square, Orbit, Sliders } from 'lucide-react';
-import { type PanelProps } from '@artlux/sdk/renderer';
+import { type PanelProps, nextNumberedName } from '@artlux/sdk/renderer';
 import { getAudioHost } from './audioHost';
 import { audioClient } from './audioClient';
 import { EffectChain, type Effect, type FxParamRef } from './EffectChain';
@@ -675,9 +675,11 @@ export const AudioBedPanel: React.FC<PanelProps> = () => {
   // are two doors onto the SAME bed (this button, and the gutter's + on the bed lanes), and they used to
   // mint different words, so a bed built through both read `Track 1, Audio 2, Track 3`. `Audio` is the one
   // that survives: a Timeline document already calls its VIDEO layers `Track N` (Timeline.addLayer).
+  // The NUMBER is shared the same way — `nextNumberedName` from the SDK, so the two doors cannot disagree
+  // on the count either, and neither re-issues a number a deletion left behind (`.length + 1` does).
   const addTrack = () => {
     const cur = mixRef.current;
-    commit({ ...cur, tracks: [...cur.tracks, { id: uid(), name: `Audio ${cur.tracks.length + 1}`, gain: 1, mute: false }] });
+    commit({ ...cur, tracks: [...cur.tracks, { id: uid(), name: nextNumberedName('Audio', cur.tracks), gain: 1, mute: false }] });
   };
   const removeTrack = (id: string) => {
     const cur = mixRef.current;

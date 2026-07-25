@@ -26,6 +26,7 @@ import type { AutomationLane as AutoLane } from '../../types';
 // `shadowed` means a scene lane owns the same targetPath, so this global one is not applying right now.
 type PanelLane = { lane: AutoLane; origin: 'scene' | 'global'; shadowed: boolean };
 import type { AutomationTargetDef } from '@artlux/sdk/renderer';
+import { nextNumberedName } from '@artlux/sdk/renderer';
 import { TakesBin } from './TakesBin';
 import { trackingRecorder, trackingTake } from '@artlux/plugin-lidar-tracking';
 import { ensureBlobUrl, mimeForPath } from '../../services/mediaCache';
@@ -786,7 +787,9 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   }, []);
 
   // --- non-stable mutations (toolbar / lane / ruler / keyboard) read fresh closure state ---
-  const addLayer = () => onChange({ ...timeline, layers: [...layers, { id: crypto.randomUUID(), name: `Track ${layers.length + 1}`, enabled: true }] });
+  // `nextNumberedName`, NOT `layers.length + 1` — the count is not the name. Delete `Track 1` out of
+  // `[Track 1, Track 2]` and the count says the next lane is `Track 2`, which is already on screen.
+  const addLayer = () => onChange({ ...timeline, layers: [...layers, { id: crypto.randomUUID(), name: nextNumberedName('Track', layers), enabled: true }] });
 
   // --- audio track ops. Discrete edits (one commit each) — the CONTINUOUS ones (gain fader, name field)
   // draft inside AudioLane and land here once, on release/blur. ---
@@ -818,7 +821,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       onChangeRef.current({ ...t, audio: { tracks: timelineAudioTracks(t).filter(x => x.id !== id), clips: timelineAudioClips(t).filter(c => c.trackId !== id) } });
     }
   };
-  // ⚠ `Audio N`, AND THE SCENE'S NAME IS NOT IN IT. Two rules, both deliberate:
+  // ⚠ `Audio N`, AND THE SCENE'S NAME IS NOT IN IT. Three rules, all deliberate:
   //   · THE WORD IS `Audio`, in BOTH containers and in BOTH surfaces (the mixer's own `+ Track` mints the
   //     same string — AudioBedPanel.addTrack). It is NOT `Track`, because THIS DOCUMENT ALREADY MINTS
   //     `Track N` FOR VIDEO LAYERS (addLayer, just above): a bed assembled half from the gutter and half
@@ -828,10 +831,12 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   //     used, because the mint would freeze it into the DOCUMENT: handleRenameScene never rewrites track
   //     names (so it goes stale), and handleCaptureScene deep-clones the timeline into a NEW scene (so the
   //     copy would open full of the ORIGINAL's name). The gutter draws the live name instead — AudioLane's
-  //     `ownerName`. The counter stays per-container, so two scenes both start at `Audio 1`; that is what
-  //     the drawn prefix is for.
+  //     `ownerName`.
+  //   · THE NUMBER COMES FROM `nextNumberedName`, so it survives a DELETION — a count-based mint hands the
+  //     next track a number that is still on screen (see the helper). It stays per-container, so two
+  //     scenes both start at `Audio 1`; that is what the drawn prefix is for.
   const addAudioTrack = (source: 'bed' | 'timeline') => {
-    const track: AudioTrack = { id: crypto.randomUUID(), name: `Audio ${(source === 'bed' ? bedTracks.length : tlTracks.length) + 1}`, gain: 1, mute: false };
+    const track: AudioTrack = { id: crypto.randomUUID(), name: nextNumberedName('Audio', source === 'bed' ? bedTracks : tlTracks), gain: 1, mute: false };
     if (source === 'bed') {
       const a = audioRef.current; if (!a) return;
       a.onChangeMix({ ...a.mix, tracks: [...a.mix.tracks, track] });
@@ -952,7 +957,10 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   const stopRecord = async () => {
     const tk = trackingRecorder.stop();
     if (!tk) return;
-    tk.name = `Take ${(timelineRef.current.trackingTakes?.length ?? 0) + 1}`;
+    // Named off the doc as it stands BEFORE the awaits — the same doc `recDocKey` pins below, so the
+    // name and the commit guard agree on which document this take belongs to. (Numbered from what is
+    // taken, not the count: takes are the most-deleted list in the app — you record five and keep one.)
+    tk.name = nextNumberedName('Take', timelineRef.current.trackingTakes ?? []);
     const recDocKey = docKeyRef.current;
     let path = await window.artlux?.saveTrackingTake?.(tk.id, trackingTake.serialize(tk));
     if (!path) return;

@@ -719,6 +719,42 @@ check(
   },
 );
 
+// ── Naming: a default name is numbered from what is TAKEN, never from the list length ─────────
+check(
+  'numbered default names come from nextNumberedName, not from a list length',
+  'A numbered default name in a list the operator can also DELETE from cannot be `${list.length + 1}`: ' +
+  'delete `Track 1` out of `[Track 1, Track 2]` and the count says the next one is `Track 2` — which is ' +
+  'already on screen. Nothing breaks (all of these are keyed by uuid, nothing looks up by name) but the ' +
+  'operator is then reading two rows wearing one label, and in the state graph or a zone dropdown that ' +
+  'costs real time on site. Every door that mints one — surfaces, fixtures (incl. from a template), ' +
+  'controllers, groups, scenes, states, video layers, audio tracks, the mixer\'s +Bed, cues, banks, ' +
+  'graph regions, zones — shares nextNumberedName from the SDK, which takes the highest number ' +
+  'ALREADY WEARING THAT WORD and adds one.',
+  () => {
+    const problems = [];
+    if (!exists('packages/sdk/src/index.ts') || !/export function nextNumberedName/.test(read('packages/sdk/src/index.ts')))
+      return 'packages/sdk/src/index.ts no longer exports nextNumberedName (every numbered mint shares it)';
+    // The regression itself, anywhere. Deliberately tree-wide rather than a file list — the point is
+    // that a NEW door cannot reintroduce it either. Two nets, because the first version of this check
+    // keyed on `name:` and three live bugs walked straight through it: `name: f.name || \`Template
+    // ${templates.length + 1}\`` (not adjacent to the key) and `tk.name = \`Take ${…}\`` (an assignment,
+    // no key at all).
+    //
+    // Net 2 matches the SHAPE OF A MINTED NAME instead of its syntax: a template that is exactly
+    // `Word ` + one interpolation + end, where the expression counts something. That is a default
+    // name and nothing else — a label built from a position (`Camera ${i + 1}`, `Fire column ${c + 1}`)
+    // counts nothing, and a sentence (`Imported ${n.length} files`) has text after the hole.
+    const MINT = /name *[:=] *`[^`]*\$\{[^}]*\.length[^}]*\}[^`]*`/;
+    const SHAPE = /`[A-Z][A-Za-z]*(?: [A-Za-z]+)* \$\{[^}]*(?:\.length|count)[^}]*\}`/;
+    for (const f of [...walk('src/renderer'), ...walk('src/main'), ...walk('plugins'), ...walk('shared')]) {
+      const src = read(f);
+      const m = src.match(MINT) || src.match(SHAPE);
+      if (m) problems.push(`${f} numbers a default name from a count: ${m[0].trim()}`);
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);

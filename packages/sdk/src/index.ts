@@ -57,3 +57,43 @@ export interface PluginStatus {
   /** One short human phrase, lower-case, no trailing period: 'native addon unavailable'. */
   detail?: string;
 }
+
+// ─── Minting a numbered default name ─────────────────────────────────────────────────────────
+// Almost everything an operator can ADD in this app arrives wearing a numbered default name —
+// `Surface 3`, `Fixture 12`, `Track 2`, `Audio 1`, `Scene 4`, `Cue 7`, `Zone 2`, `Region 1` — and
+// almost everything they can add, they can also DELETE. Every one of those mints used to be
+// `list.length + 1`, and a count is not a name the moment anything but the LAST row is removed:
+// with `[Track 1, Track 2]`, deleting `Track 1` leaves length 1, so the next add mints a SECOND
+// `Track 2`. Nothing breaks — every one of these is keyed by a uuid and no lookup goes by name —
+// but the operator is then looking at two rows wearing one label with no way to tell them apart,
+// and in the state graph or a zone picker that costs real time on site.
+//
+// So: number from what is ALREADY TAKEN, not from how many there are. Highest trailing integer
+// wearing this exact word, plus one. Renaming a row to `Track 7` by hand therefore also pushes the
+// next mint to `Track 8`, which is what an operator who just numbered their own rows expects.
+//
+// Counting PER WORD (not per list) is the other half, and it is why the word is a parameter rather
+// than baked into a caller's template. Several of these lists hold more than one word — a Timeline
+// carries `Track N` video layers AND `Audio N` tracks, `scenes[]` holds both `Scene N` and `State N`
+// — and a shared counter there mints a `State 4` when there are three scenes and no state at all.
+//
+// It lives in the platform-neutral entry, and is re-exported from `/renderer`, because callers sit
+// on both sides of the plugin boundary: host (`App`, `Timeline`, `CueBankPanel`, `StateGraphEditor`)
+// and plugin (`@artlux/plugin-audio`'s mixer, `@artlux/plugin-lidar-tracking`'s zones). The audio
+// bed in particular has TWO doors that must keep minting the SAME string; the word was already kept
+// in sync by comment, and now the number cannot drift either.
+export function nextNumberedName(word: string, existing: readonly { name?: string }[]): string {
+  // ESCAPE THE WORD — it is not always a literal. Most callers pass 'Track'/'Surface', but
+  // App.handleAddFromTemplate passes the OPERATOR'S OWN template name, and a fixture template called
+  // `Bar (2m)` or `LED+` would otherwise compile to a regex matching nothing, silently restarting the
+  // count at 1 on every add — the very bug this function exists to remove.
+  const re = new RegExp(`^${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s+(\\d+)$`);
+  let highest = 0;
+  for (const item of existing) {
+    const m = re.exec((item.name ?? '').trim());
+    if (!m) continue;                       // a renamed row ('Chorus') simply does not vote
+    const n = Number.parseInt(m[1], 10);
+    if (n > highest) highest = n;
+  }
+  return `${word} ${highest + 1}`;
+}

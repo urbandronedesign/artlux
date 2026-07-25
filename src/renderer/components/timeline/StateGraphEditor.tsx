@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { StateMachine, SmState, SmTransition, SmRegion, SmAction, SmActionKind, SmTrigger, SmTriggerKind, Marker, VideoLayer } from '../../types';
 import { timeline as engine } from '../../services/timeline';
 import { smTriggerRegistry } from '../../host/registries';
+import { nextNumberedName } from '@artlux/sdk/renderer';
 import { Plus, Star, Trash2, ArrowRight, Wand2, SquareDashed, Film, Snowflake, Zap } from 'lucide-react';
 import { Tooltip } from '../ui/Tooltip';
 import { help } from '../../services/helpBus';
@@ -110,7 +111,9 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
 
   // --- create / delete ---
   const addStateAt = (x: number, y: number) => {
-    const st: SmState = { id: uid(), name: `State ${sm.states.length + 1}`, x: x - R, y: y - R, entry: [], regionId: regionAt({ x, y }) };
+    // Numbered from what is TAKEN — this graph is edited by deleting nodes as much as by adding them,
+    // and two `State 3` bubbles on one canvas is exactly the wrong place to have to guess.
+    const st: SmState = { id: uid(), name: nextNumberedName('State', sm.states), x: x - R, y: y - R, entry: [], regionId: regionAt({ x, y }) };
     patch({ states: [...sm.states, st], initialStateId: sm.initialStateId ?? st.id });
     setSel({ kind: 'state', id: st.id });
   };
@@ -123,7 +126,9 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
     setSel(null);
   };
   const addRegion = () => {
-    const r: SmRegion = { id: uid(), name: `Region ${regions.length + 1}`, x: 80 + regions.length * 30, y: 60 + regions.length * 30, w: 360, h: 320 };
+    // The NAME comes from what is taken; the x/y stagger deliberately still rides the count — it is a
+    // cascade so a new region does not land exactly on the last one, not an identity.
+    const r: SmRegion = { id: uid(), name: nextNumberedName('Region', regions), x: 80 + regions.length * 30, y: 60 + regions.length * 30, w: 360, h: 320 };
     patch({ regions: [...regions, r] });
     setSel({ kind: 'region', id: r.id });
   };

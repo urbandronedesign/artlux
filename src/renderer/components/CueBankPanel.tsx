@@ -4,6 +4,7 @@ import { Plus, Trash2, RefreshCw, Camera, Zap, X, Film, Music } from 'lucide-rea
 import { getByPath, globalParams, surfaceParams, fixtureParams, isFadeablePath, pathLeaf, type StateView, type ParamDef } from '../services/paramPath';
 import { automationTargetRegistry } from '../host/registries';
 import type { AutomationTargetDef } from '@artlux/sdk/renderer';
+import { nextNumberedName } from '@artlux/sdk/renderer';
 import { Tooltip } from './ui/Tooltip';
 import { help } from '../services/helpBus';
 
@@ -157,7 +158,9 @@ export const CueBankPanel: React.FC<Props> = ({
     const cueAt = (row: number, col: number): Cue | undefined => bank.cues.find(c => c.row === row && c.col === col);
 
     const addCue = (row: number, col: number) => {
-        const cue: Cue = { id: uid(), name: `Cue ${bank.cues.length + 1}`, row, col, entries: [], fadeSec: 1, transition: 'smooth' };
+        // Per-bank, and numbered from what is TAKEN, not from the count — a grid an operator clears
+        // cells out of otherwise re-issues a `Cue 4` that is still sitting two cells over.
+        const cue: Cue = { id: uid(), name: nextNumberedName('Cue', bank.cues), row, col, entries: [], fadeSec: 1, transition: 'smooth' };
         patchBank({ cues: [...bank.cues, cue] });
         setAudioSceneId(null);
         setSelCueId(cue.id);
@@ -247,7 +250,7 @@ export const CueBankPanel: React.FC<Props> = ({
                         <button key={b.id} onClick={() => { setBankIdx(i); setSelCueId(null); setAudioSceneId(null); }}
                             className={`h-6 px-2 rounded text-mini ${i === bankIdx ? 'bg-accent/15 text-accent' : 'text-fg-2 hover:bg-surface-3'}`}>{b.name}</button>
                     ))}
-                    <button onClick={() => onChangeBanks([...banks, { id: uid(), name: `Bank ${banks.length + 1}`, rows: 8, cols: 16, cues: [], sceneCells: [] }])}
+                    <button onClick={() => onChangeBanks([...banks, { id: uid(), name: nextNumberedName('Bank', banks), rows: 8, cols: 16, cues: [], sceneCells: [] }])}
                         className="h-6 w-6 rounded text-fg-3 hover:text-fg-1 hover:bg-surface-3" title="Add bank"><Plus size={13} /></button>
                 </div>
                 <div className="ml-auto flex items-center gap-2">

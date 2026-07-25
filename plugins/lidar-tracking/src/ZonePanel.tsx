@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Trash2, Plus, Users, Eye, EyeOff } from 'lucide-react';
 import type { TrackingZone } from '../../../shared/protocol';
 import type { PanelProps } from '@artlux/sdk/renderer';
+import { nextNumberedName } from '@artlux/sdk/renderer';
 import * as trackingStore from './trackingStore';
 import * as zones from './zones';
 import { useHostScene3D, setZones, setActiveZoneIds } from './trackingHost';
@@ -225,7 +226,11 @@ export const ZonePanel: React.FC<PanelProps> = () => {
       // NO dwell baked in: a fresh zone FOLLOWS THE VENUE-WIDE dwell (the on-site knob in the tracking
       // parameters). It only carries enterSec/exitSec once the operator deliberately overrides it below.
       const z: TrackingZone = {
-        id: uid(), name: `Zone ${list.length + 1}`, surface, ...r,
+        // The NAME is numbered from what is taken (zones get drawn, judged and re-drawn on site, so
+        // deletions are the norm — and a duplicate `Zone 2` is picked from a dropdown in the Show
+        // Machine, where it is unreadable). The COLOUR still cycles on the count: that is a palette
+        // walk, and two zones sharing a hue is a cosmetic collision, not an ambiguous identity.
+        id: uid(), name: nextNumberedName('Zone', list), surface, ...r,
         color: PALETTE[list.length % PALETTE.length], minBlobs: 1,
       };
       commit([...list, z]);
@@ -369,7 +374,7 @@ export const ZonePanel: React.FC<PanelProps> = () => {
 
         {/* Escape hatch for a surface the tracker has not announced yet (nothing to drag on). */}
         <button onClick={() => {
-          const z: TrackingZone = { id: uid(), name: `Zone ${list.length + 1}`, surface, u0: 0.35, v0: 0.35, u1: 0.65, v1: 0.65, color: PALETTE[list.length % PALETTE.length], minBlobs: 1 };
+          const z: TrackingZone = { id: uid(), name: nextNumberedName('Zone', list), surface, u0: 0.35, v0: 0.35, u1: 0.65, v1: 0.65, color: PALETTE[list.length % PALETTE.length], minBlobs: 1 };
           commit([...list, z]); setSelId(z.id);
         }} className="w-full inline-flex items-center justify-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3">
           <Plus size={12} /> Zone in the centre

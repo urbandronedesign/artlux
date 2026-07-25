@@ -51,6 +51,7 @@ import { openShortcuts } from './services/shortcutsNav';
 import { activateRendererPlugins } from './host/plugins';
 import { setEnabled as mp4SetEnabled } from '@artlux/plugin-mp4';
 import type { RendererHostServices, AutomationTargetProvider, AutomationTargetDef } from '@artlux/sdk/renderer';
+import { nextNumberedName } from '@artlux/sdk/renderer';
 import { projectorChannelRegistry, panelRegistry, automationTargetRegistry, contextRegistry } from './host/registries';
 import * as cueBus from './services/cueBus';
 import * as selection from './services/selection';
@@ -526,7 +527,10 @@ const App: React.FC = () => {
   };
   const handleAddPlane = () => {
     const count = (scene3D.models ?? []).length;
-    addSceneModel({ id: crypto.randomUUID(), name: `Screen ${count + 1}`, kind: 'plane', path: '', position: { x: count * 2, y: 1.2, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: 2, visible: true });
+    // The NAME is numbered from what is taken; `count` still places it (the x-cascade so a new plane
+    // does not land inside the last one). Per-word matters here too — `models[]` also holds imported
+    // glb files, which are named after the FILE, and those must not push the screen counter along.
+    addSceneModel({ id: crypto.randomUUID(), name: nextNumberedName('Screen', scene3D.models ?? []), kind: 'plane', path: '', position: { x: count * 2, y: 1.2, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: 2, visible: true });
   };
   const handleUpdateModel = (id: string, patch: Partial<SceneModel>) => { setScene3D(s => ({ ...s, models: (s.models ?? []).map(m => m.id === id ? { ...m, ...patch } : m) })); };
   const handleRemoveModel = (id: string) => { setScene3D(s => ({ ...s, models: (s.models ?? []).filter(m => m.id !== id) })); if (selectedModelId === id) setSelectedModelId(null); };
@@ -579,7 +583,10 @@ const App: React.FC = () => {
     const id = generateId();
     const z = surfaces.reduce((m, s) => Math.max(m, s.zIndex), -1) + 1;
     setSurfaces([...surfaces, {
-      id, name: `Surface ${surfaces.length + 1}`,
+      // `nextNumberedName`, not `surfaces.length + 1` — the count re-issues a name a deletion left
+      // behind (delete `Surface 1` of two and the next add is a second `Surface 2`). Same everywhere
+      // below; the SDK helper carries the why.
+      id, name: nextNumberedName('Surface', surfaces),
       x: 0.25, y: 0.25, width: 0.5, height: 0.5, rotation: 0, zIndex: z,
       content: { type: SourceType.NONE },
     }]);
@@ -822,7 +829,7 @@ const App: React.FC = () => {
     const newId = generateId();
     const fx: Fixture = {
       id: newId,
-      name: `Fixture ${fixtures.length + 1}`,
+      name: nextNumberedName('Fixture', fixtures),
       x: 0.4, y: 0.4, width: 0.2, height: 0.2,
       universe: 0, startAddress: 1, ledCount: 30, reverse: false, rotation: 0,
       colorData: [],
@@ -855,7 +862,7 @@ const App: React.FC = () => {
   // --- Controllers (output devices) ---
   const handleAddController = () => {
     setControllers([...controllers, {
-      id: generateId(), name: `Controller ${controllers.length + 1}`,
+      id: generateId(), name: nextNumberedName('Controller', controllers),
       protocol: settings.protocol, ip: settings.artNetIp, broadcast: settings.broadcast,
     }]);
   };
@@ -893,7 +900,7 @@ const App: React.FC = () => {
   // --- Groups ---
   const handleCreateGroup = () => {
     const ids = [...selectedFixtureIds];
-    setGroups([...groups, { id: generateId(), name: `Group ${groups.length + 1}`, fixtureIds: ids }]);
+    setGroups([...groups, { id: generateId(), name: nextNumberedName('Group', groups), fixtureIds: ids }]);
   };
   const handleAddSelectedToGroup = (groupId: string) => {
     if (!selectedFixtureIds.length) return;
@@ -1066,7 +1073,11 @@ const App: React.FC = () => {
     // (A lane the operator actually draws ON this scene still rides the playhead and still shadows a global
     // lane on the same target — see scratch/laneclock-sim.mjs, which pins both.)
     const timeline: Timeline = { ...structuredClone(activeTimeline), automation: [] };
-    setScenes([...scenes, { id, name: `Scene ${scenes.length + 1}`, fadeSec: 0, ...buildSceneSnapshot(), timeline, accent: nextAccent(scenes.map(s => s.accent), id) }]);
+    // ⚠ `nextNumberedName` counts PER WORD, and that matters more here than anywhere else: `scenes[]`
+    // holds BOTH `Scene N` (this door) and `State N` (handleCreateState — a state IS a scene plus a
+    // graph node). On a shared counter, a show with three scenes and no state at all mints its first
+    // state as `State 4`, and the operator reads that as three states they cannot find.
+    setScenes([...scenes, { id, name: nextNumberedName('Scene', scenes), fadeSec: 0, ...buildSceneSnapshot(), timeline, accent: nextAccent(scenes.map(s => s.accent), id) }]);
   };
   // Re-capture current LOOK into an existing scene (keeps id/name/fadeSec/timeline) — MadMapper
   // "Update Scene". buildSceneSnapshot is look-only, so a scene's own timeline is never clobbered.
@@ -1202,7 +1213,8 @@ const App: React.FC = () => {
     // fixture-scoped undo stack has nothing to record, and recording here only clobbered redo.
     const id = generateId();
     const accent = nextAccent(scenes.map(s => s.accent), id);
-    const scene: Scene = { id, name: `State ${scenes.length + 1}`, fadeSec: 0, ...buildSceneSnapshot(), timeline: defaultTimeline(), accent };
+    // `State N` counted among the STATES, not among all scenes — see handleCreateScene's note.
+    const scene: Scene = { id, name: nextNumberedName('State', scenes), fadeSec: 0, ...buildSceneSnapshot(), timeline: defaultTimeline(), accent };
     setScenes(prev => [...prev, scene]);
     setStateMachine(prev => {
       const n = prev.states.length;
@@ -1436,7 +1448,7 @@ const App: React.FC = () => {
     if (!selectedFixture) return;
     const f = selectedFixture;
     const t: FixtureTemplate = {
-      id: generateId(), name: f.name || `Template ${templates.length + 1}`,
+      id: generateId(), name: f.name || nextNumberedName('Template', templates),
       ledCount: f.ledCount, shape: f.shape, matrixWidth: f.matrixWidth, matrixHeight: f.matrixHeight,
       serpentine: f.serpentine, colorOrder: f.colorOrder, rgbwMode: f.rgbwMode, channelsPerPixel: f.channelsPerPixel,
     };
@@ -1446,7 +1458,11 @@ const App: React.FC = () => {
     recordHistory();
     const id = generateId();
     setFixtures([...fixtures, {
-      id, name: `${t.name} ${fixtures.length + 1}`,
+      // The word here is the TEMPLATE's name, so the count is now per-template: three `Pixel Bar`
+      // adds read `Pixel Bar 1..3` instead of borrowing the rig's total fixture count and starting at
+      // `Pixel Bar 12`. (The helper escapes the word — a template called `Bar (2m)` is a valid name
+      // and would otherwise be a regex that matches nothing.)
+      id, name: nextNumberedName(t.name, fixtures),
       x: 0.4, y: 0.4, width: 0.2, height: 0.2,
       universe: 0, startAddress: 1, reverse: false, rotation: 0, colorData: [],
       ledCount: t.ledCount, shape: t.shape, matrixWidth: t.matrixWidth, matrixHeight: t.matrixHeight,

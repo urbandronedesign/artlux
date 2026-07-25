@@ -14,6 +14,9 @@ import type { ComponentType, ReactNode, CSSProperties, PointerEvent as ReactPoin
 import type { OscMessage, OscConfig } from './index.ts';
 
 export type { OscMessage, OscConfig, PluginManifest, PluginState, PluginStatus } from './index.ts';
+// A value, not a type — re-exported here so a renderer plugin that already imports from
+// `@artlux/sdk/renderer` does not need a second import path for it.
+export { nextNumberedName } from './index.ts';
 
 // A drawable surface source — same as the host compositor's `CanvasImageSource`.
 export type Drawable = CanvasImageSource;
