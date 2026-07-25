@@ -127,6 +127,8 @@ export const healthRepair = (installDir: string) => invoke<void>('health_repair'
 
 export const launcherVersion = () => invoke<string>('launcher_version');
 export const launcherLatest = () => invoke<ReleaseInfo>('launcher_latest');
+/** Downloads, verifies, runs the launcher's own installer, and quits. Resolves just before exit. */
+export const updateLauncher = () => invoke<void>('update_launcher');
 
 export const uninstallInstall = (quietUninstall: string) =>
   invoke<InstallOutcome>('uninstall_install', { quietUninstall });

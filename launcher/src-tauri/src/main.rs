@@ -48,6 +48,33 @@ async fn launcher_latest() -> Result<releases::ReleaseInfo, String> {
     releases::resolve_launcher_latest().await
 }
 
+/// Update the launcher itself: resolve, download, verify, run the installer, quit.
+///
+/// The last step is not optional. Windows will not let an installer replace a running executable,
+/// so this process has to be gone before the installer gets to work — it is started detached and we
+/// exit a moment later. The user sees the window close and the new one appear.
+///
+/// Reuses the same verified-download path as ArtLux's installer: the launcher is unsigned, so the
+/// sha512 from launcher-latest.yml is the only thing vouching for what is about to be executed.
+#[tauri::command]
+async fn update_launcher(app: AppHandle) -> Result<(), String> {
+    let rel = releases::resolve_launcher_latest().await?;
+    let emitter = app.clone();
+    let path = download::fetch_verified(
+        move |p| { let _ = emitter.emit("download://progress", p); },
+        rel.url, rel.file, rel.sha512_b64, rel.size,
+    )
+    .await?;
+    runner::spawn_installer_detached(&path)?;
+    // Give the installer a moment to start before releasing our lock on the file it replaces.
+    let quitting = app.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(600)).await;
+        quitting.exit(0);
+    });
+    Ok(())
+}
+
 /// Semver comparison in Rust, so the UI cannot accidentally string-compare ("0.9.0" > "0.25.0").
 #[tauri::command]
 fn is_newer(latest: String, installed: String) -> bool {
@@ -363,6 +390,7 @@ fn main() {
             health_repair,
             launcher_version,
             launcher_latest,
+            update_launcher,
             uninstall_install,
             pick_folder,
             add_library_root,

@@ -36,7 +36,7 @@
     "icon": [
       "icons/icon.ico"
     ],
-    "copyright": "© Zaki Jawhari and Bérenger Recoules",
+    "copyright": "ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â© Zaki Jawhari and BÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©renger Recoules",
     "shortDescription": "Installs ArtLux and opens your projects.",
     "windows": {
       "nsis": {

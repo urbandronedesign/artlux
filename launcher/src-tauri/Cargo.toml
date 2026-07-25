@@ -2,8 +2,8 @@
 name = "artlux-launcher"
 version = "0.1.1"
 edition = "2021"
-description = "ArtLux Launcher — installs ArtLux, checks the machine, and opens projects."
-authors = ["Zaki Jawhari", "Bérenger Recoules"]
+description = "ArtLux Launcher ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â installs ArtLux, checks the machine, and opens projects."
+authors = ["Zaki Jawhari", "BÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©renger Recoules"]
 license = "SEE LICENSE IN ../../LICENSE"
 # Deliberately NOT part of a Cargo workspace. There is no root Cargo.toml in this repo: the six napi
 # crates under native/ are independent with their own lockfiles, on purpose. Sharing a lockfile and a

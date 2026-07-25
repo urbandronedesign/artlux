@@ -12,7 +12,7 @@ import { Examples } from './Examples';
 import { Health } from './Health';
 import {
   artluxRunning, cancelDownload, downloadInstaller, isNewer, launcherLatest, launcherVersion, mb,
-  onProgress, resolveLatest, runInstaller, scanInstalls, uninstallInstall,
+  onProgress, resolveLatest, runInstaller, scanInstalls, uninstallInstall, updateLauncher,
   type InstallScan, type Progress, type ReleaseInfo,
 } from './api';
 import './styles.css';
@@ -38,6 +38,7 @@ export default function App() {
   const [removing, setRemoving] = useState(false);
   const [ownVersion, setOwnVersion] = useState('');
   const [selfUpdate, setSelfUpdate] = useState<ReleaseInfo | null>(null);
+  const [updatingSelf, setUpdatingSelf] = useState(false);
   const unlisten = useRef<(() => void) | null>(null);
 
   const refresh = useCallback(async () => {
@@ -255,8 +256,25 @@ export default function App() {
         <Credits />
         <span className="grow" />
         {selfUpdate ? (
-          <button className="btn" onClick={() => window.open(selfUpdate.notes_url, '_blank')} title={`Launcher ${selfUpdate.version} is available`}>
-            Launcher {selfUpdate.version} available
+          // Says what it DOES, and then does it. It used to read "available" and call window.open,
+          // which is a no-op inside a WebView — so the click did nothing at all, and even working it
+          // would only have opened release notes rather than updating anything.
+          <button
+            className="btn btn-primary"
+            disabled={updatingSelf}
+            title={`Download launcher ${selfUpdate.version}, verify it, install it, and restart`}
+            onClick={async () => {
+              setUpdatingSelf(true); setError('');
+              try {
+                // Resolves just before the process exits; the window closing IS the success signal.
+                await updateLauncher();
+              } catch (e) {
+                setError(String(e));
+                setUpdatingSelf(false);
+              }
+            }}
+          >
+            {updatingSelf ? 'Updating — this window will close…' : `Update launcher to ${selfUpdate.version}`}
           </button>
         ) : (
           ownVersion && <span className="caption">Launcher {ownVersion}</span>

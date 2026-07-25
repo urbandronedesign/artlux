@@ -170,6 +170,30 @@ pub fn open_project(exe: &str, project: &str) -> OpenOutcome {
     }
 }
 
+/// Start the launcher's OWN installer and return immediately, without waiting and without elevating.
+///
+/// Three differences from `run_installer`, each deliberate:
+///
+///   * NOT ELEVATED. The launcher installs per-user, so `runas` would raise a UAC prompt for
+///     something that does not need one — and a prompt nobody expects is how an update gets
+///     declined.
+///   * NOT WAITED ON. Windows will not let an installer replace a running executable, so the caller
+///     exits immediately after this returns. Waiting here would deadlock: we would be holding the
+///     file the installer is trying to overwrite.
+///   * NOT VERIFIED AFTERWARDS, because there is no "afterwards" — this process is gone. The
+///     verification that matters already happened: the file came from download::fetch_verified and
+///     its sha512 matched what GitHub published.
+pub fn spawn_installer_detached(path: &str) -> Result<(), String> {
+    if !std::path::Path::new(path).is_file() {
+        return Err(format!("the downloaded installer is missing: {path}"));
+    }
+    Command::new(path)
+        .arg("/S")
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("could not start the launcher installer: {e}"))
+}
+
 /// Remove an install, given its `QuietUninstallString` from the registry.
 ///
 /// Exists for ONE case: the legacy per-user install that a per-machine installer cannot replace.
