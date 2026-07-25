@@ -37,12 +37,20 @@ const RUN_MODE = HEADLESS ? 'headless' : BROADCAST ? 'broadcast' : 'editor';
 // launch just focuses the existing window and exits. Every relaunch site releases the lock first (see
 // releaseLockForRelaunch) so a fresh process reclaims it without racing this guard.
 const isPrimaryInstance = app.requestSingleInstanceLock();
-app.on('second-instance', () => {
-    if (mainWindow) {
-        if (mainWindow.isMinimized()) mainWindow.restore();
-        mainWindow.show();
-        mainWindow.focus();
-    }
+app.on('second-instance', (_e, incomingArgv) => {
+    if (!mainWindow) return;
+    // HONOUR A --project= CARRIED BY THE SECOND LAUNCH. The incoming argv used to be discarded
+    // outright, and the second process then exited 0 — so `ArtLux.exe --project=<other>` against a
+    // running copy brought the existing window forward STILL SHOWING THE OLD PROJECT and reported
+    // success to whoever spawned it. There is no exit code, no log line, and no window state that
+    // distinguishes that from having worked. Reuses the 'open-recent:<path>' menu action App already
+    // routes to handleOpenRecent (load + apply), exactly as the detached Docs window does.
+    const arg = incomingArgv.find((a) => a.startsWith('--project='));
+    const path = arg ? arg.slice('--project='.length) : '';
+    if (path) mainWindow.webContents.send(IPC.MENU_ACTION, 'open-recent:' + path);
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
 });
 // Drop the single-instance lock immediately before an intentional relaunch so the incoming process can
 // acquire it even if this one lingers a moment during teardown.
@@ -168,9 +176,17 @@ function createWindow(): void {
         }
         console.log(`[main] broadcast mode — project: ${PROJECT_PATH || '(last opened)'}`);
     } else if (devUrl) {
-        mainWindow.loadURL(devUrl);
+        // EDITOR MODE ALSO FORWARDS --project=. It did not until now: the path was parsed here, used
+        // for the tray label and the watchdog's recovery target, and then silently dropped on the way
+        // to the renderer — so `ArtLux.exe --project=<file>` opened an empty editor and nothing said
+        // why. That matters beyond the CLI: it is the only contract an EXTERNAL program (the launcher)
+        // has for "open this project", since there is no file association and no protocol handler.
+        // Empty path → no query at all, so a plain launch is byte-identical to before.
+        mainWindow.loadURL(PROJECT_PATH ? `${devUrl}/?${new URLSearchParams({ project: PROJECT_PATH })}` : devUrl);
     } else {
-        mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
+        const file = join(__dirname, '../renderer/index.html');
+        if (PROJECT_PATH) mainWindow.loadFile(file, { query: { project: PROJECT_PATH } });
+        else mainWindow.loadFile(file);
     }
 }
 

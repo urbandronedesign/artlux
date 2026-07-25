@@ -2963,6 +2963,34 @@ const App: React.FC = () => {
       // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // EDITOR: honour --project= too. A SEPARATE effect from the show-engine loader above rather than a
+  // widening of its guard, because that one also falls back to `prefs.lastProjectPath` *and* restores
+  // AppSettings — show-mode behaviour the editor must not inherit.
+  //
+  // PRECEDENCE, and why it is spelled out in two places: the editor ALREADY reopens the last project
+  // on launch (the prefs-restore effect below). Both are mount effects that await, so with no rule
+  // between them the two loads race and whichever IPC resolved last wins the document — an operator
+  // asking for one project and getting another, intermittently. `--project=` is an explicit
+  // instruction and outranks the restore, so THIS effect owns the load whenever the flag is present
+  // and the restore skips its own (see `!QUERY_PROJECT` there). Never make one of the two conditions
+  // implicit: they only work as a pair.
+  //
+  // Until now `?project=` was read into QUERY_PROJECT and then consumed ONLY behind `if (!SHOW_ENGINE)
+  // return`, so the editor ignored it — main parsed the flag, forwarded it, and the renderer dropped
+  // it. `ArtLux.exe --project=<file>` opened an empty editor with nothing in any log to say why. This
+  // is also the ONLY contract an external program has for "open this project" (no file association,
+  // no protocol handler), so it has to work in the mode a human is actually watching.
+  useEffect(() => {
+      if (SHOW_ENGINE || !QUERY_PROJECT) return;
+      // Logged like the show-engine loader above: when an EXTERNAL program spawns us with a project
+      // and the operator says "nothing opened", this line is the only thing that distinguishes "the
+      // flag never arrived" from "the file would not load". Says opening, not opened — a failure
+      // surfaces as handleOpenRecent's own toast.
+      console.log(`[editor] opening project from --project=: ${QUERY_PROJECT}`);
+      handleOpenRecent(QUERY_PROJECT); // load + apply + set path + refresh recents, with its own error toast
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Restore persisted prefs (settings + master brightness + recents + last project) on launch.
   useEffect(() => {
       if (SHOW_ENGINE) return; // broadcast/headless restore AppSettings themselves (above, before project load); the rest of this effect is editor-only UI state (layout, recents, templates) that show mode has no use for
@@ -2991,7 +3019,10 @@ const App: React.FC = () => {
           // handlers read keymap.matches(); the editor reads/writes through the same store.
           keymap.hydrate(prefs.shortcuts);
           if (Array.isArray(prefs.fixtureTemplates)) setTemplates(prefs.fixtureTemplates as FixtureTemplate[]);
-          if (prefs.lastProjectPath) {
+          // Reopen the last project — UNLESS an explicit --project= was given, which owns the load in
+          // its own effect above. Without this guard the two race and the document is whichever IPC
+          // happened to resolve last, so `--project=X` intermittently lands on the previous project.
+          if (prefs.lastProjectPath && !QUERY_PROJECT) {
               const data = await window.artlux?.loadProjectPath?.(prefs.lastProjectPath);
               if (data) { applyProjectData(data); setCurrentProjectPath(prefs.lastProjectPath); }
           }

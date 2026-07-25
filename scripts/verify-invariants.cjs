@@ -691,6 +691,53 @@ check(
 );
 
 check(
+  '--project= reaches the document in every run mode',
+  'A CLI flag that parses, forwards, and is then IGNORED fails silently in the one mode a human is ' +
+  'watching. `--project=` was read in main/index.ts, used for the tray label and the watchdog\'s ' +
+  'recovery target, and put on the renderer query string — but ONLY in the headless and broadcast ' +
+  'branches, while App.tsx guarded its single consumer with `if (!SHOW_ENGINE) return`. So ' +
+  '`ArtLux.exe --project=<file>` opened an EMPTY EDITOR: no error, no warning, no clue. It stayed ' +
+  'invisible for as long as it did because the two modes that exercise the flag are the two nobody ' +
+  'watches. This is also the ONLY contract an external program has for "open this project" — there ' +
+  'is no file association and no protocol handler — so the editor path is the one that must work. ' +
+  'Same class on the second-instance handler: it discarded the incoming argv and the second process ' +
+  'exited 0, so launching a project against a running copy brought the existing window forward still ' +
+  'showing the OLD project and reported success to whoever spawned it.',
+  () => {
+    const problems = [];
+    const src = read('src/main/index.ts');
+
+    // 1. The editor branch of createWindow must carry the path to the renderer. Anchored on the
+    //    branch marker rather than on a load call, so a reshuffle of loadURL/loadFile still checks
+    //    the right region.
+    const i = src.indexOf('} else if (devUrl) {');
+    if (i < 0) problems.push('could not find the editor load branch in main/index.ts — this check needs updating');
+    else if (!/PROJECT_PATH/.test(src.slice(i, i + 600))) {
+      problems.push('the editor branch of createWindow no longer forwards PROJECT_PATH to the renderer');
+    }
+
+    // 2. The second-instance handler must read --project= out of the argv it is handed.
+    const si = src.indexOf("app.on('second-instance'");
+    if (si < 0) problems.push('main/index.ts no longer handles second-instance');
+    else if (!/--project=/.test(src.slice(si, si + 600))) {
+      problems.push("the second-instance handler ignores the incoming argv's --project=");
+    }
+
+    // 3. The renderer must consume it OUTSIDE the show-engine guard. Two uses are expected: the
+    //    broadcast/headless loader, and the editor-only one.
+    const app = read('src/renderer/App.tsx');
+    const uses = (app.match(/QUERY_PROJECT/g) || []).length;
+    if (uses < 2) {
+      problems.push(`App.tsx references QUERY_PROJECT ${uses}x — the editor-mode load is gone (show mode is the other use)`);
+    }
+    if (!/SHOW_ENGINE\s*\|\|\s*!QUERY_PROJECT|!QUERY_PROJECT\s*\|\|\s*SHOW_ENGINE/.test(app)) {
+      problems.push('App.tsx has no editor-mode QUERY_PROJECT path (expected an early return on `SHOW_ENGINE || !QUERY_PROJECT`)');
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
   'the credit + licence line have one source and are actually shown',
   'LICENSE §3 requires a build to show the authorship credit and the non-commercial restriction — so ' +
   'these strings are a licence obligation, not chrome, and a UI that quietly dropped them would put the ' +
