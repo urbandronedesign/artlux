@@ -5,6 +5,8 @@ import { Filmstrip } from './Filmstrip';
 import { BlobSparkline } from './BlobSparkline';
 import { fmtClock } from './geometry';
 import { ensureBlobUrl, mimeForPath } from '../../services/mediaCache';
+import { Tooltip } from '../ui/Tooltip';
+import { help } from '../../services/helpBus';
 
 export type DragMode = 'move' | 'l' | 'r';
 
@@ -69,7 +71,9 @@ const ClipBlockBase: React.FC<Props> = ({ clip, selected, locked, tool, pxPerSec
         <div onPointerDown={(e) => { e.stopPropagation(); onStartDrag(e, clip, 'r'); }} className="absolute right-0 top-0 bottom-0 w-1.5 cursor-ew-resize bg-black/40 hover:bg-accent" />
       </>}
       {selected && !locked && (
-        <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onRemove(clip.id)} className="absolute top-0.5 right-2 text-fg-2 hover:text-danger"><Trash2 size={10} /></button>
+        <Tooltip id="timeline.clip-remove">
+          <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onRemove(clip.id)} {...help('timeline.clip-remove')} title="Delete clip" className="absolute top-0.5 right-2 text-fg-2 hover:text-danger"><Trash2 size={10} /></button>
+        </Tooltip>
       )}
     </div>
   );

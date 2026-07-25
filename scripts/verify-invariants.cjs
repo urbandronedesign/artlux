@@ -180,6 +180,19 @@ check(
   },
 );
 
+// ── Shell: the single-instance global overlays ─────────────────────────────────────────────────
+check(
+  'HelpBrowser is mounted exactly once',
+  'HelpBrowser self-owns its open state via a global Shift+F1 keydown and a helpNav subscription. Two ' +
+  'mounts double the shortcut and the subscription, so a single openHelp() opens two overlays and a ' +
+  'deep-link scrolls the wrong one. It is a centered modal — mount it once beside CommandPalette in ' +
+  'WorkspaceShell, never per-context.',
+  () => {
+    const hb = walk('src/renderer').filter((f) => /<HelpBrowser[\s/>]/.test(read(f)));
+    return hb.length === 1 ? null : `<HelpBrowser> appears in ${hb.length} files: ${hb.join(', ')}`;
+  },
+);
+
 // ── Shell: panels read state, they do not receive it ──────────────────────────────────────────
 check(
   'EditorData is memoized',

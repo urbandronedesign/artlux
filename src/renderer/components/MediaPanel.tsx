@@ -5,6 +5,8 @@ import { AssetChip } from './AssetChip';
 import { libraryItems, usageIndex, normPath, typeLabel, type ProjectRefs } from '../services/assetLibrary';
 import { layoutStore } from '../services/layoutStore';
 import { useLayoutValue } from '../hooks/useLayout';
+import { Tooltip } from './ui/Tooltip';
+import { help } from '../services/helpBus';
 
 interface Props {
   assets: AssetEntry[];
@@ -126,11 +128,13 @@ export const MediaPanel: React.FC<Props> = ({ assets, timeline, refs, selectedSu
     return id;
   };
 
-  const viewBtn = (v: MediaView, icon: React.ReactNode, label: string) => (
-    <button onClick={() => layoutStore.set({ mediaView: v })} title={`${label} view`} aria-pressed={view === v}
-      className={`inline-flex items-center justify-center w-6 h-5 ${view === v ? 'bg-accent text-black' : 'bg-surface-2 text-fg-3 hover:text-fg-1'}`}>
-      {icon}
-    </button>
+  const viewBtn = (v: MediaView, icon: React.ReactNode, label: string, helpId: string) => (
+    <Tooltip id={helpId}>
+      <button onClick={() => layoutStore.set({ mediaView: v })} title={`${label} view`} aria-pressed={view === v} {...help(helpId)}
+        className={`inline-flex items-center justify-center w-6 h-5 ${view === v ? 'bg-accent text-black' : 'bg-surface-2 text-fg-3 hover:text-fg-1'}`}>
+        {icon}
+      </button>
+    </Tooltip>
   );
 
   const chip = (label: string, value: Filter, icon?: React.ReactNode) => (
@@ -165,18 +169,18 @@ export const MediaPanel: React.FC<Props> = ({ assets, timeline, refs, selectedSu
       {/* import + project-folder hint */}
       <div className="px-2 py-1.5 flex items-center gap-1 border-b border-line-1">
         <span className="text-micro text-fg-3 mr-1">Import</span>
-        <button onClick={() => onImport('video')} disabled={!hasProjectFolder} title="Import video" className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40"><Film size={12} /></button>
-        <button onClick={() => onImport('image')} disabled={!hasProjectFolder} title="Import image" className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40"><ImageIcon size={12} /></button>
-        <button onClick={() => onImport('model')} disabled={!hasProjectFolder} title="Import 3D model" className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40"><Box size={12} /></button>
-        <button onClick={() => onImport('audio')} disabled={!hasProjectFolder} title="Import audio" className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40"><Music size={12} /></button>
+        <Tooltip id="media.import-video"><button onClick={() => onImport('video')} disabled={!hasProjectFolder} title="Import video" {...help('media.import-video')} className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40"><Film size={12} /></button></Tooltip>
+        <Tooltip id="media.import-image"><button onClick={() => onImport('image')} disabled={!hasProjectFolder} title="Import image" {...help('media.import-image')} className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40"><ImageIcon size={12} /></button></Tooltip>
+        <Tooltip id="media.import-model"><button onClick={() => onImport('model')} disabled={!hasProjectFolder} title="Import 3D model" {...help('media.import-model')} className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40"><Box size={12} /></button></Tooltip>
+        <Tooltip id="media.import-audio"><button onClick={() => onImport('audio')} disabled={!hasProjectFolder} title="Import audio" {...help('media.import-audio')} className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40"><Music size={12} /></button></Tooltip>
         {/* Scan — for media copied into assets/ outside the app (Explorer, a USB drive, a sync tool).
             Import is the supported route; this is the one that rescues everything that came the other
             way, which on a venue machine is most of it. */}
-        <button onClick={() => void runScan()} disabled={!hasProjectFolder || scan.busy}
-          title="Scan the project's assets folder for media added outside ArtLux"
+        <Tooltip id="media.scan"><button onClick={() => void runScan()} disabled={!hasProjectFolder || scan.busy}
+          title="Scan the project's assets folder for media added outside ArtLux" {...help('media.scan')}
           className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40 text-micro text-fg-2 ml-auto">
           <RefreshCw size={12} className={scan.busy ? 'animate-spin' : undefined} /> Scan
-        </button>
+        </button></Tooltip>
       </div>
       {!hasProjectFolder && (
         <div className="px-2 py-1 text-micro text-warn border-b border-line-1">Create a project folder (File → New Project) to import media.</div>
@@ -199,9 +203,9 @@ export const MediaPanel: React.FC<Props> = ({ assets, timeline, refs, selectedSu
         {/* Explorer's large / medium / list. Persisted in the workspace layout, so the density an
             operator picked for their screen is still there tomorrow. */}
         <div className="flex items-center ml-auto rounded border border-line-1 overflow-hidden">
-          {viewBtn('large', <LayoutGrid size={11} />, 'Large icons')}
-          {viewBtn('medium', <Grid3x3 size={11} />, 'Medium icons')}
-          {viewBtn('list', <List size={11} />, 'List')}
+          {viewBtn('large', <LayoutGrid size={11} />, 'Large icons', 'media.view-large')}
+          {viewBtn('medium', <Grid3x3 size={11} />, 'Medium icons', 'media.view-medium')}
+          {viewBtn('list', <List size={11} />, 'List', 'media.view-list')}
         </div>
       </div>
 
@@ -243,15 +247,15 @@ export const MediaPanel: React.FC<Props> = ({ assets, timeline, refs, selectedSu
           </div>
           <div className="flex items-center gap-1">
             {(selected.type === 'video' || selected.type === 'image') && (
-              <button onClick={() => onUseOnSurface(selected)} disabled={!selectedSurfaceId} title={selectedSurfaceId ? 'Set as the selected surface’s content' : 'Select a surface first'}
-                className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40 text-micro"><MonitorPlay size={11} /> Use</button>
+              <Tooltip id="media.use-on-surface"><button onClick={() => onUseOnSurface(selected)} disabled={!selectedSurfaceId} title={selectedSurfaceId ? 'Set as the selected surface’s content' : 'Select a surface first'} {...help('media.use-on-surface')}
+                className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 disabled:opacity-40 text-micro"><MonitorPlay size={11} /> Use</button></Tooltip>
             )}
-            <button onClick={() => window.artlux?.showItemInFolder?.(selected.path)} title="Reveal in folder"
-              className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 text-micro"><FolderOpen size={11} /></button>
-            <button onClick={() => onRelinkAsset(selected)} title="Relink (locate the file)"
-              className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 text-micro"><Link2 size={11} /></button>
-            <button onClick={() => onRemoveAsset(selected)} title="Remove from library"
-              className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-danger/20 hover:text-danger text-micro ml-auto"><Trash2 size={11} /></button>
+            <Tooltip id="media.reveal-in-folder"><button onClick={() => window.artlux?.showItemInFolder?.(selected.path)} title="Reveal in folder" {...help('media.reveal-in-folder')}
+              className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 text-micro"><FolderOpen size={11} /></button></Tooltip>
+            <Tooltip id="media.relink"><button onClick={() => onRelinkAsset(selected)} title="Relink (locate the file)" {...help('media.relink')}
+              className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-surface-3 text-micro"><Link2 size={11} /></button></Tooltip>
+            <Tooltip id="media.remove"><button onClick={() => onRemoveAsset(selected)} title="Remove from library" {...help('media.remove')}
+              className="inline-flex items-center gap-1 px-1.5 h-6 rounded border border-line-1 bg-surface-2 hover:bg-danger/20 hover:text-danger text-micro ml-auto"><Trash2 size={11} /></button></Tooltip>
           </div>
 
           <div>

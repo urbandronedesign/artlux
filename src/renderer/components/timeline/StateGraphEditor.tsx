@@ -3,6 +3,8 @@ import { StateMachine, SmState, SmTransition, SmRegion, SmAction, SmActionKind, 
 import { timeline as engine } from '../../services/timeline';
 import { smTriggerRegistry } from '../../host/registries';
 import { Plus, Star, Trash2, ArrowRight, Wand2, SquareDashed, Film, Snowflake, Zap } from 'lucide-react';
+import { Tooltip } from '../ui/Tooltip';
+import { help } from '../../services/helpBus';
 
 // `holdsAtEnd` = this scene's timeline ends by FREEZING on its last frame (Timeline.holdAtEnd, Loop
 // off) rather than by stopping. It is what a `requireEnd` transition out of this state waits for, so
@@ -284,12 +286,22 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
     <div className="w-full h-full bg-surface-0 flex flex-col overflow-hidden">
         <div className="h-9 shrink-0 flex items-center gap-2 px-3 border-b border-line-1 bg-surface-1">
           <span className="text-xs text-fg-1 font-medium">Show machine — states &amp; scenes</span>
-          <button onClick={() => addStateAt(CW / 2, CH / 2)} className="flex items-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-mini text-fg-1 hover:bg-surface-3"><Plus size={12} /> State</button>
-          <button onClick={addRegion} className="flex items-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-mini text-fg-1 hover:bg-surface-3"><SquareDashed size={12} /> Region</button>
-          <button onClick={buildFromScenes} disabled={!scenes.length} title={scenes.length ? 'Create one state per scene' : 'No scenes captured yet'}
-            className="flex items-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-mini text-fg-1 hover:bg-surface-3 disabled:opacity-40"><Wand2 size={12} /> Build from scenes</button>
-          <button onClick={addGlobalRule} disabled={!sm.states.length} title={sm.states.length ? 'A rule evaluated from EVERY state — for a trigger that must work whatever the show is doing' : 'Add a state first'}
-            className="flex items-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-mini text-fg-1 hover:bg-surface-3 disabled:opacity-40"><Zap size={12} /> Global rule</button>
+          <Tooltip id="timeline.sm-add-state">
+            <button onClick={() => addStateAt(CW / 2, CH / 2)} {...help('timeline.sm-add-state')} className="flex items-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-mini text-fg-1 hover:bg-surface-3"><Plus size={12} /> State</button>
+          </Tooltip>
+          <Tooltip id="timeline.sm-add-region">
+            <button onClick={addRegion} {...help('timeline.sm-add-region')} className="flex items-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-mini text-fg-1 hover:bg-surface-3"><SquareDashed size={12} /> Region</button>
+          </Tooltip>
+          <Tooltip id="timeline.sm-build-from-scenes">
+            <button onClick={buildFromScenes} disabled={!scenes.length} title={scenes.length ? 'Create one state per scene' : 'No scenes captured yet'}
+              {...help('timeline.sm-build-from-scenes')}
+              className="flex items-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-mini text-fg-1 hover:bg-surface-3 disabled:opacity-40"><Wand2 size={12} /> Build from scenes</button>
+          </Tooltip>
+          <Tooltip id="timeline.sm-add-global-rule">
+            <button onClick={addGlobalRule} disabled={!sm.states.length} title={sm.states.length ? 'A rule evaluated from EVERY state — for a trigger that must work whatever the show is doing' : 'Add a state first'}
+              {...help('timeline.sm-add-global-rule')}
+              className="flex items-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-mini text-fg-1 hover:bg-surface-3 disabled:opacity-40"><Zap size={12} /> Global rule</button>
+          </Tooltip>
           {linkFrom && <span className="text-micro text-accent">drag onto a target state to connect…</span>}
           <span className="ml-auto text-micro text-fg-3">dbl-click empty: add · dbl-click state: fire · drag nub: link · Ctrl+click edge: fire · Ctrl+wheel: zoom</span>
         </div>
@@ -427,6 +439,7 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
               </div>
               <NumField
                 label="Auto-reset to initial after (min) — 0 = off"
+                helpId="timeline.sm-idle-reset"
                 value={sm.idleResetSec ? Math.round((sm.idleResetSec / 60) * 100) / 100 : 0}
                 onChange={(v) => patch({ idleResetSec: v > 0 ? Math.round(v * 60) : undefined })} />
               <div className="text-fg-3 text-micro leading-snug">
@@ -465,23 +478,31 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
                   <input value={selState.name} onChange={(e) => patchState(selState.id, { name: e.target.value })}
                     className="w-full mt-0.5 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent outline-none" />
                 </label>
-                <button onClick={() => patch({ initialStateId: selState.id })}
-                  className={`w-full inline-flex items-center justify-center gap-1 px-2 py-1 rounded border ${sm.initialStateId === selState.id ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:text-fg-1'}`}>
-                  <Star size={12} /> {sm.initialStateId === selState.id ? 'Initial state' : 'Set as initial'}
-                </button>
-                <SelectField label="Scene (recalled on entry)" value={selState.sceneId ?? ''} options={scenes.map(s => ({ v: s.id, l: s.name }))}
+                <Tooltip id="timeline.sm-set-initial">
+                  <button onClick={() => patch({ initialStateId: selState.id })}
+                    {...help('timeline.sm-set-initial')}
+                    className={`w-full inline-flex items-center justify-center gap-1 px-2 py-1 rounded border ${sm.initialStateId === selState.id ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:text-fg-1'}`}>
+                    <Star size={12} /> {sm.initialStateId === selState.id ? 'Initial state' : 'Set as initial'}
+                  </button>
+                </Tooltip>
+                <SelectField label="Scene (recalled on entry)" helpId="timeline.sm-state-scene" value={selState.sceneId ?? ''} options={scenes.map(s => ({ v: s.id, l: s.name }))}
                   onChange={(v) => patchState(selState.id, { sceneId: v || undefined })} />
                 {/* Author this state's own timeline: recalls its look live and binds the editor to it. */}
                 {selState.sceneId && onEditTimeline && (
-                  <button onClick={() => { onEditTimeline(selState.sceneId!); onClose?.(); }}
-                    className="w-full inline-flex items-center justify-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3"><Film size={12} /> Edit timeline</button>
+                  <Tooltip id="timeline.sm-edit-timeline">
+                    <button onClick={() => { onEditTimeline(selState.sceneId!); onClose?.(); }}
+                      {...help('timeline.sm-edit-timeline')}
+                      className="w-full inline-flex items-center justify-center gap-1 px-2 py-1 rounded bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3"><Film size={12} /> Edit timeline</button>
+                  </Tooltip>
                 )}
-                <NumField label="Lock time (s) — dwell before auto transitions" value={selState.lockSec ?? 0} onChange={(v) => patchState(selState.id, { lockSec: v || undefined })} />
+                <NumField label="Lock time (s) — dwell before auto transitions" helpId="timeline.sm-lock-time" value={selState.lockSec ?? 0} onChange={(v) => patchState(selState.id, { lockSec: v || undefined })} />
 
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-fg-3 text-micro">Entry actions</span>
-                    <button onClick={() => patchState(selState.id, { entry: [...selState.entry, { kind: 'play' }] })} className="text-accent hover:underline inline-flex items-center gap-0.5"><Plus size={11} /> add</button>
+                    <Tooltip id="timeline.sm-add-action">
+                      <button onClick={() => patchState(selState.id, { entry: [...selState.entry, { kind: 'play' }] })} {...help('timeline.sm-add-action')} className="text-accent hover:underline inline-flex items-center gap-0.5"><Plus size={11} /> add</button>
+                    </Tooltip>
                   </div>
                   <div className="space-y-2">
                     {selState.entry.map((a, i) => (
@@ -526,14 +547,17 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
                 )}
                 <label className="block">
                   <span className="text-fg-3 text-micro">Trigger</span>
-                  <select value={triggerValue(selTrans.trigger)}
-                    onChange={(e) => patchTransition(selTrans.id, { trigger: triggerFromValue(e.target.value, selTrans.trigger) })}
-                    className="w-full mt-0.5 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent outline-none">
-                    {TRIGGER_KINDS.map(k => <option key={k} value={k}>{k}</option>)}
-                    {/* Plugin-owned sources, listed by their own label. A show that reacts to the ROOM
-                        is authored here, next to the timeline triggers, not in a separate world. */}
-                    {smTriggerRegistry.all().map(t => <option key={t.source} value={`plugin:${t.source}`}>{t.label}</option>)}
-                  </select>
+                  <Tooltip id="timeline.sm-trigger">
+                    <select value={triggerValue(selTrans.trigger)}
+                      onChange={(e) => patchTransition(selTrans.id, { trigger: triggerFromValue(e.target.value, selTrans.trigger) })}
+                      {...help('timeline.sm-trigger')}
+                      className="w-full mt-0.5 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent outline-none">
+                      {TRIGGER_KINDS.map(k => <option key={k} value={k}>{k}</option>)}
+                      {/* Plugin-owned sources, listed by their own label. A show that reacts to the ROOM
+                          is authored here, next to the timeline triggers, not in a separate world. */}
+                      {smTriggerRegistry.all().map(t => <option key={t.source} value={`plugin:${t.source}`}>{t.label}</option>)}
+                    </select>
+                  </Tooltip>
                 </label>
                 {selTrans.trigger.kind === 'afterDelay' && (
                   <NumField label="Seconds after entering" value={selTrans.trigger.seconds ?? 0} onChange={(v) => patchTransition(selTrans.id, { trigger: { ...selTrans.trigger, seconds: v } })} />
@@ -570,20 +594,22 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
                 {/* THE GUARD, not a trigger: the trigger above still has to fire, this decides whether
                     it MAY. It is the piece that makes a live trigger (a person walking into a LiDAR
                     zone) safe on a state that is showing a film — without it the film gets cut. */}
-                <label className="flex items-start gap-2 cursor-pointer">
-                  <input type="checkbox" checked={!!selTrans.requireEnd} className="mt-0.5"
-                    onChange={(e) => patchTransition(selTrans.id, { requireEnd: e.target.checked || undefined })} />
-                  <span>
-                    <span className="text-fg-2">Only after the state has finished</span>
-                    <span className="block text-fg-3 text-micro">
-                      Holds the <span className="text-fg-2">automatic</span> trigger until the source
-                      state&rsquo;s timeline is holding its last frame (Hold at end, in the timeline
-                      toolbar). A manual/OSC/tablet trigger still fires — it is flagged early, not blocked.
-                      A state that loops, or has no hold, never satisfies this.
+                <Tooltip id="timeline.sm-require-end">
+                  <label className="flex items-start gap-2 cursor-pointer" {...help('timeline.sm-require-end')}>
+                    <input type="checkbox" checked={!!selTrans.requireEnd} className="mt-0.5"
+                      onChange={(e) => patchTransition(selTrans.id, { requireEnd: e.target.checked || undefined })} />
+                    <span>
+                      <span className="text-fg-2">Only after the state has finished</span>
+                      <span className="block text-fg-3 text-micro">
+                        Holds the <span className="text-fg-2">automatic</span> trigger until the source
+                        state&rsquo;s timeline is holding its last frame (Hold at end, in the timeline
+                        toolbar). A manual/OSC/tablet trigger still fires — it is flagged early, not blocked.
+                        A state that loops, or has no hold, never satisfies this.
+                      </span>
                     </span>
-                  </span>
-                </label>
-                <NumField label="Transition time (s) — scene crossfade on arrival" value={selTrans.fadeSec ?? 0} onChange={(v) => patchTransition(selTrans.id, { fadeSec: v || undefined })} />
+                  </label>
+                </Tooltip>
+                <NumField label="Transition time (s) — scene crossfade on arrival" helpId="timeline.sm-fade" value={selTrans.fadeSec ?? 0} onChange={(v) => patchTransition(selTrans.id, { fadeSec: v || undefined })} />
               </div>
             )}
 
@@ -609,23 +635,37 @@ export const StateGraphEditor: React.FC<Props> = ({ sm, markers, layers, scenes,
   );
 };
 
-const NumField: React.FC<{ label: string; value: number; onChange: (v: number) => void }> = ({ label, value, onChange }) => (
-  <label className="block">
-    <span className="text-fg-3 text-micro">{label}</span>
+// `helpId` (optional) opts a single instance into the rich help system: the host <input>/<select> is
+// wrapped in a Tooltip and carries the registry id. Left off, the field renders exactly as before.
+const NumField: React.FC<{ label: string; value: number; onChange: (v: number) => void; helpId?: string }> = ({ label, value, onChange, helpId }) => {
+  const input = (
     <input type="number" step="0.1" value={value} onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+      {...(helpId ? help(helpId) : {})}
       className="w-full mt-0.5 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent outline-none" />
-  </label>
-);
+  );
+  return (
+    <label className="block">
+      <span className="text-fg-3 text-micro">{label}</span>
+      {helpId ? <Tooltip id={helpId}>{input}</Tooltip> : input}
+    </label>
+  );
+};
 
-const SelectField: React.FC<{ label: string; value: string; options: { v: string; l: string }[]; onChange: (v: string) => void }> = ({ label, value, options, onChange }) => (
-  <label className="block">
-    <span className="text-fg-3 text-micro">{label}</span>
-    <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full mt-0.5 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent outline-none">
+const SelectField: React.FC<{ label: string; value: string; options: { v: string; l: string }[]; onChange: (v: string) => void; helpId?: string }> = ({ label, value, options, onChange, helpId }) => {
+  const select = (
+    <select value={value} onChange={(e) => onChange(e.target.value)} {...(helpId ? help(helpId) : {})}
+      className="w-full mt-0.5 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent outline-none">
       <option value="">— pick —</option>
       {options.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
     </select>
-  </label>
-);
+  );
+  return (
+    <label className="block">
+      <span className="text-fg-3 text-micro">{label}</span>
+      {helpId ? <Tooltip id={helpId}>{select}</Tooltip> : select}
+    </label>
+  );
+};
 
 const ActionRow: React.FC<{ action: SmAction; markers: Marker[]; scenes: SceneRef[]; cues: CueRef[]; onChange: (a: SmAction) => void; onRemove: () => void }> = ({ action, markers, scenes, cues, onChange, onRemove }) => (
   <div className="border border-line-1 rounded p-1.5 bg-surface-0 space-y-1.5">

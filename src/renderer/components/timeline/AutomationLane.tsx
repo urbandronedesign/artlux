@@ -13,6 +13,8 @@ import type { AutomationTargetDef } from '@artlux/sdk/renderer';
 import { sampleLane, normValue, denormValue, BEZ_DEFAULT } from '../../services/automation';
 import { GUTTER, clamp } from './geometry';
 import { Trash2, Zap, ZapOff, Diamond, AlertTriangle } from 'lucide-react';
+import { Tooltip } from '../ui/Tooltip';
+import { help } from '../../services/helpBus';
 
 export const AUTO_LANE_H = 64;
 const PAD = 8; // px of headroom top/bottom so a keyframe at min/max is still grabbable
@@ -221,13 +223,16 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, pl
       {/* gutter */}
       <div className="sticky left-0 z-20 shrink-0 bg-surface-1 border-r border-line-1 flex flex-col justify-center gap-0.5 px-2 py-1" style={{ width: GUTTER, height: h }}>
         <div className="flex items-center gap-1">
-          <button onClick={() => onChange?.({ ...lane, enabled: !enabled })} disabled={readOnly}
-            title={readOnly
-              ? 'This lane belongs to the GLOBAL timeline — switch to the Global pill to change it.'
-              : enabled ? 'Lane ON — it owns this parameter (click to release it back to manual)' : 'Lane OFF — the parameter is manual again'}
-            className={`${enabled ? 'text-accent' : 'text-fg-3'} ${readOnly ? 'cursor-default' : 'hover:text-fg-1'}`}>
-            {enabled ? <Zap size={11} /> : <ZapOff size={11} />}
-          </button>
+          <Tooltip id="timeline.automation-enable">
+            <button onClick={() => onChange?.({ ...lane, enabled: !enabled })} disabled={readOnly}
+              title={readOnly
+                ? 'This lane belongs to the GLOBAL timeline — switch to the Global pill to change it.'
+                : enabled ? 'Lane ON — it owns this parameter (click to release it back to manual)' : 'Lane OFF — the parameter is manual again'}
+              {...help('timeline.automation-enable')}
+              className={`${enabled ? 'text-accent' : 'text-fg-3'} ${readOnly ? 'cursor-default' : 'hover:text-fg-1'}`}>
+              {enabled ? <Zap size={11} /> : <ZapOff size={11} />}
+            </button>
+          </Tooltip>
           <span className={`text-micro truncate ${shadowed ? 'text-fg-3 line-through' : 'text-fg-1'}`} title={lane.targetPath}>{def.label}</span>
           {/* WHY THIS LANE IS ON SCREEN AT ALL. It is not this scene's — it belongs to the GLOBAL timeline and
               rides the SHOW clock, and it is what is moving this parameter underneath the scene. Say so, or the
@@ -243,11 +248,15 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, pl
           )}
           {!readOnly && (
             <>
-              <button onClick={() => commit([...lane.keyframes.filter(k => Math.abs(k.t - playhead) > 0.001), { t: Math.max(0, playhead), v: quant(live), curve: 'linear' }])}
-                title="Add a keyframe at the playhead, holding the current value" className="ml-auto text-fg-3 hover:text-fg-1">
-                <Diamond size={11} />
-              </button>
-              <button onClick={onRemove} title="Remove lane" className="text-fg-3 hover:text-danger"><Trash2 size={11} /></button>
+              <Tooltip id="timeline.automation-add-key">
+                <button onClick={() => commit([...lane.keyframes.filter(k => Math.abs(k.t - playhead) > 0.001), { t: Math.max(0, playhead), v: quant(live), curve: 'linear' }])}
+                  title="Add a keyframe at the playhead, holding the current value" {...help('timeline.automation-add-key')} className="ml-auto text-fg-3 hover:text-fg-1">
+                  <Diamond size={11} />
+                </button>
+              </Tooltip>
+              <Tooltip id="timeline.automation-remove-lane">
+                <button onClick={onRemove} title="Remove lane" {...help('timeline.automation-remove-lane')} className="text-fg-3 hover:text-danger"><Trash2 size={11} /></button>
+              </Tooltip>
             </>
           )}
         </div>
@@ -287,12 +296,15 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, pl
                 className={`absolute top-0 -translate-y-1/2 ${flip ? 'right-2' : 'left-2'} z-10 px-1 rounded border border-line-1 bg-surface-0/95 text-micro leading-tight text-fg-1 tabular-nums whitespace-nowrap pointer-events-none transition-opacity ${active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                 {fmt(k.v)} <span className="text-fg-3">· {k.t.toFixed(2)}s</span>
               </span>
-              <div onPointerDown={dragKf(i)}
-                onContextMenu={(e) => { e.preventDefault(); removeKf(i); }}
-                onClick={(e) => { if (e.altKey) { e.stopPropagation(); removeKf(i); } }}
-                onDoubleClick={(e) => { e.stopPropagation(); cycleCurve(i); }}
-                title={`${fmt(k.v)} @ ${k.t.toFixed(2)}s · ${k.curve ?? 'linear'}\ndrag to move (shift = value only, alt = time only) · double-click: curve · right-click: delete`}
-                className={`absolute left-0 top-0 -ml-[4.5px] -mt-[4.5px] w-[9px] h-[9px] rotate-45 cursor-pointer ${active ? 'bg-fg-1 border border-fg-1' : 'bg-accent border border-accent'}`} />
+              <Tooltip id="timeline.automation-keyframe">
+                <div onPointerDown={dragKf(i)}
+                  onContextMenu={(e) => { e.preventDefault(); removeKf(i); }}
+                  onClick={(e) => { if (e.altKey) { e.stopPropagation(); removeKf(i); } }}
+                  onDoubleClick={(e) => { e.stopPropagation(); cycleCurve(i); }}
+                  {...help('timeline.automation-keyframe')}
+                  title={`${fmt(k.v)} @ ${k.t.toFixed(2)}s · ${k.curve ?? 'linear'}\ndrag to move (shift = value only, alt = time only) · double-click: curve · right-click: delete`}
+                  className={`absolute left-0 top-0 -ml-[4.5px] -mt-[4.5px] w-[9px] h-[9px] rotate-45 cursor-pointer ${active ? 'bg-fg-1 border border-fg-1' : 'bg-accent border border-accent'}`} />
+              </Tooltip>
             </div>
           );
         })}

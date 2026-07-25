@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Trash2, Eye, EyeOff, Lock, Unlock, GripVertical, Blend, Volume2, VolumeX } from 'lucide-react';
 import { VideoLayer, LayerBlendMode } from '../../types';
+import { Tooltip } from '../ui/Tooltip';
+import { help } from '../../services/helpBus';
 
 const BLEND_MODES: LayerBlendMode[] = ['normal', 'add', 'screen', 'multiply'];
 
@@ -16,15 +18,22 @@ interface Props {
   onStartResize: (e: React.PointerEvent, layer: VideoLayer) => void;
 }
 
-const Toggle: React.FC<{ on: boolean; label: string; title: string; color?: string; onClick: () => void }> = ({ on, label, title, color, onClick }) => (
-  <button
-    title={title}
-    onPointerDown={(e) => e.stopPropagation()}
-    onClick={onClick}
-    className={`w-4 h-4 rounded-sm text-micro font-bold flex items-center justify-center border ${on ? 'text-black border-transparent' : 'text-fg-3 border-line-2 hover:text-fg-1'}`}
-    style={on ? { background: color ?? 'var(--accent)' } : undefined}
-  >{label}</button>
-);
+// `helpId`, when given, opts the toggle into the rich help system (a hoverable tooltip with a "? Learn
+// more" deep-link + the StatusBar context line), exactly like TimelineToolbar's TBtn. The native `title`
+// stays as the accessible name and the fallback for toggles without an entry.
+const Toggle: React.FC<{ on: boolean; label: string; title: string; helpId?: string; color?: string; onClick: () => void }> = ({ on, label, title, helpId, color, onClick }) => {
+  const btn = (
+    <button
+      title={title}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={onClick}
+      {...(helpId ? help(helpId) : {})}
+      className={`w-4 h-4 rounded-sm text-micro font-bold flex items-center justify-center border ${on ? 'text-black border-transparent' : 'text-fg-3 border-line-2 hover:text-fg-1'}`}
+      style={on ? { background: color ?? 'var(--accent)' } : undefined}
+    >{label}</button>
+  );
+  return helpId ? <Tooltip id={helpId}>{btn}</Tooltip> : btn;
+};
 
 const TrackHeaderBase: React.FC<Props> = ({ layer, index, height, onPatch, onRemove, onStartReorder, onStartResize }) => {
   const [fxOpen, setFxOpen] = useState(false);
@@ -45,35 +54,46 @@ const TrackHeaderBase: React.FC<Props> = ({ layer, index, height, onPatch, onRem
           onPointerDown={(e) => e.stopPropagation()}
           className="flex-1 min-w-0 bg-transparent text-mini text-fg-1 focus:bg-surface-0 rounded px-1 outline-none"
         />
-        <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onRemove(layer.id)} className="text-fg-3 hover:text-danger shrink-0"><Trash2 size={11} /></button>
+        <Tooltip id="timeline.track-remove">
+          <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onRemove(layer.id)} {...help('timeline.track-remove')} title="Delete track" className="text-fg-3 hover:text-danger shrink-0"><Trash2 size={11} /></button>
+        </Tooltip>
       </div>
       <div className="flex items-center gap-1">
-        <Toggle on={!!layer.muted} label="M" title="Mute (visual)" color="#f5a623" onClick={() => onPatch(layer.id, { muted: !layer.muted })} />
-        <Toggle on={!!layer.solo} label="S" title="Solo (visual)" color="#27b6c4" onClick={() => onPatch(layer.id, { solo: !layer.solo })} />
-        <button title={layer.locked ? 'Unlock' : 'Lock'} onPointerDown={(e) => e.stopPropagation()} onClick={() => onPatch(layer.id, { locked: !layer.locked })}
-          className={`w-4 h-4 rounded-sm flex items-center justify-center border ${layer.locked ? 'bg-danger text-black border-transparent' : 'text-fg-3 border-line-2 hover:text-fg-1'}`}>
-          {layer.locked ? <Lock size={10} /> : <Unlock size={10} />}
-        </button>
-        <button title={layer.enabled === false ? 'Show' : 'Hide'} onPointerDown={(e) => e.stopPropagation()} onClick={() => onPatch(layer.id, { enabled: layer.enabled === false })}
-          className={`w-4 h-4 rounded-sm flex items-center justify-center border ${layer.enabled === false ? 'text-fg-3 border-line-2 hover:text-fg-1' : 'text-fg-1 border-line-2'}`}>
-          {layer.enabled === false ? <EyeOff size={10} /> : <Eye size={10} />}
-        </button>
+        <Toggle on={!!layer.muted} label="M" title="Mute (visual)" helpId="timeline.track-mute" color="#f5a623" onClick={() => onPatch(layer.id, { muted: !layer.muted })} />
+        <Toggle on={!!layer.solo} label="S" title="Solo (visual)" helpId="timeline.track-solo" color="#27b6c4" onClick={() => onPatch(layer.id, { solo: !layer.solo })} />
+        <Tooltip id="timeline.track-lock">
+          <button title={layer.locked ? 'Unlock' : 'Lock'} {...help('timeline.track-lock')} onPointerDown={(e) => e.stopPropagation()} onClick={() => onPatch(layer.id, { locked: !layer.locked })}
+            className={`w-4 h-4 rounded-sm flex items-center justify-center border ${layer.locked ? 'bg-danger text-black border-transparent' : 'text-fg-3 border-line-2 hover:text-fg-1'}`}>
+            {layer.locked ? <Lock size={10} /> : <Unlock size={10} />}
+          </button>
+        </Tooltip>
+        <Tooltip id="timeline.track-hide">
+          <button title={layer.enabled === false ? 'Show' : 'Hide'} {...help('timeline.track-hide')} onPointerDown={(e) => e.stopPropagation()} onClick={() => onPatch(layer.id, { enabled: layer.enabled === false })}
+            className={`w-4 h-4 rounded-sm flex items-center justify-center border ${layer.enabled === false ? 'text-fg-3 border-line-2 hover:text-fg-1' : 'text-fg-1 border-line-2'}`}>
+            {layer.enabled === false ? <EyeOff size={10} /> : <Eye size={10} />}
+          </button>
+        </Tooltip>
         {/* THE LAYER'S SOUND — its clips' own soundtracks, NOT the same thing as the `M` two buttons left.
             That one is the PROGRAM composite (a picture flag); this silences every video clip on the track.
             Two separate concepts sharing a track header is exactly why they get two separate buttons and
             two separate fields (VideoLayer.muted vs VideoLayer.audio.mute) — hiding a layer must not
             silence it, and silencing it must not hide it. */}
-        <button title={layer.audio?.mute ? 'Un-mute this track’s video audio' : 'Mute this track’s video audio'}
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={() => onPatch(layer.id, { audio: { ...layer.audio, mute: !layer.audio?.mute } })}
-          className={`w-4 h-4 rounded-sm flex items-center justify-center border ${layer.audio?.mute ? 'bg-warn text-black border-transparent' : 'text-fg-3 border-line-2 hover:text-fg-1'}`}>
-          {layer.audio?.mute ? <VolumeX size={10} /> : <Volume2 size={10} />}
-        </button>
+        <Tooltip id="timeline.track-audio-mute">
+          <button title={layer.audio?.mute ? 'Un-mute this track’s video audio' : 'Mute this track’s video audio'}
+            {...help('timeline.track-audio-mute')}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => onPatch(layer.id, { audio: { ...layer.audio, mute: !layer.audio?.mute } })}
+            className={`w-4 h-4 rounded-sm flex items-center justify-center border ${layer.audio?.mute ? 'bg-warn text-black border-transparent' : 'text-fg-3 border-line-2 hover:text-fg-1'}`}>
+            {layer.audio?.mute ? <VolumeX size={10} /> : <Volume2 size={10} />}
+          </button>
+        </Tooltip>
         {/* Opacity + blend for the timeline (Program) composite — popover so it fits any track height. */}
-        <button title="Opacity & blend in the Timeline (Program) composite" onPointerDown={(e) => e.stopPropagation()} onClick={() => setFxOpen(v => !v)}
-          className={`w-4 h-4 rounded-sm flex items-center justify-center border ${fxActive || fxOpen ? 'text-black border-transparent bg-accent' : 'text-fg-3 border-line-2 hover:text-fg-1'}`}>
-          <Blend size={10} />
-        </button>
+        <Tooltip id="timeline.track-blend">
+          <button title="Opacity & blend in the Timeline (Program) composite" {...help('timeline.track-blend')} onPointerDown={(e) => e.stopPropagation()} onClick={() => setFxOpen(v => !v)}
+            className={`w-4 h-4 rounded-sm flex items-center justify-center border ${fxActive || fxOpen ? 'text-black border-transparent bg-accent' : 'text-fg-3 border-line-2 hover:text-fg-1'}`}>
+            <Blend size={10} />
+          </button>
+        </Tooltip>
       </div>
       {fxOpen && (
         <>

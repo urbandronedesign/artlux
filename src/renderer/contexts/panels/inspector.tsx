@@ -3,6 +3,8 @@ import {
   Surface, SurfaceContent, PixelSource, LedShape, ColorOrder, RGBWMode, Layout3DType,
 } from '../../types';
 import { ContentEditor } from '../../components/ContentEditor';
+import { Tooltip } from '../../components/ui/Tooltip';
+import { help } from '../../services/helpBus';
 import { effectivePosObj, effectiveRotObj, effectiveLayout } from '../../services/led3dDefaults';
 import { useEditor, useEditorActions } from '../../state/EditorStore';
 
@@ -83,20 +85,25 @@ export const FixtureMappingPanel: React.FC = () => {
     <>
       <div className="flex items-center justify-between text-xs gap-2">
         <label className="text-fg-2 w-16 truncate">Surface</label>
-        <select
-          value={f.surfaceId ?? ''}
-          onChange={(e) => a.updateFixture(f.id, { surfaceId: e.target.value || undefined })}
-          className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent focus:outline-none"
-        >
-          <option value="">— none (off) —</option>
-          {surfaces.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select>
+        <Tooltip id="general.fixture-surface">
+          <select
+            value={f.surfaceId ?? ''}
+            onChange={(e) => a.updateFixture(f.id, { surfaceId: e.target.value || undefined })}
+            className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent focus:outline-none"
+            {...help('general.fixture-surface')}
+          >
+            <option value="">— none (off) —</option>
+            {surfaces.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </Tooltip>
       </div>
       <NumberInput label="LED Count" value={f.ledCount} step={1} onChange={(v) => a.updateFixture(f.id, { ledCount: Math.max(1, v) })} />
       <NumberInput label="Universe" value={f.universe} step={1} onChange={(v) => a.updateFixture(f.id, { universe: Math.max(0, v) })} />
       <NumberInput label="Start Addr" value={f.startAddress} step={1} onChange={(v) => a.updateFixture(f.id, { startAddress: Math.max(1, v) })} />
       <div className="flex items-center justify-between mt-2 pt-2 border-t border-line-1">
-        <span className="text-xs text-fg-2">Reverse Direction</span>
+        <Tooltip id="general.fixture-reverse">
+          <span className="text-xs text-fg-2" {...help('general.fixture-reverse')}>Reverse Direction</span>
+        </Tooltip>
         <input
           type="checkbox" checked={f.reverse}
           onChange={(e) => a.updateFixture(f.id, { reverse: e.target.checked })}
@@ -178,7 +185,9 @@ export const FixtureSegmentsPanel: React.FC = () => {
           {hasSegs ? `${segs!.length} segments` : 'Whole fixture'}
         </span>
         <div className="flex gap-1">
-          <button onClick={insertGap} title="Split into thirds and mark the middle as an off/dead span" className="text-micro px-1.5 py-0.5 rounded border border-line-2 text-fg-2 hover:bg-surface-3">Insert gap</button>
+          <Tooltip id="general.insert-gap">
+            <button onClick={insertGap} title="Split into thirds and mark the middle as an off/dead span" className="text-micro px-1.5 py-0.5 rounded border border-line-2 text-fg-2 hover:bg-surface-3" {...help('general.insert-gap')}>Insert gap</button>
+          </Tooltip>
           {hasSegs ? (
             <>
               <button onClick={addSegment} className="text-micro px-1.5 py-0.5 rounded border border-line-2 text-fg-2 hover:bg-surface-3">+ Split</button>
@@ -243,7 +252,9 @@ export const FixtureOutputPanel: React.FC = () => {
           <NumberInput label="Cols" value={f.matrixWidth ?? 8} step={1} onChange={(v) => a.updateFixture(f.id, { matrixWidth: Math.max(1, v) })} />
           <NumberInput label="Rows" value={f.matrixHeight ?? 8} step={1} onChange={(v) => a.updateFixture(f.id, { matrixHeight: Math.max(1, v) })} />
           <div className="flex items-center justify-between">
-            <span className="text-xs text-fg-2">Serpentine</span>
+            <Tooltip id="general.serpentine">
+              <span className="text-xs text-fg-2" {...help('general.serpentine')}>Serpentine</span>
+            </Tooltip>
             <input
               type="checkbox" checked={f.serpentine ?? false}
               onChange={(e) => a.updateFixture(f.id, { serpentine: e.target.checked })}
@@ -255,13 +266,16 @@ export const FixtureOutputPanel: React.FC = () => {
 
       <div className="flex items-center justify-between text-xs gap-2 pt-1">
         <label className="text-fg-2 w-16 truncate">Color Order</label>
-        <select
-          value={f.colorOrder ?? ColorOrder.RGB}
-          onChange={(e) => a.updateFixture(f.id, { colorOrder: e.target.value as ColorOrder })}
-          className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent focus:outline-none"
-        >
-          {Object.values(ColorOrder).map((o) => <option key={o} value={o}>{o}</option>)}
-        </select>
+        <Tooltip id="general.color-order">
+          <select
+            value={f.colorOrder ?? ColorOrder.RGB}
+            onChange={(e) => a.updateFixture(f.id, { colorOrder: e.target.value as ColorOrder })}
+            className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent focus:outline-none"
+            {...help('general.color-order')}
+          >
+            {Object.values(ColorOrder).map((o) => <option key={o} value={o}>{o}</option>)}
+          </select>
+        </Tooltip>
       </div>
 
       <div className="flex items-center justify-between text-xs gap-2">
@@ -279,14 +293,17 @@ export const FixtureOutputPanel: React.FC = () => {
       {(f.channelsPerPixel ?? 4) === 4 && (
         <div className="flex items-center justify-between text-xs gap-2">
           <label className="text-fg-2 w-16 truncate">White</label>
-          <select
-            value={f.rgbwMode ?? RGBWMode.SUBTRACT}
-            onChange={(e) => a.updateFixture(f.id, { rgbwMode: e.target.value as RGBWMode })}
-            className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent focus:outline-none"
-          >
-            <option value={RGBWMode.SUBTRACT}>Subtract min</option>
-            <option value={RGBWMode.NONE}>None</option>
-          </select>
+          <Tooltip id="general.rgbw-mode">
+            <select
+              value={f.rgbwMode ?? RGBWMode.SUBTRACT}
+              onChange={(e) => a.updateFixture(f.id, { rgbwMode: e.target.value as RGBWMode })}
+              className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent focus:outline-none"
+              {...help('general.rgbw-mode')}
+            >
+              <option value={RGBWMode.SUBTRACT}>Subtract min</option>
+              <option value={RGBWMode.NONE}>None</option>
+            </select>
+          </Tooltip>
         </div>
       )}
     </>
@@ -321,12 +338,15 @@ export const FixtureRoutingPanel: React.FC = () => {
       )}
       <div className="flex items-center justify-between text-xs gap-2">
         <label className="text-fg-2 w-16 truncate">Target IP</label>
-        <input
-          type="text" value={f.output?.ip ?? ''}
-          onChange={(e) => a.updateFixture(f.id, { output: { ...f.output, ip: e.target.value || undefined } })}
-          placeholder={settings.artNetIp + ' (default)'}
-          className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-right text-fg-1 focus:border-accent focus:outline-none font-mono"
-        />
+        <Tooltip id="general.fixture-target-ip">
+          <input
+            type="text" value={f.output?.ip ?? ''}
+            onChange={(e) => a.updateFixture(f.id, { output: { ...f.output, ip: e.target.value || undefined } })}
+            placeholder={settings.artNetIp + ' (default)'}
+            className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-right text-fg-1 focus:border-accent focus:outline-none font-mono"
+            {...help('general.fixture-target-ip')}
+          />
+        </Tooltip>
       </div>
       <div className="flex items-center justify-between">
         <span className="text-xs text-fg-2">Broadcast (override)</span>
@@ -337,7 +357,9 @@ export const FixtureRoutingPanel: React.FC = () => {
         />
       </div>
       <div className="flex items-center justify-between">
-        <span className="text-xs text-fg-2" title="Skip universes whose data is unchanged">Sparse output</span>
+        <Tooltip id="general.sparse-output">
+          <span className="text-xs text-fg-2" title="Skip universes whose data is unchanged" {...help('general.sparse-output')}>Sparse output</span>
+        </Tooltip>
         <input
           type="checkbox" checked={f.output?.sparse ?? false}
           onChange={(e) => a.updateFixture(f.id, { output: { ...f.output, sparse: e.target.checked } })}
@@ -393,7 +415,9 @@ export const FixtureLayout3DPanel: React.FC = () => {
           <NumberInput label="Cols" value={L.matrixCols} step={1} onChange={(v) => setLayout({ matrixCols: Math.max(1, Math.round(v)) })} />
           <NumberInput label="Rows" value={L.matrixRows} step={1} onChange={(v) => setLayout({ matrixRows: Math.max(1, Math.round(v)) })} />
           <div className="flex items-center justify-between">
-            <span className="text-xs text-fg-2">Serpentine</span>
+            <Tooltip id="general.serpentine">
+              <span className="text-xs text-fg-2" {...help('general.serpentine')}>Serpentine</span>
+            </Tooltip>
             <input
               type="checkbox" checked={L.serpentine}
               onChange={(e) => setLayout({ serpentine: e.target.checked })}

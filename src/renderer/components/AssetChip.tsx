@@ -4,6 +4,8 @@ import { AssetEntry, MediaView } from '../types';
 import { getThumb, onThumb } from '../services/thumbnailCache';
 import { ensureBlobUrl, mimeForPath } from '../services/mediaCache';
 import { BlobSparkline } from './timeline/BlobSparkline';
+import { Tooltip } from './ui/Tooltip';
+import { help } from '../services/helpBus';
 
 // Single-frame video thumbnail (decoupled from playback via thumbnailCache).
 const VideoThumb: React.FC<{ path: string }> = ({ path }) => {
@@ -85,7 +87,8 @@ export const AssetChip: React.FC<Props> = ({ asset, usageCount, missing, selecte
 
   if (view === 'list') {
     return (
-      <div {...common}
+      <Tooltip id="media.asset-chip">
+      <div {...common} {...help('media.asset-chip')}
         className={`group relative flex items-center gap-2 pr-1.5 rounded-sm border overflow-hidden cursor-grab ${selected ? 'border-accent bg-surface-2' : 'border-transparent hover:bg-surface-2'} ${missing ? 'opacity-60 cursor-not-allowed' : ''}`}
       >
         <div className="relative w-12 h-7 shrink-0 bg-surface-0 flex items-center justify-center overflow-hidden rounded-sm">
@@ -103,12 +106,14 @@ export const AssetChip: React.FC<Props> = ({ asset, usageCount, missing, selecte
           </span>
         )}
       </div>
+      </Tooltip>
     );
   }
 
   const small = view === 'medium';
   return (
-    <div {...common}
+    <Tooltip id="media.asset-chip">
+    <div {...common} {...help('media.asset-chip')}
       className={`group relative flex flex-col rounded-sm border overflow-hidden cursor-grab ${selected ? 'border-accent' : 'border-line-2 hover:border-line-2/80'} ${missing ? 'opacity-60 cursor-not-allowed' : ''}`}
     >
       <div className="relative w-full aspect-video bg-surface-0 flex items-center justify-center">
@@ -127,5 +132,6 @@ export const AssetChip: React.FC<Props> = ({ asset, usageCount, missing, selecte
       </div>
       <div className="px-1.5 py-1 text-micro leading-tight truncate text-fg-1 bg-surface-2">{asset.name}</div>
     </div>
+    </Tooltip>
   );
 };

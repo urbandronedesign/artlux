@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Plus, Trash2, Folder, Box, Users, Copy, Layers, Hash, ChevronUp, ChevronDown } from 'lucide-react';
 import { Slider } from '../../components/ui';
+import { Tooltip } from '../../components/ui/Tooltip';
+import { help } from '../../services/helpBus';
 import { livePreview } from '../../services/livePreview';
 import { useEditor, useEditorActions } from '../../state/EditorStore';
 
@@ -66,18 +68,24 @@ export const SurfacesPanel: React.FC = () => {
               : <span className="flex-1 truncate select-none" title="Double-click to rename">{s.name}</span>}
             <span className="num text-micro text-fg-3 mr-1 uppercase">{s.content.type === 'NONE' ? '—' : s.content.type}</span>
             <div className="flex items-center text-fg-3">
-              <button
-                className="p-0.5 hover:text-fg-1 disabled:opacity-20 disabled:hover:text-fg-3"
-                disabled={idx === 0}
-                onClick={(e) => { e.stopPropagation(); a.moveSurface(s.id, 'up'); }}
-                title="Bring forward"
-              ><ChevronUp size={12} /></button>
-              <button
-                className="p-0.5 hover:text-fg-1 disabled:opacity-20 disabled:hover:text-fg-3"
-                disabled={idx === arr.length - 1}
-                onClick={(e) => { e.stopPropagation(); a.moveSurface(s.id, 'down'); }}
-                title="Send backward"
-              ><ChevronDown size={12} /></button>
+              <Tooltip id="general.surface-forward">
+                <button
+                  className="p-0.5 hover:text-fg-1 disabled:opacity-20 disabled:hover:text-fg-3"
+                  disabled={idx === 0}
+                  onClick={(e) => { e.stopPropagation(); a.moveSurface(s.id, 'up'); }}
+                  title="Bring forward"
+                  {...help('general.surface-forward')}
+                ><ChevronUp size={12} /></button>
+              </Tooltip>
+              <Tooltip id="general.surface-backward">
+                <button
+                  className="p-0.5 hover:text-fg-1 disabled:opacity-20 disabled:hover:text-fg-3"
+                  disabled={idx === arr.length - 1}
+                  onClick={(e) => { e.stopPropagation(); a.moveSurface(s.id, 'down'); }}
+                  title="Send backward"
+                  {...help('general.surface-backward')}
+                ><ChevronDown size={12} /></button>
+              </Tooltip>
               <button
                 className="opacity-0 group-hover:opacity-100 p-0.5 hover:text-danger ml-0.5"
                 onClick={(e) => { e.stopPropagation(); a.removeSurface(s.id); }}
@@ -94,7 +102,11 @@ export const SurfacesPanel: React.FC = () => {
 
 export const SurfacesHeaderActions: React.FC = () => {
   const a = useEditorActions();
-  return <button onClick={a.addSurface} className="text-fg-2 hover:text-fg-1" title="Add Surface"><Plus size={14} /></button>;
+  return (
+    <Tooltip id="general.add-surface">
+      <button onClick={a.addSurface} className="text-fg-2 hover:text-fg-1" title="Add Surface" {...help('general.add-surface')}><Plus size={14} /></button>
+    </Tooltip>
+  );
 };
 
 // ── Fixtures ────────────────────────────────────────────────────────────────────────────────
@@ -121,15 +133,18 @@ export const FixturesPanel: React.FC = () => {
   return (
     <div className="p-1">
       <div className="mb-1">
-        <div
-          onClick={a.selectAllFixtures}
-          className="pressable flex items-center px-2 py-1 text-fg-2 hover:bg-surface-3 rounded cursor-pointer"
-          title="Select all fixtures"
-        >
-          <Folder size={12} className="mr-2 text-fg-3" />
-          <span className="font-medium">Master Layer</span>
-          {fixtures.length > 0 && <span className="ml-auto text-micro text-fg-3">{fixtures.length}</span>}
-        </div>
+        <Tooltip id="general.select-all-fixtures">
+          <div
+            onClick={a.selectAllFixtures}
+            className="pressable flex items-center px-2 py-1 text-fg-2 hover:bg-surface-3 rounded cursor-pointer"
+            title="Select all fixtures"
+            {...help('general.select-all-fixtures')}
+          >
+            <Folder size={12} className="mr-2 text-fg-3" />
+            <span className="font-medium">Master Layer</span>
+            {fixtures.length > 0 && <span className="ml-auto text-micro text-fg-3">{fixtures.length}</span>}
+          </div>
+        </Tooltip>
         <div className="pl-4 border-l border-line-1 ml-2.5 mt-1 space-y-0.5">
           {fixtures.map((f) => {
             const sel = selectedFixtureIds.includes(f.id);
@@ -166,8 +181,12 @@ export const FixturesHeaderActions: React.FC = () => {
   const a = useEditorActions();
   return (
     <>
-      <button onClick={a.autoPatch} className="text-fg-2 hover:text-fg-1" title="Auto-patch (assign universes/addresses)"><Hash size={13} /></button>
-      <button onClick={a.addFixture} className="text-fg-2 hover:text-fg-1" title="Add Fixture"><Plus size={14} /></button>
+      <Tooltip id="general.auto-patch">
+        <button onClick={a.autoPatch} className="text-fg-2 hover:text-fg-1" title="Auto-patch (assign universes/addresses)" {...help('general.auto-patch')}><Hash size={13} /></button>
+      </Tooltip>
+      <Tooltip id="general.add-fixture">
+        <button onClick={a.addFixture} className="text-fg-2 hover:text-fg-1" title="Add Fixture" {...help('general.add-fixture')}><Plus size={14} /></button>
+      </Tooltip>
     </>
   );
 };
@@ -185,8 +204,12 @@ export const GroupsPanel: React.FC = () => {
             {g.name} <span className="text-fg-3">({g.fixtureIds.length})</span>
           </button>
           <div className="opacity-0 group-hover:opacity-100 flex gap-1.5">
-            <button title="Add selected fixture" onClick={() => a.addSelectedToGroup(g.id)} className="hover:text-accent text-fg-3"><Plus size={11} /></button>
-            <button title="Apply selected look to group" onClick={() => a.applyLookToGroup(g)} className="hover:text-accent text-fg-3"><Copy size={11} /></button>
+            <Tooltip id="general.group-add-selected">
+              <button title="Add selected fixture" onClick={() => a.addSelectedToGroup(g.id)} className="hover:text-accent text-fg-3" {...help('general.group-add-selected')}><Plus size={11} /></button>
+            </Tooltip>
+            <Tooltip id="general.group-apply-look">
+              <button title="Apply selected look to group" onClick={() => a.applyLookToGroup(g)} className="hover:text-accent text-fg-3" {...help('general.group-apply-look')}><Copy size={11} /></button>
+            </Tooltip>
             <button title="Delete group" onClick={() => a.removeGroup(g.id)} className="hover:text-danger text-fg-3"><Trash2 size={10} /></button>
           </div>
         </div>
@@ -198,7 +221,11 @@ export const GroupsPanel: React.FC = () => {
 
 export const GroupsHeaderActions: React.FC = () => {
   const a = useEditorActions();
-  return <button onClick={a.createGroup} className="text-fg-2 hover:text-fg-1" title="New group from selection"><Plus size={14} /></button>;
+  return (
+    <Tooltip id="general.new-group">
+      <button onClick={a.createGroup} className="text-fg-2 hover:text-fg-1" title="New group from selection" {...help('general.new-group')}><Plus size={14} /></button>
+    </Tooltip>
+  );
 };
 
 // ── Global params ───────────────────────────────────────────────────────────────────────────

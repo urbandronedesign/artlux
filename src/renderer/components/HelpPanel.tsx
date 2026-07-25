@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { X, MousePointerClick } from 'lucide-react';
+import { X, MousePointerClick, Search } from 'lucide-react';
 import { helpBus, type HelpText, type HelpLang } from '../services/helpBus';
+import { openHelp } from '../services/helpNav';
 import { HELP_TOPICS } from '../help/helpContent';
 import { Segmented } from './ui';
 import { CollapsibleSection } from './CollapsibleSection';
@@ -25,6 +26,7 @@ const UI = {
   context: { en: 'Context', fr: 'Contexte' },
   topics: { en: 'Topics', fr: 'Rubriques' },
   idle: { en: 'Hover a control to see its help here.', fr: 'Survolez un élément pour afficher son aide ici.' },
+  searchAll: { en: 'Search all help…', fr: 'Rechercher dans l’aide…' },
 };
 
 export const HelpPanel: React.FC<Props> = ({ lang, onLang, onClose, width, onResize }) => {
@@ -64,6 +66,14 @@ export const HelpPanel: React.FC<Props> = ({ lang, onLang, onClose, width, onRes
         <p className={`text-xs leading-relaxed ${hint ? 'text-fg-1' : 'text-fg-3 italic'}`}>
           {hint ? hint[lang] : UI.idle[lang]}
         </p>
+        {/* Cross-link to the searchable Help Page: HelpPanel = contextual glance, HelpBrowser = search
+            the whole app (Shift+F1). */}
+        <button
+          onClick={() => openHelp()}
+          className="mt-2 w-full flex items-center gap-1.5 px-2 h-7 rounded-sm bg-surface-2 border border-line-1 text-xs text-fg-2 hover:text-fg-1"
+        >
+          <Search size={12} /> {UI.searchAll[lang]}
+        </button>
       </div>
 
       {/* Topics accordion */}

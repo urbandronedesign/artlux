@@ -3,6 +3,8 @@ import { MonitorUp, RefreshCw, Frame, Undo2, Settings2, Spline, Gauge, Radio, Ap
 import { Surface, SourceType } from '../types';
 import { ProjectorOutput, OutputSpan, DisplayInfo, SoftEdge, SrcRect, defaultSoftEdge, WINDOWED_DISPLAY } from '../../../shared/protocol';
 import { SpanEditor } from './SpanEditor';
+import { Tooltip } from './ui/Tooltip';
+import { help } from '../services/helpBus';
 
 interface Props {
   surfaces: Surface[];
@@ -167,16 +169,19 @@ export const OutputsPanel: React.FC<Props> = ({
                     {live ? 'Live' : enabled ? 'Pick a display' : 'Idle'}
                   </span>
                   <div className="flex items-center gap-1 justify-self-end">
-                    <button
-                      onClick={() => onToggleEdit(s.id)}
-                      disabled={!live}
-                      title="Align corners/mesh on the projector"
-                      className={`flex items-center gap-1 px-1.5 py-1 rounded-sm text-micro disabled:opacity-30 ${
-                        editingOutputIds.includes(s.id) ? 'bg-accent text-black' : 'bg-surface-2 text-fg-2 hover:text-fg-1'
-                      }`}
-                    >
-                      <Frame size={12} /> {editingOutputIds.includes(s.id) ? 'Aligning' : 'Align'}
-                    </button>
+                    <Tooltip id="outputs.align">
+                      <button
+                        onClick={() => onToggleEdit(s.id)}
+                        disabled={!live}
+                        title="Align corners/mesh on the projector"
+                        {...help('outputs.align')}
+                        className={`flex items-center gap-1 px-1.5 py-1 rounded-sm text-micro disabled:opacity-30 ${
+                          editingOutputIds.includes(s.id) ? 'bg-accent text-black' : 'bg-surface-2 text-fg-2 hover:text-fg-1'
+                        }`}
+                      >
+                        <Frame size={12} /> {editingOutputIds.includes(s.id) ? 'Aligning' : 'Align'}
+                      </button>
+                    </Tooltip>
                     <button
                       onClick={() => onResetCorners(s.id)}
                       disabled={!live}
@@ -208,17 +213,19 @@ export const OutputsPanel: React.FC<Props> = ({
                   <div className="px-3 py-2.5 bg-surface-0/40 space-y-2.5 text-mini">
                     {/* Bézier warp */}
                     <div className="flex items-center gap-3 flex-wrap">
-                      <label className="flex items-center gap-1.5 cursor-pointer text-fg-2">
-                        <Spline size={12} className="text-fg-3" />
-                        <input type="checkbox" checked={!!o?.warp} onChange={(e) => onToggleWarp(s.id, e.target.checked)} className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0" />
-                        Bézier warp
-                      </label>
+                      <Tooltip id="outputs.corner-pin">
+                        <label className="flex items-center gap-1.5 cursor-pointer text-fg-2" {...help('outputs.corner-pin')}>
+                          <Spline size={12} className="text-fg-3" />
+                          <input type="checkbox" checked={!!o?.warp} onChange={(e) => onToggleWarp(s.id, e.target.checked)} className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0" />
+                          Bézier warp
+                        </label>
+                      </Tooltip>
                       {o?.warp && <span className="text-fg-3 italic">Align → drag the 16 control points (corners + curve handles)</span>}
                     </div>
 
                     {/* Soft edge */}
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-fg-3 w-[68px]">Soft edge %</span>
+                      <Tooltip id="outputs.edge-blend"><span className="text-fg-3 w-[68px]" {...help('outputs.edge-blend')}>Soft edge %</span></Tooltip>
                       {(['left', 'right', 'top', 'bottom'] as const).map((side) => (
                         <label key={side} className="flex items-center gap-1 text-fg-2">
                           <span className="uppercase text-micro text-fg-3">{side[0]}</span>
@@ -234,7 +241,7 @@ export const OutputsPanel: React.FC<Props> = ({
 
                     {/* Output gamma */}
                     <div className="flex items-center gap-2">
-                      <span className="text-fg-3 w-[68px]">Output γ</span>
+                      <Tooltip id="outputs.gamma"><span className="text-fg-3 w-[68px]" {...help('outputs.gamma')}>Output γ</span></Tooltip>
                       <input type="range" min={0.5} max={3} step={0.05} value={o?.gamma ?? 1}
                         onChange={(e) => onSetGamma(s.id, +e.target.value)} className="w-40 accent-accent" />
                       <span className="num text-fg-2 w-8">{(o?.gamma ?? 1).toFixed(2)}</span>

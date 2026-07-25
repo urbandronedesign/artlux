@@ -32,6 +32,8 @@ import { Trash2, Volume2, VolumeX, Headphones, Music } from 'lucide-react';
 import type { AudioClip, AudioTrack } from '../../types';
 import { AUDIO_LANE_H, GUTTER, fmtClock } from './geometry';
 import { peaksFor, sourceDurationFor, subscribePeaks } from './audioPeaks';
+import { Tooltip } from '../ui/Tooltip';
+import { help } from '../../services/helpBus';
 
 export type AudioDragMode = 'move' | 'l' | 'r' | 'fadeIn' | 'fadeOut';
 
@@ -277,20 +279,33 @@ export const AudioLane: React.FC<AudioLaneProps> = ({
             onBlur={commitName}
             onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') { setName(null); (e.target as HTMLInputElement).blur(); } }}
             className="flex-1 min-w-0 bg-transparent outline-none text-micro text-fg-1 truncate" />
-          <button onClick={onRemoveTrack} title="Remove track (and its clips)" className="text-fg-3 hover:text-danger"><Trash2 size={11} /></button>
+          <Tooltip id="timeline.audio-remove-track">
+            <button onClick={onRemoveTrack} title="Remove track (and its clips)" {...help('timeline.audio-remove-track')} className="text-fg-3 hover:text-danger"><Trash2 size={11} /></button>
+          </Tooltip>
         </div>
         <div className="flex items-center gap-1">
-          <button onClick={() => onPatchTrack({ mute: !track.mute })} title={track.mute ? 'Unmute' : 'Mute'}
-            className={track.mute ? 'text-danger' : 'text-fg-3 hover:text-fg-1'}>
-            {track.mute ? <VolumeX size={11} /> : <Volume2 size={11} />}
-          </button>
-          <button onClick={() => onPatchTrack({ solo: !track.solo })} title={track.solo ? 'Un-solo' : 'Solo'}
-            className={track.solo ? 'text-accent' : 'text-fg-3 hover:text-fg-1'}><Headphones size={11} /></button>
+          <Tooltip id="timeline.audio-mute">
+            <button onClick={() => onPatchTrack({ mute: !track.mute })} title={track.mute ? 'Unmute' : 'Mute'}
+              {...help('timeline.audio-mute')}
+              className={track.mute ? 'text-danger' : 'text-fg-3 hover:text-fg-1'}>
+              {track.mute ? <VolumeX size={11} /> : <Volume2 size={11} />}
+            </button>
+          </Tooltip>
+          <Tooltip id="timeline.audio-solo">
+            <button onClick={() => onPatchTrack({ solo: !track.solo })} title={track.solo ? 'Un-solo' : 'Solo'}
+              {...help('timeline.audio-solo')}
+              className={track.solo ? 'text-accent' : 'text-fg-3 hover:text-fg-1'}><Headphones size={11} /></button>
+          </Tooltip>
           {/* draft on drag, commit ONCE on pointerup / keyboard release / blur */}
-          <input type="range" min={0} max={1.5} step={0.01} value={gainDraft ?? track.gain ?? 1}
-            onChange={(e) => setGainDraft(Number(e.target.value))}
-            onPointerUp={commitGain} onKeyUp={commitGain} onBlur={commitGain}
-            title={`gain ${(gainDraft ?? track.gain ?? 1).toFixed(2)}`} className="flex-1 min-w-0 accent-accent" />
+          <Tooltip id="timeline.audio-gain">
+            {/* help() is spread FIRST so the explicit commit handlers below win: help also declares an
+                onBlur (it clears the status-bar hint), and a later spread would clobber commitGain. */}
+            <input type="range" min={0} max={1.5} step={0.01} {...help('timeline.audio-gain')}
+              value={gainDraft ?? track.gain ?? 1}
+              onChange={(e) => setGainDraft(Number(e.target.value))}
+              onPointerUp={commitGain} onKeyUp={commitGain} onBlur={commitGain}
+              title={`gain ${(gainDraft ?? track.gain ?? 1).toFixed(2)}`} className="flex-1 min-w-0 accent-accent" />
+          </Tooltip>
           {/* Which container this track belongs to — the clock is not a detail the user can guess. */}
           <span className="text-micro text-fg-3 shrink-0" title={source === 'bed'
             ? 'The BED — one per project. Rides the show clock: it does NOT restart when a scene is recalled.'

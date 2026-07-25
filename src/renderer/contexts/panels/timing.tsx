@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { timeline as engine } from '../../services/timeline';
+import { Tooltip } from '../../components/ui/Tooltip';
+import { help } from '../../services/helpBus';
 import { useEditor } from '../../state/EditorStore';
 
 // Timing monitor — the clocks an operator watches while firing cues.
@@ -55,10 +57,14 @@ export const TimingPanel: React.FC = () => {
   return (
     <div className="p-3 space-y-2.5 text-xs">
       <Row label="Show clock" hint="Runs continuously — a scene recall does NOT restart it">
-        <span ref={showRef}>00:00</span>
+        <Tooltip id="general.show-clock">
+          <span ref={showRef} {...help('general.show-clock')}>00:00</span>
+        </Tooltip>
       </Row>
       <Row label="Playhead" hint="The BOUND timeline's own position — restarts on a scene recall">
-        <span ref={headRef}>00:00</span>
+        <Tooltip id="general.playhead-clock">
+          <span ref={headRef} {...help('general.playhead-clock')}>00:00</span>
+        </Tooltip>
       </Row>
 
       <div className="border-t border-line-1 pt-2 space-y-2.5">

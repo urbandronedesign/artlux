@@ -3,6 +3,8 @@ import { StateMachine } from '../../types';
 import { timeline as engine } from '../../services/timeline';
 import { GUTTER, SM_LANE_H } from './geometry';
 import { Workflow, ChevronsRight, Zap } from 'lucide-react';
+import { Tooltip } from '../ui/Tooltip';
+import { help } from '../../services/helpBus';
 
 interface Props {
   sm: StateMachine;
@@ -43,10 +45,13 @@ export const StateLane: React.FC<Props> = ({ sm, pxPerSec, width, onTrigger, onE
   return (
     <div className="flex border-b border-line-1 bg-surface-1/40">
       <div className="sticky left-0 z-20 shrink-0 bg-surface-1 border-r border-line-1 flex items-center gap-1.5 px-2" style={{ width: GUTTER, height: SM_LANE_H }}>
-        <button onClick={onToggle} title={sm.enabled ? 'State machine ON (click to disable)' : 'State machine OFF (click to enable)'}
-          className={`inline-flex items-center justify-center h-5 w-5 rounded ${sm.enabled ? 'bg-accent text-black' : 'bg-surface-2 text-fg-3'}`}>
-          <Workflow size={12} />
-        </button>
+        <Tooltip id="timeline.sm-toggle">
+          <button onClick={onToggle} title={sm.enabled ? 'State machine ON (click to disable)' : 'State machine OFF (click to enable)'}
+            {...help('timeline.sm-toggle')}
+            className={`inline-flex items-center justify-center h-5 w-5 rounded ${sm.enabled ? 'bg-accent text-black' : 'bg-surface-2 text-fg-3'}`}>
+            <Workflow size={12} />
+          </button>
+        </Tooltip>
         <span className="text-micro text-fg-2 truncate" title={current ? current.name : 'no state'}>
           {sm.enabled ? (current ? current.name : (sm.states.length ? '—' : 'empty')) : 'disabled'}
         </span>
@@ -54,7 +59,9 @@ export const StateLane: React.FC<Props> = ({ sm, pxPerSec, width, onTrigger, onE
           <span className="shrink-0 px-1 h-4 rounded bg-warn/20 text-warn text-micro inline-flex items-center"
             title="This state's timeline has finished and is holding its last frame. The show is still running — the audio bed and the global automation play on — and any transition waiting on 'only after the state has finished' can now fire.">HOLDING</span>
         )}
-        <button onClick={onEdit} className="ml-auto text-micro text-fg-3 hover:text-fg-1 underline">edit</button>
+        <Tooltip id="timeline.sm-open-editor">
+          <button onClick={onEdit} {...help('timeline.sm-open-editor')} className="ml-auto text-micro text-fg-3 hover:text-fg-1 underline">edit</button>
+        </Tooltip>
       </div>
 
       <div className="relative" style={{ width, height: SM_LANE_H, opacity: dim ? 0.45 : 1 }}>
@@ -67,13 +74,16 @@ export const StateLane: React.FC<Props> = ({ sm, pxPerSec, width, onTrigger, onE
             // they are about to cut the state's picture before it has finished and still gets to decide.
             const early = !!t.requireEnd && !held;
             return (
-              <button key={t.id} onClick={() => onTrigger(t.id)}
-                title={early
-                  ? `→ ${to?.name ?? '?'} — this state's timeline hasn't finished yet; firing now cuts it`
-                  : `Trigger → ${to?.name ?? '?'}${t.fromAny ? ' (global rule — available from every state)' : ''}`}
-                className={`px-1.5 h-5 rounded bg-surface-2 border text-micro inline-flex items-center gap-1 text-fg-1 hover:bg-accent hover:text-black ${early ? 'border-dashed border-warn/70' : t.fromAny ? 'border-warn/60' : 'border-line-1'}`}>
-                {t.fromAny ? <Zap size={10} /> : <ChevronsRight size={10} />} {to?.name ?? '?'}{early ? ' ⏱' : ''}
-              </button>
+              <Tooltip key={t.id} id="timeline.sm-manual-trigger">
+                <button onClick={() => onTrigger(t.id)}
+                  title={early
+                    ? `→ ${to?.name ?? '?'} — this state's timeline hasn't finished yet; firing now cuts it`
+                    : `Trigger → ${to?.name ?? '?'}${t.fromAny ? ' (global rule — available from every state)' : ''}`}
+                  {...help('timeline.sm-manual-trigger')}
+                  className={`px-1.5 h-5 rounded bg-surface-2 border text-micro inline-flex items-center gap-1 text-fg-1 hover:bg-accent hover:text-black ${early ? 'border-dashed border-warn/70' : t.fromAny ? 'border-warn/60' : 'border-line-1'}`}>
+                  {t.fromAny ? <Zap size={10} /> : <ChevronsRight size={10} />} {to?.name ?? '?'}{early ? ' ⏱' : ''}
+                </button>
+              </Tooltip>
             );
           })}
         </div>

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Marker } from '../../types';
 import { chooseTickStep, fmtTimecode } from './geometry';
+import { Tooltip } from '../ui/Tooltip';
+import { help } from '../../services/helpBus';
 
 interface Props {
   pxPerSec: number;
@@ -66,14 +68,17 @@ export const TimelineRuler: React.FC<Props> = ({ pxPerSec, width, height, fps, m
       )}
       {/* handles: 8px hit area (w-2 -ml-1), the line itself stays 2px — a 2px target is unusable */}
       {inPoint != null && (
-        <div onPointerDown={onMoveInDown} title="In — drag to move"
+        <Tooltip id="timeline.region-in">
+        <div onPointerDown={onMoveInDown} {...help('timeline.region-in')} title="In — drag to move"
           className="absolute top-0 bottom-0 w-2 -ml-1 cursor-ew-resize z-10 flex justify-center group"
           style={{ left: inPoint * pxPerSec }}>
           <div className="w-0.5 h-full bg-accent group-hover:w-1 transition-[width]" />
         </div>
+        </Tooltip>
       )}
       {outPoint != null && (
-        <div onPointerDown={onMoveOutDown}
+        <Tooltip id="timeline.region-out">
+        <div onPointerDown={onMoveOutDown} {...help('timeline.region-out')}
           title={holdAtEnd ? 'State end — the picture freezes here and the show plays on. Drag to move.' : 'Out — drag to move'}
           className="absolute top-0 bottom-0 w-2 -ml-1 cursor-ew-resize z-10 flex justify-center group"
           style={{ left: outPoint * pxPerSec }}>
@@ -83,6 +88,7 @@ export const TimelineRuler: React.FC<Props> = ({ pxPerSec, width, height, fps, m
               8px target must not be split by a child that swallows the pointerdown). */}
           {holdAtEnd && <div className="absolute top-0.5 w-1.5 h-1.5 rounded-full bg-warn pointer-events-none" />}
         </div>
+        </Tooltip>
       )}
 
       {ticks.map((t, i) => (
@@ -93,10 +99,11 @@ export const TimelineRuler: React.FC<Props> = ({ pxPerSec, width, height, fps, m
 
       {/* markers */}
       {markers.map(m => (
+        <Tooltip key={m.id} id="timeline.marker">
         <div
-          key={m.id}
           className="absolute -bottom-px z-10 group"
           style={{ left: m.time * pxPerSec }}
+          {...help('timeline.marker')}
           title={m.note || 'Marker (Alt-click to delete, double-click to edit)'}
           onPointerDown={(e) => {
             e.stopPropagation();
@@ -108,6 +115,7 @@ export const TimelineRuler: React.FC<Props> = ({ pxPerSec, width, height, fps, m
         >
           <div className="w-0 h-0 border-l-[5px] border-r-[5px] border-t-[7px] border-l-transparent border-r-transparent -ml-[5px] cursor-pointer" style={{ borderTopColor: m.color }} />
         </div>
+        </Tooltip>
       ))}
 
       {editing && (

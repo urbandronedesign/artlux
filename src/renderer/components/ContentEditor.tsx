@@ -4,6 +4,8 @@ import { FULL_RECT, type SrcRect } from '../../../shared/protocol';
 import { clampRect } from '../services/outputSpan';
 import { Monitor, Image as ImageIcon, Video, Sparkles, Network, Cast, Radio, Slash, Film, Clapperboard, Crosshair, PersonStanding, Radar, Crop } from 'lucide-react';
 import { Slider } from './ui';
+import { Tooltip } from './ui/Tooltip';
+import { help } from '../services/helpBus';
 import { EFFECT_NAMES } from '../gpu/effects';
 import { PALETTE_NAMES } from '../gpu/palettes';
 import { contentSourceRegistry } from '../host/registries';
@@ -49,56 +51,84 @@ export const ContentEditor: React.FC<ContentEditorProps> = ({ content: c, onChan
   return (
     <>
       <div className="grid grid-cols-3 gap-1">
-        <button onClick={() => pickType(SourceType.NONE)} className={btnCls(c.type === SourceType.NONE)}>
-          <Slash size={16} className="mb-1" /><span className="text-micro">None</span>
-        </button>
-        <button onClick={() => pickType(SourceType.CAMERA)} className={btnCls(c.type === SourceType.CAMERA)}>
-          <Video size={16} className="mb-1" /><span className="text-micro">Camera</span>
-        </button>
-        <label className={`pressable relative cursor-pointer ${btnCls(c.type === SourceType.VIDEO)}`}>
-          <input type="file" accept="video/*" className="hidden" onChange={(e) => onFile(e, SourceType.VIDEO)} />
-          <Monitor size={16} className="mb-1" /><span className="text-micro">Video</span>
-        </label>
-        <label className={`pressable relative cursor-pointer ${btnCls(c.type === SourceType.IMAGE)}`}>
-          <input type="file" accept="image/*" className="hidden" onChange={(e) => onFile(e, SourceType.IMAGE)} />
-          <ImageIcon size={16} className="mb-1" /><span className="text-micro">Image</span>
-        </label>
-        <button onClick={() => pickType(SourceType.DMX_IN)} className={btnCls(c.type === SourceType.DMX_IN)} title="Art-Net / sACN in">
-          <Network size={16} className="mb-1" /><span className="text-micro">DMX In</span>
-        </button>
-        <button onClick={() => pickType(SourceType.SPOUT)} className={btnCls(c.type === SourceType.SPOUT)}>
-          <Cast size={16} className="mb-1" /><span className="text-micro">Spout</span>
-        </button>
-        <button onClick={() => pickType(SourceType.NDI)} className={btnCls(c.type === SourceType.NDI)} title="NDI network video">
-          <Radio size={16} className="mb-1" /><span className="text-micro">NDI</span>
-        </button>
-        <button onClick={() => pickType('EFFECT')} className={btnCls(c.type === 'EFFECT')}>
-          <Sparkles size={16} className="mb-1" /><span className="text-micro">Effect</span>
-        </button>
-        {showLayerOption && (
-          <button onClick={() => pickType(SourceType.LAYER)} className={btnCls(c.type === SourceType.LAYER)} title="A single timeline track">
-            <Film size={16} className="mb-1" /><span className="text-micro">Layer</span>
+        <Tooltip id="content.none">
+          <button onClick={() => pickType(SourceType.NONE)} className={btnCls(c.type === SourceType.NONE)} {...help('content.none')}>
+            <Slash size={16} className="mb-1" /><span className="text-micro">None</span>
           </button>
+        </Tooltip>
+        <Tooltip id="content.camera">
+          <button onClick={() => pickType(SourceType.CAMERA)} className={btnCls(c.type === SourceType.CAMERA)} {...help('content.camera')}>
+            <Video size={16} className="mb-1" /><span className="text-micro">Camera</span>
+          </button>
+        </Tooltip>
+        <Tooltip id="content.video">
+          <label className={`pressable relative cursor-pointer ${btnCls(c.type === SourceType.VIDEO)}`} {...help('content.video')}>
+            <input type="file" accept="video/*" className="hidden" onChange={(e) => onFile(e, SourceType.VIDEO)} />
+            <Monitor size={16} className="mb-1" /><span className="text-micro">Video</span>
+          </label>
+        </Tooltip>
+        <Tooltip id="content.image">
+          <label className={`pressable relative cursor-pointer ${btnCls(c.type === SourceType.IMAGE)}`} {...help('content.image')}>
+            <input type="file" accept="image/*" className="hidden" onChange={(e) => onFile(e, SourceType.IMAGE)} />
+            <ImageIcon size={16} className="mb-1" /><span className="text-micro">Image</span>
+          </label>
+        </Tooltip>
+        <Tooltip id="content.dmx-in">
+          <button onClick={() => pickType(SourceType.DMX_IN)} className={btnCls(c.type === SourceType.DMX_IN)} title="Art-Net / sACN in" {...help('content.dmx-in')}>
+            <Network size={16} className="mb-1" /><span className="text-micro">DMX In</span>
+          </button>
+        </Tooltip>
+        <Tooltip id="content.spout">
+          <button onClick={() => pickType(SourceType.SPOUT)} className={btnCls(c.type === SourceType.SPOUT)} {...help('content.spout')}>
+            <Cast size={16} className="mb-1" /><span className="text-micro">Spout</span>
+          </button>
+        </Tooltip>
+        <Tooltip id="content.ndi">
+          <button onClick={() => pickType(SourceType.NDI)} className={btnCls(c.type === SourceType.NDI)} title="NDI network video" {...help('content.ndi')}>
+            <Radio size={16} className="mb-1" /><span className="text-micro">NDI</span>
+          </button>
+        </Tooltip>
+        <Tooltip id="content.effect">
+          <button onClick={() => pickType('EFFECT')} className={btnCls(c.type === 'EFFECT')} {...help('content.effect')}>
+            <Sparkles size={16} className="mb-1" /><span className="text-micro">Effect</span>
+          </button>
+        </Tooltip>
+        {showLayerOption && (
+          <Tooltip id="content.layer">
+            <button onClick={() => pickType(SourceType.LAYER)} className={btnCls(c.type === SourceType.LAYER)} title="A single timeline track" {...help('content.layer')}>
+              <Film size={16} className="mb-1" /><span className="text-micro">Layer</span>
+            </button>
+          </Tooltip>
         )}
         {showLayerOption && (
-          <button onClick={() => pickType(SourceType.PROGRAM)} className={btnCls(c.type === SourceType.PROGRAM)} title="The whole timeline composited (all contributing layers)">
-            <Clapperboard size={16} className="mb-1" /><span className="text-micro">Timeline</span>
-          </button>
+          <Tooltip id="content.timeline">
+            <button onClick={() => pickType(SourceType.PROGRAM)} className={btnCls(c.type === SourceType.PROGRAM)} title="The whole timeline composited (all contributing layers)" {...help('content.timeline')}>
+              <Clapperboard size={16} className="mb-1" /><span className="text-micro">Timeline</span>
+            </button>
+          </Tooltip>
         )}
-        <button onClick={() => pickType(SourceType.TRACKING)} className={btnCls(c.type === SourceType.TRACKING)} title="LiDAR blob tracking (projection-mappable)">
-          <Crosshair size={16} className="mb-1" /><span className="text-micro">Tracking</span>
-        </button>
-        <button onClick={() => pickType(SourceType.MEDIAPIPE)} className={btnCls(c.type === SourceType.MEDIAPIPE)} title="Camera pose tracking (MediaPipe BlazePose)">
-          <PersonStanding size={16} className="mb-1" /><span className="text-micro">MediaPipe</span>
-        </button>
-        <button onClick={() => pickType(SourceType.AUGMENTA)} className={btnCls(c.type === SourceType.AUGMENTA)} title="Augmenta box optical tracking (OSC)">
-          <Radar size={16} className="mb-1" /><span className="text-micro">Augmenta</span>
-        </button>
+        <Tooltip id="content.tracking">
+          <button onClick={() => pickType(SourceType.TRACKING)} className={btnCls(c.type === SourceType.TRACKING)} title="LiDAR blob tracking (projection-mappable)" {...help('content.tracking')}>
+            <Crosshair size={16} className="mb-1" /><span className="text-micro">Tracking</span>
+          </button>
+        </Tooltip>
+        <Tooltip id="content.mediapipe">
+          <button onClick={() => pickType(SourceType.MEDIAPIPE)} className={btnCls(c.type === SourceType.MEDIAPIPE)} title="Camera pose tracking (MediaPipe BlazePose)" {...help('content.mediapipe')}>
+            <PersonStanding size={16} className="mb-1" /><span className="text-micro">MediaPipe</span>
+          </button>
+        </Tooltip>
+        <Tooltip id="content.augmenta">
+          <button onClick={() => pickType(SourceType.AUGMENTA)} className={btnCls(c.type === SourceType.AUGMENTA)} title="Augmenta box optical tracking (OSC)" {...help('content.augmenta')}>
+            <Radar size={16} className="mb-1" /><span className="text-micro">Augmenta</span>
+          </button>
+        </Tooltip>
         {canSlice && (
-          <button onClick={() => pickType(SourceType.SLICE)} className={btnCls(c.type === SourceType.SLICE)}
-            title="A cropped region of another surface — how one picture spans several projectors">
-            <Crop size={16} className="mb-1" /><span className="text-micro">Slice</span>
-          </button>
+          <Tooltip id="content.slice">
+            <button onClick={() => pickType(SourceType.SLICE)} className={btnCls(c.type === SourceType.SLICE)}
+              title="A cropped region of another surface — how one picture spans several projectors" {...help('content.slice')}>
+              <Crop size={16} className="mb-1" /><span className="text-micro">Slice</span>
+            </button>
+          </Tooltip>
         )}
       </div>
 
@@ -106,11 +136,13 @@ export const ContentEditor: React.FC<ContentEditorProps> = ({ content: c, onChan
         <div className="space-y-1 pt-1">
           <div className="flex items-center gap-1">
             <label className="text-fg-2 w-12 text-micro">Of</label>
-            <select value={c.sliceOf ?? ''} onChange={(e) => onChange({ sliceOf: e.target.value })}
-              className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-micro focus:border-accent focus:outline-none">
-              <option value="">— select a surface —</option>
-              {sliceable.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
+            <Tooltip id="content.slice-of">
+              <select value={c.sliceOf ?? ''} onChange={(e) => onChange({ sliceOf: e.target.value })} {...help('content.slice-of')}
+                className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-micro focus:border-accent focus:outline-none">
+                <option value="">— select a surface —</option>
+                {sliceable.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </Tooltip>
           </div>
           {/* The crop, in fractions of the source picture. Set these by hand for a one-off; for a
               projector array use Outputs → Spans, which derives them AND the soft edges together. */}
@@ -131,11 +163,13 @@ export const ContentEditor: React.FC<ContentEditorProps> = ({ content: c, onChan
       {showLayerOption && c.type === SourceType.LAYER && (
         <div className="flex items-center gap-1 pt-1">
           <label className="text-fg-2 w-12 text-micro">Track</label>
-          <select value={c.layerId ?? ''} onChange={(e) => onChange({ layerId: e.target.value })}
-            className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-micro focus:border-accent focus:outline-none">
-            <option value="">— select a track —</option>
-            {layers.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-          </select>
+          <Tooltip id="content.layer-track">
+            <select value={c.layerId ?? ''} onChange={(e) => onChange({ layerId: e.target.value })} {...help('content.layer-track')}
+              className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-micro focus:border-accent focus:outline-none">
+              <option value="">— select a track —</option>
+              {layers.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+            </select>
+          </Tooltip>
         </div>
       )}
 
@@ -149,17 +183,21 @@ export const ContentEditor: React.FC<ContentEditorProps> = ({ content: c, onChan
         <div className="space-y-3 pt-1">
           <div className="flex items-center justify-between text-xs gap-2">
             <label className="text-fg-2 w-16 truncate">Effect</label>
-            <select value={c.effectId ?? 0} onChange={(e) => onChange({ effectId: parseInt(e.target.value) })}
-              className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent focus:outline-none">
-              {EFFECT_NAMES.map((name, i) => <option key={i} value={i}>{name}</option>)}
-            </select>
+            <Tooltip id="content.effect-select">
+              <select value={c.effectId ?? 0} onChange={(e) => onChange({ effectId: parseInt(e.target.value) })} {...help('content.effect-select')}
+                className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent focus:outline-none">
+                {EFFECT_NAMES.map((name, i) => <option key={i} value={i}>{name}</option>)}
+              </select>
+            </Tooltip>
           </div>
           <div className="flex items-center justify-between text-xs gap-2">
             <label className="text-fg-2 w-16 truncate">Palette</label>
-            <select value={c.paletteId ?? 0} onChange={(e) => onChange({ paletteId: parseInt(e.target.value) })}
-              className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent focus:outline-none">
-              {PALETTE_NAMES.map((name, i) => <option key={i} value={i}>{name}</option>)}
-            </select>
+            <Tooltip id="content.palette-select">
+              <select value={c.paletteId ?? 0} onChange={(e) => onChange({ paletteId: parseInt(e.target.value) })} {...help('content.palette-select')}
+                className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 focus:border-accent focus:outline-none">
+                {PALETTE_NAMES.map((name, i) => <option key={i} value={i}>{name}</option>)}
+              </select>
+            </Tooltip>
           </div>
           <Slider label="Speed" value={c.speed ?? 0.5} min={0} max={1} step={0.01}
             format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => onChange({ speed: v })} />
@@ -172,12 +210,14 @@ export const ContentEditor: React.FC<ContentEditorProps> = ({ content: c, onChan
         <div className="space-y-2 pt-1">
           <div className="flex items-center gap-1">
             <label className="text-fg-2 w-12 text-micro">Source</label>
-            <select value={c.trackingSource ?? 'SOL'} onChange={(e) => onChange({ trackingSource: e.target.value })}
-              className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-micro focus:border-accent focus:outline-none">
-              <option value="SOL">SOL — floor</option>
-              <option value="MUR">MUR — wall</option>
-              <option value="SOL_MUR">SOL_MUR — combined</option>
-            </select>
+            <Tooltip id="content.tracking-source">
+              <select value={c.trackingSource ?? 'SOL'} onChange={(e) => onChange({ trackingSource: e.target.value })} {...help('content.tracking-source')}
+                className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-micro focus:border-accent focus:outline-none">
+                <option value="SOL">SOL — floor</option>
+                <option value="MUR">MUR — wall</option>
+                <option value="SOL_MUR">SOL_MUR — combined</option>
+              </select>
+            </Tooltip>
           </div>
           <div className="flex items-center gap-1">
             <label className="text-fg-2 w-12 text-micro" title="A timeline video layer drawn under the blobs (projects as one surface)">Background</label>
@@ -193,10 +233,12 @@ export const ContentEditor: React.FC<ContentEditorProps> = ({ content: c, onChan
             format={(v) => `${v.toFixed(1)}s`} onInput={(v) => onChange({ trailSeconds: v })} onChange={(v) => onChange({ trailSeconds: v })} />
           <div className="flex items-center gap-1">
             <label className="text-fg-2 w-12 text-micro">Rotate</label>
-            <select value={c.rotate ?? 0} onChange={(e) => onChange({ rotate: parseInt(e.target.value) })}
-              className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-micro focus:border-accent focus:outline-none">
-              {[0, 90, 180, 270].map((d) => <option key={d} value={d}>{d}°</option>)}
-            </select>
+            <Tooltip id="content.tracking-rotate">
+              <select value={c.rotate ?? 0} onChange={(e) => onChange({ rotate: parseInt(e.target.value) })} {...help('content.tracking-rotate')}
+                className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-micro focus:border-accent focus:outline-none">
+                {[0, 90, 180, 270].map((d) => <option key={d} value={d}>{d}°</option>)}
+              </select>
+            </Tooltip>
           </div>
           <div className="grid grid-cols-2 gap-1.5 text-micro text-fg-2">
             <label className="flex items-center gap-1.5"><input type="checkbox" checked={c.flipH ?? false} onChange={(e) => onChange({ flipH: e.target.checked })} />Flip H</label>

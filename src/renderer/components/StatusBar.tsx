@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { PanelLeft, PanelRight, Activity, Wifi, Workflow, Hourglass } from 'lucide-react';
-import { helpBus, type HelpText, type HelpLang } from '../services/helpBus';
+import { helpBus, help as helpTip, type HelpText, type HelpLang } from '../services/helpBus';
+import { Tooltip } from './ui/Tooltip';
 import { timeline as engine } from '../services/timeline';
 import * as bootGate from '../services/bootGate';
 import { StateMachine } from '../types';
@@ -51,11 +52,13 @@ const ShowStateChip: React.FC<{ sm: StateMachine }> = ({ sm }) => {
   const lock = state.lockSec ? ` · lock ${state.lockSec}s` : '';
   return (
     <>
-      <div className="flex items-center gap-1.5" title={`State machine — in "${state.name}"${lock}`}>
-        <Workflow size={12} className="text-accent" />
-        <span className="text-fg-2 truncate max-w-[140px]">{state.name}</span>
-        <span ref={elapsedRef} className="num text-fg-3">00:00</span>
-      </div>
+      <Tooltip id="general.show-state">
+        <div className="flex items-center gap-1.5" title={`State machine — in "${state.name}"${lock}`} {...helpTip('general.show-state')}>
+          <Workflow size={12} className="text-accent" />
+          <span className="text-fg-2 truncate max-w-[140px]">{state.name}</span>
+          <span ref={elapsedRef} className="num text-fg-3">00:00</span>
+        </div>
+      </Tooltip>
       <div className="h-3 w-px bg-line-2" />
     </>
   );
@@ -73,11 +76,13 @@ const BootChip: React.FC = () => {
   const what = p.pending.length ? p.pending.slice(0, 6).join('\n') : 'starting…';
   return (
     <>
-      <div className="flex items-center gap-1.5" title={`Preloading show content — the state machine starts when it is decoded:\n${what}`}>
-        <Hourglass size={12} className="text-warn" />
-        <span className="text-fg-2">Preloading</span>
-        <span className="num text-fg-3">{p.ready}/{p.total}</span>
-      </div>
+      <Tooltip id="general.preloading">
+        <div className="flex items-center gap-1.5" title={`Preloading show content — the state machine starts when it is decoded:\n${what}`} {...helpTip('general.preloading')}>
+          <Hourglass size={12} className="text-warn" />
+          <span className="text-fg-2">Preloading</span>
+          <span className="num text-fg-3">{p.ready}/{p.total}</span>
+        </div>
+      </Tooltip>
       <div className="h-3 w-px bg-line-2" />
     </>
   );
@@ -90,43 +95,55 @@ export const StatusBar: React.FC<Props> = ({ help, lang, renderFps, connected, o
   return (
   <div className="h-7 shrink-0 bg-surface-1 border-t border-line-1 flex items-center justify-between px-3 text-xs text-fg-2 select-none">
     <div className="flex items-center gap-3 min-w-0">
-      <button
-        onClick={onToggleLeft}
-        title="Toggle left panel"
-        aria-label="Toggle left panel"
-        className={`inline-flex items-center justify-center h-5 w-5 rounded-sm hover:text-fg-1 hover:bg-surface-3 ${leftOpen ? 'text-accent' : 'text-fg-3'}`}
-      >
-        <PanelLeft size={13} />
-      </button>
-      <button
-        onClick={onToggleRight}
-        title="Toggle right panel"
-        aria-label="Toggle right panel"
-        className={`inline-flex items-center justify-center h-5 w-5 rounded-sm hover:text-fg-1 hover:bg-surface-3 ${rightOpen ? 'text-accent' : 'text-fg-3'}`}
-      >
-        <PanelRight size={13} />
-      </button>
+      <Tooltip id="general.toggle-left-panel">
+        <button
+          onClick={onToggleLeft}
+          title="Toggle left panel"
+          aria-label="Toggle left panel"
+          className={`inline-flex items-center justify-center h-5 w-5 rounded-sm hover:text-fg-1 hover:bg-surface-3 ${leftOpen ? 'text-accent' : 'text-fg-3'}`}
+          {...helpTip('general.toggle-left-panel')}
+        >
+          <PanelLeft size={13} />
+        </button>
+      </Tooltip>
+      <Tooltip id="general.toggle-right-panel">
+        <button
+          onClick={onToggleRight}
+          title="Toggle right panel"
+          aria-label="Toggle right panel"
+          className={`inline-flex items-center justify-center h-5 w-5 rounded-sm hover:text-fg-1 hover:bg-surface-3 ${rightOpen ? 'text-accent' : 'text-fg-3'}`}
+          {...helpTip('general.toggle-right-panel')}
+        >
+          <PanelRight size={13} />
+        </button>
+      </Tooltip>
       <span className={`truncate ${hint ? 'text-fg-2' : 'text-fg-3'}`}>{hint ? hint[lang] : help}</span>
     </div>
 
     <div className="flex items-center gap-4 shrink-0">
       <BootChip />
       <ShowStateChip sm={stateMachine} />
-      <div className="flex items-center gap-1.5" title="Render FPS">
-        <Activity size={12} className="text-ok" />
-        <span className="num">{renderFps.toFixed(0)} FPS</span>
-      </div>
+      <Tooltip id="general.render-fps">
+        <div className="flex items-center gap-1.5" title="Render FPS" {...helpTip('general.render-fps')}>
+          <Activity size={12} className="text-ok" />
+          <span className="num">{renderFps.toFixed(0)} FPS</span>
+        </div>
+      </Tooltip>
       <div className="h-3 w-px bg-line-2" />
-      <div className="flex items-center gap-1.5" title={`Target: ${targetIp}`}>
-        <Wifi size={12} className={connected ? 'text-accent' : 'text-fg-3'} />
-        <span className={connected ? 'text-accent' : 'text-fg-3'}>{connected ? 'LIVE' : 'OFFLINE'}</span>
-      </div>
+      <Tooltip id="general.output-connection">
+        <div className="flex items-center gap-1.5" title={`Target: ${targetIp}`} {...helpTip('general.output-connection')}>
+          <Wifi size={12} className={connected ? 'text-accent' : 'text-fg-3'} />
+          <span className={connected ? 'text-accent' : 'text-fg-3'}>{connected ? 'LIVE' : 'OFFLINE'}</span>
+        </div>
+      </Tooltip>
       {outputStats && (outputStats.pps > 0 || outputStats.universes > 0) && (
         <>
           <div className="h-3 w-px bg-line-2" />
-          <span className="num text-fg-3" title="Native engine: frames/s · packets/s · universes">
-            {outputStats.fps}Hz · {outputStats.pps}pps · {outputStats.universes}u
-          </span>
+          <Tooltip id="general.engine-stats">
+            <span className="num text-fg-3" title="Native engine: frames/s · packets/s · universes" {...helpTip('general.engine-stats')}>
+              {outputStats.fps}Hz · {outputStats.pps}pps · {outputStats.universes}u
+            </span>
+          </Tooltip>
         </>
       )}
     </div>

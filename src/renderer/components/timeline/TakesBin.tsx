@@ -3,6 +3,8 @@ import { Circle, Square, Plus, Trash2, Radio } from 'lucide-react';
 import { TrackingTakeRef } from '../../types';
 import { trackingRecorder as recorder } from '@artlux/plugin-lidar-tracking';
 import { fmtClock } from './geometry';
+import { Tooltip } from '../ui/Tooltip';
+import { help } from '../../services/helpBus';
 
 interface Props {
   takes: TrackingTakeRef[];
@@ -38,33 +40,42 @@ export const TakesBin: React.FC<Props> = ({ takes, hasTrackingLane, onStartRecor
 
   return (
     <div className="flex items-center gap-2 px-2 py-1 border-b border-line-1 bg-surface-1/60 text-mini overflow-x-auto">
-      <button
-        onClick={recording ? onStopRecord : onStartRecord}
-        title={recording ? 'Stop recording' : 'Record the live LiDAR blob feed into a take'}
-        className={`inline-flex items-center gap-1 px-2 h-6 rounded shrink-0 border ${recording ? 'bg-danger text-black border-transparent animate-pulse' : 'bg-surface-2 text-fg-1 border-line-1 hover:bg-surface-3'}`}
-      >
-        {recording ? <Square size={11} /> : <Circle size={11} className="text-danger fill-danger" />}
-        {recording ? `REC ${fmtClock(elapsed)}` : 'Record'}
-      </button>
+      <Tooltip id="timeline.take-record">
+        <button
+          onClick={recording ? onStopRecord : onStartRecord}
+          title={recording ? 'Stop recording' : 'Record the live LiDAR blob feed into a take'}
+          {...help('timeline.take-record')}
+          className={`inline-flex items-center gap-1 px-2 h-6 rounded shrink-0 border ${recording ? 'bg-danger text-black border-transparent animate-pulse' : 'bg-surface-2 text-fg-1 border-line-1 hover:bg-surface-3'}`}
+        >
+          {recording ? <Square size={11} /> : <Circle size={11} className="text-danger fill-danger" />}
+          {recording ? `REC ${fmtClock(elapsed)}` : 'Record'}
+        </button>
+      </Tooltip>
 
       {!hasTrackingLane && (
-        <button onClick={onAddTrackingLane} title="Add a tracking lane to place takes on"
-          className="inline-flex items-center gap-1 px-2 h-6 rounded shrink-0 border border-line-1 bg-surface-2 text-fg-2 hover:text-fg-1 hover:bg-surface-3">
-          <Plus size={11} /> Tracking lane
-        </button>
+        <Tooltip id="timeline.take-add-lane">
+          <button onClick={onAddTrackingLane} title="Add a tracking lane to place takes on"
+            {...help('timeline.take-add-lane')}
+            className="inline-flex items-center gap-1 px-2 h-6 rounded shrink-0 border border-line-1 bg-surface-2 text-fg-2 hover:text-fg-1 hover:bg-surface-3">
+            <Plus size={11} /> Tracking lane
+          </button>
+        </Tooltip>
       )}
 
       <span className="inline-flex items-center gap-1 text-fg-3 shrink-0"><Radio size={11} /> Takes</span>
       {takes.length === 0 && <span className="text-fg-3 italic shrink-0">none yet — record the tracker feed</span>}
       {takes.map(t => (
-        <div key={t.id} draggable onDragStart={(e) => onDragStart(e, t)}
-          title={`${t.name} — ${fmtClock(t.duration)} · drag onto the tracking lane`}
-          className="group inline-flex items-center gap-1 px-2 h-6 rounded shrink-0 border border-line-2 bg-surface-3 cursor-grab hover:border-accent">
-          <span className="truncate max-w-[120px] text-fg-1">{t.name}</span>
-          <span className="text-fg-3">{fmtClock(t.duration)}</span>
-          <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onRemoveTake(t.id)}
-            className="text-fg-3 hover:text-danger opacity-0 group-hover:opacity-100"><Trash2 size={10} /></button>
-        </div>
+        <Tooltip key={t.id} id="timeline.take-chip">
+          <div draggable onDragStart={(e) => onDragStart(e, t)}
+            title={`${t.name} — ${fmtClock(t.duration)} · drag onto the tracking lane`}
+            {...help('timeline.take-chip')}
+            className="group inline-flex items-center gap-1 px-2 h-6 rounded shrink-0 border border-line-2 bg-surface-3 cursor-grab hover:border-accent">
+            <span className="truncate max-w-[120px] text-fg-1">{t.name}</span>
+            <span className="text-fg-3">{fmtClock(t.duration)}</span>
+            <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onRemoveTake(t.id)}
+              className="text-fg-3 hover:text-danger opacity-0 group-hover:opacity-100"><Trash2 size={10} /></button>
+          </div>
+        </Tooltip>
       ))}
     </div>
   );

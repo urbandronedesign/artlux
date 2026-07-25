@@ -45,6 +45,7 @@ import { nextAccent, GLOBAL_ACCENT } from './sceneAccent';
 import * as oscController from './services/oscController';
 import { useLayout } from './hooks/useLayout';
 import { layoutStore, type WorkspaceLayout } from './services/layoutStore';
+import { openHelp } from './services/helpNav';
 import { activateRendererPlugins } from './host/plugins';
 import { setEnabled as mp4SetEnabled } from '@artlux/plugin-mp4';
 import type { RendererHostServices, AutomationTargetProvider, AutomationTargetDef } from '@artlux/sdk/renderer';
@@ -1983,6 +1984,7 @@ const App: React.FC = () => {
           case 'remove-fixture': if (selectedFixtureId) handleRemoveFixture(selectedFixtureId); break;
           case 'about': setAboutOpen(true); break;
           case 'help-panel': setShowHelp((v) => !v); break;
+          case 'help-search': openHelp(); break;
           case 'docs-browser': setDocsOpen((v) => !v); break;
           case 'check-updates': setUpdateUserInitiated(true); window.artlux?.checkForUpdates?.(); break;
           case 'undo': undo(); break;

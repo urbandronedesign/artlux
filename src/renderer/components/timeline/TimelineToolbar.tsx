@@ -1,6 +1,8 @@
 import React from 'react';
 import { Play, Pause, Plus, ZoomIn, ZoomOut, Maximize, Minimize, Scan, Scissors, MousePointer2, Magnet, Flag, Repeat, Workflow, Square, LogIn, LogOut, AlertTriangle, Snowflake } from 'lucide-react';
 import { fmtClock } from './geometry';
+import { Tooltip } from '../ui/Tooltip';
+import { help } from '../../services/helpBus';
 
 interface Props {
   playing: boolean;
@@ -51,18 +53,24 @@ interface Props {
   onToggleMax: () => void;
 }
 
-const TBtn: React.FC<{ active?: boolean; disabled?: boolean; title: string; onClick: () => void; children: React.ReactNode }> = ({ active, disabled, title, onClick, children }) => (
+// `helpId`, when given, opts the button into the rich help system: it gains a hoverable tooltip with a
+// "? Learn more" deep-link (Tooltip) and feeds the StatusBar/HelpPanel context line (help(id)). The
+// native `title` stays as the accessible name and the fallback for buttons without an entry.
+const TBtn: React.FC<{ active?: boolean; disabled?: boolean; title: string; helpId?: string; onClick: () => void; children: React.ReactNode }> = ({ active, disabled, title, helpId, onClick, children }) => {
   // `disabled` still renders the button (and keeps its tooltip — which is where the WHY lives, e.g.
   // "Loop is on, so the timeline never ends"), it just cannot be pressed. Hiding it instead would make
   // the control look unimplemented rather than inapplicable.
-  <button title={title} onClick={onClick} disabled={disabled}
-    className={`p-1.5 rounded-sm ${disabled
-      // Still shows ACTIVE when it is on-but-inapplicable (Hold authored while Loop is on), just muted:
-      // the setting is real and comes back the moment Loop goes off, so painting it plain "off" would
-      // be a lie about the document.
-      ? `opacity-40 cursor-not-allowed ${active ? 'bg-accent text-black' : 'bg-surface-2 text-fg-3'}`
-      : active ? 'bg-accent text-black' : 'bg-surface-2 text-fg-2 hover:text-fg-1'}`}>{children}</button>
-);
+  const btn = (
+    <button title={title} onClick={onClick} disabled={disabled} {...(helpId ? help(helpId) : {})}
+      className={`p-1.5 rounded-sm ${disabled
+        // Still shows ACTIVE when it is on-but-inapplicable (Hold authored while Loop is on), just muted:
+        // the setting is real and comes back the moment Loop goes off, so painting it plain "off" would
+        // be a lie about the document.
+        ? `opacity-40 cursor-not-allowed ${active ? 'bg-accent text-black' : 'bg-surface-2 text-fg-3'}`
+        : active ? 'bg-accent text-black' : 'bg-surface-2 text-fg-2 hover:text-fg-1'}`}>{children}</button>
+  );
+  return helpId ? <Tooltip id={helpId}>{btn}</Tooltip> : btn;
+};
 
 // A number field that holds a local DRAFT and commits on BLUR / ENTER only — never per keystroke.
 //
@@ -144,29 +152,31 @@ const NUM_INPUT = 'bg-surface-0 border border-line-1 rounded px-1.5 py-0.5 text-
 export const TimelineToolbar: React.FC<Props> = ({ playing, onTogglePlay, onStop, timeRef, bedTimeRef, overrun, docKey, duration, onChangeDuration, fps, onChangeFps, tool, onSetTool, snapEnabled, onToggleSnap, onAddMarker, onSetIn, onSetOut, hasRegion, onZoom, onZoomFit, onAddTrack, loop, onToggleLoop, holdAtEnd, onToggleHold, onEndStateHere, smEnabled, onToggleSm, onEditLogic, maximized, onToggleMax }) => (
   <div className="shrink-0 flex items-center gap-2 px-3 h-9 border-b border-line-1 bg-surface-1">
     {/* ── transport: what is PLAYING ── */}
-    <TBtn active={playing} title="Play / Pause (Space)" onClick={onTogglePlay}>
+    <TBtn active={playing} title="Play / Pause (Space)" helpId="timeline.play" onClick={onTogglePlay}>
       {playing ? <Pause size={13} fill="currentColor" /> : <Play size={13} fill="currentColor" />}
     </TBtn>
-    <TBtn title="Stop — pause and return to the in-point" onClick={onStop}><Square size={13} fill="currentColor" /></TBtn>
-    <TBtn active={loop} title={hasRegion ? 'Loop the in/out region (Shift+L)' : 'Loop the whole timeline, 0 → Length (Shift+L)'} onClick={onToggleLoop}>
+    <TBtn title="Stop — pause and return to the in-point" helpId="timeline.stop" onClick={onStop}><Square size={13} fill="currentColor" /></TBtn>
+    <TBtn active={loop} title={hasRegion ? 'Loop the in/out region (Shift+L)' : 'Loop the whole timeline, 0 → Length (Shift+L)'} helpId="timeline.loop" onClick={onToggleLoop}>
       <Repeat size={13} />
     </TBtn>
     {/* HOLD AT END — the third thing a clock can do when it runs out, next to wrap (Loop) and stop.
         Loop wins, so the toggle is inert while looping and says why. */}
-    <TBtn active={holdAtEnd} disabled={loop}
+    <TBtn active={holdAtEnd} disabled={loop} helpId="timeline.hold-at-end"
       title={loop
         ? 'Hold at end — unavailable while Loop is on: a looping timeline never reaches an end.'
         : 'Hold at end — freeze on the last frame instead of stopping. The transport keeps running, so the audio bed and the global automation play on, and the state machine is told the state has finished.'}
       onClick={onToggleHold}>
       <Snowflake size={13} />
     </TBtn>
-    <TBtn title="Set in-point at the playhead (I)" onClick={onSetIn}><LogIn size={13} /></TBtn>
-    <TBtn title="Set out-point at the playhead (O)" onClick={onSetOut}><LogOut size={13} /></TBtn>
+    <TBtn title="Set in-point at the playhead (I)" helpId="timeline.set-in" onClick={onSetIn}><LogIn size={13} /></TBtn>
+    <TBtn title="Set out-point at the playhead (O)" helpId="timeline.set-out" onClick={onSetOut}><LogOut size={13} /></TBtn>
     {/* The authoring verb for a tracker-driven show, in one click: this is where the state ENDS. Sets
         the out-point here AND turns the hold on — the two halves are useless apart. */}
-    <button onClick={onEndStateHere}
-      title="End this state at the playhead — sets the out-point here and holds the last frame. The show keeps running; the state machine can then advance on a trigger."
-      className="px-2 py-1 rounded-sm bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3 text-mini whitespace-nowrap">End state here</button>
+    <Tooltip id="timeline.end-state">
+      <button onClick={onEndStateHere} {...help('timeline.end-state')}
+        title="End this state at the playhead — sets the out-point here and holds the last frame. The show keeps running; the state machine can then advance on a trigger."
+        className="px-2 py-1 rounded-sm bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3 text-mini whitespace-nowrap">End state here</button>
+    </Tooltip>
     <span ref={timeRef} className="num text-mini text-fg-1 tabular-nums w-44">00:00:00:00 / 00:00:00:00</span>
     {bedTimeRef && (
       <span ref={bedTimeRef} className="text-micro text-fg-3 tabular-nums shrink-0"
@@ -182,33 +192,37 @@ export const TimelineToolbar: React.FC<Props> = ({ playing, onTogglePlay, onStop
 
     {/* ── tools: what I am DOING ── */}
     <div className="w-px h-5 bg-line-1 mx-0.5" />
-    <TBtn active={tool === 'select'} title="Select tool (V)" onClick={() => onSetTool('select')}><MousePointer2 size={13} /></TBtn>
-    <TBtn active={tool === 'blade'} title="Blade tool (B)" onClick={() => onSetTool('blade')}><Scissors size={13} /></TBtn>
-    <TBtn active={snapEnabled} title="Snapping (S)" onClick={onToggleSnap}><Magnet size={13} /></TBtn>
-    <TBtn title="Add marker at playhead (M)" onClick={onAddMarker}><Flag size={13} /></TBtn>
+    <TBtn active={tool === 'select'} title="Select tool (V)" helpId="timeline.select-tool" onClick={() => onSetTool('select')}><MousePointer2 size={13} /></TBtn>
+    <TBtn active={tool === 'blade'} title="Blade tool (B)" helpId="timeline.blade" onClick={() => onSetTool('blade')}><Scissors size={13} /></TBtn>
+    <TBtn active={snapEnabled} title="Snapping (S)" helpId="timeline.snap" onClick={onToggleSnap}><Magnet size={13} /></TBtn>
+    <TBtn title="Add marker at playhead (M)" helpId="timeline.add-marker" onClick={onAddMarker}><Flag size={13} /></TBtn>
 
     <div className="w-px h-5 bg-line-1 mx-0.5" />
-    <TBtn active={smEnabled} title="State machine: enable control layer" onClick={onToggleSm}><Workflow size={13} /></TBtn>
-    <button onClick={onEditLogic} className="px-2 py-1 rounded-sm bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3 text-mini">Edit logic</button>
+    <TBtn active={smEnabled} title="State machine: enable control layer" helpId="timeline.state-machine" onClick={onToggleSm}><Workflow size={13} /></TBtn>
+    <Tooltip id="timeline.edit-logic">
+      <button onClick={onEditLogic} {...help('timeline.edit-logic')} title="Edit the state-machine logic" className="px-2 py-1 rounded-sm bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3 text-mini">Edit logic</button>
+    </Tooltip>
 
     {/* ── document + view: what I am EDITING ── */}
     <div className="ml-auto flex items-center gap-2">
       <div className="flex items-center gap-1">
-        <span className="text-fg-3 text-micro">FPS</span>
+        <Tooltip id="timeline.fps"><span className="text-fg-3 text-micro" {...help('timeline.fps')}>FPS</span></Tooltip>
         <NumField value={fps} docKey={docKey} onCommit={onChangeFps} min={1} max={120} step={1} integer className={`w-11 ${NUM_INPUT}`} />
       </div>
       <div className="flex items-center gap-1">
-        <span className="text-fg-3 text-micro" title="The end of the timeline. Playback stops here — or loops, if Loop is on. Committed on Enter / when you leave the field.">Length</span>
+        <Tooltip id="timeline.length"><span className="text-fg-3 text-micro" {...help('timeline.length')} title="The end of the timeline. Playback stops here — or loops, if Loop is on. Committed on Enter / when you leave the field.">Length</span></Tooltip>
         <NumField value={duration} docKey={docKey} onCommit={onChangeDuration} min={1} step={1} className={`w-14 ${NUM_INPUT}`} />
         <span className="text-fg-3 text-micro">s</span>
       </div>
       <div className="flex items-center gap-1">
-        <button onClick={() => onZoom(1 / 1.5)} className="p-1 rounded text-fg-2 hover:text-fg-1" title="Zoom out (- / wheel)"><ZoomOut size={13} /></button>
-        <button onClick={onZoomFit} className="p-1 rounded text-fg-2 hover:text-fg-1" title="Zoom to fit"><Scan size={12} /></button>
-        <button onClick={() => onZoom(1.5)} className="p-1 rounded text-fg-2 hover:text-fg-1" title="Zoom in (+ / wheel)"><ZoomIn size={13} /></button>
+        <Tooltip id="timeline.zoom-out"><button onClick={() => onZoom(1 / 1.5)} {...help('timeline.zoom-out')} className="p-1 rounded text-fg-2 hover:text-fg-1" title="Zoom out (- / wheel)"><ZoomOut size={13} /></button></Tooltip>
+        <Tooltip id="timeline.zoom-fit"><button onClick={onZoomFit} {...help('timeline.zoom-fit')} className="p-1 rounded text-fg-2 hover:text-fg-1" title="Zoom to fit"><Scan size={12} /></button></Tooltip>
+        <Tooltip id="timeline.zoom-in"><button onClick={() => onZoom(1.5)} {...help('timeline.zoom-in')} className="p-1 rounded text-fg-2 hover:text-fg-1" title="Zoom in (+ / wheel)"><ZoomIn size={13} /></button></Tooltip>
       </div>
-      <button onClick={onAddTrack} className="flex items-center gap-1 px-2 py-1 rounded-sm bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3 text-mini"><Plus size={12} /> Track</button>
-      <TBtn title={maximized ? 'Restore (F)' : 'Maximize (F)'} onClick={onToggleMax}>{maximized ? <Minimize size={13} /> : <Maximize size={13} />}</TBtn>
+      <Tooltip id="timeline.add-track">
+        <button onClick={onAddTrack} {...help('timeline.add-track')} title="Add a video track" className="flex items-center gap-1 px-2 py-1 rounded-sm bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3 text-mini"><Plus size={12} /> Track</button>
+      </Tooltip>
+      <TBtn title={maximized ? 'Restore (F)' : 'Maximize (F)'} helpId="timeline.maximize" onClick={onToggleMax}>{maximized ? <Minimize size={13} /> : <Maximize size={13} />}</TBtn>
     </div>
   </div>
 );

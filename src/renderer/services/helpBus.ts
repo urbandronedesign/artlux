@@ -29,3 +29,21 @@ export const helpProps = (hint: HelpText) => ({
   onFocus: () => helpBus.set(hint),
   onBlur: () => helpBus.set(null),
 });
+
+// Spread onto a control to opt it into the rich help system by REGISTRY ID. It does two things:
+//   1. re-emits the entry's one-liner to helpBus (so the StatusBar + HelpPanel "Context" line keep
+//      working — fr mirrors en until French content is authored), and
+//   2. tags the element with `data-help-id`, which the Tooltip / IconButton reads to render the "?"
+//      Learn-more link that deep-links into the Help Page.
+// A missing id is a graceful no-op (renders the control with just its native title), so a call site
+// migrates by swapping one prop: `title="Blade" {...helpProps({…})}` → `{...help('timeline.blade')}`.
+// (registry imports nothing from here, so this one-directional import is cycle-free.)
+import { helpEntry } from '../help/registry';
+
+export const help = (id: string) => {
+  const e = helpEntry(id);
+  return {
+    ...(e ? helpProps({ en: e.short, fr: e.short }) : {}),
+    'data-help-id': id,
+  };
+};

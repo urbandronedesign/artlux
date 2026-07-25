@@ -2,6 +2,8 @@ import React, { useMemo } from 'react';
 import { Plus, Trash2, Lock, Unlock, Hash, AlertTriangle } from 'lucide-react';
 import { Fixture, Surface, Controller, AppSettings, PatchPolicy } from '../types';
 import { Button } from './ui';
+import { Tooltip } from './ui/Tooltip';
+import { help } from '../services/helpBus';
 import { fixtureSpans, findCollisions } from '../services/addressing';
 
 interface Props {
@@ -69,11 +71,13 @@ export const RoutingModal: React.FC<Props> = ({
                 <AlertTriangle size={12} /> {collisions.count} {collisions.count === 1 ? 'conflict' : 'conflicts'}
               </span>
             )}
-            <label className="flex items-center gap-1 text-mini text-fg-2 cursor-pointer select-none" title="Auto-patch packs auto fixtures AROUND locked ranges instead of through them. Turning this on re-addresses auto fixtures on the next patch — re-upload to hardware after.">
-              <input type="checkbox" checked={patchPolicy.reserveLockedRanges} onChange={(e) => onUpdatePatchPolicy({ reserveLockedRanges: e.target.checked })} className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0" />
-              Reserve locked
-            </label>
-            <Button variant="primary" size="sm" onClick={onAutoPatch}><Hash size={13} /> Auto-patch</Button>
+            <Tooltip id="routing.reserve-locked">
+              <label className="flex items-center gap-1 text-mini text-fg-2 cursor-pointer select-none" title="Auto-patch packs auto fixtures AROUND locked ranges instead of through them. Turning this on re-addresses auto fixtures on the next patch — re-upload to hardware after." {...help('routing.reserve-locked')}>
+                <input type="checkbox" checked={patchPolicy.reserveLockedRanges} onChange={(e) => onUpdatePatchPolicy({ reserveLockedRanges: e.target.checked })} className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0" />
+                Reserve locked
+              </label>
+            </Tooltip>
+            <Button variant="primary" size="sm" onClick={onAutoPatch} {...help('routing.auto-patch')}><Hash size={13} /> Auto-patch</Button>
           </div>
         </div>
 
@@ -82,7 +86,7 @@ export const RoutingModal: React.FC<Props> = ({
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-mini font-semibold text-fg-2 uppercase tracking-wider">Controllers</span>
-              <Button variant="tonal" size="sm" onClick={onAddController}><Plus size={13} /> Controller</Button>
+              <Button variant="tonal" size="sm" onClick={onAddController} {...help('routing.add-controller')}><Plus size={13} /> Controller</Button>
             </div>
             <div className="border border-line-1 rounded-md divide-y divide-line-1">
               <div className="grid grid-cols-[1.2fr_0.8fr_1.2fr_64px_72px_64px_32px] gap-1 px-2 py-1 text-micro uppercase tracking-wider text-fg-3">
@@ -92,14 +96,26 @@ export const RoutingModal: React.FC<Props> = ({
               {controllers.map((c) => (
                 <div key={c.id} className="grid grid-cols-[1.2fr_0.8fr_1.2fr_64px_72px_64px_32px] gap-1 px-2 py-1 items-center">
                   <input className={cell} value={c.name} onChange={(e) => onUpdateController(c.id, { name: e.target.value })} />
-                  <select className={cell} value={c.protocol} onChange={(e) => onUpdateController(c.id, { protocol: e.target.value as Controller['protocol'] })}>
-                    <option value="artnet">Art-Net</option><option value="sacn">sACN</option>
-                  </select>
-                  <input className={`${cell} num`} value={c.ip} onChange={(e) => onUpdateController(c.id, { ip: e.target.value })} />
-                  <input type="checkbox" checked={c.broadcast} onChange={(e) => onUpdateController(c.id, { broadcast: e.target.checked })} className="justify-self-center bg-surface-0 border-line-2 rounded text-accent focus:ring-0" />
-                  <input type="number" className={`${cell} num text-right`} value={c.startUniverse ?? 0} onChange={(e) => onUpdateController(c.id, { startUniverse: Math.max(0, Math.round(+e.target.value)) })} />
-                  <input type="number" className={`${cell} num text-right`} value={c.priority ?? 100} onChange={(e) => onUpdateController(c.id, { priority: Math.max(0, Math.min(200, Math.round(+e.target.value))) })} />
-                  <button onClick={() => onRemoveController(c.id)} title="Remove controller" className="justify-self-center text-fg-3 hover:text-danger"><Trash2 size={12} /></button>
+                  <Tooltip id="routing.controller-protocol">
+                    <select className={cell} value={c.protocol} onChange={(e) => onUpdateController(c.id, { protocol: e.target.value as Controller['protocol'] })} {...help('routing.controller-protocol')}>
+                      <option value="artnet">Art-Net</option><option value="sacn">sACN</option>
+                    </select>
+                  </Tooltip>
+                  <Tooltip id="routing.controller-ip">
+                    <input className={`${cell} num`} value={c.ip} onChange={(e) => onUpdateController(c.id, { ip: e.target.value })} {...help('routing.controller-ip')} />
+                  </Tooltip>
+                  <Tooltip id="routing.controller-broadcast">
+                    <input type="checkbox" checked={c.broadcast} onChange={(e) => onUpdateController(c.id, { broadcast: e.target.checked })} className="justify-self-center bg-surface-0 border-line-2 rounded text-accent focus:ring-0" {...help('routing.controller-broadcast')} />
+                  </Tooltip>
+                  <Tooltip id="routing.controller-start-universe">
+                    <input type="number" className={`${cell} num text-right`} value={c.startUniverse ?? 0} onChange={(e) => onUpdateController(c.id, { startUniverse: Math.max(0, Math.round(+e.target.value)) })} {...help('routing.controller-start-universe')} />
+                  </Tooltip>
+                  <Tooltip id="routing.controller-priority">
+                    <input type="number" className={`${cell} num text-right`} value={c.priority ?? 100} onChange={(e) => onUpdateController(c.id, { priority: Math.max(0, Math.min(200, Math.round(+e.target.value))) })} {...help('routing.controller-priority')} />
+                  </Tooltip>
+                  <Tooltip id="routing.remove-controller">
+                    <button onClick={() => onRemoveController(c.id)} title="Remove controller" className="justify-self-center text-fg-3 hover:text-danger" {...help('routing.remove-controller')}><Trash2 size={12} /></button>
+                  </Tooltip>
                 </div>
               ))}
             </div>
@@ -119,24 +135,38 @@ export const RoutingModal: React.FC<Props> = ({
                 return (
                   <div key={f.id} className={`grid ${COLS} gap-1 px-2 py-1 items-center`}>
                     <input className={cell} value={f.name} onChange={(e) => onUpdateFixture(f.id, { name: e.target.value })} />
-                    <select className={cell} value={f.surfaceId ?? ''} onChange={(e) => onUpdateFixture(f.id, { surfaceId: e.target.value || undefined })}>
-                      <option value="">— off —</option>
-                      {surfaces.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
-                    <select className={cell} value={f.controllerId ?? ''} onChange={(e) => onUpdateFixture(f.id, { controllerId: e.target.value || undefined })}>
-                      <option value="">Global</option>
-                      {controllers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                    <input type="number" disabled={!locked} className={`${cell} num text-right`} value={f.universe} onChange={(e) => onUpdateFixture(f.id, { universe: Math.max(0, Math.round(+e.target.value)) })} />
-                    <input type="number" disabled={!locked} className={`${cell} num text-right`} value={f.startAddress} onChange={(e) => onUpdateFixture(f.id, { startAddress: Math.max(1, Math.min(512, Math.round(+e.target.value))) })} />
-                    <select className={cell} value={f.channelsPerPixel ?? 4} onChange={(e) => onUpdateFixture(f.id, { channelsPerPixel: (parseInt(e.target.value) as 3 | 4) })}>
-                      <option value={3}>RGB (3)</option><option value={4}>RGBW (4)</option>
-                    </select>
-                    <input type="number" className={`${cell} num text-right`} value={f.ledCount} onChange={(e) => onUpdateFixture(f.id, { ledCount: Math.max(1, Math.round(+e.target.value)) })} />
+                    <Tooltip id="routing.fixture-surface">
+                      <select className={cell} value={f.surfaceId ?? ''} onChange={(e) => onUpdateFixture(f.id, { surfaceId: e.target.value || undefined })} {...help('routing.fixture-surface')}>
+                        <option value="">— off —</option>
+                        {surfaces.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                      </select>
+                    </Tooltip>
+                    <Tooltip id="routing.fixture-controller">
+                      <select className={cell} value={f.controllerId ?? ''} onChange={(e) => onUpdateFixture(f.id, { controllerId: e.target.value || undefined })} {...help('routing.fixture-controller')}>
+                        <option value="">Global</option>
+                        {controllers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                    </Tooltip>
+                    <Tooltip id="routing.fixture-universe">
+                      <input type="number" disabled={!locked} className={`${cell} num text-right`} value={f.universe} onChange={(e) => onUpdateFixture(f.id, { universe: Math.max(0, Math.round(+e.target.value)) })} {...help('routing.fixture-universe')} />
+                    </Tooltip>
+                    <Tooltip id="routing.fixture-start-address">
+                      <input type="number" disabled={!locked} className={`${cell} num text-right`} value={f.startAddress} onChange={(e) => onUpdateFixture(f.id, { startAddress: Math.max(1, Math.min(512, Math.round(+e.target.value))) })} {...help('routing.fixture-start-address')} />
+                    </Tooltip>
+                    <Tooltip id="routing.fixture-channels">
+                      <select className={cell} value={f.channelsPerPixel ?? 4} onChange={(e) => onUpdateFixture(f.id, { channelsPerPixel: (parseInt(e.target.value) as 3 | 4) })} {...help('routing.fixture-channels')}>
+                        <option value={3}>RGB (3)</option><option value={4}>RGBW (4)</option>
+                      </select>
+                    </Tooltip>
+                    <Tooltip id="routing.fixture-leds">
+                      <input type="number" className={`${cell} num text-right`} value={f.ledCount} onChange={(e) => onUpdateFixture(f.id, { ledCount: Math.max(1, Math.round(+e.target.value)) })} {...help('routing.fixture-leds')} />
+                    </Tooltip>
                     <span className={`num text-micro truncate ${clash ? 'text-danger font-semibold' : 'text-fg-3'}`} title={clash ? `Overlaps ${[...clash].join(', ')}` : undefined}>{span(f)}</span>
-                    <button onClick={() => onUpdateFixture(f.id, { patchLocked: !locked })} title={locked ? 'Locked (manual address)' : 'Auto (click to lock)'} className={`justify-self-center ${locked ? 'text-accent' : 'text-fg-3 hover:text-fg-1'}`}>
-                      {locked ? <Lock size={12} /> : <Unlock size={12} />}
-                    </button>
+                    <Tooltip id="routing.patch-lock">
+                      <button onClick={() => onUpdateFixture(f.id, { patchLocked: !locked })} title={locked ? 'Locked (manual address)' : 'Auto (click to lock)'} className={`justify-self-center ${locked ? 'text-accent' : 'text-fg-3 hover:text-fg-1'}`} {...help('routing.patch-lock')}>
+                        {locked ? <Lock size={12} /> : <Unlock size={12} />}
+                      </button>
+                    </Tooltip>
                   </div>
                 );
               })}

@@ -3,6 +3,8 @@ import { Plus, Trash2, Eye, EyeOff, Box, Lightbulb, Save, Check, MonitorPlay } f
 import { PROGRAM_LAYER_ID } from '../../services/timeline';
 import { modelScaleXYZ } from '../../../../shared/protocol';
 import { useEditor, useEditorActions } from '../../state/EditorStore';
+import { Tooltip } from '../../components/ui/Tooltip';
+import { help } from '../../services/helpBus';
 
 // The 3D venue workbench, as panels — Objects and Fixtures in the browser column, the selected
 // model's transform and the scene lighting in the parameter column.
@@ -31,12 +33,17 @@ const NumInput: React.FC<{ value: number; step?: number; title?: string; min?: n
   );
 };
 
-const NumRow: React.FC<{ label: string; value: number; step?: number; onChange: (v: number) => void }> = ({ label, value, step = 1, onChange }) => (
-  <div className="flex items-center justify-between gap-2 text-mini">
-    <span className="text-fg-2">{label}</span>
-    <NumInput value={value} step={step} onChange={onChange} />
-  </div>
-);
+// `helpId` opts the row into the rich help system: the whole row is the hover target (its <div> is a
+// real host element, which is what Tooltip clones + refs), and help() spreads the hint props onto it.
+const NumRow: React.FC<{ label: string; value: number; step?: number; helpId?: string; onChange: (v: number) => void }> = ({ label, value, step = 1, helpId, onChange }) => {
+  const row = (
+    <div className="flex items-center justify-between gap-2 text-mini" {...(helpId ? help(helpId) : {})}>
+      <span className="text-fg-2">{label}</span>
+      <NumInput value={value} step={step} onChange={onChange} />
+    </div>
+  );
+  return helpId ? <Tooltip id={helpId}>{row}</Tooltip> : row;
+};
 
 const Vec3Row: React.FC<{ label: string; v: { x: number; y: number; z: number }; step?: number; min?: number; onChange: (v: { x: number; y: number; z: number }) => void }> =
 ({ label, v, step = 0.1, min, onChange }) => (
@@ -52,12 +59,16 @@ const Vec3Row: React.FC<{ label: string; v: { x: number; y: number; z: number };
   </div>
 );
 
-const Toggle: React.FC<{ label: string; checked: boolean; onChange: (v: boolean) => void }> = ({ label, checked, onChange }) => (
-  <label className="flex items-center justify-between gap-2 text-mini cursor-pointer select-none">
-    <span className="text-fg-2">{label}</span>
-    <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0" />
-  </label>
-);
+// `helpId` (see NumRow) makes the whole <label> the hover target for the rich help tooltip.
+const Toggle: React.FC<{ label: string; checked: boolean; helpId?: string; onChange: (v: boolean) => void }> = ({ label, checked, helpId, onChange }) => {
+  const el = (
+    <label className="flex items-center justify-between gap-2 text-mini cursor-pointer select-none" {...(helpId ? help(helpId) : {})}>
+      <span className="text-fg-2">{label}</span>
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="bg-surface-0 border-line-2 rounded text-accent focus:ring-0" />
+    </label>
+  );
+  return helpId ? <Tooltip id={helpId}>{el}</Tooltip> : el;
+};
 
 const rowCls = (active: boolean) =>
   `flex items-center gap-1.5 px-2 py-1 rounded cursor-pointer text-mini group ${active ? 'bg-accent/15 text-accent' : 'text-fg-2 hover:bg-surface-3'}`;
@@ -78,9 +89,11 @@ export const ModelsPanel: React.FC = () => {
         >
           {m.kind === 'plane' ? <MonitorPlay size={12} className="shrink-0" /> : <Box size={12} className="shrink-0" />}
           <span className="flex-1 truncate" title={m.path}>{m.name}</span>
-          <button onClick={(e) => { e.stopPropagation(); a.updateModel(m.id, { visible: !m.visible }); }} className="text-fg-3 hover:text-fg-1" title={m.visible ? 'Hide' : 'Show'}>
-            {m.visible ? <Eye size={12} /> : <EyeOff size={12} />}
-          </button>
+          <Tooltip id="scene3d.model-visibility">
+            <button onClick={(e) => { e.stopPropagation(); a.updateModel(m.id, { visible: !m.visible }); }} className="text-fg-3 hover:text-fg-1" title={m.visible ? 'Hide' : 'Show'} {...help('scene3d.model-visibility')}>
+              {m.visible ? <Eye size={12} /> : <EyeOff size={12} />}
+            </button>
+          </Tooltip>
           <button onClick={(e) => { e.stopPropagation(); a.removeModel(m.id); }} className="text-fg-3 hover:text-danger opacity-0 group-hover:opacity-100" title="Remove"><Trash2 size={11} /></button>
         </div>
       ))}
@@ -95,15 +108,22 @@ export const ModelsHeaderActions: React.FC = () => {
   const a = useEditorActions();
   return (
     <>
-      <button onClick={a.addPlane} title="Add screen plane" className="text-fg-2 hover:text-fg-1"><MonitorPlay size={14} /></button>
-      <button onClick={a.addModel} title="Add GLB mesh" className="text-fg-2 hover:text-fg-1"><Plus size={14} /></button>
-      <button
-        onClick={a.saveScene}
-        title="Save the project (includes the 3D scene)"
-        className={`flex items-center gap-1 px-1.5 py-0.5 rounded-sm text-micro transition-colors ${sceneSaved ? 'bg-ok/20 text-ok' : 'bg-accent text-black hover:bg-accent-hover'}`}
-      >
-        {sceneSaved ? <Check size={12} /> : <Save size={12} />} {sceneSaved ? 'Saved' : 'Save'}
-      </button>
+      <Tooltip id="scene3d.add-plane">
+        <button onClick={a.addPlane} title="Add screen plane" className="text-fg-2 hover:text-fg-1" {...help('scene3d.add-plane')}><MonitorPlay size={14} /></button>
+      </Tooltip>
+      <Tooltip id="scene3d.add-model">
+        <button onClick={a.addModel} title="Add GLB mesh" className="text-fg-2 hover:text-fg-1" {...help('scene3d.add-model')}><Plus size={14} /></button>
+      </Tooltip>
+      <Tooltip id="scene3d.save-scene">
+        <button
+          onClick={a.saveScene}
+          title="Save the project (includes the 3D scene)"
+          className={`flex items-center gap-1 px-1.5 py-0.5 rounded-sm text-micro transition-colors ${sceneSaved ? 'bg-ok/20 text-ok' : 'bg-accent text-black hover:bg-accent-hover'}`}
+          {...help('scene3d.save-scene')}
+        >
+          {sceneSaved ? <Check size={12} /> : <Save size={12} />} {sceneSaved ? 'Saved' : 'Save'}
+        </button>
+      </Tooltip>
     </>
   );
 };
@@ -145,20 +165,26 @@ export const ModelTransformPanel: React.FC = () => {
           authoring a scene is that scene's own document. */}
       <div className="flex items-center gap-1.5 text-mini">
         <span className="text-fg-2 shrink-0">Layer</span>
-        <select
-          value={m.layerId ?? ''}
-          onChange={(e) => a.updateModel(m.id, { layerId: e.target.value || undefined })}
-          className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-micro focus:border-accent focus:outline-none"
-        >
-          <option value="">{m.kind === 'plane' ? '— no layer —' : '— GLB materials —'}</option>
-          <option value={PROGRAM_LAYER_ID}>★ Timeline (Program)</option>
-          {timeline.layers.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-        </select>
-        <button
-          onClick={() => a.updateModel(m.id, { layerId: m.layerId === PROGRAM_LAYER_ID ? undefined : PROGRAM_LAYER_ID })}
-          title="Show the whole timeline (Program composite) on this screen"
-          className={`shrink-0 px-1.5 py-1 rounded text-micro border ${m.layerId === PROGRAM_LAYER_ID ? 'bg-accent text-black border-transparent' : 'bg-surface-2 border-line-1 text-fg-2 hover:text-fg-1'}`}
-        >TL</button>
+        <Tooltip id="scene3d.model-layer">
+          <select
+            value={m.layerId ?? ''}
+            onChange={(e) => a.updateModel(m.id, { layerId: e.target.value || undefined })}
+            className="flex-1 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 text-micro focus:border-accent focus:outline-none"
+            {...help('scene3d.model-layer')}
+          >
+            <option value="">{m.kind === 'plane' ? '— no layer —' : '— GLB materials —'}</option>
+            <option value={PROGRAM_LAYER_ID}>★ Timeline (Program)</option>
+            {timeline.layers.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+          </select>
+        </Tooltip>
+        <Tooltip id="scene3d.model-program">
+          <button
+            onClick={() => a.updateModel(m.id, { layerId: m.layerId === PROGRAM_LAYER_ID ? undefined : PROGRAM_LAYER_ID })}
+            title="Show the whole timeline (Program composite) on this screen"
+            className={`shrink-0 px-1.5 py-1 rounded text-micro border ${m.layerId === PROGRAM_LAYER_ID ? 'bg-accent text-black border-transparent' : 'bg-surface-2 border-line-1 text-fg-2 hover:text-fg-1'}`}
+            {...help('scene3d.model-program')}
+          >TL</button>
+        </Tooltip>
       </div>
       <Vec3Row
         label="Scl" v={{ x: sx, y: sy, z: sz }} step={0.1} min={0.0001}
@@ -179,11 +205,14 @@ export const ModelTransformPanel: React.FC = () => {
               className={numCls}
             />
             <span className="text-fg-3">m</span>
-            <button
-              onClick={() => { const nat = modelNaturalSizes[m.id]; if (nat) { const s = fitMeters / nat; a.updateModel(m.id, { scaleXYZ: [s, s, s] }); } }}
-              disabled={!modelNaturalSizes[m.id]}
-              className="px-2 py-0.5 rounded-sm bg-accent text-black hover:bg-accent-hover num text-micro disabled:opacity-40"
-            >Fit</button>
+            <Tooltip id="scene3d.model-fit">
+              <button
+                onClick={() => { const nat = modelNaturalSizes[m.id]; if (nat) { const s = fitMeters / nat; a.updateModel(m.id, { scaleXYZ: [s, s, s] }); } }}
+                disabled={!modelNaturalSizes[m.id]}
+                className="px-2 py-0.5 rounded-sm bg-accent text-black hover:bg-accent-hover num text-micro disabled:opacity-40"
+                {...help('scene3d.model-fit')}
+              >Fit</button>
+            </Tooltip>
           </div>
         </>
       )}
@@ -199,11 +228,11 @@ export const SceneLightingPanel: React.FC = () => {
   const a = useEditorActions();
   return (
     <>
-      <NumRow label="Light gain" value={scene3D.lightIntensity} step={0.1} onChange={(v) => a.sceneConfig({ lightIntensity: Math.max(0, v) })} />
-      <NumRow label="Exposure" value={scene3D.exposure} step={0.05} onChange={(v) => a.sceneConfig({ exposure: Math.max(0.1, v) })} />
-      <Toggle label="Ambient (env)" checked={scene3D.environment} onChange={(v) => a.sceneConfig({ environment: v })} />
-      <Toggle label="Reflective floor" checked={scene3D.reflectiveFloor ?? false} onChange={(v) => a.sceneConfig({ reflectiveFloor: v })} />
-      <Toggle label="Grid" checked={scene3D.gridVisible} onChange={(v) => a.sceneConfig({ gridVisible: v })} />
+      <NumRow label="Light gain" value={scene3D.lightIntensity} step={0.1} helpId="scene3d.light-gain" onChange={(v) => a.sceneConfig({ lightIntensity: Math.max(0, v) })} />
+      <NumRow label="Exposure" value={scene3D.exposure} step={0.05} helpId="scene3d.exposure" onChange={(v) => a.sceneConfig({ exposure: Math.max(0.1, v) })} />
+      <Toggle label="Ambient (env)" checked={scene3D.environment} helpId="scene3d.ambient-env" onChange={(v) => a.sceneConfig({ environment: v })} />
+      <Toggle label="Reflective floor" checked={scene3D.reflectiveFloor ?? false} helpId="scene3d.reflective-floor" onChange={(v) => a.sceneConfig({ reflectiveFloor: v })} />
+      <Toggle label="Grid" checked={scene3D.gridVisible} helpId="scene3d.grid" onChange={(v) => a.sceneConfig({ gridVisible: v })} />
     </>
   );
 };
@@ -220,26 +249,26 @@ export const SceneTrackingPanel: React.FC = () => {
   const a = useEditorActions();
   return (
     <>
-      <Toggle label="Tracking zones (LiDAR)" checked={scene3D.trackingViz ?? false} onChange={(v) => a.sceneConfig({ trackingViz: v })} />
+      <Toggle label="Tracking zones (LiDAR)" checked={scene3D.trackingViz ?? false} helpId="scene3d.tracking-viz" onChange={(v) => a.sceneConfig({ trackingViz: v })} />
       {scene3D.trackingViz && (
         <div className="pl-2 border-l border-line-1 space-y-2">
-          <NumRow label="Smoothing" value={scene3D.trackingSmoothing ?? 0.5} step={0.05} onChange={(v) => a.sceneConfig({ trackingSmoothing: Math.max(0, Math.min(1, v)) })} />
-          <NumRow label="Predict (ms)" value={scene3D.trackingPredictMs ?? 80} step={10} onChange={(v) => a.sceneConfig({ trackingPredictMs: Math.max(0, Math.min(300, v)) })} />
-          <Toggle label="Show IDs" checked={scene3D.trackingLabels !== false} onChange={(v) => a.sceneConfig({ trackingLabels: v })} />
+          <NumRow label="Smoothing" value={scene3D.trackingSmoothing ?? 0.5} step={0.05} helpId="scene3d.tracking-smoothing" onChange={(v) => a.sceneConfig({ trackingSmoothing: Math.max(0, Math.min(1, v)) })} />
+          <NumRow label="Predict (ms)" value={scene3D.trackingPredictMs ?? 80} step={10} helpId="scene3d.tracking-predict" onChange={(v) => a.sceneConfig({ trackingPredictMs: Math.max(0, Math.min(300, v)) })} />
+          <Toggle label="Show IDs" checked={scene3D.trackingLabels !== false} helpId="scene3d.tracking-labels" onChange={(v) => a.sceneConfig({ trackingLabels: v })} />
           {/* THE ON-SITE ZONE DWELL. The venue-wide default every trigger zone follows — the value you
               reach for when arrivals feel laggy or a standing visitor drops out, because the real room
               flickers differently from the recording it was tuned against. A zone can still override it
               in the Trigger Zones panel; this moves all the rest at once. See docs/TRACKING_SYNC.md. */}
-          <NumRow label="Zone enter dwell (s)" value={scene3D.trackingZoneEnterSec ?? 0.2} step={0.05} onChange={(v) => a.sceneConfig({ trackingZoneEnterSec: Math.max(0, Math.min(10, v)) })} />
-          <NumRow label="Zone exit dwell (s)" value={scene3D.trackingZoneExitSec ?? 0.5} step={0.05} onChange={(v) => a.sceneConfig({ trackingZoneExitSec: Math.max(0, Math.min(10, v)) })} />
+          <NumRow label="Zone enter dwell (s)" value={scene3D.trackingZoneEnterSec ?? 0.2} step={0.05} helpId="scene3d.zone-enter-dwell" onChange={(v) => a.sceneConfig({ trackingZoneEnterSec: Math.max(0, Math.min(10, v)) })} />
+          <NumRow label="Zone exit dwell (s)" value={scene3D.trackingZoneExitSec ?? 0.5} step={0.05} helpId="scene3d.zone-exit-dwell" onChange={(v) => a.sceneConfig({ trackingZoneExitSec: Math.max(0, Math.min(10, v)) })} />
         </div>
       )}
-      <Toggle label="Camera pose markers (MediaPipe)" checked={scene3D.mediapipeViz ?? false} onChange={(v) => a.sceneConfig({ mediapipeViz: v })} />
-      <Toggle label="Augmenta field + objects" checked={scene3D.augmentaViz ?? false} onChange={(v) => a.sceneConfig({ augmentaViz: v })} />
-      <Toggle label="Merge people (2 blobs → 1)" checked={scene3D.trackingMergePeople ?? false} onChange={(v) => a.sceneConfig({ trackingMergePeople: v })} />
+      <Toggle label="Camera pose markers (MediaPipe)" checked={scene3D.mediapipeViz ?? false} helpId="scene3d.mediapipe-viz" onChange={(v) => a.sceneConfig({ mediapipeViz: v })} />
+      <Toggle label="Augmenta field + objects" checked={scene3D.augmentaViz ?? false} helpId="scene3d.augmenta-viz" onChange={(v) => a.sceneConfig({ augmentaViz: v })} />
+      <Toggle label="Merge people (2 blobs → 1)" checked={scene3D.trackingMergePeople ?? false} helpId="scene3d.merge-people" onChange={(v) => a.sceneConfig({ trackingMergePeople: v })} />
       {scene3D.trackingMergePeople && (
         <div className="pl-2 border-l border-line-1 space-y-2">
-          <NumRow label="Merge radius (m)" value={scene3D.trackingMergeRadius ?? 0.8} step={0.05} onChange={(v) => a.sceneConfig({ trackingMergeRadius: Math.max(0.05, Math.min(3, v)) })} />
+          <NumRow label="Merge radius (m)" value={scene3D.trackingMergeRadius ?? 0.8} step={0.05} helpId="scene3d.merge-radius" onChange={(v) => a.sceneConfig({ trackingMergeRadius: Math.max(0.05, Math.min(3, v)) })} />
         </div>
       )}
     </>

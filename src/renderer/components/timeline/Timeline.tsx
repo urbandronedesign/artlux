@@ -5,6 +5,8 @@ import { timeline as engine } from '../../services/timeline';
 import { goToContext } from '../../contexts/nav';
 import * as selection from '../../services/selection';
 import { ContentEditor } from '../ContentEditor';
+import { Tooltip } from '../ui/Tooltip';
+import { help } from '../../services/helpBus';
 import { GUTTER, RULER_H, LANE_H, MIN_LANE_H, MAX_LANE_H, PAGE_SECS, laneHeight, clamp, fmtClock, fmtTimecode } from './geometry';
 import { splitClipAt, bladeAt, rippleDelete, liftDelete, nearestFreeStart, freeSpanAt } from './operations';
 import { collectSnapPoints, snap, type SnapPoint } from './snapping';
@@ -1247,13 +1249,15 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
       {author && (
         <div className="shrink-0 flex items-center gap-2 px-3 h-8 border-b border-line-1 bg-surface-1 relative">
           {/* Scene/state selector pill — the always-visible "which timeline am I editing" indicator. */}
-          <button onClick={() => setPillOpen(o => !o)} title="Choose which timeline to edit"
-            className="flex items-center gap-1.5 pl-1.5 pr-2 py-1 rounded-sm bg-surface-2 border border-line-1 hover:bg-surface-3 text-mini">
-            <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: author.activeAccent }} />
-            <span className="text-fg-3">Editing:</span>
-            <span className="text-fg-1 font-medium max-w-[160px] truncate">{author.activeName}</span>
-            <ChevronDown size={12} className="text-fg-3" />
-          </button>
+          <Tooltip id="timeline.edit-scene">
+            <button onClick={() => setPillOpen(o => !o)} {...help('timeline.edit-scene')} title="Choose which timeline to edit"
+              className="flex items-center gap-1.5 pl-1.5 pr-2 py-1 rounded-sm bg-surface-2 border border-line-1 hover:bg-surface-3 text-mini">
+              <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: author.activeAccent }} />
+              <span className="text-fg-3">Editing:</span>
+              <span className="text-fg-1 font-medium max-w-[160px] truncate">{author.activeName}</span>
+              <ChevronDown size={12} className="text-fg-3" />
+            </button>
+          </Tooltip>
           {/* ⚠ "used by states without their own" DESCRIBED A SHAPE THAT NO LONGER EXISTS. A scene could once
               have NO timeline and fall back to this one; that state was the root of two automation-clock
               blockers and was DELETED on 2026-07-14 (`Scene.timeline` is required). Every scene owns a
@@ -1269,8 +1273,10 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
             <div className="ml-auto flex items-center gap-1.5">
               <button onClick={author.onPrev} title="Previous state" className="p-1 rounded text-fg-2 hover:text-fg-1 hover:bg-surface-2"><ChevronLeft size={14} /></button>
               <span className="text-micro text-fg-3 tabular-nums">State {author.index + 1} of {author.total}</span>
-              <button onClick={author.onSave} title="Save to State (re-capture look)"
-                className="flex items-center gap-1 px-2 py-1 rounded-sm bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3 text-mini"><Save size={12} /> Save</button>
+              <Tooltip id="timeline.save-state">
+                <button onClick={author.onSave} {...help('timeline.save-state')} title="Save to State (re-capture look)"
+                  className="flex items-center gap-1 px-2 py-1 rounded-sm bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3 text-mini"><Save size={12} /> Save</button>
+              </Tooltip>
               <button onClick={author.onNext} title="Next state" className="p-1 rounded text-fg-2 hover:text-fg-1 hover:bg-surface-2"><ChevronRight size={14} /></button>
             </div>
           )}
@@ -1454,15 +1460,21 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
           {/* add an automation lane / an audio lane */}
           <div className="flex border-b border-line-1">
             <div className="sticky left-0 z-20 shrink-0 bg-surface-1 border-r border-line-1 flex items-center gap-2 px-2 relative" style={{ width: GUTTER, height: 26 }}>
-              <button onClick={(e) => { const r = (e.target as HTMLElement).getBoundingClientRect(); setPickerAt({ x: r.left, y: r.bottom }); }}
-                className="text-micro text-fg-3 hover:text-fg-1 inline-flex items-center gap-1">
-                <Plus size={11} /> Automation
-              </button>
-              <button onClick={() => addAudioTrack('timeline')} title="Add an audio track to THIS timeline (rides the playhead; restarts when the timeline does)"
-                className="text-micro text-fg-3 hover:text-fg-1 inline-flex items-center gap-1"><Plus size={11} /> Audio</button>
+              <Tooltip id="timeline.add-automation">
+                <button onClick={(e) => { const r = (e.target as HTMLElement).getBoundingClientRect(); setPickerAt({ x: r.left, y: r.bottom }); }} {...help('timeline.add-automation')}
+                  title="Add an automation lane" className="text-micro text-fg-3 hover:text-fg-1 inline-flex items-center gap-1">
+                  <Plus size={11} /> Automation
+                </button>
+              </Tooltip>
+              <Tooltip id="timeline.add-audio-track">
+                <button onClick={() => addAudioTrack('timeline')} {...help('timeline.add-audio-track')} title="Add an audio track to THIS timeline (rides the playhead; restarts when the timeline does)"
+                  className="text-micro text-fg-3 hover:text-fg-1 inline-flex items-center gap-1"><Plus size={11} /> Audio</button>
+              </Tooltip>
               {audioProp && (
-                <button onClick={() => addAudioTrack('bed')} title="Add a BED track (rides the show clock; it does NOT restart on a scene recall)"
-                  className="text-micro text-fg-3 hover:text-fg-1 inline-flex items-center gap-1"><Plus size={11} /> Bed</button>
+                <Tooltip id="timeline.add-bed-track">
+                  <button onClick={() => addAudioTrack('bed')} {...help('timeline.add-bed-track')} title="Add a BED track (rides the show clock; it does NOT restart on a scene recall)"
+                    className="text-micro text-fg-3 hover:text-fg-1 inline-flex items-center gap-1"><Plus size={11} /> Bed</button>
+                </Tooltip>
               )}
               {pickerAt && (
                 <AutomationTargetPicker

@@ -3,6 +3,8 @@ import { Cpu, Radar, Check, Radio, Monitor, ShieldAlert } from 'lucide-react';
 import { AppSettings } from '../types';
 import type { ArtNetDevice, UnattendedPrefs, WatchdogStatus } from '../../../shared/protocol';
 import { Section, Field, NumberField, Toggle, Select, Slider, Button } from './ui';
+import { Tooltip } from './ui/Tooltip';
+import { help } from '../services/helpBus';
 import { settingsSectionRegistry } from '../host/registries';
 
 interface Props {
@@ -242,12 +244,16 @@ export const Preferences: React.FC<Props> = ({ settings, onChange }) => {
           </Field>
           <Toggle label="Output enabled" checked={settings.outputEnabled} onChange={(v) => onChange({ outputEnabled: v })} />
           <Field label="Target IP" labelWidth={LBL}>
-            <input
-              type="text"
-              value={settings.artNetIp}
-              onChange={(e) => onChange({ artNetIp: e.target.value })}
-              className="num flex-1 bg-surface-0 border border-line-1 rounded-sm px-1.5 py-1 text-right text-fg-1 focus:border-accent focus:outline-none"
-            />
+            <Tooltip id="general.dmx-target-ip">
+              <input
+                type="text"
+                value={settings.artNetIp}
+                onChange={(e) => onChange({ artNetIp: e.target.value })}
+                title="The default address DMX frames are sent to (unicast, or broadcast/multicast per the toggle)."
+                className="num flex-1 bg-surface-0 border border-line-1 rounded-sm px-1.5 py-1 text-right text-fg-1 focus:border-accent focus:outline-none"
+                {...help('general.dmx-target-ip')}
+              />
+            </Tooltip>
           </Field>
           <NumberField label="Port" labelWidth={LBL} value={settings.artNetPort} step={1} onChange={(v) => onChange({ artNetPort: v })} />
           <Toggle label="Broadcast / multicast" checked={settings.broadcast} onChange={(v) => onChange({ broadcast: v })} />
@@ -302,14 +308,17 @@ export const Preferences: React.FC<Props> = ({ settings, onChange }) => {
           <Toggle label="OSC receive" checked={settings.oscEnabled} onChange={(v) => onChange({ oscEnabled: v })} title="Bind a UDP listener for external control + LiDAR blob tracking" />
           <NumberField label="Listen port" labelWidth={LBL} value={settings.oscListenPort} step={1} min={1} max={65535} onChange={(v) => onChange({ oscListenPort: Math.max(1, Math.min(65535, Math.round(v))) })} />
           <Field label="Bind address" labelWidth={LBL}>
-            <input
-              type="text"
-              value={settings.oscListenAddress}
-              placeholder="All interfaces"
-              onChange={(e) => onChange({ oscListenAddress: e.target.value.trim() })}
-              title="Bind the OSC receiver to one local network card (this machine's IP, e.g. its 192.168.61.x address). Leave blank to listen on all interfaces."
-              className="num flex-1 bg-surface-0 border border-line-1 rounded-sm px-1.5 py-1 text-right text-fg-1 focus:border-accent focus:outline-none"
-            />
+            <Tooltip id="general.osc-bind-address">
+              <input
+                type="text"
+                value={settings.oscListenAddress}
+                placeholder="All interfaces"
+                onChange={(e) => onChange({ oscListenAddress: e.target.value.trim() })}
+                title="Bind the OSC receiver to one local network card (this machine's IP, e.g. its 192.168.61.x address). Leave blank to listen on all interfaces."
+                className="num flex-1 bg-surface-0 border border-line-1 rounded-sm px-1.5 py-1 text-right text-fg-1 focus:border-accent focus:outline-none"
+                {...help('general.osc-bind-address')}
+              />
+            </Tooltip>
           </Field>
           {/* Quick-pick the local NIC to bind (this machine's addresses). */}
           <div className="flex flex-wrap gap-1">
@@ -326,13 +335,16 @@ export const Preferences: React.FC<Props> = ({ settings, onChange }) => {
             ))}
           </div>
           <Field label="Control prefix" labelWidth={LBL}>
-            <input
-              type="text"
-              value={settings.oscControlPrefix}
-              onChange={(e) => onChange({ oscControlPrefix: e.target.value })}
-              title="Namespace for external control (e.g. /artlux/transport/play). LiDAR blob addresses (/SOL, /MUR, /SOL_MUR) are handled separately."
-              className="num flex-1 bg-surface-0 border border-line-1 rounded-sm px-1.5 py-1 text-right text-fg-1 focus:border-accent focus:outline-none"
-            />
+            <Tooltip id="general.osc-control-prefix">
+              <input
+                type="text"
+                value={settings.oscControlPrefix}
+                onChange={(e) => onChange({ oscControlPrefix: e.target.value })}
+                title="Namespace for external control (e.g. /artlux/transport/play). LiDAR blob addresses (/SOL, /MUR, /SOL_MUR) are handled separately."
+                className="num flex-1 bg-surface-0 border border-line-1 rounded-sm px-1.5 py-1 text-right text-fg-1 focus:border-accent focus:outline-none"
+                {...help('general.osc-control-prefix')}
+              />
+            </Tooltip>
           </Field>
         </Section></Tile>
 

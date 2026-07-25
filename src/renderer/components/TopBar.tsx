@@ -1,7 +1,7 @@
 import React from 'react';
 import { Settings, Activity, Network, MonitorUp, HelpCircle } from 'lucide-react';
 import { IconButton } from './ui';
-import { helpProps } from '../services/helpBus';
+import { help } from '../services/helpBus';
 
 interface TopBarProps {
   onOpenPreferences: () => void;
@@ -22,11 +22,11 @@ export const TopBar: React.FC<TopBarProps> = ({
 }) => {
   return (
     <div className="flex items-center gap-1">
-      <IconButton onClick={onOpenOutputs} title="Outputs" {...helpProps({ en: 'Open Outputs — send each surface fullscreen to a projector/display with corner-pin mapping.', fr: 'Ouvrir Sorties — envoyer chaque surface en plein écran vers un projecteur/écran avec warp corner-pin.' })}><MonitorUp size={15} /></IconButton>
-      <IconButton onClick={onOpenRouting} title="Routing" {...helpProps({ en: 'Open the Routing spreadsheet — controllers + per-fixture patch.', fr: 'Ouvrir le tableau Routing — contrôleurs + patch par fixture.' })}><Network size={15} /></IconButton>
-      <IconButton active={monitorOpen} onClick={onToggleMonitor} title="DMX Monitor" {...helpProps({ en: 'Toggle the DMX Monitor dock — live per-fixture pixel output.', fr: 'Afficher le Moniteur DMX — sortie pixel par fixture en direct.' })}><Activity size={15} /></IconButton>
-      <IconButton onClick={onOpenPreferences} title="Preferences" {...helpProps({ en: 'Open Preferences — DMX output protocol/target and engine settings.', fr: 'Ouvrir les Préférences — protocole/cible de sortie DMX et réglages du moteur.' })}><Settings size={15} /></IconButton>
-      <IconButton active={helpOpen} onClick={onToggleHelp} title="Help (F1)" {...helpProps({ en: 'Toggle the Help panel (F1) — contextual help and topic guides, in English or French.', fr: 'Afficher le panneau d’Aide (F1) — aide contextuelle et guides, en anglais ou français.' })}><HelpCircle size={15} /></IconButton>
+      <IconButton onClick={onOpenOutputs} title="Outputs" {...help('general.outputs')}><MonitorUp size={15} /></IconButton>
+      <IconButton onClick={onOpenRouting} title="Routing" {...help('general.routing')}><Network size={15} /></IconButton>
+      <IconButton active={monitorOpen} onClick={onToggleMonitor} title="DMX Monitor" {...help('general.dmx-monitor')}><Activity size={15} /></IconButton>
+      <IconButton onClick={onOpenPreferences} title="Preferences" {...help('general.preferences')}><Settings size={15} /></IconButton>
+      <IconButton active={helpOpen} onClick={onToggleHelp} title="Help (F1)" {...help('general.help')}><HelpCircle size={15} /></IconButton>
     </div>
   );
 };

@@ -4,6 +4,8 @@ import { Plus, Trash2, RefreshCw, Camera, Zap, X, Film, Music } from 'lucide-rea
 import { getByPath, globalParams, surfaceParams, fixtureParams, isFadeablePath, pathLeaf, type StateView, type ParamDef } from '../services/paramPath';
 import { automationTargetRegistry } from '../host/registries';
 import type { AutomationTargetDef } from '@artlux/sdk/renderer';
+import { Tooltip } from './ui/Tooltip';
+import { help } from '../services/helpBus';
 
 interface Props {
     banks: CueBank[];
@@ -249,10 +251,10 @@ export const CueBankPanel: React.FC<Props> = ({
                         className="h-6 w-6 rounded text-fg-3 hover:text-fg-1 hover:bg-surface-3" title="Add bank"><Plus size={13} /></button>
                 </div>
                 <div className="ml-auto flex items-center gap-2">
-                    <button onClick={onCaptureScene} className="inline-flex items-center gap-1 h-6 px-2 rounded bg-surface-3 text-fg-1 hover:bg-surface-3/70 text-mini" title="Capture current look as a Scene (row 0)"><Camera size={12} /> Scene</button>
+                    <Tooltip id="scenes.capture-scene"><button onClick={onCaptureScene} {...help('scenes.capture-scene')} className="inline-flex items-center gap-1 h-6 px-2 rounded bg-surface-3 text-fg-1 hover:bg-surface-3/70 text-mini" title="Capture current look as a Scene (row 0)"><Camera size={12} /> Scene</button></Tooltip>
                     <div className="flex items-center rounded bg-surface-0 border border-line-1 overflow-hidden">
-                        <button onClick={() => setMode('live')} className={`h-6 px-2 text-mini ${mode === 'live' ? 'bg-accent/20 text-accent' : 'text-fg-2'}`}>Live</button>
-                        <button onClick={() => setMode('edit')} className={`h-6 px-2 text-mini ${mode === 'edit' ? 'bg-accent/20 text-accent' : 'text-fg-2'}`}>Edit</button>
+                        <Tooltip id="scenes.mode-live"><button onClick={() => setMode('live')} {...help('scenes.mode-live')} className={`h-6 px-2 text-mini ${mode === 'live' ? 'bg-accent/20 text-accent' : 'text-fg-2'}`}>Live</button></Tooltip>
+                        <Tooltip id="scenes.mode-edit"><button onClick={() => setMode('edit')} {...help('scenes.mode-edit')} className={`h-6 px-2 text-mini ${mode === 'edit' ? 'bg-accent/20 text-accent' : 'text-fg-2'}`}>Edit</button></Tooltip>
                     </div>
                 </div>
             </div>
@@ -263,8 +265,8 @@ export const CueBankPanel: React.FC<Props> = ({
                     {/* Column headers (fire column) */}
                     <div className="flex gap-1 mb-1 pl-9">
                         {cols.map(c => (
-                            <button key={c} onClick={() => onFireColumn(bank.id, c)} title={`Fire column ${c + 1}`}
-                                className="h-5 w-24 shrink-0 rounded text-micro text-fg-3 bg-surface-2 hover:bg-accent/15 hover:text-accent">▼ {c + 1}</button>
+                            <Tooltip key={c} id="scenes.fire-column"><button onClick={() => onFireColumn(bank.id, c)} {...help('scenes.fire-column')} title={`Fire column ${c + 1}`}
+                                className="h-5 w-24 shrink-0 rounded text-micro text-fg-3 bg-surface-2 hover:bg-accent/15 hover:text-accent">▼ {c + 1}</button></Tooltip>
                         ))}
                     </div>
                     {/* Row 0 — Scenes */}
@@ -278,7 +280,7 @@ export const CueBankPanel: React.FC<Props> = ({
                                     style={activeSceneId === s.id && s.accent ? { borderColor: s.accent } : undefined}>
                                     <div className="flex items-center gap-1">
                                         {s.accent && <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ background: s.accent }} />}
-                                        <button onClick={() => onRecallScene(s)} className="px-1 rounded bg-accent/15 text-accent hover:bg-accent/25 text-micro font-semibold" title="GO">GO</button>
+                                        <Tooltip id="scenes.go"><button onClick={() => onRecallScene(s)} {...help('scenes.go')} className="px-1 rounded bg-accent/15 text-accent hover:bg-accent/25 text-micro font-semibold" title="GO">GO</button></Tooltip>
                                         {editSceneId === s.id ? (
                                             <input autoFocus value={editSceneName} onChange={e => setEditSceneName(e.target.value)}
                                                 onBlur={() => { if (editSceneName.trim()) onRenameScene(s.id, editSceneName.trim()); setEditSceneId(null); }}
@@ -289,16 +291,16 @@ export const CueBankPanel: React.FC<Props> = ({
                                         )}
                                     </div>
                                     <div className="flex items-center justify-between text-fg-3">
-                                        <input type="number" min={0} step={0.1} value={s.fadeSec ?? 0} onChange={e => onUpdateSceneFade(s.id, Math.max(0, Number(e.target.value) || 0))}
-                                            title="Crossfade (s)" className="w-9 bg-transparent hover:bg-surface-1 border border-transparent hover:border-line-1 rounded px-0.5 text-fg-3 tabular-nums" />
+                                        <Tooltip id="scenes.scene-fade"><input type="number" min={0} step={0.1} value={s.fadeSec ?? 0} onChange={e => onUpdateSceneFade(s.id, Math.max(0, Number(e.target.value) || 0))}
+                                            {...help('scenes.scene-fade')} title="Crossfade (s)" className="w-9 bg-transparent hover:bg-surface-1 border border-transparent hover:border-line-1 rounded px-0.5 text-fg-3 tabular-nums" /></Tooltip>
                                         {/* A scene that recalls audio SAYS SO, always — not only on hover. In an unattended
                                             install the operator has to be able to see which scenes touch the sound. */}
                                         {!!sceneAudioEntries(s).length && <span className="text-accent shrink-0" title={`${sceneAudioEntries(s).length} audio param(s) recalled`}>♪{sceneAudioEntries(s).length}</span>}
                                         <span className="opacity-0 group-hover:opacity-100 flex gap-1">
-                                            {onUpdateSceneAudio && <button onClick={() => { setAudioSceneId(s.id); setSelCueId(null); setMode('edit'); setAddOpen(true); }}
-                                                title="Bind audio params to this scene" className="hover:text-fg-1"><Music size={10} /></button>}
-                                            {onEditScene && <button onClick={() => onEditScene(s.id)} title="Edit this state's timeline" className="hover:text-fg-1"><Film size={10} /></button>}
-                                            <button onClick={() => onUpdateScene(s.id)} title="Update from current look" className="hover:text-fg-1"><RefreshCw size={10} /></button>
+                                            {onUpdateSceneAudio && <Tooltip id="scenes.bind-audio"><button onClick={() => { setAudioSceneId(s.id); setSelCueId(null); setMode('edit'); setAddOpen(true); }}
+                                                {...help('scenes.bind-audio')} title="Bind audio params to this scene" className="hover:text-fg-1"><Music size={10} /></button></Tooltip>}
+                                            {onEditScene && <Tooltip id="scenes.edit-timeline"><button onClick={() => onEditScene(s.id)} {...help('scenes.edit-timeline')} title="Edit this state's timeline" className="hover:text-fg-1"><Film size={10} /></button></Tooltip>}
+                                            <Tooltip id="scenes.update-scene"><button onClick={() => onUpdateScene(s.id)} {...help('scenes.update-scene')} title="Update from current look" className="hover:text-fg-1"><RefreshCw size={10} /></button></Tooltip>
                                             <button onClick={() => onRemoveScene(s.id)} title="Delete scene" className="hover:text-danger"><Trash2 size={10} /></button>
                                         </span>
                                     </div>
@@ -325,9 +327,9 @@ export const CueBankPanel: React.FC<Props> = ({
                                 );
                                 const sel = cue.id === selCueId;
                                 return (
-                                    <div key={c} role="button" tabIndex={0} onClick={() => cellClick(cue)}
+                                    <Tooltip key={c} id="scenes.fire-cue"><div role="button" tabIndex={0} onClick={() => cellClick(cue)}
                                         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cellClick(cue); } }}
-                                        title={mode === 'live' ? 'Fire cue' : 'Edit cue'}
+                                        {...help('scenes.fire-cue')} title={mode === 'live' ? 'Fire cue' : 'Edit cue'}
                                         className={`${cellBase} cursor-pointer group ${sel ? 'border-accent bg-accent/10' : 'border-line-2 bg-surface-2 hover:bg-surface-3'}`}
                                         style={cue.color ? { borderColor: cue.color } : undefined}>
                                         <div className="flex items-center gap-1">
@@ -338,7 +340,7 @@ export const CueBankPanel: React.FC<Props> = ({
                                             <span>{cueEntries(cue.entries).length}p · {(cue.fadeSec ?? 0).toFixed(1)}s</span>
                                             <button onClick={(e) => { e.stopPropagation(); removeCue(cue.id); }} className="opacity-0 group-hover:opacity-100 hover:text-danger" title="Delete cue"><Trash2 size={10} /></button>
                                         </div>
-                                    </div>
+                                    </div></Tooltip>
                                 );
                             })}
                         </div>
@@ -369,14 +371,14 @@ export const CueBankPanel: React.FC<Props> = ({
                                 </div>
                                 <div className="flex items-center gap-2 text-micro">
                                     <label className="text-fg-3">Fade</label>
-                                    <input type="number" min={0} step={0.1} value={selCue.fadeSec} onChange={e => patchCue(selCue.id, { fadeSec: Math.max(0, Number(e.target.value) || 0) })}
-                                        className="w-14 bg-surface-0 border border-line-1 rounded px-1 py-0.5 text-fg-1 tabular-nums" />
-                                    <select value={selCue.transition} onChange={e => patchCue(selCue.id, { transition: e.target.value as CueTransition })}
-                                        className="flex-1 bg-surface-0 border border-line-1 rounded px-1 py-0.5 text-fg-1">
+                                    <Tooltip id="scenes.cue-fade"><input type="number" min={0} step={0.1} value={selCue.fadeSec} onChange={e => patchCue(selCue.id, { fadeSec: Math.max(0, Number(e.target.value) || 0) })}
+                                        {...help('scenes.cue-fade')} className="w-14 bg-surface-0 border border-line-1 rounded px-1 py-0.5 text-fg-1 tabular-nums" /></Tooltip>
+                                    <Tooltip id="scenes.cue-transition"><select value={selCue.transition} onChange={e => patchCue(selCue.id, { transition: e.target.value as CueTransition })}
+                                        {...help('scenes.cue-transition')} className="flex-1 bg-surface-0 border border-line-1 rounded px-1 py-0.5 text-fg-1">
                                         {TRANSITIONS.map(t => <option key={t} value={t}>{t}</option>)}
-                                    </select>
+                                    </select></Tooltip>
                                 </div>
-                                <label className="flex items-center gap-1.5 text-micro text-fg-2"><input type="checkbox" checked={!!selCue.restartMedia} onChange={e => patchCue(selCue.id, { restartMedia: e.target.checked })} /> Restart media on fire</label>
+                                <Tooltip id="scenes.restart-media"><label className="flex items-center gap-1.5 text-micro text-fg-2" {...help('scenes.restart-media')}><input type="checkbox" checked={!!selCue.restartMedia} onChange={e => patchCue(selCue.id, { restartMedia: e.target.checked })} /> Restart media on fire</label></Tooltip>
                             </>
                         ) : null}
 
@@ -396,17 +398,17 @@ export const CueBankPanel: React.FC<Props> = ({
                                     {isFadeablePath(e.path) && (
                                         <div className="flex items-center gap-1 text-micro pl-1 text-fg-3">
                                             <span className="opacity-70">fade</span>
-                                            <input type="number" min={0} step={0.1} value={e.fadeSec ?? ''} placeholder={target.audioOnly ? 'scene' : 'cue'}
+                                            <Tooltip id="scenes.entry-fade"><input type="number" min={0} step={0.1} value={e.fadeSec ?? ''} placeholder={target.audioOnly ? 'scene' : 'cue'}
                                                 onChange={(ev) => setEntryFade(e.path, ev.target.value === '' ? undefined : Math.max(0, Number(ev.target.value) || 0))}
-                                                title={target.audioOnly ? "Per-entry fade (s) — blank inherits the scene's fade" : "Per-entry fade (s) — blank inherits the cue's fade"}
-                                                className="w-10 bg-surface-0 border border-line-1 rounded px-0.5 text-fg-1 tabular-nums" />
-                                            <select value={e.transition ?? ''}
+                                                {...help('scenes.entry-fade')} title={target.audioOnly ? "Per-entry fade (s) — blank inherits the scene's fade" : "Per-entry fade (s) — blank inherits the cue's fade"}
+                                                className="w-10 bg-surface-0 border border-line-1 rounded px-0.5 text-fg-1 tabular-nums" /></Tooltip>
+                                            <Tooltip id="scenes.entry-transition"><select value={e.transition ?? ''}
                                                 onChange={(ev) => setEntryTransition(e.path, ev.target.value === '' ? undefined : ev.target.value as CueTransition)}
-                                                title={target.audioOnly ? "Per-entry transition — blank inherits the scene's (smooth)" : "Per-entry transition — 'cue' inherits the cue's"}
+                                                {...help('scenes.entry-transition')} title={target.audioOnly ? "Per-entry transition — blank inherits the scene's (smooth)" : "Per-entry transition — 'cue' inherits the cue's"}
                                                 className="flex-1 min-w-0 bg-surface-0 border border-line-1 rounded px-0.5 py-0.5 text-fg-1">
                                                 <option value="">{target.audioOnly ? 'scene' : 'cue'}</option>
                                                 {TRANSITIONS.map(t => <option key={t} value={t}>{t}</option>)}
-                                            </select>
+                                            </select></Tooltip>
                                         </div>
                                     )}
                                 </div>
@@ -453,8 +455,8 @@ const CaptureGroup: React.FC<{ title: string; defs: ParamDef[]; entries: CueEntr
             {defs.map(d => {
                 const has = entries.some(e => e.path === d.path);
                 return (
-                    <button key={d.path} onClick={() => onCapture(d)} title={has ? 'Update captured value' : 'Capture current value'}
-                        className={`px-1.5 py-0.5 rounded text-micro border ${has ? 'border-accent/50 bg-accent/15 text-accent' : 'border-line-1 text-fg-2 hover:bg-surface-3'}`}>{d.label}</button>
+                    <Tooltip key={d.path} id="scenes.capture-param"><button onClick={() => onCapture(d)} {...help('scenes.capture-param')} title={has ? 'Update captured value' : 'Capture current value'}
+                        className={`px-1.5 py-0.5 rounded text-micro border ${has ? 'border-accent/50 bg-accent/15 text-accent' : 'border-line-1 text-fg-2 hover:bg-surface-3'}`}>{d.label}</button></Tooltip>
                 );
             })}
         </div>

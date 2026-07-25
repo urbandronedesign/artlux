@@ -4,6 +4,8 @@ import { Surface, SourceType } from '../types';
 import { FULL_RECT, defaultOutputSpan, type OutputSpan, type ProjectorOutput, type SrcRect } from '../../../shared/protocol';
 import { clampCount, clampOverlap, clampRect } from '../services/outputSpan';
 import { getDrawable } from '../services/surfaceMedia';
+import { Tooltip } from './ui/Tooltip';
+import { help } from '../services/helpBus';
 
 // Spanning one picture across several projectors.
 //
@@ -129,15 +131,19 @@ export const SpanEditor: React.FC<Props> = ({
       </div>
 
       <div className="px-2 py-1.5 flex items-center gap-2 text-mini border-b border-line-1">
-        <select value={newSourceId} onChange={(e) => setNewSourceId(e.target.value)}
-          className="flex-1 bg-surface-0 border border-line-1 rounded-sm px-1.5 py-1 text-fg-1 text-mini focus:border-accent focus:outline-none">
-          <option value="">— surface to span —</option>
-          {sources.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select>
-        <button onClick={addSpan} disabled={!newSourceId}
-          className="flex items-center gap-1 px-2 py-1 rounded-sm bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3 disabled:opacity-40">
-          <Plus size={12} /> New span
-        </button>
+        <Tooltip id="content.span-source">
+          <select value={newSourceId} onChange={(e) => setNewSourceId(e.target.value)} {...help('content.span-source')}
+            className="flex-1 bg-surface-0 border border-line-1 rounded-sm px-1.5 py-1 text-fg-1 text-mini focus:border-accent focus:outline-none">
+            <option value="">— surface to span —</option>
+            {sources.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </Tooltip>
+        <Tooltip id="content.span-new">
+          <button onClick={addSpan} disabled={!newSourceId} {...help('content.span-new')}
+            className="flex items-center gap-1 px-2 py-1 rounded-sm bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3 disabled:opacity-40">
+            <Plus size={12} /> New span
+          </button>
+        </Tooltip>
       </div>
 
       {spans.length === 0 && (
@@ -166,42 +172,58 @@ export const SpanEditor: React.FC<Props> = ({
                 className="w-36 bg-surface-0 border border-line-1 rounded-sm px-1.5 py-1 text-fg-1 text-mini focus:border-accent focus:outline-none" />
               <span className="text-fg-3">{src ? src.name : <span className="text-danger">source missing</span>}</span>
               <div className="flex-1" />
-              <button onClick={() => onToggleEditMany(members.map(m => m.id))} disabled={members.length === 0}
-                title="Put the alignment grid up on every projector of this span at once"
-                className={`flex items-center gap-1 px-1.5 py-1 rounded-sm text-micro disabled:opacity-30 ${aligning ? 'bg-accent text-black' : 'bg-surface-2 text-fg-2 hover:text-fg-1'}`}>
-                <Frame size={12} /> {aligning ? 'Aligning' : 'Align span'}
-              </button>
-              <button onClick={() => onUpdateSpan({ ...span, linked: !span.linked })}
-                title={span.linked ? 'Linked: grid changes re-cut the pieces' : 'Unlinked: pieces keep their hand-tuned crops'}
-                className={`p-1 rounded-sm ${span.linked ? 'text-accent' : 'text-fg-3 hover:text-fg-1'}`}>
-                {span.linked ? <Link size={12} /> : <Link2Off size={12} />}
-              </button>
-              <button onClick={() => onApplySpan(span)} disabled={!src} title="Re-cut the pieces from the grid (discards hand-tuned crops)"
-                className="p-1 rounded-sm text-fg-3 hover:text-fg-1 disabled:opacity-30"><RefreshCw size={12} /></button>
-              <button onClick={() => onRemoveSpan(span.id)} title="Delete the span and the pieces it made"
-                className="p-1 rounded-sm text-fg-3 hover:text-danger"><Trash2 size={12} /></button>
+              <Tooltip id="content.span-align">
+                <button onClick={() => onToggleEditMany(members.map(m => m.id))} disabled={members.length === 0}
+                  title="Put the alignment grid up on every projector of this span at once" {...help('content.span-align')}
+                  className={`flex items-center gap-1 px-1.5 py-1 rounded-sm text-micro disabled:opacity-30 ${aligning ? 'bg-accent text-black' : 'bg-surface-2 text-fg-2 hover:text-fg-1'}`}>
+                  <Frame size={12} /> {aligning ? 'Aligning' : 'Align span'}
+                </button>
+              </Tooltip>
+              <Tooltip id="content.span-link">
+                <button onClick={() => onUpdateSpan({ ...span, linked: !span.linked })} {...help('content.span-link')}
+                  title={span.linked ? 'Linked: grid changes re-cut the pieces' : 'Unlinked: pieces keep their hand-tuned crops'}
+                  className={`p-1 rounded-sm ${span.linked ? 'text-accent' : 'text-fg-3 hover:text-fg-1'}`}>
+                  {span.linked ? <Link size={12} /> : <Link2Off size={12} />}
+                </button>
+              </Tooltip>
+              <Tooltip id="content.span-regenerate">
+                <button onClick={() => onApplySpan(span)} disabled={!src} title="Re-cut the pieces from the grid (discards hand-tuned crops)" {...help('content.span-regenerate')}
+                  className="p-1 rounded-sm text-fg-3 hover:text-fg-1 disabled:opacity-30"><RefreshCw size={12} /></button>
+              </Tooltip>
+              <Tooltip id="content.span-remove">
+                <button onClick={() => onRemoveSpan(span.id)} title="Delete the span and the pieces it made" {...help('content.span-remove')}
+                  className="p-1 rounded-sm text-fg-3 hover:text-danger"><Trash2 size={12} /></button>
+              </Tooltip>
             </div>
 
             <div className="flex items-center gap-2 text-mini flex-wrap">
-              <label className="flex items-center gap-1 text-fg-2">Cols
-                <input type="number" min={1} max={16} value={span.cols}
-                  onChange={(e) => set({ cols: clampCount(+e.target.value) })} className={numCell} />
-              </label>
-              <label className="flex items-center gap-1 text-fg-2">Rows
-                <input type="number" min={1} max={16} value={span.rows}
-                  onChange={(e) => set({ rows: clampCount(+e.target.value) })} className={numCell} />
-              </label>
-              <label className="flex items-center gap-1 text-fg-2" title="Fraction of one piece shared with its horizontal neighbour">
-                Overlap X %
-                <input type="number" min={0} max={50} value={Math.round(span.overlapX * 100)}
-                  onChange={(e) => set({ overlapX: clampOverlap((+e.target.value) / 100) })} className={numCell} />
-              </label>
-              {span.rows > 1 && (
-                <label className="flex items-center gap-1 text-fg-2" title="Fraction of one piece shared with its vertical neighbour">
-                  Overlap Y %
-                  <input type="number" min={0} max={50} value={Math.round(span.overlapY * 100)}
-                    onChange={(e) => set({ overlapY: clampOverlap((+e.target.value) / 100) })} className={numCell} />
+              <Tooltip id="content.span-cols">
+                <label className="flex items-center gap-1 text-fg-2" {...help('content.span-cols')}>Cols
+                  <input type="number" min={1} max={16} value={span.cols}
+                    onChange={(e) => set({ cols: clampCount(+e.target.value) })} className={numCell} />
                 </label>
+              </Tooltip>
+              <Tooltip id="content.span-rows">
+                <label className="flex items-center gap-1 text-fg-2" {...help('content.span-rows')}>Rows
+                  <input type="number" min={1} max={16} value={span.rows}
+                    onChange={(e) => set({ rows: clampCount(+e.target.value) })} className={numCell} />
+                </label>
+              </Tooltip>
+              <Tooltip id="content.span-overlap-x">
+                <label className="flex items-center gap-1 text-fg-2" title="Fraction of one piece shared with its horizontal neighbour" {...help('content.span-overlap-x')}>
+                  Overlap X %
+                  <input type="number" min={0} max={50} value={Math.round(span.overlapX * 100)}
+                    onChange={(e) => set({ overlapX: clampOverlap((+e.target.value) / 100) })} className={numCell} />
+                </label>
+              </Tooltip>
+              {span.rows > 1 && (
+                <Tooltip id="content.span-overlap-y">
+                  <label className="flex items-center gap-1 text-fg-2" title="Fraction of one piece shared with its vertical neighbour" {...help('content.span-overlap-y')}>
+                    Overlap Y %
+                    <input type="number" min={0} max={50} value={Math.round(span.overlapY * 100)}
+                      onChange={(e) => set({ overlapY: clampOverlap((+e.target.value) / 100) })} className={numCell} />
+                  </label>
+                </Tooltip>
               )}
               <span className="text-fg-3">{members.length} piece{members.length === 1 ? '' : 's'}</span>
             </div>

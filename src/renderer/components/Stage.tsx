@@ -12,6 +12,8 @@ import * as transitions from '../services/transitions';
 import * as automationOverlay from '../services/automationOverlay';
 import { resolveDest, destKey } from '../services/addressing';
 import { perfMonitor } from '../services/perfMonitor';
+import { Tooltip } from './ui/Tooltip';
+import { help } from '../services/helpBus';
 
 interface StageProps {
   surfaces: Surface[];
@@ -886,53 +888,68 @@ export const Stage: React.FC<StageProps> = ({
       <div className="h-9 shrink-0 flex items-center gap-1 px-2 bg-surface-1 border-b border-line-1">
         {/* Fit is the primary action — it's what you want after placing surfaces. Plain reset stays
             reachable (alt-click, and its own button) so the default framing is never lost. */}
-        <button
-          onClick={(e) => (e.altKey ? resetView() : fitView())}
-          className="p-1.5 rounded-sm border bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1 transition-colors"
-          title="Fit view to surfaces (Alt-click: reset view)"
-          aria-label="Fit view to surfaces"
-        >
-          <Maximize2 size={14} />
-        </button>
-        <button
-          onClick={resetView}
-          className="p-1.5 rounded-sm border bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1 transition-colors"
-          title="Reset View"
-          aria-label="Reset view"
-        >
-          <ZoomIn size={14} />
-        </button>
+        <Tooltip id="content.stage-fit">
+          <button
+            onClick={(e) => (e.altKey ? resetView() : fitView())}
+            className="p-1.5 rounded-sm border bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1 transition-colors"
+            title="Fit view to surfaces (Alt-click: reset view)"
+            aria-label="Fit view to surfaces"
+            {...help('content.stage-fit')}
+          >
+            <Maximize2 size={14} />
+          </button>
+        </Tooltip>
+        <Tooltip id="content.stage-reset">
+          <button
+            onClick={resetView}
+            className="p-1.5 rounded-sm border bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1 transition-colors"
+            title="Reset View"
+            aria-label="Reset view"
+            {...help('content.stage-reset')}
+          >
+            <ZoomIn size={14} />
+          </button>
+        </Tooltip>
         <div className="w-px h-5 bg-line-2 mx-1"></div>
-        <button
-          onClick={() => setShowGrid(!showGrid)}
-          className={`p-1.5 rounded-sm border transition-colors ${showGrid ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
-          title="Toggle Grid"
-          aria-label="Toggle grid"
-          aria-pressed={showGrid}
-        >
-          <Grid3X3 size={14} />
-        </button>
+        <Tooltip id="content.stage-grid">
+          <button
+            onClick={() => setShowGrid(!showGrid)}
+            className={`p-1.5 rounded-sm border transition-colors ${showGrid ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
+            title="Toggle Grid"
+            aria-label="Toggle grid"
+            aria-pressed={showGrid}
+            {...help('content.stage-grid')}
+          >
+            <Grid3X3 size={14} />
+          </button>
+        </Tooltip>
         {showGrid && (
-          <input
-            type="number"
-            min={1}
-            max={64}
-            value={gridDivisions}
-            onChange={(e) => setGridDivisions(Math.max(1, Math.min(64, Math.round(parseFloat(e.target.value) || 1))))}
-            title="Grid divisions"
-            aria-label="Grid divisions"
-            className="w-11 px-1.5 py-1 text-center num text-mini rounded-sm border border-line-1 bg-surface-2 text-fg-1 focus:border-accent focus:outline-none"
-          />
+          <Tooltip id="content.stage-grid-divisions">
+            <input
+              type="number"
+              min={1}
+              max={64}
+              value={gridDivisions}
+              onChange={(e) => setGridDivisions(Math.max(1, Math.min(64, Math.round(parseFloat(e.target.value) || 1))))}
+              title="Grid divisions"
+              aria-label="Grid divisions"
+              className="w-11 px-1.5 py-1 text-center num text-mini rounded-sm border border-line-1 bg-surface-2 text-fg-1 focus:border-accent focus:outline-none"
+              {...help('content.stage-grid-divisions')}
+            />
+          </Tooltip>
         )}
-        <button
-          onClick={() => setSnapEnabled(!snapEnabled)}
-          className={`p-1.5 rounded-sm border transition-colors ${snapEnabled ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
-          title="Toggle Snapping"
-          aria-label="Toggle snapping"
-          aria-pressed={snapEnabled}
-        >
-          <Magnet size={14} />
-        </button>
+        <Tooltip id="content.stage-snap">
+          <button
+            onClick={() => setSnapEnabled(!snapEnabled)}
+            className={`p-1.5 rounded-sm border transition-colors ${snapEnabled ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
+            title="Toggle Snapping"
+            aria-label="Toggle snapping"
+            aria-pressed={snapEnabled}
+            {...help('content.stage-snap')}
+          >
+            <Magnet size={14} />
+          </button>
+        </Tooltip>
         {extraControls && <div className="ml-auto flex items-center gap-1">{extraControls}</div>}
       </div>
       {/* Pannable/zoomable canvas region. viewportRef tracks THIS element (not the header+canvas

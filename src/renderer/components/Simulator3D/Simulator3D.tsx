@@ -17,6 +17,8 @@ import { GroundGrid } from './GroundGrid';
 import { ReflectiveFloor } from './ReflectiveFloor';
 import { Lighting } from './Lighting';
 import { sceneVizRegistry } from '../../host/registries';
+import { Tooltip } from '../ui/Tooltip';
+import { help } from '../../services/helpBus';
 
 interface Props {
   fixtures: Fixture[];
@@ -58,16 +60,22 @@ const Exposure: React.FC<{ value: number }> = ({ value }) => {
   return null;
 };
 
-const ToolBtn: React.FC<{ active: boolean; title: string; onClick: () => void; children: React.ReactNode }> = ({ active, title, onClick, children }) => (
-  <button
-    onClick={onClick}
-    title={title}
-    aria-pressed={active}
-    className={`p-1.5 rounded-sm border transition-colors ${active ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
-  >
-    {children}
-  </button>
-);
+// `helpId` opts the tool into the rich help system: it spreads help() onto the host <button> and wraps
+// it in a Tooltip (the button is a real DOM element, which is what Tooltip needs to clone + ref).
+const ToolBtn: React.FC<{ active: boolean; title: string; helpId?: string; onClick: () => void; children: React.ReactNode }> = ({ active, title, helpId, onClick, children }) => {
+  const btn = (
+    <button
+      onClick={onClick}
+      title={title}
+      aria-pressed={active}
+      className={`p-1.5 rounded-sm border transition-colors ${active ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
+      {...(helpId ? help(helpId) : {})}
+    >
+      {children}
+    </button>
+  );
+  return helpId ? <Tooltip id={helpId}>{btn}</Tooltip> : btn;
+};
 
 const Simulator3D: React.FC<Props> = ({
   fixtures, selectedFixtureId, selectedFixtureIds = [], scene3D = defaultScene3D(), modelUrls = {},
@@ -85,9 +93,9 @@ const Simulator3D: React.FC<Props> = ({
       {/* Docked viewport header — transform-mode tools live in reserved chrome, not over the canvas
           (Houdini-style). The 3D view below renders clean with nothing painted on top. */}
       <div className="h-9 shrink-0 flex items-center gap-1 px-2 bg-surface-1 border-b border-line-1">
-        <ToolBtn active={mode === 'translate'} title="Move (W)" onClick={() => setMode('translate')}><Move3d size={14} /></ToolBtn>
-        <ToolBtn active={mode === 'rotate'} title="Rotate (E)" onClick={() => setMode('rotate')}><Rotate3d size={14} /></ToolBtn>
-        <ToolBtn active={mode === 'scale'} title="Scale (R)" onClick={() => setMode('scale')}><Maximize size={14} /></ToolBtn>
+        <ToolBtn active={mode === 'translate'} title="Move (W)" helpId="scene3d.gizmo-translate" onClick={() => setMode('translate')}><Move3d size={14} /></ToolBtn>
+        <ToolBtn active={mode === 'rotate'} title="Rotate (E)" helpId="scene3d.gizmo-rotate" onClick={() => setMode('rotate')}><Rotate3d size={14} /></ToolBtn>
+        <ToolBtn active={mode === 'scale'} title="Scale (R)" helpId="scene3d.gizmo-scale" onClick={() => setMode('scale')}><Maximize size={14} /></ToolBtn>
       </div>
 
       {/* Canvas region — fills the pane below the header. The inspector overlays only this area. */}
