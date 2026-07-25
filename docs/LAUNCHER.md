@@ -307,14 +307,22 @@ npm start            # tauri dev (Vite on :5173 + the Tauri window)
 npm run package      # → src-tauri/target/release/bundle/nsis/ArtLuxLauncher_<v>_x64-setup.exe
 
 cd src-tauri
-cargo run --bin selftest              # detection, release feed, checksum refusal, scan, examples, health
-cargo run --bin selftest -- --download  # + the real 238 MB download, verified
-cargo run --bin selftest -- --install   # + a real elevated install (prompts for admin)
-cargo run --bin selftest -- --open      # + open a project, cold and with ArtLux already running
+cargo run --example selftest              # detection, release feed, checksum refusal, scan, examples, health
+cargo run --example selftest -- --download  # + the real 238 MB download, verified
+cargo run --example selftest -- --install   # + a real elevated install (prompts for admin)
+cargo run --example selftest -- --open      # + open a project, cold and with ArtLux already running
 ```
 
 **Run the self-test after touching `install.rs` or `releases.rs`.** It fails if detection ever
 resolves by *path guess*, which is how the registry gotcha would silently come back.
+
+> ⚠ **The self-test is a cargo EXAMPLE, never a `[[bin]]`.** As a second binary in the crate it became
+> a bundle candidate and `tauri build` shipped *it* as the launcher: launcher-v0.1.0's installer
+> deployed the console self-test under the launcher's name, with a Start Menu shortcut that ran a
+> report and opened no window. Setting `mainBinaryName` made it worse — it renamed the wrong binary
+> rather than selecting the right one, overwriting the real launcher in `target/release` too.
+> `scripts/verify-bundle.cjs` now asserts the built exe is the GUI, and runs in CI and in
+> `npm run package`; adding another `[[bin]]` here would reopen the hole.
 
 Four configuration choices that look like typos and are not:
 

@@ -1,7 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "ArtLuxLauncher",
-  "version": "0.1.0",
+  "version": "0.1.1",
+  "mainBinaryName": "artlux-launcher",
   "identifier": "com.urbandronedesign.artlux.launcher",
   "build": {
     "beforeDevCommand": "npm run dev",

@@ -1,6 +1,10 @@
 //! Exercises the launcher's core against THIS machine and the REAL release feed, with no GUI.
 //!
-//! Run:  cargo run --bin selftest [--download]
+//! Run:  cargo run --example selftest [--download]
+//!
+//! An EXAMPLE, not a [[bin]]. As a second binary in the crate it became a bundle candidate, and
+//! tauri build shipped THIS as the launcher -- an installer whose Start Menu shortcut ran a console
+//! self-test and never opened a window. Examples are never bundled, so the ambiguity cannot return.
 //!
 //! Without `--download` it does everything short of pulling 238 MB: scan the registry, resolve the
 //! latest release, and prove the checksum check REFUSES a file that does not match (using a small

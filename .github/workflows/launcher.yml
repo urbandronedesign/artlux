@@ -66,6 +66,12 @@ jobs:
       - name: Build
         run: npx tauri build
 
+      # Assert the bundled binary is the LAUNCHER. launcher-v0.1.0 shipped the console self-test
+      # under the launcher's name because the crate briefly had two binaries and the bundler picked
+      # the wrong one — it installed cleanly and opened no window. Nothing in a build log shows that.
+      - name: Verify the bundled binary
+        run: node scripts/verify-bundle.cjs
+
       # The same metadata shape electron-builder writes for the app, so the launcher has ONE format to
       # parse and the verified-download path is shared rather than reimplemented.
       #
