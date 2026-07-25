@@ -8,11 +8,11 @@
 // without it is broken, and with it you have copied the set anyway. You choose which one opens.
 
 import { useCallback, useEffect, useState } from 'react';
-import { copyExample, getWorkspace, listExamples, mb, openProject, type ExampleSet, type InstallInfo } from './api';
+import { copyExample, getWorkspace, listExamples, mb, openProject, pickFolder, setWorkspace, type ExampleSet, type InstallInfo } from './api';
 
 export function Examples({ install }: { install: InstallInfo | null }) {
   const [sets, setSets] = useState<ExampleSet[]>([]);
-  const [workspace, setWorkspace] = useState('');
+  const [workspace, setWorkspace2] = useState('');
   const [busy, setBusy] = useState('');
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
@@ -20,10 +20,16 @@ export function Examples({ install }: { install: InstallInfo | null }) {
   const load = useCallback(async () => {
     if (!install) { setSets([]); return; }
     setSets(await listExamples(install.dir));
-    setWorkspace(await getWorkspace());
+    setWorkspace2(await getWorkspace());
   }, [install]);
 
   useEffect(() => { load(); }, [load]);
+
+  const changeWorkspace = async () => {
+    const p = await pickFolder('Choose where copied example projects should go');
+    if (!p) return;
+    setWorkspace2(await setWorkspace(p));
+  };
 
   const use = async (set: ExampleSet, project: string) => {
     if (!install) return;
@@ -59,7 +65,10 @@ export function Examples({ install }: { install: InstallInfo | null }) {
         <div className="caption" style={{ marginBottom: 4 }}>
           Each set is copied into your workspace before it opens, so you can save your changes.
         </div>
-        <div className="mono dim" style={{ fontSize: 11 }}>{workspace}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span className="mono dim" style={{ fontSize: 11, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{workspace}</span>
+          <button className="btn" onClick={changeWorkspace} disabled={!!busy}>Change…</button>
+        </div>
       </section>
 
       {sets.map((s) => (

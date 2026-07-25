@@ -410,6 +410,64 @@ async fn main() {
         }
     }
 
+    line();
+    println!("10. LIBRARY FOLDERS + UNINSTALL GUARDS");
+    line();
+    {
+        // Round-trip the config the way the UI does, then put it back exactly as found. This runs
+        // against the operator's real config file, so restoring it is not optional.
+        let original = projects::load_config();
+        let defaults = projects::effective_roots(&projects::Config::default());
+        println!("   OS defaults ({}): {}", defaults.len(), defaults.join(" | "));
+
+        let probe = std::env::temp_dir().join("artlux-root-probe");
+        let _ = std::fs::create_dir_all(&probe);
+        let probe_s = probe.to_string_lossy().into_owned();
+
+        let mut cfg = projects::Config { library_roots: Some(defaults.clone()), workspace_dir: None };
+        cfg.library_roots.as_mut().unwrap().push(probe_s.clone());
+        projects::save_config(&cfg).ok();
+        let after_add = projects::effective_roots(&projects::load_config());
+        println!("   after add   : {} folders", after_add.len());
+        if !after_add.iter().any(|r| r.eq_ignore_ascii_case(&probe_s)) {
+            println!("   !! the added folder did not survive a save/load round trip");
+            failures += 1;
+        }
+
+        // Removing everything must persist as an EMPTY list, not read back as "never configured".
+        // That distinction is the whole reason Config stores Option<Vec<_>>.
+        projects::save_config(&projects::Config { library_roots: Some(vec![]), workspace_dir: None }).ok();
+        let emptied = projects::effective_roots(&projects::load_config());
+        println!("   after removing all: {} folders (must be 0, NOT the defaults)", emptied.len());
+        if !emptied.is_empty() {
+            println!("   !! an empty list read back as 'never configured' — Reset and Remove-all are indistinguishable");
+            failures += 1;
+        }
+
+        // Reset clears the field rather than writing the defaults into it, so a later change of
+        // Documents location is still followed.
+        projects::save_config(&projects::Config { library_roots: None, workspace_dir: None }).ok();
+        let reset = projects::load_config();
+        println!("   after reset : field cleared={} -> {} folders", reset.library_roots.is_none(), projects::effective_roots(&reset).len());
+        if reset.library_roots.is_some() {
+            println!("   !! reset wrote the defaults in instead of clearing the field");
+            failures += 1;
+        }
+
+        projects::save_config(&original).ok();
+        let _ = std::fs::remove_dir_all(&probe);
+        println!("   config restored");
+
+        // Uninstall guard paths. The happy path is NOT exercised: it would remove a real install,
+        // and this machine has no legacy per-user one to practise on.
+        let bad = runner::uninstall("");
+        println!("   empty command   -> ok={} : {}", bad.ok, bad.message);
+        if bad.ok { println!("   !! an empty uninstall command reported success"); failures += 1; }
+        let missing = runner::uninstall("\"C:\\nope\\Uninstall ArtLux.exe\" /currentuser /S");
+        println!("   missing exe     -> ok={} : {}", missing.ok, missing.message);
+        if missing.ok { println!("   !! a missing uninstaller reported success"); failures += 1; }
+    }
+
     println!();
     if failures == 0 {
         println!("SELFTEST OK");

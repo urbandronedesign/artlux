@@ -27,6 +27,7 @@ base64 = "0.22"
 semver = "1"
 winreg = "0.55"
 windows = { version = "0.62.2", features = ["Win32_UI_Shell", "Win32_Foundation", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging", "Win32_System_Registry", "Win32_System_Com"] }
+tauri-plugin-dialog = "2.7.2"
 
 [profile.release]
 lto = true

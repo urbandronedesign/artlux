@@ -70,10 +70,13 @@ Shows every ArtLux on the machine and what is published, then does the whole ins
 - **Detection names its source.** "found via product key InstallLocation" is a registry fact; a path
   fallback is labelled as a guess, because those are different things and only one of them is
   trustworthy.
-- **The double-install warning.** Releases before 2026-07-22 installed per-user; the installer is now
-  per-machine, and Windows treats them as different products, so it will *never* replace one with the
-  other. Two installs, two Start Menu entries, and which version you get depends on which shortcut
-  you click. Nothing inside the app can see this state; the launcher names it.
+- **The double-install warning, with a fix.** Releases before 2026-07-22 installed per-user; the
+  installer is now per-machine, and Windows treats them as different products, so it will *never*
+  replace one with the other. Two installs, two Start Menu entries, and which version you get depends
+  on which shortcut you click. Nothing inside the app can see this state and Windows will not resolve
+  it, so the launcher names it **and offers to remove the old one** — using the uninstall command
+  Windows itself recorded, then confirming by re-reading the registry rather than trusting the
+  uninstaller's exit code.
 - **The download is verified before it is run.** The checksum comes from `latest.yml`, the same
   metadata ArtLux's own updater trusts. A mismatch is refused outright and the file is deleted — with
   no code signature, this is the only integrity guarantee the project has.
@@ -94,6 +97,12 @@ redirected to OneDrive is still found — six levels deep, skipping system folde
 build output. A directory containing `project.artlux` is a **portable project**: it is listed once,
 under the folder's name, and not descended into.
 
+**The folders are yours to change.** "Where it looks" lists them with **Add a folder…** and
+**Remove** beside each. Removing all of them is a real, kept state — the launcher searches nowhere
+and says so — which is different from never having configured it; **Reset** appears only once you
+have curated the list and puts the OS folders back by *forgetting* your list rather than writing the
+current defaults into it, so a Documents folder that moves later is still followed.
+
 The scan is bounded (4000 projects, 20 seconds) and **says so when it stops early**, because a
 silently truncated list reads as "you have no projects".
 
@@ -112,7 +121,9 @@ live under `Program Files`, where saving fails; copying makes the obvious thing 
 comes across because a set shares one `assets/` folder, and one project without it is broken. If a
 folder of that name already exists, the copy is numbered rather than merged into it.
 
-Default workspace: `Documents\ArtLux Projects`.
+Default workspace: `Documents\ArtLux Projects`, changeable with **Change…**. Whichever folder you
+pick is added as a search folder if nothing already covers it — otherwise the projects you just
+created would not appear under Projects, which reads as the launcher being broken.
 
 ### Health
 
@@ -402,7 +413,12 @@ renewal for a project that takes no money. Two consequences worth holding on to:
 | 4 | Health: run `preflight.ps1`, triage as data, repair via `-Fix` | **done** |
 | 5 | CI on `launcher-v*`, self-update | **done** |
 
-Not built, and worth considering later: adding or removing library folders from the UI (the roots are
-configurable in `%APPDATA%\ArtLuxLauncher\config.json` but nothing edits them yet), a one-click
-uninstall of the legacy per-user install, and thumbnails for projects — which would mean rendering a
-project through the WebGPU pipeline, so it is a real feature rather than a detail.
+Not built, and worth considering later: **thumbnails for projects**, which would mean rendering a
+project through the WebGPU pipeline and is therefore a real feature rather than a detail; and a
+**cancel** for the download, which exists in the core (`download::request_cancel`) and is wired to a
+button only while a download is running.
+
+**Not exercised end to end:** removing the legacy per-user install. Its guard paths are covered by
+the self-test (no recorded command, missing uninstaller), but the happy path would delete a real
+install and no machine here carries a legacy one to practise on. Worth watching the first time it is
+used in anger.

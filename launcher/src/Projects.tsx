@@ -6,7 +6,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  cancelScan, getEffectiveRoots, onScanProgress, openProject, recentProjects, scanProjects, when,
+  addLibraryRoot, cancelScan, getConfig, getEffectiveRoots, onScanProgress, openProject, pickFolder,
+  recentProjects, removeLibraryRoot, resetLibraryRoots, scanProjects, when,
   type InstallInfo, type ProjectEntry, type ScanProgress, type ScanResult,
 } from './api';
 
@@ -39,7 +40,31 @@ export function Projects({ install }: { install: InstallInfo | null }) {
     }
   }, []);
 
+  // `edited` distinguishes "the user curated this list" from "these are the OS defaults" — the same
+  // distinction the config's Option<Vec<_>> carries, so Reset is only offered when it would do
+  // something.
+  const [edited, setEdited] = useState(false);
+
+  const addRoot = async () => {
+    const p = await pickFolder('Choose a folder to search for ArtLux projects');
+    if (!p) return;
+    setRoots(await addLibraryRoot(p));
+    setEdited(true);
+    rescan();
+  };
+  const dropRoot = async (path: string) => {
+    setRoots(await removeLibraryRoot(path));
+    setEdited(true);
+    rescan();
+  };
+  const resetRoots = async () => {
+    setRoots(await resetLibraryRoots());
+    setEdited(false);
+    rescan();
+  };
+
   useEffect(() => {
+    getConfig().then((c) => setEdited(!!c.library_roots));
     getEffectiveRoots().then(setRoots);
     onScanProgress(setProgress).then((u) => { unlisten.current = u; });
     rescan();
@@ -129,10 +154,29 @@ export function Projects({ install }: { install: InstallInfo | null }) {
       </section>
 
       <section className="card" style={{ padding: 18 }}>
-        <div className="label" style={{ marginBottom: 8 }}>Where it looked</div>
-        {roots.map((r) => <div key={r} className="mono dim" style={{ fontSize: 11 }}>{r}</div>)}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+          <div className="label">Where it looks</div>
+          <div style={{ flex: 1 }} />
+          <button className="btn" onClick={addRoot} disabled={busy}>Add a folder…</button>
+          {/* Only offered once the list has been curated: resetting an untouched list does nothing,
+              and a button that does nothing is worse than no button. */}
+          {edited && <button className="btn" onClick={resetRoots} disabled={busy}>Reset</button>}
+        </div>
+        {roots.map((r) => (
+          <div key={r} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 0' }}>
+            <span className="mono dim" style={{ fontSize: 11, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r}</span>
+            <button className="btn btn-ghost" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => dropRoot(r)} disabled={busy}>
+              Remove
+            </button>
+          </div>
+        ))}
+        {roots.length === 0 && (
+          // An empty list is a real, chosen state — not "not configured yet" — so it says what it
+          // means rather than showing nothing.
+          <div className="caption">No folders are being searched. Add one, or Reset to go back to Desktop, Documents and Videos.</div>
+        )}
         <div className="caption" style={{ marginTop: 8 }}>
-          Folders are searched 6 levels deep. System folders, node_modules and build output are skipped.
+          Searched 6 levels deep. System folders, node_modules and build output are skipped.
         </div>
       </section>
 

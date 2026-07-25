@@ -35,6 +35,9 @@ use crate::install;
 
 /// Do not flash a console window from a GUI app.
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+/// Windows: "this needs elevation" — see run_elevated for why CreateProcess returns it rather than
+/// raising a prompt.
+const ERROR_ELEVATION_REQUIRED: i32 = 740;
 
 /// Outcome of asking the shell to run something elevated.
 enum Elevated {
@@ -164,6 +167,85 @@ pub fn open_project(exe: &str, project: &str) -> OpenOutcome {
             started_new: !was_running,
         },
         Err(e) => OpenOutcome { ok: false, message: format!("Could not start ArtLux: {e}"), started_new: false },
+    }
+}
+
+/// Remove an install, given its `QuietUninstallString` from the registry.
+///
+/// Exists for ONE case: the legacy per-user install that a per-machine installer cannot replace.
+/// Windows treats the two as different products, so it leaves both in place — two Start Menu
+/// entries, and which version you get depends on which shortcut you click. Nothing inside ArtLux can
+/// see that state, and nothing else offers to fix it.
+///
+/// The string is registry-authored, e.g. `"C:\…\Uninstall ArtLux.exe" /currentuser /S`, so it is
+/// split rather than handed to a shell: passing it through cmd would make a quoted path with spaces
+/// a parsing problem, and this one always has spaces.
+pub fn uninstall(quiet_uninstall: &str) -> InstallOutcome {
+    let before = install::scan();
+    let s = quiet_uninstall.trim();
+    if s.is_empty() {
+        return InstallOutcome { ok: false, message: "Windows recorded no uninstall command for that install.".into(), scan: before };
+    }
+
+    let (exe, args) = if let Some(rest) = s.strip_prefix('"') {
+        match rest.split_once('"') {
+            Some((e, a)) => (e.to_string(), a.trim().to_string()),
+            None => return InstallOutcome { ok: false, message: "That uninstall command is malformed.".into(), scan: before },
+        }
+    } else {
+        match s.split_once(' ') {
+            Some((e, a)) => (e.to_string(), a.trim().to_string()),
+            None => (s.to_string(), String::new()),
+        }
+    };
+    if !std::path::Path::new(&exe).is_file() {
+        return InstallOutcome {
+            ok: false,
+            message: format!("The uninstaller is gone: {exe}. Remove the entry from Windows' Apps & features instead."),
+            scan: before,
+        };
+    }
+
+    // A per-user uninstall needs no elevation, so try plain first. If Windows says otherwise, go
+    // through the shell rather than reporting a failure the user cannot act on.
+    let argv: Vec<&str> = args.split_whitespace().collect();
+    let plain = Command::new(&exe).args(&argv).status();
+    let elevated_needed = matches!(&plain, Err(e) if e.raw_os_error() == Some(ERROR_ELEVATION_REQUIRED));
+    let ran = if elevated_needed {
+        match run_elevated(&exe, &args) {
+            Elevated::Exited(_) => Ok(()),
+            Elevated::Declined => return InstallOutcome {
+                ok: false,
+                message: "Nothing was removed: the administrator prompt was declined.".into(),
+                scan: before,
+            },
+            Elevated::Failed(why) => Err(why),
+        }
+    } else {
+        plain.map(|_| ()).map_err(|e| e.to_string())
+    };
+    if let Err(why) = ran {
+        return InstallOutcome { ok: false, message: format!("The uninstaller could not be started: {why}"), scan: before };
+    }
+
+    // Verify by looking, not by trusting: NSIS uninstallers commonly hand off to a copy of
+    // themselves in TEMP and return immediately, so the registry can lag the exit by a moment.
+    let mut after = install::scan();
+    for _ in 0..20 {
+        if after.installs.len() < before.installs.len() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        after = install::scan();
+    }
+    if after.installs.len() < before.installs.len() {
+        InstallOutcome { ok: true, message: "The old install was removed.".into(), scan: after }
+    } else {
+        InstallOutcome {
+            ok: false,
+            message: "The uninstaller ran but that install is still registered. It may need a moment, or removing from Windows' Apps & features.".into(),
+            scan: after,
+        }
     }
 }
 

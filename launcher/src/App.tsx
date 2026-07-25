@@ -12,7 +12,7 @@ import { Examples } from './Examples';
 import { Health } from './Health';
 import {
   artluxRunning, cancelDownload, downloadInstaller, isNewer, launcherLatest, launcherVersion, mb, onProgress,
-  resolveLatest, runInstaller, scanInstalls,
+  resolveLatest, runInstaller, scanInstalls, uninstallInstall,
   type InstallScan, type Progress, type ReleaseInfo,
 } from './api';
 import './styles.css';
@@ -37,6 +37,7 @@ export default function App() {
   const [error, setError] = useState('');
   const [outcome, setOutcome] = useState('');
   const [running, setRunning] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const unlisten = useRef<(() => void) | null>(null);
 
   // The launcher's own version, and whether a newer one is published. Checked quietly on mount and
@@ -64,6 +65,20 @@ export default function App() {
     })();
     return () => { unlisten.current?.(); };
   }, [refresh]);
+
+  const removeOld = async (quietUninstall: string) => {
+    setRemoving(true); setError(''); setOutcome('');
+    try {
+      const r = await uninstallInstall(quietUninstall);
+      setScan(r.scan);
+      if (r.ok) setOutcome(r.message); else setError(r.message);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setRemoving(false);
+      refresh();
+    }
+  };
 
   const check = async () => {
     setError(''); setOutcome(''); setPhase('checking');
@@ -167,11 +182,25 @@ export default function App() {
             {scan?.duplicate && (
               <div style={{ marginTop: 10, padding: 10, border: '1px solid var(--warn)', borderRadius: 'var(--radius-md)' }}>
                 <div style={{ color: 'var(--warn)', fontWeight: 600, marginBottom: 4 }}>⚠ Two installs are present</div>
-                <div className="dim" style={{ fontSize: 12 }}>
+                <div className="dim" style={{ fontSize: 12, marginBottom: 10 }}>
                   A per-user install from before 2026-07-22 sits alongside a per-machine one. Windows treats them as
                   different products, so it will never replace one with the other — you get two Start Menu entries and,
                   depending on which you launch, a different version. Remove the per-user one.
                 </div>
+                {/* The only place this can be fixed from: nothing inside ArtLux can see the state,
+                    and Windows will not resolve it on its own. Offered only when the old install
+                    actually recorded an uninstall command. */}
+                {scan.installs.filter((i) => i.per_user && i.quiet_uninstall).map((i) => (
+                  <button
+                    key={i.dir}
+                    className="btn"
+                    disabled={busy || removing}
+                    onClick={() => removeOld(i.quiet_uninstall)}
+                    title={i.dir}
+                  >
+                    {removing ? 'Removing…' : `Remove the per-user install (${i.version || 'unknown version'})`}
+                  </button>
+                ))}
               </div>
             )}
             {running && (

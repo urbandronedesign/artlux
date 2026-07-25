@@ -131,6 +131,89 @@ fn recent_projects() -> Vec<projects::ProjectEntry> {
     projects::recents()
 }
 
+/// Remove an install by its registry uninstall command. Offered for the legacy per-user install
+/// that a per-machine installer cannot replace.
+#[tauri::command]
+async fn uninstall_install(quiet_uninstall: String) -> runner::InstallOutcome {
+    tauri::async_runtime::spawn_blocking(move || runner::uninstall(&quiet_uninstall))
+        .await
+        .unwrap_or_else(|e| runner::InstallOutcome {
+            ok: false,
+            message: format!("The uninstall could not be started: {e}"),
+            scan: install::scan(),
+        })
+}
+
+// ---------------------------------------------------------------------------------------------
+// Library folders
+// ---------------------------------------------------------------------------------------------
+
+/// Ask the user for a folder.
+///
+/// The DIALOG LIVES IN RUST, not behind a JS capability. The web layer is granted no filesystem
+/// access at all (see docs/LAUNCHER.md), and that stays true: this returns a path the *user* chose,
+/// to be used as a search root or a workspace — never as something to execute.
+#[tauri::command]
+async fn pick_folder(app: AppHandle, title: String) -> Option<String> {
+    use tauri_plugin_dialog::DialogExt;
+    let (tx, rx) = std::sync::mpsc::channel();
+    app.dialog().file().set_title(&title).pick_folder(move |p| {
+        let _ = tx.send(p.map(|p| p.to_string()));
+    });
+    tauri::async_runtime::spawn_blocking(move || rx.recv().ok().flatten())
+        .await
+        .ok()
+        .flatten()
+}
+
+/// Add a search folder. Writing `library_roots` for the first time BAKES the current defaults in
+/// alongside it — deliberately: once the user curates the list they own it, and silently re-adding
+/// an OS default they later removed would be the launcher arguing with them.
+#[tauri::command]
+fn add_library_root(path: String) -> Result<Vec<String>, String> {
+    let mut cfg = projects::load_config();
+    let mut roots = projects::effective_roots(&cfg);
+    if !roots.iter().any(|r| r.eq_ignore_ascii_case(&path)) {
+        roots.push(path);
+    }
+    cfg.library_roots = Some(roots.clone());
+    projects::save_config(&cfg)?;
+    Ok(roots)
+}
+
+/// Remove a search folder. An empty list is a real state — "look nowhere" — and must not be
+/// mistaken for "never configured", which is why Config stores Option<Vec<_>> rather than Vec<_>.
+#[tauri::command]
+fn remove_library_root(path: String) -> Result<Vec<String>, String> {
+    let mut cfg = projects::load_config();
+    let roots: Vec<String> = projects::effective_roots(&cfg)
+        .into_iter()
+        .filter(|r| !r.eq_ignore_ascii_case(&path))
+        .collect();
+    cfg.library_roots = Some(roots.clone());
+    projects::save_config(&cfg)?;
+    Ok(roots)
+}
+
+/// Forget the curated list and go back to the OS folders. Clears the field rather than writing the
+/// defaults into it, so a later change of Documents location is still followed.
+#[tauri::command]
+fn reset_library_roots() -> Result<Vec<String>, String> {
+    let mut cfg = projects::load_config();
+    cfg.library_roots = None;
+    projects::save_config(&cfg)?;
+    Ok(projects::effective_roots(&cfg))
+}
+
+/// Where example copies land.
+#[tauri::command]
+fn set_workspace(path: String) -> Result<String, String> {
+    let mut cfg = projects::load_config();
+    cfg.workspace_dir = Some(path.clone());
+    projects::save_config(&cfg)?;
+    Ok(path)
+}
+
 /// Open a project in the installed ArtLux.
 #[tauri::command]
 fn open_project(exe: String, project: String) -> runner::OpenOutcome {
@@ -255,6 +338,7 @@ async fn health_repair(app: AppHandle, install_dir: String) -> Result<(), String
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             scan_installs,
             artlux_running,
@@ -279,6 +363,12 @@ fn main() {
             health_repair,
             launcher_version,
             launcher_latest,
+            uninstall_install,
+            pick_folder,
+            add_library_root,
+            remove_library_root,
+            reset_library_roots,
+            set_workspace,
         ])
         .run(tauri::generate_context!())
         .expect("error while running the ArtLux Launcher");

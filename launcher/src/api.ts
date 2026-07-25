@@ -128,6 +128,14 @@ export const healthRepair = (installDir: string) => invoke<void>('health_repair'
 export const launcherVersion = () => invoke<string>('launcher_version');
 export const launcherLatest = () => invoke<ReleaseInfo>('launcher_latest');
 
+export const uninstallInstall = (quietUninstall: string) =>
+  invoke<InstallOutcome>('uninstall_install', { quietUninstall });
+export const pickFolder = (title: string) => invoke<string | null>('pick_folder', { title });
+export const addLibraryRoot = (path: string) => invoke<string[]>('add_library_root', { path });
+export const removeLibraryRoot = (path: string) => invoke<string[]>('remove_library_root', { path });
+export const resetLibraryRoots = () => invoke<string[]>('reset_library_roots');
+export const setWorkspace = (path: string) => invoke<string>('set_workspace', { path });
+
 export const scanInstalls = () => invoke<InstallScan>('scan_installs');
 export const artluxRunning = () => invoke<boolean>('artlux_running');
 export const resolveLatest = () => invoke<ReleaseInfo>('resolve_latest');
