@@ -69,11 +69,16 @@ export const ContextRail: React.FC = () => {
     >
       {contexts.map((c, i) => {
         const active = c.id === activeId;
-        // A rule between clusters — drawn before the first item of each cluster after the first.
-        const newCluster = i > 0 && contexts[i - 1].cluster !== c.cluster;
+        // The mental model the docs lean on (Build / Align / Show / App) was invisible on-screen — just
+        // an anonymous rule between icon groups. Label each cluster at its first item so the IA reads.
+        const clusterStart = i === 0 || contexts[i - 1].cluster !== c.cluster;
         return (
           <React.Fragment key={c.id}>
-            {newCluster && <div className="w-6 h-px my-1 bg-line-2 shrink-0" aria-hidden />}
+            {clusterStart && (
+              <div className={`text-micro uppercase tracking-wide text-fg-3 shrink-0 mb-0.5 ${i > 0 ? 'mt-2' : ''}`} aria-hidden>
+                {CLUSTER_LABEL[c.cluster] ?? c.cluster}
+              </div>
+            )}
             <button
               role="tab"
               aria-selected={active}

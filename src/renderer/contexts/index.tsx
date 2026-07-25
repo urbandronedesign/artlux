@@ -269,7 +269,7 @@ export function registerCoreWorkspace(): void {
   // The show machine — the state graph over the scenes. It was a modal inside the timeline, which
   // capped it at a fixed 1000×640 box over the work it describes; as a context it gets the window.
   contextRegistry.register({
-    id: 'machine', title: 'Show Machine', shortTitle: 'Logic', icon: <Workflow size={16} />,
+    id: 'machine', title: 'Show Machine', shortTitle: 'Machine', icon: <Workflow size={16} />,
     cluster: 'show', order: 2,
     viewport: VIEWPORT_MACHINE,
     browser: [],
