@@ -1,0 +1,123 @@
+name: Launcher
+
+# Builds ArtLuxLauncher (launcher/) and publishes it.
+#
+# A SEPARATE WORKFLOW from build.yml, not an extra job in it, because the two products share nothing
+# at build time: the app job runs a three-OS matrix, compiles six napi crates and a JUCE engine, and
+# takes tens of minutes. The launcher is one Windows job. Keeping them apart means an app release
+# never rebuilds the launcher and a launcher release never rebuilds the app, and neither can fail the
+# other.
+#
+# ⚠ LAUNCHER RELEASES ARE PUBLISHED AS PRE-RELEASES, and that is load-bearing rather than cautious.
+# Both products publish into one repository, and GitHub's /releases/latest returns whichever release
+# was published most recently, whatever it is. ArtLux's OWN electron-updater keys off that endpoint
+# and then fetches latest.yml from the tag it names — so a launcher release published normally would
+# make the shipped app look for app metadata on a launcher tag and break every update check in the
+# field. GitHub excludes pre-releases from /releases/latest, which is exactly the property needed.
+# The launcher finds its own releases by tag prefix, so nothing is lost.
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      # `v*` belongs to the app (build.yml). This prefix does not match it, and `refs/tags/launcher-v…`
+      # does not start with `refs/tags/v`, so build.yml's release job stays out of this too.
+      - 'launcher-v*'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: launcher
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            launcher/src-tauri/target
+          key: launcher-cargo-${{ hashFiles('launcher/src-tauri/Cargo.lock') }}
+
+      # launcher/ is deliberately NOT an npm workspace member (the root lockfile must stay
+      # reproducible for the app build), so it installs its own tree.
+      - name: Install dependencies
+        run: npm ci
+
+      # The machine check the launcher bundles is regenerated from the app's scripts/preflight.ps1 on
+      # every build rather than committed, so the shipped copy cannot silently fork. `npm run build`
+      # does this too; running it explicitly makes a failure here say what it is.
+      - name: Sync the bundled machine check
+        run: npm run sync:preflight
+
+      - name: Build
+        run: npx tauri build
+
+      # The same metadata shape electron-builder writes for the app, so the launcher has ONE format to
+      # parse and the verified-download path is shared rather than reimplemented.
+      #
+      # The sha512 is BASE64, not hex — matching latest.yml, and matching what the launcher compares
+      # against. A hex digest here would fail every update with a message about a corrupt download.
+      - name: Write launcher-latest.yml
+        shell: pwsh
+        run: |
+          $dir = "src-tauri/target/release/bundle/nsis"
+          $exe = Get-ChildItem $dir -Filter *-setup.exe | Select-Object -First 1
+          if (-not $exe) { throw "no NSIS installer was produced" }
+          $bytes  = [System.IO.File]::ReadAllBytes($exe.FullName)
+          $sha    = [System.Security.Cryptography.SHA512]::Create().ComputeHash($bytes)
+          $b64    = [Convert]::ToBase64String($sha)
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $yml = @"
+          version: $version
+          path: $($exe.Name)
+          sha512: $b64
+          size: $($bytes.Length)
+          releaseDate: '$([DateTime]::UtcNow.ToString("o"))'
+          "@
+          # UTF-8 WITHOUT BOM: a BOM makes the file unparseable to anything that reads it strictly,
+          # and this one exists to be read by a program.
+          [System.IO.File]::WriteAllText("$dir/launcher-latest.yml", $yml, (New-Object System.Text.UTF8Encoding($false)))
+          Write-Host "launcher-latest.yml: $version / $($exe.Name) / $($bytes.Length) bytes"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artlux-launcher
+          path: |
+            launcher/src-tauri/target/release/bundle/nsis/*-setup.exe
+            launcher/src-tauri/target/release/bundle/nsis/launcher-latest.yml
+          if-no-files-found: error
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/launcher-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            launcher/src-tauri/target/release/bundle/nsis/*-setup.exe
+            launcher/src-tauri/target/release/bundle/nsis/launcher-latest.yml
+          # See the header: this is what keeps the app's own updater working.
+          prerelease: true
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          body: |
+            **ArtLux Launcher** — installs ArtLux, checks the machine, finds your projects.
+
+            Marked as a pre-release so it stays out of GitHub's "latest release", which ArtLux's own
+            auto-updater reads. It is a normal, supported build.
+
+            The installer is unsigned, so Windows SmartScreen will warn on first run:
+            **More info → Run anyway**. See `docs/INSTALL.md`.

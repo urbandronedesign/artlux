@@ -125,6 +125,9 @@ export const healthCached = () => invoke<PreflightReport | null>('health_cached'
 export const healthRun = (installDir: string) => invoke<PreflightReport>('health_run', { installDir });
 export const healthRepair = (installDir: string) => invoke<void>('health_repair', { installDir });
 
+export const launcherVersion = () => invoke<string>('launcher_version');
+export const launcherLatest = () => invoke<ReleaseInfo>('launcher_latest');
+
 export const scanInstalls = () => invoke<InstallScan>('scan_installs');
 export const artluxRunning = () => invoke<boolean>('artlux_running');
 export const resolveLatest = () => invoke<ReleaseInfo>('resolve_latest');

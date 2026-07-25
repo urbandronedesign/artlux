@@ -11,7 +11,7 @@ import { Projects } from './Projects';
 import { Examples } from './Examples';
 import { Health } from './Health';
 import {
-  artluxRunning, cancelDownload, downloadInstaller, isNewer, mb, onProgress,
+  artluxRunning, cancelDownload, downloadInstaller, isNewer, launcherLatest, launcherVersion, mb, onProgress,
   resolveLatest, runInstaller, scanInstalls,
   type InstallScan, type Progress, type ReleaseInfo,
 } from './api';
@@ -39,6 +39,11 @@ export default function App() {
   const [running, setRunning] = useState(false);
   const unlisten = useRef<(() => void) | null>(null);
 
+  // The launcher's own version, and whether a newer one is published. Checked quietly on mount and
+  // shown only when there IS one — a permanent "you are up to date" line is noise on every launch.
+  const [ownVersion, setOwnVersion] = useState('');
+  const [selfUpdate, setSelfUpdate] = useState<ReleaseInfo | null>(null);
+
   const refresh = useCallback(async () => {
     setScan(await scanInstalls());
     setRunning(await artluxRunning());
@@ -47,6 +52,16 @@ export default function App() {
   useEffect(() => {
     refresh();
     onProgress(setProgress).then((u) => { unlisten.current = u; });
+    (async () => {
+      const mine = await launcherVersion();
+      setOwnVersion(mine);
+      try {
+        const l = await launcherLatest();
+        // Nothing published yet is the normal state before the first launcher release, and it is
+        // not an error to report — the check simply stays silent.
+        if (await isNewer(l.version, mine)) setSelfUpdate(l);
+      } catch { /* offline, rate-limited, or no launcher release yet */ }
+    })();
     return () => { unlisten.current?.(); };
   }, [refresh]);
 
@@ -232,8 +247,20 @@ export default function App() {
         </main>
       </div>
 
-      <footer style={{ padding: '12px 24px', borderTop: '1px solid var(--line-2)' }}>
+      <footer style={{ padding: '12px 24px', borderTop: '1px solid var(--line-2)', display: 'flex', alignItems: 'flex-end', gap: 16 }}>
         <Credits />
+        <div style={{ flex: 1 }} />
+        {selfUpdate ? (
+          <button
+            className="btn"
+            onClick={() => window.open(selfUpdate.notes_url, '_blank')}
+            title={`Launcher ${selfUpdate.version} is available`}
+          >
+            Launcher {selfUpdate.version} available
+          </button>
+        ) : (
+          ownVersion && <span className="caption">Launcher {ownVersion}</span>
+        )}
       </footer>
     </div>
   );

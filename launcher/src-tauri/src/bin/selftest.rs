@@ -75,6 +75,27 @@ async fn main() {
     };
 
     line();
+    println!("2b. RELEASE FILTERING  (two products, one repo)");
+    line();
+    // The app resolver must never be handed a launcher release. Publishing launcher-v* as a
+    // pre-release keeps it out of /releases/latest -- which ArtLux's own electron-updater reads --
+    // and this filter is the second line of defence.
+    println!("   app tag shape accepted:  v0.25.0={} v1.0.0-rc1={}",
+        releases::is_app_tag_for_test("v0.25.0"), releases::is_app_tag_for_test("v1.0.0-rc1"));
+    println!("   app tag shape rejected:  launcher-v0.1.0={} nightly={}",
+        releases::is_app_tag_for_test("launcher-v0.1.0"), releases::is_app_tag_for_test("nightly"));
+    if releases::is_app_tag_for_test("launcher-v0.1.0") || !releases::is_app_tag_for_test("v0.25.0") {
+        println!("   !! the app/launcher tag filter is wrong — a launcher release could be served as ArtLux");
+        failures += 1;
+    }
+    println!("   this launcher: {}", releases::own_version());
+    match releases::resolve_launcher_latest().await {
+        Ok(r) => println!("   published launcher: {} ({})", r.version, r.tag),
+        // Expected until the first launcher release exists; not a failure.
+        Err(e) => println!("   published launcher: none yet ({e})"),
+    }
+
+    line();
     println!("3. CHECKSUM REFUSAL  (a download that does not match must NOT be returned)");
     line();
     // A small, real file with a deliberately wrong expected hash. This is the security property the

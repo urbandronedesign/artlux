@@ -36,6 +36,18 @@ async fn resolve_latest() -> Result<releases::ReleaseInfo, String> {
     releases::resolve_latest().await
 }
 
+/// This launcher's own version, and the newest one published — so it can update itself with the
+/// same verified-download path it uses for ArtLux, rather than a second update mechanism.
+#[tauri::command]
+fn launcher_version() -> &'static str {
+    releases::own_version()
+}
+
+#[tauri::command]
+async fn launcher_latest() -> Result<releases::ReleaseInfo, String> {
+    releases::resolve_launcher_latest().await
+}
+
 /// Semver comparison in Rust, so the UI cannot accidentally string-compare ("0.9.0" > "0.25.0").
 #[tauri::command]
 fn is_newer(latest: String, installed: String) -> bool {
@@ -265,6 +277,8 @@ fn main() {
             health_cached,
             health_run,
             health_repair,
+            launcher_version,
+            launcher_latest,
         ])
         .run(tauri::generate_context!())
         .expect("error while running the ArtLux Launcher");

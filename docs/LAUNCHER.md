@@ -173,17 +173,52 @@ launcher is a build, and it is the first screen a venue sees, so it renders `CRE
 The wordmark comes from `build/wordmark.svg`, whose generator header marks it as the asset for
 external use.
 
+## Releasing — and the hazard of two products in one repo
+
+CI lives in [`.github/workflows/launcher.yml`](../.github/workflows/launcher.yml), triggered by a
+**`launcher-v*`** tag. Separate from `build.yml` so an app release never rebuilds the launcher and
+vice versa; `v*` and `launcher-v*` cannot match each other.
+
+> ⚠ **Launcher releases are published as PRE-RELEASES, and that is load-bearing.** GitHub's
+> `/releases/latest` returns whichever release was published most recently, whatever it is — and
+> **ArtLux's own electron-updater keys off that endpoint**, then fetches `latest.yml` from the tag it
+> names. A launcher release published normally would make every installed ArtLux look for app
+> metadata on a launcher tag and fail its update check, in the field, silently. Pre-releases are
+> excluded from `latest`, which is exactly the property needed.
+>
+> The launcher does not rely on that alone: it lists releases and filters by **tag shape**
+> (`is_app_tag`), never trusting the ordering. Both defences, because either one alone is a single
+> point of failure for something that breaks remotely.
+
+Release: bump `version` in **both** `launcher/package.json` and `launcher/src-tauri/Cargo.toml`
+(Tauri reads the former for the bundle, Cargo the latter for `own_version()`), then
+`git tag launcher-v0.1.1 && git push origin launcher-v0.1.1`.
+
+CI writes **`launcher-latest.yml`** beside the installer, in the same shape electron-builder uses for
+the app — `version`, `path`, base64 `sha512`, `size`. One metadata format in the codebase, and the
+launcher's self-update reuses the verified-download path it already uses for ArtLux.
+
+**Self-update is not Tauri's updater plugin**, deliberately. The plugin would work and would mean a
+signing keypair whose private half lives in CI secrets and whose public half is baked into the
+binary — real infrastructure to stand up and keep correct. The launcher already resolves a release,
+verifies a base64 sha512 and runs an installer, all of it exercised, so reusing that gets a verified
+update with no new secret to manage. The plugin is the upgrade path if silent background updates are
+ever wanted; the `__TAURI_BUNDLE_TYPE variable not found` warning in the build output is that
+plugin's, and is inert while it is unused.
+
 ## Status
 
 | Stage | What | State |
 |---|---|---|
 | 0 | ArtLux-side prerequisites (`--project=` in the editor, `second-instance` argv, preflight fixes) | **done** |
-| 1 | Install: detect · resolve · verified download · run | **in progress** |
-| 2 | Projects: library roots, disk scan, open via `--project=` | planned |
-| 3 | Examples: copy a set to a writable workspace, then open | planned |
-| 4 | Health: run `preflight.ps1`, triage as UI, repair via `-Fix` | planned |
+| 1 | Install: detect · resolve · verified download · elevated run | **done** |
+| 2 | Projects: library roots, cancellable scan, recents merge, open via `--project=` | **done** |
+| 3 | Examples: derived sets, whole-set copy to a writable workspace, then open | **done** |
+| 4 | Health: run `preflight.ps1`, triage as data, repair via `-Fix` | **done** |
+| 5 | CI on `launcher-v*`, self-update | **done** |
 
-Not yet decided: **code signing.** `.github/workflows/build.yml` sets
-`CSC_IDENTITY_AUTO_DISCOVERY: 'false'` and there is no Authenticode step, so ArtLux ships unsigned
-today. The launcher becomes the first thing a venue runs, so this needs a deliberate answer — sign
-it, or document the SmartScreen path in INSTALL.md.
+Still open: **code signing.** `build.yml` sets `CSC_IDENTITY_AUTO_DISCOVERY: 'false'` and there is no
+Authenticode step, so both products ship unsigned and SmartScreen warns on first run. The path is
+documented in [INSTALL.md](INSTALL.md#windows-smartscreen--the-warning-you-will-see-first), but the
+launcher is now the *first* thing a venue executes, which makes it the strongest candidate for a
+certificate.

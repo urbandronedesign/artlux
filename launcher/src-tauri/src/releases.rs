@@ -19,6 +19,8 @@ use serde::{Deserialize, Serialize};
 const OWNER_REPO: &str = "urbandronedesign/artlux";
 /// Windows only, and electron-builder's `artifactName` renders the arch as `x64` (not `x86_64`).
 const WIN_ARCH: &str = "x64";
+/// Launcher releases carry their own tag prefix so the two products never contend for "latest".
+const LAUNCHER_TAG_PREFIX: &str = "launcher-v";
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ReleaseInfo {
@@ -46,6 +48,24 @@ struct GhRelease {
     draft: bool,
     #[serde(default)]
     prerelease: bool,
+}
+
+/// Does this tag name an ARTLUX APP release — `v0.25.0` — rather than something else in the same
+/// repo?
+///
+/// ⚠ WHY THIS IS NOT `/releases/latest`. Two products publish into one repo now, and
+/// `/releases/latest` returns whichever was published most recently, whatever it is. A launcher
+/// release would therefore be handed back as "the latest ArtLux", and fetching `latest.yml` from its
+/// tag 404s. Worse, ArtLux's OWN electron-updater keys off the same endpoint, so a launcher release
+/// published as a normal release would break the shipped app's update check. Launcher releases are
+/// published as PRE-RELEASES for that reason (GitHub excludes those from `latest`), and this filter
+/// is the second line of defence: match the tag shape, never trust the ordering.
+fn is_app_tag(tag: &str) -> bool {
+    let rest = match tag.strip_prefix('v') {
+        Some(r) => r,
+        None => return false,
+    };
+    rest.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false)
 }
 
 /// Minimal reader for the handful of top-level scalars electron-builder writes.
@@ -90,19 +110,30 @@ async fn check(resp: reqwest::Response, what: &str) -> Result<reqwest::Response,
     Err(format!("{what} failed: HTTP {status}"))
 }
 
-pub async fn resolve_latest() -> Result<ReleaseInfo, String> {
-    let http = client()?;
-
-    let api = format!("https://api.github.com/repos/{OWNER_REPO}/releases/latest");
+/// The newest release whose tag satisfies `want`. Lists rather than asking for "latest" — see
+/// `is_app_tag` for why that endpoint cannot be trusted in a repo shipping two products.
+async fn newest_release(
+    http: &reqwest::Client,
+    want: impl Fn(&GhRelease) -> bool,
+    what: &str,
+) -> Result<GhRelease, String> {
+    let api = format!("https://api.github.com/repos/{OWNER_REPO}/releases?per_page=30");
     let resp = check(
         http.get(&api).header("Accept", "application/vnd.github+json").send().await
             .map_err(|e| format!("could not reach GitHub: {e}"))?,
-        "looking up the latest release",
-    ).await?;
-    let rel: GhRelease = resp.json().await.map_err(|e| format!("could not read GitHub's answer: {e}"))?;
-    if rel.draft || rel.prerelease {
-        return Err(format!("the latest release ({}) is a draft or pre-release", rel.tag_name));
-    }
+        "listing releases",
+    )
+    .await?;
+    let all: Vec<GhRelease> = resp.json().await.map_err(|e| format!("could not read GitHub's answer: {e}"))?;
+    // GitHub returns newest first.
+    all.into_iter()
+        .find(|r| !r.draft && want(r))
+        .ok_or_else(|| format!("no published {what} was found in this repository"))
+}
+
+pub async fn resolve_latest() -> Result<ReleaseInfo, String> {
+    let http = client()?;
+    let rel = newest_release(&http, |r| !r.prerelease && is_app_tag(&r.tag_name), "ArtLux release").await?;
 
     // latest.yml is fetched from the TAG, not from /latest/download: resolving the tag once and
     // pinning it means the metadata and the installer cannot come from two different releases if a
@@ -143,6 +174,68 @@ pub async fn resolve_latest() -> Result<ReleaseInfo, String> {
         size,
         notes_url: rel.html_url,
     })
+}
+
+/// The newest LAUNCHER release, if one is published.
+///
+/// Same metadata shape as the app's (`launcher-latest.yml` beside the installer, carrying a base64
+/// sha512), so there is one format in this codebase and the verified-download path is shared rather
+/// than reimplemented.
+///
+/// NOT Tauri's updater plugin, deliberately. That would work, and it would mean a signing keypair
+/// whose private half lives in CI secrets and whose public half is baked into the binary — real
+/// infrastructure to stand up and keep correct. The launcher already resolves a release, verifies a
+/// base64 sha512 and runs an installer, all of it exercised; reusing that gets a verified update
+/// with no new secret to manage. If silent background updates are wanted later, the plugin is the
+/// upgrade path.
+///
+/// Launcher releases are PRE-RELEASES on purpose (see `is_app_tag`), so they are matched here
+/// explicitly rather than by "latest".
+pub async fn resolve_launcher_latest() -> Result<ReleaseInfo, String> {
+    let http = client()?;
+    let rel = newest_release(&http, |r| r.tag_name.starts_with(LAUNCHER_TAG_PREFIX), "launcher release").await?;
+
+    let yml_url = format!(
+        "https://github.com/{OWNER_REPO}/releases/download/{}/launcher-latest.yml",
+        rel.tag_name
+    );
+    let yml = check(
+        http.get(&yml_url).send().await.map_err(|e| format!("could not fetch launcher-latest.yml: {e}"))?,
+        "fetching launcher-latest.yml",
+    )
+    .await?
+    .text()
+    .await
+    .map_err(|e| format!("could not read launcher-latest.yml: {e}"))?;
+
+    let version = yaml_top_level(&yml, "version").ok_or("launcher-latest.yml carries no version")?;
+    let file = yaml_top_level(&yml, "path").ok_or("launcher-latest.yml carries no installer filename")?;
+    let sha512_b64 = yaml_top_level(&yml, "sha512")
+        .ok_or("launcher-latest.yml carries no sha512 — refusing to offer an unverifiable download")?;
+    let size = yml
+        .lines()
+        .find_map(|l| l.trim().strip_prefix("size:").and_then(|v| v.trim().parse::<u64>().ok()))
+        .unwrap_or(0);
+
+    Ok(ReleaseInfo {
+        version,
+        tag: rel.tag_name.clone(),
+        url: format!("https://github.com/{OWNER_REPO}/releases/download/{}/{file}", rel.tag_name),
+        file,
+        sha512_b64,
+        size,
+        notes_url: rel.html_url,
+    })
+}
+
+/// Exposed so the self-test can assert the app/launcher tag split without duplicating the rule.
+pub fn is_app_tag_for_test(tag: &str) -> bool {
+    is_app_tag(tag)
+}
+
+/// The version this launcher was built as.
+pub fn own_version() -> &'static str {
+    env!("CARGO_PKG_VERSION")
 }
 
 /// Is `latest` newer than `installed`? Semver, never string compare: "0.9.0" > "0.25.0" as strings.
