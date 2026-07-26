@@ -2,6 +2,7 @@ import './threadpool'; // MUST stay first — sizes the libuv pool before anythi
 import { app, BrowserWindow, session, systemPreferences, ipcMain, Tray, Menu, globalShortcut, nativeTheme } from 'electron';
 import { join, basename } from 'node:path';
 import { registerIpc } from './ipc';
+import { openEnginePort, closeEnginePort } from './enginePort';
 import { buildAppMenu } from './menu';
 import { setupUpdater } from './updater';
 import { registerProjectorWindows, closeAllProjectors } from './projector';
@@ -151,7 +152,7 @@ function createWindow(): void {
         mainWindow?.setSkipTaskbar(true);
         mainWindow?.showInactive();
     });
-    mainWindow.on('closed', () => { closeAllProjectors(); mainWindow = null; });
+    mainWindow.on('closed', () => { closeAllProjectors(); closeEnginePort(); mainWindow = null; });
     // Unattended self-heal: wire the crash/hang detectors to this window. No-op unless the watchdog
     // armed itself in whenReady (unattended.enabled + broadcast/always).
     watchdog.attach(mainWindow);
@@ -162,6 +163,12 @@ function createWindow(): void {
     // Apply the persisted (or auto-detected) UI scale. setZoomFactor doesn't survive a reload, so
     // re-run on every load. Headless/broadcast have no visible chrome, so scale is a no-op there.
     if (!HEADLESS && !BROADCAST) mainWindow.webContents.on('did-finish-load', () => { applyUiScale(mainWindow); revealEditor(); });
+
+    // Hand the renderer its end of the output MessagePort on EVERY load, in every mode. On every load
+    // because a reload kills the old port with the old page; in every mode because headless and
+    // broadcast are precisely the runs where output matters most. The renderer relays it into the
+    // frame-engine worker — see main/enginePort.ts.
+    mainWindow.webContents.on('did-finish-load', () => { if (mainWindow) openEnginePort(mainWindow); });
 
     // electron-vite provides the dev server URL; fall back to the built file.
     const devUrl = process.env['ELECTRON_RENDERER_URL'];

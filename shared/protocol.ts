@@ -161,6 +161,15 @@ export const IPC = {
   PROJECTOR_SET_DISPLAY: 'projector:set-display',
   /** Main → renderer: hand off a MessagePort bridging main ↔ a projector window. */
   PROJECTOR_PORT: 'projector:port',
+  /**
+   * Main → renderer: hand off a MessagePort for OUTPUT FRAMES.
+   *
+   * The renderer relays this port straight into the frame-engine worker, so packed universes travel
+   * worker → main without waking the main thread at all. `IPC.FRAME` remains for the main-thread
+   * engine and is byte-identical (both carry shared/frameCodec's encodeFrame output) — the port is a
+   * second road to the same door, not a second protocol.
+   */
+  ENGINE_PORT: 'engine:port',
   /** Main → renderer: the set of connected displays changed (add/remove). */
   PROJECTOR_DISPLAYS_CHANGED: 'projector:displays-changed',
   /**

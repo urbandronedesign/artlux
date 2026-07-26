@@ -188,10 +188,35 @@ ipcRenderer.on(IPC.PROJECTOR_PORT, (e, payload: { surfaceId: string }) => {
     if (port) pendingProjectorPorts.push({ surfaceId: payload?.surfaceId, port });
     flushPorts();
 });
+
+// The OUTPUT port, forwarded the same way and for the same reason (a MessagePort cannot survive the
+// contextBridge). The renderer relays it into the frame-engine worker, so packed universes reach main
+// without the main thread being involved at all.
+//
+// Buffered on its own queue rather than reusing the projector one: this port arrives on did-finish-load
+// in EVERY mode, including headless, where nothing ever posts 'artlux:projector-ready' — sharing the
+// queue would leave it parked forever in exactly the run that needs it most. Its own readiness signal
+// is 'artlux:engine-ready', posted by the renderer once it is listening.
+let pendingEnginePort: MessagePort | null = null;
+let engineReady = false;
+const flushEnginePort = () => {
+    if (!engineReady || !pendingEnginePort) return;
+    const port = pendingEnginePort;
+    pendingEnginePort = null;
+    window.postMessage({ kind: 'artlux:engine-port' }, '*', [port]);
+};
+ipcRenderer.on(IPC.ENGINE_PORT, (e) => {
+    const port = e.ports[0];
+    if (port) pendingEnginePort = port;
+    flushEnginePort();
+});
 window.addEventListener('message', (e) => {
     if (e.data === 'artlux:projector-ready') {
         rendererReady = true;
         flushPorts();
+    } else if (e.data === 'artlux:engine-ready') {
+        engineReady = true;
+        flushEnginePort();
     }
 });
 

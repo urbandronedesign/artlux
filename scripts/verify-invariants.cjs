@@ -945,6 +945,28 @@ check(
   },
 );
 
+// ── The output port copies its frames, and does not transfer them ─────────────────────────────
+check(
+  'frames are POSTED to the output port, never transferred',
+  'postMessage(buf, [buf]) is the standard zero-copy idiom and is perfectly legal on a DOM MessagePort. ' +
+  "Across Electron's renderer↔main port it is not: the message ARRIVES — main's handler fires, on time, " +
+  'every frame — but e.data is NULL. No error, no warning, nothing in either console; just a steady ' +
+  'stream of empty messages and a venue with no output, while every gate you would naturally suspect ' +
+  '(is the transport ready? is the port alive?) reports fine. This is the single most plausible ' +
+  '"optimisation" someone will make to this file, and it silently kills the show.',
+  () => {
+    const src = stripComments(read('src/renderer/engine/framePort.ts'));
+    // Any postMessage on the port with a transfer list is the mistake.
+    if (/port\.postMessage\([^)]*,\s*\[/.test(src)) {
+      return 'framePort transfers the frame buffer — Electron delivers null on the main side; post it instead';
+    }
+    if (!/port\.postMessage\(\s*frame\s*\)/.test(src)) {
+      return 'framePort no longer posts the frame — this guard has gone blind';
+    }
+    return null;
+  },
+);
+
 // ── HAP decompresses off the DOM, and keeps a way back ────────────────────────────────────────
 check(
   'HAP decompresses into an OffscreenCanvas, with the DOM canvas still reachable',

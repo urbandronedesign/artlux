@@ -1,6 +1,7 @@
 import { AppSettings } from '../types';
 import { UniverseTarget } from '../../../shared/protocol';
 import { encodeFrame } from '../../../shared/frameCodec';
+import { sendFrame as sendFramePort } from '../engine/framePort';
 import type { DmxDestination } from './dmxSignal';
 
 // Thin renderer-side wrapper over the Electron native Art-Net transport
@@ -78,5 +79,12 @@ export const sendArtNetFrame = (destinations: Record<string, DmxDestination>, po
     }
     if (targetScratch.length === 0) return;
 
-    window.artlux.sendArtNet(encodeFrame(targetScratch));
+    // Prefer the direct MessagePort to main (engine/framePort). Same bytes as the IPC route — both are
+    // encodeFrame's output — but it does not go through ipcRenderer, which is what lets the frame
+    // engine keep sending once it lives in a worker and the main thread is no longer in the path.
+    // Falls back to IPC whenever the port is absent, so a machine that never gets one behaves exactly
+    // as it always did rather than going quietly dark.
+    const encoded = encodeFrame(targetScratch);
+    if (sendFramePort(encoded)) return;
+    window.artlux.sendArtNet(encoded);
 };
