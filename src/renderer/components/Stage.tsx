@@ -77,7 +77,6 @@ export const Stage: React.FC<StageProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const requestRef = useRef<number>(0);
 
   const fixtureRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
@@ -206,33 +205,16 @@ export const Stage: React.FC<StageProps> = ({
     };
   }, []);
 
-  // The frame. Stage still owns the requestAnimationFrame loop and the DOM gate below; the work
-  // itself is engine/frameEngine.ts. WP-1.2 moves the loop into the engine and deletes the gate —
-  // at which point output stops depending on this component being mounted at all.
-  const tick = useCallback(() => {
-    frameEngine.tick();
-    requestRef.current = requestAnimationFrame(tick);
-  }, []);
-
-  // The last DOM gate on output: the engine refuses to run a frame until the view says it is laid
-  // out, because that is what the containerRef check used to do at the top of the loop.
-  useEffect(() => {
-    frameEngine.setDomReady(true);
-    return () => frameEngine.setDomReady(false);
-  }, []);
-
-  // The engine paints the operator 512-square composite into this canvas. It does not own it.
+  // Lend the engine somewhere to show its composite. That is the entire relationship this component
+  // now has with the frame loop: the engine runs on its own rAF, started when its module loaded, and
+  // handing back null on unmount costs the operator a picture and costs the show nothing.
+  //
+  // This is what the whole extraction was for. Stage may unmount, remount, or be hidden by a context
+  // switch, and Art-Net does not notice — so the workspace is free to move it around.
   useEffect(() => {
     frameEngine.setPreviewCanvas(canvasRef.current);
     return () => frameEngine.setPreviewCanvas(null);
   }, []);
-
-  useEffect(() => {
-    requestRef.current = requestAnimationFrame(tick);
-    return () => {
-      if (requestRef.current) cancelAnimationFrame(requestRef.current);
-    };
-  }, [tick]);
 
   // --- Surface drag (self-contained; cyan rectangles) ---
   // `moved` is a per-gesture history latch: a surface drag streams to state at pointer rate via the

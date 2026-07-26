@@ -29,10 +29,13 @@ import { perfMonitor } from '../services/perfMonitor';
 // preview canvas handed to it. The same discipline as services/timeline and services/perfMonitor,
 // and what lets the loop keep running while the UI does whatever it likes.
 //
-// WHAT STILL LIVES IN THE VIEW (and moves next):
-//   • the rAF loop itself — Stage still drives it and calls tick() (WP-1.2)
-//   • `domReady` below, the last DOM gate on output (WP-1.2 deletes it)
-//   • mapper construction + the backend/error reporting (WP-1.3)
+// IT OWNS ITS OWN LOOP. The singleton starts a requestAnimationFrame at module load — the same idiom
+// services/timeline.ts uses — so the pipeline is running before any component mounts and keeps running
+// after every one of them has gone. Nothing here reads the DOM to decide whether to run a frame, which
+// is the property the whole exercise was for: the Stage is now an ordinary view that may unmount,
+// remount, or exist twice, and the output does not care.
+//
+// WHAT STILL LIVES IN THE VIEW: mapper construction + the backend/error reporting (WP-1.3).
 // See plans/engine-decoupling.md.
 
 /**
@@ -115,9 +118,18 @@ class FrameEngine {
   private surfaceLayoutSig = '';
   private fixtureParamSig = '';
 
-  // ── The preview canvas. The engine draws into it; it does not own or create it. ──
+  // ── Compositing ──
+  // The engine composites into its OWN canvas, and the visible preview is a blit of that. The
+  // inversion is the point of this step: the composite used to be drawn straight into the Stage's
+  // visible canvas, and on the WebGL fallback that canvas WAS the sampling source — so LED output was
+  // reading pixels out of a DOM node owned by a React component, and unmounting the component left
+  // the output with nothing to sample. (WP-3.2 makes this an OffscreenCanvas, once the engine is in a
+  // worker; a plain detached element is the smaller step and behaves identically to texImage2D.)
+  private composite: HTMLCanvasElement | null = null;
+  private compositeCtx: CanvasRenderingContext2D | null = null;
+  /** Where the operator sees it — when there is an operator. Optional, and never load-bearing. */
   private previewCanvas: HTMLCanvasElement | null = null;
-  private canvasCtx: CanvasRenderingContext2D | null = null;
+  private previewCtx: CanvasRenderingContext2D | null = null;
   private lastPreviewComposite = -1e9;
   private lastPreviewBrightness = -1;
 
@@ -127,17 +139,26 @@ class FrameEngine {
   /** Per-surface key of the content already aspect-fitted, so we fit once per source. */
   private fittedAspect = new Map<string, string>();
 
+  /** The loop's own handle. Started on construction, stopped by nothing. */
+  private raf = 0;
+
+  // ── Lifecycle ─────────────────────────────────────────────────────────────────────────────────
+
   /**
-   * TEMPORARY, and the whole point of the next step. Output currently still requires the view to be
-   * mounted, because this is the gate `if (!containerRef.current)` used to be. WP-1.2 deletes it:
-   * nothing in the pipeline below reads the DOM, so nothing about it should depend on the DOM.
+   * The loop starts with the object, and there is deliberately no stop(): running the output is not
+   * something the UI gets to decide. Every previous way of stopping it — unmounting a component,
+   * losing a canvas, an ErrorBoundary catching a render throw — was a bug that took the show with it.
+   * `engineRunning` in the inputs gates OUTPUT; the loop itself simply runs.
    */
-  private domReady = false;
+  constructor() {
+    if (typeof requestAnimationFrame === 'undefined') return; // no rAF (a test harness) — stay idle
+    const loop = () => { this.raf = requestAnimationFrame(loop); this.tick(); };
+    this.raf = requestAnimationFrame(loop);
+  }
 
   // ── Inputs ────────────────────────────────────────────────────────────────────────────────────
 
   setHost(host: FrameHost): void { this.host = host; }
-  setDomReady(ready: boolean): void { this.domReady = ready; }
 
   setMapper(m: IPixelMapper | null): void {
     this.mapper = m;
@@ -149,9 +170,13 @@ class FrameEngine {
     m.setBrightness(this.inputs.brightness);
   }
 
+  /**
+   * Hand the engine somewhere to show the composite. Passing null (the view unmounted, the context
+   * switched away) costs the operator a picture and costs the show nothing.
+   */
   setPreviewCanvas(el: HTMLCanvasElement | null): void {
     this.previewCanvas = el;
-    this.canvasCtx = null;
+    this.previewCtx = null;
   }
 
   /**
@@ -218,12 +243,20 @@ class FrameEngine {
 
   // ── The frame ─────────────────────────────────────────────────────────────────────────────────
 
-  /** One frame: composite → sample → pack → publish. Currently called by Stage's rAF (WP-1.2). */
+  /**
+   * One frame: composite → sample → pack → publish. Driven by the engine's own rAF.
+   *
+   * NOTE WHAT IS NOT HERE. There is no check that a container exists, and none that a canvas exists.
+   * Those two lines used to sit at the top of this loop, and between them they meant that Art-Net
+   * stopped the moment a React component went away — even on the WebGPU path, where the sampling
+   * never touched the visible canvas at all. The only gate left is "is there a mapper", which is
+   * about the GPU, not the DOM.
+   */
   tick(): void {
     // Record the inter-frame interval (unconditional; two performance.now() reads). endFrame() below
     // closes the work measurement once this frame's compute/pack/publish is done.
     perfMonitor.beginFrame();
-    if (!this.domReady || !this.mapper) return;
+    if (!this.mapper) return;
     const mapper = this.mapper;
     const { engineRunning, showPreview } = this.inputs;
 
@@ -295,23 +328,21 @@ class FrameEngine {
     // per-surface — there the composite feeds nothing (renderSurfaces uploads each surface's own
     // drawable; rawBytes comes from the compute readback).
     const perSurface = !!(mapper.perSurface && mapper.renderSurfaces);
-    let needComposite = showPreview || !perSurface;
-    // ⚠ Only throttle in the per-surface case. On the WebGL fallback this canvas IS the sampling
-    // source (updateSource below reads it), so throttling it would throttle the actual LED output.
+    const wantPreview = showPreview && !!this.previewCanvas;
+    // On the WebGL fallback the composite IS the sampling source, so it is not optional and must
+    // never be throttled — throttling it would throttle the actual LED output. On the WebGPU path it
+    // feeds only the operator's picture, so it is skipped entirely when nobody is looking.
+    let needComposite = !perSurface || wantPreview;
     if (needComposite && perSurface) {
       const nowMs = performance.now();
       if (nowMs - this.lastPreviewComposite < PREVIEW_MS) needComposite = false;
       else this.lastPreviewComposite = nowMs;
     }
-    const canvas = this.previewCanvas;
-    if (canvas && needComposite) {
-      // Cache the 2D context across frames. Re-fetch if the canvas element itself was ever replaced,
-      // so the cache can't go stale.
-      if (this.canvasCtx?.canvas !== canvas) this.canvasCtx = canvas.getContext('2d');
-      const ctx = this.canvasCtx;
+    if (needComposite) {
+      const ctx = this.compositeContext();
       if (ctx) {
-        const cw = canvas.width;
-        const ch = canvas.height;
+        const cw = ctx.canvas.width;
+        const ch = ctx.canvas.height;
         ctx.imageSmoothingEnabled = true;
         ctx.clearRect(0, 0, cw, ch);
         // Sort into a reused scratch array (no per-frame spread allocation).
@@ -335,29 +366,32 @@ class FrameEngine {
           }
         }
         ctx.globalAlpha = 1;
+        // Show it, if anyone is looking. One 512² blit, and the ONLY thing the preview canvas is for.
+        if (wantPreview) this.blitPreview(ctx.canvas);
       }
     }
 
-    if (canvas && engineRunning) {
+    if (engineRunning) {
       // Pull brightness from the live channel each frame so slider drags affect output immediately
       // without committing React state (which would re-render the whole app).
       mapper.setBrightness(effBrightness);
       // The preview canvas dims through a CSS var that livePreview owns — and a render-free override
       // never goes through livePreview. Without this the LEDs would dim while the preview stayed
-      // bright, so the preview would lie about what is actually leaving the machine.
-      if (effBrightness !== this.lastPreviewBrightness) {
+      // bright, so the preview would lie about what is actually leaving the machine. Purely a preview
+      // concern, so it is skipped when there is no preview (broadcast, headless, view unmounted).
+      if (this.previewCanvas && effBrightness !== this.lastPreviewBrightness) {
         this.lastPreviewBrightness = effBrightness;
         document.documentElement.style.setProperty('--preview-brightness', String(effBrightness));
       }
       // WebGPU samples each fixture strictly from its linked surface; the WebGL fallback samples the
-      // composite preview canvas.
+      // engine's own composite — which is why that composite is no longer the visible canvas.
       if (mapper.perSurface && mapper.renderSurfaces) {
         mapper.renderSurfaces((id) => {
           const s = effSurfaces.find((x) => x.id === id);
           return s ? surfaceMedia.getDrawable(s) : null;
         }, (id) => effSurfaces.find((x) => x.id === id)?.content.opacity ?? 1);
-      } else {
-        mapper.updateSource(canvas);
+      } else if (this.composite) {
+        mapper.updateSource(this.composite);
       }
       const rawBytes = mapper.read();
 
@@ -367,6 +401,34 @@ class FrameEngine {
     }
 
     perfMonitor.endFrame();
+  }
+
+  /**
+   * The engine's own 512² composite target, created on first use. 512 because the backing buffer maps
+   * 1:1 to a normalized UV square — surfaces and LEDs are in 0–1 coords, so sampling is unaffected by
+   * whatever size the operator's viewport happens to be.
+   */
+  private compositeContext(): CanvasRenderingContext2D | null {
+    if (!this.compositeCtx) {
+      if (typeof document === 'undefined') return null;
+      this.composite = document.createElement('canvas');
+      this.composite.width = 512;
+      this.composite.height = 512;
+      this.compositeCtx = this.composite.getContext('2d');
+    }
+    return this.compositeCtx;
+  }
+
+  /** Blit the composite into the operator's canvas. Cosmetic; failure here cannot affect output. */
+  private blitPreview(src: HTMLCanvasElement): void {
+    const canvas = this.previewCanvas;
+    if (!canvas) return;
+    // Re-fetch if the element was replaced (a remount, an HMR swap), so the cache can't go stale.
+    if (this.previewCtx?.canvas !== canvas) this.previewCtx = canvas.getContext('2d');
+    const ctx = this.previewCtx;
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(src, 0, 0, canvas.width, canvas.height);
   }
 
   /**
@@ -543,4 +605,7 @@ function fixtureParamSignature(fixtures: Fixture[]): string {
   })));
 }
 
+// Constructing the singleton starts the loop, the way services/timeline.ts does. Importing this
+// module IS starting the engine — there is no "a component mounted, therefore output exists" step any
+// more, which was the whole problem. The loop idles cheaply until a mapper and `engineRunning` arrive.
 export const frameEngine = new FrameEngine();

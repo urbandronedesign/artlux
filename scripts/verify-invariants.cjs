@@ -258,8 +258,11 @@ check(
 // ── Shell: the engine-critical viewports ──────────────────────────────────────────────────────
 check(
   'Stage and TimelinePanel are mounted exactly once',
-  'Stage publishes dmx:frame — unmounting it stops Art-Net mid-show. Two TimelinePanels double its ' +
-  'keyboard hook and engine subscription. Both are passed to the shell as persistent elements.',
+  'Two TimelinePanels double its keyboard hook and its engine subscription — that half is unchanged. ' +
+  'The Stage half no longer means what it used to: since the frame loop moved into engine/frameEngine ' +
+  'and lost its DOM gates, unmounting the Stage does NOT stop Art-Net. It is still asserted because a ' +
+  'second Stage would fight over the preview canvas and the drag handlers, but it is a tidiness rule ' +
+  'now, not a show-critical one. (WP-1.4 revisits it.)',
   () => {
     const problems = [];
     const stage = walk('src/renderer').filter((f) => /<Stage[\s\n]/.test(read(f)));
@@ -284,7 +287,36 @@ check(
   },
 );
 
-// ── The engine is not part of the view ────────────────────────────────────────────────────────
+// ── The frame loop belongs to the engine, and to nothing in the DOM ───────────────────────────
+check(
+  'the frame loop is owned by the engine, not by a component or a canvas',
+  'This is the invariant the whole decoupling exists to create, and it is invisible the moment it is ' +
+  'broken: put the rAF back in a component, or re-add a `if (!canvas) return` at the top of the ' +
+  'loop, and Art-Net silently becomes a property of whether some React element happens to be mounted ' +
+  '— which is how "Stage must never unmount" came to shape the entire workspace. The engine starts ' +
+  'its own loop when its module loads, and the only gate on a frame is whether a GPU mapper exists.',
+  () => {
+    const eng = stripComments(read('src/renderer/engine/frameEngine.ts'));
+    const stage = stripComments(read('src/renderer/components/Stage.tsx'));
+    const problems = [];
+    if (!/requestAnimationFrame\(/.test(eng)) {
+      problems.push('frameEngine.ts must drive its own requestAnimationFrame');
+    }
+    if (/requestAnimationFrame\(/.test(stage)) {
+      problems.push('Stage.tsx drives a requestAnimationFrame again — the loop belongs to the engine');
+    }
+    // The two gates that used to stop output when the view went away. Named so they cannot creep back
+    // under their old names; the shape `if (!<something>Ready)` is the one to watch for.
+    if (/domReady/.test(eng) || /domReady/.test(stage)) {
+      problems.push('a domReady gate is back — output must not wait on the view being laid out');
+    }
+    if (/if\s*\(\s*!?\s*(this\.)?previewCanvas\s*\)\s*return/.test(eng)) {
+      problems.push('the engine returns early on a missing preview canvas — the preview is cosmetic, output is not');
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 check(
   'the frame engine never imports React',
   'The whole point of engine/ is that the render/output pipeline outlives any component: it is what ' +
