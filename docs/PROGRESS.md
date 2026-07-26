@@ -564,6 +564,19 @@ incident here was GPU/decode/IO and never React. Canonical plan, WP tracker and 
   it. A/B measured live by hot-swapping the file mid-session: unrelated-viewport commits during an
   identical synthetic drag **51 → 10**, drags still track live / commit once / never snap back, 60 fps
   held. The 3D scene now follows on release — that being exactly the rebuild described above.
+- **WP-0.3 — an idle editor rebuilt itself twice a second** (`9124252`). Nobody touching anything, nothing
+  playing, and every panel + all five persistent viewports + Stage + the 3D scene + the timeline were being
+  reconciled 2×/s, forever. The cause was two numbers: `renderFps` and the native pacer's `outputStats`,
+  both `useState` in **App** — which owns all document state, so one of its renders rebuilds the whole tree
+  — and both drawn in one corner of the status bar, read by nothing else. They moved to
+  `services/telemetry` (the `cueBus`/`helpBus`/`layoutStore` idiom, with no-op updates dropped); only
+  StatusBar subscribes, re-rendering at 1 Hz, which is correct for a 1 Hz number. **A/B measured idle**:
+  commits on the viewports that have no clock of their own — and can therefore only move when App renders
+  — went **6 per idle second → 0**. ⚠ The originally-planned `React.memo` on those viewports was
+  **deliberately not done**: each is handed freshly built props every render (inline `extraControls`
+  element, arrays rebuilt by `filter`/`map`, a dozen inline arrows), so a shallow compare can never bail
+  out — it would have cost a compare per render, bought nothing, and read as protection. Stabilizing App's
+  handler identities (the `ActionsCtx` facade already does this for panels) is tracked as its own pass.
 
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
