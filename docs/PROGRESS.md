@@ -524,6 +524,21 @@ Shipped across **v0.3.0** and **v0.3.1** (see `CHANGELOG.md`; UI detail in `arch
   neither is a CDP probe — `ARTLUX_CDP_PORT` forces a paint, so it falsely passes. Only launching the
   packaged `ArtLux.exe` with no CDP port proves it.
 
+## Engine decoupling — a UI-independent render/output engine (approved 2026-07-26)
+
+The frame loop lives in a React effect, and **Art-Net stops if a DOM node is missing** (`Stage.tsx:295`
+`containerRef`, `:414` `canvasRef`) — even on the WebGPU path, where sampling never touches the visible
+canvas (it composites into a private offscreen atlas). That is the root cause of the "Stage must never
+unmount" invariant, and therefore of every expensive workspace redesign. Two code surveys also established
+that the engine is **already 95% decoupled in disguise**: nothing under `services/` or `gpu/` imports React,
+the tick reads only refs + singletons, outputs are pub/sub buses, and the timeline engine already self-starts
+at module import. Approved programme: extract a self-starting `renderer/engine/frameEngine.ts` (main thread),
+modernize media to `VideoFrame`, then move the engine into a **Worker** with a zero-main-thread-hop
+MessagePort to main — keeping React panels so the plugin SDK is untouched. A new-UI-library migration
+(Solid) and a full GPU widget toolkit were **evaluated and rejected**, on the evidence that every recorded fps
+incident here was GPU/decode/IO and never React. Canonical plan, WP tracker and session protocol:
+[plans/engine-decoupling.md](../plans/engine-decoupling.md).
+
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
 - Deferred effects: stateful **fire2012**, **multi-segment** subdivision per fixture.
