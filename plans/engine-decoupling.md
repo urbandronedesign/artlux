@@ -15,7 +15,7 @@ user-verified at a checkpoint; a session must never tick those itself.
 
 | WP | Scope | Status | Commit | Notes / deviations |
 |---|---|---|---|---|
-| 0.0 | Bootstrap: this file + tracker + docking appendix | ☑ done | *(this commit)* | — |
+| 0.0 | Bootstrap: this file + tracker + docking appendix | ☑ done | `d279655` | Indexed in `plans/README.md`; summary in `docs/PROGRESS.md`. `verify` green (40 checks). |
 | 0.1 | React-side instrumentation (longtask + Profiler → 1 Hz stats) | ☐ | | |
 | 0.2 | Fixture-drag commit-on-release (`Stage.tsx`) | ☐ | | |
 | 0.3 | Memoize the five persistent viewports (`App.tsx`) | ☐ | | |
