@@ -552,6 +552,18 @@ incident here was GPU/decode/IO and never React. Canonical plan, WP tracker and 
   version **passed a deliberate break** because a leftover import still matched the identifier — the trap
   this repo already documents — so it now asserts the branch. CDP-verified end to end: a 400 ms synthetic
   stall travelled observer → IPC → main → Prometheus (baseline 0 → peak 320 ms / 4 tasks).
+- **WP-0.2 — a geometry drag is local until you let go** (`c70c13a`). Dragging a fixture pushed the whole
+  array up to App on **every pointermove**, re-rendering the entire editor at pointer rate — every
+  `useEditor()` panel, all five persistent viewports, and a full rebuild of `Simulator3D`'s LED
+  `InstancedMesh` (its layout signature includes `x/y/w/h/rotation`, so `computeLedPositions` ran over
+  every fixture in the rig, per move). A local draft now drives Stage's own render and App is told once,
+  on release — the rule the timeline already follows. Two things deliberately do **not** wait: the refs
+  stay live (so the frame loop keeps sampling the drag, and Art-Net follows it), and `updateMapping` is
+  called directly from the move handlers, because the effect that used to do it is keyed on committed
+  props that now stop changing mid-drag. The **surface** drag had the identical defect and was fixed with
+  it. A/B measured live by hot-swapping the file mid-session: unrelated-viewport commits during an
+  identical synthetic drag **51 → 10**, drags still track live / commit once / never snap back, 60 fps
+  held. The 3D scene now follows on release — that being exactly the rebuild described above.
 
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
