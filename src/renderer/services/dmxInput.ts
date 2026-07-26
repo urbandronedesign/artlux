@@ -6,7 +6,20 @@ import { InputFrame } from '../../../shared/protocol';
 
 const universes = new Map<number, Uint8Array>();
 let unsub: (() => void) | null = null;
-let canvas: HTMLCanvasElement | null = null;
+
+// OffscreenCanvas, not a DOM element: nothing here is ever displayed — it exists only to be sampled —
+// and an OffscreenCanvas is the version of it that can live in a worker when the engine moves there.
+// Falls back to a detached <canvas> if the API is missing.
+let canvas: OffscreenCanvas | HTMLCanvasElement | null = null;
+let ctx: OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D | null = null;
+let img: ImageData | null = null;
+
+// `seq` counts arrivals; `painted` records which one the canvas currently holds. getInputCanvas() is
+// called once per consuming surface AND again inside the GPU sampler's per-surface closure, so without
+// this the same unchanged bytes were re-packed and re-uploaded several times per frame — and every
+// frame while the sender sat idle.
+let seq = 0;
+let painted = -1;
 
 export function startInput(): void {
   if (unsub || typeof window === 'undefined' || !window.artlux) return;
@@ -16,6 +29,7 @@ export function startInput(): void {
       arr.set(f.data.slice(0, 512));
       universes.set(f.universe, arr);
     }
+    seq++;
   });
 }
 
@@ -23,31 +37,43 @@ export function stopInput(): void {
   unsub?.();
   unsub = null;
   universes.clear();
+  painted = -1;
 }
 
 const PX_PER_UNIVERSE = 170; // 512 channels / 3 (RGB)
 
 // Returns a canvas with current input (row = universe), or null if no data yet.
-export function getInputCanvas(): HTMLCanvasElement | null {
+export function getInputCanvas(): OffscreenCanvas | HTMLCanvasElement | null {
   if (universes.size === 0) return null;
   const keys = Array.from(universes.keys()).sort((a, b) => a - b);
-  if (!canvas) canvas = document.createElement('canvas');
-  canvas.width = PX_PER_UNIVERSE;
-  canvas.height = keys.length;
-  const ctx = canvas.getContext('2d');
+  const h = keys.length;
+
+  // Reuse the canvas, its context and its ImageData across frames; only the size can force a rebuild.
+  if (!canvas || canvas.width !== PX_PER_UNIVERSE || canvas.height !== h) {
+    canvas = typeof OffscreenCanvas !== 'undefined'
+      ? new OffscreenCanvas(PX_PER_UNIVERSE, h)
+      : Object.assign(document.createElement('canvas'), { width: PX_PER_UNIVERSE, height: h });
+    ctx = canvas.getContext('2d') as OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D | null;
+    img = null;
+    painted = -1; // a new canvas holds nothing
+  }
   if (!ctx) return null;
-  const img = ctx.createImageData(PX_PER_UNIVERSE, keys.length);
-  keys.forEach((u, row) => {
-    const data = universes.get(u)!;
+  if (painted === seq) return canvas; // nothing new arrived — the canvas already shows it
+  if (!img) img = ctx.createImageData(PX_PER_UNIVERSE, h);
+
+  const d = img.data;
+  for (let row = 0; row < h; row++) {
+    const data = universes.get(keys[row])!;
     for (let p = 0; p < PX_PER_UNIVERSE; p++) {
       const c = p * 3;
       const o = (row * PX_PER_UNIVERSE + p) * 4;
-      img.data[o] = data[c] || 0;
-      img.data[o + 1] = data[c + 1] || 0;
-      img.data[o + 2] = data[c + 2] || 0;
-      img.data[o + 3] = 255;
+      d[o] = data[c] || 0;
+      d[o + 1] = data[c + 1] || 0;
+      d[o + 2] = data[c + 2] || 0;
+      d[o + 3] = 255;
     }
-  });
+  }
   ctx.putImageData(img, 0, 0);
+  painted = seq;
   return canvas;
 }

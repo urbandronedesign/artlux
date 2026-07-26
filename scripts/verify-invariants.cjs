@@ -917,6 +917,34 @@ check(
   },
 );
 
+// ── The byte-sources paint somewhere a worker can reach ───────────────────────────────────────
+check(
+  'DMX-in, Spout and NDI paint into an OffscreenCanvas, and skip the repaint when nothing arrived',
+  'These three receive raw RGBA (or DMX channels) over IPC and assemble a picture for the sampler. The ' +
+  'canvas they paint into is never displayed — it exists only to be sampled — so a DOM element is the ' +
+  'wrong thing twice over: it cannot exist in a worker, which is where the engine is going, and it ties ' +
+  'a background data path to the document. They also each get asked for a picture once per consuming ' +
+  'surface AND again inside the GPU sampler\'s per-surface closure, so without a "has anything actually ' +
+  'arrived" check the same unchanged bytes were re-packed and re-uploaded several times per frame, and ' +
+  'on every frame while the sender sat idle. A detached <canvas> stays as the fallback where ' +
+  'OffscreenCanvas is missing; it must not be the primary path.',
+  () => {
+    const files = [
+      'src/renderer/services/dmxInput.ts',
+      'plugins/spout/src/spoutReceiver.ts',
+      'plugins/ndi/src/ndiReceiver.ts',
+    ];
+    const problems = [];
+    for (const f of files) {
+      const src = stripComments(read(f));
+      if (!/new OffscreenCanvas\(/.test(src)) problems.push(`${f} does not paint into an OffscreenCanvas`);
+      // The repaint-skip: an arrival counter and a record of what is already painted.
+      if (!/painted\s*===\s*seq/.test(src)) problems.push(`${f} repaints unconditionally — it must skip when no new frame arrived`);
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Decoded frames are owned, and owned things get closed ─────────────────────────────────────
 check(
   'ImageBitmaps and camera VideoFrames are closed, not dropped',
