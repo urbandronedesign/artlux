@@ -613,6 +613,23 @@ incident here was GPU/decode/IO and never React. Canonical plan, WP tracker and 
   which owns the document, so **`Stage` lost ten props** and what remains is what a viewport actually
   needs. **Verified:** headless with a purpose-built project and no Stage anywhere → 61 Hz / 1 universe
   at 60 fps renderer; the editor still survives its Stage DOM being deleted; drags unchanged.
+- **WP-1.4 — the docs stop describing a wall that is no longer there** (`2a042ba`). Six places still said
+  the Stage owns the output and must never unmount — the single most load-bearing sentence in the
+  workspace docs, and the reason the shell was designed around an immovable viewport. A stale invariant is
+  worse than none: someone reads it, believes the constraint, and designs around it. The **Stage half of
+  the mounted-exactly-once guard was dropped, not demoted** (docking may legitimately want the 2D stage in
+  more than one pane); the `TimelinePanel` half stands on its own. New guard: **one engine, and it is the
+  only thing that publishes a frame** — two instances would each run a loop and each publish, giving the
+  fixtures two interleaved DMX streams that would present as unplaceable flicker. WORKSPACE's *Out of
+  scope* note on free-form docking is **corrected rather than deleted**: half its reasoning ("a poor fit
+  for the per-frame GPU repaint loop") was really "the Stage cannot move", and what actually remains
+  single-instance is `Simulator3D` and `TimelinePanel` — two elements, not the whole shell.
+- **Phase 1 is code-complete; C1 (rig checkpoint) is open.** Smoke-tested against a real 66 KB project
+  (2 surfaces, 2 fixtures, 6 scenes, 23 assets, enabled 6-state machine): **4345 ArtDmx packets on
+  universes 0–3**, 60 Hz native / 61 fps renderer, a full nine-context tour with output never dropping,
+  and headless verified with no view mounted at all. **What still needs a human and hardware:** the
+  packaged `ArtLux.exe` launched with no CDP port, real fixtures on the wire, and a broadcast/projector
+  run. See [plans/engine-decoupling.md](../plans/engine-decoupling.md) → tracker.
 
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
