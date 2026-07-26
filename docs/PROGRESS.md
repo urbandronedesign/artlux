@@ -695,6 +695,20 @@ incident here was GPU/decode/IO and never React. Canonical plan, WP tracker and 
   MP4/WebCodecs, images, DMX-in, HAP. **Unexercised for want of a source on this machine: Spout** (no
   sender), **NDI** (no source), and **camera pixels** (no working camera). Those three are what C2 is
   for. See [plans/engine-decoupling.md](../plans/engine-decoupling.md) → tracker.
+- **WP-3.1 — a direct road from the engine to the wire** (`dc01ad9`). Main opens a `MessageChannelMain`
+  on every load and hands one end to the renderer (the **projector-port recipe**: preload relays it with
+  `window.postMessage`, because a port cannot cross the contextBridge). Packed universes travel that port
+  instead of `ipcRenderer`, so once the engine leaves the main thread it can keep sending without hopping
+  back onto it. Payload is **identical** to `IPC.FRAME` (`encodeFrame` output) — a second road to the
+  same door, not a second protocol — and a missing port **falls back to IPC**. ⚠ **The finding, and the
+  reason this took a while:** `postMessage(buf, [buf])` — the standard zero-copy idiom, perfectly legal
+  on a DOM MessagePort — **does not work across Electron renderer→main**. The message *arrives* (the
+  handler fires, on time, every frame) but **`e.data` is `null`**. No error, no warning, nothing in
+  either console: a steady stream of empty messages and a venue with no output, while every gate you
+  would suspect reports healthy — transport ready, port alive, renderer at 61 fps. Frames are now copied
+  (539 bytes at a 44 Hz cap) and a guard prevents the "optimisation" back to transfer, which would
+  silently kill the show. **Verified on the wire:** 834 ArtDmx packets, 274 distinct channel-sums, native
+  63 Hz, renderer 61 fps.
 
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
