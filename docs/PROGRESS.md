@@ -636,6 +636,21 @@ incident here was GPU/decode/IO and never React. Canonical plan, WP tracker and 
   the shipped app shows nothing. (Benign packaged log lines: `nvwarp NVAPI unavailable` on a non-pro GPU,
   and `app-update.yml ENOENT`, which only exists in a full installer build.)
   See [plans/engine-decoupling.md](../plans/engine-decoupling.md) → tracker.
+- **WP-2.1 — WebCodecs is the default `.mp4` decoder, and a codec stopped claiming files it cannot
+  decode** (`1bbbf4d`). Flipping `mp4WebCodecs` to default-on was the small half. `mp4Decoder.open()`
+  proved only that **mp4box could demux** the container — it never asked whether WebCodecs could
+  **decode** the track. An HEVC profile or a 10-bit pixel format demuxes perfectly and then fails at
+  `configure()`, which surfaces far away as a console warning and **no frames** — by which point the host
+  has handed the file to the codec and dropped the `<video>` that would have played it. The surface goes
+  **black while the app reports it is playing**: the exact "UI claims something the engine is not doing"
+  shape this repo kills on sight, and a foot-gun that would have become everyone's default. `open()` now
+  asks **`VideoDecoder.isConfigSupported()`**, so the three fallbacks that already existed and were
+  already correct finally get reached. **Verified on the wire** (not by inspection): purpose-built
+  project, `tears_of_steel.mp4` on a surface, 60-LED fixture, headless with a UDP listener on universe 0
+  — WebCodecs on gives **1301/1503 frames carrying light, peak channel 112, 351 distinct channel-sums**
+  (a picture that moves); forced back to `<video>`, 1069/1281 and 283 sums. Both light the fixture, which
+  is what makes the escape hatch worth keeping. `.mov` was deliberately **not** widened into — that
+  extension belongs to HAP.
 
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
