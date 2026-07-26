@@ -179,7 +179,7 @@ style), so features become self-contained first-party plugins. Shipped: `plugins
 `plugins/ndi`, `plugins/calibration` (fully inverted through Stage 3 — engine, host-services,
 back-channel, wizards, pose orchestration, projector-panel rendering; App/ProjectorApp import zero
 calibration code), `plugins/spout` (Windows Spout receive), `plugins/hap` (HAP video codec — the first
-`VideoCodec` contribution), `plugins/mp4` (GPU WebCodecs MP4 decode, opt-in via `mp4WebCodecs`), `plugins/mediapipe`
+`VideoCodec` contribution), `plugins/mp4` (GPU WebCodecs MP4 decode, **on by default**; `mp4WebCodecs` turns it off), `plugins/mediapipe`
 (camera-based BlazePose tracking — a webcam pose *tracking source*, WASM in-renderer; see
 [docs/MEDIAPIPE.md](docs/MEDIAPIPE.md)), and `plugins/augmenta` (Augmenta box optical tracking — an OSC v2
 *tracking source* sharing the host OSC listener, renderer-only; see [docs/AUGMENTA.md](docs/AUGMENTA.md)),

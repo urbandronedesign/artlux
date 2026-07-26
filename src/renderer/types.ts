@@ -1195,8 +1195,12 @@ export interface AppSettings {
   // Help panel
   helpLang: 'en' | 'fr'; // language for the bilingual Help panel + contextual hints
   // Video decode
-  mp4WebCodecs?: boolean; // decode .mp4/.m4v via the WebCodecs plugin (frame-accurate; no HW-session cap)
-                          // instead of the default <video> element. Off by default → unchanged behaviour.
+  // Decode .mp4/.m4v via the WebCodecs plugin (frame-accurate seeking; no hardware-session cap) rather
+  // than a <video> element. DEFAULT ON (absent ⇒ true): the <video> element caps how many decoders run
+  // at once, which a timeline-heavy show hits, and WebCodecs hands back VideoFrames the engine can use
+  // directly. Set false to force every .mp4 back onto a <video> — the escape hatch, not the norm.
+  // A file WebCodecs cannot configure declines at probe time and falls back on its own (mp4Decoder.open).
+  mp4WebCodecs?: boolean;
   // Cold start: how long the show waits for its opening content to decode before the state machine is
   // armed anyway (services/bootGate). The gate ALWAYS fails open — this is how much patience a venue
   // has for a missing/slow asset, not whether it waits forever. Absent ⇒ 15s. MACHINE-scoped like

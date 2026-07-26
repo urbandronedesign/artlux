@@ -8,7 +8,7 @@ first-party codecs ship today; the default `<video>` element handles everything 
 | Codec | Plugin | Formats | Path |
 |---|---|---|---|
 | **HAP** | `@artlux/plugin-hap` | HAP / HAP Q / HAP Alpha in `.mov` (**not** HAP Q Alpha) | native decode (main) → **WebGL2 BC-decompress** on the GPU (renderer) |
-| **MP4 / WebCodecs** | `@artlux/plugin-mp4` | `.mp4`/`.m4v` (H.264/H.265) | **WebCodecs** decode + `mp4box` demux, **renderer-only**, **opt-in** |
+| **MP4 / WebCodecs** | `@artlux/plugin-mp4` | `.mp4`/`.m4v` (H.264/H.265) | **WebCodecs** decode + `mp4box` demux, **renderer-only**, **on by default** |
 | *(default)* | — (host) | any browser-playable video | HTML `<video>` element |
 
 ## HAP (`@artlux/plugin-hap`)
@@ -69,11 +69,21 @@ any future `.mov` codec should inherit both:
 Frame-accurate `.mp4` decode via the browser **WebCodecs** API + `mp4box` demux — an alternative to the
 default `<video>` element.
 
-- **Opt-in:** enable **`mp4WebCodecs`** in Preferences (the `AppSettings.mp4WebCodecs` flag). Off by
-  default → `.mp4` uses the normal `<video>` element (unchanged behaviour).
-- **Why turn it on:** **frame-accurate** seeking/scrubbing and **no hardware-session cap** — the
-  `<video>` element limits how many decoders run at once; WebCodecs lets many layers/clips decode
-  independently. Good for timeline-heavy shows.
+- **On by default** (`AppSettings.mp4WebCodecs`, absent ⇒ true). Why: **frame-accurate** seeking and
+  **no hardware-session cap** — the `<video>` element limits how many decoders run at once, which a
+  timeline-heavy show hits, while WebCodecs lets many layers/clips decode independently and hands back
+  `VideoFrame`s the engine can use directly.
+- **Turning it off** (Preferences ▸ Video) forces every `.mp4` back onto a `<video>` element for the
+  whole machine. It is an escape hatch, not the thing that protects you from a bad file — see below.
+- **A file it cannot decode declines itself.** `open()` asks **`VideoDecoder.isConfigSupported()`**
+  before claiming the file, because demuxing and decoding are different questions: an HEVC profile or a
+  10-bit pixel format demuxes perfectly through `mp4box` and then fails at `configure()`. That failure
+  surfaces far away — a console warning and no frames — by which point the host has handed the file to
+  the codec and dropped the `<video>` that would have played it, so the surface goes **black while the
+  app reports it is playing**. Declining at probe time instead lets the existing fallbacks work:
+  surfaces revert to a `<video>` (`contentSource`), timeline layers to `syncVideoLayer`, thumbnails to
+  the video queue. **This check is what made defaulting the codec on safe**, and `verify:invariants`
+  asserts both that it is called and that its result decides the answer.
 - **Renderer-only** (no native addon) and a **single module identity** so its decoder/clock singletons
   aren't duplicated.
 
@@ -114,5 +124,5 @@ dispatch needs no probe-order work (that only mattered for a second `.mov` codec
 | Path | Role |
 |---|---|
 | [`plugins/hap/`](../plugins/hap/) | HAP codec (native decode + WebGL2 BC-decompress) |
-| [`plugins/mp4/`](../plugins/mp4/) | MP4/WebCodecs codec (renderer-only, opt-in) |
+| [`plugins/mp4/`](../plugins/mp4/) | MP4/WebCodecs codec (renderer-only, on by default) |
 | `src/renderer/host/registries.ts` | `videoCodecRegistry` (where codecs register) |

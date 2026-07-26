@@ -2700,8 +2700,10 @@ const App: React.FC = () => {
     timelineEngine.recompileAutomation(); // providers only exist now — anything compiled before this saw no namespaces
   }, [pluginHost]);
   // Tell the calibration plugin which output its board-pose pairing targets (the one being calibrated).
-  // Gate the WebCodecs MP4 decoder on its setting (off → .mp4 keeps using the default <video>).
-  useEffect(() => { mp4SetEnabled(settings.mp4WebCodecs ?? false); }, [settings.mp4WebCodecs]);
+  // The WebCodecs MP4 decoder is ON unless the operator turns it off. A file it cannot configure
+  // declines at probe time and the host hands it back to a <video>, so the setting is an escape hatch
+  // for a whole machine rather than the thing that keeps a bad file playing.
+  useEffect(() => { mp4SetEnabled(settings.mp4WebCodecs ?? true); }, [settings.mp4WebCodecs]);
   // OSC: subscribe the controller to forwarded messages once; (re)bind the UDP listener and refresh
   // the control namespace whenever the OSC settings change. Control intents flow back through the
   // subscribeIntent path above; LiDAR blob data lands in the tracking store.

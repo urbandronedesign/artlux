@@ -109,7 +109,26 @@ class FileDecoder {
         file.setExtractionOptions(track.id, null, { nbSamples: track.nb_samples });
         file.start();
         file.flush(); // drain remaining samples synchronously
-        done(this.samples.length ? this.info : null);
+        if (!this.samples.length) return done(null);
+
+        // ASK THE DECODER BEFORE CLAIMING THE FILE.
+        //
+        // Everything above only proves mp4box can DEMUX the container. Whether WebCodecs can actually
+        // decode this track is a different question — an HEVC profile, a 10-bit pixel format or an
+        // exotic level can demux perfectly and then fail at configure(). That failure surfaces far away
+        // (seekSegment logs a warning and returns), by which point the host has already handed this
+        // file to the codec and torn down the <video> that would have played it: the surface just goes
+        // black, silently, and the app claims to be playing something it is not.
+        //
+        // Declining here instead makes the existing fallbacks do their job — a false probe sends
+        // surfaces back to a <video> element (contentSource), timeline layers to syncVideoLayer, and
+        // thumbnails to the video queue. This became load-bearing when WebCodecs stopped being opt-in.
+        void VideoDecoder.isConfigSupported(this.cfg!)
+          .then((s) => {
+            if (!s.supported) console.info('[mp4] declining', path, '— WebCodecs cannot configure', this.cfg!.codec);
+            done(s.supported ? this.info : null);
+          })
+          .catch(() => done(null)); // a malformed config throws rather than resolving unsupported
       };
 
       (buf as ArrayBuffer & { fileStart?: number }).fileStart = 0;

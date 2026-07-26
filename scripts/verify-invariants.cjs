@@ -911,6 +911,35 @@ check(
   },
 );
 
+// ── A codec must not claim a file it cannot decode ────────────────────────────────────────────
+check(
+  'the mp4 codec asks the decoder before claiming a file',
+  'mp4Decoder.open() proves only that mp4box can DEMUX the container. Whether WebCodecs can decode the ' +
+  'track is a separate question — an HEVC profile or a 10-bit pixel format demuxes perfectly and then ' +
+  'fails at configure(), which surfaces far away as a console warning and no frames. By then the host ' +
+  'has handed the file to the codec and dropped the <video> that would have played it, so the surface ' +
+  'goes BLACK while the app reports it is playing. Declining at probe time is what lets the existing ' +
+  'fallbacks do their job (contentSource → <video>, timeline → syncVideoLayer, thumbnails → video ' +
+  'queue), and it is what made defaulting WebCodecs ON safe.',
+  () => {
+    const src = stripComments(read('plugins/mp4/src/mp4Decoder.ts'));
+    if (!/VideoDecoder\.isConfigSupported\(/.test(src)) {
+      return 'mp4Decoder.ts must call VideoDecoder.isConfigSupported( before reporting a file openable';
+    }
+    // It must gate the RESULT, not merely be called. Match the RESOLUTION, not any mention of
+    // `supported` — the first version of this check accepted a build where the flag was only logged
+    // (`if (!s.supported) console.info(...)`) while open() resolved successfully regardless, which is
+    // precisely the bug the guard exists for.
+    const gatesResult =
+      /done\([^;]*\.supported[^;]*\)/.test(src) ||                       // done(s.supported ? info : null)
+      /\.supported\s*\)[^;]*\breturn\b[^;]*done\(\s*null\s*\)/.test(src); // if (!s.supported) return done(null)
+    if (!gatesResult) {
+      return "isConfigSupported() is called but its `supported` flag never decides what open() resolves to";
+    }
+    return null;
+  },
+);
+
 check(
   'the startup splash never opens in headless or broadcast mode',
   'Broadcast is the WATCHDOG\'S RELAUNCH MODE: an unattended venue PC self-heals into it, mid-show, with ' +

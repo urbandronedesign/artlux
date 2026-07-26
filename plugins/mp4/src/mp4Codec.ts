@@ -2,10 +2,16 @@ import type { VideoCodecContribution } from '@artlux/sdk/renderer';
 import * as dec from './mp4Decoder';
 
 // The MP4 VideoCodec — frame-accurate H.264/H.265 via the GPU-accelerated WebCodecs decoder
-// (mp4Decoder). OPT-IN: `enabled` is pushed from the mp4WebCodecs setting; while off, canDecode
-// returns false so every .mp4 keeps using the default <video> element (unchanged behaviour).
+// (mp4Decoder). DEFAULT ON: `enabled` is pushed from the mp4WebCodecs setting, which is now absent ⇒
+// true; turning it off forces every .mp4 back onto a <video> element for the whole machine.
+//
+// Claiming a file is not the same as being able to decode it. mp4Decoder.open() asks
+// VideoDecoder.isConfigSupported() before saying yes, so a track WebCodecs cannot configure declines
+// at probe time and the host's existing fallbacks take over — surfaces revert to a <video>, timeline
+// layers to syncVideoLayer, thumbnails to the video queue. That check is what made defaulting this on
+// safe; without it an unsupported profile demuxed fine and then produced no frames at all.
 
-let enabled = false;
+let enabled = false; // until the setting is pushed on boot — see App's mp4SetEnabled effect
 export function setEnabled(on: boolean): void { enabled = on; }
 
 // Surface playback clock (free-running; paused via setPlaying) — mirrors hapPlayer's monotonic clock.

@@ -11,9 +11,12 @@ export const VideoSettings: React.FC<{ settings: unknown; onChange: (patch: Part
   return (
     <Toggle
       label="GPU MP4 decode (WebCodecs)"
-      checked={s.mp4WebCodecs ?? false}
+      // Default ON. The toggle is the escape hatch for a whole machine — it is NOT what protects you
+      // from an unplayable file: one WebCodecs cannot configure declines at probe time and the host
+      // hands it back to a <video> on its own.
+      checked={s.mp4WebCodecs ?? true}
       onChange={(v) => onChange({ mp4WebCodecs: v })}
-      title="Decode .mp4/.m4v with the hardware WebCodecs decoder (frame-accurate, no video-session cap) instead of the default <video> element. Restart playback after toggling."
+      title="Decode .mp4/.m4v with the hardware WebCodecs decoder — frame-accurate seeking and no video-session cap. On by default; turn it off to force every .mp4 back onto a <video> element. Restart playback after toggling."
     />
   );
 };
