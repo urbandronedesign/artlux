@@ -651,6 +651,22 @@ incident here was GPU/decode/IO and never React. Canonical plan, WP tracker and 
   (a picture that moves); forced back to `<video>`, 1069/1281 and 283 sums. Both light the fixture, which
   is what makes the escape hatch worth keeping. `.mov` was deliberately **not** widened into — that
   extension belongs to HAP.
+- **WP-2.2 — images decode to `ImageBitmap`, the camera reads `VideoFrame`s** (`0ecc0da`). Both were DOM
+  elements pretending to be pictures, and both are the things that cannot follow the engine off the main
+  thread. `getUserMedia` still runs in the window (it needs the permission context), but what comes back
+  is a **`MediaStreamTrackProcessor`** frame stream rather than a player. Both new kinds are
+  `CanvasImageSource` and `drawableSize` already duck-typed `displayWidth`/`width`, so every consumer and
+  the whole slice/crop path took them unchanged. **The real work was ownership:** an `ImageBitmap` holds
+  GPU memory the collector won't hurry to reclaim, and a `VideoFrame` pins a decoder buffer — leak a few
+  and the camera stalls outright — and **neither failure looks like anything on screen** (the picture is
+  fine, the memory climbs). So the drop path closes bitmaps, the pump closes the frame it replaces,
+  `stopCamera` closes the held one, and a decode superseded mid-flight closes its own result.
+  Invariant-guarded, because none of it is visible when it breaks. **Verified on the wire:** a still on a
+  surface, 60-LED fixture, headless + UDP listener — 1923/1929 frames carrying light, exactly **2**
+  distinct channel-sums (what a *still* should give), RSS flat. ⚠ **Camera pixels are UNVERIFIED**: this
+  machine has no working camera (5 video inputs enumerated, none deliver frames), confirmed as the
+  machine and not the change by an A/B against HEAD, which is equally black. The `<video>` path remains
+  an automatic fallback where the processor is unavailable.
 
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
