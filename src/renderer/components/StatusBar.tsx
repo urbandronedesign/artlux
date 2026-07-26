@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { telemetry } from '../services/telemetry';
 import { PanelLeft, PanelRight, Activity, Wifi, Workflow, Hourglass } from 'lucide-react';
 import { helpBus, help as helpTip, type HelpText, type HelpLang } from '../services/helpBus';
 import { Tooltip } from './ui/Tooltip';
@@ -13,9 +14,10 @@ import { StateMachine } from '../types';
 interface Props {
   help: string;
   lang: HelpLang;
-  renderFps: number;
   connected: boolean;
-  outputStats: { pps: number; fps: number; universes: number } | null;
+  // renderFps + outputStats are deliberately NOT props: they tick once a second, and taking them from
+  // App made every App render (and therefore every panel, viewport and the 3D scene) rebuild twice a
+  // second at idle. They are read from services/telemetry below, so only this bar re-renders for them.
   leftOpen: boolean;
   onToggleLeft: () => void;
   rightOpen: boolean;
@@ -90,7 +92,8 @@ const BootChip: React.FC = () => {
   );
 };
 
-export const StatusBar: React.FC<Props> = ({ help, lang, renderFps, connected, outputStats, leftOpen, onToggleLeft, rightOpen, onToggleRight, targetIp, stateMachine }) => {
+export const StatusBar: React.FC<Props> = ({ help, lang, connected, leftOpen, onToggleLeft, rightOpen, onToggleRight, targetIp, stateMachine }) => {
+  const { renderFps, outputStats } = useSyncExternalStore(telemetry.subscribe, telemetry.get);
   const [hint, setHint] = useState<HelpText | null>(null);
   useEffect(() => helpBus.subscribe(setHint), []);
 

@@ -36,6 +36,7 @@ import { sendArtNetFrame, configureOutput, addStatusListener } from './services/
 import { dmxSignal } from './services/dmxSignal';
 import { perfMonitor } from './services/perfMonitor';
 import { uiPerfMonitor } from './services/uiPerfMonitor';
+import { telemetry } from './services/telemetry';
 import { UiProfiler } from './components/UiProfiler';
 import { getDrawable, getDrawableGeneration, resolveSource } from './services/surfaceMedia';
 import { timeline as timelineEngine, GLOBAL_POOL } from './services/timeline';
@@ -437,8 +438,9 @@ const App: React.FC = () => {
   useEffect(() => { timelineEngine.recompileAutomation(); }, [audioMix]);
 
   const [isBridgeConnected, setIsBridgeConnected] = useState(false);
-  const [outputStats, setOutputStats] = useState<{ pps: number; fps: number; universes: number } | null>(null);
-  const [fps, setFps] = useState(0);
+  // renderFps and outputStats are NOT App state — they are 1 Hz telemetry for one corner of the status
+  // bar, and holding them here re-rendered the whole editor twice a second while idle. They live in
+  // services/telemetry; StatusBar subscribes. See the note in that file before moving them back.
   const frameCount = React.useRef(0);
   const lastTime = React.useRef(performance.now());
   // Renderer frame-time metrics live in the Performance dock tab (editor only). Broadcast has no chrome
@@ -449,7 +451,7 @@ const App: React.FC = () => {
     const unsubscribe = addStatusListener((status) => {
         setIsBridgeConnected(status);
     });
-    const unsubStats = window.artlux?.onDmxStats?.(setOutputStats);
+    const unsubStats = window.artlux?.onDmxStats?.((s) => telemetry.setOutputStats(s));
     return () => {
         unsubscribe();
         unsubStats?.();
@@ -522,7 +524,7 @@ const App: React.FC = () => {
     const loop = (time: number) => {
       frameCount.current++;
       if (time - lastTime.current >= 1000) {
-        setFps(frameCount.current);
+        telemetry.setRenderFps(frameCount.current);
         frameCount.current = 0;
         lastTime.current = time;
         // Renderer frame-time baseline (~1 Hz): push to Prometheus (broadcast/headless have no HUD)
@@ -3602,9 +3604,7 @@ const App: React.FC = () => {
           help={contextRegistry.get(L.activeContext)?.hint?.[settings.helpLang]
             ?? 'Map content onto surfaces, then patch fixtures. Open the 3D Scene for venue layout.'}
           lang={settings.helpLang}
-          renderFps={fps}
           connected={isBridgeConnected}
-          outputStats={outputStats}
           leftOpen={showLeftPanel}
           onToggleLeft={() => setShowLeftPanel(!showLeftPanel)}
           rightOpen={showRightPanel}

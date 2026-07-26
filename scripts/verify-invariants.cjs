@@ -284,6 +284,34 @@ check(
   },
 );
 
+// ── App holds no clock of its own ─────────────────────────────────────────────────────────────
+check(
+  'per-second telemetry never lives in App state',
+  'App owns every piece of document state, so ONE of its renders reconciles the whole editor: every ' +
+  'useEditor() panel, all five persistent viewports, Stage, the 3D scene and the timeline. renderFps ' +
+  'and the pacer\'s outputStats are two numbers drawn in one corner of the status bar, and holding ' +
+  'them as App state rebuilt that entire tree twice a second, forever, while completely idle ' +
+  '(measured: 6 viewport commits per idle second → 0 once they moved out). They live in ' +
+  'services/telemetry; only the status bar subscribes.',
+  () => {
+    const app = stripComments(read('src/renderer/App.tsx'));
+    const bar = stripComments(read('src/renderer/components/StatusBar.tsx'));
+    const problems = [];
+    // Assert the CALL, and exclude the store's own setters: `setOutputStats(` is a SUBSTRING of
+    // `telemetry.setOutputStats(`, so a naive match flags the very code that fixes this.
+    if (/(?<![\w.])setFps\(/.test(app) || /(?<![\w.])setOutputStats\(/.test(app)) {
+      problems.push('App.tsx still setStates a per-second counter (setFps/setOutputStats) — that is a whole-editor re-render per tick');
+    }
+    if (!/telemetry\.setRenderFps\(/.test(app) || !/telemetry\.setOutputStats\(/.test(app)) {
+      problems.push('App.tsx must push renderFps + outputStats into services/telemetry');
+    }
+    if (!/useSyncExternalStore\(\s*telemetry\.subscribe/.test(bar)) {
+      problems.push('StatusBar.tsx must read telemetry via useSyncExternalStore(telemetry.subscribe, …)');
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Stage: a geometry drag is local until it is released ──────────────────────────────────────
 check(
   'stage drags commit on release, not per pointer move',
