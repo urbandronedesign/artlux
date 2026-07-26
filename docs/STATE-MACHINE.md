@@ -424,8 +424,8 @@ Two consequences worth knowing:
 
 - The sign is **DOM**, so an **NDI send** of that output carries the black, not the words. That is the
   right way round: an NDI consumer is another machine's input, not a person to be told things.
-- **The LED output is not held.** `Stage` keeps sampling and publishing `dmx:frame` throughout — that is
-  a hard invariant (unmounting it stops Art-Net mid-show) — so fixtures show whatever the surfaces have
+- **The LED output is not held.** The frame engine keeps sampling and publishing `dmx:frame` throughout
+  (it runs on its own loop, independent of any component) — so fixtures show whatever the surfaces have
   during the wait, usually the opening frame or black. Blanking them for the hold would be a one-line
   change on the compositor's master brightness, deliberately not taken: it changes the most
   safety-critical path in the app for a case nobody has yet asked to be dark.

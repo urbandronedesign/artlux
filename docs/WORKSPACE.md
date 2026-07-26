@@ -297,13 +297,22 @@ A menu action still reaches any of them: `dispatchMenu` resolves the action to w
 declares it and either toggles it (modal) or switches to the owning context and selects its tab
 (dock). Nothing had to change in the menus when a panel moved.
 
-### Two constraints the shell must respect
+### The constraint the shell must respect
 
-1. **`Stage` must never unmount** — it owns the per-frame GPU sampling that publishes `dmx:frame`, so
-   unmounting it stops Art-Net mid-show.
-2. **Exactly one `TimelinePanel`** — two instances double its keyboard hook and engine subscription.
+**Exactly one `TimelinePanel`** — two instances double its keyboard hook and its engine subscription.
 
-Both are handled the same way: App mounts these as **persistent viewport elements** and passes them to
+> ⚠ **This list used to start with "`Stage` must never unmount", and that rule is gone.** It was true for
+> a real reason: the frame loop lived in a `Stage` effect and bailed out if its container or canvas ref
+> was empty, so unmounting the component stopped Art-Net mid-show. The loop now lives in
+> `engine/frameEngine.ts`, starts itself when its module loads, and reads no DOM at all — the Stage lends
+> it a canvas to draw the preview into and nothing more. Deleting the Stage's canvas *and* container out
+> of a running app leaves output at 61 Hz, unbothered. Everything below about fixed tree positions is
+> therefore now about **preserving viewport state** (zoom, scroll, selection) and about the timeline's
+> single-instance rule — not about keeping the show alive. **This is what makes free-form docking
+> tractable**, and it is why [the out-of-scope note](#out-of-scope) is being revisited: see
+> [plans/engine-decoupling.md](../plans/engine-decoupling.md).
+
+`Stage` and `TimelinePanel` are mounted by App as **persistent viewport elements** and passed to
 the shell, which places each one at a **fixed position** in its tree and only changes CSS width/visibility.
 A React element can exist at one position only, so viewports never "move" between panes — `scene3d` is
 permanently the RIGHT pane, everything else the LEFT pane, and contexts only change the two widths. Split
@@ -386,8 +395,10 @@ npm run verify          # invariant guards + typecheck — the normal loop
 npm run verify:invariants   # just the guards (reads source, instant)
 ```
 
-`scripts/verify-invariants.cjs` — eleven checks, each carrying the bug it came from and printing **why**
-it matters when it fires:
+`scripts/verify-invariants.cjs` — every check carries the bug it came from and prints **why** it matters
+when it fires. The shell/engine-related ones are below; the file holds the rest (cold start, transport,
+FSM, packaging, a11y floors). Counting them here has gone stale twice, so it no longer says a number —
+run `npm run verify:invariants` for the current list.
 
 | Guard | The bug it prevents |
 |---|---|
@@ -398,7 +409,10 @@ it matters when it fires:
 | context switches go through `goToContext()` | a direct `setContext` drops `layoutRev`, and a shipped layout never reaches an operator |
 | the `scene3d` viewport id is declared once | a drifted copy mounts `Simulator3D` in both panes |
 | one `<Simulator3D>` mount site | two WebGL contexts, visible only as halved frame rate |
-| `Stage` / `TimelinePanel` mounted once | `Stage` publishes `dmx:frame`; two timelines double its keyboard hook and engine subscription |
+| `TimelinePanel` mounted once | two timelines double its keyboard hook and its engine subscription. (The `Stage` half of this guard was **removed** once the frame loop left the component — output no longer depends on it being mounted) |
+| the frame loop is owned by the engine, not a component or a canvas | put the rAF back in a component, or re-add an `if (!canvas) return` at the top of the loop, and Art-Net silently becomes a property of whether some React element happens to be mounted — which is how "Stage must never unmount" came to shape this entire document |
+| the engine owns the GPU mapper and the wire, and the show modes mount no view | the mapper was built by a component effect, sending Art-Net was a `dmxSignal` subscriber in `App`, and headless mounted a hidden 1×1 `Stage`. All three made output a consequence of the UI existing |
+| `engine/` never imports React | one hook dragged in there rebuilds the coupling by the back door |
 | every referenced context id still exists | removing a context breaks four things and none of them raise: `goToContext` no-ops, `extend()` queues its patch forever (a plugin's dock tabs never appear), a `CONTEXT_MENU_ITEMS` entry does nothing, a stale `RETIRED_CONTEXTS` target leaves the rail unselected |
 | every context declares all four visibility flags | an omitted banked key silently keeps the outgoing context's value — `bottomOpen` behaved as a global |
 | `EditorData` is memoized | rebuilt per render it re-renders every panel and closes native `<select>` popups |
@@ -414,10 +428,23 @@ Two things learned writing them, worth keeping if you add more:
 **Verify the guard itself fails.** Break the invariant on purpose, confirm the check fires, then restore.
 A guard that cannot fail is worse than none — it reads as coverage.
 
-## Out of scope
+## Out of scope — and what changed underneath it
 
 Full free-form docking (drag-to-rearrange, split trees, tabbed groups) and tear-off panel windows were
 **deliberately not built** — high cost/maintenance and a poor fit for the per-frame GPU repaint loop +
 reparenting the WebGPU/WebGL panels. See [ROADMAP.md](ROADMAP.md). If tear-off is ever wanted, the
 projector subsystem (`src/main/projector.ts` + the preload MessagePort forwarding) is the proven recipe:
 a keyed `BrowserWindow` map + a new `*.html` entry + a typed bridge.
+
+> **Half of that reasoning has expired.** "A poor fit for the per-frame GPU repaint loop" was really a
+> statement about the *Stage*: the loop lived inside it, so the viewport could not be moved, unmounted or
+> duplicated without stopping Art-Net, and every layout idea had to be built around that one element.
+> The loop is now in `engine/frameEngine.ts` and reads no DOM, so the 2D stage is an ordinary view. What
+> genuinely remains single-instance is `Simulator3D` (one WebGL context) and `TimelinePanel` (one
+> keyboard hook, one engine subscription) — two elements, not the whole shell.
+>
+> A docking design that accounts for that is drafted in
+> [plans/engine-decoupling.md](../plans/engine-decoupling.md) §8 (a per-context split/tab tree compiled
+> from the existing flat manifests, with the remaining persistent viewports positioned over placeholders
+> rather than reparented). Nothing is built yet; this note exists so the paragraph above is not read as a
+> live decision when its main premise no longer holds.

@@ -33,9 +33,24 @@ over scenes/cues, OSC control, and a 3D simulator. Stack: Electron · React 19 �
   plugin* rather than core — see [Plugin architecture](#plugin-architecture) below and [PLUGINS.md](PLUGINS.md).
 
 ## Frame pipeline (renderer → hardware)
-Per animation frame, `components/Stage.tsx` `tick()`:
-1. **Composite preview** — draws every surface's content into the 512² preview canvas (z-order), for
-   the on-screen preview (and the WebGL fallback's sampling source).
+Owned by **`engine/frameEngine.ts`**, a module singleton that starts its own `requestAnimationFrame`
+when it loads and holds no reference to the view. Inputs arrive as one struct (`setInputs`), pushed by
+`App` — which owns the document — and the engine diffs them to decide what a change invalidates
+(moving a fixture rebuilds the GPU LED buffers; changing its intensity only re-uploads params).
+
+> **It is not part of the UI, and this is load-bearing.** The loop used to live in a `Stage` effect and
+> bailed out if the container or canvas ref was empty, so Art-Net stopped whenever that component went
+> away — which is why the codebase carried a "Stage must never unmount" rule and why the workspace had
+> to be built around a viewport that could not move. Nothing in the loop reads the DOM now: `Stage` may
+> unmount, remount or be hidden by a context switch, and the show does not notice. Verified by deleting
+> the Stage's canvas and container out of a running app while output held 61 Hz.
+> Guarded by `verify:invariants`; history in [plans/engine-decoupling.md](../plans/engine-decoupling.md).
+
+Per frame:
+1. **Composite** — draws every surface's content into the engine's **own** 512² canvas (z-order). On the
+   WebGL fallback that canvas *is* the sampling source; on the WebGPU path it feeds only the operator's
+   picture, and is skipped entirely when nothing is showing it. The visible Stage canvas is a **blit** of
+   it — lent to the engine, cosmetic, never load-bearing.
 2. **Per-surface GPU sampling** (WebGPU) — `WebGPUMapper.renderSurfaces()` runs one compute pass per
    surface: it uploads that surface's drawable into the source texture and dispatches only the LEDs
    linked to it (`ledMeta.w == activeSurface`), sampling at **surface-local UVs**. Output buffer is
@@ -45,8 +60,15 @@ Per animation frame, `components/Stage.tsx` `tick()`:
    arrays applying **color order** + **gamma LUT** + **channels-per-pixel** (RGB/RGBW), spanning the
    512 boundary as needed. Destinations are resolved per fixture from its **controller** → per-fixture
    `output` override → global settings, keyed by `${protocol}|${ip}|${broadcast}`.
-4. **Publish** — `dmxSignal.publish(pixels, destinations)`; `App` subscribes and calls
-   `window.artlux.sendArtNet(encodeFrame(targets))` → IPC `dmx:frame` → main → `outputManager`.
+4. **Publish** — `dmxSignal.publish(pixels, destinations)` for the in-app consumers (DMX monitor, the
+   3D scene, the lighting recorder), then straight onto the wire:
+   `window.artlux.sendArtNet(encodeFrame(targets))` → IPC `dmx:frame` → main → `outputManager`. Sending
+   is the last step of a frame, not a subscriber somebody registers — it used to be a `dmxSignal`
+   listener inside `App`, which made putting frames on the wire something the document opted into.
+
+**Show modes render nothing.** `--headless` / `--broadcast` return `null` from `App` and still output:
+the engine runs regardless. (They used to mount a hidden 1×1 `Stage` — a venue machine rendering a React
+viewport in an invisible one-pixel box so that DMX would come out.)
 
 ## GPU mapper (`src/renderer/gpu/WebGPUMapper.ts`)
 A WGSL compute shader samples a source texture per LED by normalized UV (so drawing content
@@ -91,8 +113,10 @@ state and every mutation**. Core registers **nine contexts** (Mapping, Venue & R
 Calibration, Scenes & Cues, Show Machine, Audio, Show, Preferences). The **timeline is not one of them**:
 it is a full-width **bottom drawer** (`Ctrl+T`) that eight of the nine can pull up, because it is a tool
 you want *while* working in a viewport, not a place you travel to. `Stage` and the single `TimelinePanel`
-are **persistent viewport elements** hidden with CSS, never unmounted (unmounting `Stage` stops
-`dmx:frame` mid-show). Canonical: [WORKSPACE.md](WORKSPACE.md).
+are **persistent viewport elements** hidden with CSS rather than unmounted — for the timeline that is a
+hard rule (two instances double its keyboard hook and engine subscription); for the Stage it is now only
+about keeping its viewport state, since the frame loop left the component and output no longer depends on
+it being mounted. Canonical: [WORKSPACE.md](WORKSPACE.md).
 
 ## Show model — timeline · scenes · state machine
 Above the surfaces/output engine sits the **show model**, three layers core persists in `ProjectData`:

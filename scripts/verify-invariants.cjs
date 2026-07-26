@@ -257,19 +257,42 @@ check(
 
 // ── Shell: the engine-critical viewports ──────────────────────────────────────────────────────
 check(
-  'Stage and TimelinePanel are mounted exactly once',
-  'Two TimelinePanels double its keyboard hook and its engine subscription — that half is unchanged. ' +
-  'The Stage half no longer means what it used to: since the frame loop moved into engine/frameEngine ' +
-  'and lost its DOM gates, unmounting the Stage does NOT stop Art-Net. It is still asserted because a ' +
-  'second Stage would fight over the preview canvas and the drag handlers, but it is a tidiness rule ' +
-  'now, not a show-critical one. (WP-1.4 revisits it.)',
+  'TimelinePanel is mounted exactly once',
+  'Two TimelinePanels double its keyboard hook and its engine subscription, so one keypress seeks twice ' +
+  'and one engine event is handled twice. ' +
+  'NOTE: this guard used to cover <Stage> as well, on the grounds that unmounting it stopped Art-Net ' +
+  'mid-show. That was true while the frame loop lived inside the component; it moved to ' +
+  'engine/frameEngine.ts and lost its DOM gates, so the Stage is now an ordinary view and the ' +
+  'assertion was DELIBERATELY DROPPED rather than kept as decoration. Free-form docking may legitimately ' +
+  'want to place the 2D stage in more than one pane — see plans/engine-decoupling.md.',
+  () => {
+    const tl = walk('src/renderer').filter((f) => /<TimelinePanel[\s/>]/.test(read(f)));
+    return tl.length === 1 ? null : `<TimelinePanel> appears in ${tl.length} files: ${tl.join(', ')}`;
+  },
+);
+
+check(
+  'one engine, and it is the only thing that publishes a frame',
+  'Two FrameEngine instances would each run a rAF, each sample the GPU and each publish — the fixtures ' +
+  'would receive two interleaved streams of DMX and the symptom would be flicker nobody can place. And ' +
+  'if anything but the engine calls dmxSignal.publish(, then something outside the pipeline is claiming ' +
+  'to have produced a frame: the DMX monitor, the 3D scene and the lighting recorder all trust that call ' +
+  'as the authoritative per-frame truth.',
   () => {
     const problems = [];
-    const stage = walk('src/renderer').filter((f) => /<Stage[\s\n]/.test(read(f)));
-    // App renders Stage twice on purpose: the editor shell AND the headless/broadcast branch.
-    if (stage.length !== 1) problems.push(`<Stage> appears in ${stage.length} files: ${stage.join(', ')}`);
-    const tl = walk('src/renderer').filter((f) => /<TimelinePanel[\s/>]/.test(read(f)));
-    if (tl.length !== 1) problems.push(`<TimelinePanel> appears in ${tl.length} files: ${tl.join(', ')}`);
+    const eng = stripComments(read('src/renderer/engine/frameEngine.ts'));
+    const built = (eng.match(/new FrameEngine\(/g) || []).length;
+    if (built !== 1) problems.push(`FrameEngine is constructed ${built} times in frameEngine.ts — it is a singleton`);
+    // Nobody else may construct one either.
+    const others = walk('src/renderer')
+      .filter((f) => f !== 'src/renderer/engine/frameEngine.ts' && /new FrameEngine\(/.test(stripComments(read(f))));
+    if (others.length) problems.push(`FrameEngine constructed outside its module: ${others.join(', ')}`);
+    // Publishing is the engine's alone. (Subscribing is open to anyone — that is what the bus is for.)
+    const publishers = walk('src/renderer')
+      .filter((f) => /dmxSignal\.publish\(/.test(stripComments(read(f))));
+    if (publishers.length !== 1 || publishers[0] !== 'src/renderer/engine/frameEngine.ts') {
+      problems.push(`dmxSignal.publish( is called from: ${publishers.join(', ') || '(nowhere)'} — only the engine may`);
+    }
     return problems.length ? problems.join('; ') : null;
   },
 );

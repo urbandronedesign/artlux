@@ -219,9 +219,16 @@ DXV was considered and **dropped** (2026-07-03) — see ROADMAP.
 ## Conventions
 
 **Shell + 3D rules (each is enforced by `npm run verify:invariants` — see WORKSPACE.md for the why):**
-- **`Stage` must never unmount** — it publishes `dmx:frame`, so unmounting it stops Art-Net mid-show.
-  It and the single `TimelinePanel` are passed to the shell as *persistent viewport elements* at fixed
-  tree positions and hidden with CSS, never conditionally rendered.
+- **The frame loop is NOT in the UI.** Compositing, GPU sampling, universe packing and putting frames on
+  the wire live in `renderer/engine/frameEngine.ts` — a singleton that starts its own rAF when it loads,
+  reads no DOM, and imports no React. `App` feeds it one input struct; the `Stage` only lends it a canvas
+  to draw the preview into. **Output does not depend on any component being mounted** (headless renders
+  `null` and still outputs). Do not put a rAF back in a component, gate a frame on a ref, or send Art-Net
+  from a subscriber — all three are guarded. See [plans/engine-decoupling.md](plans/engine-decoupling.md).
+- **`Stage` and the single `TimelinePanel`** are passed to the shell as *persistent viewport elements* at
+  fixed tree positions and hidden with CSS, never conditionally rendered — for the timeline because two
+  instances double its keyboard hook and engine subscription, for the Stage to preserve its zoom/scroll/
+  selection. (The Stage half used to be show-critical; it no longer is.)
 - **One element, one position.** A persistent viewport named as a context's `bottom` renders there and
   nowhere else; two `TimelinePanel`s double its keyboard hook and engine subscription.
 - **Switch contexts only via `goToContext()`** (`contexts/nav.ts`). Calling `layoutStore.setContext`
