@@ -99,11 +99,36 @@ const renderLongFrames = new Gauge({
     registers: [register],
 });
 
+// ---- UI cost (services/uiPerfMonitor) ----
+// The gauges above say a frame landed late. These say whether the main thread was BLOCKED while it
+// did — the difference between "the GPU is behind" and "the UI stopped the thread", which until now
+// could only be argued, never read off a dashboard. Blocked time is the one to alert on in a venue:
+// while a long task runs, the frame loop does not.
+const uiBlockedMs = new Gauge({
+    name: 'artlux_ui_blocked_ms',
+    help: 'Main-thread time blocked by long (>50ms) tasks in the last second',
+    registers: [register],
+});
+const uiLongTasks = new Gauge({
+    name: 'artlux_ui_long_tasks',
+    help: 'Long (>50ms) main-thread tasks observed in the last second',
+    registers: [register],
+});
+const uiCommitMs = new Gauge({
+    name: 'artlux_ui_commit_ms',
+    help: 'React commit time in the last second (0 unless the opt-in UI profiler is enabled)',
+    registers: [register],
+});
+
 export interface RenderTimingStats {
     fps: number;
     frameP99: number;
     workP99: number;
     longFrames: number;
+    // Optional: an older renderer omits these entirely (see shared/protocol RenderStats).
+    longTasks?: number;
+    longTaskMs?: number;
+    commitMs?: number;
 }
 
 /** Mirror ~1 Hz renderer frame-time stats into Prometheus gauges. Cheap; safe to call always. */
@@ -113,6 +138,11 @@ export function updateRenderStats(stats: RenderTimingStats | null): void {
     renderFrameP99.set(stats.frameP99 ?? 0);
     renderWorkP99.set(stats.workP99 ?? 0);
     renderLongFrames.set(stats.longFrames ?? 0);
+    // Left untouched when absent rather than zeroed: a renderer that doesn't report this must not
+    // paint a flat green line that reads as "nothing blocked".
+    if (stats.longTaskMs !== undefined) uiBlockedMs.set(stats.longTaskMs);
+    if (stats.longTasks !== undefined) uiLongTasks.set(stats.longTasks);
+    if (stats.commitMs !== undefined) uiCommitMs.set(stats.commitMs);
 }
 
 let server: Server | null = null;

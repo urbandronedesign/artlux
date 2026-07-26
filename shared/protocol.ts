@@ -368,6 +368,16 @@ export interface RenderStats {
   workP99: number;     // ms — worst-case in-frame work time
   longFrames: number;  // intervals in the window that overran the drop threshold (1.5× median)
   samples: number;     // frames observed in the window
+  // ---- UI cost (services/uiPerfMonitor) — why a frame was late, not just that it was ----
+  // The fields above say a frame landed late; these say whether the MAIN THREAD was blocked while it
+  // did. All optional and additive: an older renderer simply omits them and every consumer (metrics,
+  // watchdog, the SDK's onRenderStats) is unchanged. Long tasks are always measured; the commit
+  // figures only report while the opt-in React profiler is on (`?uiperf=1`).
+  longTasks?: number;      // main-thread tasks >50 ms in the last second
+  longTaskMs?: number;     // ms — total time they blocked the thread
+  longTaskMaxMs?: number;  // ms — the worst single one
+  commits?: number;        // React commits in the last second (0 unless profiling)
+  commitMs?: number;       // ms — their summed actualDuration
 }
 
 // 'enttec' is a USB-serial DMX interface rather than a network protocol: it carries a COM PORT in

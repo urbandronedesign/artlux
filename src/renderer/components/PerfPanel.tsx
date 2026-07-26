@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { RenderStats } from '../../../shared/protocol';
 import { perfMonitor } from '../services/perfMonitor';
+import { uiPerfMonitor, type UiPerfStats } from '../services/uiPerfMonitor';
 
 // Docked Performance pane (bottom-dock "Performance" tab) — the proper home for the renderer
 // frame-time signal from services/perfMonitor, replacing the old floating PerfHud overlay. Polls
@@ -39,15 +40,20 @@ const Spark: React.FC<{ data: number[]; warn?: boolean }> = ({ data, warn }) => 
 
 export const PerfPanel: React.FC = () => {
   const [s, setS] = useState<RenderStats | null>(null);
+  const [ui, setUi] = useState<UiPerfStats | null>(null);
   const frameHist = useRef<number[]>([]);
   const workHist = useRef<number[]>([]);
+  const blockHist = useRef<number[]>([]);
 
   useEffect(() => {
     const tick = () => {
       const next = perfMonitor.stats();
+      const nextUi = uiPerfMonitor.stats();
       frameHist.current = [...frameHist.current, next.frameP50].slice(-HISTORY);
       workHist.current = [...workHist.current, next.workP50].slice(-HISTORY);
+      blockHist.current = [...blockHist.current, nextUi.longTaskMs].slice(-HISTORY);
       setS(next);
+      setUi(nextUi);
     };
     tick();
     const id = window.setInterval(tick, 1000);
@@ -109,9 +115,55 @@ export const PerfPanel: React.FC = () => {
         </div>
       </div>
 
+      {/* ── What the UI cost the frame loop ──
+          The block above says a frame was late; this says whether the main thread was BLOCKED while
+          it happened. While a long task runs, nothing else on the thread does — including the frame
+          loop — so blocked time is the direct evidence for "the UI stalled the engine", and its
+          absence is equally load-bearing evidence for the opposite. */}
+      {ui && (
+        <div className="px-3 pb-3">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-micro uppercase tracking-wider text-fg-3">UI cost</span>
+            {!ui.longTaskSupported && (
+              <span className="text-micro text-warn">long-task observer unavailable — figures below are not zero, they are unknown</span>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-4">
+            <div className="min-w-[220px] flex-1 border border-line-1 rounded-md overflow-hidden bg-surface-0/40">
+              <Metric label="blocked / s" value={`${fmt(ui.longTaskMs)} ms`} warn={ui.longTaskMs > 16} />
+              <Metric label="long tasks / s" value={`${ui.longTasks}`} warn={ui.longTasks > 0} />
+              <Metric label="worst task" value={`${fmt(ui.longTaskMaxMs)} ms`} warn={ui.longTaskMaxMs > 50} />
+              <Metric label="react commits / s" value={ui.profiling ? `${ui.commits}` : 'off'} />
+              <Metric label="react commit time" value={ui.profiling ? `${fmt(ui.commitMs)} ms` : 'off'} warn={ui.profiling && ui.commitMs > 16} />
+            </div>
+            <div className="min-w-[220px] flex-1 border border-line-1 rounded-md p-2 bg-surface-0/40">
+              <div className="flex items-baseline justify-between mb-1">
+                <span className="text-micro uppercase tracking-wider text-fg-3">Blocked time</span>
+                <span className={`num text-micro ${ui.longTaskMs > 16 ? 'text-danger' : 'text-fg-2'}`}>{fmt(ui.longTaskMs)} ms/s</span>
+              </div>
+              <Spark data={blockHist.current} warn={ui.longTaskMs > 16} />
+            </div>
+          </div>
+
+          {/* Per-region React commit attribution — heaviest first. This is what answers "did an
+              unrelated App render just reconcile the Stage / the 3D scene / the timeline?". */}
+          {ui.profiling && ui.regions.length > 0 && (
+            <div className="mt-3 border border-line-1 rounded-md overflow-hidden bg-surface-0/40">
+              {ui.regions.map((r) => (
+                <Metric key={r.id} label={r.id} value={`${r.commits}× · ${fmt(r.totalMs)} ms · max ${fmt(r.maxMs)}`} warn={r.totalMs > 8} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <p className="px-3 pb-3 text-micro text-fg-3 leading-relaxed">
         Frame = wall-clock between rendered frames (drops show as long frames). Work = time spent inside
         the Stage tick. Green when nominal; amber/red flags a dropped frame or a p99 past the 60 fps budget.
+        {' '}Blocked = main-thread time lost to tasks over 50 ms, measured always. React commit timing is
+        off by default because measuring it is not free — enable it with <span className="num">?uiperf=1</span>{' '}
+        or <span className="num">localStorage['artlux.uiPerf']='1'</span>, then reload (it cannot be toggled
+        live: that would remount the Stage and stop output).
       </p>
     </div>
   );

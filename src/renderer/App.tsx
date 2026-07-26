@@ -35,6 +35,8 @@ import { contextLayoutOf, goToContext } from './contexts/nav';
 import { sendArtNetFrame, configureOutput, addStatusListener } from './services/mockSocketService';
 import { dmxSignal } from './services/dmxSignal';
 import { perfMonitor } from './services/perfMonitor';
+import { uiPerfMonitor } from './services/uiPerfMonitor';
+import { UiProfiler } from './components/UiProfiler';
 import { getDrawable, getDrawableGeneration, resolveSource } from './services/surfaceMedia';
 import { timeline as timelineEngine, GLOBAL_POOL } from './services/timeline';
 import { usageForPath, normPath, libraryItems, type ProjectRefs } from './services/assetLibrary';
@@ -525,9 +527,17 @@ const App: React.FC = () => {
         lastTime.current = time;
         // Renderer frame-time baseline (~1 Hz): push to Prometheus (broadcast/headless have no HUD)
         // and, in broadcast, log a line so the show machine has a visible signal in its console/logs.
+        // The UI-cost numbers ride the same message: a late frame and a blocked main thread are the
+        // same second of wall clock, and reading them apart is what made "the UI stalled the engine"
+        // an argument rather than a measurement.
         const ps = perfMonitor.stats();
-        window.artlux?.reportRenderStats?.(ps);
-        if (BROADCAST) console.info(`[perf] fps=${ps.fps.toFixed(0)} frameP99=${ps.frameP99.toFixed(1)}ms workP99=${ps.workP99.toFixed(1)}ms long=${ps.longFrames}/${ps.samples}`);
+        const us = uiPerfMonitor.stats();
+        window.artlux?.reportRenderStats?.({
+          ...ps,
+          longTasks: us.longTasks, longTaskMs: us.longTaskMs, longTaskMaxMs: us.longTaskMaxMs,
+          commits: us.commits, commitMs: us.commitMs,
+        });
+        if (BROADCAST) console.info(`[perf] fps=${ps.fps.toFixed(0)} frameP99=${ps.frameP99.toFixed(1)}ms workP99=${ps.workP99.toFixed(1)}ms long=${ps.longFrames}/${ps.samples} blocked=${us.longTaskMs.toFixed(0)}ms/${us.longTasks}`);
       }
       animationFrameId = requestAnimationFrame(loop);
     };
@@ -3416,6 +3426,7 @@ const App: React.FC = () => {
           // publishes `dmx:frame`, so the shell only ever HIDES it; unmounting it on a context switch
           // would stop Art-Net mid-show.
           [VIEWPORT_STAGE_2D]: (
+              <UiProfiler id="viewport:stage2d">
                 <div className="w-full h-full relative">
                     <Stage
                         surfaces={surfaces}
@@ -3462,10 +3473,12 @@ const App: React.FC = () => {
                         }
                     />
                 </div>
+              </UiProfiler>
           ),
           // The embedded 3D scene. Withheld until first shown (see scene3dMounted), then kept in the
           // right pane so a later 2D⟷3D switch doesn't rebuild the WebGL context or reload the GLBs.
           [VIEWPORT_SCENE_3D]: !scene3dMounted ? null : (
+                      <UiProfiler id="viewport:scene3d">
                         <div className="w-full h-full flex">
                             {/* The canvas now fills the pane: the scene outliner that used to dock as a
                                 reserved column here is the `3d` context's browser + parameter panels. */}
@@ -3498,21 +3511,25 @@ const App: React.FC = () => {
                             />
                             </div>
                         </div>
+                      </UiProfiler>
           ),
           // The one and only TimelinePanel. Two instances double its keyboard hook and its engine
           // subscription, so the fullscreen `timelineMax` overlay below renders a placeholder rather
           // than a second copy — exactly the rule the old dock-XOR-overlay branch enforced.
           [VIEWPORT_TIMELINE]: (
-                    timelineMax ? (
+                  <UiProfiler id="viewport:timeline">
+                    {timelineMax ? (
                         <div className="h-full flex items-center justify-center text-fg-3 text-mini italic">Timeline maximized — press F or the restore button to dock it</div>
                     ) : (
                         <TimelinePanel timeline={activeTimeline} onChange={handleTimelineChange} author={timelineAuthor} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} onToggleMax={() => setTimelineMax(true)} projectPath={currentProjectPath} onRegisterAsset={handleRegisterAsset} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} fixtureGroups={groups} selectedFixtureIds={selectedFixtureIds} audio={timelineBedProp} baseAutomation={baseAutomationProp} />
-                    )
+                    )}
+                  </UiProfiler>
           ),
           // Projector outputs. Was a modal; it is the `project` context's viewport now — you bind
           // displays, warp, blend and gamma-match here for long stretches, which is a workbench,
           // not a dialog. Persistent so its expanded per-output drawer survives a context switch.
           [VIEWPORT_OUTPUTS]: (
+                  <UiProfiler id="viewport:outputs">
                     <OutputsPanel
           surfaces={surfaces}
           outputs={projectorOutputs}
@@ -3544,10 +3561,12 @@ const App: React.FC = () => {
           nvAvailable={nvAvailable}
           onSetHwWarp={(surfaceId, on) => upsertOutput(surfaceId, { hwWarp: on })}
                     />
+                  </UiProfiler>
           ),
           // Scenes + cue banks. Persistent so its Live/Edit mode and its own selection survive a
           // trip through another context.
           [VIEWPORT_SCENES]: (
+                  <UiProfiler id="viewport:scenes">
                     <CueBankPanel
                         banks={cueBanks}
                         onChangeBanks={setCueBanks}
@@ -3572,6 +3591,7 @@ const App: React.FC = () => {
                         onPreloadScene={(s) => timelinePreloader.warm(s.id, s.timeline)}
                         activeSceneId={activeSceneId}
                     />
+                  </UiProfiler>
           ),
         }}
       />

@@ -284,6 +284,42 @@ check(
   },
 );
 
+// ── Instrumentation must not be able to break the thing it measures ───────────────────────────
+check(
+  'the UI profiler cannot be switched on at runtime',
+  'UiProfiler branches on UI_PROFILING_ENABLED to decide whether to wrap its children in a React ' +
+  '<Profiler>. React keys a child by position AND element type, so if that flag could change while ' +
+  'the app runs, every wrapped subtree would unmount and rebuild — and the wrapped subtrees are ' +
+  'Stage (which publishes dmx:frame), Simulator3D (one WebGL context) and TimelinePanel (one keyboard ' +
+  'hook, one engine subscription). A debug toggle must not be able to stop Art-Net mid-show, so the ' +
+  'flag is read once at module load and the only way to change it is a reload.',
+  () => {
+    const problems = [];
+    const svc = stripComments(read('src/renderer/services/uiPerfMonitor.ts'));
+    // Must be a module-scope const initialized once — not a `let`, not reassigned anywhere.
+    if (!/export const UI_PROFILING_ENABLED/.test(svc)) {
+      problems.push('uiPerfMonitor.ts must export UI_PROFILING_ENABLED as a module-scope const');
+    }
+    if (/UI_PROFILING_ENABLED\s*=/.test(svc.replace(/export const UI_PROFILING_ENABLED[^=]*=/, ''))) {
+      problems.push('UI_PROFILING_ENABLED is reassigned — it must be written exactly once, at module load');
+    }
+    // Strip the imports before looking for the flag: a leftover `import { UI_PROFILING_ENABLED }`
+    // would otherwise satisfy this check while the branch below it had been rewritten to something
+    // re-evaluable. (This check passed the first time it was tried against exactly that break.)
+    const comp = stripComments(read('src/renderer/components/UiProfiler.tsx'))
+      .replace(/^\s*import[\s\S]*?from\s*'[^']*';?$/gm, '');
+    // No local state / props / context may feed the branch: those can change between renders.
+    if (/useState|useReducer|useSyncExternalStore/.test(comp)) {
+      problems.push('UiProfiler.tsx must hold no state — a re-evaluated branch remounts Stage');
+    }
+    // Assert the BRANCH, not the identifier: the guard is about what decides whether <Profiler> wraps.
+    if (!/if\s*\(\s*!\s*UI_PROFILING_ENABLED\s*\)/.test(comp)) {
+      problems.push('UiProfiler.tsx must branch directly on `if (!UI_PROFILING_ENABLED)`, not on a local or a prop');
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Shell: panels read state, they do not receive it ──────────────────────────────────────────
 check(
   'EditorData is memoized',
