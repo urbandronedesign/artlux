@@ -45,9 +45,15 @@ function walk(dir, out = []) {
   return out;
 }
 
-/** The body of `const <name> = (…) => { … }` — brace-matched, good enough for our handlers. */
+/**
+ * The body of `const <name> = (…) => { … }` OR `function <name>(…) { … }` — brace-matched, good enough
+ * for our handlers. Both forms matter: a check that only knew the arrow form reported "not found" for a
+ * plain function declaration, which reads as a broken guard rather than a passing one — but only
+ * because it happened to be phrased as a failure. Handle both.
+ */
 function fnBody(src, name) {
-  const i = src.indexOf(`const ${name} = `);
+  let i = src.indexOf(`const ${name} = `);
+  if (i < 0) i = src.indexOf(`function ${name}(`);
   if (i < 0) return null;
   const open = src.indexOf('{', i);
   if (open < 0) return null;
@@ -906,6 +912,34 @@ check(
     // The chrome must actually USE it, or the logo silently reverts to nothing at all.
     for (const f of ['src/renderer/components/MenuBar.tsx', 'src/renderer/components/About.tsx']) {
       if (!/AppWordmark|AppIconMark/.test(read(f))) problems.push(`${f} no longer renders the app mark`);
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── Decoded frames are owned, and owned things get closed ─────────────────────────────────────
+check(
+  'ImageBitmaps and camera VideoFrames are closed, not dropped',
+  'Both hold memory the garbage collector will not hurry to reclaim, and a VideoFrame additionally pins ' +
+  'a decoder buffer — leak a few and the camera stalls outright. Neither failure looks like a bug on ' +
+  'screen: the picture is fine and the memory climbs, which is the worst way for this to go wrong. So ' +
+  'the entry drop path must close an image bitmap, and the camera pump must close the frame it is ' +
+  'replacing as well as the one it is holding when it stops.',
+  () => {
+    const src = stripComments(read('src/renderer/services/contentSource.ts'));
+    const problems = [];
+    const drop = fnBody(src, 'dropMedia');
+    if (!drop) problems.push('dropMedia not found — this guard has gone blind');
+    else if (!/\.bmp\?\.close\(\)|\.bmp\.close\(\)/.test(drop)) {
+      problems.push('dropMedia does not close the ImageBitmap — that is a GPU-memory leak per surface retype');
+    }
+    // The pump replaces the held frame every time one arrives; stopCamera closes the last one.
+    if (!/cameraFrame\?\.close\(\)/.test(src)) {
+      problems.push('the camera frame is never closed — VideoFrames pin decoder buffers and the camera will stall');
+    }
+    const stop = fnBody(src, 'stopCamera');
+    if (stop && !/cameraFrame\?\.close\(\)/.test(stop)) {
+      problems.push('stopCamera leaves the last VideoFrame open');
     }
     return problems.length ? problems.join('; ') : null;
   },

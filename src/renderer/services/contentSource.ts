@@ -16,7 +16,11 @@ import { contentSourceRegistry, videoCodecRegistry } from '../host/registries';
 type Drawable = CanvasImageSource;
 type Entry =
   | { type: 'VIDEO'; el: HTMLVideoElement; url: string }
-  | { type: 'IMAGE'; el: HTMLImageElement; url: string }
+  // An ImageBitmap rather than an <img>: already decoded (no decode-on-first-draw hitch), sized without
+  // touching layout, transferable to a worker, and a CanvasImageSource everywhere an <img> was. `bmp`
+  // is null until the decode lands. It MUST be closed when the entry is dropped — an ImageBitmap holds
+  // GPU-side memory that garbage collection will not hurry to reclaim.
+  | { type: 'IMAGE'; bmp: ImageBitmap | null; url: string }
   | { type: 'CODEC'; codecId: string; path: string }; // a plugin VideoCodec (e.g. HAP) decodes this file
 
 const media = new Map<string, Entry>();          // VIDEO / IMAGE / CODEC, keyed by consumer key
@@ -77,20 +81,83 @@ function makeVideo(url: string): HTMLVideoElement {
   });
   return v;
 }
-function makeImage(url: string): HTMLImageElement {
-  const i = document.createElement('img');
-  i.crossOrigin = 'anonymous';
-  void resolveMediaUrl(url, mimeForPath(url)).then((src) => { i.src = src; });
-  return i;
+/**
+ * Start decoding an image into the entry stored at `key`. Returns the entry immediately with `bmp:
+ * null`; the bitmap appears when the decode finishes, and getDrawable simply yields nothing until then
+ * (the same "not ready yet" state an <img> had before `complete`).
+ *
+ * Re-checks the map before storing: a surface can be retyped or pointed at another file while this is
+ * in flight, and writing a stale bitmap into a live entry would show the previous picture. In that case
+ * the bitmap is closed on the spot rather than leaked.
+ */
+function makeImage(key: string, url: string): Entry {
+  const entry: Entry = { type: 'IMAGE', bmp: null, url };
+  void (async () => {
+    try {
+      const src = await resolveMediaUrl(url, mimeForPath(url));
+      if (!src) return;
+      const blob = await (await fetch(src)).blob();
+      const bmp = await createImageBitmap(blob);
+      const cur = media.get(key);
+      if (cur === entry) entry.bmp = bmp;
+      else bmp.close(); // superseded while decoding
+    } catch (e) {
+      console.warn('[contentSource] image decode failed', url, (e as Error)?.message);
+    }
+  })();
+  return entry;
+}
+
+// The camera's newest frame, when the track is being read as VideoFrames rather than played into a
+// <video>. Exactly one is held open at a time: a VideoFrame pins a decoder buffer, and leaking them
+// stalls the camera within a second or two, so the previous frame is closed the moment the next lands.
+let cameraFrame: VideoFrame | null = null;
+let cameraPump: ReadableStreamDefaultReader<VideoFrame> | null = null;
+
+/**
+ * Read the track as VideoFrames. getUserMedia still has to happen here on the main thread — it needs
+ * the window's permission context, which is also why the main process grants 'media' — but a
+ * MediaStreamTrackProcessor turns the result into a stream of VideoFrames instead of a <video> element
+ * pretending to be a picture. That matters twice over: a VideoFrame is a CanvasImageSource the GPU path
+ * takes directly, and the stream is transferable, so the day the engine moves to a worker the camera
+ * can follow it without the DOM.
+ *
+ * Returns false when the API is unavailable, and the caller falls back to the <video> element.
+ */
+function startCameraProcessor(track: MediaStreamTrack): boolean {
+  const Ctor = (globalThis as unknown as { MediaStreamTrackProcessor?: new (o: { track: MediaStreamTrack }) => { readable: ReadableStream<VideoFrame> } }).MediaStreamTrackProcessor;
+  if (!Ctor) return false;
+  try {
+    const reader = new Ctor({ track }).readable.getReader();
+    cameraPump = reader;
+    void (async () => {
+      try {
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          if (cameraPump !== reader) { value?.close(); break; } // superseded by a restart — do not leak
+          cameraFrame?.close();
+          cameraFrame = value ?? null;
+        }
+      } catch { /* the track ended or was cancelled */ }
+    })();
+    return true;
+  } catch (e) {
+    console.warn('[contentSource] camera frame reader failed, using a <video>', (e as Error)?.message);
+    return false;
+  }
 }
 
 async function startCamera(): Promise<void> {
-  if (cameraStarting || cameraEl) return;
+  if (cameraStarting || cameraEl || cameraPump) return;
   cameraStarting = true;
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ video: true });
     if (cameraConsumers.size === 0) { stream.getTracks().forEach((t) => t.stop()); return; } // released while awaiting
     cameraStream = stream;
+    const track = stream.getVideoTracks()[0];
+    if (track && startCameraProcessor(track)) return;
+    // Fallback: play it into a <video> exactly as before.
     const v = document.createElement('video');
     v.srcObject = stream; v.muted = true; v.playsInline = true;
     await v.play();
@@ -103,6 +170,11 @@ async function startCamera(): Promise<void> {
   }
 }
 function stopCamera(): void {
+  const reader = cameraPump;
+  cameraPump = null;               // makes the pump loop drop its next frame rather than store it
+  void reader?.cancel().catch(() => {});
+  cameraFrame?.close();
+  cameraFrame = null;
   cameraStream?.getTracks().forEach((t) => t.stop());
   cameraStream = null;
   cameraEl?.pause();
@@ -113,6 +185,7 @@ function dropMedia(key: string): void {
   const e = media.get(key);
   if (!e) return;
   if (e.type === 'VIDEO') e.el.pause();
+  if (e.type === 'IMAGE') e.bmp?.close(); // GPU-side memory; GC will not hurry to reclaim it
   if (e.type === 'CODEC') releaseCodec(e.codecId, e.path, key); // shared per path — close only on the last user
   media.delete(key);
 }
@@ -145,7 +218,12 @@ function reconcileMedia(key: string, content: SurfaceContent): void {
     }
   } else if (content.type === SourceType.IMAGE && content.url) {
     const e = media.get(key);
-    if (!e || e.type !== 'IMAGE' || e.url !== content.url) media.set(key, { type: 'IMAGE', el: makeImage(content.url), url: content.url });
+    if (!e || e.type !== 'IMAGE' || e.url !== content.url) {
+      if (e?.type === 'IMAGE') e.bmp?.close(); // replacing one image with another: close the old bitmap
+      // makeImage's decode is async, so it always resolves after this synchronous set() — by which
+      // point its "am I still the entry at this key" check has something real to compare against.
+      media.set(key, makeImage(key, content.url));
+    }
   } else {
     dropMedia(key); // not a media-instance type for this key anymore
   }
@@ -153,8 +231,12 @@ function reconcileMedia(key: string, content: SurfaceContent): void {
 
 function reconcileCamera(): void {
   const want = cameraConsumers.size > 0;
-  if (want && !cameraEl && !cameraStarting) void startCamera();
-  else if (!want && (cameraEl || cameraStream)) stopCamera();
+  // `cameraPump` counts as "running" alongside `cameraEl`: on the VideoFrame path there is no element,
+  // and asking whether the camera is up by looking only for one would re-enter startCamera every time
+  // this reconciles (harmless — it self-guards — but it reads as a bug and would become one).
+  const running = !!(cameraEl || cameraPump);
+  if (want && !running && !cameraStarting) void startCamera();
+  else if (!want && (running || cameraStream)) stopCamera();
 }
 // Loopback DMX-in universes: the legacy 0-7 range (casual/external senders) PLUS every universe a
 // patched fixture touches (so a back rig on sACN universe 8+ is mirrored). Derived from fixtures by
@@ -245,10 +327,11 @@ export function getDrawable(key: string, content: SurfaceContent, timeSec: numbe
     }
     case SourceType.IMAGE: {
       const e = media.get(key);
-      return e && e.type === 'IMAGE' && e.el.complete && e.el.naturalWidth > 0 ? e.el : null;
+      return e && e.type === 'IMAGE' ? e.bmp : null; // null until the decode lands
     }
     case SourceType.CAMERA:
-      return cameraEl && cameraEl.readyState >= 2 ? cameraEl : null;
+      // The VideoFrame path when it is running, otherwise the <video> fallback.
+      return cameraFrame ?? (cameraEl && cameraEl.readyState >= 2 ? cameraEl : null);
     case SourceType.DMX_IN:
       return getInputCanvas();
     case 'EFFECT': {
@@ -281,7 +364,7 @@ export function getAspect(key: string, content: SurfaceContent): number | null {
   switch (content.type) {
     case SourceType.IMAGE: {
       const e = media.get(key);
-      return e && e.type === 'IMAGE' && e.el.naturalWidth > 0 ? e.el.naturalWidth / e.el.naturalHeight : null;
+      return e && e.type === 'IMAGE' && e.bmp && e.bmp.height > 0 ? e.bmp.width / e.bmp.height : null;
     }
     case SourceType.VIDEO: {
       const e = media.get(key);
@@ -289,6 +372,7 @@ export function getAspect(key: string, content: SurfaceContent): number | null {
       return e && e.type === 'VIDEO' && e.el.videoWidth > 0 ? e.el.videoWidth / e.el.videoHeight : null;
     }
     case SourceType.CAMERA:
+      if (cameraFrame && cameraFrame.displayHeight > 0) return cameraFrame.displayWidth / cameraFrame.displayHeight;
       return cameraEl && cameraEl.videoWidth > 0 ? cameraEl.videoWidth / cameraEl.videoHeight : null;
     default: {
       const p = contentSourceRegistry.get(content.type);
