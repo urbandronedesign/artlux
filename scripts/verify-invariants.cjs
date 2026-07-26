@@ -945,6 +945,25 @@ check(
   },
 );
 
+// ── HAP decompresses off the DOM, and keeps a way back ────────────────────────────────────────
+check(
+  'HAP decompresses into an OffscreenCanvas, with the DOM canvas still reachable',
+  'hapGL uploads BC blocks as a compressed WebGL2 texture and draws them to a canvas that is NEVER ' +
+  'displayed — it is a decompression target that gets sampled. A DOM element there cannot exist in a ' +
+  'worker, which is where the engine is going. But HAP is also the most show-critical codec in the app, ' +
+  'so the old path must stay reachable: automatically when OffscreenCanvas or a WebGL2 context on it is ' +
+  'unavailable, and deliberately via localStorage["artlux.hapDomCanvas"] for a venue that needs to ' +
+  'revert without a rebuild. Remove either and the revert becomes theatre.',
+  () => {
+    const src = stripComments(read('plugins/hap/src/hapGL.ts'));
+    const problems = [];
+    if (!/new OffscreenCanvas\(/.test(src)) problems.push('hapGL no longer decompresses into an OffscreenCanvas');
+    if (!/artlux\.hapDomCanvas/.test(src)) problems.push('the per-machine revert switch (artlux.hapDomCanvas) is gone');
+    if (!/document\.createElement\('canvas'\)/.test(src)) problems.push('the DOM-canvas fallback is gone — nothing to fall back TO');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Decoded frames are owned, and owned things get closed ─────────────────────────────────────
 check(
   'ImageBitmaps and camera VideoFrames are closed, not dropped',

@@ -6,7 +6,7 @@ import * as hapGL from './hapGL';
 // (hapDecode) and paint it onto a canvas that the surface compositor draws like Spout/NDI.
 // Timeline LAYER clips use a separate, playhead-driven path in services/timeline.ts.
 
-type Src = { canvas: HTMLCanvasElement | null; index: number };
+type Src = { canvas: hapGL.DecodeCanvas | null; index: number };
 
 const active = new Map<string, Src>();
 let playing = true;
@@ -62,7 +62,7 @@ export function isHap(path: string): boolean | undefined {
   return hapDecode.isHap(path);
 }
 
-export function getHapCanvas(path: string): HTMLCanvasElement | null {
+export function getHapCanvas(path: string): hapGL.DecodeCanvas | null {
   const s = active.get(path);
   return s && s.index >= 0 ? s.canvas : null;
 }

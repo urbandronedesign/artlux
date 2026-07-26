@@ -9,7 +9,7 @@ import * as hapPlayer from './hapPlayer';
 
 // Per-layer GL state (keyed by the layer's GL key) — mirrors the old syncHapLayer `lv.hap` index
 // tracking so a frame is re-uploaded to the GPU only when the decoded index actually advances.
-const layerState = new Map<string, { index: number; canvas: HTMLCanvasElement | null }>();
+const layerState = new Map<string, { index: number; canvas: hapGL.DecodeCanvas | null }>();
 
 export const hapCodec: VideoCodecContribution = {
   id: 'hap',

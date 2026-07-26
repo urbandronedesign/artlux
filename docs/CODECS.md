@@ -19,6 +19,13 @@ multi-layer, high-resolution playback in VJ/mapping tools.
 - **Always on** when a `.mov` is HAP-encoded; no setting required.
 - **Pipeline:** a native decoder in **main** produces compressed BC (S3TC/DXT) blocks; the renderer
   **decompresses on the GPU** (WebGL2), so the CPU cost is minimal even at 4K across many layers.
+- **The decompression target is an `OffscreenCanvas`**, not a DOM `<canvas>` — it is never displayed,
+  only sampled, and an OffscreenCanvas is the version that can exist in a worker once the engine moves
+  there. Two ways back, because HAP is the most show-critical codec here: it falls back to a DOM canvas
+  automatically when `OffscreenCanvas` or a WebGL2 context on it is unavailable, and a venue can force
+  the old path without a rebuild with `localStorage['artlux.hapDomCanvas'] = '1'` (then restart — the
+  flag is read when a decoder is created). Both are `verify:invariants`-guarded, and the revert has been
+  exercised rather than assumed.
 - **The first `VideoCodec` contribution** — its logic (surface player with its own clock, the timeline
   layer's decode ring, and the thumbnail one-shot) moved verbatim out of the host into the plugin, so
   all three paths share one decoder identity.

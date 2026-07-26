@@ -34,8 +34,27 @@ void main() {
   }
 }`;
 
+// A DOM <canvas> here was never displayed — it is a decompression target that gets sampled — so an
+// OffscreenCanvas is both the honest type and the one that can exist in a worker when the engine moves
+// there. Both are CanvasImageSource, so every consumer takes either unchanged.
+//
+// HAP is the most show-critical codec in the app, so this keeps two ways back. If OffscreenCanvas or a
+// WebGL2 context on it is unavailable, the DOM canvas is used automatically; and a venue can force the
+// old path without a rebuild via localStorage['artlux.hapDomCanvas'] = '1', the same per-machine escape
+// hatch idiom as artlux.forceWebGL.
+export type DecodeCanvas = OffscreenCanvas | HTMLCanvasElement;
+
+function makeCanvas(): DecodeCanvas {
+  let forced = false;
+  try { forced = typeof localStorage !== 'undefined' && localStorage.getItem('artlux.hapDomCanvas') === '1'; } catch { /* ignore */ }
+  if (!forced && typeof OffscreenCanvas !== 'undefined') {
+    try { return new OffscreenCanvas(16, 16); } catch { /* fall through to the DOM canvas */ }
+  }
+  return document.createElement('canvas');
+}
+
 class GLRenderer {
-  readonly canvas: HTMLCanvasElement;
+  readonly canvas: DecodeCanvas;
   private gl: WebGL2RenderingContext;
   private s3tc: WEBGL_compressed_texture_s3tc | null;
   private prog: WebGLProgram;
@@ -45,8 +64,15 @@ class GLRenderer {
   ok = false;
 
   constructor() {
-    this.canvas = document.createElement('canvas');
-    const gl = this.canvas.getContext('webgl2', { premultipliedAlpha: false, antialias: false });
+    this.canvas = makeCanvas();
+    let gl = this.canvas.getContext('webgl2', { premultipliedAlpha: false, antialias: false }) as WebGL2RenderingContext | null;
+    if (!gl && !(this.canvas instanceof HTMLCanvasElement)) {
+      // An OffscreenCanvas that cannot give a WebGL2 context is not a reason to lose HAP. Retry on a
+      // DOM canvas before giving up, so the fallback covers "unsupported here", not just "API missing".
+      console.warn('[hapGL] no webgl2 on an OffscreenCanvas — falling back to a DOM canvas');
+      (this as { canvas: DecodeCanvas }).canvas = document.createElement('canvas');
+      gl = this.canvas.getContext('webgl2', { premultipliedAlpha: false, antialias: false }) as WebGL2RenderingContext | null;
+    }
     if (!gl) throw new Error('webgl2 unavailable');
     this.gl = gl;
     this.s3tc = gl.getExtension('WEBGL_compressed_texture_s3tc');
@@ -129,7 +155,7 @@ let warnedContexts = false;
 
 // Upload a frame's blocks for `key` and return the canvas showing it (null if WebGL/s3tc
 // is unavailable, so the caller can fall back).
-export function uploadFrame(key: string, f: HapFrame): HTMLCanvasElement | null {
+export function uploadFrame(key: string, f: HapFrame): DecodeCanvas | null {
   let r = renderers.get(key);
   if (r === undefined) {
     try { r = new GLRenderer(); } catch (e) { console.warn('[hapGL] unavailable:', (e as Error).message); r = null; }
