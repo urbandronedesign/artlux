@@ -628,8 +628,14 @@ incident here was GPU/decode/IO and never React. Canonical plan, WP tracker and 
   (2 surfaces, 2 fixtures, 6 scenes, 23 assets, enabled 6-state machine): **4345 ArtDmx packets on
   universes 0–3**, 60 Hz native / 61 fps renderer, a full nine-context tour with output never dropping,
   and headless verified with no view mounted at all. **What still needs a human and hardware:** the
-  packaged `ArtLux.exe` launched with no CDP port, real fixtures on the wire, and a broadcast/projector
-  run. See [plans/engine-decoupling.md](../plans/engine-decoupling.md) → tracker.
+  real fixtures on the wire, a broadcast/projector run, and a longer soak.
+  The **packaged** half of that checkpoint is done: `npm run package:dir` → `release/win-unpacked/`,
+  launched **with no CDP port**, reveals its window (`"ARTLux" 1456×908`) and runs 61 Hz / 4 universes /
+  59.9 fps; `--headless` runs 61 Hz / 4 universes with **no window at all**. That is the check this repo
+  has twice been burned by skipping — a dev run *and* a CDP probe both force a paint, so both pass while
+  the shipped app shows nothing. (Benign packaged log lines: `nvwarp NVAPI unavailable` on a non-pro GPU,
+  and `app-update.yml ENOENT`, which only exists in a full installer build.)
+  See [plans/engine-decoupling.md](../plans/engine-decoupling.md) → tracker.
 
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
