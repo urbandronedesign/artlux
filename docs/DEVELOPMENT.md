@@ -240,6 +240,14 @@ There is no unit-test runner wired; verification is done ad-hoc with tsc + targe
   with a `dgram` listener — parse ArtDmx (`0x5000`) / ArtSync (`0x5200`) / sACN (`ASC-E1.17`), assert
   per-universe channel counts, per-IP routing, priority, etc. This is how the surfaces engine,
   multi-controller routing, sACN, ArtSync, and universe spanning were validated.
+- **The engine is independent of the UI:** `node scripts/test-engine-output.cjs`. Writes its own
+  project, points Art-Net at loopback, and asserts on the wire that output survives (1) running at
+  all, (2) **the Stage's canvas and container being deleted out of the live DOM**, (3) a full
+  workspace-context tour, (4) `--headless`, which mounts no view whatsoever. `npm run verify` reads
+  source and can only prove the code still *looks* decoupled; this proves DMX still comes out.
+  ⚠ Two traps it encodes, both of which cost real time: the Art-Net ID is `'Art-Net\0'` (a trailing
+  **space** silently matches nothing and reports a healthy app as dead), and it must not bind **6454** —
+  the app's own Art-Net *input* socket owns that port, so a listener there sees nothing.
 - **Packaged window visibility — test WITHOUT the CDP port (this cost a day, v0.19.2).** The editor
   `BrowserWindow` is created `show:false` and revealed on events; if reveal is only wired to
   **`ready-to-show`**, some packaged builds/GPU configs never fire it and the app launches with a
