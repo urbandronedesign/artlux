@@ -403,11 +403,21 @@ export interface WorkspaceContext<Layout = unknown> {
   cluster: 'build' | 'align' | 'show' | 'app';
   order: number;                       // sort within the cluster
   viewport: string;                    // panel id, mount 'viewport'
-  // A panel id given the FULL WIDTH of the workspace, below everything else — the browser and the
-  // parameter column stop above it. `dock` lives inside the centre column and is flanked by them;
-  // this does not. For an editing timeline that distinction is the whole layout: the lanes need the
-  // window's full width, and the monitor sits above them.
+  // The panel this context offers in its BOTTOM DRAWER — full width, below everything else, with the
+  // browser and the parameter column stopping above it. `dock` lives inside the centre column and is
+  // flanked by them; this does not. For an editing timeline that distinction is the whole layout: the
+  // lanes need the window's full width.
+  //
+  // It is a DRAWER, not a fixed region: the host renders it collapsed to a title strip and opens it on
+  // `WorkspaceLayout.bottomOpen`, which is banked per context. That is why nearly every context names
+  // the timeline here — it is a TOOL you pull up while working, not a workbench of its own, and it used
+  // to cost a rail entry to reach.
   bottom?: string;
+  // The viewport for the OTHER pane while split view is on. Only contexts whose own `viewport` is the
+  // 3D scene need it: the host pins that one scene to the right pane (one WebGL context, never
+  // remounted), so without a companion the left pane has nothing to show and split view is an empty
+  // half. Undefined ⇒ split view shows this context's own viewport on the left, as usual.
+  companion?: string;
   browser?: string[];                  // ordered panel ids, mount 'browser'
   dock?: string[];                     // ordered panel ids, mount 'dock' (first = default tab)
   inspector?: string[];                // ordered panel ids, mount 'inspector'

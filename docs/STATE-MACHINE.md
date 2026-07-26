@@ -290,7 +290,8 @@ legible. See [template 3](../examples/state-machine/03-interactive-installation.
 
 ## Authoring — the state-graph editor
 
-Open it from the **Timeline** dock's **state lane** ("Edit logic"). The modal
+Open it from the **Show Machine** context, or from the timeline drawer's **state lane** ("Edit logic").
+The editor
 ([`components/timeline/StateGraphEditor.tsx`](../src/renderer/components/timeline/StateGraphEditor.tsx))
 is an AutomataUI-style node canvas + an inspector.
 

@@ -38,14 +38,17 @@ export const plugin: RendererPlugin = {
     setHost(ctx.host);
 
     // OSC Monitor: a diagnostic modal that sniffs the raw OSC stream (LiDAR blob addresses). Registered
-    // as a DOCK panel on the `tracking` workspace context: the host declares that context, this plugin
+    // as a DOCK panel on the `3d` workspace context: the host declares that context, this plugin
     // appends its own tab to it, and the 'osc-monitor' menu action still reaches it (the host resolves
     // the action to the owning context + tab). App imports neither the panel nor its open state.
     ctx.panels.register({ id: 'osc-monitor', mount: 'dock', menuAction: 'osc-monitor', title: 'OSC Monitor', Component: OscMonitor });
     // Trigger Zones: where the venue's interactive areas are drawn. Same seam as the monitor above —
-    // the host declares the `tracking` context, the plugin appends its own tab to it.
+    // the host declares the `3d` context, the plugin appends its own tab to it.
     ctx.panels.register({ id: 'zone-editor', mount: 'dock', title: 'Trigger Zones', Component: ZonePanel });
-    ctx.contexts.extend('tracking', { dock: ['osc-monitor', 'zone-editor'] });
+    // '3d', not the old 'tracking' context: that one merged into the 3D scene, which is where these
+    // monitors' blobs are actually drawn. An extend() against an unknown id queues forever in silence,
+    // so verify:invariants checks every target resolves.
+    ctx.contexts.extend('3d', { dock: ['osc-monitor', 'zone-editor'] });
 
     // TRACKING content: the host compositor dispatches unknown content types through the registry.
     ctx.contentSources.register({

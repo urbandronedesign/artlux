@@ -1,0 +1,176 @@
+[
+ {
+  "id": "desisti/softled-4-vw",
+  "manufacturer": "Desisti",
+  "model": "SoftLED 4 VW",
+  "aliases": [
+   "Desisti SoftLED 4 VW",
+   "SLED4VW",
+   "SoftLED 4 VW",
+   "desistisoftled4vw",
+   "sled4vw",
+   "softled4vw"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "cct-linear-mode",
+    "label": "CCT Linear Mode",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-temperature-mode",
+    "label": "Color Temperature Mode",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "Linear Mode"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "Step Mode"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "s4",
+    "name": "SLOT4",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct-linear-mode",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-mode",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    465,
+    480,
+    132
+   ],
+   "weightKg": 6.7,
+   "powerW": 205
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "desisti/softled-4-vw",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "desisti/softled-8-vw",
+  "manufacturer": "Desisti",
+  "model": "SoftLED 8 VW",
+  "aliases": [
+   "Desisti SoftLED 8 VW",
+   "SLED8VW",
+   "SoftLED 8 VW",
+   "desistisoftled8vw",
+   "sled8vw",
+   "softled8vw"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "cct-linear-mode",
+    "label": "CCT Linear Mode",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-temperature-mode",
+    "label": "Color Temperature Mode",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "Linear Mode"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "Step Mode"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "s4",
+    "name": "SLOT4",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct-linear-mode",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-mode",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    747,
+    480,
+    132
+   ],
+   "weightKg": 10,
+   "powerW": 450
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "desisti/softled-8-vw",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

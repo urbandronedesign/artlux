@@ -75,7 +75,7 @@ clock does not.
 
 You can see both, always:
 
-- **`♪ BED m:ss`** in the timeline toolbar (the **Timeline** context) — the **show** clock. It appears
+- **`♪ BED m:ss`** in the timeline toolbar (the **timeline drawer**) — the **show** clock. It appears
   whenever a Scene is bound.
 - **`♪ m:ss`** in the mixer header (the **Audio** context) — the same number, plus a scrub slider for it.
 - The **ruler** under a bound Scene is that scene's **playhead**. A different number, on purpose.

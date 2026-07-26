@@ -12,6 +12,8 @@ import * as persistence from './persistence';
 import * as uiScale from './uiScale';
 import * as projectFolder from './projectFolder';
 import * as docs from './docs';
+import * as fixtureLibrary from './fixtureLibrary';
+import { importGdtf } from './gdtf';
 import * as metrics from './metrics';
 import * as watchdog from './watchdog';
 import { rebuildAppMenu } from './menu';
@@ -118,6 +120,29 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     });
 
     // In-app Docs Browser: enumerate the example/tutorial + user-guide tree, and read one doc by id.
+    // DMX fixture library. The index is small and cached; a manufacturer's full profiles are pulled
+    // only when a fixture is actually patched, so the renderer never carries the ~4 MB library.
+    ipcMain.handle(IPC.FIXTURE_LIBRARY_INDEX, () => fixtureLibrary.getIndex());
+    ipcMain.handle(IPC.FIXTURE_LIBRARY_GET, (_e, key: string) => fixtureLibrary.getManufacturer(String(key ?? '')));
+    ipcMain.handle(IPC.SERIAL_DEVICES, () => output.listSerialDevices());
+    ipcMain.handle(IPC.FIXTURE_IMPORT_GDTF, async () => {
+        const parent = BrowserWindow.getFocusedWindow() ?? getWindow();
+        const opts = {
+            title: 'Import a GDTF fixture',
+            properties: ['openFile' as const],
+            filters: [{ name: 'GDTF fixture', extensions: ['gdtf'] }],
+        };
+        const res = parent ? await dialog.showOpenDialog(parent, opts) : await dialog.showOpenDialog(opts);
+        if (res.canceled || !res.filePaths[0]) return null;
+        try {
+            const { profile, notes } = await importGdtf(res.filePaths[0]);
+            return { id: profile.id, model: `${profile.manufacturer} ${profile.model}`, notes };
+        } catch (e) {
+            // A bad file must not be a crash — it is a thing the operator can fix by picking another.
+            console.error('[gdtf] import failed', e);
+            return { id: '', model: '', notes: [`Import failed: ${(e as Error).message}`] };
+        }
+    });
     ipcMain.handle(IPC.DOCS_LIST, () => docs.listDocs());
     ipcMain.handle(IPC.DOCS_READ, (_e, id: string) => docs.readDoc(id));
     ipcMain.handle(IPC.DOCS_READ_ASSET, (_e, absPath: string) => docs.readDocAsset(absPath));

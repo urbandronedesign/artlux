@@ -1,15 +1,17 @@
-import React, { useMemo } from 'react';
-import { Plus, Trash2, Lock, Unlock, Hash, AlertTriangle } from 'lucide-react';
-import { Fixture, Surface, Controller, AppSettings, PatchPolicy } from '../types';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Plus, Trash2, Lock, Unlock, Hash, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Fixture, Surface, Controller, AppSettings, PatchPolicy, FixtureProfile } from '../types';
 import { Button } from './ui';
 import { Tooltip } from './ui/Tooltip';
 import { help } from '../services/helpBus';
-import { fixtureSpans, findCollisions } from '../services/addressing';
+import { fixtureSpans, findCollisions, fixtureFootprint } from '../services/addressing';
 
 interface Props {
   fixtures: Fixture[];
   surfaces: Surface[];
   controllers: Controller[];
+  /** Resolved DMX profiles — a profiled fixture's span is its MODE's, not the pixel product. */
+  fixtureProfiles?: ReadonlyMap<string, FixtureProfile>;
   settings: AppSettings;
   patchPolicy: PatchPolicy;
   onUpdateFixture: (id: string, updates: Partial<Fixture>) => void;
@@ -34,15 +36,27 @@ const cell = 'w-full bg-surface-0 border border-line-1 rounded-sm px-1 py-0.5 te
 // the collision detector and the locked-range policy are unchanged. The name is kept so the file's
 // history stays greppable. See docs/WORKSPACE.md.
 export const RoutingModal: React.FC<Props> = ({
-  fixtures, surfaces, controllers, settings, patchPolicy,
+  fixtures, surfaces, controllers, fixtureProfiles, settings, patchPolicy,
   onUpdateFixture, onAddController, onUpdateController, onRemoveController, onAutoPatch, onUpdateSettings, onUpdatePatchPolicy,
 }) => {
+
+  // USB DMX interfaces, for an 'enttec' controller's device picker. Enumerated on mount and on
+  // demand — a widget is routinely plugged in AFTER the app is already open, so a one-shot list at
+  // startup would leave the picker permanently empty for the most common case.
+  const [devices, setDevices] = useState<Array<{ path: string; label: string }>>([]);
+  const [scanning, setScanning] = useState(false);
+  const rescan = useCallback(async () => {
+    setScanning(true);
+    try { setDevices((await window.artlux?.listSerialDevices?.()) ?? []); }
+    finally { setScanning(false); }
+  }, []);
+  useEffect(() => { void rescan(); }, [rescan]);
 
   // Address-overlap detector: flag any two fixtures whose channel ranges intersect on the same
   // resolved destination (protocol|ip|broadcast). MUST sit above the early return (Rules of Hooks).
   const collisions = useMemo(() => {
     const def = { protocol: settings.protocol, ip: settings.artNetIp, broadcast: settings.broadcast };
-    const pairs = findCollisions(fixtureSpans(fixtures, controllers, def));
+    const pairs = findCollisions(fixtureSpans(fixtures, controllers, def, fixtureProfiles));
     const nameById = new Map(fixtures.map((f) => [f.id, f.name]));
     const partners = new Map<string, Set<string>>();
     const add = (a: string, b: string) => {
@@ -52,10 +66,12 @@ export const RoutingModal: React.FC<Props> = ({
     };
     for (const [a, b] of pairs) { add(a, b); add(b, a); }
     return { count: pairs.length, partners };
-  }, [fixtures, controllers, settings]);
+  }, [fixtures, controllers, fixtureProfiles, settings]);
 
   const span = (f: Fixture) => {
-    const ch = f.ledCount * (f.channelsPerPixel ?? 4);
+    // addressing.ts owns the footprint formula — a profiled fixture's is its mode's, not the pixel
+    // product, and this readout must agree with the collision detector shown beside it.
+    const ch = fixtureFootprint(f, fixtureProfiles);
     const startAbs = f.universe * 512 + (f.startAddress - 1);
     const endAbs = startAbs + Math.max(0, ch - 1);
     const u0 = Math.floor(startAbs / 512), u1 = Math.floor(endAbs / 512);
@@ -102,14 +118,46 @@ export const RoutingModal: React.FC<Props> = ({
                   <Tooltip id="routing.controller-protocol">
                     <select className={cell} value={c.protocol} onChange={(e) => onUpdateController(c.id, { protocol: e.target.value as Controller['protocol'] })} {...help('routing.controller-protocol')}>
                       <option value="artnet">Art-Net</option><option value="sacn">sACN</option>
+                      <option value="enttec">USB DMX</option>
                     </select>
                   </Tooltip>
-                  <Tooltip id="routing.controller-ip">
-                    <input className={`${cell} num`} value={c.ip} onChange={(e) => onUpdateController(c.id, { ip: e.target.value })} {...help('routing.controller-ip')} />
-                  </Tooltip>
+                  {c.protocol === 'enttec' ? (
+                    // A USB widget has no address — it has a PORT, and the operator must never have
+                    // to type "COM3". The list comes from the OS's own USB descriptors, so the row
+                    // shows the device's real name.
+                    <Tooltip id="routing.controller-device">
+                      <div className="flex items-center gap-1 min-w-0" {...help('routing.controller-device')}>
+                        <select
+                          className={`${cell} min-w-0`}
+                          value={c.port ?? ''}
+                          onChange={(e) => onUpdateController(c.id, { port: e.target.value || undefined })}
+                        >
+                          <option value="">— pick a device —</option>
+                          {/* A port saved in the project but not currently attached must stay
+                              selectable, or opening a show on another machine silently clears it. */}
+                          {c.port && !devices.some((d) => d.path === c.port) && (
+                            <option value={c.port}>{c.port} (not connected)</option>
+                          )}
+                          {devices.map((d) => <option key={d.path} value={d.path}>{d.label} — {d.path}</option>)}
+                        </select>
+                        <button
+                          onClick={rescan}
+                          title="Rescan for USB DMX interfaces"
+                          className="shrink-0 text-fg-3 hover:text-fg-1"
+                        >
+                          <RefreshCw size={12} className={scanning ? 'animate-spin' : undefined} />
+                        </button>
+                      </div>
+                    </Tooltip>
+                  ) : (
+                    <Tooltip id="routing.controller-ip">
+                      <input className={`${cell} num`} value={c.ip} onChange={(e) => onUpdateController(c.id, { ip: e.target.value })} {...help('routing.controller-ip')} />
+                    </Tooltip>
+                  )}
+                  {c.protocol === 'enttec' ? <span className="justify-self-center text-fg-3 text-micro">—</span> : (
                   <Tooltip id="routing.controller-broadcast">
                     <input type="checkbox" checked={c.broadcast} onChange={(e) => onUpdateController(c.id, { broadcast: e.target.checked })} className="justify-self-center bg-surface-0 border-line-2 rounded text-accent focus:ring-0" {...help('routing.controller-broadcast')} />
-                  </Tooltip>
+                  </Tooltip>)}
                   <Tooltip id="routing.controller-start-universe">
                     <input type="number" className={`${cell} num text-right`} value={c.startUniverse ?? 0} onChange={(e) => onUpdateController(c.id, { startUniverse: Math.max(0, Math.round(+e.target.value)) })} {...help('routing.controller-start-universe')} />
                   </Tooltip>
@@ -165,6 +213,14 @@ export const RoutingModal: React.FC<Props> = ({
                       <input type="number" className={`${cell} num text-right`} value={f.ledCount} onChange={(e) => onUpdateFixture(f.id, { ledCount: Math.max(1, Math.round(+e.target.value)) })} {...help('routing.fixture-leds')} />
                     </Tooltip>
                     <span className={`num text-micro truncate ${clash ? 'text-danger font-semibold' : 'text-fg-3'}`} title={clash ? `Overlaps ${[...clash].join(', ')}` : undefined}>{span(f)}</span>
+                    {/* PAST WHAT THE DEVICE CAN SEND. A USB widget drives one universe, so a fixture
+                        auto-patched beyond it has nowhere to go — badge it, because the alternative
+                        is a fixture that simply never lights and gives no reason why. */}
+                    {f.patchOverflow && (
+                      <span className="text-warn shrink-0" title="Past this interface's last universe — a USB DMX widget sends only one. Move it to another controller.">
+                        <AlertTriangle size={11} />
+                      </span>
+                    )}
                     <Tooltip id="routing.patch-lock">
                       <button onClick={() => onUpdateFixture(f.id, { patchLocked: !locked })} title={locked ? 'Locked (manual address)' : 'Auto (click to lock)'} className={`justify-self-center ${locked ? 'text-accent' : 'text-fg-3 hover:text-fg-1'}`} {...help('routing.patch-lock')}>
                         {locked ? <Lock size={12} /> : <Unlock size={12} />}

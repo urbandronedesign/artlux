@@ -7,7 +7,7 @@ import { RoutingModal } from '../../components/RoutingModal';
 import { Preferences } from '../../components/Preferences';
 import { StateGraphEditor } from '../../components/timeline/StateGraphEditor';
 import { useEditor, useEditorActions } from '../../state/EditorStore';
-import { goToContext } from '../nav';
+import { revealBottom } from '../nav';
 
 // Thin adapters: existing whole-panel components, fed from the editor store instead of ~10 props
 // threaded down from App. No behaviour change — these components are already coherent panels, so
@@ -47,13 +47,14 @@ export const FixtureEditorDock: React.FC = () => {
       onSaveTemplate={a.saveTemplate}
       onAddFromTemplate={a.addFromTemplate}
       onRemoveTemplate={a.removeTemplate}
+      onAddFromProfile={a.addFixtureFromProfile}
     />
   );
 };
 
 export const MonitorDock: React.FC = () => {
-  const { fixtures } = useEditor();
-  return <DMXMonitor fixtures={fixtures} />;
+  const { fixtures, fixtureProfiles } = useEditor();
+  return <DMXMonitor fixtures={fixtures} fixtureProfiles={fixtureProfiles} />;
 };
 
 export const PerfDock: React.FC = () => <PerfPanel />;
@@ -61,13 +62,14 @@ export const PerfDock: React.FC = () => <PerfPanel />;
 // Was the Routing MODAL. Patching belongs beside the fixture list and the DMX monitor, so it is a dock
 // panel in the `led` context now.
 export const RoutingDock: React.FC = () => {
-  const { fixtures, surfaces, controllers, settings, patchPolicy } = useEditor();
+  const { fixtures, surfaces, controllers, fixtureProfiles, settings, patchPolicy } = useEditor();
   const a = useEditorActions();
   return (
     <RoutingModal
       fixtures={fixtures}
       surfaces={surfaces}
       controllers={controllers}
+      fixtureProfiles={fixtureProfiles}
       settings={settings}
       patchPolicy={patchPolicy}
       onUpdateFixture={a.updateFixture}
@@ -100,9 +102,10 @@ export const StateMachineViewport: React.FC = () => {
       scenes={scenes.map((s) => ({ id: s.id, name: s.name, accent: s.accent, clipCount: s.timeline.clips.length, holdsAtEnd: !!s.timeline.holdAtEnd && !s.timeline.loop }))}
       cues={cueBanks.flatMap((b) => b.cues.map((c) => ({ id: c.id, name: c.name })))}
       onChange={a.setStateMachine}
-      // Editing a state's timeline binds that scene AND takes you to the timeline — the graph is no
-      // longer a dialog to dismiss, so "close" means going where the work continues.
-      onEditTimeline={(sceneId) => { a.enterAuthorScene(sceneId); goToContext('timeline'); }}
+      // Editing a state's timeline binds that scene and pulls the timeline DRAWER up underneath the
+      // graph. It used to switch to the `timeline` context, which took the graph away — the whole
+      // point of the drawer is that the state you just wired stays on screen beside its lanes.
+      onEditTimeline={(sceneId) => { a.enterAuthorScene(sceneId); revealBottom(); }}
     />
   );
 };

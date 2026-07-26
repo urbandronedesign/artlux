@@ -1,4 +1,20 @@
-import type { Scene3D, ProjectorOutput, SrcRect } from '../../shared/protocol';
+import type {
+  Scene3D, ProjectorOutput, SrcRect,
+  // Imported (not just re-exported) because types declared HERE reference it — a lighting take is
+  // keyed by role, and `export type { … } from` alone does not bring a name into local scope.
+  ChannelRole,
+} from '../../shared/protocol';
+
+// DMX fixture profiles live in shared/protocol.ts, not here, because THREE consumers need them: the
+// renderer (patching, the packer, the 3D scene), MAIN (it reads the bundled library off disk and
+// serves it over IPC) and the project file itself (ProjectData.fixtureProfiles embeds the profiles a
+// show actually uses, so a .artlux carried to a venue PC patches correctly even if that machine's
+// library lacks them). Re-exported here so `from '../types'` keeps working everywhere in the
+// renderer — the same arrangement Scene3D and ProjectorOutput already use.
+export type {
+  ChannelRole, ProfileRange, ProfileChannel, ProfileGeometry, ProfileGeoNode,
+  ProfileMode, FixtureProfile, FixtureProfileSummary,
+} from '../../shared/protocol';
 
 export interface Point {
   x: number;
@@ -97,6 +113,31 @@ export interface Fixture {
   // universe/startAddress unless patchLocked.
   controllerId?: string;
   patchLocked?: boolean;
+  /**
+   * Set by autoPatch when this fixture landed past what its controller can physically emit — a USB
+   * DMX widget drives one universe, so the fifth 100-channel fixture on one has nowhere to go. It is
+   * a REPORT, not a setting: the UI badges it so the overflow is a visible question rather than a
+   * fixture that quietly never lights.
+   */
+  patchOverflow?: boolean;
+  // ── DMX fixture profile (a moving head / wash / beam rather than a pixel strip) ──────────────
+  // All three optional, so EVERY existing project loads unchanged and no migration is needed.
+  //
+  // `profileId` set ⇒ this is a PROFILED fixture, and three things change:
+  //   · its DMX footprint is the MODE's, not ledCount × channelsPerPixel (see fixtureFootprint);
+  //   · it is driven by named channel VALUES (`dmx`), not by sampling its surface's pixels;
+  //   · `ledCount` is pinned to 1 — a moving head is one emitter, and letting it stay 16 would
+  //     make the 3D scene draw sixteen LED spheres inside one housing.
+  // Absent ⇒ every existing code path behaves exactly as before.
+  profileId?: string;      // FixtureProfile.id; resolved project-embedded → user → bundled
+  profileMode?: string;    // ProfileMode.key; absent ⇒ the profile's first mode
+  // AUTHORED channel values, keyed by ProfileChannel.key, normalised 0..1 (pan/tilt are a fraction
+  // of the channel's degree range, NOT degrees — the degrees live on the profile so one fixture's
+  // stored show survives being repatched to a different head).
+  //
+  // This is the bottom of the precedence stack: profile defaults < THIS < lighting clip <
+  // automation lane < live override. A key absent here falls back to the channel's `default`.
+  dmx?: Record<string, number>;
   // Phase G — 3D physical layout (optional; derived from 2D when absent).
   position3D?: Vec3;
   rotation3D?: Euler3;   // degrees
@@ -125,7 +166,10 @@ export const defaultLayout3D = (): Layout3D => ({
   arcRadius: 1, arcAngle: 180,
 });
 
-export type OutputProtocol = 'artnet' | 'sacn';
+// 'enttec' is a USB-serial DMX interface (ENTTEC DMX USB Pro and compatibles) rather than a network
+// protocol. It carries a COM PORT instead of an IP, and one widget drives exactly ONE universe —
+// both of which the patch has to respect. See docs/OUTPUTS.md → USB DMX.
+export type OutputProtocol = 'artnet' | 'sacn' | 'enttec';
 
 // S5 — a physical output device. Fixtures are assigned to one (controllerId) and
 // auto-patched into its universes; Stage resolves each fixture's destination here.
@@ -134,6 +178,11 @@ export interface Controller {
   name: string;
   protocol: OutputProtocol;
   ip: string;
+  /**
+   * USB-serial port path for an 'enttec' controller — `COM3`, `/dev/ttyUSB0`. Chosen from the
+   * discovered-device list in Outputs, never typed. Ignored by the network protocols.
+   */
+  port?: string;
   broadcast: boolean;
   priority?: number;     // sACN priority
   startUniverse?: number; // first universe this controller fills (default 0)
@@ -141,6 +190,7 @@ export interface Controller {
 
 export interface OutputTarget {
   ip?: string;             // override controller IP (else global AppSettings.artNetIp)
+  port?: string;           // 'enttec': override the controller's serial port path
   protocol?: OutputProtocol; // override global protocol
   broadcast?: boolean;     // Art-Net: UDP broadcast; sACN: multicast (239.255.x.x)
   sparse?: boolean;        // skip universes whose data is unchanged since last send
@@ -215,14 +265,15 @@ export interface SurfaceContent {
 // A layer is a track = an addressable output channel; surfaces/3D planes bind to its id.
 // The header flags (muted/solo/locked/enabled) are EDIT-UX only — the playback engine
 // (services/timeline.ts) ignores them so playback/compositing is unchanged.
-// A layer is either a normal video track or the special 'tracking' lane that holds recorded
-// LiDAR blob takes (replayed into the tracking store during playback). Absent kind ⇒ 'video'.
-export type LayerKind = 'video' | 'tracking';
+// A layer is either a normal video track or one of the two TAKE lanes: 'tracking' holds recorded
+// LiDAR blob takes (replayed into the tracking store), 'lighting' holds recorded or generated
+// fixture movement (replayed into the lighting overlay). Absent kind ⇒ 'video'.
+export type LayerKind = 'video' | 'tracking' | 'lighting';
 export type LayerBlendMode = 'normal' | 'add' | 'screen' | 'multiply';
 export interface VideoLayer {
   id: string;
   name: string;
-  kind?: LayerKind;      // 'tracking' = LiDAR-blob take lane; undefined/'video' = normal track
+  kind?: LayerKind;      // 'tracking'/'lighting' = take lanes; undefined/'video' = normal track
   height?: number;       // lane height in px (default LANE_H)
   color?: string;        // hex label color for the track header (default none)
   // muted/solo/enabled gate the timeline PROGRAM composite (SourceType.PROGRAM). A surface bound
@@ -272,8 +323,9 @@ export interface VideoClip {
   layerId: string;
   name: string;
   path: string;          // MP4 file path (video) or .lblob take file (tracking) — loaded via IPC
-  kind?: 'video' | 'tracking'; // matches the host layer's kind; undefined ⇒ 'video'
+  kind?: 'video' | 'tracking' | 'lighting'; // matches the host layer's kind; undefined ⇒ 'video'
   takeId?: string;       // tracking clips: id of the source take in timeline.trackingTakes
+  lighting?: LightingClip; // lighting clips: which take/effect, onto which group, with what spread
   // Generalized content: any surface source type (Image/Camera/DMX-in/Spout/NDI/Effect/Tracking)
   // scheduled on the layer for this clip's span. Absent (or type VIDEO) ⇒ legacy path-based video.
   content?: SurfaceContent;
@@ -478,6 +530,12 @@ export interface Timeline {
   // about than two. See the engine's non-looping end branch (services/timeline.ts).
   holdAtEnd?: boolean;
   trackingTakes?: TrackingTakeRef[]; // recorded LiDAR-blob take library (drag onto a tracking lane)
+  // Recorded fixture-movement takes. Stored INLINE rather than as sidecar files (which is what
+  // tracking takes do) because a keyframe-reduced curve is small — a few hundred points per role —
+  // and inlining removes an entire class of problem: no sidecar to lose, no asset path to rewrite
+  // when a project folder moves, no extra IPC. Revisit if takes ever get long enough to bloat the
+  // project file; the format below is already reduced on capture.
+  lightingTakes?: LightingTake[];
   automation?: AutomationLane[];     // keyframe curves over the playhead (P4)
   // A timeline's OWN audio — audio that plays with THIS timeline's picture and restarts when it does.
   //
@@ -1206,6 +1264,82 @@ export interface FixtureGroup {
   id: string;
   name: string;
   fixtureIds: string[];
+}
+
+// ── ENCODING A LIGHT SHOW ────────────────────────────────────────────────────────────────────
+//
+// A console encodes movement as an EFFECT with a phase spread across an ordered selection, not as
+// one curve per fixture per parameter — because forty heads × twenty channels is not something a
+// person can draw. ArtLux already has the half nobody else has (a real NLE timeline with clips), so
+// a light show here is: a fixture-agnostic TAKE, instanced onto an ordered GROUP by a timeline CLIP
+// that spreads it in time.
+//
+// THE TAKE IS IN ROLE SPACE, NOT FIXTURE SPACE. Values are keyed by what a channel MEANS (pan, tilt,
+// dimmer) and pan/tilt are stored in DEGREES. That is the whole reason a take can be assigned to a
+// group at all, and it is also why swapping the rig does not destroy the show: a movement recorded
+// on a 540° head replays as the same ANGLE on a 630° head. Consoles call that head morphing.
+
+/** One sampled curve: times in seconds (ascending), values in the role's own unit. */
+export interface LightingCurve {
+  t: number[];
+  v: number[];
+}
+
+/**
+ * One "part" of a take — the movement of a single position in the spread.
+ *
+ * A take with ONE part is a single movement fanned across however many fixtures the clip targets.
+ * A take with EIGHT is a recorded eight-fixture chase, kept intact. Part i drives fixture i of the
+ * target group, wrapping if the group is longer.
+ */
+export interface LightingTakePart {
+  channels: Partial<Record<ChannelRole, LightingCurve>>;
+}
+
+export interface LightingTake {
+  version: 1;
+  id: string;
+  name: string;
+  duration: number;           // seconds
+  fps?: number;               // nominal capture rate, informational
+  parts: LightingTakePart[];  // ordered
+}
+
+/** The shape of a generated (procedural) movement — a console "phaser", with no recording behind it. */
+export type LightingForm = 'sine' | 'triangle' | 'ramp' | 'square' | 'random';
+
+export interface LightingEffect {
+  form: LightingForm;
+  role: ChannelRole;      // which parameter it drives
+  centre: number;         // role units (degrees for pan/tilt, 0..1 otherwise)
+  amplitude: number;      // ± this much around the centre
+  periodSec: number;      // one full cycle
+}
+
+/** How a clip spreads its take across the fixtures of its group. */
+export type LightingPhaseMode = 'spread' | 'wing' | 'block' | 'random';
+
+export interface LightingClip {
+  /** The recorded take. Mutually exclusive with `effect`. */
+  takeId?: string;
+  /** A generated movement instead of a recording. Mutually exclusive with `takeId`. */
+  effect?: LightingEffect;
+  /**
+   * The ORDERED group this clip drives. Order is the spread axis, exactly as a console's selection
+   * order is — which is why groups are never sorted on the way in.
+   */
+  groupId?: string;
+  /** Seconds of delay per step along the group. 0 ⇒ every fixture moves together. */
+  phase?: number;
+  phaseMode?: LightingPhaseMode;
+  wings?: number;          // 'wing': mirror the spread outward from the centre in N wings
+  blocks?: number;         // 'block': fixtures move in N blocks rather than individually
+  /** Negate pan about its centre for the second half — the other half of a symmetric look. */
+  mirror?: boolean;
+  scale?: number;          // amplitude multiplier about the take's own centre (default 1)
+  offset?: number;         // added to every value, in role units
+  /** Only these roles are driven; absent ⇒ every role the take carries. */
+  roleMask?: ChannelRole[];
 }
 
 // A named snapshot of the look (instant recall). Captures the visible state — surfaces, fixtures,

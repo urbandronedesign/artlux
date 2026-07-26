@@ -1,5 +1,9 @@
 # ArtLux — Ledmap (pixel remapping)
 
+> **Pixel fixtures only.** A ledmap reorders a fixture's *pixels*, so it means nothing for a fixture
+> driven by a DMX profile (a moving head has named channels, not a pixel order) — see
+> [FIXTURE-LIBRARY.md](FIXTURE-LIBRARY.md).
+
 A **ledmap** remaps the order in which a fixture's pixels are addressed. It answers one
 question for the renderer:
 

@@ -1,0 +1,143 @@
+[
+ {
+  "id": "light4me/led-par-18x3w-uv",
+  "manufacturer": "Light4me",
+  "model": "LED PAR 18x3W UV",
+  "aliases": [
+   "LED PAR 18x3W UV",
+   "Light4me LED PAR 18x3W UV",
+   "ledpar18x3wuv",
+   "light4meledpar18x3wuv"
+  ],
+  "categories": [
+   "Effect"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "uv-1",
+    "label": "UV 1",
+    "role": "uv",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "uv-2",
+    "label": "UV 2",
+    "role": "uv",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "uv-3",
+    "label": "UV 3",
+    "role": "uv",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "macro-speed",
+    "label": "Macro Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Open"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "macros",
+    "label": "Macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Macros"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "7ch",
+    "name": "7-channel",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv-1",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv-3",
+      "byte": 0
+     },
+     {
+      "channelKey": "macro-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "macros",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    175,
+    175,
+    100
+   ],
+   "weightKg": 0.8,
+   "powerW": 55
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "light4me/led-par-18x3w-uv",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

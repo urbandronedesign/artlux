@@ -1,7 +1,10 @@
 import React from 'react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import type { PanelContribution, SelectionSnapshot } from '@artlux/sdk/renderer';
 import { contextRegistry, panelRegistry } from '../../host/registries';
 import { layoutStore, DEFAULT_LAYOUT } from '../../services/layoutStore';
+import { keymap } from '../../shortcuts/keymapStore';
+import { formatChord } from '../../shortcuts/chord';
 import { useLayout } from '../../hooks/useLayout';
 import { useResizable } from '../../hooks/useResizable';
 import { CollapsibleSection } from '../CollapsibleSection';
@@ -37,6 +40,10 @@ import { ShortcutsEditor } from '../shortcuts/ShortcutsEditor';
 // plain 2D context are all the same tree with different widths, and nothing ever remounts.
 
 export const SCENE_3D_VIEWPORT = 'core.viewport.scene3d';
+
+// Height of the bottom drawer's title strip — its height when closed. Matches the Dock's collapsed
+// bar closely enough to read as the same kind of thing.
+const BOTTOM_STRIP_H = 28;
 
 interface Props {
   /** Persistent viewports (id → element), mounted once by App and never remounted. */
@@ -152,24 +159,41 @@ export const WorkspaceShell: React.FC<Props> = ({ viewports, selection, drawers 
 
   const activeViewport = context.viewport;
   const activeIsScene3d = activeViewport === SCENE_3D_VIEWPORT;
-  // The full-width bottom region. A persistent viewport named here is rendered THERE and nowhere else
+  // The full-width bottom DRAWER. A persistent viewport named here is rendered THERE and nowhere else
   // (see the left-pane filter below) — a React element lives at exactly one position, and mounting the
   // timeline in two places would double its keyboard hook and engine subscription, which is the one
-  // thing that must never happen. Moving between positions remounts it, which is what the old
-  // dock-tab timeline did on every tab change anyway.
+  // thing that must never happen.
+  //
+  // Which is why the drawer only ever changes HEIGHT: nearly every context names the timeline here, so
+  // the element keeps the same parent across a context switch and never remounts. It used to move
+  // between the left pane's hidden slot and this region whenever you entered or left the old `timeline`
+  // context, throwing away the operator's zoom and scroll position each time.
   const bottomId = context.bottom;
   const bottomPanel = bottomId && !persistentIds.includes(bottomId) ? panelRegistry.get(bottomId) : null;
   const hasBottom = !!bottomId && (persistentIds.includes(bottomId) || !!bottomPanel);
+  const bottomOpen = hasBottom && layout.bottomOpen;
+  // The strip's label. A registry panel carries its own title; a PERSISTENT viewport is an element App
+  // passed in and has none, so fall back to the last segment of its id — 'core.viewport.timeline' →
+  // 'Timeline'. This shell imports and names zero panels, and that has to include this one.
+  const bottomTitle = panelRegistry.get(bottomId ?? '')?.title
+    ?? (bottomId ?? '').split('.').pop()?.replace(/^./, (c) => c.toUpperCase()) ?? '';
+  const bottomChord = formatChord(keymap.resolve('global.toggleBottom')[0] ?? '');
   // The right pane exists when the context lives there, or when split view is on.
   const showRightPane = layout.splitView || activeIsScene3d;
-  const leftFrac = !showRightPane ? 1 : (activeIsScene3d && !layout.splitView ? 0 : layout.splitRatio);
+  // What the LEFT pane shows. Normally the context's own viewport — except for a context whose viewport
+  // IS the 3D scene, which the shell pins to the right pane: there the left pane would be an empty half
+  // with split view on, so such a context names a `companion` to put there instead (the 2D stage, for
+  // the venue workbench). Without this, `splitView` inside a 3D context is a dead state.
+  const leftViewport = activeIsScene3d && layout.splitView ? context.companion : activeViewport;
+  const leftFrac = !showRightPane ? 1 : (activeIsScene3d && !leftViewport ? 0 : layout.splitRatio);
 
   const dockPanelId = layout.contexts[context.id]?.dockPanel ?? dockPanels[0]?.id ?? '';
   const activeDock = dockPanels.find((p) => p.id === dockPanelId) ?? dockPanels[0];
 
   // A context whose viewport isn't one of the persistent elements resolves it from the registry.
   // Those are cheap panels (an outputs table, a cue grid) — remounting them per switch is fine.
-  const registryViewport = persistentIds.includes(activeViewport) ? null : panelRegistry.get(activeViewport);
+  const registryViewport = leftViewport && !persistentIds.includes(leftViewport)
+    ? panelRegistry.get(leftViewport) : null;
 
   return (
     <div className="flex flex-1 min-h-0">
@@ -218,7 +242,7 @@ export const WorkspaceShell: React.FC<Props> = ({ viewports, selection, drawers 
                 aria-hidden={leftFrac === 0}
               >
                 {persistentIds.filter((id) => id !== SCENE_3D_VIEWPORT && id !== bottomId).map((id) => (
-                  <div key={id} className="absolute inset-0" style={{ display: id === activeViewport ? undefined : 'none' }}>
+                  <div key={id} className="absolute inset-0" style={{ display: id === leftViewport ? undefined : 'none' }}>
                     {viewports[id]}
                   </div>
                 ))}
@@ -292,19 +316,41 @@ export const WorkspaceShell: React.FC<Props> = ({ viewports, selection, drawers 
           {drawers}
         </div>
 
-        {/* FULL-WIDTH BOTTOM REGION — spans under the browser and the parameter column, unlike the
-            dock. Drag its top edge to resize; the height is remembered per context. */}
+        {/* FULL-WIDTH BOTTOM DRAWER — spans under the browser and the parameter column, unlike the
+            dock. Drag its top edge to resize; the height is remembered per context.
+
+            Rendered whenever the context declares a `bottom`, open or not: only the HEIGHT changes.
+            The content stays mounted at zero height, which is what keeps the timeline's zoom, scroll
+            and clip selection alive across both a toggle and a context switch. Collapsing to a title
+            strip rather than to nothing is also what makes it findable now that it has no rail entry —
+            the same trade the Dock already makes at 34px. */}
         {hasBottom && (
           <div
             className="shrink-0 border-t border-line-1 bg-surface-0 relative flex flex-col min-h-0"
-            style={{ height: layout.bottomHeight }}
+            style={{ height: bottomOpen ? layout.bottomHeight : BOTTOM_STRIP_H }}
           >
-            <div
-              onPointerDown={onBottomResize}
-              title="Drag to resize"
-              className="absolute -top-1 left-0 right-0 h-2 cursor-row-resize z-10 hover:bg-accent/30"
-            />
-            <div className="flex-1 min-h-0">
+            {bottomOpen && (
+              <div
+                onPointerDown={onBottomResize}
+                title="Drag to resize"
+                className="absolute -top-1 left-0 right-0 h-2 cursor-row-resize z-10 hover:bg-accent/30"
+              />
+            )}
+            <button
+              onClick={() => layoutStore.set({ bottomOpen: !layout.bottomOpen })}
+              title={`${bottomOpen ? 'Hide' : 'Show'} ${bottomTitle}${bottomChord ? ` (${bottomChord})` : ''}`}
+              aria-expanded={bottomOpen}
+              aria-controls="workspace-bottom"
+              className="shrink-0 px-2 flex items-center gap-1.5 text-mini text-fg-2 border-b border-line-1 bg-surface-1"
+              // One source for the strip's height: the closed box is exactly the strip, which is what
+              // leaves the content below it at zero.
+              style={{ height: BOTTOM_STRIP_H }}
+            >
+              {bottomOpen ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
+              <span className="uppercase tracking-wide">{bottomTitle}</span>
+            </button>
+            {/* flex-1 of a strip-height box is 0 when closed: mounted, measurable at zero, no remount. */}
+            <div id="workspace-bottom" className="flex-1 min-h-0 overflow-hidden">
               {bottomPanel
                 ? <ErrorBoundary variant="panel" label={bottomPanel.title ?? bottomPanel.id}>
                     <bottomPanel.Component contextId={context.id} selection={selection} />

@@ -86,6 +86,10 @@ function buildMenus(recents: string[]): Menu[] {
         { label: 'Reload', accel: 'Ctrl+R', cmd: 'reload' },
         { label: 'Toggle Developer Tools', accel: 'Ctrl+Shift+I', cmd: 'devtools' },
         { sep: true },
+        // The timeline is a drawer under whichever workbench is active, not a context — this is how you
+        // find it without knowing the shortcut.
+        { label: 'Timeline', accel: 'Ctrl+T', action: 'toggle-timeline' },
+        { sep: true },
         // These navigate to dock tabs / context viewports (per WORKSPACE.md), so no dialog "…". Only
         // Pose Floor Calibration opens a modal flow and keeps its ellipsis.
         { label: 'OSC Monitor', accel: 'Ctrl+Shift+M', action: 'osc-monitor' },

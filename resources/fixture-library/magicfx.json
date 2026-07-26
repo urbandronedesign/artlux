@@ -1,0 +1,579 @@
+[
+ {
+  "id": "magicfx/psyco2jet",
+  "manufacturer": "MagicFX",
+  "model": "PSYCO2JET",
+  "aliases": [
+   "MFXPSYCO2Jet",
+   "MagicFX PSYCO2JET",
+   "PSYCO2JET",
+   "magicfxpsyco2jet",
+   "mfxpsyco2jet",
+   "psyco2jet"
+  ],
+  "categories": [
+   "Effect"
+  ],
+  "channels": [
+   {
+    "key": "safety",
+    "label": "Safety",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 99,
+      "label": "Device disabled"
+     },
+     {
+      "from": 100,
+      "to": 155,
+      "label": "Device enabled"
+     },
+     {
+      "from": 156,
+      "to": 255,
+      "label": "Device test mode (CO₂ output is disabled)"
+     }
+    ]
+   },
+   {
+    "key": "angle",
+    "label": "Angle",
+    "role": "tilt",
+    "resolution": 1,
+    "default": 0.4980392156862745,
+    "min": -90,
+    "max": 90,
+    "unit": "deg"
+   },
+   {
+    "key": "speed",
+    "label": "Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "output",
+    "label": "Output",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 199,
+      "label": "Valve off"
+     },
+     {
+      "from": 200,
+      "to": 255,
+      "label": "Valve on"
+     }
+    ]
+   },
+   {
+    "key": "preset",
+    "label": "Preset",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 24,
+      "label": "Single pulse straight up (0°)"
+     },
+     {
+      "from": 25,
+      "to": 49,
+      "label": "2 pulses distributed over 180° (-45° +45°)"
+     },
+     {
+      "from": 50,
+      "to": 74,
+      "label": "3 pulses distributed over 180° (-90°, 0°, +90°)"
+     },
+     {
+      "from": 75,
+      "to": 99,
+      "label": "4 pulses distributed over 180° (-90°, -30°, +30°, +90°)"
+     },
+     {
+      "from": 100,
+      "to": 124,
+      "label": "5 pulses distributed over 180° (-90°, -45°, 0°, +45°, +90°)"
+     },
+     {
+      "from": 125,
+      "to": 149,
+      "label": "Random pulses over 180°"
+     },
+     {
+      "from": 150,
+      "to": 174,
+      "label": "Pulse at +45°, pulse at -45°, pulse at +45°, sweep from -45° back to +45°"
+     },
+     {
+      "from": 175,
+      "to": 199,
+      "label": "Three sweeps over 180° (-90° to -54°, -18° to +18° and +54° to +90°)"
+     },
+     {
+      "from": 200,
+      "to": 224,
+      "label": "Pulse at -90°, pulse at +90°, pulse at -60°, pulse at +60°, pulse at -30°, pulse at +30°, long pulse at 0°"
+     },
+     {
+      "from": 225,
+      "to": 255,
+      "label": "Sweep over 180°"
+     }
+    ]
+   },
+   {
+    "key": "direction",
+    "label": "Direction",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 63,
+      "label": "Left to right"
+     },
+     {
+      "from": 64,
+      "to": 127,
+      "label": "Bounce, beginning from left"
+     },
+     {
+      "from": 128,
+      "to": 191,
+      "label": "Bounce, beginning from right"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "Right to left"
+     }
+    ]
+   },
+   {
+    "key": "go",
+    "label": "Go",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 199,
+      "label": "Off"
+     },
+     {
+      "from": 200,
+      "to": 249,
+      "label": "Continuous mode"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Step in preset"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "safety",
+    "name": "Safety",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "safety",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "raw",
+    "name": "Raw",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "angle",
+      "byte": 0
+     },
+     {
+      "channelKey": "speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "output",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "preset",
+    "name": "Preset",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "preset",
+      "byte": 0
+     },
+     {
+      "channelKey": "speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "direction",
+      "byte": 0
+     },
+     {
+      "channelKey": "go",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    250,
+    165,
+    330
+   ],
+   "weightKg": 9,
+   "powerW": 35
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "magicfx/psyco2jet",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "magicfx/smokejet",
+  "manufacturer": "MagicFX",
+  "model": "SMOKEJET",
+  "aliases": [
+   "MagicFX SMOKEJET",
+   "SMOKEJET",
+   "magicfxsmokejet",
+   "smokejet"
+  ],
+  "categories": [
+   "Smoke",
+   "Color Changer",
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "fog",
+    "label": "Fog",
+    "role": "fog",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 4,
+      "label": "NoFunction"
+     },
+     {
+      "from": 5,
+      "to": 255,
+      "label": "Fog"
+     }
+    ]
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "chase",
+    "label": "Chase",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 15,
+      "label": "Chase 1"
+     },
+     {
+      "from": 16,
+      "to": 31,
+      "label": "Chase 2"
+     },
+     {
+      "from": 32,
+      "to": 47,
+      "label": "Chase 3"
+     },
+     {
+      "from": 48,
+      "to": 63,
+      "label": "Chase 4"
+     },
+     {
+      "from": 64,
+      "to": 79,
+      "label": "Chase 5"
+     },
+     {
+      "from": 80,
+      "to": 95,
+      "label": "Chase 6"
+     },
+     {
+      "from": 96,
+      "to": 111,
+      "label": "Chase 7"
+     },
+     {
+      "from": 112,
+      "to": 127,
+      "label": "Chase 8"
+     },
+     {
+      "from": 128,
+      "to": 143,
+      "label": "Chase 9"
+     },
+     {
+      "from": 144,
+      "to": 159,
+      "label": "Chase 10"
+     },
+     {
+      "from": 160,
+      "to": 175,
+      "label": "Chase 11"
+     },
+     {
+      "from": 176,
+      "to": 191,
+      "label": "Chase 12"
+     },
+     {
+      "from": 192,
+      "to": 207,
+      "label": "Chase 13"
+     },
+     {
+      "from": 208,
+      "to": 223,
+      "label": "Chase 14"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "Chase 15"
+     }
+    ]
+   },
+   {
+    "key": "chase-speed",
+    "label": "Chase Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "master-dimmer",
+    "label": "Master Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "9ch",
+    "name": "9-channel",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "fog",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "chase",
+      "byte": 0
+     },
+     {
+      "channelKey": "chase-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "master-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    193,
+    380,
+    345
+   ],
+   "weightKg": 12.6,
+   "powerW": 1420
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "magicfx/smokejet",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "magicfx/stage-flame",
+  "manufacturer": "MagicFX",
+  "model": "Stage Flame",
+  "aliases": [
+   "MFXStageFlame",
+   "MagicFX Stage Flame",
+   "Stage Flame",
+   "magicfxstageflame",
+   "mfxstageflame",
+   "stageflame"
+  ],
+  "categories": [
+   "Effect"
+  ],
+  "channels": [
+   {
+    "key": "safety",
+    "label": "Safety",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 139,
+      "label": "Safety ON"
+     },
+     {
+      "from": 140,
+      "to": 153,
+      "label": "Safety OFF"
+     },
+     {
+      "from": 154,
+      "to": 255,
+      "label": "Safety ON"
+     }
+    ]
+   },
+   {
+    "key": "flame",
+    "label": "Flame",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   }
+  ],
+  "modes": [
+   {
+    "key": "default",
+    "name": "Default",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "safety",
+      "byte": 0
+     },
+     {
+      "channelKey": "flame",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    310,
+    210,
+    360
+   ],
+   "weightKg": 11.5,
+   "powerW": 100
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "magicfx/stage-flame",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

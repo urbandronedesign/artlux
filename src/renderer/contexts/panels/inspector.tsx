@@ -2,9 +2,14 @@ import React, { useState } from 'react';
 import {
   Surface, SurfaceContent, PixelSource, LedShape, ColorOrder, RGBWMode, Layout3DType,
 } from '../../types';
+import { AlertTriangle } from 'lucide-react';
 import { ContentEditor } from '../../components/ContentEditor';
+import { FixtureProfilePicker } from '../../components/FixtureProfilePicker';
+import { Button, Field, Select, Slider } from '../../components/ui';
 import { Tooltip } from '../../components/ui/Tooltip';
 import { help } from '../../services/helpBus';
+import { fixtureFootprint, resolveMode } from '../../services/addressing';
+import { channelValue, physicalValue, selectedRange, valueForRange } from '../../services/profilePack';
 import { effectivePosObj, effectiveRotObj, effectiveLayout } from '../../services/led3dDefaults';
 import { useEditor, useEditorActions } from '../../state/EditorStore';
 
@@ -39,6 +44,175 @@ function useSelectedFixture() {
   const { fixtures, selectedFixtureId } = useEditor();
   return fixtures.find((f) => f.id === selectedFixtureId) ?? null;
 }
+
+// ── Fixture ▸ DMX Profile ───────────────────────────────────────────────────────────────────
+// What KIND of light this fixture is. Without a profile it is a pixel run (LED tape, a panel) and
+// the Mapping/Geometry sections describe it; with one it is a real DMX fixture whose channels come
+// from the library and whose footprint is its mode's.
+export const FixtureProfilePanel: React.FC = () => {
+  const { fixtureProfiles } = useEditor();
+  const a = useEditorActions();
+  const f = useSelectedFixture();
+  const [picking, setPicking] = useState(false);
+  if (!f) return null;
+
+  const profile = f.profileId ? fixtureProfiles.get(f.profileId) : undefined;
+  const mode = profile ? resolveMode(profile, f.profileMode) : undefined;
+
+  return (
+    <>
+      {!f.profileId && (
+        <>
+          <div className="text-mini text-fg-3">
+            Pixel fixture — {f.ledCount} × {f.channelsPerPixel ?? 4}ch. Give it a DMX profile to drive
+            a moving head, wash or beam by named channels instead.
+          </div>
+          {!picking && (
+            <Button size="sm" variant="ghost" className="w-full mt-1" onClick={() => setPicking(true)}>
+              Choose a DMX profile…
+            </Button>
+          )}
+        </>
+      )}
+
+      {f.profileId && (
+        <>
+          <div className="flex items-start justify-between gap-2 text-xs">
+            <div className="min-w-0">
+              {/* An UNRESOLVED profile is a real state, not an impossible one: the project may have
+                  travelled to a machine whose library lacks it. Say so plainly — the fixture is
+                  reserving no channels at all, which is exactly what would otherwise look like a
+                  patch that "just stopped working". */}
+              {profile ? (
+                <>
+                  <div className="text-fg-3 truncate">{profile.manufacturer}</div>
+                  <div className="text-fg-1 truncate">{profile.model}</div>
+                </>
+              ) : (
+                <div className="flex items-center gap-1.5 text-danger">
+                  <AlertTriangle size={12} className="shrink-0" />
+                  <span className="truncate" title={f.profileId}>Profile not found — occupies no channels</span>
+                </div>
+              )}
+            </div>
+            {profile?.verified === false && (
+              <span className="shrink-0 flex items-center gap-1 text-mini text-warn" title="This profile has not been checked against the manufacturer's manual">
+                <AlertTriangle size={11} /> Unverified
+              </span>
+            )}
+          </div>
+
+          {profile && profile.modes.length > 0 && (
+            <Field label="Mode">
+              <Select
+                value={mode?.key ?? ''}
+                onChange={(e) => a.setFixtureProfile(f.id, f.profileId!, e.target.value)}
+              >
+                {profile.modes.map((m) => (
+                  <option key={m.key} value={m.key}>{m.name} — {m.footprint}ch</option>
+                ))}
+              </Select>
+            </Field>
+          )}
+
+          <div className="flex items-center justify-between text-mini text-fg-3">
+            <span>Footprint</span>
+            <span className="tabular-nums text-fg-2">
+              {fixtureFootprint(f, fixtureProfiles)}ch · U{f.universe} @ {f.startAddress}
+            </span>
+          </div>
+
+          <div className="flex gap-1 mt-1">
+            <Button size="sm" variant="ghost" className="flex-1" onClick={() => setPicking((p) => !p)}>
+              {picking ? 'Cancel' : 'Change…'}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => { setPicking(false); a.setFixtureProfile(f.id, null); }}>
+              Clear
+            </Button>
+          </div>
+        </>
+      )}
+
+      {picking && (
+        <div className="mt-1 pt-1 border-t border-line-1">
+          <FixtureProfilePicker
+            autoFocus
+            selectedId={f.profileId}
+            maxHeight="max-h-48"
+            onPick={(profileId, modeKey) => { setPicking(false); a.setFixtureProfile(f.id, profileId, modeKey); }}
+          />
+        </div>
+      )}
+    </>
+  );
+};
+
+// ── Fixture ▸ Channels ──────────────────────────────────────────────────────────────────────
+// The live channel strip of a profiled fixture: one control per channel of the ACTIVE MODE, in DMX
+// order, so what you see matches what goes on the wire address by address.
+export const FixtureChannelsPanel: React.FC = () => {
+  const { fixtureProfiles } = useEditor();
+  const a = useEditorActions();
+  const f = useSelectedFixture();
+  if (!f?.profileId) return null;
+  const profile = fixtureProfiles.get(f.profileId);
+  const mode = profile ? resolveMode(profile, f.profileMode) : undefined;
+  if (!profile || !mode) return null;
+
+  // The channels this MODE actually emits, in slot order, de-duplicated across a 16-bit pair's two
+  // slots — an operator adjusts "Pan", not "Pan" and "Pan fine".
+  const seen = new Set<string>();
+  const channels = mode.slots
+    .filter((s): s is NonNullable<typeof s> => !!s && !seen.has(s.channelKey) && !!seen.add(s.channelKey))
+    .map((s) => ({ slot: s, channel: profile.channels.find((c) => c.key === s.channelKey) }))
+    .filter((e): e is { slot: NonNullable<typeof e.slot>; channel: NonNullable<typeof e.channel> } => !!e.channel);
+
+  const set = (key: string, v: number) => a.updateFixture(f.id, { dmx: { ...(f.dmx ?? {}), [key]: v } });
+
+  return (
+    <>
+      {channels.map(({ channel }) => {
+        const value = channelValue(f, channel);
+        const address = f.startAddress + mode.slots.findIndex((s) => s?.channelKey === channel.key);
+        if (channel.ranges?.length) {
+          // A wheel is a LIST, not a percentage. Showing "0.42" for a gobo is unusable; showing
+          // "Eclipse" is what the manual prints.
+          const current = selectedRange(channel, value);
+          return (
+            <div key={channel.key} className="flex items-center justify-between text-xs gap-2">
+              <label className="text-fg-2 w-16 truncate" title={`${channel.label} — DMX ${address}`}>{channel.label}</label>
+              <Select
+                value={current ? String(current.from) : ''}
+                onChange={(e) => set(channel.key, valueForRange({ from: Number(e.target.value), to: channel.ranges!.find((r) => r.from === Number(e.target.value))!.to }))}
+              >
+                {channel.ranges.map((r) => <option key={r.from} value={r.from}>{r.label}</option>)}
+              </Select>
+            </div>
+          );
+        }
+        // Continuous. The readout is the channel's PHYSICAL value where it has one (270° reads far
+        // better than 0.5 when aiming a head); the stored value stays normalised — see profilePack.
+        const physical = physicalValue(channel, value);
+        return (
+          <Slider
+            key={channel.key}
+            label={channel.label}
+            value={value}
+            min={0}
+            max={1}
+            step={1 / (256 ** channel.resolution - 1)}
+            format={(v) => {
+              const p = physicalValue(channel, v);
+              return p !== null ? `${Math.round(p)}${channel.unit === 'deg' ? '°' : ''}` : `${Math.round(v * 100)}%`;
+            }}
+            onChange={(v) => set(channel.key, v)}
+          />
+        );
+      })}
+      {!channels.length && <div className="text-mini text-fg-3">This mode emits no channels.</div>}
+    </>
+  );
+};
 
 // ── Surface ▸ Content ───────────────────────────────────────────────────────────────────────
 export const SurfaceContentPanel: React.FC = () => {

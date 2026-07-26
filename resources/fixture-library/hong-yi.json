@@ -1,0 +1,386 @@
+[
+ {
+  "id": "hong-yi/hy-g60",
+  "manufacturer": "Hong Yi",
+  "model": "HY-G60",
+  "aliases": [
+   "HY-G60",
+   "Hong Yi HY-G60",
+   "hongyihyg60",
+   "hyg60"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 180,
+    "unit": "deg"
+   },
+   {
+    "key": "color-wheel",
+    "label": "Color Wheel",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Open"
+     },
+     {
+      "from": 11,
+      "to": 21,
+      "label": "Open"
+     },
+     {
+      "from": 22,
+      "to": 32,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 33,
+      "to": 43,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 44,
+      "to": 54,
+      "label": "Orange",
+      "color": "#ffaa00"
+     },
+     {
+      "from": 55,
+      "to": 65,
+      "label": "Orange",
+      "color": "#ffaa00"
+     },
+     {
+      "from": 66,
+      "to": 76,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 77,
+      "to": 87,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 88,
+      "to": 98,
+      "label": "Green",
+      "color": "#19ff00"
+     },
+     {
+      "from": 99,
+      "to": 109,
+      "label": "Green",
+      "color": "#19ff00"
+     },
+     {
+      "from": 110,
+      "to": 120,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 121,
+      "to": 131,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 132,
+      "to": 142,
+      "label": "Purple",
+      "color": "#ff01fb"
+     },
+     {
+      "from": 143,
+      "to": 153,
+      "label": "Purple",
+      "color": "#ff01fb"
+     },
+     {
+      "from": 154,
+      "to": 159,
+      "label": "Cyan",
+      "color": "#00fbff"
+     },
+     {
+      "from": 160,
+      "to": 207,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 208,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "gobo-wheel",
+    "label": "Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Open"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Gobo"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "Gobo"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "Gobo"
+     },
+     {
+      "from": 40,
+      "to": 49,
+      "label": "Gobo"
+     },
+     {
+      "from": 50,
+      "to": 59,
+      "label": "Gobo"
+     },
+     {
+      "from": 60,
+      "to": 69,
+      "label": "Gobo"
+     },
+     {
+      "from": 70,
+      "to": 79,
+      "label": "Gobo"
+     },
+     {
+      "from": 80,
+      "to": 89,
+      "label": "Gobo"
+     },
+     {
+      "from": 90,
+      "to": 99,
+      "label": "Gobo"
+     },
+     {
+      "from": 100,
+      "to": 109,
+      "label": "Gobo"
+     },
+     {
+      "from": 110,
+      "to": 119,
+      "label": "Gobo"
+     },
+     {
+      "from": 120,
+      "to": 129,
+      "label": "Gobo"
+     },
+     {
+      "from": 130,
+      "to": 139,
+      "label": "Gobo"
+     },
+     {
+      "from": 140,
+      "to": 149,
+      "label": "Gobo"
+     },
+     {
+      "from": 150,
+      "to": 202,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 203,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "shutter-strobe",
+    "label": "Shutter / Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan/Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "internal-programs",
+    "label": "Internal Programs",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 50,
+      "label": "NoFunction"
+     },
+     {
+      "from": 51,
+      "to": 151,
+      "label": "Fast Moving"
+     },
+     {
+      "from": 152,
+      "to": 255,
+      "label": "Sound Control"
+     }
+    ]
+   },
+   {
+    "key": "reset",
+    "label": "Reset",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 254,
+      "label": "NoFunction"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Reset"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "11ch",
+    "name": "11-channel",
+    "footprint": 11,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "internal-programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "reset",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    170,
+    190,
+    150
+   ],
+   "weightKg": 4.5,
+   "powerW": 100,
+   "lensDegMin": 12,
+   "lensDegMax": 12
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "hong-yi/hy-g60",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

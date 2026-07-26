@@ -322,8 +322,10 @@ the static look, not effects, media or patch.
 
 ## 11. The timeline & state machine
 
-Open the **Timeline** dock tab (or press **F** to maximize it full-screen; drag the dock's top edge to
-resize). It's a DaVinci-style editor for sequencing video on tracks (layers); point a surface's
+Pull the **timeline drawer** up with **Ctrl+T** — it spans the full window width under whichever
+workbench you are in, so you can cut against the 2D stage or record a lighting take against the 3D rig
+without leaving either. (Press **F** to maximize it full-screen; drag its top edge to resize; each
+workbench remembers whether you had it open.) It's a DaVinci-style editor for sequencing video on tracks (layers); point a surface's
 content at a **Layer** to show it.
 
 **Editing:**

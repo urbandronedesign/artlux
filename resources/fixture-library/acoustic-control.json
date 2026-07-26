@@ -1,0 +1,162 @@
+[
+ {
+  "id": "acoustic-control/par-180-cob-3in1",
+  "manufacturer": "Acoustic Control",
+  "model": "PAR 180 COB 3in1",
+  "aliases": [
+   "Acoustic Control PAR 180 COB 3in1",
+   "PAR 180 COB 3in1",
+   "PAR180",
+   "acousticcontrolpar180cob3in1",
+   "par180",
+   "par180cob3in1"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "mode",
+    "label": "Mode",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 50,
+      "label": "Manual Mode"
+     },
+     {
+      "from": 51,
+      "to": 100,
+      "label": "ColorJump"
+     },
+     {
+      "from": 101,
+      "to": 150,
+      "label": "ColorFade"
+     },
+     {
+      "from": 151,
+      "to": 200,
+      "label": "Sound Activate"
+     },
+     {
+      "from": 201,
+      "to": 255,
+      "label": "Strobe (Color)"
+     }
+    ]
+   },
+   {
+    "key": "fx-speed",
+    "label": "FX Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "7ch",
+    "name": "7-channel",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "mode",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    220,
+    220,
+    90
+   ],
+   "weightKg": 1.5,
+   "powerW": 150,
+   "lensDegMin": 80,
+   "lensDegMax": 80
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "acoustic-control/par-180-cob-3in1",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

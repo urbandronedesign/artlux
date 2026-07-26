@@ -1,9 +1,11 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { Fixture, FixtureTemplate, LedShape, ColorOrder, RGBWMode } from '../types';
 import { Hash, Grid3x3, Cable, Minus, Plus, Save, PackagePlus, Trash2, Library, Route, Upload, Download, Eraser, AlertTriangle } from 'lucide-react';
 import { Field, NumberField, Select, Toggle, Segmented, Button, useToast } from './ui';
 import { Tooltip } from './ui/Tooltip';
 import { help } from '../services/helpBus';
+import { fixtureFootprint } from '../services/addressing';
+import { FixtureProfilePicker } from './FixtureProfilePicker';
 
 interface Props {
   fixture: Fixture | null;
@@ -14,6 +16,8 @@ interface Props {
   onSaveTemplate: () => void;
   onAddFromTemplate: (t: FixtureTemplate) => void;
   onRemoveTemplate: (id: string) => void;
+  /** Add a brand-new fixture straight from a library profile. */
+  onAddFromProfile: (profileId: string, modeKey: string) => void;
 }
 
 const Card: React.FC<{ title: string; icon?: React.ReactNode; children: React.ReactNode; className?: string }> = ({
@@ -63,14 +67,17 @@ export const FixtureEditor: React.FC<Props> = ({
   onSaveTemplate,
   onAddFromTemplate,
   onRemoveTemplate,
+  onAddFromProfile,
 }) => {
   const toast = useToast();
+  const [libraryTab, setLibraryTab] = useState<'profiles' | 'templates'>('profiles');
   const up = (updates: Partial<Fixture>) => fixture && onUpdateFixture(fixture.id, updates);
   const shape = fixture?.shape ?? LedShape.LINE;
   const cpp = fixture?.channelsPerPixel ?? 4;
   const cols = fixture?.matrixWidth ?? 8;
   const rows = fixture?.matrixHeight ?? 8;
-  const totalChannels = (fixture?.ledCount ?? 0) * cpp;
+  // Via addressing.ts, so the editor's channel count is the same number the patch reserves.
+  const totalChannels = fixture ? fixtureFootprint(fixture) : 0;
 
   // Ledmap — WLED-style physical→geometry remap. See docs/LEDMAP.md.
   const ledmapInput = useRef<HTMLInputElement>(null);
@@ -148,8 +155,23 @@ export const FixtureEditor: React.FC<Props> = ({
           </Tooltip>
         </Card>
 
-        {/* Library — fixture templates */}
-        <Card title="Library" icon={<Library size={12} />} className="min-w-[200px]">
+        {/* Library — the shipped DMX fixture library, and the operator's own pixel templates.
+            Two tabs rather than two cards: they answer the same question ("what am I adding?") and
+            splitting them into separate places would make the shipped library easy to miss. */}
+        <Card title="Library" icon={<Library size={12} />} className="min-w-[240px]">
+          <Segmented
+            value={libraryTab}
+            onChange={(v) => setLibraryTab(v as 'profiles' | 'templates')}
+            options={[{ value: 'profiles', label: 'DMX Fixtures' }, { value: 'templates', label: 'My Templates' }]}
+          />
+
+          {libraryTab === 'profiles' && (
+            <div className="mt-1">
+              <FixtureProfilePicker maxHeight="max-h-40" onPick={(id, mode) => onAddFromProfile(id, mode)} />
+            </div>
+          )}
+
+          {libraryTab === 'templates' && <>
           <Tooltip id="fixtures.save-template">
             <button
               onClick={onSaveTemplate}
@@ -177,6 +199,7 @@ export const FixtureEditor: React.FC<Props> = ({
             ))}
             {templates.length === 0 && <div className="text-fg-3 italic px-2 py-1 text-xs">No templates</div>}
           </div>
+          </>}
         </Card>
 
         {!fixture && (

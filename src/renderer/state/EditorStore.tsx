@@ -23,7 +23,7 @@
 import React, { createContext, useContext, useMemo, useRef } from 'react';
 import type { SelectionSnapshot } from '@artlux/sdk/renderer';
 import type {
-  Surface, Fixture, FixtureGroup, Controller, FixtureTemplate, AppSettings, PatchPolicy,
+  Surface, Fixture, FixtureGroup, Controller, FixtureTemplate, FixtureProfile, AppSettings, PatchPolicy,
   Scene, CueBank, StateMachine, Timeline, AssetEntry, AssetType,
 } from '../types';
 import type { Scene3D, SceneModel, DisplayInfo, ProjectorOutput } from '../../../shared/protocol';
@@ -40,6 +40,12 @@ export interface EditorData {
   groups: FixtureGroup[];
   controllers: Controller[];
   templates: FixtureTemplate[];
+  /**
+   * Resolved DMX fixture profiles by id (project-embedded → user → bundled). Panels need it to show
+   * a profiled fixture's channels and its real DMX span; addressing.fixtureFootprint() is the only
+   * thing allowed to turn it into a channel count.
+   */
+  fixtureProfiles: ReadonlyMap<string, FixtureProfile>;
   // selection
   selectedSurfaceId: string | null;
   selectedFixtureId: string | null;   // primary — drives the inspector + the on-stage gizmo
@@ -94,7 +100,11 @@ export interface EditorActions {
   updateFixture(id: string, patch: Partial<Fixture>): void;
   setFixtures(next: Fixture[]): void;
   autoPatch(): void;
-  commitFixture3D(id: string, patch: Partial<Fixture>): void;
+  /**
+   * Commit a 3D transform gesture as ONE change. Takes an array because the gizmo moves the whole
+   * selection — ten fixtures dragged together must be one undo step, not ten.
+   */
+  commitFixture3D(updates: Array<{ id: string } & Partial<Fixture>>): void;
   // groups
   createGroup(): void;
   addSelectedToGroup(groupId: string): void;
@@ -108,6 +118,13 @@ export interface EditorActions {
   // templates
   saveTemplate(): void;
   addFromTemplate(t: FixtureTemplate): void;
+  /**
+   * Give a fixture a DMX profile (a moving head / wash / beam), or `null` to turn it back into a
+   * pixel fixture. Both repatch — the profile decides the fixture's DMX footprint.
+   */
+  setFixtureProfile(id: string, profileId: string | null, modeKey?: string): void;
+  /** Create a new fixture straight from a library profile, patched after the existing rig. */
+  addFixtureFromProfile(profileId: string, modeKey?: string): void;
   removeTemplate(id: string): void;
   // 3D scene
   selectModel(id: string | null): void;

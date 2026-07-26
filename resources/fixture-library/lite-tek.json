@@ -1,0 +1,737 @@
+[
+ {
+  "id": "lite-tek/beam-230",
+  "manufacturer": "Lite-Tek",
+  "model": "Beam 230",
+  "aliases": [
+   "Beam 230",
+   "Lite-Tek Beam 230",
+   "beam230",
+   "litetekbeam230"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "color-wheel",
+    "label": "Color Wheel",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 4,
+      "label": "Open"
+     },
+     {
+      "from": 5,
+      "to": 8,
+      "label": "Open"
+     },
+     {
+      "from": 9,
+      "to": 12,
+      "label": "Red",
+      "color": "#e50015"
+     },
+     {
+      "from": 13,
+      "to": 17,
+      "label": "Red",
+      "color": "#e50015"
+     },
+     {
+      "from": 18,
+      "to": 21,
+      "label": "Orange",
+      "color": "#ffa300"
+     },
+     {
+      "from": 22,
+      "to": 25,
+      "label": "Orange",
+      "color": "#ffa300"
+     },
+     {
+      "from": 26,
+      "to": 29,
+      "label": "Aquamarine",
+      "color": "#83d1ff"
+     },
+     {
+      "from": 30,
+      "to": 34,
+      "label": "Aquamarine",
+      "color": "#83d1ff"
+     },
+     {
+      "from": 35,
+      "to": 38,
+      "label": "Green",
+      "color": "#00993f"
+     },
+     {
+      "from": 39,
+      "to": 42,
+      "label": "Green",
+      "color": "#00993f"
+     },
+     {
+      "from": 43,
+      "to": 46,
+      "label": "Light green",
+      "color": "#00ff01"
+     },
+     {
+      "from": 47,
+      "to": 51,
+      "label": "Light green",
+      "color": "#00ff01"
+     },
+     {
+      "from": 52,
+      "to": 55,
+      "label": "Lavender",
+      "color": "#878ddd"
+     },
+     {
+      "from": 56,
+      "to": 59,
+      "label": "Lavender",
+      "color": "#878ddd"
+     },
+     {
+      "from": 60,
+      "to": 63,
+      "label": "Pink",
+      "color": "#fec0cb"
+     },
+     {
+      "from": 64,
+      "to": 68,
+      "label": "Pink",
+      "color": "#fec0cb"
+     },
+     {
+      "from": 69,
+      "to": 72,
+      "label": "Yellow",
+      "color": "#fff001"
+     },
+     {
+      "from": 73,
+      "to": 76,
+      "label": "Yellow",
+      "color": "#fff001"
+     },
+     {
+      "from": 77,
+      "to": 81,
+      "label": "Magenta",
+      "color": "#e50081"
+     },
+     {
+      "from": 82,
+      "to": 85,
+      "label": "Magenta",
+      "color": "#e50081"
+     },
+     {
+      "from": 86,
+      "to": 89,
+      "label": "Cyan",
+      "color": "#00dce5"
+     },
+     {
+      "from": 90,
+      "to": 93,
+      "label": "Cyan",
+      "color": "#00dce5"
+     },
+     {
+      "from": 94,
+      "to": 98,
+      "label": "CTO 260",
+      "color": "#ff9416"
+     },
+     {
+      "from": 99,
+      "to": 102,
+      "label": "CTO 260",
+      "color": "#ff9416"
+     },
+     {
+      "from": 103,
+      "to": 106,
+      "label": "CTO 190",
+      "color": "#fea94e"
+     },
+     {
+      "from": 107,
+      "to": 110,
+      "label": "CTO 190",
+      "color": "#fea94e"
+     },
+     {
+      "from": 111,
+      "to": 115,
+      "label": "CTB 8000",
+      "color": "#e5eaff"
+     },
+     {
+      "from": 116,
+      "to": 119,
+      "label": "CTB 8000",
+      "color": "#e5eaff"
+     },
+     {
+      "from": 120,
+      "to": 123,
+      "label": "Blue",
+      "color": "#0c1397"
+     },
+     {
+      "from": 124,
+      "to": 127,
+      "label": "Blue",
+      "color": "#0c1397"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 1,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 3,
+      "label": "Closed"
+     },
+     {
+      "from": 4,
+      "to": 103,
+      "label": "Strobe"
+     },
+     {
+      "from": 104,
+      "to": 107,
+      "label": "Open"
+     },
+     {
+      "from": 108,
+      "to": 207,
+      "label": "Pulse"
+     },
+     {
+      "from": 208,
+      "to": 212,
+      "label": "Open"
+     },
+     {
+      "from": 213,
+      "to": 251,
+      "label": "Strobe"
+     },
+     {
+      "from": 252,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "gobo-wheel",
+    "label": "Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 3,
+      "label": "Open"
+     },
+     {
+      "from": 4,
+      "to": 7,
+      "label": "Gobo"
+     },
+     {
+      "from": 8,
+      "to": 11,
+      "label": "Gobo"
+     },
+     {
+      "from": 12,
+      "to": 15,
+      "label": "Gobo"
+     },
+     {
+      "from": 16,
+      "to": 19,
+      "label": "Gobo"
+     },
+     {
+      "from": 20,
+      "to": 23,
+      "label": "Gobo"
+     },
+     {
+      "from": 24,
+      "to": 27,
+      "label": "Gobo"
+     },
+     {
+      "from": 28,
+      "to": 31,
+      "label": "Gobo"
+     },
+     {
+      "from": 32,
+      "to": 35,
+      "label": "Gobo"
+     },
+     {
+      "from": 36,
+      "to": 39,
+      "label": "Gobo"
+     },
+     {
+      "from": 40,
+      "to": 43,
+      "label": "Gobo"
+     },
+     {
+      "from": 44,
+      "to": 47,
+      "label": "Gobo"
+     },
+     {
+      "from": 48,
+      "to": 51,
+      "label": "Gobo"
+     },
+     {
+      "from": 52,
+      "to": 55,
+      "label": "Gobo"
+     },
+     {
+      "from": 56,
+      "to": 59,
+      "label": "Gobo"
+     },
+     {
+      "from": 60,
+      "to": 63,
+      "label": "Gobo"
+     },
+     {
+      "from": 64,
+      "to": 67,
+      "label": "Gobo"
+     },
+     {
+      "from": 68,
+      "to": 71,
+      "label": "Gobo"
+     },
+     {
+      "from": 72,
+      "to": 113,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 114,
+      "to": 117,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 118,
+      "to": 159,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 160,
+      "to": 166,
+      "label": "Gobo"
+     },
+     {
+      "from": 167,
+      "to": 172,
+      "label": "Gobo"
+     },
+     {
+      "from": 173,
+      "to": 179,
+      "label": "Gobo"
+     },
+     {
+      "from": 180,
+      "to": 185,
+      "label": "Gobo"
+     },
+     {
+      "from": 186,
+      "to": 191,
+      "label": "Gobo"
+     },
+     {
+      "from": 192,
+      "to": 198,
+      "label": "Gobo"
+     },
+     {
+      "from": 199,
+      "to": 204,
+      "label": "Gobo"
+     },
+     {
+      "from": 205,
+      "to": 211,
+      "label": "Gobo"
+     },
+     {
+      "from": 212,
+      "to": 217,
+      "label": "Gobo"
+     },
+     {
+      "from": 218,
+      "to": 223,
+      "label": "Gobo"
+     },
+     {
+      "from": 224,
+      "to": 230,
+      "label": "Gobo"
+     },
+     {
+      "from": 231,
+      "to": 236,
+      "label": "Gobo"
+     },
+     {
+      "from": 237,
+      "to": 243,
+      "label": "Gobo"
+     },
+     {
+      "from": 244,
+      "to": 249,
+      "label": "Gobo"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Gobo"
+     }
+    ]
+   },
+   {
+    "key": "prism",
+    "label": "Prism",
+    "role": "prism",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "NoFunction"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "Prism"
+     }
+    ]
+   },
+   {
+    "key": "prism-rotation",
+    "label": "Prism Rotation",
+    "role": "prismRotation",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 128,
+      "to": 190,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 191,
+      "to": 192,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 193,
+      "to": 255,
+      "label": "PrismRotation"
+     }
+    ]
+   },
+   {
+    "key": "color-macros",
+    "label": "Color Macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "frost",
+    "label": "Frost",
+    "role": "frost",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "Frost"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "Frost"
+     }
+    ]
+   },
+   {
+    "key": "focus",
+    "label": "Focus",
+    "role": "focus",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 270,
+    "unit": "deg"
+   },
+   {
+    "key": "macros",
+    "label": "Macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 11,
+      "label": "NoFunction"
+     },
+     {
+      "from": 12,
+      "to": 24,
+      "label": "Macro 1"
+     },
+     {
+      "from": 25,
+      "to": 37,
+      "label": "Macro 2"
+     },
+     {
+      "from": 38,
+      "to": 50,
+      "label": "Macro 3"
+     },
+     {
+      "from": 51,
+      "to": 62,
+      "label": "Macro 4"
+     },
+     {
+      "from": 63,
+      "to": 255,
+      "label": "Macro 5"
+     }
+    ]
+   },
+   {
+    "key": "reset",
+    "label": "Reset",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 62,
+      "label": "NoFunction"
+     },
+     {
+      "from": 63,
+      "to": 63,
+      "label": "Reset"
+     },
+     {
+      "from": 64,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "lamp",
+    "label": "Lamp",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 62,
+      "label": "NoFunction"
+     },
+     {
+      "from": 63,
+      "to": 63,
+      "label": "Lamp off"
+     },
+     {
+      "from": 64,
+      "to": 177,
+      "label": "NoFunction"
+     },
+     {
+      "from": 178,
+      "to": 178,
+      "label": "Lamp on"
+     },
+     {
+      "from": 179,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "16ch",
+    "name": "16-channel",
+    "footprint": 16,
+    "slots": [
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "frost",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "reset",
+      "byte": 0
+     },
+     {
+      "channelKey": "lamp",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    350,
+    505,
+    320
+   ],
+   "weightKg": 20.1,
+   "powerW": 320
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "lite-tek/beam-230",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

@@ -1,0 +1,5812 @@
+[
+ {
+  "id": "chauvet-dj/corepar-uv-usb",
+  "manufacturer": "Chauvet DJ",
+  "model": "COREpar UV USB",
+  "aliases": [
+   "COREpar UV USB",
+   "Chauvet DJ COREpar UV USB",
+   "ChauvetCOREparUV",
+   "chauvetcoreparuv",
+   "chauvetdjcoreparuvusb",
+   "coreparuvusb"
+  ],
+  "categories": [
+   "Other"
+  ],
+  "channels": [
+   {
+    "key": "uv",
+    "label": "UV",
+    "role": "uv",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "NoFunction"
+     },
+     {
+      "from": 16,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "programs",
+    "label": "Programs",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "NoFunction"
+     },
+     {
+      "from": 32,
+      "to": 95,
+      "label": "RampUp"
+     },
+     {
+      "from": 96,
+      "to": 159,
+      "label": "RampDown"
+     },
+     {
+      "from": 160,
+      "to": 223,
+      "label": "Pulse"
+     },
+     {
+      "from": 224,
+      "to": 240,
+      "label": "Sound mode 1"
+     },
+     {
+      "from": 241,
+      "to": 255,
+      "label": "Sound mode 2"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer-speed",
+    "label": "Dimmer Speed",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 51,
+      "label": "Default dimmer speed"
+     },
+     {
+      "from": 52,
+      "to": 101,
+      "label": "Dimmer speed"
+     },
+     {
+      "from": 102,
+      "to": 152,
+      "label": "Dimmer speed"
+     },
+     {
+      "from": 153,
+      "to": 203,
+      "label": "Dimmer speed"
+     },
+     {
+      "from": 204,
+      "to": 255,
+      "label": "Dimmer speed"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "5ch",
+    "name": "5-channel",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-speed",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "1ch",
+    "name": "1-channel",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "uv",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    200,
+    253,
+    139
+   ],
+   "weightKg": 2.1,
+   "powerW": 65,
+   "lensDegMin": 50,
+   "lensDegMax": 100
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "chauvet-dj/corepar-uv-usb",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "chauvet-dj/eve-p-100-ww",
+  "manufacturer": "Chauvet DJ",
+  "model": "EVE P-100 WW",
+  "aliases": [
+   "Chauvet DJ EVE P-100 WW",
+   "EVE P-100 WW",
+   "chauvetdjevep100ww",
+   "evep100ww"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "NoFunction"
+     },
+     {
+      "from": 16,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "auto-programs",
+    "label": "Auto Programs",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "NoFunction"
+     },
+     {
+      "from": 32,
+      "to": 95,
+      "label": "0–100%"
+     },
+     {
+      "from": 96,
+      "to": 159,
+      "label": "100–0%"
+     },
+     {
+      "from": 160,
+      "to": 223,
+      "label": "100–0–100%"
+     },
+     {
+      "from": 224,
+      "to": 240,
+      "label": "Sound-active program 1"
+     },
+     {
+      "from": 241,
+      "to": 255,
+      "label": "Sound-active program 2"
+     }
+    ]
+   },
+   {
+    "key": "dimmer-speed-mode",
+    "label": "Dimmer Speed Mode",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 51,
+      "label": "Dimmer speed set from display"
+     },
+     {
+      "from": 52,
+      "to": 101,
+      "label": "Dimmer speed"
+     },
+     {
+      "from": 102,
+      "to": 152,
+      "label": "Dimmer speed"
+     },
+     {
+      "from": 153,
+      "to": 203,
+      "label": "Dimmer speed"
+     },
+     {
+      "from": 204,
+      "to": 255,
+      "label": "Dimmer speed"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "1ch",
+    "name": "1-channel",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "2ch",
+    "name": "2-channel",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "4ch",
+    "name": "4-channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-speed-mode",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    245,
+    305,
+    220
+   ],
+   "weightKg": 3.5,
+   "powerW": 122,
+   "lensDegMin": 25,
+   "lensDegMax": 45
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "chauvet-dj/eve-p-100-ww",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "chauvet-dj/eve-p-130-rgb",
+  "manufacturer": "Chauvet DJ",
+  "model": "EVE P-130 RGB",
+  "aliases": [
+   "Chauvet DJ EVE P-130 RGB",
+   "EVE P-130 RGB",
+   "chauvetdjevep130rgb",
+   "evep130rgb"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-macros",
+    "label": "Color Macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "NoFunction"
+     },
+     {
+      "from": 16,
+      "to": 255,
+      "label": "ColorPreset"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "NoFunction"
+     },
+     {
+      "from": 16,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "auto-programs",
+    "label": "Auto Programs",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "NoFunction"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "0–100%"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "100–0%"
+     },
+     {
+      "from": 96,
+      "to": 127,
+      "label": "100–0–100%"
+     },
+     {
+      "from": 128,
+      "to": 159,
+      "label": "ColorFade"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "ColorJump (7 colors)"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "ColorJump (18 colors)"
+     },
+     {
+      "from": 224,
+      "to": 249,
+      "label": "Sound-active program 1"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Sound-active program 2"
+     }
+    ]
+   },
+   {
+    "key": "program-speed",
+    "label": "Program Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer-speed-mode",
+    "label": "Dimmer Speed Mode",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 51,
+      "label": "Dimmer speed set from display"
+     },
+     {
+      "from": 52,
+      "to": 101,
+      "label": "Dimmer speed"
+     },
+     {
+      "from": 102,
+      "to": 152,
+      "label": "Dimmer speed"
+     },
+     {
+      "from": 153,
+      "to": 203,
+      "label": "Dimmer speed"
+     },
+     {
+      "from": 204,
+      "to": 255,
+      "label": "Dimmer speed"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "3ch",
+    "name": "3-channel RGB",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "4ch",
+    "name": "4-channel DRGB",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "9ch",
+    "name": "9-channel",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-speed-mode",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    245,
+    305,
+    220
+   ],
+   "weightKg": 3.5,
+   "powerW": 122,
+   "lensDegMin": 25,
+   "lensDegMax": 45
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "chauvet-dj/eve-p-130-rgb",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "chauvet-dj/freedom-h1",
+  "manufacturer": "Chauvet DJ",
+  "model": "Freedom H1",
+  "aliases": [
+   "Chauvet DJ Freedom H1",
+   "Freedom",
+   "Freedom H1",
+   "chauvetdjfreedomh1",
+   "freedom",
+   "freedomh1"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "uv",
+    "label": "UV",
+    "role": "uv",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "color-macros",
+    "label": "Color Macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 30,
+      "label": "Red … Yellow"
+     },
+     {
+      "from": 31,
+      "to": 50,
+      "label": "Yellow … Green"
+     },
+     {
+      "from": 51,
+      "to": 70,
+      "label": "Green … Cyan"
+     },
+     {
+      "from": 71,
+      "to": 90,
+      "label": "Cyan … Blue"
+     },
+     {
+      "from": 91,
+      "to": 110,
+      "label": "Blue … Pink"
+     },
+     {
+      "from": 111,
+      "to": 130,
+      "label": "Pink … Red"
+     },
+     {
+      "from": 131,
+      "to": 150,
+      "label": "Red … White"
+     },
+     {
+      "from": 151,
+      "to": 170,
+      "label": "White … Blue"
+     },
+     {
+      "from": 171,
+      "to": 200,
+      "label": "RGBA",
+      "color": "#ffdf80"
+     },
+     {
+      "from": 201,
+      "to": 205,
+      "label": "Color 1"
+     },
+     {
+      "from": 206,
+      "to": 210,
+      "label": "Color 2"
+     },
+     {
+      "from": 211,
+      "to": 215,
+      "label": "Color 3"
+     },
+     {
+      "from": 216,
+      "to": 220,
+      "label": "Color 4"
+     },
+     {
+      "from": 221,
+      "to": 225,
+      "label": "Color 5"
+     },
+     {
+      "from": 226,
+      "to": 230,
+      "label": "Color 6"
+     },
+     {
+      "from": 231,
+      "to": 235,
+      "label": "Color 7"
+     },
+     {
+      "from": 236,
+      "to": 240,
+      "label": "Color 8"
+     },
+     {
+      "from": 241,
+      "to": 245,
+      "label": "Color 9"
+     },
+     {
+      "from": 246,
+      "to": 250,
+      "label": "Color 10"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "Color 11"
+     }
+    ]
+   },
+   {
+    "key": "programs",
+    "label": "Programs",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 60,
+      "label": "Auto program 1"
+     },
+     {
+      "from": 61,
+      "to": 120,
+      "label": "Auto program 2"
+     },
+     {
+      "from": 121,
+      "to": 180,
+      "label": "Auto program 3"
+     },
+     {
+      "from": 181,
+      "to": 240,
+      "label": "Auto program 4"
+     },
+     {
+      "from": 241,
+      "to": 255,
+      "label": "Sound-active program"
+     }
+    ]
+   },
+   {
+    "key": "program-speed",
+    "label": "Program Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer-speed",
+    "label": "Dimmer Speed",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 51,
+      "label": "Preset dimmer speed from display menu"
+     },
+     {
+      "from": 52,
+      "to": 101,
+      "label": "Dimmer speed off"
+     },
+     {
+      "from": 102,
+      "to": 152,
+      "label": "Dimmer speed fast"
+     },
+     {
+      "from": 153,
+      "to": 203,
+      "label": "Dimmer speed medium"
+     },
+     {
+      "from": 204,
+      "to": 255,
+      "label": "Dimmer speed slow"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "12ch",
+    "name": "12-channel",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-speed",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "8ch",
+    "name": "8-channel",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "6ch",
+    "name": "6-channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    75,
+    139,
+    97
+   ],
+   "weightKg": 0.7,
+   "powerW": 35,
+   "lensDegMin": 21,
+   "lensDegMax": 32
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "chauvet-dj/freedom-h1",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "chauvet-dj/geyser-rgb",
+  "manufacturer": "Chauvet DJ",
+  "model": "Geyser RGB",
+  "aliases": [
+   "Chauvet DJ Geyser RGB",
+   "Geyser RGB",
+   "chauvetdjgeyserrgb",
+   "geyserrgb"
+  ],
+  "categories": [
+   "Smoke",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "fog",
+    "label": "Fog",
+    "role": "fog",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 255,
+      "label": "Fog"
+     }
+    ]
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 255,
+      "label": "ColorIntensity"
+     }
+    ]
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 255,
+      "label": "ColorIntensity"
+     }
+    ]
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 255,
+      "label": "ColorIntensity"
+     }
+    ]
+   },
+   {
+    "key": "color-mixing",
+    "label": "Color Mixing",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 255,
+      "label": "ColorPreset"
+     }
+    ]
+   },
+   {
+    "key": "auto-speed",
+    "label": "Auto Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 255,
+      "label": "Speed"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 255,
+      "label": "Intensity"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "8ch",
+    "name": "8-channel",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "fog",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-mixing",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    375,
+    250,
+    510
+   ],
+   "weightKg": 9.6,
+   "powerW": 1500
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "chauvet-dj/geyser-rgb",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "chauvet-dj/hurricane-1600",
+  "manufacturer": "Chauvet DJ",
+  "model": "Hurricane 1600",
+  "aliases": [
+   "Chauvet DJ Hurricane 1600",
+   "Hurricane 1600",
+   "chauvetdjhurricane1600",
+   "hurricane1600"
+  ],
+  "categories": [
+   "Smoke"
+  ],
+  "channels": [
+   {
+    "key": "fog-output",
+    "label": "Fog Output",
+    "role": "fog",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "Fog"
+     },
+     {
+      "from": 6,
+      "to": 255,
+      "label": "Fog"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "1ch",
+    "name": "1-channel",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "fog-output",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    348,
+    312,
+    253
+   ],
+   "weightKg": 6,
+   "powerW": 1580
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "chauvet-dj/hurricane-1600",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "chauvet-dj/hurricane-haze-1dx",
+  "manufacturer": "Chauvet DJ",
+  "model": "Hurricane Haze 1DX",
+  "aliases": [
+   "Chauvet DJ Hurricane Haze 1DX",
+   "Hurricane Haze 1DX",
+   "chauvetdjhurricanehaze1dx",
+   "hurricanehaze1dx"
+  ],
+  "categories": [
+   "Hazer"
+  ],
+  "channels": [
+   {
+    "key": "haze",
+    "label": "Haze",
+    "role": "fog",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Fog"
+     },
+     {
+      "from": 11,
+      "to": 255,
+      "label": "Fog"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "1ch",
+    "name": "1 Channel",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "haze",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    150,
+    223,
+    278
+   ],
+   "weightKg": 3.3,
+   "powerW": 303
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "chauvet-dj/hurricane-haze-1dx",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "chauvet-dj/hurricane-haze-2d",
+  "manufacturer": "Chauvet DJ",
+  "model": "Hurricane Haze 2D",
+  "aliases": [
+   "Chauvet DJ Hurricane Haze 2D",
+   "Hurricane Haze 2D",
+   "chauvetdjhurricanehaze2d",
+   "hurricanehaze2d"
+  ],
+  "categories": [
+   "Hazer"
+  ],
+  "channels": [
+   {
+    "key": "blower-speed",
+    "label": "Blower Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "Speed"
+     },
+     {
+      "from": 6,
+      "to": 75,
+      "label": "Speed"
+     },
+     {
+      "from": 76,
+      "to": 125,
+      "label": "Speed"
+     },
+     {
+      "from": 126,
+      "to": 165,
+      "label": "Speed"
+     },
+     {
+      "from": 166,
+      "to": 185,
+      "label": "Speed"
+     },
+     {
+      "from": 186,
+      "to": 255,
+      "label": "Speed"
+     }
+    ]
+   },
+   {
+    "key": "haze-volume",
+    "label": "Haze Volume",
+    "role": "fog",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 38,
+      "label": "Fog"
+     },
+     {
+      "from": 39,
+      "to": 69,
+      "label": "Fog"
+     },
+     {
+      "from": 70,
+      "to": 101,
+      "label": "Fog"
+     },
+     {
+      "from": 102,
+      "to": 132,
+      "label": "Fog"
+     },
+     {
+      "from": 133,
+      "to": 187,
+      "label": "Fog"
+     },
+     {
+      "from": 188,
+      "to": 255,
+      "label": "Fog"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "2ch",
+    "name": "2ch",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "blower-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "haze-volume",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    267,
+    350,
+    285
+   ],
+   "weightKg": 8.5,
+   "powerW": 533
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "chauvet-dj/hurricane-haze-2d",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "chauvet-dj/intimidator-spot-110",
+  "manufacturer": "Chauvet DJ",
+  "model": "Intimidator Spot 110",
+  "aliases": [
+   "Chauvet DJ Intimidator Spot 110",
+   "Intimidator Spot 110",
+   "chauvetdjintimidatorspot110",
+   "intimidatorspot110"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 270,
+    "unit": "deg"
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan/Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-wheel",
+    "label": "Color Wheel",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "Open"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 96,
+      "to": 127,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 128,
+      "to": 159,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "Purple",
+      "color": "#ff55ff"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "Orange",
+      "color": "#ffaa00"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "Light Blue",
+      "color": "#00aaff"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "Open"
+     },
+     {
+      "from": 16,
+      "to": 131,
+      "label": "Strobe"
+     },
+     {
+      "from": 132,
+      "to": 139,
+      "label": "Open"
+     },
+     {
+      "from": 140,
+      "to": 181,
+      "label": "RampUp"
+     },
+     {
+      "from": 182,
+      "to": 189,
+      "label": "Open"
+     },
+     {
+      "from": 190,
+      "to": 231,
+      "label": "RampDown"
+     },
+     {
+      "from": 232,
+      "to": 239,
+      "label": "Open"
+     },
+     {
+      "from": 240,
+      "to": 247,
+      "label": "Strobe"
+     },
+     {
+      "from": 248,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "gobo-wheel",
+    "label": "Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "Open"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "Gobo"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "Gobo"
+     },
+     {
+      "from": 96,
+      "to": 127,
+      "label": "Gobo"
+     },
+     {
+      "from": 128,
+      "to": 159,
+      "label": "Gobo"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "Gobo"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "Gobo"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "Gobo"
+     }
+    ]
+   },
+   {
+    "key": "function",
+    "label": "Function",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 69,
+      "label": "NoFunction"
+     },
+     {
+      "from": 70,
+      "to": 89,
+      "label": "Blackout on pan/tilt move on"
+     },
+     {
+      "from": 90,
+      "to": 109,
+      "label": "Blackout on pan/tilt move off"
+     },
+     {
+      "from": 110,
+      "to": 129,
+      "label": "Blackout on color wheel move on"
+     },
+     {
+      "from": 130,
+      "to": 149,
+      "label": "Blackout on color wheel move off"
+     },
+     {
+      "from": 150,
+      "to": 169,
+      "label": "Blackout on color wheel move on"
+     },
+     {
+      "from": 170,
+      "to": 189,
+      "label": "Blackout on color wheel move off"
+     },
+     {
+      "from": 190,
+      "to": 199,
+      "label": "NoFunction"
+     },
+     {
+      "from": 200,
+      "to": 209,
+      "label": "Reset all"
+     },
+     {
+      "from": 210,
+      "to": 249,
+      "label": "NoFunction"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Sound-active program"
+     }
+    ]
+   },
+   {
+    "key": "movement-macro",
+    "label": "Movement Macro",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "NoFunction"
+     },
+     {
+      "from": 16,
+      "to": 35,
+      "label": "Movement macro 1"
+     },
+     {
+      "from": 36,
+      "to": 55,
+      "label": "Movement macro 2"
+     },
+     {
+      "from": 56,
+      "to": 75,
+      "label": "Movement macro 3"
+     },
+     {
+      "from": 76,
+      "to": 95,
+      "label": "Movement macro 4"
+     },
+     {
+      "from": 96,
+      "to": 115,
+      "label": "Movement macro 5"
+     },
+     {
+      "from": 116,
+      "to": 135,
+      "label": "Movement macro 6"
+     },
+     {
+      "from": 136,
+      "to": 155,
+      "label": "Movement macro 7"
+     },
+     {
+      "from": 156,
+      "to": 175,
+      "label": "Movement macro 8"
+     },
+     {
+      "from": 176,
+      "to": 195,
+      "label": "Movement macro 9"
+     },
+     {
+      "from": 196,
+      "to": 215,
+      "label": "Movement macro 10"
+     },
+     {
+      "from": 216,
+      "to": 235,
+      "label": "Movement macro 11"
+     },
+     {
+      "from": 236,
+      "to": 255,
+      "label": "Movement macro 12"
+     }
+    ]
+   },
+   {
+    "key": "movement-macro-speed",
+    "label": "Movement Macro Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "12ch",
+    "name": "12-channel",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "function",
+      "byte": 0
+     },
+     {
+      "channelKey": "movement-macro",
+      "byte": 0
+     },
+     {
+      "channelKey": "movement-macro-speed",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "6ch",
+    "name": "6-channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    190,
+    279,
+    127
+   ],
+   "weightKg": 2.3,
+   "powerW": 41,
+   "lensDegMin": 13,
+   "lensDegMax": 13
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "chauvet-dj/intimidator-spot-110",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "chauvet-dj/intimidator-spot-160",
+  "manufacturer": "Chauvet DJ",
+  "model": "Intimidator Spot 160",
+  "aliases": [
+   "Chauvet DJ Intimidator Spot 160",
+   "Intimidator Spot 160",
+   "chauvetdjintimidatorspot160",
+   "intimidatorspot160"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 270,
+    "unit": "deg"
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan/Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-wheel",
+    "label": "Color Wheel",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 6,
+      "label": "Open"
+     },
+     {
+      "from": 7,
+      "to": 13,
+      "label": "Orange",
+      "color": "#ffa500"
+     },
+     {
+      "from": 14,
+      "to": 20,
+      "label": "Lime green",
+      "color": "#66f83a"
+     },
+     {
+      "from": 21,
+      "to": 27,
+      "label": "Cyan",
+      "color": "#00ffff"
+     },
+     {
+      "from": 28,
+      "to": 34,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 35,
+      "to": 41,
+      "label": "Green",
+      "color": "#16b116"
+     },
+     {
+      "from": 42,
+      "to": 48,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 49,
+      "to": 55,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 56,
+      "to": 62,
+      "label": "Dark blue",
+      "color": "#00008b"
+     },
+     {
+      "from": 63,
+      "to": 64,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 65,
+      "to": 189,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 190,
+      "to": 221,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 222,
+      "to": 223,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "gobo-wheel",
+    "label": "Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 6,
+      "label": "Open"
+     },
+     {
+      "from": 7,
+      "to": 11,
+      "label": "Gobo 1",
+      "goboKey": "10-circles"
+     },
+     {
+      "from": 12,
+      "to": 17,
+      "label": "Gobo 2"
+     },
+     {
+      "from": 18,
+      "to": 23,
+      "label": "Gobo 3"
+     },
+     {
+      "from": 24,
+      "to": 29,
+      "label": "Gobo 4"
+     },
+     {
+      "from": 30,
+      "to": 35,
+      "label": "Gobo 5"
+     },
+     {
+      "from": 36,
+      "to": 41,
+      "label": "Gobo 6"
+     },
+     {
+      "from": 42,
+      "to": 47,
+      "label": "Gobo 7",
+      "goboKey": "biohazard"
+     },
+     {
+      "from": 48,
+      "to": 53,
+      "label": "Gobo 8"
+     },
+     {
+      "from": 54,
+      "to": 63,
+      "label": "Gobo 9"
+     },
+     {
+      "from": 64,
+      "to": 69,
+      "label": "Gobo 9"
+     },
+     {
+      "from": 70,
+      "to": 75,
+      "label": "Gobo 8"
+     },
+     {
+      "from": 76,
+      "to": 81,
+      "label": "Gobo 7",
+      "goboKey": "biohazard"
+     },
+     {
+      "from": 82,
+      "to": 87,
+      "label": "Gobo 6"
+     },
+     {
+      "from": 88,
+      "to": 93,
+      "label": "Gobo 5"
+     },
+     {
+      "from": 94,
+      "to": 99,
+      "label": "Gobo 4"
+     },
+     {
+      "from": 100,
+      "to": 105,
+      "label": "Gobo 3"
+     },
+     {
+      "from": 106,
+      "to": 111,
+      "label": "Gobo 2"
+     },
+     {
+      "from": 112,
+      "to": 117,
+      "label": "Gobo 1",
+      "goboKey": "10-circles"
+     },
+     {
+      "from": 118,
+      "to": 127,
+      "label": "Open"
+     },
+     {
+      "from": 128,
+      "to": 189,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 190,
+      "to": 193,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 194,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "shutter",
+    "label": "Shutter",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 3,
+      "label": "Closed"
+     },
+     {
+      "from": 4,
+      "to": 7,
+      "label": "Open"
+     },
+     {
+      "from": 8,
+      "to": 76,
+      "label": "Strobe"
+     },
+     {
+      "from": 77,
+      "to": 145,
+      "label": "Pulse"
+     },
+     {
+      "from": 146,
+      "to": 215,
+      "label": "Strobe"
+     },
+     {
+      "from": 216,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "control",
+    "label": "Control",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "NoFunction"
+     },
+     {
+      "from": 8,
+      "to": 15,
+      "label": "Blackout on pan/tilt movement"
+     },
+     {
+      "from": 16,
+      "to": 23,
+      "label": "Blackout on color wheel movement"
+     },
+     {
+      "from": 24,
+      "to": 31,
+      "label": "Blackout on gobo wheel movement"
+     },
+     {
+      "from": 32,
+      "to": 39,
+      "label": "Blackout on pan/tilt/color wheel movement"
+     },
+     {
+      "from": 40,
+      "to": 47,
+      "label": "Blackout on pan/tilt/gobo wheel movement"
+     },
+     {
+      "from": 48,
+      "to": 55,
+      "label": "Blackout on pan/tilt/color/gobo wheel movement"
+     },
+     {
+      "from": 56,
+      "to": 95,
+      "label": "NoFunction"
+     },
+     {
+      "from": 96,
+      "to": 103,
+      "label": "Pan reset"
+     },
+     {
+      "from": 104,
+      "to": 111,
+      "label": "Tilt reset"
+     },
+     {
+      "from": 112,
+      "to": 119,
+      "label": "Color wheel reset"
+     },
+     {
+      "from": 120,
+      "to": 127,
+      "label": "Gobo wheel reset"
+     },
+     {
+      "from": 128,
+      "to": 135,
+      "label": "NoFunction"
+     },
+     {
+      "from": 136,
+      "to": 143,
+      "label": "Prism reset"
+     },
+     {
+      "from": 144,
+      "to": 151,
+      "label": "Focus reset"
+     },
+     {
+      "from": 152,
+      "to": 159,
+      "label": "Reset all"
+     },
+     {
+      "from": 160,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "movement-macros",
+    "label": "Movement Macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "NoFunction"
+     },
+     {
+      "from": 8,
+      "to": 23,
+      "label": "Movement macro 1"
+     },
+     {
+      "from": 24,
+      "to": 39,
+      "label": "Movement macro 2"
+     },
+     {
+      "from": 40,
+      "to": 55,
+      "label": "Movement macro 3"
+     },
+     {
+      "from": 56,
+      "to": 71,
+      "label": "Movement macro 4"
+     },
+     {
+      "from": 72,
+      "to": 87,
+      "label": "Movement macro 5"
+     },
+     {
+      "from": 88,
+      "to": 103,
+      "label": "Movement macro 6"
+     },
+     {
+      "from": 104,
+      "to": 119,
+      "label": "Movement macro 7"
+     },
+     {
+      "from": 120,
+      "to": 135,
+      "label": "Movement macro 8"
+     },
+     {
+      "from": 136,
+      "to": 151,
+      "label": "Sound-active movement macro 1"
+     },
+     {
+      "from": 152,
+      "to": 167,
+      "label": "Sound-active movement macro 2"
+     },
+     {
+      "from": 168,
+      "to": 183,
+      "label": "Sound-active movement macro 3"
+     },
+     {
+      "from": 184,
+      "to": 199,
+      "label": "Sound-active movement macro 4"
+     },
+     {
+      "from": 200,
+      "to": 215,
+      "label": "Sound-active movement macro 5"
+     },
+     {
+      "from": 216,
+      "to": 231,
+      "label": "Sound-active movement macro 6"
+     },
+     {
+      "from": 232,
+      "to": 247,
+      "label": "Sound-active movement macro 7"
+     },
+     {
+      "from": 248,
+      "to": 255,
+      "label": "Sound-active movement macro 8"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "11ch",
+    "name": "11-channel",
+    "footprint": 11,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter",
+      "byte": 0
+     },
+     {
+      "channelKey": "control",
+      "byte": 0
+     },
+     {
+      "channelKey": "movement-macros",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "5ch",
+    "name": "5-channel",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    207,
+    149,
+    308
+   ],
+   "weightKg": 4,
+   "powerW": 60,
+   "lensDegMin": 17,
+   "lensDegMax": 17
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "chauvet-dj/intimidator-spot-160",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "chauvet-dj/intimidator-spot-260",
+  "manufacturer": "Chauvet DJ",
+  "model": "Intimidator Spot 260",
+  "aliases": [
+   "Chauvet DJ Intimidator Spot 260",
+   "Intimidator Spot 260",
+   "chauvetdjintimidatorspot260",
+   "intimidatorspot260"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 270,
+    "unit": "deg"
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan/Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-wheel",
+    "label": "Color Wheel",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 6,
+      "label": "Open"
+     },
+     {
+      "from": 7,
+      "to": 13,
+      "label": "Orange",
+      "color": "#fd8008"
+     },
+     {
+      "from": 14,
+      "to": 20,
+      "label": "Lime Green",
+      "color": "#ccff66"
+     },
+     {
+      "from": 21,
+      "to": 27,
+      "label": "Cyan",
+      "color": "#20ffff"
+     },
+     {
+      "from": 28,
+      "to": 34,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 35,
+      "to": 41,
+      "label": "Green",
+      "color": "#21ff06"
+     },
+     {
+      "from": 42,
+      "to": 48,
+      "label": "Magenta",
+      "color": "#fc02ff"
+     },
+     {
+      "from": 49,
+      "to": 55,
+      "label": "Yellow",
+      "color": "#ffff0a"
+     },
+     {
+      "from": 56,
+      "to": 62,
+      "label": "Dark Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 63,
+      "to": 64,
+      "label": "Open"
+     },
+     {
+      "from": 65,
+      "to": 189,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 190,
+      "to": 221,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 222,
+      "to": 223,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "gobo-wheel",
+    "label": "Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Open"
+     },
+     {
+      "from": 8,
+      "to": 15,
+      "label": "Gobo"
+     },
+     {
+      "from": 16,
+      "to": 23,
+      "label": "Gobo"
+     },
+     {
+      "from": 24,
+      "to": 31,
+      "label": "Gobo"
+     },
+     {
+      "from": 32,
+      "to": 39,
+      "label": "Gobo"
+     },
+     {
+      "from": 40,
+      "to": 47,
+      "label": "Gobo"
+     },
+     {
+      "from": 48,
+      "to": 55,
+      "label": "Gobo"
+     },
+     {
+      "from": 56,
+      "to": 63,
+      "label": "Gobo"
+     },
+     {
+      "from": 64,
+      "to": 71,
+      "label": "Gobo"
+     },
+     {
+      "from": 72,
+      "to": 79,
+      "label": "Gobo"
+     },
+     {
+      "from": 80,
+      "to": 87,
+      "label": "Gobo"
+     },
+     {
+      "from": 88,
+      "to": 95,
+      "label": "Gobo"
+     },
+     {
+      "from": 96,
+      "to": 103,
+      "label": "Gobo"
+     },
+     {
+      "from": 104,
+      "to": 111,
+      "label": "Gobo"
+     },
+     {
+      "from": 112,
+      "to": 119,
+      "label": "Gobo"
+     },
+     {
+      "from": 120,
+      "to": 127,
+      "label": "Open"
+     },
+     {
+      "from": 128,
+      "to": 189,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 190,
+      "to": 193,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 194,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "gobo-rotation",
+    "label": "Gobo Rotation",
+    "role": "goboRotation",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "NoFunction"
+     },
+     {
+      "from": 8,
+      "to": 119,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 120,
+      "to": 231,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 232,
+      "to": 255,
+      "label": "Gobo bounce"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0.01568627450980392,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 3,
+      "label": "Closed"
+     },
+     {
+      "from": 4,
+      "to": 7,
+      "label": "Open"
+     },
+     {
+      "from": 8,
+      "to": 76,
+      "label": "Strobe"
+     },
+     {
+      "from": 77,
+      "to": 145,
+      "label": "Pulse"
+     },
+     {
+      "from": 146,
+      "to": 215,
+      "label": "Strobe"
+     },
+     {
+      "from": 216,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "function",
+    "label": "Function",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "NoFunction"
+     },
+     {
+      "from": 8,
+      "to": 15,
+      "label": "Blackout on pan/tilt movement"
+     },
+     {
+      "from": 16,
+      "to": 23,
+      "label": "Blackout on color wheel movement"
+     },
+     {
+      "from": 24,
+      "to": 31,
+      "label": "Blackout on gobo wheel movement"
+     },
+     {
+      "from": 32,
+      "to": 39,
+      "label": "Blackout on pan/tilt/color wheel movement"
+     },
+     {
+      "from": 40,
+      "to": 47,
+      "label": "Blackout on pan/tilt/gobo wheel movement"
+     },
+     {
+      "from": 48,
+      "to": 55,
+      "label": "Blackout on pan/tilt/color/gobo wheel movement"
+     },
+     {
+      "from": 56,
+      "to": 95,
+      "label": "NoFunction"
+     },
+     {
+      "from": 96,
+      "to": 103,
+      "label": "Pan reset"
+     },
+     {
+      "from": 104,
+      "to": 111,
+      "label": "Tilt reset"
+     },
+     {
+      "from": 112,
+      "to": 119,
+      "label": "Color wheel reset"
+     },
+     {
+      "from": 120,
+      "to": 127,
+      "label": "Gobo wheel reset"
+     },
+     {
+      "from": 128,
+      "to": 135,
+      "label": "NoFunction"
+     },
+     {
+      "from": 136,
+      "to": 143,
+      "label": "Prism reset"
+     },
+     {
+      "from": 144,
+      "to": 151,
+      "label": "Focus reset"
+     },
+     {
+      "from": 152,
+      "to": 159,
+      "label": "Reset all"
+     },
+     {
+      "from": 160,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "movement-macro",
+    "label": "Movement Macro",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "NoFunction"
+     },
+     {
+      "from": 8,
+      "to": 23,
+      "label": "Movement macro 1"
+     },
+     {
+      "from": 24,
+      "to": 39,
+      "label": "Movement macro 2"
+     },
+     {
+      "from": 40,
+      "to": 55,
+      "label": "Movement macro 3"
+     },
+     {
+      "from": 56,
+      "to": 71,
+      "label": "Movement macro 4"
+     },
+     {
+      "from": 72,
+      "to": 87,
+      "label": "Movement macro 5"
+     },
+     {
+      "from": 88,
+      "to": 103,
+      "label": "Movement macro 6"
+     },
+     {
+      "from": 104,
+      "to": 119,
+      "label": "Movement macro 7"
+     },
+     {
+      "from": 120,
+      "to": 135,
+      "label": "Movement macro 8"
+     },
+     {
+      "from": 136,
+      "to": 151,
+      "label": "Sound-active movement macro 1"
+     },
+     {
+      "from": 152,
+      "to": 167,
+      "label": "Sound-active movement macro 2"
+     },
+     {
+      "from": 168,
+      "to": 183,
+      "label": "Sound-active movement macro 3"
+     },
+     {
+      "from": 184,
+      "to": 199,
+      "label": "Sound-active movement macro 4"
+     },
+     {
+      "from": 200,
+      "to": 215,
+      "label": "Sound-active movement macro 5"
+     },
+     {
+      "from": 216,
+      "to": 231,
+      "label": "Sound-active movement macro 6"
+     },
+     {
+      "from": 232,
+      "to": 247,
+      "label": "Sound-active movement macro 7"
+     },
+     {
+      "from": 248,
+      "to": 255,
+      "label": "Sound-active movement macro 8"
+     }
+    ]
+   },
+   {
+    "key": "prism",
+    "label": "Prism",
+    "role": "prism",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "NoFunction"
+     },
+     {
+      "from": 16,
+      "to": 255,
+      "label": "3-facet"
+     }
+    ]
+   },
+   {
+    "key": "zoom",
+    "label": "Zoom",
+    "role": "zoom",
+    "resolution": 1,
+    "default": 0,
+    "min": 17,
+    "max": 12,
+    "unit": "deg"
+   }
+  ],
+  "modes": [
+   {
+    "key": "14ch",
+    "name": "14-channel",
+    "footprint": 14,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "function",
+      "byte": 0
+     },
+     {
+      "channelKey": "movement-macro",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "8ch",
+    "name": "8-channel",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    232,
+    351,
+    163
+   ],
+   "weightKg": 5.6,
+   "powerW": 107,
+   "lensDegMin": 12,
+   "lensDegMax": 17
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "chauvet-dj/intimidator-spot-260",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "chauvet-dj/kinta-x",
+  "manufacturer": "Chauvet DJ",
+  "model": "Kinta X",
+  "aliases": [
+   "Chauvet DJ Kinta X",
+   "Kinta X",
+   "chauvetdjkintax",
+   "kintax"
+  ],
+  "categories": [
+   "Flower"
+  ],
+  "channels": [
+   {
+    "key": "mode",
+    "label": "Mode",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 14,
+      "label": "Intensity"
+     },
+     {
+      "from": 15,
+      "to": 100,
+      "label": "Intensity"
+     },
+     {
+      "from": 101,
+      "to": 255,
+      "label": "Auto Mode"
+     }
+    ]
+   },
+   {
+    "key": "rotation",
+    "label": "Rotation",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 85,
+      "label": "Rotation"
+     },
+     {
+      "from": 86,
+      "to": 170,
+      "label": "Rotation"
+     },
+     {
+      "from": 171,
+      "to": 255,
+      "label": "Rotation bounce"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "2ch",
+    "name": "2-channel",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "mode",
+      "byte": 0
+     },
+     {
+      "channelKey": "rotation",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    283,
+    297,
+    264
+   ],
+   "weightKg": 2.7,
+   "powerW": 24,
+   "lensDegMin": 135,
+   "lensDegMax": 135
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "chauvet-dj/kinta-x",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "chauvet-dj/led-par-64-tri-b",
+  "manufacturer": "Chauvet DJ",
+  "model": "LED PAR 64 TRI-B",
+  "aliases": [
+   "Chauvet DJ LED PAR 64 TRI-B",
+   "LED PAR 64 TRI-B",
+   "chauvetdjledpar64trib",
+   "ledpar64trib"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-macros",
+    "label": "Color Macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "NoFunction"
+     },
+     {
+      "from": 16,
+      "to": 255,
+      "label": "ColorPreset"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "Open"
+     },
+     {
+      "from": 16,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "operating-mode",
+    "label": "Operating Mode",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "NoFunction"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "RampUp"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "RampDown"
+     },
+     {
+      "from": 96,
+      "to": 127,
+      "label": "RampUpDown"
+     },
+     {
+      "from": 128,
+      "to": 159,
+      "label": "ColorFade"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "ColorJump (3 colors)"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "ColorJump (7 colors)"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "Sound triggering mode"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "7ch",
+    "name": "7-channel",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "operating-mode",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "3ch",
+    "name": "3-channel",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    302,
+    251,
+    383
+   ],
+   "weightKg": 2.9,
+   "powerW": 60,
+   "lensDegMin": 22,
+   "lensDegMax": 22
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "chauvet-dj/led-par-64-tri-b",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "chauvet-dj/motiondrape-led",
+  "manufacturer": "Chauvet DJ",
+  "model": "MotionDrape LED",
+  "aliases": [
+   "Chauvet DJ MotionDrape LED",
+   "MotionDrape",
+   "MotionDrape LED",
+   "chauvetdjmotiondrapeled",
+   "motiondrape",
+   "motiondrapeled"
+  ],
+  "categories": [
+   "Effect",
+   "Color Changer",
+   "Other"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Intensity"
+     },
+     {
+      "from": 8,
+      "to": 255,
+      "label": "Intensity"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "program-1-15",
+    "label": "Program 1-15",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "NoFunction"
+     },
+     {
+      "from": 16,
+      "to": 31,
+      "label": "Falling Star"
+     },
+     {
+      "from": 32,
+      "to": 47,
+      "label": "Diagonal Color Bands"
+     },
+     {
+      "from": 48,
+      "to": 63,
+      "label": "Color Pattern Chase"
+     },
+     {
+      "from": 64,
+      "to": 79,
+      "label": "Inward Arrow (L-R)"
+     },
+     {
+      "from": 80,
+      "to": 95,
+      "label": "Color Stack"
+     },
+     {
+      "from": 96,
+      "to": 111,
+      "label": "Multi-Color Freeway"
+     },
+     {
+      "from": 112,
+      "to": 127,
+      "label": "Color Wave (L-R)"
+     },
+     {
+      "from": 128,
+      "to": 143,
+      "label": "Color Wave (R-L)"
+     },
+     {
+      "from": 144,
+      "to": 159,
+      "label": "Color Bar Chase (L-R)"
+     },
+     {
+      "from": 160,
+      "to": 175,
+      "label": "Color Bar Chase (R-L)"
+     },
+     {
+      "from": 176,
+      "to": 191,
+      "label": "Windmill"
+     },
+     {
+      "from": 192,
+      "to": 207,
+      "label": "Fan"
+     },
+     {
+      "from": 208,
+      "to": 223,
+      "label": "Whirlpool"
+     },
+     {
+      "from": 224,
+      "to": 239,
+      "label": "Falling Snow"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "Multi Box Frenzy"
+     }
+    ]
+   },
+   {
+    "key": "program-16-30",
+    "label": "Program 16-30",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "NoFunction"
+     },
+     {
+      "from": 16,
+      "to": 31,
+      "label": "Center Burst"
+     },
+     {
+      "from": 32,
+      "to": 47,
+      "label": "Outer Burst"
+     },
+     {
+      "from": 48,
+      "to": 63,
+      "label": "EQ Effect"
+     },
+     {
+      "from": 64,
+      "to": 79,
+      "label": "Rolling Color"
+     },
+     {
+      "from": 80,
+      "to": 95,
+      "label": "Horizontal Snow"
+     },
+     {
+      "from": 96,
+      "to": 111,
+      "label": "Inner Zone"
+     },
+     {
+      "from": 112,
+      "to": 127,
+      "label": "Outer  Zone"
+     },
+     {
+      "from": 128,
+      "to": 143,
+      "label": "Diamond Spread"
+     },
+     {
+      "from": 144,
+      "to": 159,
+      "label": "Single Diamond Squeeze"
+     },
+     {
+      "from": 160,
+      "to": 175,
+      "label": "Follow The Leader"
+     },
+     {
+      "from": 176,
+      "to": 191,
+      "label": "Crisscross"
+     },
+     {
+      "from": 192,
+      "to": 207,
+      "label": "X-Factor"
+     },
+     {
+      "from": 208,
+      "to": 223,
+      "label": "Double Diamond Squeeze"
+     },
+     {
+      "from": 224,
+      "to": 239,
+      "label": "Red X-Factor"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "Multi Rain"
+     }
+    ]
+   },
+   {
+    "key": "effect-speed",
+    "label": "Effect Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "8ch",
+    "name": "8-channel",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-1-15",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-16-30",
+      "byte": 0
+     },
+     {
+      "channelKey": "effect-speed",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    135,
+    50,
+    243
+   ],
+   "weightKg": 4.4,
+   "powerW": 54
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "chauvet-dj/motiondrape-led",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "chauvet-dj/slimpar-pro-h-usb",
+  "manufacturer": "Chauvet DJ",
+  "model": "SlimPAR Pro H USB",
+  "aliases": [
+   "Chauvet DJ SlimPAR Pro H USB",
+   "ChauvetSlimPARProH",
+   "SlimPAR Pro H USB",
+   "chauvetdjslimparprohusb",
+   "chauvetslimparproh",
+   "slimparprohusb"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "uv",
+    "label": "UV",
+    "role": "uv",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "NoFunction"
+     },
+     {
+      "from": 16,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "color-macros",
+    "label": "Color Macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "NoFunction"
+     },
+     {
+      "from": 16,
+      "to": 255,
+      "label": "Color Macros"
+     }
+    ]
+   },
+   {
+    "key": "mode",
+    "label": "Mode",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "NoFunction"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "RampUp"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "RampDown"
+     },
+     {
+      "from": 96,
+      "to": 127,
+      "label": "Pulse"
+     },
+     {
+      "from": 128,
+      "to": 159,
+      "label": "ColorFade"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "ColorJump (6 colors)"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "ColorJump (32 colors)"
+     },
+     {
+      "from": 224,
+      "to": 249,
+      "label": "Sound control (6 colors)"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Sound control (32 colors)"
+     }
+    ]
+   },
+   {
+    "key": "program-speed",
+    "label": "Program Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer-speed",
+    "label": "Dimmer Speed",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 51,
+      "label": "Default dimmer speed"
+     },
+     {
+      "from": 52,
+      "to": 101,
+      "label": "Dimmer speed"
+     },
+     {
+      "from": 102,
+      "to": 152,
+      "label": "Dimmer speed"
+     },
+     {
+      "from": 153,
+      "to": 203,
+      "label": "Dimmer speed"
+     },
+     {
+      "from": 204,
+      "to": 255,
+      "label": "Dimmer speed"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "6ch",
+    "name": "6-channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "7ch",
+    "name": "7-channel",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "12ch",
+    "name": "12-channel",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "mode",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-speed",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    235,
+    290,
+    98
+   ],
+   "weightKg": 3.3,
+   "powerW": 97.5,
+   "lensDegMin": 24,
+   "lensDegMax": 24
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "chauvet-dj/slimpar-pro-h-usb",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "chauvet-dj/slimpar-pro-qz12",
+  "manufacturer": "Chauvet DJ",
+  "model": "SlimPAR Pro QZ12",
+  "aliases": [
+   "Chauvet DJ SlimPAR Pro QZ12",
+   "SlimPAR Pro QZ12",
+   "chauvetdjslimparproqz12",
+   "slimparproqz12"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-macros",
+    "label": "Color Macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "NoFunction"
+     },
+     {
+      "from": 16,
+      "to": 255,
+      "label": "Color Macros"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "NoFunction"
+     },
+     {
+      "from": 16,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "auto-programs",
+    "label": "Auto Programs",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "NoFunction"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "Auto program 1"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "Auto program 2"
+     },
+     {
+      "from": 96,
+      "to": 127,
+      "label": "Auto program 3"
+     },
+     {
+      "from": 128,
+      "to": 159,
+      "label": "Auto program 4"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "Auto program 5"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "Auto program 6"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "Sound program"
+     }
+    ]
+   },
+   {
+    "key": "program-speed",
+    "label": "Program Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer-speed",
+    "label": "Dimmer Speed",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 51,
+      "label": "Default dimmer speed"
+     },
+     {
+      "from": 52,
+      "to": 101,
+      "label": "Dimmer speed"
+     },
+     {
+      "from": 102,
+      "to": 152,
+      "label": "Dimmer speed"
+     },
+     {
+      "from": 153,
+      "to": 203,
+      "label": "Dimmer speed"
+     },
+     {
+      "from": 204,
+      "to": 255,
+      "label": "Dimmer speed"
+     }
+    ]
+   },
+   {
+    "key": "zoom",
+    "label": "Zoom",
+    "role": "zoom",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "11ch",
+    "name": "11-channel",
+    "footprint": 11,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "6ch",
+    "name": "6-channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "5ch",
+    "name": "5-channel",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    234,
+    269,
+    318
+   ],
+   "weightKg": 4.6,
+   "lensDegMin": 10,
+   "lensDegMax": 50
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "chauvet-dj/slimpar-pro-qz12",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "chauvet-dj/slimpar-pro-rgba",
+  "manufacturer": "Chauvet DJ",
+  "model": "SlimPAR Pro RGBA",
+  "aliases": [
+   "Chauvet DJ SlimPAR Pro RGBA",
+   "SlimPAR Pro RGBA",
+   "chauvetdjslimparprorgba",
+   "slimparprorgba"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-macros",
+    "label": "Color Macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 30,
+      "label": "Red … Yellow"
+     },
+     {
+      "from": 31,
+      "to": 50,
+      "label": "Yellow … Green"
+     },
+     {
+      "from": 51,
+      "to": 70,
+      "label": "Green … Cyan"
+     },
+     {
+      "from": 71,
+      "to": 90,
+      "label": "Cyan … Blue"
+     },
+     {
+      "from": 91,
+      "to": 110,
+      "label": "Blue … Magenta"
+     },
+     {
+      "from": 111,
+      "to": 130,
+      "label": "Magenta … Red"
+     },
+     {
+      "from": 131,
+      "to": 150,
+      "label": "Yellow … Magenta"
+     },
+     {
+      "from": 151,
+      "to": 170,
+      "label": "White … Blue"
+     },
+     {
+      "from": 171,
+      "to": 200,
+      "label": "RGBA",
+      "color": "#ffffff"
+     },
+     {
+      "from": 201,
+      "to": 205,
+      "label": "3200K (White 1)"
+     },
+     {
+      "from": 206,
+      "to": 210,
+      "label": "3400K (White 2)"
+     },
+     {
+      "from": 211,
+      "to": 215,
+      "label": "4200K (White 3)"
+     },
+     {
+      "from": 216,
+      "to": 220,
+      "label": "4900K (White 4)"
+     },
+     {
+      "from": 221,
+      "to": 225,
+      "label": "5600K (White 5)"
+     },
+     {
+      "from": 226,
+      "to": 230,
+      "label": "5900K (White 6)"
+     },
+     {
+      "from": 231,
+      "to": 235,
+      "label": "6500K (White 7)"
+     },
+     {
+      "from": 236,
+      "to": 240,
+      "label": "7200K (White 8)"
+     },
+     {
+      "from": 241,
+      "to": 245,
+      "label": "8000K (White 9)"
+     },
+     {
+      "from": 246,
+      "to": 250,
+      "label": "8500K (White 10)"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "10000K (White 11)"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Open"
+     },
+     {
+      "from": 10,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "auto-programs",
+    "label": "Auto Programs",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 51,
+      "label": "NoFunction"
+     },
+     {
+      "from": 52,
+      "to": 101,
+      "label": "Auto Program 1"
+     },
+     {
+      "from": 102,
+      "to": 152,
+      "label": "Auto Program 2"
+     },
+     {
+      "from": 153,
+      "to": 203,
+      "label": "Auto Program 3"
+     },
+     {
+      "from": 204,
+      "to": 254,
+      "label": "Auto Program 4"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Auto Program 5"
+     }
+    ]
+   },
+   {
+    "key": "auto-program-speed",
+    "label": "Auto Program Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer-curve",
+    "label": "Dimmer Curve",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 51,
+      "label": "Default speed"
+     },
+     {
+      "from": 52,
+      "to": 101,
+      "label": "Linear dimmer"
+     },
+     {
+      "from": 102,
+      "to": 152,
+      "label": "Nonlinear dimmer 1"
+     },
+     {
+      "from": 153,
+      "to": 203,
+      "label": "Nonlinear dimmer 2"
+     },
+     {
+      "from": 204,
+      "to": 255,
+      "label": "Nonlinear dimmer 3"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "4ch",
+    "name": "4-channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "5ch",
+    "name": "5-channel",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "10ch",
+    "name": "10-channel",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-program-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-curve",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    256,
+    290,
+    87
+   ],
+   "weightKg": 2.8,
+   "powerW": 90,
+   "lensDegMin": 21,
+   "lensDegMax": 21
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "chauvet-dj/slimpar-pro-rgba",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "chauvet-dj/slimpar-pro-w",
+  "manufacturer": "Chauvet DJ",
+  "model": "SlimPAR Pro W",
+  "aliases": [
+   "Chauvet DJ SlimPAR Pro W",
+   "ChauvetSlimPARProW",
+   "SlimPAR Pro W",
+   "chauvetdjslimparprow",
+   "chauvetslimparprow",
+   "slimparprow"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "warm-white",
+    "label": "Warm White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "cool-white",
+    "label": "Cool White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-macros",
+    "label": "Color Macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "NoFunction"
+     },
+     {
+      "from": 16,
+      "to": 255,
+      "label": "Color macros"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "NoFunction"
+     },
+     {
+      "from": 16,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "programs",
+    "label": "Programs",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "NoFunction"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "RampUp"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "RampDown"
+     },
+     {
+      "from": 96,
+      "to": 127,
+      "label": "RampUpDown"
+     },
+     {
+      "from": 128,
+      "to": 159,
+      "label": "Auto fade transition"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "Auto snap transition (3-color)"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "Auto snap transition (7-color)"
+     },
+     {
+      "from": 224,
+      "to": 249,
+      "label": "Sound mode (3-color)"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Sound mode (7-color)"
+     }
+    ]
+   },
+   {
+    "key": "program-speed",
+    "label": "Program Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer-speed",
+    "label": "Dimmer Speed",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 51,
+      "label": "Default dimmer speed"
+     },
+     {
+      "from": 52,
+      "to": 101,
+      "label": "Dimmer speed"
+     },
+     {
+      "from": 102,
+      "to": 152,
+      "label": "Dimmer speed"
+     },
+     {
+      "from": 153,
+      "to": 203,
+      "label": "Dimmer speed"
+     },
+     {
+      "from": 204,
+      "to": 255,
+      "label": "Dimmer speed"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "9ch",
+    "name": "9-channel",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "warm-white",
+      "byte": 0
+     },
+     {
+      "channelKey": "cool-white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-speed",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "4ch",
+    "name": "4-channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "warm-white",
+      "byte": 0
+     },
+     {
+      "channelKey": "cool-white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "3ch",
+    "name": "3-channel",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "warm-white",
+      "byte": 0
+     },
+     {
+      "channelKey": "cool-white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    253,
+    290,
+    98
+   ],
+   "weightKg": 3.2,
+   "powerW": 58,
+   "lensDegMin": 17,
+   "lensDegMax": 17
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "chauvet-dj/slimpar-pro-w",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "chauvet-dj/slimpar-q12-bt",
+  "manufacturer": "Chauvet DJ",
+  "model": "SlimPAR Q12 BT",
+  "aliases": [
+   "Chauvet DJ SlimPAR Q12 BT",
+   "ChauvetSlimPARQ12BT",
+   "SlimPAR Q12 BT",
+   "chauvetdjslimparq12bt",
+   "chauvetslimparq12bt",
+   "slimparq12bt"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "auto-program",
+    "label": "Auto Program",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "NoFunction"
+     },
+     {
+      "from": 6,
+      "to": 55,
+      "label": "Program 1"
+     },
+     {
+      "from": 56,
+      "to": 106,
+      "label": "Program 2"
+     },
+     {
+      "from": 107,
+      "to": 157,
+      "label": "Program 3"
+     },
+     {
+      "from": 158,
+      "to": 208,
+      "label": "Program 4"
+     },
+     {
+      "from": 209,
+      "to": 255,
+      "label": "Program 5"
+     }
+    ]
+   },
+   {
+    "key": "auto-program-speed",
+    "label": "Auto Program Speed",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 250,
+      "label": "EffectSpeed"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "Sound Active Mode"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "4ch",
+    "name": "4-channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "8ch",
+    "name": "8-channel",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-program",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-program-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    275,
+    74,
+    279
+   ],
+   "weightKg": 1.5,
+   "powerW": 48,
+   "lensDegMin": 18,
+   "lensDegMax": 35
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "chauvet-dj/slimpar-q12-bt",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "chauvet-dj/slimpar-t12-bt",
+  "manufacturer": "Chauvet DJ",
+  "model": "SlimPAR T12 BT",
+  "aliases": [
+   "Chauvet DJ SlimPAR T12 BT",
+   "ChauvetSlimPART12BT",
+   "SlimPAR T12 BT",
+   "chauvetdjslimpart12bt",
+   "chauvetslimpart12bt",
+   "slimpart12bt"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "auto-program",
+    "label": "Auto Program",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "NoFunction"
+     },
+     {
+      "from": 6,
+      "to": 55,
+      "label": "Program 1"
+     },
+     {
+      "from": 56,
+      "to": 106,
+      "label": "Program 2"
+     },
+     {
+      "from": 107,
+      "to": 157,
+      "label": "Program 3"
+     },
+     {
+      "from": 158,
+      "to": 208,
+      "label": "Program 4"
+     },
+     {
+      "from": 209,
+      "to": 255,
+      "label": "Program 5"
+     }
+    ]
+   },
+   {
+    "key": "auto-program-speed",
+    "label": "Auto Program Speed",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 250,
+      "label": "EffectSpeed"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "Sound active mode"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "3ch",
+    "name": "3-channel",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "7ch",
+    "name": "7-channel",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-program",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-program-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    214,
+    77,
+    264
+   ],
+   "weightKg": 1.2,
+   "powerW": 42,
+   "lensDegMin": 14,
+   "lensDegMax": 27
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "chauvet-dj/slimpar-t12-bt",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "chauvet-dj/slimpar-t12-usb",
+  "manufacturer": "Chauvet DJ",
+  "model": "SlimPAR T12 USB",
+  "aliases": [
+   "Chauvet DJ SlimPAR T12 USB",
+   "SlimPAR T12 USB",
+   "chauvetdjslimpart12usb",
+   "slimpart12usb"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-macros",
+    "label": "Color Macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "NoFunction"
+     },
+     {
+      "from": 16,
+      "to": 255,
+      "label": "ColorPreset"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "NoFunction"
+     },
+     {
+      "from": 16,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "mode",
+    "label": "Mode",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "NoFunction"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "Pulse 0-100% (R/G/B channels must be active)"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "Pulse 100%-0% (R/G/B channels must be active)"
+     },
+     {
+      "from": 96,
+      "to": 127,
+      "label": "Pulse 100%-0%-100% (R/G/B channels must be active)"
+     },
+     {
+      "from": 128,
+      "to": 159,
+      "label": "ColorFade"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "ColorJump (RGB)"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "ColorJump (RGBCYMW)"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "Sound Active Mode"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer-speed",
+    "label": "Dimmer Speed",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 51,
+      "label": "Default Dimmer Speed Set From Menu"
+     },
+     {
+      "from": 52,
+      "to": 101,
+      "label": "Dimmer speed mode"
+     },
+     {
+      "from": 102,
+      "to": 152,
+      "label": "Dimmer speed"
+     },
+     {
+      "from": 153,
+      "to": 203,
+      "label": "Dimmer speed"
+     },
+     {
+      "from": 204,
+      "to": 255,
+      "label": "Dimmer speed"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "3ch",
+    "name": "3-channel",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "8ch",
+    "name": "8-channel",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "mode",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-speed",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    227,
+    84,
+    252
+   ],
+   "weightKg": 1.8,
+   "powerW": 39,
+   "lensDegMin": 15,
+   "lensDegMax": 15
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "chauvet-dj/slimpar-t12-usb",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

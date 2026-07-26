@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
-import { Fixture, Surface, Controller, ColorOrder } from '../types';
+import { Fixture, Surface, Controller, ColorOrder, FixtureProfile, type OutputProtocol } from '../types';
 import { AlertCircle, Magnet, Grid3X3, ZoomIn, Maximize2 } from 'lucide-react';
 import { GPUMapper } from '../services/GPUMapper';
 import { WebGPUMapper } from '../gpu/WebGPUMapper';
@@ -10,7 +10,10 @@ import * as surfaceMedia from '../services/surfaceMedia';
 import * as contentSource from '../services/contentSource';
 import * as transitions from '../services/transitions';
 import * as automationOverlay from '../services/automationOverlay';
-import { resolveDest, destKey } from '../services/addressing';
+import { resolveDest, destKey, fixtureFootprint } from '../services/addressing';
+import * as profilePack from '../services/profilePack';
+import * as fixtureSignal from '../services/fixtureSignal';
+import * as lightingOverlay from '../services/lightingOverlay';
 import { perfMonitor } from '../services/perfMonitor';
 import { Tooltip } from './ui/Tooltip';
 import { help } from '../services/helpBus';
@@ -22,6 +25,13 @@ interface StageProps {
   selectedSurfaceId: string | null;
   onSelectSurface: (id: string) => void;
   controllers: Controller[];
+  /**
+   * Resolved DMX fixture profiles, by id — the profiles the loaded rig actually references (project
+   * embedded → user → bundled, resolved in App). A profiled fixture's DMX footprint and channel
+   * bytes both come from here, so the SAME map must reach fixtureFootprint() and the packer or the
+   * patch and the wire disagree. Empty until a profiled fixture exists, which is the normal case.
+   */
+  fixtureProfiles?: ReadonlyMap<string, FixtureProfile>;
   fixtures: Fixture[];
   onUpdateFixtures: (fixtures: Fixture[]) => void;
   selectedFixtureId: string | null;
@@ -33,7 +43,7 @@ interface StageProps {
   gamma: number;
   targetIp: string;
   broadcast: boolean;
-  protocol: 'artnet' | 'sacn';
+  protocol: OutputProtocol;
   onRecordHistory: () => void;
   /** Extra buttons rendered at the end of the stage's top-right toolbar (e.g. the 3D split toggle). */
   extraControls?: React.ReactNode;
@@ -47,6 +57,9 @@ interface StageProps {
 
 // Hoisted so the composite z-sort doesn't allocate a fresh comparator every frame.
 const byZIndex = (a: Surface, b: Surface) => a.zIndex - b.zIndex;
+
+// One shared empty map, so a rig with no profiled fixtures allocates nothing per render.
+const EMPTY_PROFILES: ReadonlyMap<string, FixtureProfile> = new Map();
 
 // Refresh cap for the operator's preview composite, used ONLY when the mapper samples per-surface
 // (so the composite feeds the preview and nothing else — see the gate in tick()). 30 Hz reads as
@@ -71,6 +84,7 @@ export const Stage: React.FC<StageProps> = ({
   selectedSurfaceId,
   onSelectSurface,
   controllers,
+  fixtureProfiles,
   fixtures,
   onUpdateFixtures,
   selectedFixtureId,
@@ -97,17 +111,19 @@ export const Stage: React.FC<StageProps> = ({
   useEffect(() => { fixturesRef.current = fixtures; }, [fixtures]);
 
   // Loopback DMX-in listens on the universes our patched fixtures touch (∪ the legacy 0-7), so a back
-  // rig on sACN universe 8+ is mirrored. cpp-aware span; the setter re-fires configureInput only when
-  // the derived set actually changes (and only while a DMX-in surface is active).
+  // rig on sACN universe 8+ is mirrored. The span comes from addressing.ts's fixtureFootprint (the one
+  // owner of that formula, so a profiled fixture's mode footprint is honoured here too); the setter
+  // re-fires configureInput only when the derived set actually changes (and only while a DMX-in
+  // surface is active).
   useEffect(() => {
     const touched = new Set<number>();
     for (const f of fixtures) {
       const startAbs = f.universe * 512 + (f.startAddress - 1);
-      const endAbs = startAbs + f.ledCount * (f.channelsPerPixel ?? 4) - 1;
+      const endAbs = startAbs + Math.max(0, fixtureFootprint(f, fixtureProfiles) - 1);
       for (let u = Math.floor(startAbs / 512); u <= Math.floor(endAbs / 512); u++) touched.add(u);
     }
     contentSource.setDmxInputUniverses([...touched]);
-  }, [fixtures]);
+  }, [fixtures, fixtureProfiles]);
 
   // Surfaces composited each frame; the media service owns element lifecycle.
   const surfacesRef = useRef(surfaces);
@@ -122,6 +138,11 @@ export const Stage: React.FC<StageProps> = ({
   // O(1) map.get() per fixture instead of an O(controllers) Array.find() (which ran per fixture).
   const controllerMapRef = useRef<Map<string, Controller>>(new Map());
   useEffect(() => { controllerMapRef.current = new Map(controllers.map(c => [c.id, c])); }, [controllers]);
+
+  // Same treatment for the DMX fixture profiles: the frame loop needs an O(1) lookup, and reading it
+  // through a ref keeps the packer off the React render path entirely.
+  const profilesRef = useRef<ReadonlyMap<string, FixtureProfile>>(EMPTY_PROFILES);
+  useEffect(() => { profilesRef.current = fixtureProfiles ?? EMPTY_PROFILES; }, [fixtureProfiles]);
 
   // Reused per-frame scratch: the composite z-order array and the 2D canvas context. Avoids a
   // `[...surfaces]` spread + a getContext() call every frame in the hot loop.
@@ -425,9 +446,28 @@ export const Stage: React.FC<StageProps> = ({
             const defaultProtocol = protocolRef.current;
             const currentFixtures = effFixtures;
 
+            // Resolved role values for every profiled fixture this frame (pan/tilt in degrees,
+            // colour, intensity) — published after the loop for the 3D scene and the beams.
+            const fixtureStates = new Map<string, fixtureSignal.FixtureState>();
+
+            // THE PRECEDENCE STACK, ENFORCED IN ONE PLACE:
+            //   profile default < authored dmx < LIGHTING CLIP < automation lane < live override
+            //
+            // Automation has already been folded into `effFixtures` above (automationOverlay lays it
+            // over the StateView before we get here), so a lane's value is sitting in `f.dmx` by
+            // now. Asking the overlay whether it OWNS the path is therefore the whole rule: if a
+            // lane owns it, the authored value already IS the lane's and the clip must not speak;
+            // if not, the clip's role value wins over what the operator parked there by hand.
+            const roleOverride: profilePack.RoleOverride | undefined = lightingOverlay.isActive()
+                ? (fixtureId, channel) => {
+                    if (automationOverlay.owns(`fixtures.${fixtureId}.dmx.${channel.key}`)) return undefined;
+                    return lightingOverlay.get(fixtureId, channel.role);
+                  }
+                : undefined;
+
             // Per-destination universe maps, keyed by `${protocol}|${ip}|${broadcast}`.
             const destinations: Record<string, {
-                ip: string; protocol: 'artnet' | 'sacn'; broadcast: boolean; sparse: boolean;
+                ip: string; protocol: OutputProtocol; broadcast: boolean; sparse: boolean;
                 priority?: number; universes: Record<number, number[]>;
             }> = {};
 
@@ -440,7 +480,10 @@ export const Stage: React.FC<StageProps> = ({
                 const ctrl = f.controllerId ? controllerMapRef.current.get(f.controllerId) : undefined;
                 const wire = resolveDest(f, ctrl, { protocol: defaultProtocol, ip: defaultIp, broadcast: defaultBroadcast });
                 const proto = wire.protocol;
-                const ip = wire.ip;
+                // For a USB widget the COM path IS the address — it travels in the same `ip` slot
+                // the network protocols use, so the frame codec and the Rust engine needed no new
+                // field. See shared/frameCodec.ts and native/output-engine/src/serial.rs.
+                const ip = wire.protocol === 'enttec' ? (wire.port ?? '') : wire.ip;
                 const bcast = wire.broadcast;
                 const priority = f.output?.priority ?? ctrl?.priority;
                 const sparse = f.output?.sparse ?? false;
@@ -483,6 +526,32 @@ export const Stage: React.FC<StageProps> = ({
                     currentChannel++;
                 };
 
+                // ── PROFILED FIXTURE (a moving head / wash / beam) ────────────────────────────
+                // Its channels are named parameters at fixed offsets in the mode, not colour
+                // components, so it packs from its authored values rather than from sampled pixels
+                // — and NOT through the gamma LUT, which would move the head to the wrong angle.
+                // See services/profilePack.ts.
+                //
+                // It still consumes ONE pixel of the canonical buffer (ledCount is pinned to 1 for a
+                // profiled fixture), so `offset` stays in step with the monitor and the 3D scene,
+                // both of which index that buffer by cumulative ledCount.
+                if (f.profileId) {
+                    const profile = profilesRef.current.get(f.profileId);
+                    const mode = profile ? profilePack.modeOf(profile, f.profileMode) : undefined;
+                    // An UNRESOLVED profile writes nothing at all. That matches fixtureFootprint()
+                    // returning 0 for the same case, so the patch and the wire still agree — a
+                    // fixture we cannot describe occupies no channels and disturbs no neighbour.
+                    if (profile && mode) {
+                        profilePack.packProfiled(f, profile, mode, writeCh, roleOverride);
+                        // Publish what this fixture is DOING, in roles and degrees, for the 3D scene
+                        // and the beams. Resolved here rather than in the scene so there is exactly
+                        // one interpretation of "intensity"/"pan" in the app — see fixtureSignal.
+                        fixtureStates.set(f.id, fixtureSignal.resolveFixture(f, profile, roleOverride));
+                    }
+                    offset += f.ledCount;
+                    continue;
+                }
+
                 for (let i = 0; i < f.ledCount; i++) {
                     const idx = offset * 4;
                     if (idx + 3 >= rawBytes.length) break;
@@ -500,6 +569,10 @@ export const Stage: React.FC<StageProps> = ({
 
             // Broadcast canonical pixels (monitor/3D) + routing destinations (output).
             dmxSignal.publish(rawBytes, destinations);
+            // …and the profiled fixtures' resolved roles. Always published, even when empty, so a
+            // consumer sees a fixture DISAPPEAR (profile cleared, fixture deleted) rather than
+            // holding its last pose forever.
+            fixtureSignal.publish(fixtureStates);
         }
     }
 

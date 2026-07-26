@@ -1,0 +1,154 @@
+[
+ {
+  "id": "look/cryofog",
+  "manufacturer": "Look Solutions",
+  "model": "Cryofog",
+  "aliases": [
+   "Cryofog",
+   "Look Solutions Cryofog",
+   "cryofog",
+   "looksolutionscryofog"
+  ],
+  "categories": [
+   "Smoke"
+  ],
+  "channels": [
+   {
+    "key": "fog-intensity",
+    "label": "Fog Intensity",
+    "role": "fog",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "fan",
+    "label": "Fan",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "cooling",
+    "label": "Cooling",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Cooling valve closed"
+     },
+     {
+      "from": 1,
+      "to": 254,
+      "label": "NoFunction"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Cooling valve open"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "3ch",
+    "name": "3-channel",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "fog-intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     },
+     {
+      "channelKey": "cooling",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    510,
+    300,
+    670
+   ],
+   "weightKg": 33,
+   "powerW": 2300
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "look/cryofog",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "look/viper-nt",
+  "manufacturer": "Look Solutions",
+  "model": "Viper NT",
+  "aliases": [
+   "Look Solutions Viper NT",
+   "Viper NT",
+   "looksolutionsvipernt",
+   "vipernt"
+  ],
+  "categories": [
+   "Smoke"
+  ],
+  "channels": [
+   {
+    "key": "pump",
+    "label": "Pump",
+    "role": "fog",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "heat",
+    "label": "Heat",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "2ch",
+    "name": "2-channel",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "pump",
+      "byte": 0
+     },
+     {
+      "channelKey": "heat",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    230,
+    240,
+    470
+   ],
+   "weightKg": 8.6,
+   "powerW": 1300
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "look/viper-nt",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

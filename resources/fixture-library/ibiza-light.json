@@ -1,0 +1,471 @@
+[
+ {
+  "id": "ibiza-light/lp64-led-promo",
+  "manufacturer": "Ibiza light",
+  "model": "LP64 LED-PROMO",
+  "aliases": [
+   "Ibiza light LP64 LED-PROMO",
+   "LP64 LED-PROMO",
+   "ibizalightlp64ledpromo",
+   "lp64ledpromo"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "shutter-strobe",
+    "label": "Shutter / Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "programs",
+    "label": "Programs",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 200,
+      "label": "DMX Auto"
+     },
+     {
+      "from": 201,
+      "to": 255,
+      "label": "DMX Sound"
+     }
+    ]
+   },
+   {
+    "key": "program-speed",
+    "label": "Program Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "7ch",
+    "name": "7-channel",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-speed",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    220,
+    220,
+    325
+   ],
+   "weightKg": 2.8,
+   "powerW": 36
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "ibiza-light/lp64-led-promo",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "ibiza-light/ls-005led",
+  "manufacturer": "Ibiza light",
+  "model": "LS-005LED",
+  "aliases": [
+   "Ibiza light LS-005LED",
+   "LS-005LED",
+   "ibizalightls005led",
+   "ls005led"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 127,
+      "label": "Strobe"
+     },
+     {
+      "from": 128,
+      "to": 128,
+      "label": "NoFunction"
+     },
+     {
+      "from": 129,
+      "to": 255,
+      "label": "Intensity"
+     }
+    ]
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "4ch",
+    "name": "4-channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    460,
+    160,
+    140
+   ],
+   "powerW": 30
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "ibiza-light/ls-005led",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "ibiza-light/par-mini-rgb3",
+  "manufacturer": "Ibiza light",
+  "model": "LED PAR CAN 12x3W 3-in-1 RGB",
+  "aliases": [
+   "Ibiza light LED PAR CAN 12x3W 3-in-1 RGB",
+   "Ibiza-PAR-MINI-RGB3",
+   "LED PAR CAN 12x3W 3-in-1 RGB",
+   "ibizalightledparcan12x3w3in1rgb",
+   "ibizaparminirgb3",
+   "ledparcan12x3w3in1rgb"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "mode",
+    "label": "Mode",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Manual control"
+     },
+     {
+      "from": 11,
+      "to": 50,
+      "label": "Color Macro"
+     },
+     {
+      "from": 51,
+      "to": 100,
+      "label": "ColorJump"
+     },
+     {
+      "from": 101,
+      "to": 150,
+      "label": "ColorFade"
+     },
+     {
+      "from": 151,
+      "to": 200,
+      "label": "Sound control"
+     },
+     {
+      "from": 201,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "color-macro",
+    "label": "Color Macro",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 39,
+      "label": "7 Color Recycle"
+     },
+     {
+      "from": 40,
+      "to": 59,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 60,
+      "to": 79,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 80,
+      "to": 99,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 100,
+      "to": 119,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 120,
+      "to": 139,
+      "label": "Cyan",
+      "color": "#00ffff"
+     },
+     {
+      "from": 140,
+      "to": 159,
+      "label": "Purple",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 160,
+      "to": 179,
+      "label": "RG",
+      "color": "#ff0000"
+     },
+     {
+      "from": 180,
+      "to": 199,
+      "label": "RB",
+      "color": "#ff0000"
+     },
+     {
+      "from": 200,
+      "to": 219,
+      "label": "GB",
+      "color": "#00ff00"
+     },
+     {
+      "from": 220,
+      "to": 255,
+      "label": "RGB",
+      "color": "#ff0000"
+     }
+    ]
+   },
+   {
+    "key": "effect-speed",
+    "label": "Effect Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "par-mini-rgb3",
+    "name": "PAR-MINI-RGB3",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "mode",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macro",
+      "byte": 0
+     },
+     {
+      "channelKey": "effect-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    120,
+    120,
+    90
+   ],
+   "weightKg": 0.6,
+   "powerW": 40
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "ibiza-light/par-mini-rgb3",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

@@ -1,0 +1,310 @@
+[
+ {
+  "id": "velleman/aeron-250-ii",
+  "manufacturer": "Velleman",
+  "model": "Aeron 250 II",
+  "aliases": [
+   "Aeron 250 II",
+   "Velleman Aeron 250 II",
+   "aeron250ii",
+   "vellemanaeron250ii"
+  ],
+  "categories": [
+   "Scanner",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "shutter-strobe",
+    "label": "Shutter / Strobe",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 128,
+      "label": "Intensity"
+     },
+     {
+      "from": 129,
+      "to": 133,
+      "label": "Open"
+     },
+     {
+      "from": 134,
+      "to": 243,
+      "label": "Strobe"
+     },
+     {
+      "from": 244,
+      "to": 249,
+      "label": "Closed"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "color-wheel",
+    "label": "Color Wheel",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "Open"
+     },
+     {
+      "from": 16,
+      "to": 31,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 32,
+      "to": 47,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 48,
+      "to": 63,
+      "label": "Orange",
+      "color": "#ff8000"
+     },
+     {
+      "from": 64,
+      "to": 79,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 80,
+      "to": 95,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 96,
+      "to": 111,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 112,
+      "to": 127,
+      "label": "Violet",
+      "color": "#7f00ff"
+     },
+     {
+      "from": 128,
+      "to": 191,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "gobo-wheel",
+    "label": "Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "Open"
+     },
+     {
+      "from": 16,
+      "to": 31,
+      "label": "Gobo"
+     },
+     {
+      "from": 32,
+      "to": 47,
+      "label": "Gobo"
+     },
+     {
+      "from": 48,
+      "to": 63,
+      "label": "Gobo"
+     },
+     {
+      "from": 64,
+      "to": 79,
+      "label": "Gobo"
+     },
+     {
+      "from": 80,
+      "to": 95,
+      "label": "Gobo"
+     },
+     {
+      "from": 96,
+      "to": 111,
+      "label": "Gobo"
+     },
+     {
+      "from": 112,
+      "to": 127,
+      "label": "Gobo"
+     },
+     {
+      "from": 128,
+      "to": 191,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "gobo-rotation",
+    "label": "Gobo Rotation",
+    "role": "goboRotation",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 16,
+      "to": 135,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 136,
+      "to": 255,
+      "label": "WheelSlotRotation"
+     }
+    ]
+   },
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 1,
+    "default": 0.5019607843137255,
+    "min": 0,
+    "max": 100,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 1,
+    "default": 0.5019607843137255,
+    "min": 0,
+    "max": 100,
+    "unit": "deg"
+   },
+   {
+    "key": "prism-rotation",
+    "label": "Prism Rotation",
+    "role": "prismRotation",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 63,
+      "label": "NoFunction"
+     },
+     {
+      "from": 64,
+      "to": 159,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 160,
+      "to": 255,
+      "label": "PrismRotation"
+     }
+    ]
+   },
+   {
+    "key": "focus",
+    "label": "Focus",
+    "role": "focus",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "8ch",
+    "name": "8-channel",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    535,
+    295,
+    180
+   ],
+   "weightKg": 13.95,
+   "powerW": 350
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "velleman/aeron-250-ii",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

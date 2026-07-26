@@ -1,0 +1,963 @@
+[
+ {
+  "id": "coemar/prospot-250-lx",
+  "manufacturer": "Coemar",
+  "model": "ProSpot 250 LX",
+  "aliases": [
+   "Coemar ProSpot 250 LX",
+   "CoemarPSpotLX",
+   "ProSpot 250 LX",
+   "coemarprospot250lx",
+   "coemarpspotlx",
+   "prospot250lx"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 530,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 284,
+    "unit": "deg"
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan / Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "standard"
+     },
+     {
+      "from": 11,
+      "to": 25,
+      "label": "for programming"
+     },
+     {
+      "from": 26,
+      "to": 127,
+      "label": "Vector mode"
+     },
+     {
+      "from": 128,
+      "to": 247,
+      "label": "Tracking mode"
+     },
+     {
+      "from": 248,
+      "to": 255,
+      "label": "Tracking mode"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Intensity"
+     },
+     {
+      "from": 8,
+      "to": 255,
+      "label": "Intensity"
+     }
+    ]
+   },
+   {
+    "key": "shutter-strobe",
+    "label": "Shutter / Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Closed"
+     },
+     {
+      "from": 10,
+      "to": 66,
+      "label": "Strobe"
+     },
+     {
+      "from": 67,
+      "to": 68,
+      "label": "Open"
+     },
+     {
+      "from": 69,
+      "to": 125,
+      "label": "RampDown"
+     },
+     {
+      "from": 126,
+      "to": 127,
+      "label": "Open"
+     },
+     {
+      "from": 128,
+      "to": 184,
+      "label": "RampUp"
+     },
+     {
+      "from": 185,
+      "to": 187,
+      "label": "Open"
+     },
+     {
+      "from": 188,
+      "to": 244,
+      "label": "Strobe"
+     },
+     {
+      "from": 245,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "focus",
+    "label": "Focus",
+    "role": "focus",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "gobo-selection",
+    "label": "Gobo selection",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Open"
+     },
+     {
+      "from": 11,
+      "to": 30,
+      "label": "Gobo"
+     },
+     {
+      "from": 31,
+      "to": 50,
+      "label": "Gobo"
+     },
+     {
+      "from": 51,
+      "to": 70,
+      "label": "Gobo"
+     },
+     {
+      "from": 71,
+      "to": 90,
+      "label": "Gobo"
+     },
+     {
+      "from": 91,
+      "to": 110,
+      "label": "Gobo"
+     },
+     {
+      "from": 111,
+      "to": 127,
+      "label": "Gobo"
+     },
+     {
+      "from": 128,
+      "to": 192,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 193,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "gobo-stencil-rotation-angle",
+    "label": "Gobo stencil rotation angle",
+    "role": "goboRotation",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 255,
+      "label": "WheelSlotRotation"
+     }
+    ]
+   },
+   {
+    "key": "gobo-stencil-rotation-speed",
+    "label": "Gobo stencil rotation speed",
+    "role": "goboRotation",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 131,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 132,
+      "to": 134,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 135,
+      "to": 255,
+      "label": "WheelSlotRotation"
+     }
+    ]
+   },
+   {
+    "key": "prism",
+    "label": "Prism",
+    "role": "prism",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 20,
+      "label": "3-facet"
+     },
+     {
+      "from": 21,
+      "to": 136,
+      "label": "3-facet"
+     },
+     {
+      "from": 137,
+      "to": 139,
+      "label": "3-facet"
+     },
+     {
+      "from": 140,
+      "to": 255,
+      "label": "3-facet"
+     }
+    ]
+   },
+   {
+    "key": "color-wheel",
+    "label": "Color Wheel",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 4,
+      "label": "Open"
+     },
+     {
+      "from": 5,
+      "to": 9,
+      "label": "Color"
+     },
+     {
+      "from": 10,
+      "to": 14,
+      "label": "Color"
+     },
+     {
+      "from": 15,
+      "to": 19,
+      "label": "Color"
+     },
+     {
+      "from": 20,
+      "to": 24,
+      "label": "Color"
+     },
+     {
+      "from": 25,
+      "to": 29,
+      "label": "Color"
+     },
+     {
+      "from": 30,
+      "to": 34,
+      "label": "Color"
+     },
+     {
+      "from": 35,
+      "to": 39,
+      "label": "Color"
+     },
+     {
+      "from": 40,
+      "to": 44,
+      "label": "Color"
+     },
+     {
+      "from": 45,
+      "to": 49,
+      "label": "Color"
+     },
+     {
+      "from": 50,
+      "to": 54,
+      "label": "Color"
+     },
+     {
+      "from": 55,
+      "to": 59,
+      "label": "Color"
+     },
+     {
+      "from": 60,
+      "to": 127,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 128,
+      "to": 190,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 191,
+      "to": 192,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 193,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "gobo-shake-blackout-effect",
+    "label": "Gobo shake / Blackout effect",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 249,
+      "label": "WheelShake"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Blackout during movements"
+     }
+    ]
+   },
+   {
+    "key": "gobo-shake-amplitude",
+    "label": "Gobo shake amplitude",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 23,
+      "label": "WheelShake"
+     },
+     {
+      "from": 24,
+      "to": 47,
+      "label": "WheelShake"
+     },
+     {
+      "from": 48,
+      "to": 71,
+      "label": "WheelShake"
+     },
+     {
+      "from": 72,
+      "to": 95,
+      "label": "WheelShake"
+     },
+     {
+      "from": 96,
+      "to": 119,
+      "label": "WheelShake"
+     },
+     {
+      "from": 120,
+      "to": 143,
+      "label": "WheelShake"
+     },
+     {
+      "from": 144,
+      "to": 167,
+      "label": "WheelShake"
+     },
+     {
+      "from": 168,
+      "to": 191,
+      "label": "WheelShake"
+     },
+     {
+      "from": 192,
+      "to": 215,
+      "label": "WheelShake"
+     },
+     {
+      "from": 216,
+      "to": 239,
+      "label": "WheelShake"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "WheelShake"
+     }
+    ]
+   },
+   {
+    "key": "lamp-on-motor-reset",
+    "label": "Lamp on / Motor reset",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 1,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 19,
+      "label": "Lamp off"
+     },
+     {
+      "from": 20,
+      "to": 100,
+      "label": "No effects (idle)"
+     },
+     {
+      "from": 101,
+      "to": 170,
+      "label": "Effects reset (once), no Pan / Tilt movement"
+     },
+     {
+      "from": 171,
+      "to": 200,
+      "label": "All motor reset (once)"
+     },
+     {
+      "from": 201,
+      "to": 240,
+      "label": "Silent fans (if external temperature allows it)"
+     },
+     {
+      "from": 241,
+      "to": 255,
+      "label": "Lamp on"
+     }
+    ]
+   },
+   {
+    "key": "pan-tilt-speed-emulation-mode",
+    "label": "Pan / Tilt Speed (Emulation mode)",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 1,
+      "to": 249,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Blackout during movements"
+     }
+    ]
+   },
+   {
+    "key": "lamp-on-fan-speed",
+    "label": "Lamp on / Fan speed",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "Fan speed"
+     },
+     {
+      "from": 128,
+      "to": 139,
+      "label": "Lamp on, reset"
+     },
+     {
+      "from": 140,
+      "to": 229,
+      "label": "NoFunction"
+     },
+     {
+      "from": 230,
+      "to": 239,
+      "label": "Lamp off"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "effect-wheel",
+    "label": "Effect wheel",
+    "role": "prism",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 95,
+      "label": "Open / hole"
+     },
+     {
+      "from": 96,
+      "to": 159,
+      "label": "3-facet rotating"
+     },
+     {
+      "from": 160,
+      "to": 167,
+      "label": "Prism / Gobo macro 1"
+     },
+     {
+      "from": 168,
+      "to": 175,
+      "label": "Prism / Gobo macro 2"
+     },
+     {
+      "from": 176,
+      "to": 183,
+      "label": "Prism / Gobo macro 3"
+     },
+     {
+      "from": 184,
+      "to": 191,
+      "label": "Prism / Gobo macro 4"
+     },
+     {
+      "from": 192,
+      "to": 199,
+      "label": "Prism / Gobo macro 5"
+     },
+     {
+      "from": 200,
+      "to": 207,
+      "label": "Prism / Gobo macro 6"
+     },
+     {
+      "from": 208,
+      "to": 215,
+      "label": "Prism / Gobo macro 7"
+     },
+     {
+      "from": 216,
+      "to": 223,
+      "label": "Prism / Gobo macro 8"
+     },
+     {
+      "from": 224,
+      "to": 231,
+      "label": "Prism / Gobo macro 9"
+     },
+     {
+      "from": 232,
+      "to": 239,
+      "label": "Prism / Gobo macro 10"
+     },
+     {
+      "from": 240,
+      "to": 247,
+      "label": "Prism / Gobo macro 11"
+     },
+     {
+      "from": 248,
+      "to": 255,
+      "label": "Prism / Gobo macro 12"
+     }
+    ]
+   },
+   {
+    "key": "3-facet-prism-rotation",
+    "label": "3 facet prism rotation",
+    "role": "prismRotation",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 126,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 127,
+      "to": 128,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 129,
+      "to": 255,
+      "label": "PrismRotation"
+     }
+    ]
+   },
+   {
+    "key": "gobo-selection-emulation-mode",
+    "label": "Gobo selection (Emulation mode)",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "Open"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "Gobo"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "Gobo"
+     },
+     {
+      "from": 96,
+      "to": 127,
+      "label": "Gobo"
+     },
+     {
+      "from": 128,
+      "to": 159,
+      "label": "Gobo"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "Gobo"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "Gobo"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "gobo-stencil-rotation",
+    "label": "Gobo stencil rotation",
+    "role": "goboRotation",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 128,
+      "to": 190,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 191,
+      "to": 192,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 193,
+      "to": 255,
+      "label": "WheelSlotRotation"
+     }
+    ]
+   },
+   {
+    "key": "shutter-strobe-emulation-mode",
+    "label": "Shutter / Strobe (Emulation mode)",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 1,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "Closed"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "Open"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "Strobe"
+     },
+     {
+      "from": 96,
+      "to": 127,
+      "label": "Open"
+     },
+     {
+      "from": 128,
+      "to": 159,
+      "label": "Pulse"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "Open"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "Strobe"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "dimmer-emulation-mode",
+    "label": "Dimmer (Emulation mode)",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "strd",
+    "name": "Standard",
+    "footprint": 16,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-selection",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-stencil-rotation-angle",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-stencil-rotation-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-shake-blackout-effect",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-shake-amplitude",
+      "byte": 0
+     },
+     {
+      "channelKey": "lamp-on-motor-reset",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "emul",
+    "name": "ProSpot emulation",
+    "footprint": 16,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed-emulation-mode",
+      "byte": 0
+     },
+     {
+      "channelKey": "lamp-on-fan-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     null,
+     {
+      "channelKey": "effect-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "3-facet-prism-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-selection-emulation-mode",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-stencil-rotation",
+      "byte": 0
+     },
+     null,
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe-emulation-mode",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-emulation-mode",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    350,
+    510,
+    377
+   ],
+   "weightKg": 23.5,
+   "powerW": 460,
+   "lensDegMin": 15,
+   "lensDegMax": 15
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "coemar/prospot-250-lx",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

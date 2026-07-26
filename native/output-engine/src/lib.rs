@@ -9,6 +9,8 @@ extern crate napi_derive;
 
 use napi::bindgen_prelude::Buffer;
 use std::collections::HashMap;
+mod serial;
+
 use std::net::UdpSocket;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Condvar, Mutex, OnceLock};
@@ -102,6 +104,25 @@ pub fn push_frame(frame: Buffer) -> napi::Result<()> {
     Ok(())
 }
 
+/// One selectable DMX interface, for the Outputs device picker.
+#[napi(object)]
+pub struct SerialDevice {
+    /// The OS port path — `COM3` on Windows, `/dev/ttyUSB0` elsewhere. This is what a Controller stores.
+    pub path: String,
+    /// Human label from the USB descriptor, so an operator picks a NAME rather than a number.
+    pub label: String,
+}
+
+/// Enumerate USB serial devices that could be a DMX interface. Safe to call at any time; returns an
+/// empty list rather than failing when there is nothing attached (or no permission to look).
+#[napi]
+pub fn list_serial_devices() -> Vec<SerialDevice> {
+    serial::list_dmx_ports()
+        .into_iter()
+        .map(|(path, label)| SerialDevice { path, label })
+        .collect()
+}
+
 #[napi]
 pub fn close() -> napi::Result<()> {
     if let Some(shared) = ENGINE.get() {
@@ -126,6 +147,9 @@ fn sender_loop(shared: Arc<Shared>, init_broadcast: bool) {
     let mut artnet_seq: HashMap<String, u8> = HashMap::new();
     let mut sacn_seq: HashMap<String, u8> = HashMap::new();
     let mut last_sent: HashMap<String, Vec<u8>> = HashMap::new();
+    // Serial (ENTTEC) destinations. Owned by this thread, but every write goes through a per-port
+    // writer thread — see serial.rs on why a USB device must never be written to inline.
+    let mut serial_ports = serial::SerialPorts::new();
     let mut last_version: u64 = 0;
     let mut last_bytes: Vec<u8> = Vec::new();
     let mut win_start = Instant::now();
@@ -147,6 +171,9 @@ fn sender_loop(shared: Arc<Shared>, init_broadcast: bool) {
                 .wait_timeout_while(s, timeout, |s| s.version == last_version && !s.stop)
                 .unwrap();
             if s.stop {
+                // Release the USB widgets with the rest of the engine — a writer thread left alive
+                // would hold the COM port open and the next launch could not reopen it.
+                serial_ports.close();
                 break;
             }
             if s.version != last_version {
@@ -162,6 +189,7 @@ fn sender_loop(shared: Arc<Shared>, init_broadcast: bool) {
         if let Some((bytes, force)) = to_send {
             let (pkts, unis) = send_frame_bytes(
                 &bytes, force, sync, &socket, &mut cur_broadcast, &mut artnet_seq, &mut sacn_seq, &mut last_sent,
+                &mut serial_ports,
             );
             pkt_count += pkts;
             frame_count += 1;
@@ -195,6 +223,7 @@ fn rd_u32(b: &[u8], i: &mut usize) -> u32 {
     v
 }
 
+#[allow(clippy::too_many_arguments)]
 fn send_frame_bytes(
     b: &[u8],
     force: bool,
@@ -204,6 +233,7 @@ fn send_frame_bytes(
     artnet_seq: &mut HashMap<String, u8>,
     sacn_seq: &mut HashMap<String, u8>,
     last_sent: &mut HashMap<String, Vec<u8>>,
+    serial_ports: &mut serial::SerialPorts,
 ) -> (u32, u32) {
     let mut packets: u32 = 0;
     let mut universes: u32 = 0;
@@ -229,12 +259,15 @@ fn send_frame_bytes(
         i += ip_len;
         let uni_count = rd_u16(b, &mut i);
         let is_sacn = protocol == 1;
+        // protocol 2 = ENTTEC DMX USB Pro. The COM path travels in the same `ip` field the UDP
+        // protocols use for their address — the wire format between JS and here needed no change.
+        let is_serial = protocol == 2;
 
-        if !is_sacn && *cur_broadcast != broadcast {
+        if !is_serial && !is_sacn && *cur_broadcast != broadcast {
             socket.set_broadcast(broadcast).ok();
             *cur_broadcast = broadcast;
         }
-        if !is_sacn && sync && !artnet_dests.iter().any(|(d, p, _)| d == &ip && *p == port) {
+        if !is_serial && !is_sacn && sync && !artnet_dests.iter().any(|(d, p, _)| d == &ip && *p == port) {
             artnet_dests.push((ip.clone(), port, broadcast));
         }
 
@@ -246,6 +279,15 @@ fn send_frame_bytes(
             let data = &b[i..i + dlen];
             i += dlen;
             universes += 1;
+
+            // A SERIAL widget drives exactly ONE universe, so there is no address to resolve and
+            // no sequence number to keep — just the frame, handed to the port's writer thread.
+            if is_serial {
+                if serial_ports.send(&ip, data) {
+                    packets += 1;
+                }
+                continue;
+            }
 
             let dest = if is_sacn && broadcast {
                 format!("239.255.{}.{}", (universe >> 8) & 0xff, universe & 0xff)

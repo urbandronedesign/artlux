@@ -1,0 +1,95 @@
+[
+ {
+  "id": "galaxis/g-flame",
+  "manufacturer": "Galaxis",
+  "model": "G-Flame",
+  "aliases": [
+   "G-Flame",
+   "Galaxis G-Flame",
+   "g-flame",
+   "galaxisgflame",
+   "gflame"
+  ],
+  "categories": [
+   "Effect"
+  ],
+  "channels": [
+   {
+    "key": "flame",
+    "label": "Flame",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 228,
+      "label": "Flame Off"
+     },
+     {
+      "from": 229,
+      "to": 255,
+      "label": "Flame On (when Safety is off)"
+     }
+    ]
+   },
+   {
+    "key": "safety",
+    "label": "Safety",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "Safety ON"
+     },
+     {
+      "from": 16,
+      "to": 255,
+      "label": "Safety OFF"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "flame",
+    "name": "Flame Channel",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "flame",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "safety",
+    "name": "Safety Channel",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "safety",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    300,
+    300,
+    350
+   ],
+   "weightKg": 10.5
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "galaxis/g-flame",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

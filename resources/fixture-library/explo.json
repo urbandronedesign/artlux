@@ -1,0 +1,624 @@
+[
+ {
+  "id": "explo/gasprojector-gx2",
+  "manufacturer": "Explo",
+  "model": "Gasprojector GX2",
+  "aliases": [
+   "Explo Gasprojector GX2",
+   "Gasprojector GX2",
+   "explogasprojectorgx2",
+   "gasprojectorgx2"
+  ],
+  "categories": [
+   "Effect"
+  ],
+  "channels": [
+   {
+    "key": "ignition",
+    "label": "Ignition",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 252,
+      "label": "No ignition"
+     },
+     {
+      "from": 253,
+      "to": 255,
+      "label": "Single ignition"
+     }
+    ]
+   },
+   {
+    "key": "valve-opening-time",
+    "label": "Valve Opening Time",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Saftety zone"
+     },
+     {
+      "from": 11,
+      "to": 13,
+      "label": "Small fireball"
+     },
+     {
+      "from": 14,
+      "to": 34,
+      "label": "Flame pillar"
+     },
+     {
+      "from": 35,
+      "to": 60,
+      "label": "Larger flames"
+     },
+     {
+      "from": 61,
+      "to": 200,
+      "label": "Extra large flames"
+     },
+     {
+      "from": 201,
+      "to": 250,
+      "label": "Flame every 5 seconds"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "Safety zone"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "standard",
+    "name": "Standard",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "ignition",
+      "byte": 0
+     },
+     {
+      "channelKey": "valve-opening-time",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    260,
+    390,
+    260
+   ],
+   "weightKg": 6.8
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "explo/gasprojector-gx2",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "explo/x2-wave-flamer",
+  "manufacturer": "Explo",
+  "model": "X2 Wave Flamer",
+  "aliases": [
+   "Explo X2 Wave Flamer",
+   "X2 Wave Flamer",
+   "explox2waveflamer",
+   "x2waveflamer"
+  ],
+  "categories": [
+   "Effect"
+  ],
+  "channels": [
+   {
+    "key": "angle",
+    "label": "Angle",
+    "role": "tilt",
+    "resolution": 1,
+    "default": 0.5019607843137255,
+    "min": -105,
+    "max": 105,
+    "unit": "deg"
+   },
+   {
+    "key": "speed",
+    "label": "Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "ignition",
+    "label": "Ignition",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 253,
+      "label": "No ignition"
+     },
+     {
+      "from": 254,
+      "to": 255,
+      "label": "Single ignition"
+     }
+    ]
+   },
+   {
+    "key": "opening-time",
+    "label": "Opening Time",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 254,
+      "label": "Time"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "permanent, stops at the latest of 2500ms"
+     }
+    ]
+   },
+   {
+    "key": "programs",
+    "label": "Programs",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 2,
+      "label": "No function"
+     },
+     {
+      "from": 3,
+      "to": 5,
+      "label": "-105°, single ignition short flame"
+     },
+     {
+      "from": 6,
+      "to": 7,
+      "label": "-90°, single ignition short flame"
+     },
+     {
+      "from": 8,
+      "to": 10,
+      "label": "-75°, single ignition short flame"
+     },
+     {
+      "from": 11,
+      "to": 12,
+      "label": "-60°, single ignition short flame"
+     },
+     {
+      "from": 13,
+      "to": 15,
+      "label": "-45°, single ignition short flame"
+     },
+     {
+      "from": 16,
+      "to": 17,
+      "label": "-30°, single ignition short flame"
+     },
+     {
+      "from": 18,
+      "to": 20,
+      "label": "-15°, single ignition short flame"
+     },
+     {
+      "from": 21,
+      "to": 22,
+      "label": "0°, single ignition short flame"
+     },
+     {
+      "from": 23,
+      "to": 25,
+      "label": "15°, single ignition short flame"
+     },
+     {
+      "from": 26,
+      "to": 28,
+      "label": "30°, single ignition short flame"
+     },
+     {
+      "from": 29,
+      "to": 30,
+      "label": "45°, single ignition short flame"
+     },
+     {
+      "from": 31,
+      "to": 33,
+      "label": "60°, single ignition short flame"
+     },
+     {
+      "from": 34,
+      "to": 35,
+      "label": "75°, single ignition short flame"
+     },
+     {
+      "from": 36,
+      "to": 38,
+      "label": "90°, single ignition short flame"
+     },
+     {
+      "from": 39,
+      "to": 40,
+      "label": "105°, single ignition short flame"
+     },
+     {
+      "from": 41,
+      "to": 43,
+      "label": "-105°, single ignition long flame"
+     },
+     {
+      "from": 44,
+      "to": 45,
+      "label": "-90°, single ignition long flame"
+     },
+     {
+      "from": 46,
+      "to": 48,
+      "label": "-75°, single ignition long flame"
+     },
+     {
+      "from": 49,
+      "to": 50,
+      "label": "-60°, single ignition long flame"
+     },
+     {
+      "from": 51,
+      "to": 53,
+      "label": "-45°, single ignition long flame"
+     },
+     {
+      "from": 54,
+      "to": 56,
+      "label": "-30°, single ignition long flame"
+     },
+     {
+      "from": 57,
+      "to": 58,
+      "label": "-15°, single ignition long flame"
+     },
+     {
+      "from": 59,
+      "to": 61,
+      "label": "0°, single ignition long flame"
+     },
+     {
+      "from": 62,
+      "to": 63,
+      "label": "15°, single ignition long flame"
+     },
+     {
+      "from": 64,
+      "to": 66,
+      "label": "30°, single ignition long flame"
+     },
+     {
+      "from": 67,
+      "to": 68,
+      "label": "45°, single ignition long flame"
+     },
+     {
+      "from": 69,
+      "to": 71,
+      "label": "60°, single ignition long flame"
+     },
+     {
+      "from": 72,
+      "to": 73,
+      "label": "75°, single ignition long flame"
+     },
+     {
+      "from": 74,
+      "to": 76,
+      "label": "90°, single ignition long flame"
+     },
+     {
+      "from": 77,
+      "to": 79,
+      "label": "105°, single ignition long flame"
+     },
+     {
+      "from": 80,
+      "to": 81,
+      "label": "Step sequence from 1-15, short flame"
+     },
+     {
+      "from": 82,
+      "to": 84,
+      "label": "Step sequence from 15-1, short flame"
+     },
+     {
+      "from": 85,
+      "to": 86,
+      "label": "Step sequence 5>8>11, short flame"
+     },
+     {
+      "from": 87,
+      "to": 89,
+      "label": "Step sequence 11>8>5, short flame"
+     },
+     {
+      "from": 90,
+      "to": 91,
+      "label": "Step sequence 6>10, short flame"
+     },
+     {
+      "from": 92,
+      "to": 94,
+      "label": "Step sequence 10>6, short flame"
+     },
+     {
+      "from": 95,
+      "to": 96,
+      "label": "Step sequence 4>6>8>10>12, short flame"
+     },
+     {
+      "from": 97,
+      "to": 99,
+      "label": "Step sequence 12>10>8>6>4, short flame"
+     },
+     {
+      "from": 100,
+      "to": 101,
+      "label": "Step sequence 8>6>10>4>12, short flame"
+     },
+     {
+      "from": 102,
+      "to": 104,
+      "label": "Step sequence 8>10>6>12>4, short flame"
+     },
+     {
+      "from": 105,
+      "to": 107,
+      "label": "Step sequence from 1-15, long flame"
+     },
+     {
+      "from": 108,
+      "to": 109,
+      "label": "Step sequence from 15-1, long flame"
+     },
+     {
+      "from": 110,
+      "to": 112,
+      "label": "Step sequence 5>8>11, long flame"
+     },
+     {
+      "from": 113,
+      "to": 114,
+      "label": "Step sequence 11>8>5, long flame"
+     },
+     {
+      "from": 115,
+      "to": 117,
+      "label": "Step sequence 6>10, long flame"
+     },
+     {
+      "from": 118,
+      "to": 119,
+      "label": "Step sequence 10>6, long flame"
+     },
+     {
+      "from": 120,
+      "to": 122,
+      "label": "Step sequence 4>6>8>10>12, long flame"
+     },
+     {
+      "from": 123,
+      "to": 124,
+      "label": "Step sequence 12>10>8>6>4, long flame"
+     },
+     {
+      "from": 125,
+      "to": 127,
+      "label": "Step sequence 8>6>10>4>12, long flame"
+     },
+     {
+      "from": 128,
+      "to": 130,
+      "label": "Step sequence 8>16>12>4, long flame"
+     },
+     {
+      "from": 131,
+      "to": 132,
+      "label": "Wave sequence 5>11, middle"
+     },
+     {
+      "from": 133,
+      "to": 135,
+      "label": "Wave sequence 11>5, middle"
+     },
+     {
+      "from": 136,
+      "to": 137,
+      "label": "BIG wave sequence 1>15, long"
+     },
+     {
+      "from": 138,
+      "to": 140,
+      "label": "BIG wave sequence 15>1, long"
+     },
+     {
+      "from": 141,
+      "to": 142,
+      "label": "Wave sequence 8>1, middle"
+     },
+     {
+      "from": 143,
+      "to": 145,
+      "label": "Wave sequence 8>15, middle"
+     },
+     {
+      "from": 146,
+      "to": 147,
+      "label": "Wave sequence 1>8, middle"
+     },
+     {
+      "from": 148,
+      "to": 150,
+      "label": "Wave sequence 15>8, middle"
+     },
+     {
+      "from": 151,
+      "to": 152,
+      "label": "Wave sequence 8>11, short"
+     },
+     {
+      "from": 153,
+      "to": 155,
+      "label": "Wave sequence 8>5, short"
+     },
+     {
+      "from": 156,
+      "to": 158,
+      "label": "Wave sequence 5>8, short"
+     },
+     {
+      "from": 159,
+      "to": 160,
+      "label": "Wave sequence 11>8, short"
+     },
+     {
+      "from": 161,
+      "to": 163,
+      "label": "Step sequence 2>14, short flame"
+     },
+     {
+      "from": 164,
+      "to": 165,
+      "label": "Step sequence 14>2, short flame"
+     },
+     {
+      "from": 166,
+      "to": 168,
+      "label": "Step sequence 2>14, long flame"
+     },
+     {
+      "from": 169,
+      "to": 170,
+      "label": "Step sequence 14>2, long flame"
+     },
+     {
+      "from": 171,
+      "to": 173,
+      "label": "Unknown"
+     },
+     {
+      "from": 174,
+      "to": 175,
+      "label": "Unknown"
+     },
+     {
+      "from": 176,
+      "to": 178,
+      "label": "Unknown"
+     },
+     {
+      "from": 179,
+      "to": 181,
+      "label": "Unknown"
+     },
+     {
+      "from": 182,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "mode",
+    "label": "Mode",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 49,
+      "label": "Test Mode"
+     },
+     {
+      "from": 50,
+      "to": 200,
+      "label": "Armed Mode"
+     },
+     {
+      "from": 201,
+      "to": 255,
+      "label": "Test Mode"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "6ch",
+    "name": "6-Channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "angle",
+      "byte": 0
+     },
+     {
+      "channelKey": "speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "ignition",
+      "byte": 0
+     },
+     {
+      "channelKey": "opening-time",
+      "byte": 0
+     },
+     {
+      "channelKey": "programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "mode",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    335,
+    365,
+    560
+   ],
+   "weightKg": 27,
+   "powerW": 350
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "explo/x2-wave-flamer",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

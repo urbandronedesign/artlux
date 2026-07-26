@@ -1,0 +1,243 @@
+[
+ {
+  "id": "ayra/compar-20",
+  "manufacturer": "Ayra",
+  "model": "Compar 20",
+  "aliases": [
+   "Ayra Compar 20",
+   "Compar 20",
+   "ayracompar20",
+   "compar20"
+  ],
+  "categories": [
+   "Color Changer",
+   "Strobe"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "NoFunction"
+     },
+     {
+      "from": 8,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "color-macros",
+    "label": "Color Macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 36,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 37,
+      "to": 73,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 74,
+      "to": 110,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 111,
+      "to": 147,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 148,
+      "to": 184,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 185,
+      "to": 221,
+      "label": "Cyan",
+      "color": "#00ffff"
+     },
+     {
+      "from": 222,
+      "to": 255,
+      "label": "White",
+      "color": "#ffffff"
+     }
+    ]
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "effect",
+    "label": "Effect",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 4,
+      "label": "NoFunction"
+     },
+     {
+      "from": 5,
+      "to": 80,
+      "label": "Color 1…15"
+     },
+     {
+      "from": 81,
+      "to": 150,
+      "label": "ColorJump"
+     },
+     {
+      "from": 151,
+      "to": 220,
+      "label": "ColorFade"
+     },
+     {
+      "from": 221,
+      "to": 255,
+      "label": "Sound Control"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "2ch",
+    "name": "2-channel",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "3ch1",
+    "name": "3-channel 1",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "3ch2",
+    "name": "3-channel 2",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "6ch",
+    "name": "6-channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "effect",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "source": {
+   "origin": "ofl",
+   "ref": "ayra/compar-20",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

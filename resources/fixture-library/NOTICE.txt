@@ -1,0 +1,6 @@
+This directory is GENERATED — do not edit by hand.
+Run `npm run build:fixtures` to regenerate it.
+
+The fixture definitions and gobo images here are derived from the Open Fixture Library
+(https://open-fixture-library.org/), MIT licensed, at commit e911c7fceb44185e87808ccc32a2b1c576de034e.
+The full licence text is in LICENSE-OFL.txt and must ship with this data.

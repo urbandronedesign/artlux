@@ -6,7 +6,7 @@ import type { UniverseTarget } from './protocol';
 // Layout:
 //   u32 targetCount
 //   per target:
-//     u8  protocol (0=artnet, 1=sacn)
+//     u8  protocol (0=artnet, 1=sacn, 2=enttec USB — the `ip` field carries the COM port path)
 //     u8  broadcast
 //     u8  sparse
 //     u8  priority
@@ -42,7 +42,7 @@ export function encodeFrame(targets: UniverseTarget[]): ArrayBuffer {
   let o = 0;
   dv.setUint32(o, targets.length, true); o += 4;
   targets.forEach((t, ti) => {
-    bytes[o++] = t.protocol === 'sacn' ? 1 : 0;
+    bytes[o++] = t.protocol === 'sacn' ? 1 : t.protocol === 'enttec' ? 2 : 0;
     bytes[o++] = t.broadcast ? 1 : 0;
     bytes[o++] = t.sparse ? 1 : 0;
     bytes[o++] = Math.max(0, Math.min(255, t.priority ?? 100));
@@ -70,7 +70,8 @@ export function decodeFrame(buf: ArrayBuffer): UniverseTarget[] {
   const count = dv.getUint32(o, true); o += 4;
   const targets: UniverseTarget[] = [];
   for (let t = 0; t < count; t++) {
-    const protocol = bytes[o++] === 1 ? 'sacn' : 'artnet';
+    const p = bytes[o++];
+    const protocol = p === 1 ? 'sacn' : p === 2 ? 'enttec' : 'artnet';
     const broadcast = bytes[o++] === 1;
     const sparse = bytes[o++] === 1;
     const priority = bytes[o++];

@@ -1,0 +1,804 @@
+[
+ {
+  "id": "clf/hera",
+  "manufacturer": "CLF",
+  "model": "Hera",
+  "aliases": [
+   "CLF Hera",
+   "Hera",
+   "clfhera",
+   "hera"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "uv",
+    "label": "UV",
+    "role": "uv",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 19,
+      "label": "NoFunction"
+     },
+     {
+      "from": 20,
+      "to": 24,
+      "label": "Open"
+     },
+     {
+      "from": 25,
+      "to": 64,
+      "label": "Strobe"
+     },
+     {
+      "from": 65,
+      "to": 69,
+      "label": "Open"
+     },
+     {
+      "from": 70,
+      "to": 84,
+      "label": "RampUp"
+     },
+     {
+      "from": 85,
+      "to": 89,
+      "label": "Open"
+     },
+     {
+      "from": 90,
+      "to": 104,
+      "label": "RampDown"
+     },
+     {
+      "from": 105,
+      "to": 109,
+      "label": "Open"
+     },
+     {
+      "from": 110,
+      "to": 124,
+      "label": "Strobe"
+     },
+     {
+      "from": 125,
+      "to": 129,
+      "label": "Open"
+     },
+     {
+      "from": 130,
+      "to": 144,
+      "label": "RampUp"
+     },
+     {
+      "from": 145,
+      "to": 149,
+      "label": "Open"
+     },
+     {
+      "from": 150,
+      "to": 164,
+      "label": "RampDown"
+     },
+     {
+      "from": 165,
+      "to": 169,
+      "label": "Open"
+     },
+     {
+      "from": 170,
+      "to": 184,
+      "label": "Burst (Burst pulse)"
+     },
+     {
+      "from": 185,
+      "to": 189,
+      "label": "Open"
+     },
+     {
+      "from": 190,
+      "to": 204,
+      "label": "Burst (Burst pulse)"
+     },
+     {
+      "from": 205,
+      "to": 209,
+      "label": "Open"
+     },
+     {
+      "from": 210,
+      "to": 224,
+      "label": "Pulse (Sine wave)"
+     },
+     {
+      "from": 225,
+      "to": 229,
+      "label": "Open"
+     },
+     {
+      "from": 230,
+      "to": 244,
+      "label": "Burst"
+     },
+     {
+      "from": 245,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-wheel-effect",
+    "label": "Color Wheel Effect",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 4,
+      "label": "NoFunction"
+     },
+     {
+      "from": 5,
+      "to": 255,
+      "label": "ColorFade"
+     }
+    ]
+   },
+   {
+    "key": "auto-programs",
+    "label": "Auto Programs",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Auto program 1"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "Auto program 2"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "Auto program 3"
+     },
+     {
+      "from": 40,
+      "to": 49,
+      "label": "Auto program 4"
+     },
+     {
+      "from": 50,
+      "to": 59,
+      "label": "Auto program 5"
+     },
+     {
+      "from": 60,
+      "to": 69,
+      "label": "Auto program 6"
+     },
+     {
+      "from": 70,
+      "to": 79,
+      "label": "Auto program 7"
+     },
+     {
+      "from": 80,
+      "to": 89,
+      "label": "Auto program 8"
+     },
+     {
+      "from": 90,
+      "to": 99,
+      "label": "Auto program 9"
+     },
+     {
+      "from": 100,
+      "to": 109,
+      "label": "Auto program 10 (cycle 1-10)"
+     },
+     {
+      "from": 110,
+      "to": 119,
+      "label": "Custom program 1"
+     },
+     {
+      "from": 120,
+      "to": 129,
+      "label": "Custom program 2"
+     },
+     {
+      "from": 130,
+      "to": 139,
+      "label": "Custom program 3"
+     },
+     {
+      "from": 140,
+      "to": 149,
+      "label": "Custom program 4"
+     },
+     {
+      "from": 150,
+      "to": 159,
+      "label": "Custom program 5"
+     },
+     {
+      "from": 160,
+      "to": 169,
+      "label": "Custom program 6"
+     },
+     {
+      "from": 170,
+      "to": 179,
+      "label": "Custom program 7"
+     },
+     {
+      "from": 180,
+      "to": 189,
+      "label": "Custom program 8"
+     },
+     {
+      "from": 190,
+      "to": 199,
+      "label": "Custom program 9"
+     },
+     {
+      "from": 200,
+      "to": 255,
+      "label": "Custom program 10"
+     }
+    ]
+   },
+   {
+    "key": "speed",
+    "label": "Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Auto speed or dimmer speed"
+     }
+    ]
+   },
+   {
+    "key": "fixture-control-settings",
+    "label": "Fixture Control Settings",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 94,
+      "label": "NoFunction"
+     },
+     {
+      "from": 95,
+      "to": 99,
+      "label": "Manual calibration output mode"
+     },
+     {
+      "from": 100,
+      "to": 104,
+      "label": "Raw color output mode"
+     },
+     {
+      "from": 105,
+      "to": 109,
+      "label": "NoFunction"
+     },
+     {
+      "from": 110,
+      "to": 114,
+      "label": "Normal dimming, speed of changes unrestricted"
+     },
+     {
+      "from": 115,
+      "to": 119,
+      "label": "NoFunction"
+     },
+     {
+      "from": 120,
+      "to": 124,
+      "label": "Smooth dimming, speed of changes restricted slightly"
+     },
+     {
+      "from": 125,
+      "to": 129,
+      "label": "NoFunction"
+     },
+     {
+      "from": 130,
+      "to": 134,
+      "label": "1600 Hz refresh rate"
+     },
+     {
+      "from": 135,
+      "to": 139,
+      "label": "11200 Hz refresh rate"
+     },
+     {
+      "from": 140,
+      "to": 144,
+      "label": "12400 Hz refresh rate"
+     },
+     {
+      "from": 145,
+      "to": 149,
+      "label": "14800 Hz refresh rate"
+     },
+     {
+      "from": 150,
+      "to": 154,
+      "label": "NoFunction"
+     },
+     {
+      "from": 155,
+      "to": 159,
+      "label": "WDMX on"
+     },
+     {
+      "from": 160,
+      "to": 164,
+      "label": "NoFunction"
+     },
+     {
+      "from": 165,
+      "to": 169,
+      "label": "WDMX off"
+     },
+     {
+      "from": 170,
+      "to": 174,
+      "label": "NoFunction"
+     },
+     {
+      "from": 175,
+      "to": 179,
+      "label": "WDMX reset"
+     },
+     {
+      "from": 180,
+      "to": 249,
+      "label": "NoFunction"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Illuminate display"
+     }
+    ]
+   },
+   {
+    "key": "hue",
+    "label": "Hue",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "saturation",
+    "label": "Saturation",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "value",
+    "label": "Value",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "4ch",
+    "name": "4-channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "5ch",
+    "name": "5-channel",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "6ch",
+    "name": "6-channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "7ch",
+    "name": "7-channel",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "8ch",
+    "name": "8-channel",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "11ch",
+    "name": "11-channel",
+    "footprint": 11,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel-effect",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "fixture-control-settings",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "13ch",
+    "name": "13-channel",
+    "footprint": 13,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel-effect",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "fixture-control-settings",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "hsv",
+    "name": "HSV",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "value",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "hsi",
+    "name": "HSI",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    260,
+    290,
+    180
+   ],
+   "weightKg": 3.8,
+   "powerW": 121,
+   "lensDegMin": 30,
+   "lensDegMax": 30
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "clf/hera",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

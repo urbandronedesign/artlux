@@ -121,6 +121,10 @@ const api: ArtluxApi = {
     readModel: (path: string) => ipcRenderer.invoke(IPC.SCENE_READ_MODEL, path),
     readFile: (path: string) => ipcRenderer.invoke(IPC.READ_FILE, path),
     // In-app Docs Browser (examples/tutorials + user guide)
+    fixtureLibraryIndex: () => ipcRenderer.invoke(IPC.FIXTURE_LIBRARY_INDEX),
+    fixtureLibraryGet: (manufacturerKey: string) => ipcRenderer.invoke(IPC.FIXTURE_LIBRARY_GET, manufacturerKey),
+    listSerialDevices: () => ipcRenderer.invoke(IPC.SERIAL_DEVICES),
+    importGdtf: () => ipcRenderer.invoke(IPC.FIXTURE_IMPORT_GDTF),
     docsList: () => ipcRenderer.invoke(IPC.DOCS_LIST),
     docsRead: (id: string) => ipcRenderer.invoke(IPC.DOCS_READ, id),
     docsReadAsset: (absPath: string) => ipcRenderer.invoke(IPC.DOCS_READ_ASSET, absPath),

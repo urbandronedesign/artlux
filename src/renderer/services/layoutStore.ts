@@ -11,7 +11,7 @@ export interface WorkspaceLayout {
   dockHeight: number;    // px, clamped 120..(innerHeight-120)
   helpWidth: number;     // px, clamped 240..560
   splitRatio: number;    // 0.2..0.85 — the 2D stage's fraction of the split host
-  bottomHeight: number;  // px — the full-width bottom region (WorkspaceContext.bottom)
+  bottomHeight: number;  // px — the full-width bottom drawer (WorkspaceContext.bottom), when open
   leftWidth: number;     // px — the browser column (clamped in the shell)
   rightWidth: number;    // px — the parameter column (clamped in the shell)
   // visibility
@@ -20,6 +20,10 @@ export interface WorkspaceLayout {
   showHelp: boolean;
   dockOpen: boolean;
   splitView: boolean;
+  // Is the full-width bottom drawer (the timeline, in every context that names it) pulled up? Banked
+  // per context, so a workbench remembers whether you were cutting in it — which is the whole reason
+  // the timeline stopped being a context of its own.
+  bottomOpen: boolean;
   timelineMax: boolean;
   // selections
   leftTab: 'scene' | 'media';
@@ -46,7 +50,7 @@ export interface WorkspaceLayout {
 // decomposed into panels.
 export type ContextLayout = Partial<Pick<WorkspaceLayout,
   'dockHeight' | 'splitRatio' | 'bottomHeight' | 'leftWidth' | 'rightWidth'
-  | 'showLeft' | 'showRight' | 'dockOpen' | 'splitView'>> & {
+  | 'showLeft' | 'showRight' | 'dockOpen' | 'splitView' | 'bottomOpen'>> & {
   dockPanel?: string;
   /** The `WorkspaceContext.layoutRev` this slice was banked against — see resolveContextLayout(). */
   rev?: number;
@@ -66,6 +70,10 @@ export const DEFAULT_LAYOUT: WorkspaceLayout = {
   showHelp: false,
   dockOpen: true,
   splitView: false,
+  // Closed by default everywhere: the drawer is 340px of the window, and a workbench you opened to
+  // patch fixtures should not give a third of itself to lanes you did not ask for. The collapsed strip
+  // is what keeps it findable.
+  bottomOpen: false,
   timelineMax: false,
   leftTab: 'scene',
   dockTab: DockTab.FIXTURE_EDITOR,
@@ -76,7 +84,7 @@ export const DEFAULT_LAYOUT: WorkspaceLayout = {
 };
 
 // The ergonomic keys banked per context — one list, used by both directions of a context switch.
-const CONTEXT_KEYS = ['dockHeight', 'splitRatio', 'bottomHeight', 'leftWidth', 'rightWidth', 'showLeft', 'showRight', 'dockOpen', 'splitView'] as const;
+const CONTEXT_KEYS = ['dockHeight', 'splitRatio', 'bottomHeight', 'leftWidth', 'rightWidth', 'showLeft', 'showRight', 'dockOpen', 'splitView', 'bottomOpen'] as const;
 
 let state: WorkspaceLayout = DEFAULT_LAYOUT;
 const subs = new Set<() => void>();
@@ -157,10 +165,17 @@ function resolveContextLayout(saved: ContextLayout | undefined, defaults?: Conte
   return saved;
 }
 
-// Contexts that no longer exist → what replaced each. `map` + `led` merged into `mapping` (you place
-// a surface in order to map LEDs onto it); `media` was dropped and its media browser + asset manager
-// became part of `timeline`, which took its place in the rail.
-const RETIRED_CONTEXTS: Record<string, string> = { map: 'mapping', led: 'mapping', media: 'timeline' };
+// Contexts that no longer exist → what replaced each. `map` + `led` merged into `mapping` (you place a
+// surface in order to map LEDs onto it). `media` was dropped into `timeline`, and `timeline` was itself
+// dissolved once the timeline became every context's bottom DRAWER — so `media` had to be repointed at
+// `mapping` too: this lookup is a single hop, not transitive, and an ancient `media` install would
+// otherwise land on an id that no longer resolves. `tracking` merged into `3d` (the 3D scene is where
+// its blobs are drawn, and `3d` had a free dock for its plugins' monitors).
+//
+// Getting an entry wrong here is silent: the rail simply opens with nothing selected.
+const RETIRED_CONTEXTS: Record<string, string> = {
+  map: 'mapping', led: 'mapping', media: 'mapping', timeline: 'mapping', tracking: '3d',
+};
 
 // Retired presets → the context that replaced each. 'custom' is absent on purpose: a hand-tweaked
 // layout carries no hint about which job it was for, so it falls through to the default context.

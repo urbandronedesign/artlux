@@ -1,0 +1,2104 @@
+[
+ {
+  "id": "panasonic/pt-rz120",
+  "manufacturer": "Panasonic",
+  "model": "PT-RZ120",
+  "aliases": [
+   "PT-RZ120",
+   "Panasonic PT-RZ120",
+   "panasonicptrz120",
+   "ptrz120"
+  ],
+  "categories": [
+   "Other",
+   "Laser"
+  ],
+  "channels": [
+   {
+    "key": "light-output",
+    "label": "Light Output",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "input-select-1",
+    "label": "Input Select (1)",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "NoFunction"
+     },
+     {
+      "from": 8,
+      "to": 15,
+      "label": "RGB1"
+     },
+     {
+      "from": 16,
+      "to": 23,
+      "label": "RGB2"
+     },
+     {
+      "from": 24,
+      "to": 31,
+      "label": "NoFunction"
+     },
+     {
+      "from": 32,
+      "to": 39,
+      "label": "DVI-D"
+     },
+     {
+      "from": 40,
+      "to": 47,
+      "label": "HDMI"
+     },
+     {
+      "from": 48,
+      "to": 55,
+      "label": "Digital Link"
+     },
+     {
+      "from": 56,
+      "to": 63,
+      "label": "SDI"
+     },
+     {
+      "from": 64,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "input-select-2-user",
+    "label": "Input Select (2 / User)",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "NoFunction"
+     },
+     {
+      "from": 8,
+      "to": 15,
+      "label": "RGB1"
+     },
+     {
+      "from": 16,
+      "to": 23,
+      "label": "RGB2"
+     },
+     {
+      "from": 24,
+      "to": 31,
+      "label": "DVI-D"
+     },
+     {
+      "from": 32,
+      "to": 39,
+      "label": "HDMI"
+     },
+     {
+      "from": 40,
+      "to": 47,
+      "label": "Digital Link"
+     },
+     {
+      "from": 48,
+      "to": 55,
+      "label": "SDI"
+     },
+     {
+      "from": 56,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "lens-position",
+    "label": "Lens Position",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "NoFunction"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "Move to home position"
+     },
+     {
+      "from": 64,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "lens-h-shift",
+    "label": "Lens H Shift",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0.5019607843137255,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "Lens adjustment –"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "Lens adjustment –"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "Lens adjustment –"
+     },
+     {
+      "from": 96,
+      "to": 159,
+      "label": "Lens adjustment"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "Lens adjustment +"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "Lens adjustment +"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "Lens adjustment +"
+     }
+    ]
+   },
+   {
+    "key": "lens-v-shift",
+    "label": "Lens V Shift",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0.5019607843137255,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "Lens adjustment –"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "Lens adjustment –"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "Lens adjustment –"
+     },
+     {
+      "from": 96,
+      "to": 159,
+      "label": "Lens adjustment"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "Lens adjustment +"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "Lens adjustment +"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "Lens adjustment +"
+     }
+    ]
+   },
+   {
+    "key": "lens-focus",
+    "label": "Lens Focus",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0.5019607843137255,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "Lens adjustment –"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "Lens adjustment –"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "Lens adjustment –"
+     },
+     {
+      "from": 96,
+      "to": 159,
+      "label": "Lens adjustment"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "Lens adjustment +"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "Lens adjustment +"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "Lens adjustment +"
+     }
+    ]
+   },
+   {
+    "key": "lens-zoom",
+    "label": "Lens Zoom",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0.5019607843137255,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "Lens adjustment –"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "Lens adjustment –"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "Lens adjustment –"
+     },
+     {
+      "from": 96,
+      "to": 159,
+      "label": "Lens adjustment"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "Lens adjustment +"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "Lens adjustment +"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "Lens adjustment +"
+     }
+    ]
+   },
+   {
+    "key": "lens-function-select",
+    "label": "Lens Function Select",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "NoFunction"
+     },
+     {
+      "from": 16,
+      "to": 31,
+      "label": "Lens H Shift"
+     },
+     {
+      "from": 32,
+      "to": 47,
+      "label": "Lens V Shift"
+     },
+     {
+      "from": 48,
+      "to": 63,
+      "label": "Lens Focus"
+     },
+     {
+      "from": 64,
+      "to": 79,
+      "label": "Lens Zoom"
+     },
+     {
+      "from": 80,
+      "to": 95,
+      "label": "Move to home position"
+     },
+     {
+      "from": 96,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "lens-control",
+    "label": "Lens Control",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0.39215686274509803,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "Lens adjustment –"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "Lens adjustment –"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "Lens adjustment –"
+     },
+     {
+      "from": 96,
+      "to": 127,
+      "label": "Lens adjustment"
+     },
+     {
+      "from": 128,
+      "to": 159,
+      "label": "Lens adjustment +"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "Lens adjustment +"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "Lens adjustment +"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "Execute command action"
+     }
+    ]
+   },
+   {
+    "key": "power",
+    "label": "Power",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0.5019607843137255,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 63,
+      "label": "Standby"
+     },
+     {
+      "from": 64,
+      "to": 191,
+      "label": "NoFunction"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "Power on"
+     }
+    ]
+   },
+   {
+    "key": "shutter",
+    "label": "Shutter",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0.5019607843137255,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 63,
+      "label": "Open"
+     },
+     {
+      "from": 64,
+      "to": 191,
+      "label": "NoFunction"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "Closed"
+     }
+    ]
+   },
+   {
+    "key": "fade-in",
+    "label": "Fade in",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 1,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 16,
+      "to": 31,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 32,
+      "to": 47,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 48,
+      "to": 63,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 64,
+      "to": 79,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 80,
+      "to": 95,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 96,
+      "to": 111,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 112,
+      "to": 127,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 128,
+      "to": 143,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 144,
+      "to": 159,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 160,
+      "to": 175,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 176,
+      "to": 191,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "fade-out",
+    "label": "Fade out",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 1,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 16,
+      "to": 31,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 32,
+      "to": 47,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 48,
+      "to": 63,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 64,
+      "to": 79,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 80,
+      "to": 95,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 96,
+      "to": 111,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 112,
+      "to": 127,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 128,
+      "to": 143,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 144,
+      "to": 159,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 160,
+      "to": 175,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 176,
+      "to": 191,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "geometry",
+    "label": "Geometry",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 1,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "Off"
+     },
+     {
+      "from": 16,
+      "to": 31,
+      "label": "Keystone"
+     },
+     {
+      "from": 32,
+      "to": 47,
+      "label": "Curved correction"
+     },
+     {
+      "from": 48,
+      "to": 63,
+      "label": "PC-1"
+     },
+     {
+      "from": 64,
+      "to": 79,
+      "label": "PC-2"
+     },
+     {
+      "from": 80,
+      "to": 95,
+      "label": "PC-3"
+     },
+     {
+      "from": 96,
+      "to": 111,
+      "label": "Corner correction"
+     },
+     {
+      "from": 112,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "custom-masking",
+    "label": "Custom Masking",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 1,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "off"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "PC-1"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "PC-2"
+     },
+     {
+      "from": 96,
+      "to": 127,
+      "label": "PC-3"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "freeze",
+    "label": "Freeze",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 1,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "NoFunction"
+     },
+     {
+      "from": 32,
+      "to": 95,
+      "label": "off"
+     },
+     {
+      "from": 96,
+      "to": 159,
+      "label": "NoFunction"
+     },
+     {
+      "from": 160,
+      "to": 223,
+      "label": "on"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "color",
+    "label": "Color",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "NoFunction"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "Factory default setting"
+     },
+     {
+      "from": 64,
+      "to": 127,
+      "label": "Maintenance"
+     },
+     {
+      "from": 128,
+      "to": 129,
+      "label": "Maintenance"
+     },
+     {
+      "from": 130,
+      "to": 191,
+      "label": "Maintenance"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "tint",
+    "label": "Tint",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "NoFunction"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "Factory default setting"
+     },
+     {
+      "from": 64,
+      "to": 127,
+      "label": "Maintenance"
+     },
+     {
+      "from": 128,
+      "to": 129,
+      "label": "Maintenance"
+     },
+     {
+      "from": 130,
+      "to": 191,
+      "label": "Maintenance"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "raster-pattern",
+    "label": "Raster Pattern",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "NoFunction"
+     },
+     {
+      "from": 16,
+      "to": 31,
+      "label": "off"
+     },
+     {
+      "from": 32,
+      "to": 47,
+      "label": "white"
+     },
+     {
+      "from": 48,
+      "to": 63,
+      "label": "yellow"
+     },
+     {
+      "from": 64,
+      "to": 79,
+      "label": "cyan"
+     },
+     {
+      "from": 80,
+      "to": 95,
+      "label": "green"
+     },
+     {
+      "from": 96,
+      "to": 111,
+      "label": "magenta"
+     },
+     {
+      "from": 112,
+      "to": 127,
+      "label": "red"
+     },
+     {
+      "from": 128,
+      "to": 143,
+      "label": "blue"
+     },
+     {
+      "from": 144,
+      "to": 159,
+      "label": "black"
+     },
+     {
+      "from": 160,
+      "to": 175,
+      "label": "User logo"
+     },
+     {
+      "from": 176,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "enable-disable",
+    "label": "Enable/Disable",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "Disable"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "Enable"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "1",
+    "name": "1",
+    "footprint": 11,
+    "slots": [
+     {
+      "channelKey": "shutter",
+      "byte": 0
+     },
+     {
+      "channelKey": "input-select-1",
+      "byte": 0
+     },
+     {
+      "channelKey": "lens-function-select",
+      "byte": 0
+     },
+     {
+      "channelKey": "lens-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "power",
+      "byte": 0
+     },
+     {
+      "channelKey": "light-output",
+      "byte": 0
+     },
+     {
+      "channelKey": "enable-disable",
+      "byte": 0
+     },
+     {
+      "channelKey": "fade-in",
+      "byte": 0
+     },
+     {
+      "channelKey": "fade-out",
+      "byte": 0
+     },
+     {
+      "channelKey": "custom-masking",
+      "byte": 0
+     },
+     {
+      "channelKey": "geometry",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "2",
+    "name": "2",
+    "footprint": 11,
+    "slots": [
+     {
+      "channelKey": "light-output",
+      "byte": 0
+     },
+     {
+      "channelKey": "input-select-2-user",
+      "byte": 0
+     },
+     {
+      "channelKey": "lens-position",
+      "byte": 0
+     },
+     {
+      "channelKey": "lens-h-shift",
+      "byte": 0
+     },
+     {
+      "channelKey": "lens-v-shift",
+      "byte": 0
+     },
+     {
+      "channelKey": "lens-focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "lens-zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "power",
+      "byte": 0
+     },
+     {
+      "channelKey": "geometry",
+      "byte": 0
+     },
+     {
+      "channelKey": "custom-masking",
+      "byte": 0
+     },
+     {
+      "channelKey": "enable-disable",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "additional-user-channels",
+    "name": "Additional user channels",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "freeze",
+      "byte": 0
+     },
+     {
+      "channelKey": "color",
+      "byte": 0
+     },
+     {
+      "channelKey": "tint",
+      "byte": 0
+     },
+     {
+      "channelKey": "raster-pattern",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    498,
+    200,
+    581
+   ],
+   "weightKg": 23.6,
+   "powerW": 1100
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "panasonic/pt-rz120",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "panasonic/pt-rz120l",
+  "manufacturer": "Panasonic",
+  "model": "PT-RZ120L",
+  "aliases": [
+   "PT-RZ120L",
+   "Panasonic PT-RZ120L",
+   "panasonicptrz120l",
+   "ptrz120l"
+  ],
+  "categories": [
+   "Other",
+   "Laser"
+  ],
+  "channels": [
+   {
+    "key": "light-output",
+    "label": "Light Output",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "input-select-1",
+    "label": "Input Select (1)",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "NoFunction"
+     },
+     {
+      "from": 8,
+      "to": 15,
+      "label": "RGB1"
+     },
+     {
+      "from": 16,
+      "to": 23,
+      "label": "RGB2"
+     },
+     {
+      "from": 24,
+      "to": 31,
+      "label": "NoFunction"
+     },
+     {
+      "from": 32,
+      "to": 39,
+      "label": "DVI-D"
+     },
+     {
+      "from": 40,
+      "to": 47,
+      "label": "HDMI"
+     },
+     {
+      "from": 48,
+      "to": 55,
+      "label": "Digital Link"
+     },
+     {
+      "from": 56,
+      "to": 63,
+      "label": "SDI"
+     },
+     {
+      "from": 64,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "input-select-2-user",
+    "label": "Input Select (2 / User)",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "NoFunction"
+     },
+     {
+      "from": 8,
+      "to": 15,
+      "label": "RGB1"
+     },
+     {
+      "from": 16,
+      "to": 23,
+      "label": "RGB2"
+     },
+     {
+      "from": 24,
+      "to": 31,
+      "label": "DVI-D"
+     },
+     {
+      "from": 32,
+      "to": 39,
+      "label": "HDMI"
+     },
+     {
+      "from": 40,
+      "to": 47,
+      "label": "Digital Link"
+     },
+     {
+      "from": 48,
+      "to": 55,
+      "label": "SDI"
+     },
+     {
+      "from": 56,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "lens-position",
+    "label": "Lens Position",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "NoFunction"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "Move to home position"
+     },
+     {
+      "from": 64,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "lens-h-shift",
+    "label": "Lens H Shift",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0.5019607843137255,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "Lens adjustment"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "Lens adjustment"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "Lens adjustment"
+     },
+     {
+      "from": 96,
+      "to": 159,
+      "label": "Lens adjustment"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "Lens adjustment"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "Lens adjustment"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "Lens adjustment"
+     }
+    ]
+   },
+   {
+    "key": "lens-v-shift",
+    "label": "Lens V Shift",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0.5019607843137255,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "Lens adjustment"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "Lens adjustment"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "Lens adjustment"
+     },
+     {
+      "from": 96,
+      "to": 159,
+      "label": "Lens adjustment"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "Lens adjustment"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "Lens adjustment"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "Lens adjustment"
+     }
+    ]
+   },
+   {
+    "key": "lens-focus",
+    "label": "Lens Focus",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0.5019607843137255,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "Lens adjustment"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "Lens adjustment"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "Lens adjustment"
+     },
+     {
+      "from": 96,
+      "to": 159,
+      "label": "Lens adjustment"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "Lens adjustment"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "Lens adjustment"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "Lens adjustment"
+     }
+    ]
+   },
+   {
+    "key": "lens-zoom",
+    "label": "Lens Zoom",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0.5019607843137255,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "Lens adjustment"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "Lens adjustment"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "Lens adjustment"
+     },
+     {
+      "from": 96,
+      "to": 159,
+      "label": "Lens adjustment"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "Lens adjustment"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "Lens adjustment"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "Lens adjustment"
+     }
+    ]
+   },
+   {
+    "key": "lens-function-select",
+    "label": "Lens Function Select",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "NoFunction"
+     },
+     {
+      "from": 16,
+      "to": 31,
+      "label": "Lens H Shift"
+     },
+     {
+      "from": 32,
+      "to": 47,
+      "label": "Lens V Shift"
+     },
+     {
+      "from": 48,
+      "to": 63,
+      "label": "Lens Focus"
+     },
+     {
+      "from": 64,
+      "to": 79,
+      "label": "Lens Zoom"
+     },
+     {
+      "from": 80,
+      "to": 95,
+      "label": "Move to home position"
+     },
+     {
+      "from": 96,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "lens-control",
+    "label": "Lens Control",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0.39215686274509803,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "Lens adjustment"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "Lens adjustment"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "Lens adjustment"
+     },
+     {
+      "from": 96,
+      "to": 127,
+      "label": "Lens adjustment"
+     },
+     {
+      "from": 128,
+      "to": 159,
+      "label": "Lens adjustment"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "Lens adjustment"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "Lens adjustment"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "Execute command action"
+     }
+    ]
+   },
+   {
+    "key": "power",
+    "label": "Power",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0.5019607843137255,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 63,
+      "label": "Standby"
+     },
+     {
+      "from": 64,
+      "to": 191,
+      "label": "NoFunction"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "Power on"
+     }
+    ]
+   },
+   {
+    "key": "shutter",
+    "label": "Shutter",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0.5019607843137255,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 63,
+      "label": "Open"
+     },
+     {
+      "from": 64,
+      "to": 191,
+      "label": "NoFunction"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "Closed"
+     }
+    ]
+   },
+   {
+    "key": "fade-in",
+    "label": "Fade in",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 1,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 16,
+      "to": 31,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 32,
+      "to": 47,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 48,
+      "to": 63,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 64,
+      "to": 79,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 80,
+      "to": 95,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 96,
+      "to": 111,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 112,
+      "to": 127,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 128,
+      "to": 143,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 144,
+      "to": 159,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 160,
+      "to": 175,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 176,
+      "to": 191,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "fade-out",
+    "label": "Fade out",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 1,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 16,
+      "to": 31,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 32,
+      "to": 47,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 48,
+      "to": 63,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 64,
+      "to": 79,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 80,
+      "to": 95,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 96,
+      "to": 111,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 112,
+      "to": 127,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 128,
+      "to": 143,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 144,
+      "to": 159,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 160,
+      "to": 175,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 176,
+      "to": 191,
+      "label": "EffectDuration"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "geometry",
+    "label": "Geometry",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 1,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "Off"
+     },
+     {
+      "from": 16,
+      "to": 31,
+      "label": "Keystone"
+     },
+     {
+      "from": 32,
+      "to": 47,
+      "label": "Curved correction"
+     },
+     {
+      "from": 48,
+      "to": 63,
+      "label": "PC-1"
+     },
+     {
+      "from": 64,
+      "to": 79,
+      "label": "PC-2"
+     },
+     {
+      "from": 80,
+      "to": 95,
+      "label": "PC-3"
+     },
+     {
+      "from": 96,
+      "to": 111,
+      "label": "Corner correction"
+     },
+     {
+      "from": 112,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "custom-masking",
+    "label": "Custom Masking",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 1,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "off"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "PC-1"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "PC-2"
+     },
+     {
+      "from": 96,
+      "to": 127,
+      "label": "PC-3"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "freeze",
+    "label": "Freeze",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 1,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "NoFunction"
+     },
+     {
+      "from": 32,
+      "to": 95,
+      "label": "off"
+     },
+     {
+      "from": 96,
+      "to": 159,
+      "label": "NoFunction"
+     },
+     {
+      "from": 160,
+      "to": 223,
+      "label": "off"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "color",
+    "label": "Color",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "NoFunction"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "Factory default setting"
+     },
+     {
+      "from": 64,
+      "to": 65,
+      "label": "Maintenance"
+     },
+     {
+      "from": 66,
+      "to": 127,
+      "label": "Maintenance"
+     },
+     {
+      "from": 128,
+      "to": 129,
+      "label": "Maintenance"
+     },
+     {
+      "from": 130,
+      "to": 189,
+      "label": "Maintenance"
+     },
+     {
+      "from": 190,
+      "to": 191,
+      "label": "Maintenance"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "tint",
+    "label": "Tint",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "NoFunction"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "Factory default setting"
+     },
+     {
+      "from": 64,
+      "to": 65,
+      "label": "Maintenance"
+     },
+     {
+      "from": 66,
+      "to": 127,
+      "label": "Maintenance"
+     },
+     {
+      "from": 128,
+      "to": 129,
+      "label": "Maintenance"
+     },
+     {
+      "from": 130,
+      "to": 189,
+      "label": "Maintenance"
+     },
+     {
+      "from": 190,
+      "to": 191,
+      "label": "Maintenance"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "raster-pattern",
+    "label": "Raster Pattern",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "NoFunction"
+     },
+     {
+      "from": 16,
+      "to": 31,
+      "label": "off"
+     },
+     {
+      "from": 32,
+      "to": 47,
+      "label": "white"
+     },
+     {
+      "from": 48,
+      "to": 63,
+      "label": "yellow"
+     },
+     {
+      "from": 64,
+      "to": 79,
+      "label": "cyan"
+     },
+     {
+      "from": 80,
+      "to": 95,
+      "label": "green"
+     },
+     {
+      "from": 96,
+      "to": 111,
+      "label": "magenta"
+     },
+     {
+      "from": 112,
+      "to": 127,
+      "label": "red"
+     },
+     {
+      "from": 128,
+      "to": 143,
+      "label": "blue"
+     },
+     {
+      "from": 144,
+      "to": 159,
+      "label": "black"
+     },
+     {
+      "from": 160,
+      "to": 175,
+      "label": "User logo"
+     },
+     {
+      "from": 176,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "enable-disable",
+    "label": "Enable/Disable",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "Disable"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "Enable"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "1",
+    "name": "1",
+    "footprint": 11,
+    "slots": [
+     {
+      "channelKey": "shutter",
+      "byte": 0
+     },
+     {
+      "channelKey": "input-select-1",
+      "byte": 0
+     },
+     {
+      "channelKey": "lens-function-select",
+      "byte": 0
+     },
+     {
+      "channelKey": "lens-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "power",
+      "byte": 0
+     },
+     {
+      "channelKey": "light-output",
+      "byte": 0
+     },
+     {
+      "channelKey": "enable-disable",
+      "byte": 0
+     },
+     {
+      "channelKey": "fade-in",
+      "byte": 0
+     },
+     {
+      "channelKey": "fade-out",
+      "byte": 0
+     },
+     {
+      "channelKey": "custom-masking",
+      "byte": 0
+     },
+     {
+      "channelKey": "geometry",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "2",
+    "name": "2",
+    "footprint": 11,
+    "slots": [
+     {
+      "channelKey": "light-output",
+      "byte": 0
+     },
+     {
+      "channelKey": "input-select-2-user",
+      "byte": 0
+     },
+     {
+      "channelKey": "lens-position",
+      "byte": 0
+     },
+     {
+      "channelKey": "lens-h-shift",
+      "byte": 0
+     },
+     {
+      "channelKey": "lens-v-shift",
+      "byte": 0
+     },
+     {
+      "channelKey": "lens-focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "lens-zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "power",
+      "byte": 0
+     },
+     {
+      "channelKey": "geometry",
+      "byte": 0
+     },
+     {
+      "channelKey": "custom-masking",
+      "byte": 0
+     },
+     {
+      "channelKey": "enable-disable",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "additional-user-channels",
+    "name": "Additional user channels",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "freeze",
+      "byte": 0
+     },
+     {
+      "channelKey": "color",
+      "byte": 0
+     },
+     {
+      "channelKey": "tint",
+      "byte": 0
+     },
+     {
+      "channelKey": "raster-pattern",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    498,
+    200,
+    538
+   ],
+   "weightKg": 22.8,
+   "powerW": 1100
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "panasonic/pt-rz120l",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

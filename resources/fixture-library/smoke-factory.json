@@ -1,0 +1,130 @@
+[
+ {
+  "id": "smoke-factory/data-ii",
+  "manufacturer": "Smoke Factory",
+  "model": "Data II",
+  "aliases": [
+   "Data II",
+   "Data2",
+   "Smoke Factory Data II",
+   "data2",
+   "dataii",
+   "smokefactorydataii"
+  ],
+  "categories": [
+   "Smoke"
+  ],
+  "channels": [
+   {
+    "key": "pump",
+    "label": "Pump",
+    "role": "fog",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "fan",
+    "label": "Fan",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "2ch",
+    "name": "2ch",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "pump",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    585,
+    230,
+    247
+   ],
+   "weightKg": 12.8,
+   "powerW": 2600
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "smoke-factory/data-ii",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "smoke-factory/tour-hazer-ii",
+  "manufacturer": "Smoke Factory",
+  "model": "Tour Hazer II",
+  "aliases": [
+   "Smoke Factory Tour Hazer II",
+   "Tour Hazer II",
+   "TourHazer2",
+   "smokefactorytourhazerii",
+   "tourhazer2",
+   "tourhazerii"
+  ],
+  "categories": [
+   "Hazer"
+  ],
+  "channels": [
+   {
+    "key": "pump",
+    "label": "Pump",
+    "role": "fog",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "fan",
+    "label": "Fan",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "2ch",
+    "name": "2ch",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "pump",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    550,
+    265,
+    415
+   ],
+   "weightKg": 16.5,
+   "powerW": 1500
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "smoke-factory/tour-hazer-ii",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

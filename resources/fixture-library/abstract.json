@@ -1,0 +1,229 @@
+[
+ {
+  "id": "abstract/twister-4",
+  "manufacturer": "Abstract",
+  "model": "Twister 4",
+  "aliases": [
+   "Abstract Twister 4",
+   "Twister 4",
+   "Twister4",
+   "abstracttwister4",
+   "twister4"
+  ],
+  "categories": [
+   "Flower",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "rotation",
+    "label": "Rotation",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 11,
+      "label": "Rotation"
+     },
+     {
+      "from": 12,
+      "to": 112,
+      "label": "Rotation"
+     },
+     {
+      "from": 113,
+      "to": 140,
+      "label": "Rotation"
+     },
+     {
+      "from": 141,
+      "to": 244,
+      "label": "Rotation"
+     },
+     {
+      "from": 245,
+      "to": 255,
+      "label": "Rotation"
+     }
+    ]
+   },
+   {
+    "key": "color-gobo-wheel",
+    "label": "Color / Gobo Wheel",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Closed"
+     },
+     {
+      "from": 10,
+      "to": 25,
+      "label": "Open"
+     },
+     {
+      "from": 26,
+      "to": 42,
+      "label": "Red [Dot Tunnel]",
+      "color": "#ff0000"
+     },
+     {
+      "from": 43,
+      "to": 58,
+      "label": "Blue [Slash]",
+      "color": "#0000ff"
+     },
+     {
+      "from": 59,
+      "to": 74,
+      "label": "Green [Segment]",
+      "color": "#00ff00"
+     },
+     {
+      "from": 75,
+      "to": 90,
+      "label": "Yellow [Triangle]",
+      "color": "#ffff00"
+     },
+     {
+      "from": 91,
+      "to": 107,
+      "label": "Cyan [Tunnel]",
+      "color": "#00ffff"
+     },
+     {
+      "from": 108,
+      "to": 123,
+      "label": "Orange [Bubbles]",
+      "color": "#ff7f00"
+     },
+     {
+      "from": 124,
+      "to": 139,
+      "label": "Pink [Stars]",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 140,
+      "to": 155,
+      "label": "Multicolor [Quadrant]"
+     },
+     {
+      "from": 156,
+      "to": 172,
+      "label": "Orange [Bubbles]",
+      "color": "#ff7f00"
+     },
+     {
+      "from": 173,
+      "to": 188,
+      "label": "Cyan [Tunnel]",
+      "color": "#00ffff"
+     },
+     {
+      "from": 189,
+      "to": 220,
+      "label": "Yellow [Triangle]",
+      "color": "#ffff00"
+     },
+     {
+      "from": 221,
+      "to": 237,
+      "label": "Blue [Slash]",
+      "color": "#0000ff"
+     },
+     {
+      "from": 238,
+      "to": 253,
+      "label": "Strobe"
+     },
+     {
+      "from": 254,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "shutter",
+    "label": "Shutter",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 23,
+      "label": "Closed"
+     },
+     {
+      "from": 24,
+      "to": 225,
+      "label": "Open"
+     },
+     {
+      "from": 226,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "1ce-2ch",
+    "name": "1 CE (2ch)",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-gobo-wheel",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "hp-3ch",
+    "name": "HP (3ch)",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    200,
+    200,
+    400
+   ],
+   "weightKg": 5,
+   "powerW": 250
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "abstract/twister-4",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

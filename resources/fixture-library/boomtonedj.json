@@ -1,0 +1,2647 @@
+[
+ {
+  "id": "boomtonedj/crazy-spot-30",
+  "manufacturer": "BoomToneDJ",
+  "model": "Crazy Spot 30",
+  "aliases": [
+   "BTDJCrazySpot30",
+   "BoomToneDJ Crazy Spot 30",
+   "Crazy Spot 30",
+   "boomtonedjcrazyspot30",
+   "btdjcrazyspot30",
+   "crazyspot30"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 270,
+    "unit": "deg"
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan/Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-wheel",
+    "label": "Color Wheel",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Color"
+     },
+     {
+      "from": 8,
+      "to": 14,
+      "label": "Color"
+     },
+     {
+      "from": 15,
+      "to": 21,
+      "label": "Color"
+     },
+     {
+      "from": 22,
+      "to": 28,
+      "label": "Color"
+     },
+     {
+      "from": 29,
+      "to": 35,
+      "label": "Color"
+     },
+     {
+      "from": 36,
+      "to": 42,
+      "label": "Color"
+     },
+     {
+      "from": 43,
+      "to": 49,
+      "label": "Color"
+     },
+     {
+      "from": 50,
+      "to": 56,
+      "label": "Color"
+     },
+     {
+      "from": 57,
+      "to": 127,
+      "label": "Split colors"
+     },
+     {
+      "from": 128,
+      "to": 189,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 190,
+      "to": 193,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 194,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "gobo-wheel",
+    "label": "Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Gobo"
+     },
+     {
+      "from": 8,
+      "to": 15,
+      "label": "Gobo"
+     },
+     {
+      "from": 16,
+      "to": 23,
+      "label": "Gobo"
+     },
+     {
+      "from": 24,
+      "to": 31,
+      "label": "Gobo"
+     },
+     {
+      "from": 32,
+      "to": 39,
+      "label": "Gobo"
+     },
+     {
+      "from": 40,
+      "to": 47,
+      "label": "Gobo"
+     },
+     {
+      "from": 48,
+      "to": 55,
+      "label": "Gobo"
+     },
+     {
+      "from": 56,
+      "to": 63,
+      "label": "Gobo"
+     },
+     {
+      "from": 64,
+      "to": 71,
+      "label": "Gobo"
+     },
+     {
+      "from": 72,
+      "to": 79,
+      "label": "Gobo"
+     },
+     {
+      "from": 80,
+      "to": 87,
+      "label": "Gobo"
+     },
+     {
+      "from": 88,
+      "to": 95,
+      "label": "Gobo"
+     },
+     {
+      "from": 96,
+      "to": 103,
+      "label": "Gobo"
+     },
+     {
+      "from": 104,
+      "to": 111,
+      "label": "Gobo"
+     },
+     {
+      "from": 112,
+      "to": 119,
+      "label": "Gobo"
+     },
+     {
+      "from": 120,
+      "to": 127,
+      "label": "Gobo"
+     },
+     {
+      "from": 128,
+      "to": 189,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 190,
+      "to": 193,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 194,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "shutter",
+    "label": "Shutter",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Closed"
+     },
+     {
+      "from": 8,
+      "to": 15,
+      "label": "Open"
+     },
+     {
+      "from": 16,
+      "to": 131,
+      "label": "Strobe"
+     },
+     {
+      "from": 132,
+      "to": 139,
+      "label": "Open"
+     },
+     {
+      "from": 140,
+      "to": 181,
+      "label": "Strobe"
+     },
+     {
+      "from": 182,
+      "to": 189,
+      "label": "Open"
+     },
+     {
+      "from": 190,
+      "to": 231,
+      "label": "Strobe"
+     },
+     {
+      "from": 232,
+      "to": 239,
+      "label": "Open"
+     },
+     {
+      "from": 240,
+      "to": 247,
+      "label": "Strobe"
+     },
+     {
+      "from": 248,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "function",
+    "label": "Function",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 69,
+      "label": "NoFunction"
+     },
+     {
+      "from": 70,
+      "to": 79,
+      "label": "Blackout on Pan/Tilt"
+     },
+     {
+      "from": 80,
+      "to": 89,
+      "label": "NoFunction"
+     },
+     {
+      "from": 90,
+      "to": 99,
+      "label": "Blackout on color change"
+     },
+     {
+      "from": 100,
+      "to": 109,
+      "label": "NoFunction"
+     },
+     {
+      "from": 110,
+      "to": 119,
+      "label": "Blackout on gobo change"
+     },
+     {
+      "from": 120,
+      "to": 199,
+      "label": "NoFunction"
+     },
+     {
+      "from": 200,
+      "to": 209,
+      "label": "Total reset"
+     },
+     {
+      "from": 210,
+      "to": 249,
+      "label": "NoFunction"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Sound mode"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "8ch",
+    "name": "8-channel",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter",
+      "byte": 0
+     },
+     {
+      "channelKey": "function",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "10ch",
+    "name": "10-channel",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter",
+      "byte": 0
+     },
+     {
+      "channelKey": "function",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    265,
+    300,
+    210
+   ],
+   "weightKg": 2.95,
+   "powerW": 50,
+   "lensDegMin": 15,
+   "lensDegMax": 15
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "boomtonedj/crazy-spot-30",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "boomtonedj/silentpar-12x10w-5in1",
+  "manufacturer": "BoomToneDJ",
+  "model": "SilentPAR 12x10W 5in1",
+  "aliases": [
+   "BoomToneDJ SilentPAR 12x10W 5in1",
+   "BoomtoneSilentPar12x10W5in1",
+   "SilentPAR 12x10W 5in1",
+   "boomtonedjsilentpar12x10w5in1",
+   "boomtonesilentpar12x10w5in1",
+   "silentpar12x10w5in1"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "program-speed",
+    "label": "Program Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "mode",
+    "label": "Mode",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 59,
+      "label": "DMX"
+     },
+     {
+      "from": 60,
+      "to": 119,
+      "label": "Static"
+     },
+     {
+      "from": 120,
+      "to": 179,
+      "label": "ColorJump"
+     },
+     {
+      "from": 180,
+      "to": 239,
+      "label": "ColorFade"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "Sound-active"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "5ch",
+    "name": "5-channel",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "9ch",
+    "name": "9-channel",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "mode",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    270,
+    90,
+    252
+   ],
+   "weightKg": 3,
+   "powerW": 120,
+   "lensDegMin": 45,
+   "lensDegMax": 45
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "boomtonedj/silentpar-12x10w-5in1",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "boomtonedj/silentpar-12x10w-6in1",
+  "manufacturer": "BoomToneDJ",
+  "model": "SilentPAR 12x10W 6in1",
+  "aliases": [
+   "BoomToneDJ SilentPAR 12x10W 6in1",
+   "BoomtoneSilentPar12x10W6in1",
+   "SilentPAR 12x10W 6in1",
+   "boomtonedjsilentpar12x10w6in1",
+   "boomtonesilentpar12x10w6in1",
+   "silentpar12x10w6in1"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "uv",
+    "label": "UV",
+    "role": "uv",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "program-speed",
+    "label": "Program Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "mode",
+    "label": "Mode",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 59,
+      "label": "DMX"
+     },
+     {
+      "from": 60,
+      "to": 119,
+      "label": "Static"
+     },
+     {
+      "from": 120,
+      "to": 179,
+      "label": "ColorJump"
+     },
+     {
+      "from": 180,
+      "to": 239,
+      "label": "ColorFade"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "Sound-active"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "6ch",
+    "name": "6-channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "10ch",
+    "name": "10-channel",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "mode",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    270,
+    90,
+    252
+   ],
+   "weightKg": 3,
+   "powerW": 120,
+   "lensDegMin": 45,
+   "lensDegMax": 45
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "boomtonedj/silentpar-12x10w-6in1",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "boomtonedj/silentpar-12x3w-3in1",
+  "manufacturer": "BoomToneDJ",
+  "model": "SilentPAR 12x3W 3in1",
+  "aliases": [
+   "BoomToneDJ SilentPAR 12x3W 3in1",
+   "BoomtoneSilentPar12x3W3in1",
+   "SilentPAR 12x3W 3in1",
+   "boomtonedjsilentpar12x3w3in1",
+   "boomtonesilentpar12x3w3in1",
+   "silentpar12x3w3in1"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "program-speed",
+    "label": "Program Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "mode",
+    "label": "Mode",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 59,
+      "label": "DMX"
+     },
+     {
+      "from": 60,
+      "to": 119,
+      "label": "Static"
+     },
+     {
+      "from": 120,
+      "to": 179,
+      "label": "ColorJump"
+     },
+     {
+      "from": 180,
+      "to": 239,
+      "label": "ColorFade"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "Sound-active"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "3ch",
+    "name": "3-channel",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "7ch",
+    "name": "7-channel",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "mode",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    270,
+    90,
+    252
+   ],
+   "weightKg": 3,
+   "powerW": 40,
+   "lensDegMin": 45,
+   "lensDegMax": 45
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "boomtonedj/silentpar-12x3w-3in1",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "boomtonedj/silentpar-5x10w-5in1",
+  "manufacturer": "BoomToneDJ",
+  "model": "SilentPAR 5x10W 5in1",
+  "aliases": [
+   "BoomToneDJ SilentPAR 5x10W 5in1",
+   "BoomtoneSilentPar5x10W5in1",
+   "SilentPAR 5x10W 5in1",
+   "boomtonedjsilentpar5x10w5in1",
+   "boomtonesilentpar5x10w5in1",
+   "silentpar5x10w5in1"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "program-speed",
+    "label": "Program Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "mode",
+    "label": "Mode",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 59,
+      "label": "DMX"
+     },
+     {
+      "from": 60,
+      "to": 119,
+      "label": "Static"
+     },
+     {
+      "from": 120,
+      "to": 179,
+      "label": "ColorJump"
+     },
+     {
+      "from": 180,
+      "to": 239,
+      "label": "ColorFade"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "Sound-active"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "5ch",
+    "name": "5-channel",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "9ch",
+    "name": "9-channel",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "mode",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    270,
+    90,
+    252
+   ],
+   "weightKg": 3,
+   "powerW": 50,
+   "lensDegMin": 45,
+   "lensDegMax": 45
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "boomtonedj/silentpar-5x10w-5in1",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "boomtonedj/silentpar-5x10w-6in1",
+  "manufacturer": "BoomToneDJ",
+  "model": "SilentPAR 5x10W 6in1",
+  "aliases": [
+   "BoomToneDJ SilentPAR 5x10W 6in1",
+   "BoomtoneSilentPar5x10W6in1",
+   "SilentPAR 5x10W 6in1",
+   "boomtonedjsilentpar5x10w6in1",
+   "boomtonesilentpar5x10w6in1",
+   "silentpar5x10w6in1"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "uv",
+    "label": "UV",
+    "role": "uv",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "program-speed",
+    "label": "Program Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "mode",
+    "label": "Mode",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 59,
+      "label": "DMX"
+     },
+     {
+      "from": 60,
+      "to": 119,
+      "label": "Static"
+     },
+     {
+      "from": 120,
+      "to": 179,
+      "label": "ColorJump"
+     },
+     {
+      "from": 180,
+      "to": 239,
+      "label": "ColorFade"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "Sound-active"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "6ch",
+    "name": "6-channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "10ch",
+    "name": "10-channel",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "mode",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    270,
+    90,
+    252
+   ],
+   "weightKg": 3,
+   "powerW": 50,
+   "lensDegMin": 45,
+   "lensDegMax": 45
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "boomtonedj/silentpar-5x10w-6in1",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "boomtonedj/silentpar-5x3w-3in1",
+  "manufacturer": "BoomToneDJ",
+  "model": "SilentPAR 5x3W 3in1",
+  "aliases": [
+   "BoomToneDJ SilentPAR 5x3W 3in1",
+   "BoomtoneSilentPar5x3W3in1",
+   "SilentPAR 5x3W 3in1",
+   "boomtonedjsilentpar5x3w3in1",
+   "boomtonesilentpar5x3w3in1",
+   "silentpar5x3w3in1"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "program-speed",
+    "label": "Program Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "mode",
+    "label": "Mode",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 59,
+      "label": "DMX"
+     },
+     {
+      "from": 60,
+      "to": 119,
+      "label": "Static"
+     },
+     {
+      "from": 120,
+      "to": 179,
+      "label": "ColorJump"
+     },
+     {
+      "from": 180,
+      "to": 239,
+      "label": "ColorFade"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "Sound-active"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "3ch",
+    "name": "3-channel",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "7ch",
+    "name": "7-channel",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "mode",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    270,
+    90,
+    252
+   ],
+   "weightKg": 3,
+   "powerW": 20,
+   "lensDegMin": 45,
+   "lensDegMax": 45
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "boomtonedj/silentpar-5x3w-3in1",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "boomtonedj/silentpar-7x10w-5in1",
+  "manufacturer": "BoomToneDJ",
+  "model": "SilentPAR 7x10W 5in1",
+  "aliases": [
+   "BoomToneDJ SilentPAR 7x10W 5in1",
+   "BoomtoneSilentPar7x10W5in1",
+   "SilentPAR 7x10W 5in1",
+   "boomtonedjsilentpar7x10w5in1",
+   "boomtonesilentpar7x10w5in1",
+   "silentpar7x10w5in1"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "program-speed",
+    "label": "Program Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "mode",
+    "label": "Mode",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 59,
+      "label": "DMX"
+     },
+     {
+      "from": 60,
+      "to": 119,
+      "label": "Static"
+     },
+     {
+      "from": 120,
+      "to": 179,
+      "label": "ColorJump"
+     },
+     {
+      "from": 180,
+      "to": 239,
+      "label": "ColorFade"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "Sound-active"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "5ch",
+    "name": "5-channel",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "9ch",
+    "name": "9-channel",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "mode",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    270,
+    90,
+    252
+   ],
+   "weightKg": 3,
+   "powerW": 70,
+   "lensDegMin": 45,
+   "lensDegMax": 45
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "boomtonedj/silentpar-7x10w-5in1",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "boomtonedj/silentpar-7x10w-6in1",
+  "manufacturer": "BoomToneDJ",
+  "model": "SilentPAR 7x10W 6in1",
+  "aliases": [
+   "BoomToneDJ SilentPAR 7x10W 6in1",
+   "BoomtoneSilentPar7x10W6in1",
+   "SilentPAR 7x10W 6in1",
+   "boomtonedjsilentpar7x10w6in1",
+   "boomtonesilentpar7x10w6in1",
+   "silentpar7x10w6in1"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "uv",
+    "label": "UV",
+    "role": "uv",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "program-speed",
+    "label": "Program Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "mode",
+    "label": "Mode",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 59,
+      "label": "DMX"
+     },
+     {
+      "from": 60,
+      "to": 119,
+      "label": "Static"
+     },
+     {
+      "from": 120,
+      "to": 179,
+      "label": "ColorJump"
+     },
+     {
+      "from": 180,
+      "to": 239,
+      "label": "ColorFade"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "Sound-active"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "6ch",
+    "name": "6-channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "10ch",
+    "name": "10-channel",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "mode",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    270,
+    90,
+    252
+   ],
+   "weightKg": 3,
+   "powerW": 70,
+   "lensDegMin": 45,
+   "lensDegMax": 45
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "boomtonedj/silentpar-7x10w-6in1",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "boomtonedj/silentpar-7x3w-3in1",
+  "manufacturer": "BoomToneDJ",
+  "model": "SilentPAR 7x3W 3in1",
+  "aliases": [
+   "BoomToneDJ SilentPAR 7x3W 3in1",
+   "BoomtoneSilentPar7x3W3in1",
+   "SilentPAR 7x3W 3in1",
+   "boomtonedjsilentpar7x3w3in1",
+   "boomtonesilentpar7x3w3in1",
+   "silentpar7x3w3in1"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "program-speed",
+    "label": "Program Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "mode",
+    "label": "Mode",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 59,
+      "label": "DMX"
+     },
+     {
+      "from": 60,
+      "to": 119,
+      "label": "Static"
+     },
+     {
+      "from": 120,
+      "to": 179,
+      "label": "ColorJump"
+     },
+     {
+      "from": 180,
+      "to": 239,
+      "label": "ColorFade"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "Sound-active"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "3ch",
+    "name": "3-channel",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "7ch",
+    "name": "7-channel",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "mode",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    270,
+    90,
+    252
+   ],
+   "weightKg": 3,
+   "powerW": 30,
+   "lensDegMin": 45,
+   "lensDegMax": 45
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "boomtonedj/silentpar-7x3w-3in1",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "boomtonedj/xtrem-led",
+  "manufacturer": "BoomToneDJ",
+  "model": "Xtrem LED",
+  "aliases": [
+   "BoomToneDJ Xtrem LED",
+   "Xtrem LED",
+   "boomtonedjxtremled",
+   "xtremled"
+  ],
+  "categories": [
+   "Flower",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "mode",
+    "label": "Mode",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Custom control"
+     },
+     {
+      "from": 1,
+      "to": 33,
+      "label": "Auto show 1"
+     },
+     {
+      "from": 34,
+      "to": 67,
+      "label": "Auto show 2"
+     },
+     {
+      "from": 68,
+      "to": 101,
+      "label": "Auto show 3"
+     },
+     {
+      "from": 102,
+      "to": 135,
+      "label": "Auto show 4"
+     },
+     {
+      "from": 136,
+      "to": 169,
+      "label": "Auto show 5"
+     },
+     {
+      "from": 170,
+      "to": 203,
+      "label": "Auto show 6"
+     },
+     {
+      "from": 204,
+      "to": 237,
+      "label": "Auto show 7"
+     },
+     {
+      "from": 238,
+      "to": 255,
+      "label": "Sound mode"
+     }
+    ]
+   },
+   {
+    "key": "moon-flower-speed",
+    "label": "Moon Flower Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Rotation"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Rotation"
+     }
+    ]
+   },
+   {
+    "key": "color-strobe-effect-speed",
+    "label": "Color Strobe/Effect Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color",
+    "label": "Color",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 28,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 29,
+      "to": 57,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 58,
+      "to": 86,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 87,
+      "to": 115,
+      "label": "Red + Green",
+      "color": "#ff0000"
+     },
+     {
+      "from": 116,
+      "to": 144,
+      "label": "Red + Blue",
+      "color": "#ff0000"
+     },
+     {
+      "from": 145,
+      "to": 173,
+      "label": "Green + Blue",
+      "color": "#00ff00"
+     },
+     {
+      "from": 174,
+      "to": 202,
+      "label": "Red + Green + Blue",
+      "color": "#ff0000"
+     },
+     {
+      "from": 203,
+      "to": 231,
+      "label": "ColorJump (cycle through the colors above)"
+     },
+     {
+      "from": 232,
+      "to": 255,
+      "label": "ColorFade"
+     }
+    ]
+   },
+   {
+    "key": "motor-speed",
+    "label": "Motor Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Rotation"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Rotation"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Closed"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "show-speed",
+    "label": "Show Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "mode-fixed-to-0",
+    "label": "Mode (fixed to 0)",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Custom control"
+     },
+     {
+      "from": 1,
+      "to": 33,
+      "label": "Auto show 1"
+     },
+     {
+      "from": 34,
+      "to": 67,
+      "label": "Auto show 2"
+     },
+     {
+      "from": 68,
+      "to": 101,
+      "label": "Auto show 3"
+     },
+     {
+      "from": 102,
+      "to": 135,
+      "label": "Auto show 4"
+     },
+     {
+      "from": 136,
+      "to": 169,
+      "label": "Auto show 5"
+     },
+     {
+      "from": 170,
+      "to": 203,
+      "label": "Auto show 6"
+     },
+     {
+      "from": 204,
+      "to": 237,
+      "label": "Auto show 7"
+     },
+     {
+      "from": 238,
+      "to": 255,
+      "label": "Sound mode"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "custom",
+    "name": "Custom control",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "mode-fixed-to-0",
+      "byte": 0
+     },
+     {
+      "channelKey": "moon-flower-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "color",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-strobe-effect-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "motor-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "auto",
+    "name": "Auto",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "mode",
+      "byte": 0
+     },
+     {
+      "channelKey": "motor-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "show-speed",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "combined",
+    "name": "Combined",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "mode",
+      "byte": 0
+     },
+     {
+      "channelKey": "moon-flower-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "color",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-strobe-effect-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "motor-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    245,
+    240,
+    245
+   ],
+   "weightKg": 3.4,
+   "powerW": 100
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "boomtonedj/xtrem-led",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

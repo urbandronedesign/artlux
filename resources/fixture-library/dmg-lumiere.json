@@ -1,0 +1,2717 @@
+[
+ {
+  "id": "dmg-lumiere/maxi-mix",
+  "manufacturer": "DMG Lumière",
+  "model": "MAXI MIX",
+  "aliases": [
+   "DMG Lumière MAXI MIX",
+   "MAXI MIX",
+   "dmglumiremaximix",
+   "maximix"
+  ],
+  "categories": [
+   "Dimmer",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 11,
+      "label": "1700K"
+     },
+     {
+      "from": 12,
+      "to": 12,
+      "label": "1750K"
+     },
+     {
+      "from": 13,
+      "to": 242,
+      "label": "ColorTemperature"
+     },
+     {
+      "from": 243,
+      "to": 243,
+      "label": "9950K"
+     },
+     {
+      "from": 244,
+      "to": 255,
+      "label": "10000K"
+     }
+    ]
+   },
+   {
+    "key": "green-magenta-point",
+    "label": "Green-Magenta Point",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Neutral"
+     },
+     {
+      "from": 11,
+      "to": 15,
+      "label": "Full minus green"
+     },
+     {
+      "from": 16,
+      "to": 114,
+      "label": "-99%…-1%"
+     },
+     {
+      "from": 115,
+      "to": 140,
+      "label": "Neutral"
+     },
+     {
+      "from": 141,
+      "to": 239,
+      "label": "1%…99%"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "Full plus green"
+     }
+    ]
+   },
+   {
+    "key": "white-base-color",
+    "label": "White Base Color",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "3200K"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "5600K"
+     }
+    ]
+   },
+   {
+    "key": "memory-hundreds",
+    "label": "Memory # Hundreds",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 24,
+      "label": "0"
+     },
+     {
+      "from": 25,
+      "to": 49,
+      "label": "1"
+     },
+     {
+      "from": 50,
+      "to": 74,
+      "label": "2"
+     },
+     {
+      "from": 75,
+      "to": 99,
+      "label": "3"
+     },
+     {
+      "from": 100,
+      "to": 124,
+      "label": "4"
+     },
+     {
+      "from": 125,
+      "to": 149,
+      "label": "5"
+     },
+     {
+      "from": 150,
+      "to": 174,
+      "label": "6"
+     },
+     {
+      "from": 175,
+      "to": 199,
+      "label": "7"
+     },
+     {
+      "from": 200,
+      "to": 224,
+      "label": "8"
+     },
+     {
+      "from": 225,
+      "to": 255,
+      "label": "9"
+     }
+    ]
+   },
+   {
+    "key": "memory-tens",
+    "label": "Memory # Tens",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 24,
+      "label": "0"
+     },
+     {
+      "from": 25,
+      "to": 49,
+      "label": "1"
+     },
+     {
+      "from": 50,
+      "to": 74,
+      "label": "2"
+     },
+     {
+      "from": 75,
+      "to": 99,
+      "label": "3"
+     },
+     {
+      "from": 100,
+      "to": 124,
+      "label": "4"
+     },
+     {
+      "from": 125,
+      "to": 149,
+      "label": "5"
+     },
+     {
+      "from": 150,
+      "to": 174,
+      "label": "6"
+     },
+     {
+      "from": 175,
+      "to": 199,
+      "label": "7"
+     },
+     {
+      "from": 200,
+      "to": 224,
+      "label": "8"
+     },
+     {
+      "from": 225,
+      "to": 255,
+      "label": "9"
+     }
+    ]
+   },
+   {
+    "key": "memory-singles",
+    "label": "Memory # Singles",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 24,
+      "label": "0"
+     },
+     {
+      "from": 25,
+      "to": 49,
+      "label": "1"
+     },
+     {
+      "from": 50,
+      "to": 74,
+      "label": "2"
+     },
+     {
+      "from": 75,
+      "to": 99,
+      "label": "3"
+     },
+     {
+      "from": 100,
+      "to": 124,
+      "label": "4"
+     },
+     {
+      "from": 125,
+      "to": 149,
+      "label": "5"
+     },
+     {
+      "from": 150,
+      "to": 174,
+      "label": "6"
+     },
+     {
+      "from": 175,
+      "to": 199,
+      "label": "7"
+     },
+     {
+      "from": 200,
+      "to": 224,
+      "label": "8"
+     },
+     {
+      "from": 225,
+      "to": 255,
+      "label": "9"
+     }
+    ]
+   },
+   {
+    "key": "hue",
+    "label": "Hue",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 255,
+      "label": "0°"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "0-360°"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "360°"
+     }
+    ]
+   },
+   {
+    "key": "saturation",
+    "label": "Saturation",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 26,
+      "label": "0%"
+     },
+     {
+      "from": 27,
+      "to": 224,
+      "label": "1-99%"
+     },
+     {
+      "from": 225,
+      "to": 255,
+      "label": "100%"
+     }
+    ]
+   },
+   {
+    "key": "hue-gel",
+    "label": "Hue Gel",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "saturation-gel",
+    "label": "Saturation Gel",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "colorspace-x-position",
+    "label": "Colorspace X Position",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "colorspace-y-position",
+    "label": "Colorspace Y Position",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "lime",
+    "label": "Lime",
+    "role": "lime",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "control",
+    "label": "Control",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 20,
+      "label": "Dimmer curve linear"
+     },
+     {
+      "from": 21,
+      "to": 30,
+      "label": "Dimmer curve square"
+     },
+     {
+      "from": 31,
+      "to": 40,
+      "label": "Dimmer curve s curve"
+     },
+     {
+      "from": 41,
+      "to": 50,
+      "label": "Dimmer curve Tungsten"
+     },
+     {
+      "from": 51,
+      "to": 60,
+      "label": "NoFunction"
+     },
+     {
+      "from": 61,
+      "to": 80,
+      "label": "CRMX unlink"
+     },
+     {
+      "from": 81,
+      "to": 90,
+      "label": "NoFunction"
+     },
+     {
+      "from": 91,
+      "to": 100,
+      "label": "Bluetooth on"
+     },
+     {
+      "from": 101,
+      "to": 110,
+      "label": "Bluetooth off"
+     },
+     {
+      "from": 111,
+      "to": 120,
+      "label": "NoFunction"
+     },
+     {
+      "from": 121,
+      "to": 130,
+      "label": "RDM off"
+     },
+     {
+      "from": 131,
+      "to": 140,
+      "label": "RDM on"
+     },
+     {
+      "from": 141,
+      "to": 150,
+      "label": "Slew Off"
+     },
+     {
+      "from": 151,
+      "to": 160,
+      "label": "Slew Set"
+     },
+     {
+      "from": 161,
+      "to": 170,
+      "label": "Save in myMIX"
+     },
+     {
+      "from": 171,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "effects-speed",
+    "label": "Effects Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "cross-fade-to-color",
+    "label": "Cross Fade to Color",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 16,
+      "label": "Open"
+     },
+     {
+      "from": 17,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "white",
+    "name": "1: White 8-bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "color",
+    "name": "2: Color 8-bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "white-base-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "gel",
+    "name": "3: Gel 8-bit",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "memory-hundreds",
+      "byte": 0
+     },
+     {
+      "channelKey": "memory-tens",
+      "byte": 0
+     },
+     {
+      "channelKey": "memory-singles",
+      "byte": 0
+     },
+     {
+      "channelKey": "white-base-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue-gel",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation-gel",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "pro8",
+    "name": "4: Pro 8-bit",
+    "footprint": 16,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "memory-hundreds",
+      "byte": 0
+     },
+     {
+      "channelKey": "memory-tens",
+      "byte": 0
+     },
+     {
+      "channelKey": "memory-singles",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "white-base-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue-gel",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation-gel",
+      "byte": 0
+     },
+     {
+      "channelKey": "effects-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "colorspace-x-position",
+      "byte": 0
+     },
+     {
+      "channelKey": "colorspace-y-position",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "pro16",
+    "name": "5: Pro 16-bit",
+    "footprint": 20,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "memory-hundreds",
+      "byte": 0
+     },
+     {
+      "channelKey": "memory-tens",
+      "byte": 0
+     },
+     {
+      "channelKey": "memory-singles",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "white-base-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue-gel",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation-gel",
+      "byte": 0
+     },
+     {
+      "channelKey": "effects-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "colorspace-x-position",
+      "byte": 0
+     },
+     {
+      "channelKey": "colorspace-x-position",
+      "byte": 1
+     },
+     {
+      "channelKey": "colorspace-y-position",
+      "byte": 0
+     },
+     {
+      "channelKey": "colorspace-y-position",
+      "byte": 1
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "full8",
+    "name": "6: Full 8-bit",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "lime",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "full16",
+    "name": "7: Full 16-bit",
+    "footprint": 13,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "lime",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "control",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    1200,
+    360,
+    85
+   ],
+   "weightKg": 8,
+   "powerW": 360
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "dmg-lumiere/maxi-mix",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "dmg-lumiere/mini-mix",
+  "manufacturer": "DMG Lumière",
+  "model": "MINI MIX",
+  "aliases": [
+   "DMG Lumière MINI MIX",
+   "MINI MIX",
+   "dmglumireminimix",
+   "minimix"
+  ],
+  "categories": [
+   "Dimmer",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 11,
+      "label": "1700K"
+     },
+     {
+      "from": 12,
+      "to": 12,
+      "label": "1750K"
+     },
+     {
+      "from": 13,
+      "to": 242,
+      "label": "ColorTemperature"
+     },
+     {
+      "from": 243,
+      "to": 243,
+      "label": "9950K"
+     },
+     {
+      "from": 244,
+      "to": 255,
+      "label": "10000K"
+     }
+    ]
+   },
+   {
+    "key": "green-magenta-point",
+    "label": "Green-Magenta Point",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Neutral"
+     },
+     {
+      "from": 11,
+      "to": 15,
+      "label": "Full minus green"
+     },
+     {
+      "from": 16,
+      "to": 114,
+      "label": "-99%…-1%"
+     },
+     {
+      "from": 115,
+      "to": 140,
+      "label": "Neutral"
+     },
+     {
+      "from": 141,
+      "to": 239,
+      "label": "1%…99%"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "Full plus green"
+     }
+    ]
+   },
+   {
+    "key": "white-base-color",
+    "label": "White Base Color",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "3200K"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "5600K"
+     }
+    ]
+   },
+   {
+    "key": "memory-hundreds",
+    "label": "Memory # Hundreds",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 24,
+      "label": "0"
+     },
+     {
+      "from": 25,
+      "to": 49,
+      "label": "1"
+     },
+     {
+      "from": 50,
+      "to": 74,
+      "label": "2"
+     },
+     {
+      "from": 75,
+      "to": 99,
+      "label": "3"
+     },
+     {
+      "from": 100,
+      "to": 124,
+      "label": "4"
+     },
+     {
+      "from": 125,
+      "to": 149,
+      "label": "5"
+     },
+     {
+      "from": 150,
+      "to": 174,
+      "label": "6"
+     },
+     {
+      "from": 175,
+      "to": 199,
+      "label": "7"
+     },
+     {
+      "from": 200,
+      "to": 224,
+      "label": "8"
+     },
+     {
+      "from": 225,
+      "to": 255,
+      "label": "9"
+     }
+    ]
+   },
+   {
+    "key": "memory-tens",
+    "label": "Memory # Tens",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 24,
+      "label": "0"
+     },
+     {
+      "from": 25,
+      "to": 49,
+      "label": "1"
+     },
+     {
+      "from": 50,
+      "to": 74,
+      "label": "2"
+     },
+     {
+      "from": 75,
+      "to": 99,
+      "label": "3"
+     },
+     {
+      "from": 100,
+      "to": 124,
+      "label": "4"
+     },
+     {
+      "from": 125,
+      "to": 149,
+      "label": "5"
+     },
+     {
+      "from": 150,
+      "to": 174,
+      "label": "6"
+     },
+     {
+      "from": 175,
+      "to": 199,
+      "label": "7"
+     },
+     {
+      "from": 200,
+      "to": 224,
+      "label": "8"
+     },
+     {
+      "from": 225,
+      "to": 255,
+      "label": "9"
+     }
+    ]
+   },
+   {
+    "key": "memory-singles",
+    "label": "Memory # Singles",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 24,
+      "label": "0"
+     },
+     {
+      "from": 25,
+      "to": 49,
+      "label": "1"
+     },
+     {
+      "from": 50,
+      "to": 74,
+      "label": "2"
+     },
+     {
+      "from": 75,
+      "to": 99,
+      "label": "3"
+     },
+     {
+      "from": 100,
+      "to": 124,
+      "label": "4"
+     },
+     {
+      "from": 125,
+      "to": 149,
+      "label": "5"
+     },
+     {
+      "from": 150,
+      "to": 174,
+      "label": "6"
+     },
+     {
+      "from": 175,
+      "to": 199,
+      "label": "7"
+     },
+     {
+      "from": 200,
+      "to": 224,
+      "label": "8"
+     },
+     {
+      "from": 225,
+      "to": 255,
+      "label": "9"
+     }
+    ]
+   },
+   {
+    "key": "hue",
+    "label": "Hue",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 255,
+      "label": "0°"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "0-360°"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "360°"
+     }
+    ]
+   },
+   {
+    "key": "saturation",
+    "label": "Saturation",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 26,
+      "label": "0%"
+     },
+     {
+      "from": 27,
+      "to": 224,
+      "label": "1-99%"
+     },
+     {
+      "from": 225,
+      "to": 255,
+      "label": "100%"
+     }
+    ]
+   },
+   {
+    "key": "hue-gel",
+    "label": "Hue Gel",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "saturation-gel",
+    "label": "Saturation Gel",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "colorspace-x-position",
+    "label": "Colorspace X Position",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "colorspace-y-position",
+    "label": "Colorspace Y Position",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "lime",
+    "label": "Lime",
+    "role": "lime",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "control",
+    "label": "Control",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 20,
+      "label": "Dimmer curve linear"
+     },
+     {
+      "from": 21,
+      "to": 30,
+      "label": "Dimmer curve square"
+     },
+     {
+      "from": 31,
+      "to": 40,
+      "label": "Dimmer curve s curve"
+     },
+     {
+      "from": 41,
+      "to": 50,
+      "label": "Dimmer curve Tungsten"
+     },
+     {
+      "from": 51,
+      "to": 60,
+      "label": "NoFunction"
+     },
+     {
+      "from": 61,
+      "to": 80,
+      "label": "CRMX unlink"
+     },
+     {
+      "from": 81,
+      "to": 90,
+      "label": "NoFunction"
+     },
+     {
+      "from": 91,
+      "to": 100,
+      "label": "Bluetooth on"
+     },
+     {
+      "from": 101,
+      "to": 110,
+      "label": "Bluetooth off"
+     },
+     {
+      "from": 111,
+      "to": 120,
+      "label": "NoFunction"
+     },
+     {
+      "from": 121,
+      "to": 130,
+      "label": "RDM off"
+     },
+     {
+      "from": 131,
+      "to": 140,
+      "label": "RDM on"
+     },
+     {
+      "from": 141,
+      "to": 150,
+      "label": "Slew Off"
+     },
+     {
+      "from": 151,
+      "to": 160,
+      "label": "Slew Set"
+     },
+     {
+      "from": 161,
+      "to": 170,
+      "label": "Save in myMIX"
+     },
+     {
+      "from": 171,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "effects-speed",
+    "label": "Effects Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "cross-fade-to-color",
+    "label": "Cross Fade to Color",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 16,
+      "label": "Open"
+     },
+     {
+      "from": 17,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "white",
+    "name": "1: White 8-bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "color",
+    "name": "2: Color 8-bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "white-base-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "gel",
+    "name": "3: Gel 8-bit",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "memory-hundreds",
+      "byte": 0
+     },
+     {
+      "channelKey": "memory-tens",
+      "byte": 0
+     },
+     {
+      "channelKey": "memory-singles",
+      "byte": 0
+     },
+     {
+      "channelKey": "white-base-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue-gel",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation-gel",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "pro8",
+    "name": "4: Pro 8-bit",
+    "footprint": 16,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "memory-hundreds",
+      "byte": 0
+     },
+     {
+      "channelKey": "memory-tens",
+      "byte": 0
+     },
+     {
+      "channelKey": "memory-singles",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "white-base-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue-gel",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation-gel",
+      "byte": 0
+     },
+     {
+      "channelKey": "effects-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "colorspace-x-position",
+      "byte": 0
+     },
+     {
+      "channelKey": "colorspace-y-position",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "pro16",
+    "name": "5: Pro 16-bit",
+    "footprint": 20,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "memory-hundreds",
+      "byte": 0
+     },
+     {
+      "channelKey": "memory-tens",
+      "byte": 0
+     },
+     {
+      "channelKey": "memory-singles",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "white-base-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue-gel",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation-gel",
+      "byte": 0
+     },
+     {
+      "channelKey": "effects-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "colorspace-x-position",
+      "byte": 0
+     },
+     {
+      "channelKey": "colorspace-x-position",
+      "byte": 1
+     },
+     {
+      "channelKey": "colorspace-y-position",
+      "byte": 0
+     },
+     {
+      "channelKey": "colorspace-y-position",
+      "byte": 1
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "full8",
+    "name": "6: Full 8-bit",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "lime",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "full16",
+    "name": "7: Full 16-bit",
+    "footprint": 13,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "lime",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "control",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    585,
+    205,
+    37
+   ],
+   "weightKg": 2.56,
+   "powerW": 100
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "dmg-lumiere/mini-mix",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "dmg-lumiere/sl1-mix",
+  "manufacturer": "DMG Lumière",
+  "model": "SL1 MIX",
+  "aliases": [
+   "DMG Lumière SL1 MIX",
+   "SL1 MIX",
+   "dmglumiresl1mix",
+   "sl1mix"
+  ],
+  "categories": [
+   "Dimmer",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 11,
+      "label": "1700K"
+     },
+     {
+      "from": 12,
+      "to": 12,
+      "label": "1750K"
+     },
+     {
+      "from": 13,
+      "to": 242,
+      "label": "ColorTemperature"
+     },
+     {
+      "from": 243,
+      "to": 243,
+      "label": "9950K"
+     },
+     {
+      "from": 244,
+      "to": 255,
+      "label": "10000K"
+     }
+    ]
+   },
+   {
+    "key": "green-magenta-point",
+    "label": "Green-Magenta Point",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Neutral"
+     },
+     {
+      "from": 11,
+      "to": 15,
+      "label": "Full minus green"
+     },
+     {
+      "from": 16,
+      "to": 114,
+      "label": "-99%…-1%"
+     },
+     {
+      "from": 115,
+      "to": 140,
+      "label": "Neutral"
+     },
+     {
+      "from": 141,
+      "to": 239,
+      "label": "1%…99%"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "Full plus green"
+     }
+    ]
+   },
+   {
+    "key": "white-base-color",
+    "label": "White Base Color",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "3200K"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "5600K"
+     }
+    ]
+   },
+   {
+    "key": "memory-hundreds",
+    "label": "Memory # Hundreds",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 24,
+      "label": "0"
+     },
+     {
+      "from": 25,
+      "to": 49,
+      "label": "1"
+     },
+     {
+      "from": 50,
+      "to": 74,
+      "label": "2"
+     },
+     {
+      "from": 75,
+      "to": 99,
+      "label": "3"
+     },
+     {
+      "from": 100,
+      "to": 124,
+      "label": "4"
+     },
+     {
+      "from": 125,
+      "to": 149,
+      "label": "5"
+     },
+     {
+      "from": 150,
+      "to": 174,
+      "label": "6"
+     },
+     {
+      "from": 175,
+      "to": 199,
+      "label": "7"
+     },
+     {
+      "from": 200,
+      "to": 224,
+      "label": "8"
+     },
+     {
+      "from": 225,
+      "to": 255,
+      "label": "9"
+     }
+    ]
+   },
+   {
+    "key": "memory-tens",
+    "label": "Memory # Tens",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 24,
+      "label": "0"
+     },
+     {
+      "from": 25,
+      "to": 49,
+      "label": "1"
+     },
+     {
+      "from": 50,
+      "to": 74,
+      "label": "2"
+     },
+     {
+      "from": 75,
+      "to": 99,
+      "label": "3"
+     },
+     {
+      "from": 100,
+      "to": 124,
+      "label": "4"
+     },
+     {
+      "from": 125,
+      "to": 149,
+      "label": "5"
+     },
+     {
+      "from": 150,
+      "to": 174,
+      "label": "6"
+     },
+     {
+      "from": 175,
+      "to": 199,
+      "label": "7"
+     },
+     {
+      "from": 200,
+      "to": 224,
+      "label": "8"
+     },
+     {
+      "from": 225,
+      "to": 255,
+      "label": "9"
+     }
+    ]
+   },
+   {
+    "key": "memory-singles",
+    "label": "Memory # Singles",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 24,
+      "label": "0"
+     },
+     {
+      "from": 25,
+      "to": 49,
+      "label": "1"
+     },
+     {
+      "from": 50,
+      "to": 74,
+      "label": "2"
+     },
+     {
+      "from": 75,
+      "to": 99,
+      "label": "3"
+     },
+     {
+      "from": 100,
+      "to": 124,
+      "label": "4"
+     },
+     {
+      "from": 125,
+      "to": 149,
+      "label": "5"
+     },
+     {
+      "from": 150,
+      "to": 174,
+      "label": "6"
+     },
+     {
+      "from": 175,
+      "to": 199,
+      "label": "7"
+     },
+     {
+      "from": 200,
+      "to": 224,
+      "label": "8"
+     },
+     {
+      "from": 225,
+      "to": 255,
+      "label": "9"
+     }
+    ]
+   },
+   {
+    "key": "hue",
+    "label": "Hue",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 255,
+      "label": "0°"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "0-360°"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "360°"
+     }
+    ]
+   },
+   {
+    "key": "saturation",
+    "label": "Saturation",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 26,
+      "label": "0%"
+     },
+     {
+      "from": 27,
+      "to": 224,
+      "label": "1-99%"
+     },
+     {
+      "from": 225,
+      "to": 255,
+      "label": "100%"
+     }
+    ]
+   },
+   {
+    "key": "hue-gel",
+    "label": "Hue Gel",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "saturation-gel",
+    "label": "Saturation Gel",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "colorspace-x-position",
+    "label": "Colorspace X Position",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "colorspace-y-position",
+    "label": "Colorspace Y Position",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "lime",
+    "label": "Lime",
+    "role": "lime",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "control",
+    "label": "Control",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 20,
+      "label": "Dimmer curve linear"
+     },
+     {
+      "from": 21,
+      "to": 30,
+      "label": "Dimmer curve square"
+     },
+     {
+      "from": 31,
+      "to": 40,
+      "label": "Dimmer curve s curve"
+     },
+     {
+      "from": 41,
+      "to": 50,
+      "label": "Dimmer curve Tungsten"
+     },
+     {
+      "from": 51,
+      "to": 60,
+      "label": "NoFunction"
+     },
+     {
+      "from": 61,
+      "to": 80,
+      "label": "CRMX unlink"
+     },
+     {
+      "from": 81,
+      "to": 90,
+      "label": "NoFunction"
+     },
+     {
+      "from": 91,
+      "to": 100,
+      "label": "Bluetooth on"
+     },
+     {
+      "from": 101,
+      "to": 110,
+      "label": "Bluetooth off"
+     },
+     {
+      "from": 111,
+      "to": 120,
+      "label": "NoFunction"
+     },
+     {
+      "from": 121,
+      "to": 130,
+      "label": "RDM off"
+     },
+     {
+      "from": 131,
+      "to": 140,
+      "label": "RDM on"
+     },
+     {
+      "from": 141,
+      "to": 150,
+      "label": "Slew Off"
+     },
+     {
+      "from": 151,
+      "to": 160,
+      "label": "Slew Set"
+     },
+     {
+      "from": 161,
+      "to": 170,
+      "label": "Save in myMIX"
+     },
+     {
+      "from": 171,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "effects-speed",
+    "label": "Effects Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "cross-fade-to-color",
+    "label": "Cross Fade to Color",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 16,
+      "label": "Open"
+     },
+     {
+      "from": 17,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "white",
+    "name": "1: White 8-bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "color",
+    "name": "2: Color 8-bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "white-base-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "gel",
+    "name": "3: Gel 8-bit",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "memory-hundreds",
+      "byte": 0
+     },
+     {
+      "channelKey": "memory-tens",
+      "byte": 0
+     },
+     {
+      "channelKey": "memory-singles",
+      "byte": 0
+     },
+     {
+      "channelKey": "white-base-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue-gel",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation-gel",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "pro8",
+    "name": "4: Pro 8-bit",
+    "footprint": 16,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "memory-hundreds",
+      "byte": 0
+     },
+     {
+      "channelKey": "memory-tens",
+      "byte": 0
+     },
+     {
+      "channelKey": "memory-singles",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "white-base-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue-gel",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation-gel",
+      "byte": 0
+     },
+     {
+      "channelKey": "effects-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "colorspace-x-position",
+      "byte": 0
+     },
+     {
+      "channelKey": "colorspace-y-position",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "pro16",
+    "name": "5: Pro 16-bit",
+    "footprint": 20,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "memory-hundreds",
+      "byte": 0
+     },
+     {
+      "channelKey": "memory-tens",
+      "byte": 0
+     },
+     {
+      "channelKey": "memory-singles",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "white-base-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue-gel",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation-gel",
+      "byte": 0
+     },
+     {
+      "channelKey": "effects-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "colorspace-x-position",
+      "byte": 0
+     },
+     {
+      "channelKey": "colorspace-x-position",
+      "byte": 1
+     },
+     {
+      "channelKey": "colorspace-y-position",
+      "byte": 0
+     },
+     {
+      "channelKey": "colorspace-y-position",
+      "byte": 1
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "full8",
+    "name": "6: Full 8-bit",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "lime",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "full16",
+    "name": "7: Full 16-bit",
+    "footprint": 13,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "lime",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "control",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    1118,
+    205,
+    37
+   ],
+   "weightKg": 4.18,
+   "powerW": 200
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "dmg-lumiere/sl1-mix",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

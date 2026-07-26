@@ -1,0 +1,134 @@
+[
+ {
+  "id": "studio-due/light-deflector",
+  "manufacturer": "Studio Due",
+  "model": "Light Deflector",
+  "aliases": [
+   "Light Deflector",
+   "Studio Due Light Deflector",
+   "lightdeflector",
+   "studioduelightdeflector"
+  ],
+  "categories": [
+   "Scanner"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 360,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 360,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt-spin",
+    "label": "Tilt Spin",
+    "role": "tilt",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan/Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "reset",
+    "label": "Reset",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "8bit",
+    "name": "8 bit 4-channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt-spin",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "16bit",
+    "name": "16 bit 7-channel",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt-spin",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "reset",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    320,
+    460,
+    130
+   ],
+   "weightKg": 5,
+   "powerW": 69
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "studio-due/light-deflector",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

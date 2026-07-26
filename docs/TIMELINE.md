@@ -9,6 +9,19 @@ always-present state-machine control layer). Wave A later **bounded the clock ag
 **Length bounds playback** below) — the infinite pan/zoom canvas and the state-machine layer are
 unaffected.
 
+### Where it lives — a drawer, not a context
+
+The timeline has **no rail entry**. It is the full-width **bottom drawer** that eight of the nine
+workspace contexts declare (`WorkspaceContext.bottom`), collapsed to a 28px strip and pulled up with
+**Ctrl+T** / **View ▸ Timeline** / a click on the strip. Open/closed and height are remembered **per
+workbench**, so Mapping can keep it up while Venue & Rig keeps it down.
+
+This is the point: you cut against the 2D stage, record a **lighting take** against the 3D rig, and
+author a scene's timeline from the cue grid — all without giving up the viewport you were working in.
+It also means `TimelinePanel` **never remounts on a context switch** (it did, every time, while the
+timeline was a context of its own — losing zoom, scroll and clip selection). Canonical:
+[WORKSPACE.md → the full-width bottom drawer](WORKSPACE.md#the-full-width-bottom-drawer-workspacecontextbottom).
+
 > **Scope invariant (clips):** clip editing is **UX-only** — the track header flags
 > (`muted/solo/locked/enabled`) are visual aids, never engine inputs, and the engine still samples
 > the **topmost clip per track** under the playhead (gaps → black). Multiple clips per track sequence

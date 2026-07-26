@@ -1,0 +1,2300 @@
+[
+ {
+  "id": "lightmaxx/dj-scan-led",
+  "manufacturer": "lightmaXX",
+  "model": "DJ Scan LED",
+  "aliases": [
+   "DJ Scan LED",
+   "djscanled",
+   "lightmaXX DJ Scan LED",
+   "lightmaxxdjscanled"
+  ],
+  "categories": [
+   "Scanner",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 1,
+    "default": 0,
+    "min": 0,
+    "max": 100,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 1,
+    "default": 0,
+    "min": 0,
+    "max": 100,
+    "unit": "deg"
+   },
+   {
+    "key": "color-wheel",
+    "label": "Color Wheel",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 13,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 14,
+      "to": 27,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 28,
+      "to": 41,
+      "label": "Pink",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 42,
+      "to": 55,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 56,
+      "to": 69,
+      "label": "Purple",
+      "color": "#8000ff"
+     },
+     {
+      "from": 70,
+      "to": 83,
+      "label": "Blue",
+      "color": "#0040ff"
+     },
+     {
+      "from": 84,
+      "to": 97,
+      "label": "Light Green",
+      "color": "#00ff80"
+     },
+     {
+      "from": 98,
+      "to": 111,
+      "label": "Orange",
+      "color": "#ff8000"
+     },
+     {
+      "from": 112,
+      "to": 127,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 128,
+      "to": 190,
+      "label": "ColorFade"
+     },
+     {
+      "from": 191,
+      "to": 255,
+      "label": "ColorFade"
+     }
+    ]
+   },
+   {
+    "key": "gobo-wheel",
+    "label": "Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 8,
+      "label": "Open"
+     },
+     {
+      "from": 9,
+      "to": 17,
+      "label": "Gobo"
+     },
+     {
+      "from": 18,
+      "to": 26,
+      "label": "Gobo"
+     },
+     {
+      "from": 27,
+      "to": 35,
+      "label": "Gobo"
+     },
+     {
+      "from": 36,
+      "to": 44,
+      "label": "Gobo"
+     },
+     {
+      "from": 45,
+      "to": 53,
+      "label": "Gobo"
+     },
+     {
+      "from": 54,
+      "to": 62,
+      "label": "Gobo"
+     },
+     {
+      "from": 63,
+      "to": 71,
+      "label": "Gobo"
+     },
+     {
+      "from": 72,
+      "to": 80,
+      "label": "Gobo"
+     },
+     {
+      "from": 81,
+      "to": 89,
+      "label": "Gobo"
+     },
+     {
+      "from": 90,
+      "to": 98,
+      "label": "Gobo"
+     },
+     {
+      "from": 99,
+      "to": 107,
+      "label": "Gobo"
+     },
+     {
+      "from": 108,
+      "to": 116,
+      "label": "Gobo"
+     },
+     {
+      "from": 117,
+      "to": 125,
+      "label": "Gobo"
+     },
+     {
+      "from": 126,
+      "to": 134,
+      "label": "Gobo"
+     },
+     {
+      "from": 135,
+      "to": 143,
+      "label": "Gobo"
+     },
+     {
+      "from": 144,
+      "to": 152,
+      "label": "Gobo"
+     },
+     {
+      "from": 153,
+      "to": 161,
+      "label": "Gobo"
+     },
+     {
+      "from": 162,
+      "to": 170,
+      "label": "Gobo"
+     },
+     {
+      "from": 171,
+      "to": 179,
+      "label": "Gobo"
+     },
+     {
+      "from": 180,
+      "to": 188,
+      "label": "Gobo"
+     },
+     {
+      "from": 189,
+      "to": 197,
+      "label": "Gobo"
+     },
+     {
+      "from": 198,
+      "to": 206,
+      "label": "Gobo"
+     },
+     {
+      "from": 207,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "shutter",
+    "label": "Shutter",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0.0392156862745098,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Closed"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Open"
+     },
+     {
+      "from": 20,
+      "to": 127,
+      "label": "Strobe (Strobe effect 1)"
+     },
+     {
+      "from": 128,
+      "to": 137,
+      "label": "Open"
+     },
+     {
+      "from": 138,
+      "to": 201,
+      "label": "Strobe (Strobe effect 2)"
+     },
+     {
+      "from": 202,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "function-program",
+    "label": "Function/Program",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 59,
+      "label": "NoFunction"
+     },
+     {
+      "from": 60,
+      "to": 79,
+      "label": "C/G Motor reset"
+     },
+     {
+      "from": 80,
+      "to": 99,
+      "label": "All Motor reset"
+     },
+     {
+      "from": 100,
+      "to": 119,
+      "label": "Internal Program 1"
+     },
+     {
+      "from": 120,
+      "to": 139,
+      "label": "Internal Program 2"
+     },
+     {
+      "from": 140,
+      "to": 159,
+      "label": "Internal Program 3"
+     },
+     {
+      "from": 160,
+      "to": 179,
+      "label": "Internal Program 4"
+     },
+     {
+      "from": 180,
+      "to": 199,
+      "label": "Internal Program 5"
+     },
+     {
+      "from": 200,
+      "to": 219,
+      "label": "Internal Program 6"
+     },
+     {
+      "from": 220,
+      "to": 239,
+      "label": "Internal Program 7"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "Internal Program 8"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "normal",
+    "name": "Normal",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "function-program",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    465,
+    150,
+    150
+   ],
+   "weightKg": 3
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "lightmaxx/dj-scan-led",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "lightmaxx/easy-wash-quad-led",
+  "manufacturer": "lightmaXX",
+  "model": "Easy Wash Quad LED",
+  "aliases": [
+   "Easy Wash Quad LED",
+   "LightmaXXEasyWashQuad",
+   "easywashquadled",
+   "lightmaXX Easy Wash Quad LED",
+   "lightmaxxeasywashquad",
+   "lightmaxxeasywashquadled"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 180,
+    "unit": "deg"
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan/Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "shutter-dimmer",
+    "label": "Shutter / Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 1,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Closed"
+     },
+     {
+      "from": 8,
+      "to": 134,
+      "label": "Intensity"
+     },
+     {
+      "from": 135,
+      "to": 239,
+      "label": "Strobe"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-macros",
+    "label": "Color Macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "NoFunction"
+     },
+     {
+      "from": 8,
+      "to": 21,
+      "label": "White (RGB)",
+      "color": "#ffffff"
+     },
+     {
+      "from": 22,
+      "to": 34,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 35,
+      "to": 49,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 50,
+      "to": 63,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 64,
+      "to": 77,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 78,
+      "to": 91,
+      "label": "Light blue",
+      "color": "#aad9ff"
+     },
+     {
+      "from": 92,
+      "to": 105,
+      "label": "Crimson",
+      "color": "#a21a19"
+     },
+     {
+      "from": 106,
+      "to": 119,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 120,
+      "to": 133,
+      "label": "Purple",
+      "color": "#982aff"
+     },
+     {
+      "from": 134,
+      "to": 147,
+      "label": "Orange",
+      "color": "#ffaa00"
+     },
+     {
+      "from": 148,
+      "to": 161,
+      "label": "Light green",
+      "color": "#a3ffab"
+     },
+     {
+      "from": 162,
+      "to": 175,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 176,
+      "to": 189,
+      "label": "Pink",
+      "color": "#ffd0d0"
+     },
+     {
+      "from": 190,
+      "to": 203,
+      "label": "Buff",
+      "color": "#a0ab76"
+     },
+     {
+      "from": 204,
+      "to": 217,
+      "label": "White (RGW)",
+      "color": "#ffffaa"
+     },
+     {
+      "from": 218,
+      "to": 231,
+      "label": "Dark Purple",
+      "color": "#7000b1"
+     },
+     {
+      "from": 232,
+      "to": 255,
+      "label": "ColorJump"
+     }
+    ]
+   },
+   {
+    "key": "color-speed",
+    "label": "Color Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "effects",
+    "label": "Effects",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "NoFunction"
+     },
+     {
+      "from": 8,
+      "to": 22,
+      "label": "Auto 1"
+     },
+     {
+      "from": 23,
+      "to": 37,
+      "label": "Auto 2"
+     },
+     {
+      "from": 38,
+      "to": 53,
+      "label": "Auto 3"
+     },
+     {
+      "from": 54,
+      "to": 67,
+      "label": "Auto 4"
+     },
+     {
+      "from": 68,
+      "to": 82,
+      "label": "Auto 5"
+     },
+     {
+      "from": 83,
+      "to": 97,
+      "label": "Auto 6"
+     },
+     {
+      "from": 98,
+      "to": 112,
+      "label": "Auto 7"
+     },
+     {
+      "from": 113,
+      "to": 127,
+      "label": "Auto 8"
+     },
+     {
+      "from": 128,
+      "to": 142,
+      "label": "Sound 1"
+     },
+     {
+      "from": 143,
+      "to": 157,
+      "label": "Sound 2"
+     },
+     {
+      "from": 158,
+      "to": 172,
+      "label": "Sound 3"
+     },
+     {
+      "from": 173,
+      "to": 187,
+      "label": "Sound 4"
+     },
+     {
+      "from": 188,
+      "to": 202,
+      "label": "Sound 5"
+     },
+     {
+      "from": 203,
+      "to": 217,
+      "label": "Sound 6"
+     },
+     {
+      "from": 218,
+      "to": 232,
+      "label": "Sound 7"
+     },
+     {
+      "from": 233,
+      "to": 255,
+      "label": "Sound 8"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "8ch",
+    "name": "8-Channel",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "13ch",
+    "name": "13-Channel",
+    "footprint": 13,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "effects",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    225,
+    270,
+    225
+   ],
+   "weightKg": 4.2,
+   "powerW": 90
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "lightmaxx/easy-wash-quad-led",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "lightmaxx/led-nano-par",
+  "manufacturer": "lightmaXX",
+  "model": "LED Nano PAR",
+  "aliases": [
+   "LED Nano PAR",
+   "lednanopar",
+   "lightmaXX LED Nano PAR",
+   "lightmaxxlednanopar"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "program",
+    "label": "Program",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 50,
+      "label": "Static Colors"
+     },
+     {
+      "from": 51,
+      "to": 100,
+      "label": "ColorJump"
+     },
+     {
+      "from": 101,
+      "to": 150,
+      "label": "ColorFade"
+     },
+     {
+      "from": 151,
+      "to": 200,
+      "label": "Sound Flash"
+     },
+     {
+      "from": 201,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "color-program",
+    "label": "Color Program",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 39,
+      "label": "Color Chase"
+     },
+     {
+      "from": 40,
+      "to": 49,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 50,
+      "to": 59,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 60,
+      "to": 69,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 70,
+      "to": 79,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 80,
+      "to": 89,
+      "label": "Cyan",
+      "color": "#00ffff"
+     },
+     {
+      "from": 90,
+      "to": 99,
+      "label": "Purple",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 100,
+      "to": 109,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 110,
+      "to": 119,
+      "label": "Red + Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 120,
+      "to": 129,
+      "label": "Red + Blue",
+      "color": "#ff0000"
+     },
+     {
+      "from": 130,
+      "to": 139,
+      "label": "Red + White",
+      "color": "#ff0000"
+     },
+     {
+      "from": 140,
+      "to": 149,
+      "label": "Green + Blue",
+      "color": "#00ff00"
+     },
+     {
+      "from": 150,
+      "to": 159,
+      "label": "Green + White",
+      "color": "#00ff00"
+     },
+     {
+      "from": 160,
+      "to": 169,
+      "label": "Blue + White",
+      "color": "#0000ff"
+     },
+     {
+      "from": 170,
+      "to": 179,
+      "label": "Red + Green + White",
+      "color": "#ff0000"
+     },
+     {
+      "from": 180,
+      "to": 189,
+      "label": "Red + Blue + White",
+      "color": "#ff0000"
+     },
+     {
+      "from": 190,
+      "to": 199,
+      "label": "Green + Blue + White",
+      "color": "#00ff00"
+     },
+     {
+      "from": 200,
+      "to": 209,
+      "label": "Red + Green + Blue",
+      "color": "#ff0000"
+     },
+     {
+      "from": 210,
+      "to": 255,
+      "label": "Red + Green + Blue + White",
+      "color": "#ff0000"
+     }
+    ]
+   },
+   {
+    "key": "program-speed",
+    "label": "Program Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "8ch",
+    "name": "8-channel",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "program",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-program",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    150,
+    140,
+    115
+   ],
+   "weightKg": 0.4,
+   "powerW": 15,
+   "lensDegMin": 25,
+   "lensDegMax": 25
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "lightmaxx/led-nano-par",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "lightmaxx/led-par-56",
+  "manufacturer": "lightmaXX",
+  "model": "LED Par 56",
+  "aliases": [
+   "LED Par 56",
+   "ledpar56",
+   "lightmaXX LED Par 56",
+   "lightmaxxledpar56"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 189,
+      "label": "Intensity"
+     },
+     {
+      "from": 190,
+      "to": 250,
+      "label": "Strobe"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "4ch",
+    "name": "4-channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    220,
+    210,
+    220
+   ],
+   "weightKg": 1.4,
+   "powerW": 22
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "lightmaxx/led-par-56",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "lightmaxx/led-par-64-cob-100w-rgb",
+  "manufacturer": "lightmaXX",
+  "model": "LED PAR 64 COB 100W RGB",
+  "aliases": [
+   "LED PAR 64 COB 100W RGB",
+   "ledpar64cob100wrgb",
+   "lightmaXX LED PAR 64 COB 100W RGB",
+   "lightmaxxledpar64cob100wrgb"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "sound-strobe",
+    "label": "Sound / Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Open"
+     },
+     {
+      "from": 1,
+      "to": 5,
+      "label": "Sound Control (7 Colors)"
+     },
+     {
+      "from": 6,
+      "to": 10,
+      "label": "Open"
+     },
+     {
+      "from": 11,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "3ch",
+    "name": "3-channel",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "5ch",
+    "name": "5-channel",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "sound-strobe",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    240,
+    195,
+    390
+   ],
+   "weightKg": 2.6,
+   "powerW": 120,
+   "lensDegMin": 30,
+   "lensDegMax": 30
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "lightmaxx/led-par-64-cob-100w-rgb",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "lightmaxx/platinum-mini-tri-par",
+  "manufacturer": "lightmaXX",
+  "model": "Platinum Mini TRI-PAR",
+  "aliases": [
+   "MiniTri",
+   "Platinum Mini TRI-PAR",
+   "lightmaXX Platinum Mini TRI-PAR",
+   "lightmaxxplatinumminitripar",
+   "minitri",
+   "platinumminitripar"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "macro",
+    "label": "Macro",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 4,
+      "label": "NoFunction"
+     },
+     {
+      "from": 5,
+      "to": 9,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 10,
+      "to": 14,
+      "label": "Light blue",
+      "color": "#add8e6"
+     },
+     {
+      "from": 15,
+      "to": 19,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 20,
+      "to": 24,
+      "label": "Purple",
+      "color": "#800080"
+     },
+     {
+      "from": 25,
+      "to": 29,
+      "label": "Light pink",
+      "color": "#ffb6c1"
+     },
+     {
+      "from": 30,
+      "to": 34,
+      "label": "Magenta",
+      "color": "#ca1f7b"
+     },
+     {
+      "from": 35,
+      "to": 39,
+      "label": "Pink",
+      "color": "#ffc0cb"
+     },
+     {
+      "from": 40,
+      "to": 44,
+      "label": "Dark pink",
+      "color": "#e75480"
+     },
+     {
+      "from": 45,
+      "to": 49,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 50,
+      "to": 54,
+      "label": "Orange",
+      "color": "#ff7f00"
+     },
+     {
+      "from": 55,
+      "to": 59,
+      "label": "Light orange",
+      "color": "#facc00"
+     },
+     {
+      "from": 60,
+      "to": 64,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 65,
+      "to": 69,
+      "label": "Light green",
+      "color": "#90ee90"
+     },
+     {
+      "from": 70,
+      "to": 74,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 75,
+      "to": 79,
+      "label": "Aquamarine",
+      "color": "#7fffd4"
+     },
+     {
+      "from": 80,
+      "to": 84,
+      "label": "Cyan",
+      "color": "#00ffff"
+     },
+     {
+      "from": 85,
+      "to": 169,
+      "label": "ColorJump"
+     },
+     {
+      "from": 170,
+      "to": 255,
+      "label": "ColorFade"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 0.7843137254901961,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 4,
+      "label": "Open"
+     },
+     {
+      "from": 5,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "6ch",
+    "name": "6-channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "macro",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    170,
+    170,
+    160
+   ],
+   "weightKg": 2,
+   "powerW": 30,
+   "lensDegMin": 25,
+   "lensDegMax": 25
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "lightmaxx/platinum-mini-tri-par",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "lightmaxx/vector-haze-1-0",
+  "manufacturer": "lightmaXX",
+  "model": "Vector Haze 1.0",
+  "aliases": [
+   "Vector Haze 1.0",
+   "lightmaXX Vector Haze 1.0",
+   "lightmaxxvectorhaze10",
+   "vectorhaze10"
+  ],
+  "categories": [
+   "Hazer"
+  ],
+  "channels": [
+   {
+    "key": "fan-speed",
+    "label": "Fan Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "haze-output",
+    "label": "Haze Output",
+    "role": "fog",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "2ch",
+    "name": "2-channel",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "fan-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "haze-output",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    495,
+    235,
+    405
+   ],
+   "weightKg": 16.7,
+   "powerW": 1100
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "lightmaxx/vector-haze-1-0",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "lightmaxx/vega-bat-1",
+  "manufacturer": "lightmaXX",
+  "model": "Vega BAT-1",
+  "aliases": [
+   "Vega BAT-1",
+   "lightmaXX Vega BAT-1",
+   "lightmaxxvegabat1",
+   "vegabat1"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "uv",
+    "label": "UV",
+    "role": "uv",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "program-mode",
+    "label": "Program Mode",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 64,
+      "label": "Manual Color Adjustment"
+     },
+     {
+      "from": 65,
+      "to": 80,
+      "label": "Color Macros"
+     },
+     {
+      "from": 81,
+      "to": 150,
+      "label": "ColorJump"
+     },
+     {
+      "from": 151,
+      "to": 220,
+      "label": "ColorFade"
+     },
+     {
+      "from": 221,
+      "to": 255,
+      "label": "Sound Active Mode"
+     }
+    ]
+   },
+   {
+    "key": "program-speed",
+    "label": "Program Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "3ch",
+    "name": "3-channel",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "4ch",
+    "name": "4-channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "6ch",
+    "name": "6-channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "10ch",
+    "name": "10-channel",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-mode",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-speed",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "powerW": 60
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "lightmaxx/vega-bat-1",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "lightmaxx/vega-zoom-wash",
+  "manufacturer": "lightmaXX",
+  "model": "Vega Zoom Wash",
+  "aliases": [
+   "Vega Zoom Wash",
+   "VegaZoomWash",
+   "lightmaXX Vega Zoom Wash",
+   "lightmaxxvegazoomwash",
+   "vegazoomwash"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 190,
+    "unit": "deg"
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan / Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "shutter",
+    "label": "Shutter",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Closed"
+     },
+     {
+      "from": 10,
+      "to": 245,
+      "label": "Strobe"
+     },
+     {
+      "from": 246,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-macro",
+    "label": "Color Macro",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 20,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 21,
+      "to": 30,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 31,
+      "to": 40,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 41,
+      "to": 50,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 51,
+      "to": 60,
+      "label": "Red + Green",
+      "color": "#ffff00"
+     },
+     {
+      "from": 61,
+      "to": 70,
+      "label": "Green + Blue",
+      "color": "#00ffff"
+     },
+     {
+      "from": 71,
+      "to": 80,
+      "label": "Blue + White",
+      "color": "#8080ff"
+     },
+     {
+      "from": 81,
+      "to": 90,
+      "label": "Red + Blue",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 91,
+      "to": 100,
+      "label": "Green + White",
+      "color": "#80ff80"
+     },
+     {
+      "from": 101,
+      "to": 110,
+      "label": "Red + White",
+      "color": "#ff8080"
+     },
+     {
+      "from": 111,
+      "to": 120,
+      "label": "Red + Green + Blue",
+      "color": "#ffffff"
+     },
+     {
+      "from": 121,
+      "to": 130,
+      "label": "Red + Green + White",
+      "color": "#ffff80"
+     },
+     {
+      "from": 131,
+      "to": 140,
+      "label": "Green + Blue + White",
+      "color": "#80ffff"
+     },
+     {
+      "from": 141,
+      "to": 150,
+      "label": "Red + Green + Blue + White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 151,
+      "to": 255,
+      "label": "ColorJump"
+     }
+    ]
+   },
+   {
+    "key": "macro-speed",
+    "label": "Macro Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Macro off"
+     },
+     {
+      "from": 11,
+      "to": 255,
+      "label": "EffectSpeed"
+     }
+    ]
+   },
+   {
+    "key": "zoom",
+    "label": "Zoom",
+    "role": "zoom",
+    "resolution": 1,
+    "default": 0,
+    "min": 6,
+    "max": 46,
+    "unit": "deg"
+   },
+   {
+    "key": "program",
+    "label": "Program",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 20,
+      "label": "NoFunction"
+     },
+     {
+      "from": 21,
+      "to": 40,
+      "label": "Internal Program 1"
+     },
+     {
+      "from": 41,
+      "to": 60,
+      "label": "Internal Program 2"
+     },
+     {
+      "from": 61,
+      "to": 80,
+      "label": "Internal Program 3"
+     },
+     {
+      "from": 81,
+      "to": 100,
+      "label": "Internal Program 4"
+     },
+     {
+      "from": 101,
+      "to": 120,
+      "label": "Internal Program 5"
+     },
+     {
+      "from": 121,
+      "to": 140,
+      "label": "Internal Program 6"
+     },
+     {
+      "from": 141,
+      "to": 160,
+      "label": "Internal Program 7"
+     },
+     {
+      "from": 161,
+      "to": 180,
+      "label": "Internal Program 8"
+     },
+     {
+      "from": 181,
+      "to": 200,
+      "label": "NoFunction"
+     },
+     {
+      "from": 201,
+      "to": 225,
+      "label": "Motor reset"
+     },
+     {
+      "from": 226,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "16ch",
+    "name": "16-channel",
+    "footprint": 16,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macro",
+      "byte": 0
+     },
+     {
+      "channelKey": "macro-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "program",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    260,
+    280,
+    340
+   ],
+   "weightKg": 4.5,
+   "powerW": 95,
+   "lensDegMin": 6,
+   "lensDegMax": 45
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "lightmaxx/vega-zoom-wash",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

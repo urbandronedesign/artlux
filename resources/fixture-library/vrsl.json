@@ -1,0 +1,86 @@
+[
+ {
+  "id": "vrsl/disco-ball",
+  "manufacturer": "VR Stage Lighting",
+  "model": "Disco Ball",
+  "aliases": [
+   "Disco Ball",
+   "VR Stage Lighting Disco Ball",
+   "discoball",
+   "vrstagelightingdiscoball"
+  ],
+  "categories": [
+   "Effect"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "1ch",
+    "name": "1-channel",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "source": {
+   "origin": "ofl",
+   "ref": "vrsl/disco-ball",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "vrsl/flasher",
+  "manufacturer": "VR Stage Lighting",
+  "model": "Flasher",
+  "aliases": [
+   "Flasher",
+   "VR Stage Lighting Flasher",
+   "flasher",
+   "vrstagelightingflasher"
+  ],
+  "categories": [
+   "Blinder"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "1ch",
+    "name": "1-channel",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "source": {
+   "origin": "ofl",
+   "ref": "vrsl/flasher",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

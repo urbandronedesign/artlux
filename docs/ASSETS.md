@@ -36,7 +36,8 @@ An asset path can be referenced in exactly these places (the same set `mapAssetP
 ```
 src/renderer/services/assetLibrary.ts   usageForPath, libraryItems (assets + takes), normPath, helpers
 src/renderer/components/
-  MediaPanel.tsx     THE asset UI — the Timeline context's browser column: full-width search, import
+  MediaPanel.tsx     THE asset UI — Mapping's `Media Library` dock tab (and Audio's browser column):
+                     full-width search, import
                      buttons + Scan, type filters, the view-density switch, the grid/list, and the
                      selected-asset INSPECTOR (metadata, missing-on-disk, relink/reveal/remove, Usage)
   AssetChip.tsx      one draggable asset: a TILE (large/medium) or a ROW (list) — thumbnail

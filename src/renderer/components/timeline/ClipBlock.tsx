@@ -58,6 +58,13 @@ const ClipBlockBase: React.FC<Props> = ({ clip, selected, locked, tool, pxPerSec
     >
       {widthPx > 18 && (clip.kind === 'tracking'
         ? <BlobSparkline path={clip.path} inPoint={clip.inPoint} clipDuration={clip.duration} widthPx={widthPx} heightPx={laneH - 8} />
+        : clip.kind === 'lighting'
+        // A lighting clip has no picture and no waveform — what identifies it is the MOVEMENT it
+        // carries, so say that instead of leaving an anonymous block.
+        ? <div className="absolute inset-0 flex items-center gap-1 px-1.5 text-micro uppercase tracking-wider text-fg-2 bg-accent/10 pointer-events-none">
+            <span className="truncate">{clip.lighting?.effect ? clip.lighting.effect.form : 'take'}</span>
+            {clip.lighting?.phase ? <span className="text-fg-3">· ϕ{clip.lighting.phase}s</span> : null}
+          </div>
         : isContentClip(clip)
           ? (clip.content!.type === SourceType.IMAGE && (clip.content!.url || clip.path)
             ? <ImageStrip path={clip.content!.url || clip.path} />

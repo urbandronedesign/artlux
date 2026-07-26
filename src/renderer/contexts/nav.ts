@@ -19,3 +19,14 @@ export function goToContext(id: string): void {
   if (!contextRegistry.get(id)) return;
   layoutStore.setContext(id, contextLayoutOf(id));
 }
+
+// Pull the bottom drawer up — "show me the timeline" from a button that used to read
+// goToContext('timeline').
+//
+// The difference is the point of the whole drawer: it opens the timeline WHERE YOU ARE instead of
+// moving you to another workbench and taking your viewport away. Only a context that declares no
+// `bottom` (the calibration wizard, Preferences) has to travel, and it travels to `fallback`.
+export function revealBottom(fallback = 'mapping'): void {
+  if (!contextRegistry.get(layoutStore.get().activeContext)?.bottom) goToContext(fallback);
+  layoutStore.set({ bottomOpen: true });
+}

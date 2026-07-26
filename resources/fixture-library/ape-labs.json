@@ -1,0 +1,368 @@
+[
+ {
+  "id": "ape-labs/lightcan",
+  "manufacturer": "Ape Labs",
+  "model": "LightCan",
+  "aliases": [
+   "Ape Labs LightCan",
+   "LightCan",
+   "apelabslightcan",
+   "lightcan"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "programs",
+    "label": "Programs",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "ColorFade (White)"
+     },
+     {
+      "from": 6,
+      "to": 11,
+      "label": "ColorFade (Red)"
+     },
+     {
+      "from": 12,
+      "to": 17,
+      "label": "ColorFade (Orange)"
+     },
+     {
+      "from": 18,
+      "to": 23,
+      "label": "ColorFade (Yellow)"
+     },
+     {
+      "from": 24,
+      "to": 29,
+      "label": "ColorFade (Lime)"
+     },
+     {
+      "from": 30,
+      "to": 35,
+      "label": "ColorFade (Green)"
+     },
+     {
+      "from": 36,
+      "to": 41,
+      "label": "ColorFade (Cyan)"
+     },
+     {
+      "from": 42,
+      "to": 47,
+      "label": "ColorFade (Cyan/Blue)"
+     },
+     {
+      "from": 48,
+      "to": 53,
+      "label": "ColorFade (Blue)"
+     },
+     {
+      "from": 54,
+      "to": 59,
+      "label": "ColorFade (Blue/Magenta)"
+     },
+     {
+      "from": 60,
+      "to": 65,
+      "label": "ColorFade (Magenta)"
+     },
+     {
+      "from": 66,
+      "to": 71,
+      "label": "ColorFade (Red pastel)"
+     },
+     {
+      "from": 72,
+      "to": 77,
+      "label": "ColorFade (Green pastel)"
+     },
+     {
+      "from": 78,
+      "to": 83,
+      "label": "ColorFade (Blue pastel)"
+     },
+     {
+      "from": 84,
+      "to": 89,
+      "label": "ColorFade (Blue > Red)"
+     },
+     {
+      "from": 90,
+      "to": 95,
+      "label": "ColorFade (Magenta > White)"
+     },
+     {
+      "from": 96,
+      "to": 101,
+      "label": "ColorFade (White > Blue)"
+     },
+     {
+      "from": 102,
+      "to": 107,
+      "label": "ColorFade (Red pastel > Green pastel > Blue pastel)"
+     },
+     {
+      "from": 108,
+      "to": 113,
+      "label": "ColorFade (Yellow > Magenta > Blue)"
+     },
+     {
+      "from": 114,
+      "to": 127,
+      "label": "ColorFade (Rainbow)"
+     },
+     {
+      "from": 128,
+      "to": 133,
+      "label": "ColorJump (White)"
+     },
+     {
+      "from": 134,
+      "to": 139,
+      "label": "ColorJump (Red)"
+     },
+     {
+      "from": 140,
+      "to": 145,
+      "label": "ColorJump (Orange)"
+     },
+     {
+      "from": 146,
+      "to": 151,
+      "label": "ColorJump (Yellow)"
+     },
+     {
+      "from": 152,
+      "to": 157,
+      "label": "ColorJump (Lime)"
+     },
+     {
+      "from": 158,
+      "to": 163,
+      "label": "ColorJump (Green)"
+     },
+     {
+      "from": 164,
+      "to": 169,
+      "label": "ColorJump (Cyan)"
+     },
+     {
+      "from": 170,
+      "to": 175,
+      "label": "ColorJump (Cyan/Blue)"
+     },
+     {
+      "from": 176,
+      "to": 181,
+      "label": "ColorJump (Blue)"
+     },
+     {
+      "from": 182,
+      "to": 187,
+      "label": "ColorJump (Blue/Magenta)"
+     },
+     {
+      "from": 188,
+      "to": 193,
+      "label": "ColorJump (Magenta)"
+     },
+     {
+      "from": 194,
+      "to": 199,
+      "label": "ColorJump (Red pastel)"
+     },
+     {
+      "from": 200,
+      "to": 205,
+      "label": "ColorJump (Green pastel)"
+     },
+     {
+      "from": 206,
+      "to": 211,
+      "label": "ColorJump (Blue pastel)"
+     },
+     {
+      "from": 212,
+      "to": 217,
+      "label": "ColorJump (Blue > Red)"
+     },
+     {
+      "from": 218,
+      "to": 223,
+      "label": "ColorJump (Magenta > White)"
+     },
+     {
+      "from": 224,
+      "to": 229,
+      "label": "ColorJump (White > Blue)"
+     },
+     {
+      "from": 230,
+      "to": 235,
+      "label": "ColorJump (Red pastel > Green pastel > Blue pastel)"
+     },
+     {
+      "from": 236,
+      "to": 241,
+      "label": "ColorJump (Yellow > Magenta > Blue)"
+     },
+     {
+      "from": 242,
+      "to": 255,
+      "label": "ColorJump (Rainbow)"
+     }
+    ]
+   },
+   {
+    "key": "program-speed",
+    "label": "Program Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "3ch",
+    "name": "3-Channel",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-speed",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "4ch",
+    "name": "4-Channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "8ch",
+    "name": "8-Channel",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    55,
+    136,
+    55
+   ],
+   "weightKg": 0.39,
+   "lensDegMin": 65,
+   "lensDegMax": 65
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "ape-labs/lightcan",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

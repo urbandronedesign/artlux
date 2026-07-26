@@ -1,0 +1,6465 @@
+[
+ {
+  "id": "clay-paky/alpha-spot-qwo-800",
+  "manufacturer": "Clay Paky",
+  "model": "Alpha Spot QWO 800",
+  "aliases": [
+   "Alpha Spot QWO 800",
+   "Clay Paky Alpha Spot QWO 800",
+   "alphaspotqwo800",
+   "claypakyalphaspotqwo800"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "cyan",
+    "label": "Cyan",
+    "role": "cyan",
+    "resolution": 1,
+    "default": 1,
+    "highlight": 1
+   },
+   {
+    "key": "magenta",
+    "label": "Magenta",
+    "role": "magenta",
+    "resolution": 1,
+    "default": 1,
+    "highlight": 1
+   },
+   {
+    "key": "yellow",
+    "label": "Yellow",
+    "role": "yellow",
+    "resolution": 1,
+    "default": 1,
+    "highlight": 1
+   },
+   {
+    "key": "cto",
+    "label": "CTO",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-wheel",
+    "label": "Color Wheel",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Open"
+     },
+     {
+      "from": 1,
+      "to": 14,
+      "label": "Open"
+     },
+     {
+      "from": 15,
+      "to": 15,
+      "label": "Red",
+      "color": "#ee262d"
+     },
+     {
+      "from": 16,
+      "to": 29,
+      "label": "Red",
+      "color": "#ee262d"
+     },
+     {
+      "from": 30,
+      "to": 30,
+      "label": "CTO",
+      "color": "#f1c136"
+     },
+     {
+      "from": 31,
+      "to": 44,
+      "label": "CTO",
+      "color": "#f1c136"
+     },
+     {
+      "from": 45,
+      "to": 45,
+      "label": "Green",
+      "color": "#08954d"
+     },
+     {
+      "from": 46,
+      "to": 59,
+      "label": "Green",
+      "color": "#08954d"
+     },
+     {
+      "from": 60,
+      "to": 60,
+      "label": "Light Green",
+      "color": "#87cf34"
+     },
+     {
+      "from": 61,
+      "to": 74,
+      "label": "Light Green",
+      "color": "#87cf34"
+     },
+     {
+      "from": 75,
+      "to": 75,
+      "label": "Lavender",
+      "color": "#8566ba"
+     },
+     {
+      "from": 76,
+      "to": 89,
+      "label": "Lavender",
+      "color": "#8566ba"
+     },
+     {
+      "from": 90,
+      "to": 90,
+      "label": "Aquamarine",
+      "color": "#69c981"
+     },
+     {
+      "from": 91,
+      "to": 104,
+      "label": "Aquamarine",
+      "color": "#69c981"
+     },
+     {
+      "from": 105,
+      "to": 105,
+      "label": "Orange",
+      "color": "#f47327"
+     },
+     {
+      "from": 106,
+      "to": 119,
+      "label": "Orange",
+      "color": "#f47327"
+     },
+     {
+      "from": 120,
+      "to": 120,
+      "label": "Blue",
+      "color": "#2e52ab"
+     },
+     {
+      "from": 121,
+      "to": 127,
+      "label": "Blue",
+      "color": "#2e52ab"
+     },
+     {
+      "from": 128,
+      "to": 190,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 191,
+      "to": 192,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 193,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "color-macros",
+    "label": "Color Macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 1,
+      "label": "Random Macro Color (only for Macro Effects)"
+     },
+     {
+      "from": 2,
+      "to": 3,
+      "label": "Med Bastard Amber",
+      "color": "#e6b0ab"
+     },
+     {
+      "from": 4,
+      "to": 5,
+      "label": "Med Yellow",
+      "color": "#e0dc00"
+     },
+     {
+      "from": 6,
+      "to": 7,
+      "label": "Bright Red",
+      "color": "#b40000"
+     },
+     {
+      "from": 8,
+      "to": 9,
+      "label": "Lavender",
+      "color": "#6c1cbe"
+     },
+     {
+      "from": 10,
+      "to": 11,
+      "label": "Pale Blue",
+      "color": "#8eb4dd"
+     },
+     {
+      "from": 12,
+      "to": 13,
+      "label": "Sky Blue",
+      "color": "#0060cd"
+     },
+     {
+      "from": 14,
+      "to": 15,
+      "label": "Tokyo Blue",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 16,
+      "to": 17,
+      "label": "Just Blue",
+      "color": "#002cbd"
+     },
+     {
+      "from": 18,
+      "to": 19,
+      "label": "Lime Green",
+      "color": "#9ed64d"
+     },
+     {
+      "from": 20,
+      "to": 21,
+      "label": "Dark Yellow Green",
+      "color": "#006d21"
+     },
+     {
+      "from": 22,
+      "to": 23,
+      "label": "Spring Yellow",
+      "color": "#d6dc2d"
+     },
+     {
+      "from": 24,
+      "to": 25,
+      "label": "Yellow",
+      "color": "#e8d100"
+     },
+     {
+      "from": 26,
+      "to": 27,
+      "label": "Light Amber",
+      "color": "#f1c45b"
+     },
+     {
+      "from": 28,
+      "to": 29,
+      "label": "Straw",
+      "color": "#d7d1b9"
+     },
+     {
+      "from": 30,
+      "to": 31,
+      "label": "Deep Amber",
+      "color": "#f7af00"
+     },
+     {
+      "from": 32,
+      "to": 33,
+      "label": "Orange",
+      "color": "#ef7f00"
+     },
+     {
+      "from": 34,
+      "to": 35,
+      "label": "Primary Red",
+      "color": "#b70000"
+     },
+     {
+      "from": 36,
+      "to": 37,
+      "label": "Light Rose",
+      "color": "#f980a9"
+     },
+     {
+      "from": 38,
+      "to": 39,
+      "label": "English Rose",
+      "color": "#eda18e"
+     },
+     {
+      "from": 40,
+      "to": 41,
+      "label": "Light Salmon",
+      "color": "#f892b1"
+     },
+     {
+      "from": 42,
+      "to": 43,
+      "label": "Dark Pink",
+      "color": "#ec47b6"
+     },
+     {
+      "from": 44,
+      "to": 45,
+      "label": "Peacock Blue",
+      "color": "#00afbe"
+     },
+     {
+      "from": 46,
+      "to": 47,
+      "label": "Medium Blue Green",
+      "color": "#008192"
+     },
+     {
+      "from": 48,
+      "to": 49,
+      "label": "Steel Blue",
+      "color": "#53bddf"
+     },
+     {
+      "from": 50,
+      "to": 51,
+      "label": "Light Blue",
+      "color": "#003987"
+     },
+     {
+      "from": 52,
+      "to": 53,
+      "label": "Dark Blue",
+      "color": "#0000a8"
+     },
+     {
+      "from": 54,
+      "to": 55,
+      "label": "Deep Blue",
+      "color": "#100092"
+     },
+     {
+      "from": 56,
+      "to": 57,
+      "label": "Leaf Green",
+      "color": "#53d655"
+     },
+     {
+      "from": 58,
+      "to": 59,
+      "label": "Fern Green",
+      "color": "#00cb60"
+     },
+     {
+      "from": 60,
+      "to": 61,
+      "label": "Mauve",
+      "color": "#7e008f"
+     },
+     {
+      "from": 62,
+      "to": 63,
+      "label": "Bright Pink",
+      "color": "#cc009e"
+     },
+     {
+      "from": 64,
+      "to": 65,
+      "label": "Marine Blue",
+      "color": "#00b0bd"
+     },
+     {
+      "from": 66,
+      "to": 67,
+      "label": "Medium Blue",
+      "color": "#004eb6"
+     },
+     {
+      "from": 68,
+      "to": 69,
+      "label": "Golden Amber",
+      "color": "#e57852"
+     },
+     {
+      "from": 70,
+      "to": 71,
+      "label": "Deep Golden Amber",
+      "color": "#e30000"
+     },
+     {
+      "from": 72,
+      "to": 73,
+      "label": "Pale Lavender",
+      "color": "#af95cb"
+     },
+     {
+      "from": 74,
+      "to": 75,
+      "label": "Special Lavender",
+      "color": "#8472db"
+     },
+     {
+      "from": 76,
+      "to": 77,
+      "label": "Pale Green",
+      "color": "#afdc8f"
+     },
+     {
+      "from": 78,
+      "to": 79,
+      "label": "Light Green",
+      "color": "#53d655"
+     },
+     {
+      "from": 80,
+      "to": 81,
+      "label": "Primary Green",
+      "color": "#007100"
+     },
+     {
+      "from": 82,
+      "to": 83,
+      "label": "Bright Blue",
+      "color": "#007ad1"
+     },
+     {
+      "from": 84,
+      "to": 85,
+      "label": "Apricot",
+      "color": "#eb9b6f"
+     },
+     {
+      "from": 86,
+      "to": 87,
+      "label": "Bright Rose",
+      "color": "#bd006b"
+     },
+     {
+      "from": 88,
+      "to": 89,
+      "label": "Pale Gold",
+      "color": "#f2b6b4"
+     },
+     {
+      "from": 90,
+      "to": 91,
+      "label": "Pale Rose",
+      "color": "#f2b6b4"
+     },
+     {
+      "from": 92,
+      "to": 93,
+      "label": "Pink",
+      "color": "#f95891"
+     },
+     {
+      "from": 94,
+      "to": 95,
+      "label": "Deep Orange",
+      "color": "#df6300"
+     },
+     {
+      "from": 96,
+      "to": 97,
+      "label": "Bastard Amber",
+      "color": "#edc3c4"
+     },
+     {
+      "from": 98,
+      "to": 99,
+      "label": "Flame Red",
+      "color": "#e2001f"
+     },
+     {
+      "from": 100,
+      "to": 101,
+      "label": "Daylight Blue",
+      "color": "#0077d8"
+     },
+     {
+      "from": 102,
+      "to": 103,
+      "label": "Lilac Tint",
+      "color": "#beb1d6"
+     },
+     {
+      "from": 104,
+      "to": 105,
+      "label": "Deep Lavender",
+      "color": "#996ebb"
+     },
+     {
+      "from": 106,
+      "to": 107,
+      "label": "Lagoon Blue",
+      "color": "#0092c8"
+     },
+     {
+      "from": 108,
+      "to": 109,
+      "label": "Chrome Orange",
+      "color": "#f09e00"
+     },
+     {
+      "from": 110,
+      "to": 111,
+      "label": "Dark Lavender",
+      "color": "#6000c5"
+     },
+     {
+      "from": 112,
+      "to": 113,
+      "label": "Congo Blue",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 114,
+      "to": 115,
+      "label": "Alice Blue",
+      "color": "#004fbf"
+     },
+     {
+      "from": 116,
+      "to": 117,
+      "label": "Full CTB",
+      "color": "#6a92cd"
+     },
+     {
+      "from": 118,
+      "to": 119,
+      "label": "1/2 CTB",
+      "color": "#99b2db"
+     },
+     {
+      "from": 120,
+      "to": 121,
+      "label": "1/4 CTB",
+      "color": "#bac3de"
+     },
+     {
+      "from": 122,
+      "to": 123,
+      "label": "Full CTO (Full CT Orange)",
+      "color": "#e7a36d"
+     },
+     {
+      "from": 124,
+      "to": 125,
+      "label": "1/2 CTO",
+      "color": "#e5bda0"
+     },
+     {
+      "from": 126,
+      "to": 127,
+      "label": "1/4 CTO",
+      "color": "#e6c8bf"
+     },
+     {
+      "from": 128,
+      "to": 129,
+      "label": "Minus Green",
+      "color": "#d8a5ce"
+     },
+     {
+      "from": 130,
+      "to": 131,
+      "label": "Half Minus Green",
+      "color": "#dcbdd8"
+     },
+     {
+      "from": 132,
+      "to": 133,
+      "label": "3/4 CTB",
+      "color": "#79a7d7"
+     },
+     {
+      "from": 134,
+      "to": 135,
+      "label": "3/4 CTO",
+      "color": "#deb182"
+     },
+     {
+      "from": 136,
+      "to": 137,
+      "label": "Jade",
+      "color": "#00a796"
+     },
+     {
+      "from": 138,
+      "to": 139,
+      "label": "Mallard Green",
+      "color": "#53d655"
+     },
+     {
+      "from": 140,
+      "to": 141,
+      "label": "Fuchsia Pink",
+      "color": "#854bb8"
+     },
+     {
+      "from": 142,
+      "to": 143,
+      "label": "Glacier BLue (Glacier Blue)",
+      "color": "#0083cf"
+     },
+     {
+      "from": 144,
+      "to": 145,
+      "label": "Lighter Blue",
+      "color": "#00aadc"
+     },
+     {
+      "from": 146,
+      "to": 147,
+      "label": "Half CT Straw",
+      "color": "#ddc29a"
+     },
+     {
+      "from": 148,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "shutter-strobe",
+    "label": "Shutter / Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0.40784313725490196,
+    "highlight": 0.40784313725490196,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 3,
+      "label": "Closed"
+     },
+     {
+      "from": 4,
+      "to": 103,
+      "label": "Strobe"
+     },
+     {
+      "from": 104,
+      "to": 107,
+      "label": "Open"
+     },
+     {
+      "from": 108,
+      "to": 207,
+      "label": "Pulse"
+     },
+     {
+      "from": 208,
+      "to": 212,
+      "label": "Open"
+     },
+     {
+      "from": 213,
+      "to": 251,
+      "label": "Strobe"
+     },
+     {
+      "from": 252,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "iris",
+    "label": "Iris",
+    "role": "iris",
+    "resolution": 1,
+    "default": 0.5019607843137255,
+    "highlight": 0.5019607843137255,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 131,
+      "label": "Iris"
+     },
+     {
+      "from": 132,
+      "to": 171,
+      "label": "Strobe"
+     },
+     {
+      "from": 172,
+      "to": 211,
+      "label": "RampDown"
+     },
+     {
+      "from": 212,
+      "to": 251,
+      "label": "RampUp"
+     },
+     {
+      "from": 252,
+      "to": 255,
+      "label": "Iris"
+     }
+    ]
+   },
+   {
+    "key": "static-gobo-wheel",
+    "label": "Static Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Open"
+     },
+     {
+      "from": 8,
+      "to": 15,
+      "label": "Gobo"
+     },
+     {
+      "from": 16,
+      "to": 23,
+      "label": "Gobo"
+     },
+     {
+      "from": 24,
+      "to": 31,
+      "label": "Gobo"
+     },
+     {
+      "from": 32,
+      "to": 39,
+      "label": "Gobo"
+     },
+     {
+      "from": 40,
+      "to": 47,
+      "label": "Gobo"
+     },
+     {
+      "from": 48,
+      "to": 55,
+      "label": "Gobo"
+     },
+     {
+      "from": 56,
+      "to": 63,
+      "label": "Gobo"
+     },
+     {
+      "from": 64,
+      "to": 71,
+      "label": "Gobo"
+     },
+     {
+      "from": 72,
+      "to": 113,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 114,
+      "to": 117,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 118,
+      "to": 159,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 160,
+      "to": 171,
+      "label": "Gobo"
+     },
+     {
+      "from": 172,
+      "to": 183,
+      "label": "Gobo"
+     },
+     {
+      "from": 184,
+      "to": 195,
+      "label": "Gobo"
+     },
+     {
+      "from": 196,
+      "to": 207,
+      "label": "Gobo"
+     },
+     {
+      "from": 208,
+      "to": 219,
+      "label": "Gobo"
+     },
+     {
+      "from": 220,
+      "to": 231,
+      "label": "Gobo"
+     },
+     {
+      "from": 232,
+      "to": 243,
+      "label": "Gobo"
+     },
+     {
+      "from": 244,
+      "to": 255,
+      "label": "Gobo"
+     }
+    ]
+   },
+   {
+    "key": "rotating-gobo-wheel",
+    "label": "Rotating Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 16,
+      "label": "Open"
+     },
+     {
+      "from": 17,
+      "to": 32,
+      "label": "Gobo"
+     },
+     {
+      "from": 33,
+      "to": 48,
+      "label": "Gobo"
+     },
+     {
+      "from": 49,
+      "to": 64,
+      "label": "Gobo"
+     },
+     {
+      "from": 65,
+      "to": 81,
+      "label": "Gobo"
+     },
+     {
+      "from": 82,
+      "to": 97,
+      "label": "Gobo"
+     },
+     {
+      "from": 98,
+      "to": 113,
+      "label": "Gobo"
+     },
+     {
+      "from": 114,
+      "to": 129,
+      "label": "Gobo"
+     },
+     {
+      "from": 130,
+      "to": 147,
+      "label": "Gobo"
+     },
+     {
+      "from": 148,
+      "to": 165,
+      "label": "Gobo"
+     },
+     {
+      "from": 166,
+      "to": 183,
+      "label": "Gobo"
+     },
+     {
+      "from": 184,
+      "to": 201,
+      "label": "Gobo"
+     },
+     {
+      "from": 202,
+      "to": 219,
+      "label": "Gobo"
+     },
+     {
+      "from": 220,
+      "to": 237,
+      "label": "Gobo"
+     },
+     {
+      "from": 238,
+      "to": 255,
+      "label": "Gobo"
+     }
+    ]
+   },
+   {
+    "key": "gobo-rotation",
+    "label": "Gobo Rotation",
+    "role": "goboRotation",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 1,
+      "to": 20,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 21,
+      "to": 21,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 22,
+      "to": 41,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 42,
+      "to": 42,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 43,
+      "to": 62,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 63,
+      "to": 63,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 64,
+      "to": 83,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 84,
+      "to": 84,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 85,
+      "to": 104,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 105,
+      "to": 105,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 106,
+      "to": 126,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 127,
+      "to": 127,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 128,
+      "to": 190,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 191,
+      "to": 192,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 193,
+      "to": 255,
+      "label": "WheelSlotRotation"
+     }
+    ]
+   },
+   {
+    "key": "prism",
+    "label": "Prism",
+    "role": "prism",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "NoFunction"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "3 facet"
+     }
+    ]
+   },
+   {
+    "key": "prism-rotation",
+    "label": "Prism Rotation",
+    "role": "prismRotation",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 1,
+      "to": 20,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 21,
+      "to": 21,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 22,
+      "to": 41,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 42,
+      "to": 42,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 43,
+      "to": 62,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 63,
+      "to": 63,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 64,
+      "to": 83,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 84,
+      "to": 84,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 85,
+      "to": 104,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 105,
+      "to": 105,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 106,
+      "to": 126,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 127,
+      "to": 127,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 128,
+      "to": 190,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 191,
+      "to": 192,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 193,
+      "to": 255,
+      "label": "PrismRotation"
+     }
+    ]
+   },
+   {
+    "key": "frost",
+    "label": "Frost",
+    "role": "frost",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "animation-disk",
+    "label": "Animation Disk",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "animation-disk-rotation",
+    "label": "Animation Disk Rotation",
+    "role": "goboRotation",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 124,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 125,
+      "to": 125,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 126,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "focus",
+    "label": "Focus",
+    "role": "focus",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "zoom",
+    "label": "Zoom",
+    "role": "zoom",
+    "resolution": 1,
+    "default": 0.5019607843137255,
+    "min": 11,
+    "max": 55,
+    "unit": "deg"
+   },
+   {
+    "key": "autofocus-distance",
+    "label": "Autofocus Distance",
+    "role": "focus",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 6,
+      "label": "Autofocus off"
+     },
+     {
+      "from": 7,
+      "to": 9,
+      "label": "Focus"
+     },
+     {
+      "from": 10,
+      "to": 12,
+      "label": "Focus"
+     },
+     {
+      "from": 13,
+      "to": 14,
+      "label": "Focus"
+     },
+     {
+      "from": 15,
+      "to": 17,
+      "label": "Focus"
+     },
+     {
+      "from": 18,
+      "to": 19,
+      "label": "Focus"
+     },
+     {
+      "from": 20,
+      "to": 22,
+      "label": "Focus"
+     },
+     {
+      "from": 23,
+      "to": 25,
+      "label": "Focus"
+     },
+     {
+      "from": 26,
+      "to": 27,
+      "label": "Focus"
+     },
+     {
+      "from": 28,
+      "to": 255,
+      "label": "Focus"
+     }
+    ]
+   },
+   {
+    "key": "autofocus-adjust",
+    "label": "Autofocus Adjust",
+    "role": "focus",
+    "resolution": 1,
+    "default": 0.5019607843137255,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "Focus"
+     },
+     {
+      "from": 128,
+      "to": 128,
+      "label": "Focus"
+     },
+     {
+      "from": 129,
+      "to": 255,
+      "label": "Focus"
+     }
+    ]
+   },
+   {
+    "key": "effects",
+    "label": "Effects",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Macro off"
+     },
+     {
+      "from": 8,
+      "to": 11,
+      "label": "Stand by"
+     },
+     {
+      "from": 12,
+      "to": 15,
+      "label": "Stand by black"
+     },
+     {
+      "from": 16,
+      "to": 27,
+      "label": "Macro 1"
+     },
+     {
+      "from": 28,
+      "to": 39,
+      "label": "Macro 2"
+     },
+     {
+      "from": 40,
+      "to": 51,
+      "label": "Macro 3"
+     },
+     {
+      "from": 52,
+      "to": 63,
+      "label": "Macro 4"
+     },
+     {
+      "from": 64,
+      "to": 75,
+      "label": "Macro 5"
+     },
+     {
+      "from": 76,
+      "to": 87,
+      "label": "Macro 6"
+     },
+     {
+      "from": 88,
+      "to": 99,
+      "label": "Macro 7"
+     },
+     {
+      "from": 100,
+      "to": 111,
+      "label": "Macro 8"
+     },
+     {
+      "from": 112,
+      "to": 135,
+      "label": "Stand by black"
+     },
+     {
+      "from": 136,
+      "to": 147,
+      "label": "Random Macro 1"
+     },
+     {
+      "from": 148,
+      "to": 159,
+      "label": "Random Macro 2"
+     },
+     {
+      "from": 160,
+      "to": 171,
+      "label": "Random Macro 3"
+     },
+     {
+      "from": 172,
+      "to": 183,
+      "label": "Random Macro 4"
+     },
+     {
+      "from": 184,
+      "to": 195,
+      "label": "Random Macro 5"
+     },
+     {
+      "from": 196,
+      "to": 207,
+      "label": "Random Macro 6"
+     },
+     {
+      "from": 208,
+      "to": 219,
+      "label": "Random Macro 7"
+     },
+     {
+      "from": 220,
+      "to": 231,
+      "label": "Random Macro 8"
+     },
+     {
+      "from": 232,
+      "to": 255,
+      "label": "Stand by black"
+     }
+    ]
+   },
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0.5000076295109483,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0.5000076295109483,
+    "min": 0,
+    "max": 250,
+    "unit": "deg"
+   },
+   {
+    "key": "function",
+    "label": "Function",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 11,
+      "label": "NoFunction"
+     },
+     {
+      "from": 12,
+      "to": 24,
+      "label": "Pan Tilt Fast"
+     },
+     {
+      "from": 25,
+      "to": 37,
+      "label": "Pan Tilt Normal"
+     },
+     {
+      "from": 38,
+      "to": 50,
+      "label": "Dimmer Curve Conventional"
+     },
+     {
+      "from": 51,
+      "to": 62,
+      "label": "Dimmer Curve Linear"
+     },
+     {
+      "from": 63,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "reset",
+    "label": "Reset",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 25,
+      "label": "NoFunction"
+     },
+     {
+      "from": 26,
+      "to": 76,
+      "label": "Effects Reset"
+     },
+     {
+      "from": 77,
+      "to": 127,
+      "label": "Pan/Tilt Reset"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "Complete Reset"
+     }
+    ]
+   },
+   {
+    "key": "lamp-control",
+    "label": "Lamp Control",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 25,
+      "label": "NoFunction"
+     },
+     {
+      "from": 26,
+      "to": 100,
+      "label": "Lamp Off"
+     },
+     {
+      "from": 101,
+      "to": 179,
+      "label": "NoFunction"
+     },
+     {
+      "from": 180,
+      "to": 255,
+      "label": "Lamp On"
+     }
+    ]
+   },
+   {
+    "key": "pan-tilt-time",
+    "label": "Pan/Tilt Time",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 1,
+      "to": 1,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 2,
+      "to": 2,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 3,
+      "to": 3,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 4,
+      "to": 4,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 5,
+      "to": 5,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 6,
+      "to": 6,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 7,
+      "to": 7,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 8,
+      "to": 8,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 9,
+      "to": 9,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 10,
+      "to": 10,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 11,
+      "to": 11,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 12,
+      "to": 12,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 13,
+      "to": 13,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 14,
+      "to": 14,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 15,
+      "to": 15,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 16,
+      "to": 16,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 17,
+      "to": 17,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 18,
+      "to": 18,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 19,
+      "to": 19,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 20,
+      "to": 20,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 21,
+      "to": 21,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 22,
+      "to": 22,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 23,
+      "to": 23,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 24,
+      "to": 24,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 25,
+      "to": 25,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 26,
+      "to": 26,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 27,
+      "to": 27,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 28,
+      "to": 28,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 29,
+      "to": 29,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 30,
+      "to": 30,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 31,
+      "to": 31,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 32,
+      "to": 32,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 33,
+      "to": 33,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 34,
+      "to": 34,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 35,
+      "to": 35,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 36,
+      "to": 36,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 37,
+      "to": 37,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 38,
+      "to": 38,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 39,
+      "to": 39,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 40,
+      "to": 40,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 41,
+      "to": 41,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 42,
+      "to": 42,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 43,
+      "to": 43,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 44,
+      "to": 44,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 45,
+      "to": 45,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 46,
+      "to": 46,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 47,
+      "to": 47,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 48,
+      "to": 48,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 49,
+      "to": 49,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 50,
+      "to": 50,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 51,
+      "to": 51,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 52,
+      "to": 52,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 53,
+      "to": 53,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 54,
+      "to": 55,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 56,
+      "to": 57,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 58,
+      "to": 59,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 60,
+      "to": 62,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 63,
+      "to": 64,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 65,
+      "to": 67,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 68,
+      "to": 69,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 70,
+      "to": 72,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 73,
+      "to": 74,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 75,
+      "to": 77,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 78,
+      "to": 80,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 81,
+      "to": 82,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 83,
+      "to": 85,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 86,
+      "to": 87,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 88,
+      "to": 90,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 91,
+      "to": 92,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 93,
+      "to": 95,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 96,
+      "to": 97,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 98,
+      "to": 100,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 101,
+      "to": 103,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 104,
+      "to": 105,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 106,
+      "to": 108,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 109,
+      "to": 110,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 111,
+      "to": 113,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 114,
+      "to": 115,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 116,
+      "to": 118,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 119,
+      "to": 120,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 121,
+      "to": 123,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 124,
+      "to": 126,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 127,
+      "to": 128,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 129,
+      "to": 131,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 132,
+      "to": 133,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 134,
+      "to": 136,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 137,
+      "to": 138,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 139,
+      "to": 141,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 142,
+      "to": 143,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 144,
+      "to": 146,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 147,
+      "to": 148,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 149,
+      "to": 151,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 152,
+      "to": 154,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 155,
+      "to": 156,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 157,
+      "to": 159,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 160,
+      "to": 161,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 162,
+      "to": 164,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 165,
+      "to": 166,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 167,
+      "to": 169,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 170,
+      "to": 171,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 172,
+      "to": 174,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 175,
+      "to": 177,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 178,
+      "to": 179,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 180,
+      "to": 182,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 183,
+      "to": 184,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 185,
+      "to": 187,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 188,
+      "to": 189,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 190,
+      "to": 192,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 193,
+      "to": 194,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 195,
+      "to": 197,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 198,
+      "to": 199,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 200,
+      "to": 202,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 203,
+      "to": 205,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 206,
+      "to": 207,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 208,
+      "to": 210,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 211,
+      "to": 212,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 213,
+      "to": 215,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 216,
+      "to": 217,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 218,
+      "to": 220,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 221,
+      "to": 222,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 223,
+      "to": 225,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 226,
+      "to": 228,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 229,
+      "to": 230,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 231,
+      "to": 233,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 234,
+      "to": 235,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 236,
+      "to": 238,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 239,
+      "to": 240,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 241,
+      "to": 243,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 244,
+      "to": 245,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 246,
+      "to": 248,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 249,
+      "to": 250,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 251,
+      "to": 254,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Follow cue Data"
+     }
+    ]
+   },
+   {
+    "key": "color-time",
+    "label": "Color Time",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Time"
+     },
+     {
+      "from": 1,
+      "to": 1,
+      "label": "Time"
+     },
+     {
+      "from": 2,
+      "to": 2,
+      "label": "Time"
+     },
+     {
+      "from": 3,
+      "to": 3,
+      "label": "Time"
+     },
+     {
+      "from": 4,
+      "to": 4,
+      "label": "Time"
+     },
+     {
+      "from": 5,
+      "to": 5,
+      "label": "Time"
+     },
+     {
+      "from": 6,
+      "to": 6,
+      "label": "Time"
+     },
+     {
+      "from": 7,
+      "to": 7,
+      "label": "Time"
+     },
+     {
+      "from": 8,
+      "to": 8,
+      "label": "Time"
+     },
+     {
+      "from": 9,
+      "to": 9,
+      "label": "Time"
+     },
+     {
+      "from": 10,
+      "to": 10,
+      "label": "Time"
+     },
+     {
+      "from": 11,
+      "to": 11,
+      "label": "Time"
+     },
+     {
+      "from": 12,
+      "to": 12,
+      "label": "Time"
+     },
+     {
+      "from": 13,
+      "to": 13,
+      "label": "Time"
+     },
+     {
+      "from": 14,
+      "to": 14,
+      "label": "Time"
+     },
+     {
+      "from": 15,
+      "to": 15,
+      "label": "Time"
+     },
+     {
+      "from": 16,
+      "to": 16,
+      "label": "Time"
+     },
+     {
+      "from": 17,
+      "to": 17,
+      "label": "Time"
+     },
+     {
+      "from": 18,
+      "to": 18,
+      "label": "Time"
+     },
+     {
+      "from": 19,
+      "to": 19,
+      "label": "Time"
+     },
+     {
+      "from": 20,
+      "to": 20,
+      "label": "Time"
+     },
+     {
+      "from": 21,
+      "to": 21,
+      "label": "Time"
+     },
+     {
+      "from": 22,
+      "to": 22,
+      "label": "Time"
+     },
+     {
+      "from": 23,
+      "to": 23,
+      "label": "Time"
+     },
+     {
+      "from": 24,
+      "to": 24,
+      "label": "Time"
+     },
+     {
+      "from": 25,
+      "to": 25,
+      "label": "Time"
+     },
+     {
+      "from": 26,
+      "to": 26,
+      "label": "Time"
+     },
+     {
+      "from": 27,
+      "to": 27,
+      "label": "Time"
+     },
+     {
+      "from": 28,
+      "to": 28,
+      "label": "Time"
+     },
+     {
+      "from": 29,
+      "to": 29,
+      "label": "Time"
+     },
+     {
+      "from": 30,
+      "to": 30,
+      "label": "Time"
+     },
+     {
+      "from": 31,
+      "to": 31,
+      "label": "Time"
+     },
+     {
+      "from": 32,
+      "to": 32,
+      "label": "Time"
+     },
+     {
+      "from": 33,
+      "to": 33,
+      "label": "Time"
+     },
+     {
+      "from": 34,
+      "to": 34,
+      "label": "Time"
+     },
+     {
+      "from": 35,
+      "to": 35,
+      "label": "Time"
+     },
+     {
+      "from": 36,
+      "to": 36,
+      "label": "Time"
+     },
+     {
+      "from": 37,
+      "to": 37,
+      "label": "Time"
+     },
+     {
+      "from": 38,
+      "to": 38,
+      "label": "Time"
+     },
+     {
+      "from": 39,
+      "to": 39,
+      "label": "Time"
+     },
+     {
+      "from": 40,
+      "to": 40,
+      "label": "Time"
+     },
+     {
+      "from": 41,
+      "to": 41,
+      "label": "Time"
+     },
+     {
+      "from": 42,
+      "to": 42,
+      "label": "Time"
+     },
+     {
+      "from": 43,
+      "to": 43,
+      "label": "Time"
+     },
+     {
+      "from": 44,
+      "to": 44,
+      "label": "Time"
+     },
+     {
+      "from": 45,
+      "to": 45,
+      "label": "Time"
+     },
+     {
+      "from": 46,
+      "to": 46,
+      "label": "Time"
+     },
+     {
+      "from": 47,
+      "to": 47,
+      "label": "Time"
+     },
+     {
+      "from": 48,
+      "to": 48,
+      "label": "Time"
+     },
+     {
+      "from": 49,
+      "to": 49,
+      "label": "Time"
+     },
+     {
+      "from": 50,
+      "to": 50,
+      "label": "Time"
+     },
+     {
+      "from": 51,
+      "to": 51,
+      "label": "Time"
+     },
+     {
+      "from": 52,
+      "to": 52,
+      "label": "Time"
+     },
+     {
+      "from": 53,
+      "to": 53,
+      "label": "Time"
+     },
+     {
+      "from": 54,
+      "to": 55,
+      "label": "Time"
+     },
+     {
+      "from": 56,
+      "to": 57,
+      "label": "Time"
+     },
+     {
+      "from": 58,
+      "to": 59,
+      "label": "Time"
+     },
+     {
+      "from": 60,
+      "to": 62,
+      "label": "Time"
+     },
+     {
+      "from": 63,
+      "to": 64,
+      "label": "Time"
+     },
+     {
+      "from": 65,
+      "to": 67,
+      "label": "Time"
+     },
+     {
+      "from": 68,
+      "to": 69,
+      "label": "Time"
+     },
+     {
+      "from": 70,
+      "to": 72,
+      "label": "Time"
+     },
+     {
+      "from": 73,
+      "to": 74,
+      "label": "Time"
+     },
+     {
+      "from": 75,
+      "to": 77,
+      "label": "Time"
+     },
+     {
+      "from": 78,
+      "to": 80,
+      "label": "Time"
+     },
+     {
+      "from": 81,
+      "to": 82,
+      "label": "Time"
+     },
+     {
+      "from": 83,
+      "to": 85,
+      "label": "Time"
+     },
+     {
+      "from": 86,
+      "to": 87,
+      "label": "Time"
+     },
+     {
+      "from": 88,
+      "to": 90,
+      "label": "Time"
+     },
+     {
+      "from": 91,
+      "to": 92,
+      "label": "Time"
+     },
+     {
+      "from": 93,
+      "to": 95,
+      "label": "Time"
+     },
+     {
+      "from": 96,
+      "to": 97,
+      "label": "Time"
+     },
+     {
+      "from": 98,
+      "to": 100,
+      "label": "Time"
+     },
+     {
+      "from": 101,
+      "to": 103,
+      "label": "Time"
+     },
+     {
+      "from": 104,
+      "to": 105,
+      "label": "Time"
+     },
+     {
+      "from": 106,
+      "to": 108,
+      "label": "Time"
+     },
+     {
+      "from": 109,
+      "to": 110,
+      "label": "Time"
+     },
+     {
+      "from": 111,
+      "to": 113,
+      "label": "Time"
+     },
+     {
+      "from": 114,
+      "to": 115,
+      "label": "Time"
+     },
+     {
+      "from": 116,
+      "to": 118,
+      "label": "Time"
+     },
+     {
+      "from": 119,
+      "to": 120,
+      "label": "Time"
+     },
+     {
+      "from": 121,
+      "to": 123,
+      "label": "Time"
+     },
+     {
+      "from": 124,
+      "to": 126,
+      "label": "Time"
+     },
+     {
+      "from": 127,
+      "to": 128,
+      "label": "Time"
+     },
+     {
+      "from": 129,
+      "to": 131,
+      "label": "Time"
+     },
+     {
+      "from": 132,
+      "to": 133,
+      "label": "Time"
+     },
+     {
+      "from": 134,
+      "to": 136,
+      "label": "Time"
+     },
+     {
+      "from": 137,
+      "to": 138,
+      "label": "Time"
+     },
+     {
+      "from": 139,
+      "to": 141,
+      "label": "Time"
+     },
+     {
+      "from": 142,
+      "to": 143,
+      "label": "Time"
+     },
+     {
+      "from": 144,
+      "to": 146,
+      "label": "Time"
+     },
+     {
+      "from": 147,
+      "to": 148,
+      "label": "Time"
+     },
+     {
+      "from": 149,
+      "to": 151,
+      "label": "Time"
+     },
+     {
+      "from": 152,
+      "to": 154,
+      "label": "Time"
+     },
+     {
+      "from": 155,
+      "to": 156,
+      "label": "Time"
+     },
+     {
+      "from": 157,
+      "to": 159,
+      "label": "Time"
+     },
+     {
+      "from": 160,
+      "to": 161,
+      "label": "Time"
+     },
+     {
+      "from": 162,
+      "to": 164,
+      "label": "Time"
+     },
+     {
+      "from": 165,
+      "to": 166,
+      "label": "Time"
+     },
+     {
+      "from": 167,
+      "to": 169,
+      "label": "Time"
+     },
+     {
+      "from": 170,
+      "to": 171,
+      "label": "Time"
+     },
+     {
+      "from": 172,
+      "to": 174,
+      "label": "Time"
+     },
+     {
+      "from": 175,
+      "to": 177,
+      "label": "Time"
+     },
+     {
+      "from": 178,
+      "to": 179,
+      "label": "Time"
+     },
+     {
+      "from": 180,
+      "to": 182,
+      "label": "Time"
+     },
+     {
+      "from": 183,
+      "to": 184,
+      "label": "Time"
+     },
+     {
+      "from": 185,
+      "to": 187,
+      "label": "Time"
+     },
+     {
+      "from": 188,
+      "to": 189,
+      "label": "Time"
+     },
+     {
+      "from": 190,
+      "to": 192,
+      "label": "Time"
+     },
+     {
+      "from": 193,
+      "to": 194,
+      "label": "Time"
+     },
+     {
+      "from": 195,
+      "to": 197,
+      "label": "Time"
+     },
+     {
+      "from": 198,
+      "to": 199,
+      "label": "Time"
+     },
+     {
+      "from": 200,
+      "to": 202,
+      "label": "Time"
+     },
+     {
+      "from": 203,
+      "to": 205,
+      "label": "Time"
+     },
+     {
+      "from": 206,
+      "to": 207,
+      "label": "Time"
+     },
+     {
+      "from": 208,
+      "to": 210,
+      "label": "Time"
+     },
+     {
+      "from": 211,
+      "to": 212,
+      "label": "Time"
+     },
+     {
+      "from": 213,
+      "to": 215,
+      "label": "Time"
+     },
+     {
+      "from": 216,
+      "to": 217,
+      "label": "Time"
+     },
+     {
+      "from": 218,
+      "to": 220,
+      "label": "Time"
+     },
+     {
+      "from": 221,
+      "to": 222,
+      "label": "Time"
+     },
+     {
+      "from": 223,
+      "to": 225,
+      "label": "Time"
+     },
+     {
+      "from": 226,
+      "to": 228,
+      "label": "Time"
+     },
+     {
+      "from": 229,
+      "to": 230,
+      "label": "Time"
+     },
+     {
+      "from": 231,
+      "to": 233,
+      "label": "Time"
+     },
+     {
+      "from": 234,
+      "to": 235,
+      "label": "Time"
+     },
+     {
+      "from": 236,
+      "to": 238,
+      "label": "Time"
+     },
+     {
+      "from": 239,
+      "to": 240,
+      "label": "Time"
+     },
+     {
+      "from": 241,
+      "to": 243,
+      "label": "Time"
+     },
+     {
+      "from": 244,
+      "to": 245,
+      "label": "Time"
+     },
+     {
+      "from": 246,
+      "to": 248,
+      "label": "Time"
+     },
+     {
+      "from": 249,
+      "to": 250,
+      "label": "Time"
+     },
+     {
+      "from": 251,
+      "to": 254,
+      "label": "Time"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Follow cue Data"
+     }
+    ]
+   },
+   {
+    "key": "beam-time",
+    "label": "Beam Time",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Time"
+     },
+     {
+      "from": 1,
+      "to": 1,
+      "label": "Time"
+     },
+     {
+      "from": 2,
+      "to": 2,
+      "label": "Time"
+     },
+     {
+      "from": 3,
+      "to": 3,
+      "label": "Time"
+     },
+     {
+      "from": 4,
+      "to": 4,
+      "label": "Time"
+     },
+     {
+      "from": 5,
+      "to": 5,
+      "label": "Time"
+     },
+     {
+      "from": 6,
+      "to": 6,
+      "label": "Time"
+     },
+     {
+      "from": 7,
+      "to": 7,
+      "label": "Time"
+     },
+     {
+      "from": 8,
+      "to": 8,
+      "label": "Time"
+     },
+     {
+      "from": 9,
+      "to": 9,
+      "label": "Time"
+     },
+     {
+      "from": 10,
+      "to": 10,
+      "label": "Time"
+     },
+     {
+      "from": 11,
+      "to": 11,
+      "label": "Time"
+     },
+     {
+      "from": 12,
+      "to": 12,
+      "label": "Time"
+     },
+     {
+      "from": 13,
+      "to": 13,
+      "label": "Time"
+     },
+     {
+      "from": 14,
+      "to": 14,
+      "label": "Time"
+     },
+     {
+      "from": 15,
+      "to": 15,
+      "label": "Time"
+     },
+     {
+      "from": 16,
+      "to": 16,
+      "label": "Time"
+     },
+     {
+      "from": 17,
+      "to": 17,
+      "label": "Time"
+     },
+     {
+      "from": 18,
+      "to": 18,
+      "label": "Time"
+     },
+     {
+      "from": 19,
+      "to": 19,
+      "label": "Time"
+     },
+     {
+      "from": 20,
+      "to": 20,
+      "label": "Time"
+     },
+     {
+      "from": 21,
+      "to": 21,
+      "label": "Time"
+     },
+     {
+      "from": 22,
+      "to": 22,
+      "label": "Time"
+     },
+     {
+      "from": 23,
+      "to": 23,
+      "label": "Time"
+     },
+     {
+      "from": 24,
+      "to": 24,
+      "label": "Time"
+     },
+     {
+      "from": 25,
+      "to": 25,
+      "label": "Time"
+     },
+     {
+      "from": 26,
+      "to": 26,
+      "label": "Time"
+     },
+     {
+      "from": 27,
+      "to": 27,
+      "label": "Time"
+     },
+     {
+      "from": 28,
+      "to": 28,
+      "label": "Time"
+     },
+     {
+      "from": 29,
+      "to": 29,
+      "label": "Time"
+     },
+     {
+      "from": 30,
+      "to": 30,
+      "label": "Time"
+     },
+     {
+      "from": 31,
+      "to": 31,
+      "label": "Time"
+     },
+     {
+      "from": 32,
+      "to": 32,
+      "label": "Time"
+     },
+     {
+      "from": 33,
+      "to": 33,
+      "label": "Time"
+     },
+     {
+      "from": 34,
+      "to": 34,
+      "label": "Time"
+     },
+     {
+      "from": 35,
+      "to": 35,
+      "label": "Time"
+     },
+     {
+      "from": 36,
+      "to": 36,
+      "label": "Time"
+     },
+     {
+      "from": 37,
+      "to": 37,
+      "label": "Time"
+     },
+     {
+      "from": 38,
+      "to": 38,
+      "label": "Time"
+     },
+     {
+      "from": 39,
+      "to": 39,
+      "label": "Time"
+     },
+     {
+      "from": 40,
+      "to": 40,
+      "label": "Time"
+     },
+     {
+      "from": 41,
+      "to": 41,
+      "label": "Time"
+     },
+     {
+      "from": 42,
+      "to": 42,
+      "label": "Time"
+     },
+     {
+      "from": 43,
+      "to": 43,
+      "label": "Time"
+     },
+     {
+      "from": 44,
+      "to": 44,
+      "label": "Time"
+     },
+     {
+      "from": 45,
+      "to": 45,
+      "label": "Time"
+     },
+     {
+      "from": 46,
+      "to": 46,
+      "label": "Time"
+     },
+     {
+      "from": 47,
+      "to": 47,
+      "label": "Time"
+     },
+     {
+      "from": 48,
+      "to": 48,
+      "label": "Time"
+     },
+     {
+      "from": 49,
+      "to": 49,
+      "label": "Time"
+     },
+     {
+      "from": 50,
+      "to": 50,
+      "label": "Time"
+     },
+     {
+      "from": 51,
+      "to": 51,
+      "label": "Time"
+     },
+     {
+      "from": 52,
+      "to": 52,
+      "label": "Time"
+     },
+     {
+      "from": 53,
+      "to": 53,
+      "label": "Time"
+     },
+     {
+      "from": 54,
+      "to": 55,
+      "label": "Time"
+     },
+     {
+      "from": 56,
+      "to": 57,
+      "label": "Time"
+     },
+     {
+      "from": 58,
+      "to": 59,
+      "label": "Time"
+     },
+     {
+      "from": 60,
+      "to": 62,
+      "label": "Time"
+     },
+     {
+      "from": 63,
+      "to": 64,
+      "label": "Time"
+     },
+     {
+      "from": 65,
+      "to": 67,
+      "label": "Time"
+     },
+     {
+      "from": 68,
+      "to": 69,
+      "label": "Time"
+     },
+     {
+      "from": 70,
+      "to": 72,
+      "label": "Time"
+     },
+     {
+      "from": 73,
+      "to": 74,
+      "label": "Time"
+     },
+     {
+      "from": 75,
+      "to": 77,
+      "label": "Time"
+     },
+     {
+      "from": 78,
+      "to": 80,
+      "label": "Time"
+     },
+     {
+      "from": 81,
+      "to": 82,
+      "label": "Time"
+     },
+     {
+      "from": 83,
+      "to": 85,
+      "label": "Time"
+     },
+     {
+      "from": 86,
+      "to": 87,
+      "label": "Time"
+     },
+     {
+      "from": 88,
+      "to": 90,
+      "label": "Time"
+     },
+     {
+      "from": 91,
+      "to": 92,
+      "label": "Time"
+     },
+     {
+      "from": 93,
+      "to": 95,
+      "label": "Time"
+     },
+     {
+      "from": 96,
+      "to": 97,
+      "label": "Time"
+     },
+     {
+      "from": 98,
+      "to": 100,
+      "label": "Time"
+     },
+     {
+      "from": 101,
+      "to": 103,
+      "label": "Time"
+     },
+     {
+      "from": 104,
+      "to": 105,
+      "label": "Time"
+     },
+     {
+      "from": 106,
+      "to": 108,
+      "label": "Time"
+     },
+     {
+      "from": 109,
+      "to": 110,
+      "label": "Time"
+     },
+     {
+      "from": 111,
+      "to": 113,
+      "label": "Time"
+     },
+     {
+      "from": 114,
+      "to": 115,
+      "label": "Time"
+     },
+     {
+      "from": 116,
+      "to": 118,
+      "label": "Time"
+     },
+     {
+      "from": 119,
+      "to": 120,
+      "label": "Time"
+     },
+     {
+      "from": 121,
+      "to": 123,
+      "label": "Time"
+     },
+     {
+      "from": 124,
+      "to": 126,
+      "label": "Time"
+     },
+     {
+      "from": 127,
+      "to": 128,
+      "label": "Time"
+     },
+     {
+      "from": 129,
+      "to": 131,
+      "label": "Time"
+     },
+     {
+      "from": 132,
+      "to": 133,
+      "label": "Time"
+     },
+     {
+      "from": 134,
+      "to": 136,
+      "label": "Time"
+     },
+     {
+      "from": 137,
+      "to": 138,
+      "label": "Time"
+     },
+     {
+      "from": 139,
+      "to": 141,
+      "label": "Time"
+     },
+     {
+      "from": 142,
+      "to": 143,
+      "label": "Time"
+     },
+     {
+      "from": 144,
+      "to": 146,
+      "label": "Time"
+     },
+     {
+      "from": 147,
+      "to": 148,
+      "label": "Time"
+     },
+     {
+      "from": 149,
+      "to": 151,
+      "label": "Time"
+     },
+     {
+      "from": 152,
+      "to": 154,
+      "label": "Time"
+     },
+     {
+      "from": 155,
+      "to": 156,
+      "label": "Time"
+     },
+     {
+      "from": 157,
+      "to": 159,
+      "label": "Time"
+     },
+     {
+      "from": 160,
+      "to": 161,
+      "label": "Time"
+     },
+     {
+      "from": 162,
+      "to": 164,
+      "label": "Time"
+     },
+     {
+      "from": 165,
+      "to": 166,
+      "label": "Time"
+     },
+     {
+      "from": 167,
+      "to": 169,
+      "label": "Time"
+     },
+     {
+      "from": 170,
+      "to": 171,
+      "label": "Time"
+     },
+     {
+      "from": 172,
+      "to": 174,
+      "label": "Time"
+     },
+     {
+      "from": 175,
+      "to": 177,
+      "label": "Time"
+     },
+     {
+      "from": 178,
+      "to": 179,
+      "label": "Time"
+     },
+     {
+      "from": 180,
+      "to": 182,
+      "label": "Time"
+     },
+     {
+      "from": 183,
+      "to": 184,
+      "label": "Time"
+     },
+     {
+      "from": 185,
+      "to": 187,
+      "label": "Time"
+     },
+     {
+      "from": 188,
+      "to": 189,
+      "label": "Time"
+     },
+     {
+      "from": 190,
+      "to": 192,
+      "label": "Time"
+     },
+     {
+      "from": 193,
+      "to": 194,
+      "label": "Time"
+     },
+     {
+      "from": 195,
+      "to": 197,
+      "label": "Time"
+     },
+     {
+      "from": 198,
+      "to": 199,
+      "label": "Time"
+     },
+     {
+      "from": 200,
+      "to": 202,
+      "label": "Time"
+     },
+     {
+      "from": 203,
+      "to": 205,
+      "label": "Time"
+     },
+     {
+      "from": 206,
+      "to": 207,
+      "label": "Time"
+     },
+     {
+      "from": 208,
+      "to": 210,
+      "label": "Time"
+     },
+     {
+      "from": 211,
+      "to": 212,
+      "label": "Time"
+     },
+     {
+      "from": 213,
+      "to": 215,
+      "label": "Time"
+     },
+     {
+      "from": 216,
+      "to": 217,
+      "label": "Time"
+     },
+     {
+      "from": 218,
+      "to": 220,
+      "label": "Time"
+     },
+     {
+      "from": 221,
+      "to": 222,
+      "label": "Time"
+     },
+     {
+      "from": 223,
+      "to": 225,
+      "label": "Time"
+     },
+     {
+      "from": 226,
+      "to": 228,
+      "label": "Time"
+     },
+     {
+      "from": 229,
+      "to": 230,
+      "label": "Time"
+     },
+     {
+      "from": 231,
+      "to": 233,
+      "label": "Time"
+     },
+     {
+      "from": 234,
+      "to": 235,
+      "label": "Time"
+     },
+     {
+      "from": 236,
+      "to": 238,
+      "label": "Time"
+     },
+     {
+      "from": 239,
+      "to": 240,
+      "label": "Time"
+     },
+     {
+      "from": 241,
+      "to": 243,
+      "label": "Time"
+     },
+     {
+      "from": 244,
+      "to": 245,
+      "label": "Time"
+     },
+     {
+      "from": 246,
+      "to": 248,
+      "label": "Time"
+     },
+     {
+      "from": 249,
+      "to": 250,
+      "label": "Time"
+     },
+     {
+      "from": 251,
+      "to": 254,
+      "label": "Time"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Follow cue Data"
+     }
+    ]
+   },
+   {
+    "key": "gobo-time",
+    "label": "Gobo Time",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Time"
+     },
+     {
+      "from": 1,
+      "to": 1,
+      "label": "Time"
+     },
+     {
+      "from": 2,
+      "to": 2,
+      "label": "Time"
+     },
+     {
+      "from": 3,
+      "to": 3,
+      "label": "Time"
+     },
+     {
+      "from": 4,
+      "to": 4,
+      "label": "Time"
+     },
+     {
+      "from": 5,
+      "to": 5,
+      "label": "Time"
+     },
+     {
+      "from": 6,
+      "to": 6,
+      "label": "Time"
+     },
+     {
+      "from": 7,
+      "to": 7,
+      "label": "Time"
+     },
+     {
+      "from": 8,
+      "to": 8,
+      "label": "Time"
+     },
+     {
+      "from": 9,
+      "to": 9,
+      "label": "Time"
+     },
+     {
+      "from": 10,
+      "to": 10,
+      "label": "Time"
+     },
+     {
+      "from": 11,
+      "to": 11,
+      "label": "Time"
+     },
+     {
+      "from": 12,
+      "to": 12,
+      "label": "Time"
+     },
+     {
+      "from": 13,
+      "to": 13,
+      "label": "Time"
+     },
+     {
+      "from": 14,
+      "to": 14,
+      "label": "Time"
+     },
+     {
+      "from": 15,
+      "to": 15,
+      "label": "Time"
+     },
+     {
+      "from": 16,
+      "to": 16,
+      "label": "Time"
+     },
+     {
+      "from": 17,
+      "to": 17,
+      "label": "Time"
+     },
+     {
+      "from": 18,
+      "to": 18,
+      "label": "Time"
+     },
+     {
+      "from": 19,
+      "to": 19,
+      "label": "Time"
+     },
+     {
+      "from": 20,
+      "to": 20,
+      "label": "Time"
+     },
+     {
+      "from": 21,
+      "to": 21,
+      "label": "Time"
+     },
+     {
+      "from": 22,
+      "to": 22,
+      "label": "Time"
+     },
+     {
+      "from": 23,
+      "to": 23,
+      "label": "Time"
+     },
+     {
+      "from": 24,
+      "to": 24,
+      "label": "Time"
+     },
+     {
+      "from": 25,
+      "to": 25,
+      "label": "Time"
+     },
+     {
+      "from": 26,
+      "to": 26,
+      "label": "Time"
+     },
+     {
+      "from": 27,
+      "to": 27,
+      "label": "Time"
+     },
+     {
+      "from": 28,
+      "to": 28,
+      "label": "Time"
+     },
+     {
+      "from": 29,
+      "to": 29,
+      "label": "Time"
+     },
+     {
+      "from": 30,
+      "to": 30,
+      "label": "Time"
+     },
+     {
+      "from": 31,
+      "to": 31,
+      "label": "Time"
+     },
+     {
+      "from": 32,
+      "to": 32,
+      "label": "Time"
+     },
+     {
+      "from": 33,
+      "to": 33,
+      "label": "Time"
+     },
+     {
+      "from": 34,
+      "to": 34,
+      "label": "Time"
+     },
+     {
+      "from": 35,
+      "to": 35,
+      "label": "Time"
+     },
+     {
+      "from": 36,
+      "to": 36,
+      "label": "Time"
+     },
+     {
+      "from": 37,
+      "to": 37,
+      "label": "Time"
+     },
+     {
+      "from": 38,
+      "to": 38,
+      "label": "Time"
+     },
+     {
+      "from": 39,
+      "to": 39,
+      "label": "Time"
+     },
+     {
+      "from": 40,
+      "to": 40,
+      "label": "Time"
+     },
+     {
+      "from": 41,
+      "to": 41,
+      "label": "Time"
+     },
+     {
+      "from": 42,
+      "to": 42,
+      "label": "Time"
+     },
+     {
+      "from": 43,
+      "to": 43,
+      "label": "Time"
+     },
+     {
+      "from": 44,
+      "to": 44,
+      "label": "Time"
+     },
+     {
+      "from": 45,
+      "to": 45,
+      "label": "Time"
+     },
+     {
+      "from": 46,
+      "to": 46,
+      "label": "Time"
+     },
+     {
+      "from": 47,
+      "to": 47,
+      "label": "Time"
+     },
+     {
+      "from": 48,
+      "to": 48,
+      "label": "Time"
+     },
+     {
+      "from": 49,
+      "to": 49,
+      "label": "Time"
+     },
+     {
+      "from": 50,
+      "to": 50,
+      "label": "Time"
+     },
+     {
+      "from": 51,
+      "to": 51,
+      "label": "Time"
+     },
+     {
+      "from": 52,
+      "to": 52,
+      "label": "Time"
+     },
+     {
+      "from": 53,
+      "to": 53,
+      "label": "Time"
+     },
+     {
+      "from": 54,
+      "to": 55,
+      "label": "Time"
+     },
+     {
+      "from": 56,
+      "to": 57,
+      "label": "Time"
+     },
+     {
+      "from": 58,
+      "to": 59,
+      "label": "Time"
+     },
+     {
+      "from": 60,
+      "to": 62,
+      "label": "Time"
+     },
+     {
+      "from": 63,
+      "to": 64,
+      "label": "Time"
+     },
+     {
+      "from": 65,
+      "to": 67,
+      "label": "Time"
+     },
+     {
+      "from": 68,
+      "to": 69,
+      "label": "Time"
+     },
+     {
+      "from": 70,
+      "to": 72,
+      "label": "Time"
+     },
+     {
+      "from": 73,
+      "to": 74,
+      "label": "Time"
+     },
+     {
+      "from": 75,
+      "to": 77,
+      "label": "Time"
+     },
+     {
+      "from": 78,
+      "to": 80,
+      "label": "Time"
+     },
+     {
+      "from": 81,
+      "to": 82,
+      "label": "Time"
+     },
+     {
+      "from": 83,
+      "to": 85,
+      "label": "Time"
+     },
+     {
+      "from": 86,
+      "to": 87,
+      "label": "Time"
+     },
+     {
+      "from": 88,
+      "to": 90,
+      "label": "Time"
+     },
+     {
+      "from": 91,
+      "to": 92,
+      "label": "Time"
+     },
+     {
+      "from": 93,
+      "to": 95,
+      "label": "Time"
+     },
+     {
+      "from": 96,
+      "to": 97,
+      "label": "Time"
+     },
+     {
+      "from": 98,
+      "to": 100,
+      "label": "Time"
+     },
+     {
+      "from": 101,
+      "to": 103,
+      "label": "Time"
+     },
+     {
+      "from": 104,
+      "to": 105,
+      "label": "Time"
+     },
+     {
+      "from": 106,
+      "to": 108,
+      "label": "Time"
+     },
+     {
+      "from": 109,
+      "to": 110,
+      "label": "Time"
+     },
+     {
+      "from": 111,
+      "to": 113,
+      "label": "Time"
+     },
+     {
+      "from": 114,
+      "to": 115,
+      "label": "Time"
+     },
+     {
+      "from": 116,
+      "to": 118,
+      "label": "Time"
+     },
+     {
+      "from": 119,
+      "to": 120,
+      "label": "Time"
+     },
+     {
+      "from": 121,
+      "to": 123,
+      "label": "Time"
+     },
+     {
+      "from": 124,
+      "to": 126,
+      "label": "Time"
+     },
+     {
+      "from": 127,
+      "to": 128,
+      "label": "Time"
+     },
+     {
+      "from": 129,
+      "to": 131,
+      "label": "Time"
+     },
+     {
+      "from": 132,
+      "to": 133,
+      "label": "Time"
+     },
+     {
+      "from": 134,
+      "to": 136,
+      "label": "Time"
+     },
+     {
+      "from": 137,
+      "to": 138,
+      "label": "Time"
+     },
+     {
+      "from": 139,
+      "to": 141,
+      "label": "Time"
+     },
+     {
+      "from": 142,
+      "to": 143,
+      "label": "Time"
+     },
+     {
+      "from": 144,
+      "to": 146,
+      "label": "Time"
+     },
+     {
+      "from": 147,
+      "to": 148,
+      "label": "Time"
+     },
+     {
+      "from": 149,
+      "to": 151,
+      "label": "Time"
+     },
+     {
+      "from": 152,
+      "to": 154,
+      "label": "Time"
+     },
+     {
+      "from": 155,
+      "to": 156,
+      "label": "Time"
+     },
+     {
+      "from": 157,
+      "to": 159,
+      "label": "Time"
+     },
+     {
+      "from": 160,
+      "to": 161,
+      "label": "Time"
+     },
+     {
+      "from": 162,
+      "to": 164,
+      "label": "Time"
+     },
+     {
+      "from": 165,
+      "to": 166,
+      "label": "Time"
+     },
+     {
+      "from": 167,
+      "to": 169,
+      "label": "Time"
+     },
+     {
+      "from": 170,
+      "to": 171,
+      "label": "Time"
+     },
+     {
+      "from": 172,
+      "to": 174,
+      "label": "Time"
+     },
+     {
+      "from": 175,
+      "to": 177,
+      "label": "Time"
+     },
+     {
+      "from": 178,
+      "to": 179,
+      "label": "Time"
+     },
+     {
+      "from": 180,
+      "to": 182,
+      "label": "Time"
+     },
+     {
+      "from": 183,
+      "to": 184,
+      "label": "Time"
+     },
+     {
+      "from": 185,
+      "to": 187,
+      "label": "Time"
+     },
+     {
+      "from": 188,
+      "to": 189,
+      "label": "Time"
+     },
+     {
+      "from": 190,
+      "to": 192,
+      "label": "Time"
+     },
+     {
+      "from": 193,
+      "to": 194,
+      "label": "Time"
+     },
+     {
+      "from": 195,
+      "to": 197,
+      "label": "Time"
+     },
+     {
+      "from": 198,
+      "to": 199,
+      "label": "Time"
+     },
+     {
+      "from": 200,
+      "to": 202,
+      "label": "Time"
+     },
+     {
+      "from": 203,
+      "to": 205,
+      "label": "Time"
+     },
+     {
+      "from": 206,
+      "to": 207,
+      "label": "Time"
+     },
+     {
+      "from": 208,
+      "to": 210,
+      "label": "Time"
+     },
+     {
+      "from": 211,
+      "to": 212,
+      "label": "Time"
+     },
+     {
+      "from": 213,
+      "to": 215,
+      "label": "Time"
+     },
+     {
+      "from": 216,
+      "to": 217,
+      "label": "Time"
+     },
+     {
+      "from": 218,
+      "to": 220,
+      "label": "Time"
+     },
+     {
+      "from": 221,
+      "to": 222,
+      "label": "Time"
+     },
+     {
+      "from": 223,
+      "to": 225,
+      "label": "Time"
+     },
+     {
+      "from": 226,
+      "to": 228,
+      "label": "Time"
+     },
+     {
+      "from": 229,
+      "to": 230,
+      "label": "Time"
+     },
+     {
+      "from": 231,
+      "to": 233,
+      "label": "Time"
+     },
+     {
+      "from": 234,
+      "to": 235,
+      "label": "Time"
+     },
+     {
+      "from": 236,
+      "to": 238,
+      "label": "Time"
+     },
+     {
+      "from": 239,
+      "to": 240,
+      "label": "Time"
+     },
+     {
+      "from": 241,
+      "to": 243,
+      "label": "Time"
+     },
+     {
+      "from": 244,
+      "to": 245,
+      "label": "Time"
+     },
+     {
+      "from": 246,
+      "to": 248,
+      "label": "Time"
+     },
+     {
+      "from": 249,
+      "to": 250,
+      "label": "Time"
+     },
+     {
+      "from": 251,
+      "to": 254,
+      "label": "Time"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Follow cue Data"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "32ch",
+    "name": "Standard 32-channel",
+    "footprint": 32,
+    "slots": [
+     {
+      "channelKey": "cyan",
+      "byte": 0
+     },
+     {
+      "channelKey": "magenta",
+      "byte": 0
+     },
+     {
+      "channelKey": "yellow",
+      "byte": 0
+     },
+     {
+      "channelKey": "cto",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "iris",
+      "byte": 0
+     },
+     {
+      "channelKey": "static-gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "rotating-gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-rotation",
+      "byte": 1
+     },
+     {
+      "channelKey": "prism",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "frost",
+      "byte": 0
+     },
+     {
+      "channelKey": "animation-disk",
+      "byte": 0
+     },
+     {
+      "channelKey": "animation-disk-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 1
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "autofocus-distance",
+      "byte": 0
+     },
+     {
+      "channelKey": "autofocus-adjust",
+      "byte": 0
+     },
+     {
+      "channelKey": "effects",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "function",
+      "byte": 0
+     },
+     {
+      "channelKey": "reset",
+      "byte": 0
+     },
+     {
+      "channelKey": "lamp-control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "36ch",
+    "name": "Vector 36-channel",
+    "footprint": 36,
+    "slots": [
+     {
+      "channelKey": "cyan",
+      "byte": 0
+     },
+     {
+      "channelKey": "magenta",
+      "byte": 0
+     },
+     {
+      "channelKey": "yellow",
+      "byte": 0
+     },
+     {
+      "channelKey": "cto",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "iris",
+      "byte": 0
+     },
+     {
+      "channelKey": "static-gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "rotating-gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-rotation",
+      "byte": 1
+     },
+     {
+      "channelKey": "prism",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "frost",
+      "byte": 0
+     },
+     {
+      "channelKey": "animation-disk",
+      "byte": 0
+     },
+     {
+      "channelKey": "animation-disk-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 1
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "autofocus-distance",
+      "byte": 0
+     },
+     {
+      "channelKey": "autofocus-adjust",
+      "byte": 0
+     },
+     {
+      "channelKey": "effects",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "function",
+      "byte": 0
+     },
+     {
+      "channelKey": "reset",
+      "byte": 0
+     },
+     {
+      "channelKey": "lamp-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-time",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-time",
+      "byte": 0
+     },
+     {
+      "channelKey": "beam-time",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-time",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    385,
+    405,
+    650
+   ],
+   "weightKg": 30,
+   "powerW": 1200,
+   "lensDegMin": 11,
+   "lensDegMax": 55
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "clay-paky/alpha-spot-qwo-800",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "clay-paky/sharpy",
+  "manufacturer": "Clay Paky",
+  "model": "Sharpy",
+  "aliases": [
+   "Clay Paky Sharpy",
+   "Sharpy",
+   "claypakysharpy",
+   "sharpy"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "color-wheel",
+    "label": "Color Wheel",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 4,
+      "label": "Open"
+     },
+     {
+      "from": 5,
+      "to": 8,
+      "label": "Open"
+     },
+     {
+      "from": 9,
+      "to": 12,
+      "label": "Red",
+      "color": "#c41c1a"
+     },
+     {
+      "from": 13,
+      "to": 17,
+      "label": "Red",
+      "color": "#c41c1a"
+     },
+     {
+      "from": 18,
+      "to": 21,
+      "label": "Orange",
+      "color": "#ed8229"
+     },
+     {
+      "from": 22,
+      "to": 25,
+      "label": "Orange",
+      "color": "#ed8229"
+     },
+     {
+      "from": 26,
+      "to": 29,
+      "label": "Aquamarine",
+      "color": "#7abd82"
+     },
+     {
+      "from": 30,
+      "to": 34,
+      "label": "Aquamarine",
+      "color": "#7abd82"
+     },
+     {
+      "from": 35,
+      "to": 38,
+      "label": "Green",
+      "color": "#05822b"
+     },
+     {
+      "from": 39,
+      "to": 42,
+      "label": "Green",
+      "color": "#05822b"
+     },
+     {
+      "from": 43,
+      "to": 46,
+      "label": "Light Green",
+      "color": "#9ec233"
+     },
+     {
+      "from": 47,
+      "to": 51,
+      "label": "Light Green",
+      "color": "#9ec233"
+     },
+     {
+      "from": 52,
+      "to": 55,
+      "label": "Lavender",
+      "color": "#8f73ad"
+     },
+     {
+      "from": 56,
+      "to": 59,
+      "label": "Lavender",
+      "color": "#8f73ad"
+     },
+     {
+      "from": 60,
+      "to": 63,
+      "label": "Pink",
+      "color": "#ed8080"
+     },
+     {
+      "from": 64,
+      "to": 68,
+      "label": "Pink",
+      "color": "#ed8080"
+     },
+     {
+      "from": 69,
+      "to": 72,
+      "label": "Yellow",
+      "color": "#ffed00"
+     },
+     {
+      "from": 73,
+      "to": 76,
+      "label": "Yellow",
+      "color": "#ffed00"
+     },
+     {
+      "from": 77,
+      "to": 81,
+      "label": "Magenta",
+      "color": "#e30082"
+     },
+     {
+      "from": 82,
+      "to": 85,
+      "label": "Magenta",
+      "color": "#e30082"
+     },
+     {
+      "from": 86,
+      "to": 89,
+      "label": "Cyan",
+      "color": "#00a6eb"
+     },
+     {
+      "from": 90,
+      "to": 93,
+      "label": "Cyan",
+      "color": "#00a6eb"
+     },
+     {
+      "from": 94,
+      "to": 98,
+      "label": "CTO 260",
+      "color": "#f5c745"
+     },
+     {
+      "from": 99,
+      "to": 102,
+      "label": "CTO 260",
+      "color": "#f5c745"
+     },
+     {
+      "from": 103,
+      "to": 106,
+      "label": "CTO 190",
+      "color": "#f5d985"
+     },
+     {
+      "from": 107,
+      "to": 110,
+      "label": "CTO 190",
+      "color": "#f5d985"
+     },
+     {
+      "from": 111,
+      "to": 115,
+      "label": "CTB 8000",
+      "color": "#96c7b8"
+     },
+     {
+      "from": 116,
+      "to": 119,
+      "label": "CTB 8000",
+      "color": "#96c7b8"
+     },
+     {
+      "from": 120,
+      "to": 123,
+      "label": "Blue",
+      "color": "#004f99"
+     },
+     {
+      "from": 124,
+      "to": 127,
+      "label": "Blue",
+      "color": "#004f99"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "shutter-strobe",
+    "label": "Shutter / Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 3,
+      "label": "Closed"
+     },
+     {
+      "from": 4,
+      "to": 103,
+      "label": "Strobe"
+     },
+     {
+      "from": 104,
+      "to": 107,
+      "label": "Open"
+     },
+     {
+      "from": 108,
+      "to": 207,
+      "label": "Pulse"
+     },
+     {
+      "from": 208,
+      "to": 212,
+      "label": "Open"
+     },
+     {
+      "from": 213,
+      "to": 225,
+      "label": "Strobe"
+     },
+     {
+      "from": 226,
+      "to": 238,
+      "label": "Strobe"
+     },
+     {
+      "from": 239,
+      "to": 251,
+      "label": "Strobe"
+     },
+     {
+      "from": 252,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "gobo-wheel",
+    "label": "Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 3,
+      "label": "Open"
+     },
+     {
+      "from": 4,
+      "to": 7,
+      "label": "Gobo"
+     },
+     {
+      "from": 8,
+      "to": 11,
+      "label": "Gobo"
+     },
+     {
+      "from": 12,
+      "to": 15,
+      "label": "Gobo"
+     },
+     {
+      "from": 16,
+      "to": 19,
+      "label": "Gobo"
+     },
+     {
+      "from": 20,
+      "to": 23,
+      "label": "Gobo"
+     },
+     {
+      "from": 24,
+      "to": 27,
+      "label": "Gobo"
+     },
+     {
+      "from": 28,
+      "to": 31,
+      "label": "Gobo"
+     },
+     {
+      "from": 32,
+      "to": 35,
+      "label": "Gobo"
+     },
+     {
+      "from": 36,
+      "to": 39,
+      "label": "Gobo"
+     },
+     {
+      "from": 40,
+      "to": 43,
+      "label": "Gobo"
+     },
+     {
+      "from": 44,
+      "to": 47,
+      "label": "Gobo"
+     },
+     {
+      "from": 48,
+      "to": 51,
+      "label": "Gobo"
+     },
+     {
+      "from": 52,
+      "to": 55,
+      "label": "Gobo"
+     },
+     {
+      "from": 56,
+      "to": 59,
+      "label": "Gobo"
+     },
+     {
+      "from": 60,
+      "to": 63,
+      "label": "Gobo"
+     },
+     {
+      "from": 64,
+      "to": 67,
+      "label": "Gobo"
+     },
+     {
+      "from": 68,
+      "to": 71,
+      "label": "Gobo"
+     },
+     {
+      "from": 72,
+      "to": 113,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 114,
+      "to": 117,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 118,
+      "to": 159,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 160,
+      "to": 166,
+      "label": "Gobo"
+     },
+     {
+      "from": 167,
+      "to": 172,
+      "label": "Gobo"
+     },
+     {
+      "from": 173,
+      "to": 179,
+      "label": "Gobo"
+     },
+     {
+      "from": 180,
+      "to": 185,
+      "label": "Gobo"
+     },
+     {
+      "from": 186,
+      "to": 191,
+      "label": "Gobo"
+     },
+     {
+      "from": 192,
+      "to": 198,
+      "label": "Gobo"
+     },
+     {
+      "from": 199,
+      "to": 204,
+      "label": "Gobo"
+     },
+     {
+      "from": 205,
+      "to": 211,
+      "label": "Gobo"
+     },
+     {
+      "from": 212,
+      "to": 217,
+      "label": "Gobo"
+     },
+     {
+      "from": 218,
+      "to": 223,
+      "label": "Gobo"
+     },
+     {
+      "from": 224,
+      "to": 230,
+      "label": "Gobo"
+     },
+     {
+      "from": 231,
+      "to": 236,
+      "label": "Gobo"
+     },
+     {
+      "from": 237,
+      "to": 243,
+      "label": "Gobo"
+     },
+     {
+      "from": 244,
+      "to": 249,
+      "label": "Gobo"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Gobo"
+     }
+    ]
+   },
+   {
+    "key": "prism-insertion",
+    "label": "Prism Insertion",
+    "role": "prism",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "NoFunction"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "Prism"
+     }
+    ]
+   },
+   {
+    "key": "prism-rotation",
+    "label": "Prism Rotation",
+    "role": "prismRotation",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 20,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 21,
+      "to": 41,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 42,
+      "to": 62,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 63,
+      "to": 83,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 84,
+      "to": 104,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 105,
+      "to": 126,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 127,
+      "to": 127,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 128,
+      "to": 190,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 191,
+      "to": 192,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 193,
+      "to": 255,
+      "label": "PrismRotation"
+     }
+    ]
+   },
+   {
+    "key": "effects-movement",
+    "label": "Effects Movement",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "frost",
+    "label": "Frost",
+    "role": "frost",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "focus",
+    "label": "Focus",
+    "role": "focus",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0.5019607843137255,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0.5019607843137255,
+    "min": 0,
+    "max": 250,
+    "unit": "deg"
+   },
+   {
+    "key": "function",
+    "label": "Function",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 11,
+      "label": "NoFunction"
+     },
+     {
+      "from": 12,
+      "to": 24,
+      "label": "Pan-Tilt Function (Fast - Default)"
+     },
+     {
+      "from": 25,
+      "to": 37,
+      "label": "Pan-Tilt Function (Normal)"
+     },
+     {
+      "from": 38,
+      "to": 50,
+      "label": "Dimmer Curve Function (Conventional)"
+     },
+     {
+      "from": 51,
+      "to": 62,
+      "label": "Dimmer Curve Function (Linear - Default)"
+     },
+     {
+      "from": 63,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "reset",
+    "label": "Reset",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 25,
+      "label": "NoFunction"
+     },
+     {
+      "from": 26,
+      "to": 76,
+      "label": "Effects Reset"
+     },
+     {
+      "from": 77,
+      "to": 127,
+      "label": "Pan/Tilt Reset"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "Complete Reset"
+     }
+    ]
+   },
+   {
+    "key": "lamp-control",
+    "label": "Lamp Control",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 25,
+      "label": "NoFunction"
+     },
+     {
+      "from": 26,
+      "to": 100,
+      "label": "Lamp off"
+     },
+     {
+      "from": 101,
+      "to": 255,
+      "label": "Lamp on"
+     }
+    ]
+   },
+   {
+    "key": "pan-tilt-time",
+    "label": "Pan/Tilt Time",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-wheel-time",
+    "label": "Color Wheel Time",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "beam-time",
+    "label": "Beam Time",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "gobo-time",
+    "label": "Gobo Time",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "standard",
+    "name": "Standard",
+    "footprint": 16,
+    "slots": [
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "effects-movement",
+      "byte": 0
+     },
+     {
+      "channelKey": "frost",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "function",
+      "byte": 0
+     },
+     {
+      "channelKey": "reset",
+      "byte": 0
+     },
+     {
+      "channelKey": "lamp-control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "vector",
+    "name": "Vector",
+    "footprint": 20,
+    "slots": [
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "effects-movement",
+      "byte": 0
+     },
+     {
+      "channelKey": "frost",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "function",
+      "byte": 0
+     },
+     {
+      "channelKey": "reset",
+      "byte": 0
+     },
+     {
+      "channelKey": "lamp-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-time",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel-time",
+      "byte": 0
+     },
+     {
+      "channelKey": "beam-time",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-time",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    405,
+    450,
+    330
+   ],
+   "weightKg": 19,
+   "powerW": 200,
+   "lensDegMin": 0,
+   "lensDegMax": 3.8
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "clay-paky/sharpy",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "clay-paky/spheriscan",
+  "manufacturer": "Clay Paky",
+  "model": "Spheriscan",
+  "aliases": [
+   "CPSpheriscan",
+   "Clay Paky Spheriscan",
+   "Spheriscan",
+   "claypakyspheriscan",
+   "cpspheriscan",
+   "spheriscan"
+  ],
+  "categories": [
+   "Scanner",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "cyan",
+    "label": "Cyan",
+    "role": "cyan",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "magenta",
+    "label": "Magenta",
+    "role": "magenta",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "yellow",
+    "label": "Yellow",
+    "role": "yellow",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-wheel",
+    "label": "Color Wheel",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Open"
+     },
+     {
+      "from": 8,
+      "to": 15,
+      "label": "Open"
+     },
+     {
+      "from": 16,
+      "to": 23,
+      "label": "Dark red",
+      "color": "#dc2919"
+     },
+     {
+      "from": 24,
+      "to": 31,
+      "label": "Dark red",
+      "color": "#dc2919"
+     },
+     {
+      "from": 32,
+      "to": 39,
+      "label": "Brilliant blue",
+      "color": "#234faa"
+     },
+     {
+      "from": 40,
+      "to": 47,
+      "label": "Brilliant blue",
+      "color": "#234faa"
+     },
+     {
+      "from": 48,
+      "to": 55,
+      "label": "Green",
+      "color": "#51bc49"
+     },
+     {
+      "from": 56,
+      "to": 63,
+      "label": "Green",
+      "color": "#51bc49"
+     },
+     {
+      "from": 64,
+      "to": 71,
+      "label": "Half minus green",
+      "color": "#eee2d8"
+     },
+     {
+      "from": 72,
+      "to": 79,
+      "label": "Half minus green",
+      "color": "#eee2d8"
+     },
+     {
+      "from": 80,
+      "to": 87,
+      "label": "Light orange",
+      "color": "#ff9c35"
+     },
+     {
+      "from": 88,
+      "to": 95,
+      "label": "Light orange",
+      "color": "#ff9c35"
+     },
+     {
+      "from": 96,
+      "to": 103,
+      "label": "Dark orange",
+      "color": "#ff4f23"
+     },
+     {
+      "from": 104,
+      "to": 111,
+      "label": "Dark orange",
+      "color": "#ff4f23"
+     },
+     {
+      "from": 112,
+      "to": 119,
+      "label": "Navy blue",
+      "color": "#1356a4"
+     },
+     {
+      "from": 120,
+      "to": 127,
+      "label": "Navy blue",
+      "color": "#1356a4"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "shutter-strobe",
+    "label": "Shutter / Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 1,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 3,
+      "label": "Closed"
+     },
+     {
+      "from": 4,
+      "to": 103,
+      "label": "Strobe"
+     },
+     {
+      "from": 104,
+      "to": 107,
+      "label": "Open"
+     },
+     {
+      "from": 108,
+      "to": 207,
+      "label": "Pulse"
+     },
+     {
+      "from": 208,
+      "to": 212,
+      "label": "Open"
+     },
+     {
+      "from": 213,
+      "to": 225,
+      "label": "Strobe"
+     },
+     {
+      "from": 226,
+      "to": 238,
+      "label": "Strobe"
+     },
+     {
+      "from": 239,
+      "to": 251,
+      "label": "Strobe"
+     },
+     {
+      "from": 252,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "iris",
+    "label": "Iris",
+    "role": "iris",
+    "resolution": 1,
+    "default": 1,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "Iris"
+     },
+     {
+      "from": 128,
+      "to": 131,
+      "label": "Iris"
+     },
+     {
+      "from": 132,
+      "to": 171,
+      "label": "Pulse"
+     },
+     {
+      "from": 172,
+      "to": 211,
+      "label": "Ramp down"
+     },
+     {
+      "from": 212,
+      "to": 251,
+      "label": "Ramp up"
+     },
+     {
+      "from": 252,
+      "to": 255,
+      "label": "Iris"
+     }
+    ]
+   },
+   {
+    "key": "static-gobo-wheel",
+    "label": "Static Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Open"
+     },
+     {
+      "from": 8,
+      "to": 15,
+      "label": "Small Dots"
+     },
+     {
+      "from": 16,
+      "to": 23,
+      "label": "Shuffle"
+     },
+     {
+      "from": 24,
+      "to": 31,
+      "label": "Floating Squares"
+     },
+     {
+      "from": 32,
+      "to": 39,
+      "label": "Random Lines"
+     },
+     {
+      "from": 40,
+      "to": 47,
+      "label": "Large Bubbles"
+     },
+     {
+      "from": 48,
+      "to": 55,
+      "label": "Shattered"
+     },
+     {
+      "from": 56,
+      "to": 63,
+      "label": "Big Dots"
+     },
+     {
+      "from": 64,
+      "to": 71,
+      "label": "Tunnel"
+     },
+     {
+      "from": 72,
+      "to": 113,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 114,
+      "to": 117,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 118,
+      "to": 159,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 160,
+      "to": 171,
+      "label": "Small Dots"
+     },
+     {
+      "from": 172,
+      "to": 183,
+      "label": "Shuffle"
+     },
+     {
+      "from": 184,
+      "to": 195,
+      "label": "Floating Squares"
+     },
+     {
+      "from": 196,
+      "to": 207,
+      "label": "Random Lines"
+     },
+     {
+      "from": 208,
+      "to": 219,
+      "label": "Large Bubbles"
+     },
+     {
+      "from": 220,
+      "to": 231,
+      "label": "Shattered"
+     },
+     {
+      "from": 232,
+      "to": 243,
+      "label": "Big Dots"
+     },
+     {
+      "from": 244,
+      "to": 255,
+      "label": "Tunnel"
+     }
+    ]
+   },
+   {
+    "key": "rotating-gobo-wheel",
+    "label": "Rotating Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 18,
+      "label": "Open"
+     },
+     {
+      "from": 19,
+      "to": 37,
+      "label": "Clouds"
+     },
+     {
+      "from": 38,
+      "to": 56,
+      "label": "Eccentric Circle"
+     },
+     {
+      "from": 57,
+      "to": 74,
+      "label": "Multiple Cones"
+     },
+     {
+      "from": 75,
+      "to": 92,
+      "label": "Fat Line"
+     },
+     {
+      "from": 93,
+      "to": 111,
+      "label": "Half Circle"
+     },
+     {
+      "from": 112,
+      "to": 129,
+      "label": "Linear Dots"
+     },
+     {
+      "from": 130,
+      "to": 150,
+      "label": "Clouds"
+     },
+     {
+      "from": 151,
+      "to": 171,
+      "label": "Eccentric Circle"
+     },
+     {
+      "from": 172,
+      "to": 192,
+      "label": "Multiple Cones"
+     },
+     {
+      "from": 193,
+      "to": 213,
+      "label": "Fat Line"
+     },
+     {
+      "from": 214,
+      "to": 234,
+      "label": "Half Circle"
+     },
+     {
+      "from": 235,
+      "to": 255,
+      "label": "Linear Dots"
+     }
+    ]
+   },
+   {
+    "key": "gobo-stencil-rotation",
+    "label": "Gobo Stencil Rotation",
+    "role": "goboRotation",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 125,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 126,
+      "to": 190,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 191,
+      "to": 192,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 193,
+      "to": 255,
+      "label": "WheelSlotRotation"
+     }
+    ]
+   },
+   {
+    "key": "prism-insertion",
+    "label": "Prism insertion",
+    "role": "prism",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "NoFunction"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "8-facet"
+     }
+    ]
+   },
+   {
+    "key": "prism-rotation",
+    "label": "Prism Rotation",
+    "role": "prismRotation",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 128,
+      "to": 190,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 191,
+      "to": 192,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 193,
+      "to": 255,
+      "label": "PrismRotation"
+     }
+    ]
+   },
+   {
+    "key": "frost",
+    "label": "Frost",
+    "role": "frost",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "zoom",
+    "label": "Zoom",
+    "role": "zoom",
+    "resolution": 1,
+    "default": 0,
+    "min": 13,
+    "max": 34,
+    "unit": "deg"
+   },
+   {
+    "key": "focus",
+    "label": "Focus",
+    "role": "focus",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "function",
+    "label": "Function",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 11,
+      "label": "NoFunction"
+     },
+     {
+      "from": 12,
+      "to": 24,
+      "label": "Fast pan / tilt speed (default)"
+     },
+     {
+      "from": 25,
+      "to": 37,
+      "label": "Normal pan / tilt speed"
+     },
+     {
+      "from": 38,
+      "to": 50,
+      "label": "Conventional dimmer curve"
+     },
+     {
+      "from": 51,
+      "to": 62,
+      "label": "Standard dimmer curve (default)"
+     },
+     {
+      "from": 63,
+      "to": 139,
+      "label": "NoFunction"
+     },
+     {
+      "from": 140,
+      "to": 152,
+      "label": "Fast gobo change (default)"
+     },
+     {
+      "from": 153,
+      "to": 164,
+      "label": "Normal Gobo change"
+     },
+     {
+      "from": 165,
+      "to": 177,
+      "label": "NoFunction"
+     },
+     {
+      "from": 178,
+      "to": 203,
+      "label": "Mirror rotation inversion"
+     },
+     {
+      "from": 204,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "reset",
+    "label": "Reset",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 25,
+      "label": "NoFunction"
+     },
+     {
+      "from": 26,
+      "to": 76,
+      "label": "Zoom reset"
+     },
+     {
+      "from": 77,
+      "to": 127,
+      "label": "Pan / tilt reset"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "Complete reset"
+     }
+    ]
+   },
+   {
+    "key": "lamp-control",
+    "label": "Lamp control",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 25,
+      "label": "NoFunction"
+     },
+     {
+      "from": 26,
+      "to": 100,
+      "label": "Lamp off"
+     },
+     {
+      "from": 101,
+      "to": 255,
+      "label": "Lamp on"
+     }
+    ]
+   },
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 720,
+    "unit": "deg"
+   },
+   {
+    "key": "pan-continuous",
+    "label": "Pan Continuous",
+    "role": "pan",
+    "resolution": 1,
+    "default": 0.5019607843137255,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "PanContinuous"
+     },
+     {
+      "from": 1,
+      "to": 126,
+      "label": "PanContinuous"
+     },
+     {
+      "from": 127,
+      "to": 129,
+      "label": "PanContinuous"
+     },
+     {
+      "from": 130,
+      "to": 255,
+      "label": "PanContinuous"
+     }
+    ]
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 60,
+    "unit": "deg"
+   },
+   {
+    "key": "strip-led-red",
+    "label": "Strip LED Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strip-led-green",
+    "label": "Strip LED Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strip-led-blue",
+    "label": "Strip LED Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "pan-tilt-time",
+    "label": "Pan/Tilt Time",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 254,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Follow cue data"
+     }
+    ]
+   },
+   {
+    "key": "color-time",
+    "label": "Color Time",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 254,
+      "label": "Time"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Follow cue data"
+     }
+    ]
+   },
+   {
+    "key": "beam-time",
+    "label": "Beam Time",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 254,
+      "label": "Time"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Follow cue data"
+     }
+    ]
+   },
+   {
+    "key": "gobo-time",
+    "label": "Gobo Time",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 254,
+      "label": "Time"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Follow cue data"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "std",
+    "name": "Standard",
+    "footprint": 29,
+    "slots": [
+     {
+      "channelKey": "cyan",
+      "byte": 0
+     },
+     {
+      "channelKey": "magenta",
+      "byte": 0
+     },
+     {
+      "channelKey": "yellow",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "iris",
+      "byte": 0
+     },
+     {
+      "channelKey": "static-gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "rotating-gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-stencil-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-stencil-rotation",
+      "byte": 1
+     },
+     {
+      "channelKey": "prism-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "frost",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 1
+     },
+     {
+      "channelKey": "function",
+      "byte": 0
+     },
+     {
+      "channelKey": "reset",
+      "byte": 0
+     },
+     {
+      "channelKey": "lamp-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-continuous",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "strip-led-red",
+      "byte": 0
+     },
+     {
+      "channelKey": "strip-led-green",
+      "byte": 0
+     },
+     {
+      "channelKey": "strip-led-blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "vec",
+    "name": "Vector",
+    "footprint": 33,
+    "slots": [
+     {
+      "channelKey": "cyan",
+      "byte": 0
+     },
+     {
+      "channelKey": "magenta",
+      "byte": 0
+     },
+     {
+      "channelKey": "yellow",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "iris",
+      "byte": 0
+     },
+     {
+      "channelKey": "static-gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "rotating-gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-stencil-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-stencil-rotation",
+      "byte": 1
+     },
+     {
+      "channelKey": "prism-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "frost",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 1
+     },
+     {
+      "channelKey": "function",
+      "byte": 0
+     },
+     {
+      "channelKey": "reset",
+      "byte": 0
+     },
+     {
+      "channelKey": "lamp-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-continuous",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "strip-led-red",
+      "byte": 0
+     },
+     {
+      "channelKey": "strip-led-green",
+      "byte": 0
+     },
+     {
+      "channelKey": "strip-led-blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-time",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-time",
+      "byte": 0
+     },
+     {
+      "channelKey": "beam-time",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-time",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    497,
+    886,
+    282
+   ],
+   "weightKg": 31.5,
+   "powerW": 1600,
+   "lensDegMin": 13,
+   "lensDegMax": 34
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "clay-paky/spheriscan",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

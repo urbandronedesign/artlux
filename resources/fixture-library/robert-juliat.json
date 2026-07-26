@@ -1,0 +1,57 @@
+[
+ {
+  "id": "robert-juliat/613sx",
+  "manufacturer": "Robert Juliat",
+  "model": "613SX",
+  "aliases": [
+   "613SX",
+   "613sx",
+   "RJ613SX",
+   "Robert Juliat 613SX",
+   "rj613sx",
+   "robertjuliat613sx"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "dimmer",
+    "name": "Dimmer",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    330,
+    415,
+    565
+   ],
+   "weightKg": 11,
+   "powerW": 1000,
+   "lensDegMin": 28,
+   "lensDegMax": 54
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "robert-juliat/613sx",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

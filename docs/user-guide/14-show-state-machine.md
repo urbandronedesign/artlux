@@ -38,8 +38,8 @@ It's plain JSON on `ProjectData.stateMachine`, so it saves with the project with
 
 ## Build the graph
 
-Open the editor from the **Timeline** dock's **state lane** (**Edit logic**), or edit a state's own
-timeline from the **Show** context. The canvas is an AutomataUI‑style node editor + an inspector.
+Open the editor from the **Show Machine** context, or from the timeline drawer's **state lane**
+(**Edit logic**). *Edit Timeline* on a state pulls the drawer up right under the graph. The canvas is an AutomataUI‑style node editor + an inspector.
 
 **Toolbar**
 - **＋ State** — add a node (or **double‑click empty canvas**).

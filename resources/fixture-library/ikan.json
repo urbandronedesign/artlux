@@ -1,0 +1,64 @@
+[
+ {
+  "id": "ikan/stryder-sfb150",
+  "manufacturer": "Ikan",
+  "model": "Stryder SFB150",
+  "aliases": [
+   "Ikan Stryder SFB150",
+   "Stryder SFB150",
+   "ikanstrydersfb150",
+   "strydersfb150"
+  ],
+  "categories": [
+   "Other"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "cct",
+    "label": "CCT",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "default",
+    "name": "Default",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    406,
+    254,
+    178
+   ],
+   "weightKg": 4.8,
+   "powerW": 98
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "ikan/stryder-sfb150",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

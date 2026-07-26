@@ -5,6 +5,8 @@ import { modelScaleXYZ } from '../../../../shared/protocol';
 import { useEditor, useEditorActions } from '../../state/EditorStore';
 import { Tooltip } from '../../components/ui/Tooltip';
 import { help } from '../../services/helpBus';
+import { Button, NumberField } from '../../components/ui';
+import * as layout from '../../services/fixtureLayout';
 
 // The 3D venue workbench, as panels — Objects and Fixtures in the browser column, the selected
 // model's transform and the scene lighting in the parameter column.
@@ -130,16 +132,41 @@ export const ModelsHeaderActions: React.FC = () => {
 
 // ── Fixtures (read-only picker inside the 3D context) ───────────────────────────────────────
 export const Scene3DFixturesPanel: React.FC = () => {
-  const { fixtures, selectedFixtureId, selectedModelId } = useEditor();
+  const { fixtures, selectedFixtureId, selectedFixtureIds, selectedModelId } = useEditor();
   const a = useEditorActions();
+  // Anchor for shift-range selection, in list order.
+  const anchor = React.useRef<string | null>(null);
+
+  // This list used to select ONE fixture per click and highlight only the primary — so in the very
+  // context where a rig is laid out, a multi-selection could be neither built nor seen, and the
+  // transform gizmo had nothing to act on. Ctrl/⌘ toggles, Shift takes a range, exactly as the
+  // Mapping browser already does.
+  const onClick = (id: string, e: React.MouseEvent) => {
+    if (e.shiftKey && anchor.current) {
+      const order = fixtures.map((f) => f.id);
+      const from = order.indexOf(anchor.current);
+      const to = order.indexOf(id);
+      if (from >= 0 && to >= 0) {
+        const [lo, hi] = from <= to ? [from, to] : [to, from];
+        a.selectFixtures(order.slice(lo, hi + 1));
+        return;
+      }
+    }
+    anchor.current = id;
+    a.selectFixture(id, e.ctrlKey || e.metaKey);
+  };
+
   return (
     <div className="p-1 space-y-0.5">
       {fixtures.length === 0 && <div className="text-fg-3 italic px-2 py-1">No fixtures</div>}
       {fixtures.map((f) => (
         <div
-          key={f.id} role="button" tabIndex={0} className={rowCls(!selectedModelId && selectedFixtureId === f.id)}
-          onClick={() => a.selectFixture(f.id)}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); a.selectFixture(f.id); } }}
+          key={f.id} role="button" tabIndex={0}
+          // Highlight the whole selection, not just the primary — otherwise ten selected fixtures
+          // look like one and the Arrange panel appears to be talking about nothing.
+          className={rowCls(!selectedModelId && (selectedFixtureIds.includes(f.id) || selectedFixtureId === f.id))}
+          onClick={(e) => onClick(f.id, e)}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); anchor.current = f.id; a.selectFixture(f.id, false); } }}
         >
           <Lightbulb size={12} className="shrink-0" />
           <span className="flex-1 truncate">{f.name}</span>
@@ -150,6 +177,95 @@ export const Scene3DFixturesPanel: React.FC = () => {
 };
 
 // ── Selected model transform ────────────────────────────────────────────────────────────────
+// ── Fixture ▸ Arrange (multi-selection) ─────────────────────────────────────────────────────
+// Rig-building for a SELECTION: align, even out, lay on a line or an arc, fan the aim. Hidden for a
+// single fixture, because every one of these is meaningless with nothing to arrange relative to.
+//
+// Each action commits the whole selection at once, so it is ONE undo step — see
+// services/fixtureLayout.ts for the maths and for why selection order is preserved.
+export const FixtureArrangePanel: React.FC = () => {
+  const { fixtures, selectedFixtureIds } = useEditor();
+  const a = useEditorActions();
+  const [spacing, setSpacing] = useState(1);
+  const [radius, setRadius] = useState(4);
+  const [sweep, setSweep] = useState(180);
+  const [fanAmount, setFanAmount] = useState(45);
+
+  // Selection ORDER, not list order — a spread runs along the order the operator picked.
+  const selection = selectedFixtureIds
+    .map((id) => fixtures.find((f) => f.id === id))
+    .filter((f): f is NonNullable<typeof f> => !!f);
+
+  if (selection.length < 2) {
+    return <div className="text-mini text-fg-3">Select two or more fixtures to arrange them.</div>;
+  }
+
+  // RECORD FIRST, THEN COMMIT. The gizmo latches history on its first drag movement; these buttons
+  // have no drag to latch on, so without this an arrange is invisible to undo — you lay twelve heads
+  // on an arc, dislike it, press Ctrl+Z, and either nothing happens or the PREVIOUS edit disappears
+  // instead. Verified against the running app: the group moved correctly and undo did nothing.
+  const apply = (updates: layout.LayoutUpdate[]) => {
+    if (!updates.length) return;
+    a.recordHistory();
+    a.commitFixture3D(updates);
+  };
+  const Row: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+    <div className="flex items-center gap-1">{children}</div>
+  );
+
+  return (
+    <>
+      <div className="text-mini text-fg-3">{selection.length} fixtures, in selection order</div>
+
+      <div className="text-mini text-fg-2 mt-1">Align</div>
+      <Row>
+        {(['x', 'y', 'z'] as const).map((ax) => (
+          <Button key={ax} size="sm" variant="ghost" className="flex-1"
+            onClick={() => apply(layout.align(selection, ax))}>{ax.toUpperCase()}</Button>
+        ))}
+      </Row>
+
+      <div className="text-mini text-fg-2 mt-1">Distribute evenly</div>
+      <Row>
+        {(['x', 'y', 'z'] as const).map((ax) => (
+          <Button key={ax} size="sm" variant="ghost" className="flex-1"
+            onClick={() => apply(layout.distribute(selection, ax))}>{ax.toUpperCase()}</Button>
+        ))}
+      </Row>
+
+      <div className="text-mini text-fg-2 mt-1">Lay on a line</div>
+      <NumberField label="Spacing m" value={spacing} min={0.01} step={0.1} onChange={setSpacing} />
+      <Row>
+        {(['x', 'y', 'z'] as const).map((ax) => (
+          <Button key={ax} size="sm" variant="ghost" className="flex-1"
+            onClick={() => apply(layout.line(selection, ax, spacing))}>{ax.toUpperCase()}</Button>
+        ))}
+      </Row>
+
+      <div className="text-mini text-fg-2 mt-1">Lay on an arc</div>
+      <NumberField label="Radius m" value={radius} min={0.01} step={0.25} onChange={setRadius} />
+      <NumberField label="Sweep °" value={sweep} min={1} max={360} step={5} onChange={setSweep} />
+      <Row>
+        <Button size="sm" variant="ghost" className="flex-1"
+          onClick={() => apply(layout.arc(selection, radius, sweep, true))}>Arc + aim out</Button>
+        <Button size="sm" variant="ghost" className="flex-1"
+          onClick={() => apply(layout.arc(selection, radius, sweep, false))}>Arc only</Button>
+      </Row>
+
+      <div className="text-mini text-fg-2 mt-1">Fan the aim</div>
+      <NumberField label="Spread °" value={fanAmount} min={-360} max={360} step={5} onChange={setFanAmount} />
+      <Row>
+        <Button size="sm" variant="ghost" className="flex-1"
+          onClick={() => apply(layout.fan(selection, 'yaw', fanAmount))}>Yaw</Button>
+        <Button size="sm" variant="ghost" className="flex-1"
+          onClick={() => apply(layout.fan(selection, 'pitch', fanAmount))}>Pitch</Button>
+        <Button size="sm" variant="ghost" className="flex-1"
+          onClick={() => apply(layout.fan(selection, 'roll', fanAmount))}>Roll</Button>
+      </Row>
+    </>
+  );
+};
+
 export const ModelTransformPanel: React.FC = () => {
   const { scene3D, selectedModelId, timeline, modelNaturalSizes } = useEditor();
   const a = useEditorActions();
@@ -230,6 +346,11 @@ export const SceneLightingPanel: React.FC = () => {
     <>
       <NumRow label="Light gain" value={scene3D.lightIntensity} step={0.1} helpId="scene3d.light-gain" onChange={(v) => a.sceneConfig({ lightIntensity: Math.max(0, v) })} />
       <NumRow label="Exposure" value={scene3D.exposure} step={0.05} helpId="scene3d.exposure" onChange={(v) => a.sceneConfig({ exposure: Math.max(0.1, v) })} />
+      {/* Haze is what makes a beam visible at all. Turning it to 0 shows the room as it will look
+          WITHOUT atmosphere — pools of light on surfaces and no beams in the air — which is the
+          honest preview for a venue that is not hazing. */}
+      <NumRow label="Haze" value={scene3D.hazeDensity ?? 0.35} step={0.05} helpId="scene3d.haze"
+        onChange={(v) => a.sceneConfig({ hazeDensity: Math.max(0, Math.min(1, v)) })} />
       <Toggle label="Ambient (env)" checked={scene3D.environment} helpId="scene3d.ambient-env" onChange={(v) => a.sceneConfig({ environment: v })} />
       <Toggle label="Reflective floor" checked={scene3D.reflectiveFloor ?? false} helpId="scene3d.reflective-floor" onChange={(v) => a.sceneConfig({ reflectiveFloor: v })} />
       <Toggle label="Grid" checked={scene3D.gridVisible} helpId="scene3d.grid" onChange={(v) => a.sceneConfig({ gridVisible: v })} />

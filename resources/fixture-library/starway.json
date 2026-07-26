@@ -1,0 +1,549 @@
+[
+ {
+  "id": "starway/servo-color-4k",
+  "manufacturer": "Starway",
+  "model": "Servo Color 4K",
+  "aliases": [
+   "Servo Color 4K",
+   "ServoColor4K",
+   "Starway Servo Color 4K",
+   "servocolor4k",
+   "starwayservocolor4k"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0.5000076295109483,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0.5000076295109483,
+    "min": 0,
+    "max": 270,
+    "unit": "deg"
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan/Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 3,
+      "label": "Smooth movement"
+     },
+     {
+      "from": 4,
+      "to": 255,
+      "label": "PanTiltSpeed"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "shutter-strobe",
+    "label": "Shutter / Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0.03137254901960784,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "Closed"
+     },
+     {
+      "from": 6,
+      "to": 10,
+      "label": "Open"
+     },
+     {
+      "from": 11,
+      "to": 90,
+      "label": "Strobe"
+     },
+     {
+      "from": 91,
+      "to": 170,
+      "label": "Strobe"
+     },
+     {
+      "from": 171,
+      "to": 255,
+      "label": "Strobe (synchronized)"
+     }
+    ]
+   },
+   {
+    "key": "zoom",
+    "label": "Zoom",
+    "role": "zoom",
+    "resolution": 1,
+    "default": 1
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "virtual-color-wheel",
+    "label": "Virtual Color Wheel",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 1,
+      "label": "10000K (White)",
+      "color": "#ffffff"
+     },
+     {
+      "from": 2,
+      "to": 2,
+      "label": "8000K (White)",
+      "color": "#ffffff"
+     },
+     {
+      "from": 3,
+      "to": 3,
+      "label": "6500K (White)",
+      "color": "#ffffff"
+     },
+     {
+      "from": 4,
+      "to": 4,
+      "label": "5600K (White)",
+      "color": "#ffffff"
+     },
+     {
+      "from": 5,
+      "to": 5,
+      "label": "5000K (White)",
+      "color": "#ffffff"
+     },
+     {
+      "from": 6,
+      "to": 6,
+      "label": "4500K (White)",
+      "color": "#ffffff"
+     },
+     {
+      "from": 7,
+      "to": 7,
+      "label": "4000K (White)",
+      "color": "#ffffff"
+     },
+     {
+      "from": 8,
+      "to": 8,
+      "label": "3200K (White)",
+      "color": "#ffffff"
+     },
+     {
+      "from": 9,
+      "to": 9,
+      "label": "3000K (White)",
+      "color": "#ffffff"
+     },
+     {
+      "from": 10,
+      "to": 10,
+      "label": "2700K (White)",
+      "color": "#ffffff"
+     },
+     {
+      "from": 11,
+      "to": 11,
+      "label": "Red",
+      "color": "#f1525b"
+     },
+     {
+      "from": 12,
+      "to": 50,
+      "label": "Red … Yellow"
+     },
+     {
+      "from": 51,
+      "to": 51,
+      "label": "Yellow",
+      "color": "#e5ed51"
+     },
+     {
+      "from": 52,
+      "to": 90,
+      "label": "Yellow … Green"
+     },
+     {
+      "from": 91,
+      "to": 91,
+      "label": "Green",
+      "color": "#7fce6d"
+     },
+     {
+      "from": 92,
+      "to": 170,
+      "label": "Green … Blue"
+     },
+     {
+      "from": 171,
+      "to": 171,
+      "label": "Blue",
+      "color": "#6377bd"
+     },
+     {
+      "from": 172,
+      "to": 210,
+      "label": "Blue … Magenta"
+     },
+     {
+      "from": 211,
+      "to": 211,
+      "label": "Magenta",
+      "color": "#bb65b7"
+     },
+     {
+      "from": 212,
+      "to": 250,
+      "label": "Magenta … Red"
+     },
+     {
+      "from": 251,
+      "to": 251,
+      "label": "Red",
+      "color": "#f1525b"
+     },
+     {
+      "from": 252,
+      "to": 253,
+      "label": "ColorFade (virtual color wheel rotation (forwards))"
+     },
+     {
+      "from": 254,
+      "to": 255,
+      "label": "ColorFade (virtual color wheel rotation (backwards))"
+     }
+    ]
+   },
+   {
+    "key": "color-fade-time",
+    "label": "Color Fade Time",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "control",
+    "label": "Control",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "LED calibration off"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "LED calibration on"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "NoFunction"
+     },
+     {
+      "from": 40,
+      "to": 49,
+      "label": "Fan mode regulation"
+     },
+     {
+      "from": 50,
+      "to": 59,
+      "label": "Fan mode silent"
+     },
+     {
+      "from": 60,
+      "to": 69,
+      "label": "NoFunction"
+     },
+     {
+      "from": 70,
+      "to": 79,
+      "label": "for future use"
+     },
+     {
+      "from": 80,
+      "to": 89,
+      "label": "for future use"
+     },
+     {
+      "from": 90,
+      "to": 99,
+      "label": "NoFunction"
+     },
+     {
+      "from": 100,
+      "to": 109,
+      "label": "Pan reset"
+     },
+     {
+      "from": 110,
+      "to": 119,
+      "label": "Tilt reset"
+     },
+     {
+      "from": 120,
+      "to": 129,
+      "label": "Zoom reset"
+     },
+     {
+      "from": 130,
+      "to": 139,
+      "label": "System reset"
+     },
+     {
+      "from": 140,
+      "to": 149,
+      "label": "NoFunction"
+     },
+     {
+      "from": 150,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "15ch",
+    "name": "15-channel 8bit",
+    "footprint": 15,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "virtual-color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-fade-time",
+      "byte": 0
+     },
+     {
+      "channelKey": "control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "20ch",
+    "name": "20-channel 16bit",
+    "footprint": 20,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "virtual-color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-fade-time",
+      "byte": 0
+     },
+     {
+      "channelKey": "control",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    314,
+    370,
+    222
+   ],
+   "weightKg": 9,
+   "powerW": 300,
+   "lensDegMin": 10,
+   "lensDegMax": 48
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "starway/servo-color-4k",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

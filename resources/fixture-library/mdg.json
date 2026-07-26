@@ -1,0 +1,321 @@
+[
+ {
+  "id": "mdg/atme",
+  "manufacturer": "MDG",
+  "model": "ATMe",
+  "aliases": [
+   "ATMe",
+   "MDG ATMe",
+   "atme",
+   "mdgatme"
+  ],
+  "categories": [
+   "Hazer"
+  ],
+  "channels": [
+   {
+    "key": "unit-control",
+    "label": "Unit control",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 128,
+      "label": "Unit OFF"
+     },
+     {
+      "from": 129,
+      "to": 255,
+      "label": "Unit ON"
+     }
+    ]
+   },
+   {
+    "key": "haze-output",
+    "label": "Haze output",
+    "role": "fog",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "haze-control",
+    "label": "Haze control",
+    "role": "fog",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 128,
+      "label": "Haze OFF"
+     },
+     {
+      "from": 129,
+      "to": 255,
+      "label": "Haze ON"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "3ch",
+    "name": "3-channel",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "unit-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "haze-output",
+      "byte": 0
+     },
+     {
+      "channelKey": "haze-control",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    180,
+    300,
+    685
+   ],
+   "weightKg": 16.8,
+   "powerW": 1400
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "mdg/atme",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "mdg/hazer-atmosphere-aps",
+  "manufacturer": "MDG",
+  "model": "Hazer ATMOSPHERE APS",
+  "aliases": [
+   "Hazer ATMOSPHERE APS",
+   "MDG Hazer ATMOSPHERE APS",
+   "MDG-M35A-X",
+   "hazeratmosphereaps",
+   "mdghazeratmosphereaps",
+   "mdgm35ax"
+  ],
+  "categories": [
+   "Hazer"
+  ],
+  "channels": [
+   {
+    "key": "fog",
+    "label": "Fog",
+    "role": "fog",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "NoFunction"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "Fog"
+     }
+    ]
+   },
+   {
+    "key": "fog-emission",
+    "label": "Fog Emission",
+    "role": "fog",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 17,
+      "label": "FogOutput"
+     },
+     {
+      "from": 18,
+      "to": 255,
+      "label": "FogOutput"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "std",
+    "name": "Standard",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "fog",
+      "byte": 0
+     },
+     {
+      "channelKey": "fog-emission",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    180,
+    300,
+    68.5
+   ],
+   "weightKg": 23,
+   "powerW": 715
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "mdg/hazer-atmosphere-aps",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "mdg/theone-atmospheric-generator",
+  "manufacturer": "MDG",
+  "model": "theONE Atmospheric Generator",
+  "aliases": [
+   "MDG theONE Atmospheric Generator",
+   "MDGtheONE",
+   "mdgtheone",
+   "mdgtheoneatmosphericgenerator",
+   "theONE Atmospheric Generator",
+   "theoneatmosphericgenerator"
+  ],
+  "categories": [
+   "Hazer",
+   "Smoke"
+  ],
+  "channels": [
+   {
+    "key": "power",
+    "label": "Power",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "Unit off"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "Unit On"
+     }
+    ]
+   },
+   {
+    "key": "haze-fog",
+    "label": "Haze / Fog",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "FogType"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "FogType"
+     }
+    ]
+   },
+   {
+    "key": "fog-output",
+    "label": "Fog output",
+    "role": "fog",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "fog-on-off",
+    "label": "Fog on/off",
+    "role": "fog",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "NoFunction"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "Fog"
+     }
+    ]
+   },
+   {
+    "key": "external-fan",
+    "label": "External Fan",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "5ch",
+    "name": "5-channel",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "power",
+      "byte": 0
+     },
+     {
+      "channelKey": "haze-fog",
+      "byte": 0
+     },
+     {
+      "channelKey": "fog-output",
+      "byte": 0
+     },
+     {
+      "channelKey": "fog-on-off",
+      "byte": 0
+     },
+     {
+      "channelKey": "external-fan",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    250,
+    610,
+    300
+   ],
+   "weightKg": 23,
+   "powerW": 1480
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "mdg/theone-atmospheric-generator",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

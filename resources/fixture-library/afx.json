@@ -1,0 +1,316 @@
+[
+ {
+  "id": "afx/lmh460z",
+  "manufacturer": "AFX",
+  "model": "LMH460Z",
+  "aliases": [
+   "AFX LMH460Z",
+   "LMH460Z",
+   "afxlmh460z",
+   "lmh460z"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 280,
+    "unit": "deg"
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan/Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 6,
+      "label": "Open"
+     },
+     {
+      "from": 7,
+      "to": 65,
+      "label": "Strobe"
+     },
+     {
+      "from": 66,
+      "to": 69,
+      "label": "Open"
+     },
+     {
+      "from": 70,
+      "to": 128,
+      "label": "Pulse"
+     },
+     {
+      "from": 129,
+      "to": 131,
+      "label": "Open"
+     },
+     {
+      "from": 132,
+      "to": 191,
+      "label": "RampUp"
+     },
+     {
+      "from": 192,
+      "to": 195,
+      "label": "Open"
+     },
+     {
+      "from": 196,
+      "to": 255,
+      "label": "RampDown (Dimmer 0-100)"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "rgb-color-change",
+    "label": "RGB Color Change",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "functions",
+    "label": "Functions",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "NoFunction"
+     },
+     {
+      "from": 16,
+      "to": 80,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 81,
+      "to": 95,
+      "label": "NoFunction"
+     },
+     {
+      "from": 96,
+      "to": 110,
+      "label": "Reset"
+     },
+     {
+      "from": 111,
+      "to": 125,
+      "label": "NoFunction"
+     },
+     {
+      "from": 126,
+      "to": 175,
+      "label": "Automatic program"
+     },
+     {
+      "from": 176,
+      "to": 190,
+      "label": "NoFunction"
+     },
+     {
+      "from": 191,
+      "to": 240,
+      "label": "Sound activated program"
+     },
+     {
+      "from": 241,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "pan-tilt-reversion",
+    "label": "Pan/Tilt Reversion",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 63,
+      "label": "Pan Tilt Forward"
+     },
+     {
+      "from": 64,
+      "to": 127,
+      "label": "Pan Reverse"
+     },
+     {
+      "from": 128,
+      "to": 191,
+      "label": "Pan Tilt Reverse"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "Tilt Reverse"
+     }
+    ]
+   },
+   {
+    "key": "zoom",
+    "label": "Zoom",
+    "role": "zoom",
+    "resolution": 1,
+    "default": 0,
+    "min": 15,
+    "max": 60,
+    "unit": "deg"
+   }
+  ],
+  "modes": [
+   {
+    "key": "default",
+    "name": "Default",
+    "footprint": 15,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "rgb-color-change",
+      "byte": 0
+     },
+     {
+      "channelKey": "functions",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-reversion",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    350,
+    400,
+    260
+   ],
+   "weightKg": 9,
+   "powerW": 400,
+   "lensDegMin": 15,
+   "lensDegMax": 60
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "afx/lmh460z",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

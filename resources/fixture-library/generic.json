@@ -1,0 +1,2444 @@
+[
+ {
+  "id": "generic/cmy-fader",
+  "manufacturer": "Generic",
+  "model": "CMY Fader",
+  "aliases": [
+   "CMY",
+   "CMY Fader",
+   "Generic CMY Fader",
+   "cmy",
+   "cmyfader",
+   "genericcmyfader"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "cyan",
+    "label": "Cyan",
+    "role": "cyan",
+    "resolution": 3,
+    "default": 0
+   },
+   {
+    "key": "magenta",
+    "label": "Magenta",
+    "role": "magenta",
+    "resolution": 3,
+    "default": 0
+   },
+   {
+    "key": "yellow",
+    "label": "Yellow",
+    "role": "yellow",
+    "resolution": 3,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "8bit",
+    "name": "8 bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "cyan",
+      "byte": 0
+     },
+     {
+      "channelKey": "magenta",
+      "byte": 0
+     },
+     {
+      "channelKey": "yellow",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "16bit",
+    "name": "16 bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "cyan",
+      "byte": 0
+     },
+     {
+      "channelKey": "cyan",
+      "byte": 1
+     },
+     {
+      "channelKey": "magenta",
+      "byte": 0
+     },
+     {
+      "channelKey": "magenta",
+      "byte": 1
+     },
+     {
+      "channelKey": "yellow",
+      "byte": 0
+     },
+     {
+      "channelKey": "yellow",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "24bit",
+    "name": "24 bit",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "cyan",
+      "byte": 0
+     },
+     {
+      "channelKey": "cyan",
+      "byte": 1
+     },
+     {
+      "channelKey": "cyan",
+      "byte": 2
+     },
+     {
+      "channelKey": "magenta",
+      "byte": 0
+     },
+     {
+      "channelKey": "magenta",
+      "byte": 1
+     },
+     {
+      "channelKey": "magenta",
+      "byte": 2
+     },
+     {
+      "channelKey": "yellow",
+      "byte": 0
+     },
+     {
+      "channelKey": "yellow",
+      "byte": 1
+     },
+     {
+      "channelKey": "yellow",
+      "byte": 2
+     }
+    ]
+   }
+  ],
+  "source": {
+   "origin": "ofl",
+   "ref": "generic/cmy-fader",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "generic/color-temperature-fader",
+  "manufacturer": "Generic",
+  "model": "Color Temperature Fader",
+  "aliases": [
+   "Color Temperature Fader",
+   "Generic Color Temperature Fader",
+   "colortemperaturefader",
+   "genericcolortemperaturefader"
+  ],
+  "categories": [
+   "Other"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "8bit",
+    "name": "8 bit",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "16bit",
+    "name": "16 bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     }
+    ]
+   }
+  ],
+  "source": {
+   "origin": "ofl",
+   "ref": "generic/color-temperature-fader",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "generic/cw-ww-fader",
+  "manufacturer": "Generic",
+  "model": "CW/WW Fader",
+  "aliases": [
+   "CW/WW Fader",
+   "Generic CW/WW Fader",
+   "cwwwfader",
+   "genericcwwwfader"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "warm-white",
+    "label": "Warm White",
+    "role": "warmWhite",
+    "resolution": 3,
+    "default": 0
+   },
+   {
+    "key": "cold-white",
+    "label": "Cold White",
+    "role": "coldWhite",
+    "resolution": 3,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "8bit-wc",
+    "name": "8 bit W/C",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "warm-white",
+      "byte": 0
+     },
+     {
+      "channelKey": "cold-white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "8bit-cw",
+    "name": "8 bit C/W",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "cold-white",
+      "byte": 0
+     },
+     {
+      "channelKey": "warm-white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "16bit-wc",
+    "name": "16 bit W/C",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "warm-white",
+      "byte": 0
+     },
+     {
+      "channelKey": "warm-white",
+      "byte": 1
+     },
+     {
+      "channelKey": "cold-white",
+      "byte": 0
+     },
+     {
+      "channelKey": "cold-white",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "16bit-cw",
+    "name": "16 bit C/W",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "cold-white",
+      "byte": 0
+     },
+     {
+      "channelKey": "cold-white",
+      "byte": 1
+     },
+     {
+      "channelKey": "warm-white",
+      "byte": 0
+     },
+     {
+      "channelKey": "warm-white",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "24bit-wc",
+    "name": "24 bit W/C",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "warm-white",
+      "byte": 0
+     },
+     {
+      "channelKey": "warm-white",
+      "byte": 1
+     },
+     {
+      "channelKey": "warm-white",
+      "byte": 2
+     },
+     {
+      "channelKey": "cold-white",
+      "byte": 0
+     },
+     {
+      "channelKey": "cold-white",
+      "byte": 1
+     },
+     {
+      "channelKey": "cold-white",
+      "byte": 2
+     }
+    ]
+   },
+   {
+    "key": "24bit-cw",
+    "name": "24 bit C/W",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "cold-white",
+      "byte": 0
+     },
+     {
+      "channelKey": "cold-white",
+      "byte": 1
+     },
+     {
+      "channelKey": "cold-white",
+      "byte": 2
+     },
+     {
+      "channelKey": "warm-white",
+      "byte": 0
+     },
+     {
+      "channelKey": "warm-white",
+      "byte": 1
+     },
+     {
+      "channelKey": "warm-white",
+      "byte": 2
+     }
+    ]
+   }
+  ],
+  "source": {
+   "origin": "ofl",
+   "ref": "generic/cw-ww-fader",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "generic/desk-channel",
+  "manufacturer": "Generic",
+  "model": "Desk Channel",
+  "aliases": [
+   "Desk Channel",
+   "DeskCh",
+   "Generic Desk Channel",
+   "deskch",
+   "deskchannel",
+   "genericdeskchannel"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 3,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "8bit",
+    "name": "8 bit",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "16bit",
+    "name": "16 bit",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "24bit",
+    "name": "24 bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity",
+      "byte": 1
+     },
+     {
+      "channelKey": "intensity",
+      "byte": 2
+     }
+    ]
+   }
+  ],
+  "source": {
+   "origin": "ofl",
+   "ref": "generic/desk-channel",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "generic/drgb-fader",
+  "manufacturer": "Generic",
+  "model": "DRGB Fader",
+  "aliases": [
+   "DRGB",
+   "DRGB Fader",
+   "Generic DRGB Fader",
+   "drgb",
+   "drgbfader",
+   "genericdrgbfader"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 3,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 3,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 3,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 3,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "8bit",
+    "name": "8 bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "16bit-dimmer",
+    "name": "16 bit Dimmer",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "16bit",
+    "name": "16 bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "24bit-dimmer",
+    "name": "24 bit Dimmer",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 2
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "24bit",
+    "name": "24 bit",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 2
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 2
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 2
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 2
+     }
+    ]
+   }
+  ],
+  "source": {
+   "origin": "ofl",
+   "ref": "generic/drgb-fader",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "generic/drgbw-fader",
+  "manufacturer": "Generic",
+  "model": "DRGBW Fader",
+  "aliases": [
+   "DRGBW",
+   "DRGBW Fader",
+   "Generic DRGBW Fader",
+   "drgbw",
+   "drgbwfader",
+   "genericdrgbwfader"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 3,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 3,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 3,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 3,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 3,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "8bit",
+    "name": "8 bit",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "16bit-dimmer",
+    "name": "16 bit Dimmer",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "16bit",
+    "name": "16 bit",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "24bit-dimmer",
+    "name": "24 bit Dimmer",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 2
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "24bit",
+    "name": "24 bit",
+    "footprint": 15,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 2
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 2
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 2
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 2
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 2
+     }
+    ]
+   }
+  ],
+  "source": {
+   "origin": "ofl",
+   "ref": "generic/drgbw-fader",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "generic/grbw-fader",
+  "manufacturer": "Generic",
+  "model": "GRBW Fader",
+  "aliases": [
+   "GRBW",
+   "GRBW Fader",
+   "Generic GRBW Fader",
+   "genericgrbwfader",
+   "grbw",
+   "grbwfader"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 3,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 3,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 3,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 3,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "8bit",
+    "name": "8 bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "16bit",
+    "name": "16 bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "24bit",
+    "name": "24 bit",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 2
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 2
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 2
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 2
+     }
+    ]
+   }
+  ],
+  "source": {
+   "origin": "ofl",
+   "ref": "generic/grbw-fader",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "generic/pan-tilt",
+  "manufacturer": "Generic",
+  "model": "Pan/Tilt Fader",
+  "aliases": [
+   "Generic Pan/Tilt Fader",
+   "Pan/Tilt Fader",
+   "PanTilt",
+   "genericpantiltfader",
+   "pantilt",
+   "pantiltfader"
+  ],
+  "categories": [
+   "Moving Head"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 3,
+    "default": 0,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 3,
+    "default": 0,
+    "min": 0,
+    "max": 180,
+    "unit": "deg"
+   }
+  ],
+  "modes": [
+   {
+    "key": "8bit",
+    "name": "8 bit",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "16bit",
+    "name": "16 bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "16bit-alt",
+    "name": "16 bit (alternate)",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "24bit",
+    "name": "24 bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan",
+      "byte": 2
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 2
+     }
+    ]
+   },
+   {
+    "key": "24bit-alt",
+    "name": "24 bit (alternate)",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan",
+      "byte": 2
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 2
+     }
+    ]
+   }
+  ],
+  "source": {
+   "origin": "ofl",
+   "ref": "generic/pan-tilt",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "generic/rgb-fader",
+  "manufacturer": "Generic",
+  "model": "RGB Fader",
+  "aliases": [
+   "Generic RGB Fader",
+   "RGB",
+   "RGB Fader",
+   "genericrgbfader",
+   "rgb",
+   "rgbfader"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 3,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 3,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 3,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "8bit",
+    "name": "8 bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "16bit",
+    "name": "16 bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "24bit",
+    "name": "24 bit",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 2
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 2
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 2
+     }
+    ]
+   }
+  ],
+  "source": {
+   "origin": "ofl",
+   "ref": "generic/rgb-fader",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "generic/rgba-fader",
+  "manufacturer": "Generic",
+  "model": "RGBA Fader",
+  "aliases": [
+   "Generic RGBA Fader",
+   "RGBA",
+   "RGBA Fader",
+   "genericrgbafader",
+   "rgba",
+   "rgbafader"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 3,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 3,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 3,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 3,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "8bit",
+    "name": "8 bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "16bit",
+    "name": "16 bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "24bit",
+    "name": "24 bit",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 2
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 2
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 2
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 1
+     },
+     {
+      "channelKey": "amber",
+      "byte": 2
+     }
+    ]
+   }
+  ],
+  "source": {
+   "origin": "ofl",
+   "ref": "generic/rgba-fader",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "generic/rgbd-fader",
+  "manufacturer": "Generic",
+  "model": "RGBD Fader",
+  "aliases": [
+   "Generic RGBD Fader",
+   "RGBD",
+   "RGBD Fader",
+   "genericrgbdfader",
+   "rgbd",
+   "rgbdfader"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 3,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 3,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 3,
+    "default": 0
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 3,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "8bit",
+    "name": "8 bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "16bit-dimmer",
+    "name": "16 bit Dimmer",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "16bit",
+    "name": "16 bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "24bit-dimmer",
+    "name": "24 bit Dimmer",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 2
+     }
+    ]
+   },
+   {
+    "key": "24bit",
+    "name": "24 bit",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 2
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 2
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 2
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 2
+     }
+    ]
+   }
+  ],
+  "source": {
+   "origin": "ofl",
+   "ref": "generic/rgbd-fader",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "generic/rgbw-fader",
+  "manufacturer": "Generic",
+  "model": "RGBW Fader",
+  "aliases": [
+   "Generic RGBW Fader",
+   "RGBW",
+   "RGBW Fader",
+   "genericrgbwfader",
+   "rgbw",
+   "rgbwfader"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 3,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 3,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 3,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 3,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "8bit",
+    "name": "8 bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "16bit",
+    "name": "16 bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "24bit",
+    "name": "24 bit",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 2
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 2
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 2
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 2
+     }
+    ]
+   }
+  ],
+  "source": {
+   "origin": "ofl",
+   "ref": "generic/rgbw-fader",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "generic/rgbwauv-fader",
+  "manufacturer": "Generic",
+  "model": "RGBWAUV Fader",
+  "aliases": [
+   "Generic RGBWAUV Fader",
+   "RGBWAUV",
+   "RGBWAUV Fader",
+   "genericrgbwauvfader",
+   "rgbwauv",
+   "rgbwauvfader"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "uv",
+    "label": "UV",
+    "role": "uv",
+    "resolution": 2,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "8bit",
+    "name": "8 bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "16bit",
+    "name": "16 bit",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 1
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 1
+     }
+    ]
+   }
+  ],
+  "source": {
+   "origin": "ofl",
+   "ref": "generic/rgbwauv-fader",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "generic/rgbww-fader",
+  "manufacturer": "Generic",
+  "model": "RGBWW Fader",
+  "aliases": [
+   "Generic RGBWW Fader",
+   "RGBWW",
+   "RGBWW Fader",
+   "genericrgbwwfader",
+   "rgbww",
+   "rgbwwfader"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 3,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 3,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 3,
+    "default": 0
+   },
+   {
+    "key": "warm-white",
+    "label": "Warm White",
+    "role": "warmWhite",
+    "resolution": 3,
+    "default": 0
+   },
+   {
+    "key": "cold-white",
+    "label": "Cold White",
+    "role": "coldWhite",
+    "resolution": 3,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "8bit",
+    "name": "8 bit",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "warm-white",
+      "byte": 0
+     },
+     {
+      "channelKey": "cold-white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "16bit",
+    "name": "16 Bit",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "warm-white",
+      "byte": 0
+     },
+     {
+      "channelKey": "warm-white",
+      "byte": 1
+     },
+     {
+      "channelKey": "cold-white",
+      "byte": 0
+     },
+     {
+      "channelKey": "cold-white",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "24bit",
+    "name": "24 Bit",
+    "footprint": 15,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 2
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 2
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 2
+     },
+     {
+      "channelKey": "warm-white",
+      "byte": 0
+     },
+     {
+      "channelKey": "warm-white",
+      "byte": 1
+     },
+     {
+      "channelKey": "warm-white",
+      "byte": 2
+     },
+     {
+      "channelKey": "cold-white",
+      "byte": 0
+     },
+     {
+      "channelKey": "cold-white",
+      "byte": 1
+     },
+     {
+      "channelKey": "cold-white",
+      "byte": 2
+     }
+    ]
+   }
+  ],
+  "source": {
+   "origin": "ofl",
+   "ref": "generic/rgbww-fader",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "generic/strobe",
+  "manufacturer": "Generic",
+  "model": "Strobe",
+  "aliases": [
+   "Generic Strobe",
+   "Strobe",
+   "genericstrobe",
+   "strobe"
+  ],
+  "categories": [
+   "Strobe"
+  ],
+  "channels": [
+   {
+    "key": "frequency",
+    "label": "Frequency",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "frequency-dimmer",
+    "name": "Frequency + Dimmer",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "frequency",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "dimmer-frequency",
+    "name": "Dimmer + Frequency",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "frequency",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "source": {
+   "origin": "ofl",
+   "ref": "generic/strobe",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

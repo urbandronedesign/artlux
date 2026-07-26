@@ -1,0 +1,1699 @@
+[
+ {
+  "id": "blizzard/hotbox-exa",
+  "manufacturer": "Blizzard",
+  "model": "HotBox EXA",
+  "aliases": [
+   "Blizzard HotBox EXA",
+   "HotBox EXA",
+   "blizzardhotboxexa",
+   "hotboxexa"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "uv",
+    "label": "UV",
+    "role": "uv",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 14,
+      "label": "NoFunction"
+     },
+     {
+      "from": 15,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "fade-color-change-sound-active",
+    "label": "Fade, Color Change, Sound Active",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "NoFunction"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "RampUp"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "RampDown"
+     },
+     {
+      "from": 96,
+      "to": 127,
+      "label": "RampUpDown"
+     },
+     {
+      "from": 128,
+      "to": 164,
+      "label": "ColorFade"
+     },
+     {
+      "from": 165,
+      "to": 191,
+      "label": "Fade In / Fade Out, Auto Run"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "ColorJump"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "ColorJump"
+     }
+    ]
+   },
+   {
+    "key": "fade-speed",
+    "label": "Fade Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer-control",
+    "label": "Dimmer Control",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "As set in the control menu display"
+     },
+     {
+      "from": 6,
+      "to": 55,
+      "label": "Mode 0 = 8-bit, 256 dimming steps"
+     },
+     {
+      "from": 56,
+      "to": 105,
+      "label": "Mode 1 = 32-bit, 0-25% intensity range"
+     },
+     {
+      "from": 106,
+      "to": 155,
+      "label": "Mode 2 = 32-bit, 0-50% intensity range"
+     },
+     {
+      "from": 156,
+      "to": 205,
+      "label": "Mode 3 = 32-bit, 0-75% intensity range"
+     },
+     {
+      "from": 206,
+      "to": 255,
+      "label": "Mode 4 = 32-bit, full intensity dimming"
+     }
+    ]
+   },
+   {
+    "key": "hue",
+    "label": "Hue",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "11ch",
+    "name": "11-channel",
+    "footprint": 11,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "fade-color-change-sound-active",
+      "byte": 0
+     },
+     {
+      "channelKey": "fade-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "10ch",
+    "name": "10-channel",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "fade-color-change-sound-active",
+      "byte": 0
+     },
+     {
+      "channelKey": "fade-speed",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "8ch",
+    "name": "8-channel",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "6ch",
+    "name": "6-channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "3ch",
+    "name": "3-channel",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    127,
+    102,
+    127
+   ],
+   "weightKg": 2.7,
+   "powerW": 58,
+   "lensDegMin": 26,
+   "lensDegMax": 26
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "blizzard/hotbox-exa",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "blizzard/hotbox-rgbw",
+  "manufacturer": "Blizzard",
+  "model": "HotBox RGBW",
+  "aliases": [
+   "Blizzard HotBox RGBW",
+   "HotBox RGBW",
+   "blizzardhotboxrgbw",
+   "hotboxrgbw"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "hue",
+    "label": "Hue",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "saturation",
+    "label": "Saturation",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "value",
+    "label": "Value",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "12hz-strobe",
+    "label": "12Hz Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 14,
+      "label": "Strobe"
+     },
+     {
+      "from": 15,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "20hz-strobe",
+    "label": "20Hz Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 14,
+      "label": "Strobe"
+     },
+     {
+      "from": 15,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "fade-color-change-sound-active",
+    "label": "Fade, Color Change, Sound Active",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "NoFunction"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "RampUp"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "RampDown"
+     },
+     {
+      "from": 96,
+      "to": 127,
+      "label": "RampUpDown"
+     },
+     {
+      "from": 128,
+      "to": 159,
+      "label": "ColorFade"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "RampUpDown (\"Auto Run\" -- ch.8 ignored?)"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "ColorJump"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "Sound Active, Multicolor"
+     }
+    ]
+   },
+   {
+    "key": "fade-speed",
+    "label": "Fade Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer-control",
+    "label": "Dimmer Control",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "As set in the control menu display"
+     },
+     {
+      "from": 6,
+      "to": 55,
+      "label": "Mode 0 = 8-bit, 256 dimming steps"
+     },
+     {
+      "from": 56,
+      "to": 105,
+      "label": "Mode 1 = 32-bit, 0-25% intensity range"
+     },
+     {
+      "from": 106,
+      "to": 155,
+      "label": "Mode 2 = 32-bit, 0-50% intensity range"
+     },
+     {
+      "from": 156,
+      "to": 205,
+      "label": "Mode 3 = 32-bit, 0-75% intensity range"
+     },
+     {
+      "from": 206,
+      "to": 255,
+      "label": "Mode 4 = 32-bit, full intensity dimming"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "3ch",
+    "name": "3-channel",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "value",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "4ch",
+    "name": "4-channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "5ch",
+    "name": "5-channel",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "8ach",
+    "name": "8-channel A",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "12hz-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "fade-color-change-sound-active",
+      "byte": 0
+     },
+     {
+      "channelKey": "fade-speed",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "8bch",
+    "name": "8-channel B",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "20hz-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "fade-color-change-sound-active",
+      "byte": 0
+     },
+     {
+      "channelKey": "fade-speed",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "9ach",
+    "name": "9-channel A",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "12hz-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "fade-color-change-sound-active",
+      "byte": 0
+     },
+     {
+      "channelKey": "fade-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "9bch",
+    "name": "9-channel B",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "20hz-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "fade-color-change-sound-active",
+      "byte": 0
+     },
+     {
+      "channelKey": "fade-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-control",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    127,
+    102,
+    127
+   ],
+   "weightKg": 2.7,
+   "powerW": 47,
+   "lensDegMin": 26,
+   "lensDegMax": 26
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "blizzard/hotbox-rgbw",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "blizzard/puck-rgbaw",
+  "manufacturer": "Blizzard",
+  "model": "Puck RGBAW",
+  "aliases": [
+   "Blizzard Puck RGBAW",
+   "Puck RGBAW",
+   "blizzardpuckrgbaw",
+   "puckrgbaw"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer-simple",
+    "label": "Dimmer Simple",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer-extended",
+    "label": "Dimmer Extended",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "Intensity"
+     },
+     {
+      "from": 16,
+      "to": 255,
+      "label": "Intensity"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "NoFunction"
+     },
+     {
+      "from": 16,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-snap",
+    "label": "Color Snap",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "NoFunction"
+     },
+     {
+      "from": 16,
+      "to": 255,
+      "label": "Color Snap on"
+     }
+    ]
+   },
+   {
+    "key": "color-snap-speed",
+    "label": "Color Snap Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-fade",
+    "label": "Color Fade",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "NoFunction"
+     },
+     {
+      "from": 16,
+      "to": 255,
+      "label": "Color Fade on"
+     }
+    ]
+   },
+   {
+    "key": "color-fade-speed",
+    "label": "Color Fade Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "sound-control",
+    "label": "Sound Control",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "NoFunction"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "Sound Control"
+     }
+    ]
+   },
+   {
+    "key": "color-macros",
+    "label": "Color Macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 4,
+      "label": "R",
+      "color": "#ff0000"
+     },
+     {
+      "from": 5,
+      "to": 8,
+      "label": "G",
+      "color": "#00ff00"
+     },
+     {
+      "from": 9,
+      "to": 12,
+      "label": "B",
+      "color": "#0000ff"
+     },
+     {
+      "from": 13,
+      "to": 16,
+      "label": "A",
+      "color": "#ffbf00"
+     },
+     {
+      "from": 17,
+      "to": 20,
+      "label": "W",
+      "color": "#ffffff"
+     },
+     {
+      "from": 21,
+      "to": 24,
+      "label": "RG",
+      "color": "#ffff00"
+     },
+     {
+      "from": 25,
+      "to": 28,
+      "label": "RB",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 29,
+      "to": 31,
+      "label": "RA",
+      "color": "#ff6000"
+     },
+     {
+      "from": 32,
+      "to": 35,
+      "label": "RW",
+      "color": "#ff8080"
+     },
+     {
+      "from": 36,
+      "to": 39,
+      "label": "GB",
+      "color": "#00ffff"
+     },
+     {
+      "from": 40,
+      "to": 43,
+      "label": "GA",
+      "color": "#92ff00"
+     },
+     {
+      "from": 44,
+      "to": 47,
+      "label": "GW",
+      "color": "#80ff80"
+     },
+     {
+      "from": 48,
+      "to": 51,
+      "label": "BA",
+      "color": "#ffbfff"
+     },
+     {
+      "from": 52,
+      "to": 55,
+      "label": "BW",
+      "color": "#8080ff"
+     },
+     {
+      "from": 56,
+      "to": 59,
+      "label": "AW",
+      "color": "#ffdf80"
+     },
+     {
+      "from": 60,
+      "to": 62,
+      "label": "BAW",
+      "color": "#ffdfff"
+     },
+     {
+      "from": 63,
+      "to": 66,
+      "label": "GAW",
+      "color": "#baff5d"
+     },
+     {
+      "from": 67,
+      "to": 70,
+      "label": "GBW",
+      "color": "#80ffff"
+     },
+     {
+      "from": 71,
+      "to": 74,
+      "label": "GBA",
+      "color": "#92ff92"
+     },
+     {
+      "from": 75,
+      "to": 78,
+      "label": "RAW",
+      "color": "#ff9555"
+     },
+     {
+      "from": 79,
+      "to": 82,
+      "label": "RBW",
+      "color": "#ff80ff"
+     },
+     {
+      "from": 83,
+      "to": 86,
+      "label": "RBA",
+      "color": "#ff6080"
+     },
+     {
+      "from": 87,
+      "to": 90,
+      "label": "RGW",
+      "color": "#ffff80"
+     },
+     {
+      "from": 91,
+      "to": 93,
+      "label": "RGA",
+      "color": "#ffdf00"
+     },
+     {
+      "from": 94,
+      "to": 97,
+      "label": "RGB",
+      "color": "#ffffff"
+     },
+     {
+      "from": 98,
+      "to": 101,
+      "label": "RGBA",
+      "color": "#ffdf80"
+     },
+     {
+      "from": 102,
+      "to": 105,
+      "label": "RGBW",
+      "color": "#ffffff"
+     },
+     {
+      "from": 106,
+      "to": 109,
+      "label": "RGAW",
+      "color": "#ffea55"
+     },
+     {
+      "from": 110,
+      "to": 113,
+      "label": "RBAW",
+      "color": "#ff95aa"
+     },
+     {
+      "from": 114,
+      "to": 117,
+      "label": "GBAW",
+      "color": "#baffba"
+     },
+     {
+      "from": 118,
+      "to": 120,
+      "label": "RGBAW",
+      "color": "#ffeaaa"
+     },
+     {
+      "from": 121,
+      "to": 255,
+      "label": "ColorJump"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "12ch",
+    "name": "12-channel",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "dimmer-simple",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-snap",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-snap-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-fade",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-fade-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "sound-control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "5ch",
+    "name": "5-channel",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "3ch",
+    "name": "3-channel",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer-extended",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    210,
+    210,
+    63.5
+   ],
+   "weightKg": 1.8,
+   "powerW": 20,
+   "lensDegMin": 21,
+   "lensDegMax": 32
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "blizzard/puck-rgbaw",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "blizzard/rokbox-rgbw",
+  "manufacturer": "Blizzard",
+  "model": "RokBox RGBW",
+  "aliases": [
+   "Blizzard RokBox RGBW",
+   "RokBox RGBW",
+   "blizzardrokboxrgbw",
+   "rokboxrgbw"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 14,
+      "label": "NoFunction"
+     },
+     {
+      "from": 15,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "programs",
+    "label": "Programs",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "NoFunction"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "Fade In"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "Fade Out"
+     },
+     {
+      "from": 96,
+      "to": 127,
+      "label": "Fade In / Fade Out"
+     },
+     {
+      "from": 128,
+      "to": 159,
+      "label": "ColorFade"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "Fade In / Fade Out, Auto run"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "ColorJump (4 colors)"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "Sound-active multicolor"
+     }
+    ]
+   },
+   {
+    "key": "program-speed",
+    "label": "Program Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer-mode",
+    "label": "Dimmer Mode",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "As set in control menu display"
+     },
+     {
+      "from": 6,
+      "to": 55,
+      "label": "Mode 0 = 8bit, 256 dimming steps"
+     },
+     {
+      "from": 56,
+      "to": 105,
+      "label": "Mode 1 = 32bit, 0…25% intensity range"
+     },
+     {
+      "from": 106,
+      "to": 155,
+      "label": "Mode 2 = 32bit, 0…50% intensity range"
+     },
+     {
+      "from": 156,
+      "to": 205,
+      "label": "Mode 3 = 32bit, 0…75% intensity range"
+     },
+     {
+      "from": 206,
+      "to": 255,
+      "label": "Mode 4 = 32bit, full intensity dimming"
+     }
+    ]
+   },
+   {
+    "key": "hue",
+    "label": "Hue",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "saturation",
+    "label": "Saturation",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "value",
+    "label": "Value",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "9ch",
+    "name": "9-channel",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-mode",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "8ch",
+    "name": "8-channel",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-speed",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "hsv",
+    "name": "HSV",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "value",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "5ch",
+    "name": "5-channel",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "4ch",
+    "name": "4-channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    229,
+    228,
+    165
+   ],
+   "weightKg": 3.3,
+   "powerW": 126,
+   "lensDegMin": 25,
+   "lensDegMax": 30
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "blizzard/rokbox-rgbw",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

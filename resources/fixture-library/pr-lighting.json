@@ -1,0 +1,753 @@
+[
+ {
+  "id": "pr-lighting/xs-250-spot",
+  "manufacturer": "PR LIGHTING",
+  "model": "XS 250 Spot",
+  "aliases": [
+   "PR LIGHTING XS 250 Spot",
+   "PR-XS250",
+   "XS 250 Spot",
+   "prlightingxs250spot",
+   "prxs250",
+   "xs250spot"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Closed"
+     },
+     {
+      "from": 10,
+      "to": 25,
+      "label": "Open"
+     },
+     {
+      "from": 26,
+      "to": 225,
+      "label": "Strobe"
+     },
+     {
+      "from": 226,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "color-wheel",
+    "label": "Color Wheel",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 20,
+      "label": "Open"
+     },
+     {
+      "from": 21,
+      "to": 28,
+      "label": "Color"
+     },
+     {
+      "from": 29,
+      "to": 37,
+      "label": "Color"
+     },
+     {
+      "from": 38,
+      "to": 45,
+      "label": "Color"
+     },
+     {
+      "from": 46,
+      "to": 54,
+      "label": "Color"
+     },
+     {
+      "from": 55,
+      "to": 62,
+      "label": "Color"
+     },
+     {
+      "from": 63,
+      "to": 71,
+      "label": "Color"
+     },
+     {
+      "from": 72,
+      "to": 80,
+      "label": "Color"
+     },
+     {
+      "from": 81,
+      "to": 88,
+      "label": "Color"
+     },
+     {
+      "from": 89,
+      "to": 97,
+      "label": "Color"
+     },
+     {
+      "from": 98,
+      "to": 105,
+      "label": "Color"
+     },
+     {
+      "from": 106,
+      "to": 114,
+      "label": "Color"
+     },
+     {
+      "from": 115,
+      "to": 123,
+      "label": "Color"
+     },
+     {
+      "from": 124,
+      "to": 127,
+      "label": "Open"
+     },
+     {
+      "from": 128,
+      "to": 187,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 188,
+      "to": 195,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 196,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "fixed-gobo-wheel",
+    "label": "Fixed Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 11,
+      "label": "Open"
+     },
+     {
+      "from": 12,
+      "to": 23,
+      "label": "Gobo"
+     },
+     {
+      "from": 24,
+      "to": 34,
+      "label": "Gobo"
+     },
+     {
+      "from": 35,
+      "to": 46,
+      "label": "Gobo"
+     },
+     {
+      "from": 47,
+      "to": 57,
+      "label": "Gobo"
+     },
+     {
+      "from": 58,
+      "to": 69,
+      "label": "Gobo"
+     },
+     {
+      "from": 70,
+      "to": 80,
+      "label": "Gobo"
+     },
+     {
+      "from": 81,
+      "to": 92,
+      "label": "Gobo"
+     },
+     {
+      "from": 93,
+      "to": 103,
+      "label": "Gobo"
+     },
+     {
+      "from": 104,
+      "to": 115,
+      "label": "Gobo"
+     },
+     {
+      "from": 116,
+      "to": 127,
+      "label": "Gobo"
+     },
+     {
+      "from": 128,
+      "to": 150,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 151,
+      "to": 171,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 172,
+      "to": 183,
+      "label": "Gobo"
+     },
+     {
+      "from": 184,
+      "to": 191,
+      "label": "Gobo"
+     },
+     {
+      "from": 192,
+      "to": 199,
+      "label": "Gobo"
+     },
+     {
+      "from": 200,
+      "to": 207,
+      "label": "Gobo"
+     },
+     {
+      "from": 208,
+      "to": 215,
+      "label": "Gobo"
+     },
+     {
+      "from": 216,
+      "to": 223,
+      "label": "Gobo"
+     },
+     {
+      "from": 224,
+      "to": 231,
+      "label": "Gobo"
+     },
+     {
+      "from": 232,
+      "to": 239,
+      "label": "Gobo"
+     },
+     {
+      "from": 240,
+      "to": 247,
+      "label": "Gobo"
+     },
+     {
+      "from": 248,
+      "to": 255,
+      "label": "Gobo"
+     }
+    ]
+   },
+   {
+    "key": "rotating-gobo-wheel",
+    "label": "Rotating Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 16,
+      "label": "Open"
+     },
+     {
+      "from": 17,
+      "to": 32,
+      "label": "Gobo"
+     },
+     {
+      "from": 33,
+      "to": 48,
+      "label": "Gobo"
+     },
+     {
+      "from": 49,
+      "to": 64,
+      "label": "Gobo"
+     },
+     {
+      "from": 65,
+      "to": 80,
+      "label": "Gobo"
+     },
+     {
+      "from": 81,
+      "to": 96,
+      "label": "Gobo"
+     },
+     {
+      "from": 97,
+      "to": 112,
+      "label": "Gobo"
+     },
+     {
+      "from": 113,
+      "to": 127,
+      "label": "Gobo"
+     },
+     {
+      "from": 128,
+      "to": 150,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 151,
+      "to": 171,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 172,
+      "to": 183,
+      "label": "Gobo"
+     },
+     {
+      "from": 184,
+      "to": 195,
+      "label": "Gobo"
+     },
+     {
+      "from": 196,
+      "to": 207,
+      "label": "Gobo"
+     },
+     {
+      "from": 208,
+      "to": 219,
+      "label": "Gobo"
+     },
+     {
+      "from": 220,
+      "to": 231,
+      "label": "Gobo"
+     },
+     {
+      "from": 232,
+      "to": 243,
+      "label": "Gobo"
+     },
+     {
+      "from": 244,
+      "to": 255,
+      "label": "Gobo"
+     }
+    ]
+   },
+   {
+    "key": "gobo-rotation",
+    "label": "Gobo Rotation",
+    "role": "goboRotation",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 128,
+      "to": 188,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 189,
+      "to": 194,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 195,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "prism",
+    "label": "Prism",
+    "role": "prism",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 20,
+      "label": "NoFunction"
+     },
+     {
+      "from": 21,
+      "to": 255,
+      "label": "3-facet"
+     }
+    ]
+   },
+   {
+    "key": "prism-rotation",
+    "label": "Prism Rotation",
+    "role": "prismRotation",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 10,
+      "to": 127,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 128,
+      "to": 136,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 137,
+      "to": 255,
+      "label": "PrismRotation"
+     }
+    ]
+   },
+   {
+    "key": "focus",
+    "label": "Focus",
+    "role": "focus",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 270,
+    "unit": "deg"
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan/Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "control",
+    "label": "Control",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 48,
+      "label": "NoFunction"
+     },
+     {
+      "from": 49,
+      "to": 80,
+      "label": "Reset"
+     },
+     {
+      "from": 81,
+      "to": 112,
+      "label": "NoFunction"
+     },
+     {
+      "from": 113,
+      "to": 144,
+      "label": "Lamp off"
+     },
+     {
+      "from": 145,
+      "to": 168,
+      "label": "NoFunction"
+     },
+     {
+      "from": 169,
+      "to": 200,
+      "label": "Lamp power reduced to 50%"
+     },
+     {
+      "from": 201,
+      "to": 223,
+      "label": "NoFunction"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "Lamp on"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "std",
+    "name": "Standard",
+    "footprint": 16,
+    "slots": [
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "fixed-gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "rotating-gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-rotation",
+      "byte": 1
+     },
+     {
+      "channelKey": "prism",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "ext",
+    "name": "Extended",
+    "footprint": 18,
+    "slots": [
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "fixed-gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "rotating-gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-rotation",
+      "byte": 1
+     },
+     {
+      "channelKey": "prism",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "shrt",
+    "name": "Short",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "fixed-gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "rotating-gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "control",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    390,
+    564,
+    373
+   ],
+   "weightKg": 22,
+   "powerW": 370,
+   "lensDegMin": 16,
+   "lensDegMax": 16
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "pr-lighting/xs-250-spot",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

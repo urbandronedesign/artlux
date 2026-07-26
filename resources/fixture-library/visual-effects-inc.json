@@ -1,0 +1,305 @@
+[
+ {
+  "id": "visual-effects-inc/v-250-1-novascan",
+  "manufacturer": "Visual Effects Inc",
+  "model": "V-250-1 NovaScan",
+  "aliases": [
+   "V-250-1 NovaScan",
+   "Visual Effects Inc V-250-1 NovaScan",
+   "v2501novascan",
+   "visualeffectsincv2501novascan"
+  ],
+  "categories": [
+   "Scanner",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "color-wheel",
+    "label": "Color Wheel",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 17,
+      "label": "Open"
+     },
+     {
+      "from": 18,
+      "to": 35,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 36,
+      "to": 53,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 54,
+      "to": 71,
+      "label": "Magenta",
+      "color": "#8000ff"
+     },
+     {
+      "from": 72,
+      "to": 89,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 90,
+      "to": 107,
+      "label": "Orange",
+      "color": "#ff8000"
+     },
+     {
+      "from": 108,
+      "to": 125,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 126,
+      "to": 143,
+      "label": "Pink",
+      "color": "#ff80ff"
+     },
+     {
+      "from": 144,
+      "to": 161,
+      "label": "Lite Green",
+      "color": "#80ff80"
+     },
+     {
+      "from": 162,
+      "to": 179,
+      "label": "Lite Blue",
+      "color": "#00ffff"
+     },
+     {
+      "from": 180,
+      "to": 197,
+      "label": "Lite Red",
+      "color": "#ff4000"
+     },
+     {
+      "from": 198,
+      "to": 215,
+      "label": "Lite Yellow",
+      "color": "#ffff80"
+     },
+     {
+      "from": 216,
+      "to": 233,
+      "label": "Lite Magenta",
+      "color": "#ff80ff"
+     },
+     {
+      "from": 234,
+      "to": 251,
+      "label": "Blue/Red",
+      "color": "#0000ff"
+     },
+     {
+      "from": 252,
+      "to": 255,
+      "label": "Green/Yellow",
+      "color": "#00ff00"
+     }
+    ]
+   },
+   {
+    "key": "gobo-wheel",
+    "label": "Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 17,
+      "label": "Open"
+     },
+     {
+      "from": 18,
+      "to": 35,
+      "label": "3 Hole"
+     },
+     {
+      "from": 36,
+      "to": 53,
+      "label": "Pie"
+     },
+     {
+      "from": 54,
+      "to": 71,
+      "label": "Bullseye"
+     },
+     {
+      "from": 72,
+      "to": 89,
+      "label": "Flowers"
+     },
+     {
+      "from": 90,
+      "to": 107,
+      "label": "Barbells"
+     },
+     {
+      "from": 108,
+      "to": 125,
+      "label": "Spokes"
+     },
+     {
+      "from": 126,
+      "to": 143,
+      "label": "Atom"
+     },
+     {
+      "from": 144,
+      "to": 161,
+      "label": "Zigzag"
+     },
+     {
+      "from": 162,
+      "to": 179,
+      "label": "X"
+     },
+     {
+      "from": 180,
+      "to": 197,
+      "label": "Bubbles"
+     },
+     {
+      "from": 198,
+      "to": 215,
+      "label": "Arrows"
+     },
+     {
+      "from": 216,
+      "to": 233,
+      "label": "Diamonds"
+     },
+     {
+      "from": 234,
+      "to": 251,
+      "label": "Pyramid"
+     },
+     {
+      "from": 252,
+      "to": 255,
+      "label": "Lines"
+     }
+    ]
+   },
+   {
+    "key": "shutter-strobe",
+    "label": "Shutter / Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 14,
+      "label": "Closed"
+     },
+     {
+      "from": 15,
+      "to": 29,
+      "label": "Open"
+     },
+     {
+      "from": 30,
+      "to": 250,
+      "label": "Strobe"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 1,
+    "default": 0,
+    "min": 0,
+    "max": 180,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 1,
+    "default": 0,
+    "min": 0,
+    "max": 90,
+    "unit": "deg"
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "dmx",
+    "name": "DMX",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    546,
+    267,
+    203
+   ],
+   "weightKg": 8.2,
+   "powerW": 250
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "visual-effects-inc/v-250-1-novascan",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

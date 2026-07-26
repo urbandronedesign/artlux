@@ -1,0 +1,1469 @@
+[
+ {
+  "id": "shehds/led-flat-par-12x3w-rgbw",
+  "manufacturer": "Shehds",
+  "model": "LED Flat Par 12x3W RGBW",
+  "aliases": [
+   "LED Flat Par 12x3W RGBW",
+   "Shehds LED Flat Par 12x3W RGBW",
+   "ledflatpar12x3wrgbw",
+   "shehdsledflatpar12x3wrgbw"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Open"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "program",
+    "label": "Program",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 50,
+      "label": "NoFunction"
+     },
+     {
+      "from": 51,
+      "to": 100,
+      "label": "ColorJump"
+     },
+     {
+      "from": 101,
+      "to": 150,
+      "label": "ColorFade"
+     },
+     {
+      "from": 151,
+      "to": 200,
+      "label": "Color pulse"
+     },
+     {
+      "from": 201,
+      "to": 255,
+      "label": "Sound control"
+     }
+    ]
+   },
+   {
+    "key": "function-speed",
+    "label": "Function speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "8ch",
+    "name": "8-channel",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "program",
+      "byte": 0
+     },
+     {
+      "channelKey": "function-speed",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    118,
+    105,
+    114
+   ],
+   "weightKg": 0.35,
+   "powerW": 36
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "shehds/led-flat-par-12x3w-rgbw",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "shehds/led-flat-par-18x18w",
+  "manufacturer": "Shehds",
+  "model": "LED Flat Par 18x18W",
+  "aliases": [
+   "LED Flat Par 18x18W",
+   "Shehds LED Flat Par 18x18W",
+   "ledflatpar18x18w",
+   "shehdsledflatpar18x18w"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "uv",
+    "label": "UV",
+    "role": "uv",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Open"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "program",
+    "label": "Program",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 50,
+      "label": "NoFunction"
+     },
+     {
+      "from": 51,
+      "to": 100,
+      "label": "ColorJump"
+     },
+     {
+      "from": 101,
+      "to": 150,
+      "label": "ColorFade"
+     },
+     {
+      "from": 151,
+      "to": 200,
+      "label": "Color Pulse"
+     },
+     {
+      "from": 201,
+      "to": 255,
+      "label": "Sound Control"
+     }
+    ]
+   },
+   {
+    "key": "function-speed",
+    "label": "Function Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "10ch",
+    "name": "10-channel",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "program",
+      "byte": 0
+     },
+     {
+      "channelKey": "function-speed",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "6ch",
+    "name": "6-channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    200,
+    115,
+    265
+   ],
+   "weightKg": 4,
+   "powerW": 324
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "shehds/led-flat-par-18x18w",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "shehds/led-flat-par-54x3w",
+  "manufacturer": "Shehds",
+  "model": "LED Flat Par 54x3W",
+  "aliases": [
+   "LED Flat Par 54x3W",
+   "Shehds LED Flat Par 54x3W",
+   "ledflatpar54x3w",
+   "shehdsledflatpar54x3w"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "master-dimmer",
+    "label": "Master dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "program",
+    "label": "Program",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 50,
+      "label": "NoFunction"
+     },
+     {
+      "from": 51,
+      "to": 100,
+      "label": "ColorJump"
+     },
+     {
+      "from": 101,
+      "to": 150,
+      "label": "ColorFade"
+     },
+     {
+      "from": 151,
+      "to": 200,
+      "label": "Program pulse"
+     },
+     {
+      "from": 201,
+      "to": 255,
+      "label": "Open sound control function"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "7ch",
+    "name": "7-channel",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "master-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "program",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    260,
+    280,
+    130
+   ],
+   "weightKg": 0.4,
+   "powerW": 162
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "shehds/led-flat-par-54x3w",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "shehds/led-flat-par-7x18w-rgbwa-uv-light",
+  "manufacturer": "Shehds",
+  "model": "LED Flat Par 7x18W RGBWA+UV Light",
+  "aliases": [
+   "LED Flat Par 7x18W RGBWA+UV Light",
+   "Shehds LED Flat Par 7x18W RGBWA+UV Light",
+   "ledflatpar7x18wrgbwauvlight",
+   "shehdsledflatpar7x18wrgbwauvlight"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "master-dimmer",
+    "label": "Master dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "violet",
+    "label": "Violet",
+    "role": "uv",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 4,
+      "label": "Open"
+     },
+     {
+      "from": 5,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "function",
+    "label": "Function",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 50,
+      "label": "NoFunction"
+     },
+     {
+      "from": 51,
+      "to": 100,
+      "label": "Static color"
+     },
+     {
+      "from": 101,
+      "to": 150,
+      "label": "ColorJump (Random colors)"
+     },
+     {
+      "from": 151,
+      "to": 200,
+      "label": "ColorFade (Random colors)"
+     },
+     {
+      "from": 201,
+      "to": 250,
+      "label": "ColorFade (Random colors, fade to black)"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "Sound Mode (Static color flashing on beat)"
+     }
+    ]
+   },
+   {
+    "key": "color-presets",
+    "label": "Color Presets",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 96,
+      "to": 127,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 128,
+      "to": 159,
+      "label": "Amber",
+      "color": "#ffbf00"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "UV",
+      "color": "#8800ff"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "Cyan",
+      "color": "#00ffff"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "Warm White",
+      "color": "#fff6da"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "6ch",
+    "name": "6-channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "violet",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "9ch",
+    "name": "9-channel",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "master-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "violet",
+      "byte": 0
+     },
+     {
+      "channelKey": "function",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-presets",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "10ch",
+    "name": "10-channel",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "master-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "violet",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "function",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-presets",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    176,
+    178,
+    113
+   ],
+   "weightKg": 0.9,
+   "powerW": 126
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "shehds/led-flat-par-7x18w-rgbwa-uv-light",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "shehds/led-par-18x18w",
+  "manufacturer": "Shehds",
+  "model": "LED Par 18x18W",
+  "aliases": [
+   "LED Par 18x18W",
+   "SheHds18x18",
+   "Shehds LED Par 18x18W",
+   "ledpar18x18w",
+   "shehds18x18",
+   "shehdsledpar18x18w"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "uv",
+    "label": "UV",
+    "role": "uv",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-macros",
+    "label": "Color Macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 50,
+      "label": "NoFunction"
+     },
+     {
+      "from": 51,
+      "to": 100,
+      "label": "ColorJump"
+     },
+     {
+      "from": 101,
+      "to": 150,
+      "label": "ColorFade"
+     },
+     {
+      "from": 151,
+      "to": 200,
+      "label": "Color Pulse"
+     },
+     {
+      "from": 201,
+      "to": 255,
+      "label": "Sound control"
+     }
+    ]
+   },
+   {
+    "key": "program-speed",
+    "label": "Program Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "10ch",
+    "name": "10-channel",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-speed",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "6ch",
+    "name": "6-channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    200,
+    265,
+    115
+   ],
+   "weightKg": 3.15,
+   "powerW": 324
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "shehds/led-par-18x18w",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "shehds/led-spot-60w",
+  "manufacturer": "Shehds",
+  "model": "LED Spot 60W",
+  "aliases": [
+   "LED Spot 60W",
+   "Shehds LED Spot 60W",
+   "ledspot60w",
+   "shehdsledspot60w"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 270,
+    "unit": "deg"
+   },
+   {
+    "key": "color-wheel",
+    "label": "Color wheel",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Open"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "Orange",
+      "color": "#ed7d31"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "Lemon Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 40,
+      "to": 49,
+      "label": "Green",
+      "color": "#00b050"
+     },
+     {
+      "from": 50,
+      "to": 59,
+      "label": "Blue",
+      "color": "#2e75b6"
+     },
+     {
+      "from": 60,
+      "to": 69,
+      "label": "Pink",
+      "color": "#e98cc9"
+     },
+     {
+      "from": 70,
+      "to": 79,
+      "label": "Sky Blue",
+      "color": "#00b0f0"
+     },
+     {
+      "from": 80,
+      "to": 89,
+      "label": "Pink",
+      "color": "#e98cc9"
+     },
+     {
+      "from": 90,
+      "to": 99,
+      "label": "Blue",
+      "color": "#2e75b6"
+     },
+     {
+      "from": 100,
+      "to": 109,
+      "label": "Green",
+      "color": "#00b050"
+     },
+     {
+      "from": 110,
+      "to": 119,
+      "label": "Lemon Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 120,
+      "to": 129,
+      "label": "Orange",
+      "color": "#ed7d31"
+     },
+     {
+      "from": 130,
+      "to": 139,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 140,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "gobo-wheel",
+    "label": "Gobo wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Open"
+     },
+     {
+      "from": 8,
+      "to": 15,
+      "label": "Rose"
+     },
+     {
+      "from": 16,
+      "to": 23,
+      "label": "Radial Dots"
+     },
+     {
+      "from": 24,
+      "to": 31,
+      "label": "Triangle"
+     },
+     {
+      "from": 32,
+      "to": 39,
+      "label": "Hexagon"
+     },
+     {
+      "from": 40,
+      "to": 47,
+      "label": "Swirl"
+     },
+     {
+      "from": 48,
+      "to": 55,
+      "label": "Swirl"
+     },
+     {
+      "from": 56,
+      "to": 63,
+      "label": "Jigsaw"
+     },
+     {
+      "from": 64,
+      "to": 71,
+      "label": "Open"
+     },
+     {
+      "from": 72,
+      "to": 79,
+      "label": "Rose"
+     },
+     {
+      "from": 80,
+      "to": 87,
+      "label": "Radial Dots"
+     },
+     {
+      "from": 88,
+      "to": 95,
+      "label": "Triangle"
+     },
+     {
+      "from": 96,
+      "to": 103,
+      "label": "Hexagon"
+     },
+     {
+      "from": 104,
+      "to": 111,
+      "label": "Swirl"
+     },
+     {
+      "from": 112,
+      "to": 119,
+      "label": "Swirl"
+     },
+     {
+      "from": 120,
+      "to": 127,
+      "label": "Jigsaw"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan/Tilt speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "auto",
+    "label": "Auto",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 48,
+      "label": "NoFunction"
+     },
+     {
+      "from": 49,
+      "to": 99,
+      "label": "Auto Mode 1"
+     },
+     {
+      "from": 100,
+      "to": 199,
+      "label": "Auto Mode 2"
+     },
+     {
+      "from": 200,
+      "to": 255,
+      "label": "Sound Mode"
+     }
+    ]
+   },
+   {
+    "key": "reset",
+    "label": "Reset",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 249,
+      "label": "NoFunction"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Reset"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "9ch",
+    "name": "9-channel",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto",
+      "byte": 0
+     },
+     {
+      "channelKey": "reset",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "11ch",
+    "name": "11-channel",
+    "footprint": 11,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto",
+      "byte": 0
+     },
+     {
+      "channelKey": "reset",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    198,
+    272,
+    144
+   ],
+   "weightKg": 3.2,
+   "powerW": 60
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "shehds/led-spot-60w",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

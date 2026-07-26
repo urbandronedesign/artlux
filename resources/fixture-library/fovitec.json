@@ -1,0 +1,65 @@
+[
+ {
+  "id": "fovitec/600xb",
+  "manufacturer": "Fovitec",
+  "model": "600XB",
+  "aliases": [
+   "600XB",
+   "600xb",
+   "Fovitec 600XB",
+   "fovitec600xb"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "2ch",
+    "name": "2-channel",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    394,
+    399,
+    76
+   ],
+   "powerW": 36,
+   "lensDegMin": 45,
+   "lensDegMax": 45
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "fovitec/600xb",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

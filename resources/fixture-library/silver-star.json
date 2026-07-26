@@ -1,0 +1,488 @@
+[
+ {
+  "id": "silver-star/mx-indigo-6000xe",
+  "manufacturer": "Silver Star",
+  "model": "MX-Indigo 6000XE",
+  "aliases": [
+   "MX-Indigo 6000XE",
+   "Silver Star MX-Indigo 6000XE",
+   "mxindigo6000xe",
+   "silverstarmxindigo6000xe"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 270,
+    "unit": "deg"
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan/Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-macros",
+    "label": "Color Macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "NoFunction"
+     },
+     {
+      "from": 6,
+      "to": 10,
+      "label": "Maximum output"
+     },
+     {
+      "from": 11,
+      "to": 30,
+      "label": "Red … Yellow"
+     },
+     {
+      "from": 31,
+      "to": 50,
+      "label": "Yellow … Green"
+     },
+     {
+      "from": 51,
+      "to": 70,
+      "label": "Green … Cyan"
+     },
+     {
+      "from": 71,
+      "to": 90,
+      "label": "Cyan … Blue"
+     },
+     {
+      "from": 91,
+      "to": 110,
+      "label": "Blue … Magenta"
+     },
+     {
+      "from": 111,
+      "to": 130,
+      "label": "Magenta … Red"
+     },
+     {
+      "from": 131,
+      "to": 150,
+      "label": "Red … White"
+     },
+     {
+      "from": 151,
+      "to": 170,
+      "label": "White … Blue"
+     },
+     {
+      "from": 171,
+      "to": 200,
+      "label": "Red + Green + Blue + White 100%",
+      "color": "#ffffff"
+     },
+     {
+      "from": 201,
+      "to": 205,
+      "label": "3200K (White 1)",
+      "color": "#ffffff"
+     },
+     {
+      "from": 206,
+      "to": 210,
+      "label": "3400K (White 2)",
+      "color": "#ffffff"
+     },
+     {
+      "from": 211,
+      "to": 215,
+      "label": "4200K (White 3)",
+      "color": "#ffffff"
+     },
+     {
+      "from": 216,
+      "to": 220,
+      "label": "4900K (White 4)",
+      "color": "#ffffff"
+     },
+     {
+      "from": 221,
+      "to": 225,
+      "label": "5600K (White 5)",
+      "color": "#ffffff"
+     },
+     {
+      "from": 226,
+      "to": 230,
+      "label": "5900K (White 6)",
+      "color": "#ffffff"
+     },
+     {
+      "from": 231,
+      "to": 235,
+      "label": "6500K (White 7)",
+      "color": "#ffffff"
+     },
+     {
+      "from": 236,
+      "to": 240,
+      "label": "7200K (White 8)",
+      "color": "#ffffff"
+     },
+     {
+      "from": 241,
+      "to": 245,
+      "label": "8000K (White 9)",
+      "color": "#ffffff"
+     },
+     {
+      "from": 246,
+      "to": 250,
+      "label": "8500K (White 10)",
+      "color": "#ffffff"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "10000K (White 11)",
+      "color": "#ffffff"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Open"
+     },
+     {
+      "from": 10,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "zoom",
+    "label": "Zoom",
+    "role": "zoom",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "control",
+    "label": "Control",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 19,
+      "label": "NoFunction"
+     },
+     {
+      "from": 20,
+      "to": 39,
+      "label": "Pan/Tilt blackout ON"
+     },
+     {
+      "from": 40,
+      "to": 59,
+      "label": "Pan/Tilt blackout OFF"
+     },
+     {
+      "from": 60,
+      "to": 79,
+      "label": "Fan auto"
+     },
+     {
+      "from": 80,
+      "to": 99,
+      "label": "Fan slow"
+     },
+     {
+      "from": 100,
+      "to": 119,
+      "label": "Fan normal"
+     },
+     {
+      "from": 120,
+      "to": 139,
+      "label": "Fan fast"
+     },
+     {
+      "from": 140,
+      "to": 149,
+      "label": "Auto 1"
+     },
+     {
+      "from": 150,
+      "to": 159,
+      "label": "Auto 2"
+     },
+     {
+      "from": 160,
+      "to": 169,
+      "label": "Test"
+     },
+     {
+      "from": 170,
+      "to": 179,
+      "label": "Custom"
+     },
+     {
+      "from": 180,
+      "to": 199,
+      "label": "Tone 1"
+     },
+     {
+      "from": 200,
+      "to": 219,
+      "label": "Reset"
+     },
+     {
+      "from": 220,
+      "to": 235,
+      "label": "NoFunction"
+     },
+     {
+      "from": 236,
+      "to": 239,
+      "label": "Dimmer speed DIM0 (fastest)"
+     },
+     {
+      "from": 240,
+      "to": 243,
+      "label": "Dimmer speed DIM1"
+     },
+     {
+      "from": 244,
+      "to": 247,
+      "label": "Dimmer speed DIM2"
+     },
+     {
+      "from": 248,
+      "to": 251,
+      "label": "Dimmer speed DIM3"
+     },
+     {
+      "from": 252,
+      "to": 255,
+      "label": "Dimmer speed DIM4 (slowest)"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "15ch",
+    "name": "Advanced 15-channel",
+    "footprint": 15,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "12ch",
+    "name": "Basic 12-channel",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "control",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    339,
+    433,
+    252
+   ],
+   "weightKg": 11,
+   "powerW": 330
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "silver-star/mx-indigo-6000xe",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

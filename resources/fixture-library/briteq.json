@@ -1,0 +1,3634 @@
+[
+ {
+  "id": "briteq/beam-fury-1",
+  "manufacturer": "Briteq",
+  "model": "BEAM FURY-1",
+  "aliases": [
+   "BEAM FURY-1",
+   "Briteq BEAM FURY-1",
+   "Fury-1",
+   "beamfury1",
+   "briteqbeamfury1",
+   "fury1"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 630,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 270,
+    "unit": "deg"
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan/Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 225,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 226,
+      "to": 235,
+      "label": "blackout by movement"
+     },
+     {
+      "from": 236,
+      "to": 245,
+      "label": "All Motor Reset"
+     },
+     {
+      "from": 246,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "pan-continuous-rotation",
+    "label": "Pan Continuous Rotation",
+    "role": "pan",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "NoFunction"
+     },
+     {
+      "from": 128,
+      "to": 189,
+      "label": "PanContinuous"
+     },
+     {
+      "from": 190,
+      "to": 193,
+      "label": "PanContinuous"
+     },
+     {
+      "from": 194,
+      "to": 255,
+      "label": "PanContinuous"
+     }
+    ]
+   },
+   {
+    "key": "tilt-continuous-rotation",
+    "label": "Tilt Continuous Rotation",
+    "role": "tilt",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "NoFunction"
+     },
+     {
+      "from": 128,
+      "to": 189,
+      "label": "TiltContinuous"
+     },
+     {
+      "from": 190,
+      "to": 193,
+      "label": "TiltContinuous"
+     },
+     {
+      "from": 194,
+      "to": 255,
+      "label": "TiltContinuous"
+     }
+    ]
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "shutter-strobe",
+    "label": "Shutter / Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "Closed"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "Open"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "Strobe"
+     },
+     {
+      "from": 96,
+      "to": 127,
+      "label": "Open"
+     },
+     {
+      "from": 128,
+      "to": 159,
+      "label": "Pulse"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "Open"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "Strobe"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-macros",
+    "label": "Color Macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Normal"
+     },
+     {
+      "from": 8,
+      "to": 39,
+      "label": "Red…Yellow"
+     },
+     {
+      "from": 40,
+      "to": 71,
+      "label": "Yellow…Green"
+     },
+     {
+      "from": 72,
+      "to": 103,
+      "label": "Green…Cyan"
+     },
+     {
+      "from": 104,
+      "to": 135,
+      "label": "Cyan…Blue"
+     },
+     {
+      "from": 136,
+      "to": 167,
+      "label": "Blue…Magenta"
+     },
+     {
+      "from": 168,
+      "to": 199,
+      "label": "Magenta…Red"
+     },
+     {
+      "from": 200,
+      "to": 231,
+      "label": "Red…White"
+     },
+     {
+      "from": 232,
+      "to": 255,
+      "label": "ColorFade"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "12ch",
+    "name": "12-channel",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-continuous-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt-continuous-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "14ch",
+    "name": "14-channel",
+    "footprint": 14,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-continuous-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt-continuous-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    235.6,
+    304.5,
+    185.6
+   ],
+   "weightKg": 6.17,
+   "powerW": 80,
+   "lensDegMin": 4,
+   "lensDegMax": 45
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "briteq/beam-fury-1",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "briteq/beamspot1-dmx-fc",
+  "manufacturer": "Briteq",
+  "model": "BEAMSPOT1-DMX FC",
+  "aliases": [
+   "BEAMSPOT1-DMX FC",
+   "Briteq BEAMSPOT1-DMX FC",
+   "beamspot1dmxfc",
+   "briteqbeamspot1dmxfc"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "master-dimmer",
+    "label": "Master Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 4,
+      "label": "NoFunction"
+     },
+     {
+      "from": 5,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "functions",
+    "label": "Functions",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 190,
+      "label": "Intensity"
+     },
+     {
+      "from": 191,
+      "to": 200,
+      "label": "ColorJump (7 colors)"
+     },
+     {
+      "from": 201,
+      "to": 247,
+      "label": "Strobe"
+     },
+     {
+      "from": 248,
+      "to": 255,
+      "label": "Intensity"
+     }
+    ]
+   },
+   {
+    "key": "sound-strobe",
+    "label": "Sound / Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 4,
+      "label": "NoFunction"
+     },
+     {
+      "from": 5,
+      "to": 24,
+      "label": "ColorJump (7 colors)"
+     },
+     {
+      "from": 25,
+      "to": 34,
+      "label": "NoFunction"
+     },
+     {
+      "from": 35,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "extended-strobe",
+    "label": "Extended Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "NoFunction"
+     },
+     {
+      "from": 8,
+      "to": 37,
+      "label": "Strobe"
+     },
+     {
+      "from": 38,
+      "to": 67,
+      "label": "Strobe"
+     },
+     {
+      "from": 68,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "programs",
+    "label": "Programs",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "NoFunction"
+     },
+     {
+      "from": 8,
+      "to": 127,
+      "label": "ColorJump"
+     },
+     {
+      "from": 128,
+      "to": 247,
+      "label": "ColorFade"
+     },
+     {
+      "from": 248,
+      "to": 255,
+      "label": "Sound control"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "04ch-rgb-dim",
+    "name": "RGB + Functions",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "functions",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "04ch-rgbw",
+    "name": "RGBW",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "05ch-rgbw-dim",
+    "name": "RGBW + Functions",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "functions",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "06ch",
+    "name": "RGBW + Master + Sound/Strobe",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "master-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "sound-strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "06ch",
+    "name": "RGBW + Master + Strobe",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "master-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "07ch",
+    "name": "Master + Strobe + Programs + RGBW",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "master-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "extended-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    124.5,
+    195.5,
+    172.25
+   ],
+   "weightKg": 1.23,
+   "powerW": 15,
+   "lensDegMin": 4,
+   "lensDegMax": 45
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "briteq/beamspot1-dmx-fc",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "briteq/bt-coloray-120r",
+  "manufacturer": "Briteq",
+  "model": "BT-COLORAY 120R",
+  "aliases": [
+   "BT-COLORAY 120R",
+   "Briteq BT-COLORAY 120R",
+   "briteqbtcoloray120r",
+   "btcoloray120r"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer-strobe",
+    "label": "Dimmer / Strobe",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 200,
+      "label": "Intensity"
+     },
+     {
+      "from": 201,
+      "to": 247,
+      "label": "Strobe"
+     },
+     {
+      "from": 248,
+      "to": 255,
+      "label": "Intensity"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 4,
+      "label": "NoFunction"
+     },
+     {
+      "from": 5,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "dimmer-speed",
+    "label": "Dimmer Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "4ch",
+    "name": "RGB + Dim/Strb",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "6ch",
+    "name": "RGBW + Dim + Strb",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "7ch",
+    "name": "RGBW + Dim + Strb + DimSpeed",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-speed",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    272.5,
+    304.6,
+    241.7
+   ],
+   "weightKg": 4.8,
+   "powerW": 129,
+   "lensDegMin": 15,
+   "lensDegMax": 15
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "briteq/bt-coloray-120r",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "briteq/bt-coloray-18fcr",
+  "manufacturer": "Briteq",
+  "model": "BT-COLORAY 18FCR",
+  "aliases": [
+   "BT-COLORAY 18FCR",
+   "Briteq BT-COLORAY 18FCR",
+   "briteqbtcoloray18fcr",
+   "btcoloray18fcr"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer-strobe",
+    "label": "Dimmer / Strobe",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 200,
+      "label": "Intensity"
+     },
+     {
+      "from": 201,
+      "to": 247,
+      "label": "Strobe"
+     },
+     {
+      "from": 248,
+      "to": 255,
+      "label": "Intensity"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 4,
+      "label": "NoFunction"
+     },
+     {
+      "from": 5,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "dimmer-speed",
+    "label": "Dimmer Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "4ch",
+    "name": "RGB + Dim/Strb",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "6ch",
+    "name": "RGBW + Dim + Strb",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "7ch",
+    "name": "RGBW + Dim + Strb + DimSpeed",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-speed",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    273,
+    305,
+    192
+   ],
+   "weightKg": 5.28,
+   "powerW": 123,
+   "lensDegMin": 20,
+   "lensDegMax": 20
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "briteq/bt-coloray-18fcr",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "briteq/bt-coloray-60r",
+  "manufacturer": "Briteq",
+  "model": "BT-COLORAY 60R",
+  "aliases": [
+   "BT-COLORAY 60R",
+   "Briteq BT-COLORAY 60R",
+   "briteqbtcoloray60r",
+   "btcoloray60r"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer-strobe",
+    "label": "Dimmer / Strobe",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 200,
+      "label": "Intensity"
+     },
+     {
+      "from": 201,
+      "to": 247,
+      "label": "Strobe"
+     },
+     {
+      "from": 248,
+      "to": 255,
+      "label": "Intensity"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 4,
+      "label": "NoFunction"
+     },
+     {
+      "from": 5,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "dimmer-speed",
+    "label": "Dimmer Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "4ch",
+    "name": "RGB + Dim/Strb",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "6ch",
+    "name": "RGBW + Dim + Strb",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "7ch",
+    "name": "RGBW + Dim + Strb + DimSpeed",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-speed",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    272.5,
+    304.6,
+    241.7
+   ],
+   "weightKg": 4.8,
+   "powerW": 70,
+   "lensDegMin": 15,
+   "lensDegMax": 15
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "briteq/bt-coloray-60r",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "briteq/bt-stagepar-6in1",
+  "manufacturer": "Briteq",
+  "model": "BT-STAGEPAR 6in1",
+  "aliases": [
+   "BT-STAGEPAR 6in1",
+   "BT-STAGEPAR6in1",
+   "Briteq BT-STAGEPAR 6in1",
+   "briteqbtstagepar6in1",
+   "btstagepar6in1"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "all-colors",
+    "label": "All Colors",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "uv",
+    "label": "UV",
+    "role": "uv",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "simple-strobe",
+    "label": "Simple Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer-chase-strobe",
+    "label": "Dimmer / Chase / Strobe",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 190,
+      "label": "Intensity"
+     },
+     {
+      "from": 191,
+      "to": 200,
+      "label": "ColorJump"
+     },
+     {
+      "from": 201,
+      "to": 247,
+      "label": "Strobe"
+     },
+     {
+      "from": 248,
+      "to": 255,
+      "label": "Intensity"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Open"
+     },
+     {
+      "from": 1,
+      "to": 5,
+      "label": "Strobe"
+     },
+     {
+      "from": 6,
+      "to": 10,
+      "label": "Open"
+     },
+     {
+      "from": 11,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "extended-strobe",
+    "label": "Extended Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Open"
+     },
+     {
+      "from": 8,
+      "to": 37,
+      "label": "Strobe"
+     },
+     {
+      "from": 38,
+      "to": 67,
+      "label": "Strobe"
+     },
+     {
+      "from": 68,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "programs",
+    "label": "Programs",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "NoFunction"
+     },
+     {
+      "from": 8,
+      "to": 247,
+      "label": "ColorFade"
+     },
+     {
+      "from": 248,
+      "to": 255,
+      "label": "ColorJump"
+     }
+    ]
+   },
+   {
+    "key": "color-presets",
+    "label": "Color Presets",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "NoFunction"
+     },
+     {
+      "from": 8,
+      "to": 255,
+      "label": "ColorPreset"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "1ch",
+    "name": "1-channel",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "all-colors",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "2ch",
+    "name": "2-channel",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "all-colors",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "3ch",
+    "name": "3-channel",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "all-colors",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "simple-strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "3ch",
+    "name": "3-channel+",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "4ch",
+    "name": "4-channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-chase-strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "8ch",
+    "name": "8-channel",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "9ch",
+    "name": "9-channel",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-presets",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "9ch",
+    "name": "9-channel+",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "extended-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    300,
+    275,
+    300
+   ],
+   "weightKg": 3.5,
+   "powerW": 120,
+   "lensDegMin": 25,
+   "lensDegMax": 25
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "briteq/bt-stagepar-6in1",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "briteq/btx-titan",
+  "manufacturer": "Briteq",
+  "model": "BTX-Titan",
+  "aliases": [
+   "BTX-Titan",
+   "Briteq BTX-Titan",
+   "briteqbtxtitan",
+   "btxtitan"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 270,
+    "unit": "deg"
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan/Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "special-functions",
+    "label": "Special Functions",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Reserved"
+     },
+     {
+      "from": 10,
+      "to": 14,
+      "label": "DMX input: Wired DMX"
+     },
+     {
+      "from": 15,
+      "to": 19,
+      "label": "DMX input: Wireless DMX"
+     },
+     {
+      "from": 20,
+      "to": 24,
+      "label": "Eco mode (Lamp power 230W)"
+     },
+     {
+      "from": 25,
+      "to": 29,
+      "label": "Standard mode (Lamp power 280W)"
+     },
+     {
+      "from": 30,
+      "to": 49,
+      "label": "Reserved"
+     },
+     {
+      "from": 50,
+      "to": 59,
+      "label": "Pan/Tilt speed mode"
+     },
+     {
+      "from": 60,
+      "to": 69,
+      "label": "Pan/Tilt time mode"
+     },
+     {
+      "from": 70,
+      "to": 79,
+      "label": "Blackout when pan/tilt moving"
+     },
+     {
+      "from": 80,
+      "to": 89,
+      "label": "Disabled blackout when pan/tilt moving"
+     },
+     {
+      "from": 90,
+      "to": 99,
+      "label": "Blackout when colour wheel moving"
+     },
+     {
+      "from": 100,
+      "to": 109,
+      "label": "Disabled blackout when colour wheel moving"
+     },
+     {
+      "from": 110,
+      "to": 119,
+      "label": "Blackout when gobo wheel moving"
+     },
+     {
+      "from": 120,
+      "to": 129,
+      "label": "Disabled blackout when gobo wheel moving"
+     },
+     {
+      "from": 130,
+      "to": 139,
+      "label": "Lamp On, reset (total reset except pan/tilt reset)"
+     },
+     {
+      "from": 140,
+      "to": 149,
+      "label": "Pan/Tilt reset"
+     },
+     {
+      "from": 150,
+      "to": 159,
+      "label": "Colour system reset"
+     },
+     {
+      "from": 160,
+      "to": 169,
+      "label": "Gobo wheels reset"
+     },
+     {
+      "from": 170,
+      "to": 179,
+      "label": "Dimmer/shutter"
+     },
+     {
+      "from": 180,
+      "to": 189,
+      "label": "Zoom/focus/prism reset"
+     },
+     {
+      "from": 190,
+      "to": 199,
+      "label": "Reserved"
+     },
+     {
+      "from": 200,
+      "to": 209,
+      "label": "Total reset"
+     },
+     {
+      "from": 210,
+      "to": 229,
+      "label": "Reserved"
+     },
+     {
+      "from": 230,
+      "to": 239,
+      "label": "Lamp Off"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "Reserved"
+     }
+    ]
+   },
+   {
+    "key": "color-wheel",
+    "label": "Color Wheel",
+    "role": "colorWheel",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 8,
+      "label": "Open"
+     },
+     {
+      "from": 9,
+      "to": 17,
+      "label": "Deep red",
+      "color": "#cc0000"
+     },
+     {
+      "from": 18,
+      "to": 26,
+      "label": "Deep blue",
+      "color": "#0000cc"
+     },
+     {
+      "from": 27,
+      "to": 36,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 37,
+      "to": 45,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 46,
+      "to": 54,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 55,
+      "to": 63,
+      "label": "Azure",
+      "color": "#00ffff"
+     },
+     {
+      "from": 64,
+      "to": 72,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 73,
+      "to": 81,
+      "label": "Dark green",
+      "color": "#00cc00"
+     },
+     {
+      "from": 82,
+      "to": 90,
+      "label": "Amber",
+      "color": "#ffaa00"
+     },
+     {
+      "from": 91,
+      "to": 100,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 101,
+      "to": 109,
+      "label": "Orange",
+      "color": "#ff6600"
+     },
+     {
+      "from": 110,
+      "to": 118,
+      "label": "CTO",
+      "color": "#ffcc99"
+     },
+     {
+      "from": 119,
+      "to": 127,
+      "label": "UV filter",
+      "color": "#9900ff"
+     },
+     {
+      "from": 128,
+      "to": 129,
+      "label": "Open"
+     },
+     {
+      "from": 130,
+      "to": 134,
+      "label": "Open"
+     },
+     {
+      "from": 135,
+      "to": 138,
+      "label": "Deep red",
+      "color": "#cc0000"
+     },
+     {
+      "from": 139,
+      "to": 143,
+      "label": "Deep blue",
+      "color": "#0000cc"
+     },
+     {
+      "from": 144,
+      "to": 147,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 148,
+      "to": 152,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 153,
+      "to": 157,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 158,
+      "to": 161,
+      "label": "Azure",
+      "color": "#00ffff"
+     },
+     {
+      "from": 162,
+      "to": 166,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 167,
+      "to": 171,
+      "label": "Dark green",
+      "color": "#00cc00"
+     },
+     {
+      "from": 172,
+      "to": 176,
+      "label": "Amber",
+      "color": "#ffaa00"
+     },
+     {
+      "from": 177,
+      "to": 180,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 181,
+      "to": 185,
+      "label": "Orange",
+      "color": "#ff6600"
+     },
+     {
+      "from": 186,
+      "to": 189,
+      "label": "CTO",
+      "color": "#ffcc99"
+     },
+     {
+      "from": 190,
+      "to": 215,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 216,
+      "to": 217,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 218,
+      "to": 243,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 244,
+      "to": 249,
+      "label": "Random color selected by audio control"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Auto random color selection"
+     }
+    ]
+   },
+   {
+    "key": "gobo-selection-speed",
+    "label": "Gobo Selection Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "static-gobo-wheel",
+    "label": "Static Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 3,
+      "label": "Open"
+     },
+     {
+      "from": 4,
+      "to": 9,
+      "label": "Gobo"
+     },
+     {
+      "from": 10,
+      "to": 15,
+      "label": "Gobo"
+     },
+     {
+      "from": 16,
+      "to": 21,
+      "label": "Gobo"
+     },
+     {
+      "from": 22,
+      "to": 27,
+      "label": "Gobo"
+     },
+     {
+      "from": 28,
+      "to": 33,
+      "label": "Gobo"
+     },
+     {
+      "from": 34,
+      "to": 39,
+      "label": "Gobo"
+     },
+     {
+      "from": 40,
+      "to": 45,
+      "label": "Gobo"
+     },
+     {
+      "from": 46,
+      "to": 51,
+      "label": "Gobo"
+     },
+     {
+      "from": 52,
+      "to": 57,
+      "label": "Gobo"
+     },
+     {
+      "from": 58,
+      "to": 63,
+      "label": "Gobo"
+     },
+     {
+      "from": 64,
+      "to": 69,
+      "label": "Iris"
+     },
+     {
+      "from": 70,
+      "to": 75,
+      "label": "Iris"
+     },
+     {
+      "from": 76,
+      "to": 81,
+      "label": "Iris"
+     },
+     {
+      "from": 82,
+      "to": 87,
+      "label": "Iris"
+     },
+     {
+      "from": 88,
+      "to": 95,
+      "label": "Gobo"
+     },
+     {
+      "from": 96,
+      "to": 103,
+      "label": "Gobo"
+     },
+     {
+      "from": 104,
+      "to": 111,
+      "label": "Gobo"
+     },
+     {
+      "from": 112,
+      "to": 119,
+      "label": "Gobo"
+     },
+     {
+      "from": 120,
+      "to": 127,
+      "label": "Gobo"
+     },
+     {
+      "from": 128,
+      "to": 135,
+      "label": "Gobo"
+     },
+     {
+      "from": 136,
+      "to": 143,
+      "label": "Gobo"
+     },
+     {
+      "from": 144,
+      "to": 151,
+      "label": "Gobo"
+     },
+     {
+      "from": 152,
+      "to": 159,
+      "label": "Gobo"
+     },
+     {
+      "from": 160,
+      "to": 167,
+      "label": "Gobo"
+     },
+     {
+      "from": 168,
+      "to": 175,
+      "label": "Iris"
+     },
+     {
+      "from": 176,
+      "to": 183,
+      "label": "Iris"
+     },
+     {
+      "from": 184,
+      "to": 191,
+      "label": "Iris"
+     },
+     {
+      "from": 192,
+      "to": 199,
+      "label": "Iris"
+     },
+     {
+      "from": 200,
+      "to": 201,
+      "label": "Open"
+     },
+     {
+      "from": 202,
+      "to": 221,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 222,
+      "to": 223,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 224,
+      "to": 243,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 244,
+      "to": 249,
+      "label": "Random gobo selected by audio control"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Auto random gobo selection"
+     }
+    ]
+   },
+   {
+    "key": "rotating-gobo-wheel",
+    "label": "Rotating Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 4,
+      "label": "Open"
+     },
+     {
+      "from": 5,
+      "to": 7,
+      "label": "Gobo (indexing)"
+     },
+     {
+      "from": 8,
+      "to": 10,
+      "label": "Gobo (indexing)"
+     },
+     {
+      "from": 11,
+      "to": 13,
+      "label": "Gobo (indexing)"
+     },
+     {
+      "from": 14,
+      "to": 16,
+      "label": "Gobo (indexing)"
+     },
+     {
+      "from": 17,
+      "to": 19,
+      "label": "Gobo (indexing)"
+     },
+     {
+      "from": 20,
+      "to": 22,
+      "label": "Gobo (indexing)"
+     },
+     {
+      "from": 23,
+      "to": 25,
+      "label": "Gobo (indexing)"
+     },
+     {
+      "from": 26,
+      "to": 28,
+      "label": "Gobo (indexing)"
+     },
+     {
+      "from": 29,
+      "to": 31,
+      "label": "Gobo (indexing)"
+     },
+     {
+      "from": 32,
+      "to": 34,
+      "label": "Gobo (rotating)"
+     },
+     {
+      "from": 35,
+      "to": 37,
+      "label": "Gobo (rotating)"
+     },
+     {
+      "from": 38,
+      "to": 40,
+      "label": "Gobo (rotating)"
+     },
+     {
+      "from": 41,
+      "to": 43,
+      "label": "Gobo (rotating)"
+     },
+     {
+      "from": 44,
+      "to": 46,
+      "label": "Gobo (rotating)"
+     },
+     {
+      "from": 47,
+      "to": 49,
+      "label": "Gobo (rotating)"
+     },
+     {
+      "from": 50,
+      "to": 52,
+      "label": "Gobo (rotating)"
+     },
+     {
+      "from": 53,
+      "to": 55,
+      "label": "Gobo (rotating)"
+     },
+     {
+      "from": 56,
+      "to": 59,
+      "label": "Gobo (rotating)"
+     },
+     {
+      "from": 60,
+      "to": 67,
+      "label": "Gobo (indexing)"
+     },
+     {
+      "from": 68,
+      "to": 75,
+      "label": "Gobo (indexing)"
+     },
+     {
+      "from": 76,
+      "to": 83,
+      "label": "Gobo (indexing)"
+     },
+     {
+      "from": 84,
+      "to": 91,
+      "label": "Gobo (indexing)"
+     },
+     {
+      "from": 92,
+      "to": 99,
+      "label": "Gobo (indexing)"
+     },
+     {
+      "from": 100,
+      "to": 107,
+      "label": "Gobo (indexing)"
+     },
+     {
+      "from": 108,
+      "to": 115,
+      "label": "Gobo (indexing)"
+     },
+     {
+      "from": 116,
+      "to": 123,
+      "label": "Gobo (indexing)"
+     },
+     {
+      "from": 124,
+      "to": 129,
+      "label": "Gobo (indexing)"
+     },
+     {
+      "from": 130,
+      "to": 137,
+      "label": "Gobo (rotating)"
+     },
+     {
+      "from": 138,
+      "to": 145,
+      "label": "Gobo (rotating)"
+     },
+     {
+      "from": 146,
+      "to": 153,
+      "label": "Gobo (rotating)"
+     },
+     {
+      "from": 154,
+      "to": 161,
+      "label": "Gobo (rotating)"
+     },
+     {
+      "from": 162,
+      "to": 169,
+      "label": "Gobo (rotating)"
+     },
+     {
+      "from": 170,
+      "to": 177,
+      "label": "Gobo (rotating)"
+     },
+     {
+      "from": 178,
+      "to": 185,
+      "label": "Gobo (rotating)"
+     },
+     {
+      "from": 186,
+      "to": 193,
+      "label": "Gobo (rotating)"
+     },
+     {
+      "from": 194,
+      "to": 199,
+      "label": "Gobo (rotating)"
+     },
+     {
+      "from": 200,
+      "to": 201,
+      "label": "Open"
+     },
+     {
+      "from": 202,
+      "to": 221,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 222,
+      "to": 223,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 224,
+      "to": 243,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 244,
+      "to": 249,
+      "label": "Random gobo selected by audio control"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Auto random gobo selection"
+     }
+    ]
+   },
+   {
+    "key": "gobo-rotation-speed",
+    "label": "Gobo Rotation Speed",
+    "role": "goboRotation",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 1,
+      "to": 127,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 128,
+      "to": 129,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 130,
+      "to": 255,
+      "label": "WheelSlotRotation"
+     }
+    ]
+   },
+   {
+    "key": "prism",
+    "label": "Prism",
+    "role": "prism",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 19,
+      "label": "NoFunction"
+     },
+     {
+      "from": 20,
+      "to": 39,
+      "label": "6-facet linear, indexing"
+     },
+     {
+      "from": 40,
+      "to": 49,
+      "label": "6-facet linear, rotating"
+     },
+     {
+      "from": 50,
+      "to": 59,
+      "label": "8-facet circular, indexing"
+     },
+     {
+      "from": 60,
+      "to": 69,
+      "label": "8-facet circular, rotating"
+     },
+     {
+      "from": 70,
+      "to": 79,
+      "label": "6-facet and 8-facet, indexing"
+     },
+     {
+      "from": 80,
+      "to": 89,
+      "label": "6-facet and 8-facet, rotating"
+     },
+     {
+      "from": 90,
+      "to": 108,
+      "label": "6-facet indexing, 8-facet rotating"
+     },
+     {
+      "from": 109,
+      "to": 127,
+      "label": "6-facet rotating, 8-facet indexing"
+     },
+     {
+      "from": 128,
+      "to": 135,
+      "label": "Prism Macro 1"
+     },
+     {
+      "from": 136,
+      "to": 143,
+      "label": "Prism Macro 2"
+     },
+     {
+      "from": 144,
+      "to": 151,
+      "label": "Prism Macro 3"
+     },
+     {
+      "from": 152,
+      "to": 159,
+      "label": "Prism Macro 4"
+     },
+     {
+      "from": 160,
+      "to": 167,
+      "label": "Prism Macro 5"
+     },
+     {
+      "from": 168,
+      "to": 175,
+      "label": "Prism Macro 6"
+     },
+     {
+      "from": 176,
+      "to": 183,
+      "label": "Prism Macro 7"
+     },
+     {
+      "from": 184,
+      "to": 191,
+      "label": "Prism Macro 8"
+     },
+     {
+      "from": 192,
+      "to": 199,
+      "label": "Prism Macro 9"
+     },
+     {
+      "from": 200,
+      "to": 207,
+      "label": "Prism Macro 10"
+     },
+     {
+      "from": 208,
+      "to": 215,
+      "label": "Prism Macro 11"
+     },
+     {
+      "from": 216,
+      "to": 223,
+      "label": "Prism Macro 12"
+     },
+     {
+      "from": 224,
+      "to": 231,
+      "label": "Prism Macro 13"
+     },
+     {
+      "from": 232,
+      "to": 239,
+      "label": "Prism Macro 14"
+     },
+     {
+      "from": 240,
+      "to": 247,
+      "label": "Prism Macro 15"
+     },
+     {
+      "from": 248,
+      "to": 255,
+      "label": "Prism Macro 16"
+     }
+    ]
+   },
+   {
+    "key": "6-facet-prism-rotation-speed",
+    "label": "6-Facet Prism Rotation Speed",
+    "role": "prismRotation",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 1,
+      "to": 127,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 128,
+      "to": 129,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 130,
+      "to": 255,
+      "label": "PrismRotation"
+     }
+    ]
+   },
+   {
+    "key": "8-facet-prism-rotation-speed",
+    "label": "8-Facet Prism Rotation Speed",
+    "role": "prismRotation",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 1,
+      "to": 127,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 128,
+      "to": 129,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 130,
+      "to": 255,
+      "label": "PrismRotation"
+     }
+    ]
+   },
+   {
+    "key": "prism-rotation-speed",
+    "label": "Prism Rotation Speed",
+    "role": "prismRotation",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 1,
+      "to": 127,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 128,
+      "to": 129,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 130,
+      "to": 255,
+      "label": "PrismRotation"
+     }
+    ]
+   },
+   {
+    "key": "frost",
+    "label": "Frost",
+    "role": "frost",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "zoom",
+    "label": "Zoom",
+    "role": "zoom",
+    "resolution": 2,
+    "default": 0,
+    "min": 11,
+    "max": 2.7,
+    "unit": "deg"
+   },
+   {
+    "key": "focus",
+    "label": "Focus",
+    "role": "focus",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "autofocus",
+    "label": "Autofocus",
+    "role": "focus",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Autofocus off"
+     },
+     {
+      "from": 1,
+      "to": 7,
+      "label": "rotating gobos"
+     },
+     {
+      "from": 8,
+      "to": 15,
+      "label": "rotating gobos"
+     },
+     {
+      "from": 16,
+      "to": 23,
+      "label": "rotating gobos"
+     },
+     {
+      "from": 24,
+      "to": 31,
+      "label": "rotating gobos"
+     },
+     {
+      "from": 32,
+      "to": 39,
+      "label": "rotating gobos"
+     },
+     {
+      "from": 40,
+      "to": 47,
+      "label": "rotating gobos"
+     },
+     {
+      "from": 48,
+      "to": 55,
+      "label": "rotating gobos"
+     },
+     {
+      "from": 56,
+      "to": 63,
+      "label": "rotating gobos"
+     },
+     {
+      "from": 64,
+      "to": 71,
+      "label": "static gobos"
+     },
+     {
+      "from": 72,
+      "to": 79,
+      "label": "static gobos"
+     },
+     {
+      "from": 80,
+      "to": 87,
+      "label": "static gobos"
+     },
+     {
+      "from": 88,
+      "to": 95,
+      "label": "static gobos"
+     },
+     {
+      "from": 96,
+      "to": 103,
+      "label": "static gobos"
+     },
+     {
+      "from": 104,
+      "to": 111,
+      "label": "static gobos"
+     },
+     {
+      "from": 112,
+      "to": 119,
+      "label": "static gobos"
+     },
+     {
+      "from": 120,
+      "to": 126,
+      "label": "static gobos"
+     },
+     {
+      "from": 127,
+      "to": 127,
+      "label": "Infinity"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "Reserved"
+     }
+    ]
+   },
+   {
+    "key": "shutter-strobe",
+    "label": "Shutter / Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "Closed (Lamp power reduced to 230W)"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "Open"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "Strobe"
+     },
+     {
+      "from": 96,
+      "to": 127,
+      "label": "Open"
+     },
+     {
+      "from": 128,
+      "to": 143,
+      "label": "RampUp"
+     },
+     {
+      "from": 144,
+      "to": 159,
+      "label": "RampDown"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "Open"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "Strobe"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "24ch",
+    "name": "24-channel",
+    "footprint": 24,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "special-functions",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 1
+     },
+     {
+      "channelKey": "gobo-selection-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "static-gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "rotating-gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-rotation-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-rotation-speed",
+      "byte": 1
+     },
+     {
+      "channelKey": "prism",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-rotation-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "frost",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 1
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 1
+     },
+     {
+      "channelKey": "autofocus",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "25ch",
+    "name": "25-channel",
+    "footprint": 25,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "special-functions",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 1
+     },
+     {
+      "channelKey": "gobo-selection-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "static-gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "rotating-gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-rotation-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-rotation-speed",
+      "byte": 1
+     },
+     {
+      "channelKey": "prism",
+      "byte": 0
+     },
+     {
+      "channelKey": "6-facet-prism-rotation-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "8-facet-prism-rotation-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "frost",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 1
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 1
+     },
+     {
+      "channelKey": "autofocus",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "17ch",
+    "name": "17-channel",
+    "footprint": 17,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "special-functions",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-selection-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "static-gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "rotating-gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-rotation-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism",
+      "byte": 0
+     },
+     {
+      "channelKey": "6-facet-prism-rotation-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "8-facet-prism-rotation-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "frost",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    391,
+    583,
+    287
+   ],
+   "weightKg": 15,
+   "powerW": 400,
+   "lensDegMin": 2.7,
+   "lensDegMax": 11
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "briteq/btx-titan",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "briteq/cob-slim-100-rgb",
+  "manufacturer": "Briteq",
+  "model": "COB Slim 100-RGB",
+  "aliases": [
+   "Briteq COB Slim 100-RGB",
+   "COB Slim 100-RGB",
+   "briteqcobslim100rgb",
+   "cobslim100rgb"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "mode",
+    "label": "Mode",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 190,
+      "label": "Intensity"
+     },
+     {
+      "from": 191,
+      "to": 200,
+      "label": "Sound Control (7 colors)"
+     },
+     {
+      "from": 201,
+      "to": 247,
+      "label": "Strobe"
+     },
+     {
+      "from": 248,
+      "to": 255,
+      "label": "Intensity"
+     }
+    ]
+   },
+   {
+    "key": "master-dimmer",
+    "label": "Master dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Open"
+     },
+     {
+      "from": 8,
+      "to": 37,
+      "label": "Strobe"
+     },
+     {
+      "from": 38,
+      "to": 67,
+      "label": "Strobe (Sound Strobe)"
+     },
+     {
+      "from": 68,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "effect",
+    "label": "Effect",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "NoFunction"
+     },
+     {
+      "from": 8,
+      "to": 247,
+      "label": "ColorFade"
+     },
+     {
+      "from": 248,
+      "to": 255,
+      "label": "Sound Chase"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "rgb",
+    "name": "RGB",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "4lc",
+    "name": "4LC channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "mode",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "4",
+    "name": "4+ channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "master-dimmer",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "6ch",
+    "name": "6 channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "master-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "effect",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    245,
+    280,
+    140
+   ],
+   "weightKg": 3.46,
+   "powerW": 120,
+   "lensDegMin": 15,
+   "lensDegMax": 70
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "briteq/cob-slim-100-rgb",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { panelRegistry, contextRegistry } from '../host/registries';
 import { SCENE_3D_VIEWPORT } from '../components/shell/WorkspaceShell';
-import { goToContext } from './nav';
+import { goToContext, revealBottom } from './nav';
 import {
   SurfacesPanel, SurfacesHeaderActions, FixturesPanel, FixturesHeaderActions,
   GroupsPanel, GroupsHeaderActions, GlobalParamsPanel,
@@ -22,6 +22,7 @@ import {
 import {
   SurfaceContentPanel, SurfaceTransformPanel, FixtureMappingPanel, FixtureSegmentsPanel,
   FixtureOutputPanel, FixtureRoutingPanel, FixtureLayout3DPanel,
+  FixtureProfilePanel, FixtureChannelsPanel,
 } from './panels/inspector';
 import { MediaBrowserPanel, FixtureEditorDock, MonitorDock, PerfDock, RoutingDock, StateMachineViewport } from './panels/adapters';
 import { ProgramPreviewPanel, ProgramMonitorViewport, OutputsPreviewPanel } from './panels/preview';
@@ -29,7 +30,7 @@ import { TimingPanel, TimingHeaderActions } from './panels/timing';
 import { PreferencesViewport } from './panels/adapters';
 import {
   ModelsPanel, ModelsHeaderActions, Scene3DFixturesPanel, ModelTransformPanel,
-  SceneLightingPanel, SceneTrackingPanel,
+  SceneLightingPanel, SceneTrackingPanel, FixtureArrangePanel,
 } from './panels/scene3d';
 
 // ── Viewport ids ─────────────────────────────────────────────────────────────────────────────
@@ -43,11 +44,15 @@ export const VIEWPORT_STAGE_2D = 'core.viewport.stage2d';
 // two render loops fighting over the same scene. One typo, silent, and only visible as halved frame
 // rate. There is exactly one string.
 export const VIEWPORT_SCENE_3D = SCENE_3D_VIEWPORT;
+// The timeline is not a workbench, it is a TOOL — so it has no context of its own. Nearly every
+// context names it as its `bottom`, and the shell keeps it there at one fixed tree position, collapsed
+// to a title strip until pulled up (Ctrl+T). That is what lets you cut video against the 2D stage,
+// record a lighting take against the 3D rig, or author a scene's timeline from the cue grid without
+// leaving the viewport you are working in — which is exactly what a `timeline` context could not do.
 export const VIEWPORT_TIMELINE = 'core.viewport.timeline';
 export const VIEWPORT_SCENES = 'core.viewport.scenes';
 export const VIEWPORT_OUTPUTS = 'core.viewport.outputs';
 // Not persistent — a monitor is cheap to remount, so it resolves from the panel registry.
-export const VIEWPORT_PROGRAM = 'core.viewport.program';
 export const VIEWPORT_MACHINE = 'core.viewport.machine';
 export const VIEWPORT_PREFERENCES = 'core.viewport.preferences';
 
@@ -72,12 +77,19 @@ export function registerCoreWorkspace(): void {
   // ── Parameter panels ───────────────────────────────────────────────────────────────────────
   panelRegistry.register({ id: 'core.inspector.surface.content', mount: 'inspector', title: 'Content', icon: <Layers size={12} />, appliesTo: ['surface'], Component: SurfaceContentPanel });
   panelRegistry.register({ id: 'core.inspector.surface.transform', mount: 'inspector', title: 'Transform', icon: <Box size={12} />, appliesTo: ['surface'], Component: SurfaceTransformPanel });
+  // The DMX profile comes FIRST in the fixture column: it decides what kind of light this is, and
+  // therefore whether the pixel-oriented sections below it are even meaningful.
+  panelRegistry.register({ id: 'core.inspector.fixture.profile', mount: 'inspector', title: 'DMX Profile', icon: <Lightbulb size={12} />, appliesTo: ['fixture'], Component: FixtureProfilePanel });
+  panelRegistry.register({ id: 'core.inspector.fixture.channels', mount: 'inspector', title: 'Channels', icon: <SlidersHorizontal size={12} />, appliesTo: ['fixture'], Component: FixtureChannelsPanel });
   panelRegistry.register({ id: 'core.inspector.fixture.mapping', mount: 'inspector', title: 'Mapping', icon: <Grid3x3 size={12} />, appliesTo: ['fixture'], Component: FixtureMappingPanel });
   panelRegistry.register({ id: 'core.inspector.fixture.segments', mount: 'inspector', title: 'Segments', icon: <Cable size={12} />, appliesTo: ['fixture'], Component: FixtureSegmentsPanel });
   panelRegistry.register({ id: 'core.inspector.fixture.output', mount: 'inspector', title: '2D / Output', icon: <Grid3x3 size={12} />, appliesTo: ['fixture'], Component: FixtureOutputPanel });
   panelRegistry.register({ id: 'core.inspector.fixture.routing', mount: 'inspector', title: 'Routing', icon: <Network size={12} />, appliesTo: ['fixture'], Component: FixtureRoutingPanel });
   panelRegistry.register({ id: 'core.inspector.fixture.layout3d', mount: 'inspector', title: '3D Layout', icon: <Box size={12} />, appliesTo: ['fixture'], Component: FixtureLayout3DPanel });
   panelRegistry.register({ id: 'core.inspector.model.transform', mount: 'inspector', title: 'Model', icon: <Box size={12} />, appliesTo: ['model'], Component: ModelTransformPanel });
+  // Rig-building for a multi-selection. Lives in the fixture column so it sits beside the 3D layout
+  // it rearranges.
+  panelRegistry.register({ id: 'core.inspector.fixture.arrange', mount: 'inspector', title: 'Arrange', icon: <Grid3x3 size={12} />, appliesTo: ['fixture'], Component: FixtureArrangePanel });
   // No appliesTo — scene lighting is a property of the SCENE, not of whatever is selected.
   panelRegistry.register({ id: 'core.inspector.scene.lighting', mount: 'inspector', title: 'Lighting', icon: <Lightbulb size={12} />, defaultOpen: false, Component: SceneLightingPanel });
   // Also no appliesTo — the tracking overlays are a property of the SCENE, not of a selection.
@@ -91,8 +103,15 @@ export function registerCoreWorkspace(): void {
   // Live monitors. Both blit machinery that already runs each frame — see panels/preview.tsx.
   panelRegistry.register({ id: 'core.dock.outputsPreview', mount: 'dock', title: 'Output Preview', icon: <MonitorPlay size={13} />, Component: OutputsPreviewPanel });
   panelRegistry.register({ id: 'core.inspector.programPreview', mount: 'inspector', title: 'Program Preview', icon: <MonitorPlay size={12} />, Component: ProgramPreviewPanel });
-  panelRegistry.register({ id: 'core.dock.programPreview', mount: 'dock', title: 'Program Preview', icon: <MonitorPlay size={13} />, Component: ProgramPreviewPanel });
-  panelRegistry.register({ id: VIEWPORT_PROGRAM, mount: 'viewport', title: 'Program', Component: ProgramMonitorViewport });
+  // The FULL-BLEED monitor in the dock, the padded card in the narrow columns. This was the old
+  // `timeline` context's viewport; a dock tab is the same shape (a full pane), so nothing was lost when
+  // that context dissolved — the program monitor and the timeline drawer now sit one above the other in
+  // whichever workbench you are cutting in.
+  panelRegistry.register({ id: 'core.dock.programPreview', mount: 'dock', title: 'Program', icon: <MonitorPlay size={13} />, Component: ProgramMonitorViewport });
+  // The media library, in the DOCK as well as the browser column. A thumbnail grid wants width, and in
+  // a 288px browser column it is a `bare`+`grow` panel that eats every section stacked under it — which
+  // is why Mapping takes it as a dock tab and Audio keeps the column flavour.
+  panelRegistry.register({ id: 'core.dock.media', mount: 'dock', title: 'Media Library', icon: <ImageIcon size={13} />, Component: MediaBrowserPanel });
   panelRegistry.register({ id: VIEWPORT_MACHINE, mount: 'viewport', title: 'Show Machine', Component: StateMachineViewport });
   panelRegistry.register({ id: VIEWPORT_PREFERENCES, mount: 'viewport', menuAction: 'preferences', title: 'Preferences', Component: PreferencesViewport });
 
@@ -109,22 +128,27 @@ export function registerCoreWorkspace(): void {
   // exactly what `appliesTo` was built for.
   contextRegistry.register({
     id: 'mapping', title: 'Mapping', shortTitle: 'Map', icon: <Layers size={16} />,
-    cluster: 'build', order: 1,
+    cluster: 'build', order: 0,
     viewport: VIEWPORT_STAGE_2D,
+    // The timeline, on demand. This is where the old `timeline` context's work happens now: the stage
+    // above, the lanes across the full width below, the program monitor and the media library as dock
+    // tabs. Its media library and monitor were the only things it carried that this context lacked.
+    bottom: VIEWPORT_TIMELINE,
     browser: ['core.browser.surfaces', 'core.browser.fixtures', 'core.browser.groups', 'core.browser.globals'],
     inspector: [
       // Surface sections first: the surface is the thing you place, the fixture samples it.
       'core.inspector.surface.content', 'core.inspector.surface.transform',
+      'core.inspector.fixture.profile', 'core.inspector.fixture.channels',
       'core.inspector.fixture.mapping', 'core.inspector.fixture.segments',
       'core.inspector.fixture.output', 'core.inspector.fixture.routing',
-      'core.inspector.fixture.layout3d',
+      'core.inspector.fixture.layout3d', 'core.inspector.fixture.arrange',
     ],
-    dock: ['core.dock.fixtureEditor', 'core.dock.routing', 'core.dock.monitor', 'core.dock.perf'],
-    layout: { showLeft: true, showRight: true, dockOpen: true, splitView: false },
-    layoutRev: 2,
+    dock: ['core.dock.fixtureEditor', 'core.dock.media', 'core.dock.programPreview', 'core.dock.routing', 'core.dock.monitor', 'core.dock.perf'],
+    layout: { showLeft: true, showRight: true, dockOpen: true, splitView: false, bottomOpen: false },
+    layoutRev: 3,
     hint: {
-      en: 'Place surfaces, map content onto them, then patch fixtures and check the DMX monitor.',
-      fr: 'Placez les surfaces, mappez le contenu dessus, puis patchez les fixtures et vérifiez le moniteur DMX.',
+      en: 'Place surfaces, map content onto them, then patch fixtures. Ctrl+T pulls the timeline up.',
+      fr: 'Placez les surfaces, mappez le contenu dessus, puis patchez les fixtures. Ctrl+T ouvre la timeline.',
     },
     actions: [
       { id: 'add-surface', label: 'Add Surface', icon: <Layers size={13} />, menuAction: 'add-surface' },
@@ -137,23 +161,58 @@ export function registerCoreWorkspace(): void {
         enabled: (s) => !!s.ids.fixture?.length },
       { id: 'remove', label: 'Delete', icon: <Trash2 size={13} />, menuAction: 'remove-fixture', group: 'edit', danger: true,
         enabled: (s) => !!s.ids.fixture?.length },
+      // Followed the media library here from the dissolved `timeline` context — you collect the assets
+      // of the project you are cutting, and the library is a dock tab away.
+      { id: 'collect', label: 'Collect Assets', icon: <Save size={13} />, menuAction: 'collect-assets', group: 'assets' },
+      { id: 'collect-copy', label: 'Collect a Copy', menuAction: 'collect-copy', group: 'assets' },
     ],
   });
 
+  // VENUE & RIG — the 3D scene, and everything that is only meaningful *in* it.
+  //
+  // It absorbed the old `tracking` context, which had turned into a near-duplicate: no browser, one
+  // inspector section (`scene.tracking`) that this context already declared, and a layout of
+  // `splitView: true` whose entire purpose was to get the 3D scene on screen beside the stage, because
+  // the 3D scene is where live blobs are drawn. Being IN the 3D scene is the better version of that.
+  // Its three plugins contributed only DOCK TABS — and this context had no dock at all, so the region
+  // was free. They now extend '3d'.
+  //
+  // It is also where a light show is prepped: pick heads, point them, pull the timeline drawer up, and
+  // record a take against the rig you can see.
   contextRegistry.register({
-    id: '3d', title: 'Venue / 3D Scene', shortTitle: '3D', icon: <Box size={16} />,
-    cluster: 'build', order: 3,
+    id: '3d', title: 'Venue & Rig', shortTitle: '3D', icon: <Box size={16} />,
+    cluster: 'build', order: 1,
     viewport: VIEWPORT_SCENE_3D,
+    // The shell pins the 3D scene to the RIGHT pane (one WebGL context, never remounted), so with split
+    // view on this context's left pane would be an empty half. The 2D stage goes there — which is the
+    // stage-beside-3D arrangement `tracking` used to provide, now a toggle instead of a rail entry.
+    companion: VIEWPORT_STAGE_2D,
+    bottom: VIEWPORT_TIMELINE,
     browser: ['core.browser.models', 'core.browser.scene3dFixtures'],
-    inspector: ['core.inspector.model.transform', 'core.inspector.fixture.layout3d', 'core.inspector.scene.lighting', 'core.inspector.scene.tracking'],
-    layout: { showLeft: true, showRight: true, dockOpen: false, splitView: false },
-    layoutRev: 1,
+    // Profile and Channels come with the movers: this is where you aim a head and drive its channels,
+    // so the DMX channel strip belongs beside the rig rather than a context switch away.
+    inspector: [
+      'core.inspector.model.transform',
+      'core.inspector.fixture.profile', 'core.inspector.fixture.channels',
+      'core.inspector.fixture.layout3d', 'core.inspector.fixture.arrange',
+      'core.inspector.scene.lighting', 'core.inspector.scene.tracking',
+    ],
+    // The tracking plugins (lidar-tracking, mediapipe, augmenta) append their monitors after these.
+    dock: ['core.dock.monitor', 'core.dock.perf'],
+    layout: { showLeft: true, showRight: true, dockOpen: false, splitView: false, bottomOpen: false },
+    layoutRev: 2,
     hint: {
-      en: 'Lay the venue out in 3D — objects on the left, transform and lighting on the right.',
-      fr: 'Disposez le lieu en 3D — objets à gauche, transformation et éclairage à droite.',
+      en: 'The venue and the rig in 3D — place fixtures, aim them, track live blobs, record lighting takes (Ctrl+T for the timeline).',
+      fr: 'Le lieu et le kit en 3D — placez les fixtures, visez, suivez les blobs, enregistrez des takes (Ctrl+T pour la timeline).',
     },
     actions: [
       { id: 'save', label: 'Save Project', icon: <Save size={13} />, menuAction: 'save' },
+      // Arm the lighting recorder without hunting for the Takes bin: busk a look on the selected heads
+      // and it lands in the bin, ready to place on a lighting lane. See services/lightingRecorder.
+      { id: 'record-take', label: 'Record Lighting Take', icon: <Radio size={13} />, menuAction: 'record-lighting-take', group: 'lighting',
+        enabled: (s) => (s.ids.fixture?.length ?? 0) > 0 },
+      // Followed the tracking context here — a modal step-by-step flow, so it stays an action.
+      { id: 'pose-cal', label: 'Pose Floor Calibration…', icon: <Crosshair size={13} />, menuAction: 'pose-calibrate', group: 'tracking' },
     ],
   });
 
@@ -161,14 +220,15 @@ export function registerCoreWorkspace(): void {
     id: 'project', title: 'Projection Outputs', shortTitle: 'Proj', icon: <MonitorPlay size={16} />,
     cluster: 'align', order: 0,
     viewport: VIEWPORT_OUTPUTS,
+    bottom: VIEWPORT_TIMELINE,
     browser: ['core.browser.surfaces'],
     inspector: ['core.inspector.surface.transform'],
     // Dock OPEN by default and on the preview tab: the table tells you how an output is configured,
     // the preview tells you what is actually on that screen — which is the question a multi-projector
     // rig fails at, and the reason the preview exists.
     dock: ['core.dock.outputsPreview', 'core.dock.programPreview', 'core.dock.monitor'],
-    layout: { showLeft: true, showRight: false, dockOpen: true, splitView: false },
-    layoutRev: 2,
+    layout: { showLeft: true, showRight: false, dockOpen: true, splitView: false, bottomOpen: false },
+    layoutRev: 3,
     hint: {
       en: 'Bind surfaces to displays, then warp and blend each projector. The dock previews every output live.',
       fr: 'Associez les surfaces aux écrans, puis déformez et fondez chaque projecteur.',
@@ -187,7 +247,7 @@ export function registerCoreWorkspace(): void {
     viewport: VIEWPORT_STAGE_2D,
     browser: [],
     inspector: [],
-    layout: { showLeft: false, showRight: false, dockOpen: false, splitView: true, splitRatio: 0.55 },
+    layout: { showLeft: false, showRight: false, dockOpen: false, splitView: true, splitRatio: 0.55, bottomOpen: false },
     layoutRev: 2,
     hint: {
       en: 'Start a calibration from Projection Outputs — camera here, 3D venue scene alongside.',
@@ -198,52 +258,37 @@ export function registerCoreWorkspace(): void {
     ],
   });
 
-  // TIMELINE leads the Build cluster — it replaced the old "Media & Content" context, which was only
-  // ever a media browser beside the stage. The library it carried is this context's browser, and the
-  // asset manager its dock, so nothing was lost; you now import media where you actually cut it.
-  // The parameter column holds a LIVE PROGRAM PREVIEW: editing a timeline without seeing the composite
-  // it produces meant scrubbing and guessing.
-  contextRegistry.register({
-    id: 'timeline', title: 'Timeline', shortTitle: 'Time', icon: <Film size={16} />,
-    cluster: 'build', order: 0,
-    // The NLE shape: PROGRAM MONITOR on top, TIMELINE across the full width underneath. The timeline
-    // is the bottom REGION, not the dock — the dock is flanked by the browser and the parameter
-    // column, and lanes need the window's whole width.
-    viewport: VIEWPORT_PROGRAM,
-    bottom: VIEWPORT_TIMELINE,
-    browser: ['core.browser.media'],
-    inspector: [],
-    // The Media Library in the browser column is the ONLY asset UI. There was a second, wider
-    // "Asset Manager" panel that duplicated the same grid; it was deleted (2026-07-23) once the
-    // library was shown to cover import / relink / reveal / remove / usage badges, and consolidate
-    // lives on the action bar as Collect Assets.
-    dock: ['core.dock.outputsPreview', 'core.dock.monitor'],
-    layout: { showLeft: true, showRight: false, dockOpen: false, splitView: false, bottomHeight: 360 },
-    layoutRev: 3,
-    hint: {
-      en: 'Edit the show timeline — drag media from the library onto a layer; the preview shows the composite.',
-      fr: "Montez la timeline — glissez un média depuis la bibliothèque; l'aperçu montre le composite.",
-    },
-    actions: [
-      { id: 'collect', label: 'Collect Assets', icon: <Save size={13} />, menuAction: 'collect-assets' },
-      { id: 'collect-copy', label: 'Collect a Copy', menuAction: 'collect-copy' },
-    ],
-  });
+  // There is NO `timeline` context, deliberately — it was dissolved (2026-07-26).
+  //
+  // It led the Build cluster and its shape was the NLE one: a program monitor on top, the timeline
+  // across the full width underneath. But the timeline is a TOOL, not a place: you want it while
+  // cutting against the 2D stage, while recording a lighting take against the 3D rig, while authoring a
+  // scene's timeline from the cue grid. Reaching it cost you the viewport you were working in, which is
+  // also why a 12th `light` context looked necessary — a rail entry was the only way to get the 3D
+  // scene and the timeline on screen together.
+  //
+  // So the timeline became every context's `bottom` drawer, and this context had nothing left of its
+  // own: its program monitor is `core.dock.programPreview` (the same full-bleed component), its media
+  // library is `core.dock.media`, and both live in Mapping along with its two asset actions. Nothing was
+  // lost, one rail entry and one remount-per-visit were.
 
   contextRegistry.register({
     id: 'scenes', title: 'Scenes & Cues', shortTitle: 'Cues', icon: <Clapperboard size={16} />,
-    cluster: 'show', order: 1,
+    cluster: 'show', order: 0,
     viewport: VIEWPORT_SCENES,
+    // A scene's own timeline is authored right here now, instead of a trip to a context that took the
+    // cue grid away — see SceneCard's Edit Timeline (panels/adapters.tsx) and docs/SCENE-TIMELINES.md.
+    bottom: VIEWPORT_TIMELINE,
     // Firing cues is a WATCHING job: you want to see what you just put on air and how long it has been
     // there. Master brightness (the old Global Params here) is a rig setting, not a cue-firing one —
     // it lives in Mapping and on the Show deck.
     browser: ['core.browser.programPreview', 'core.browser.timing'],
     inspector: [],
-    layout: { showLeft: true, showRight: false, dockOpen: false, splitView: false },
-    layoutRev: 2,
+    layout: { showLeft: true, showRight: false, dockOpen: false, splitView: false, bottomOpen: false },
+    layoutRev: 3,
     hint: {
-      en: 'Capture looks as scenes, then fire them from the cue grid.',
-      fr: 'Capturez des ambiances en scènes, puis déclenchez-les depuis la grille.',
+      en: "Capture looks as scenes, then fire them from the cue grid. Ctrl+T authors the active scene's timeline.",
+      fr: 'Capturez des ambiances en scènes, puis déclenchez-les depuis la grille. Ctrl+T ouvre la timeline.',
     },
     actions: [],
   });
@@ -257,7 +302,7 @@ export function registerCoreWorkspace(): void {
     viewport: VIEWPORT_PREFERENCES,
     browser: [],
     inspector: [],
-    layout: { showLeft: false, showRight: false, dockOpen: false, splitView: false },
+    layout: { showLeft: false, showRight: false, dockOpen: false, splitView: false, bottomOpen: false },
     layoutRev: 1,
     hint: {
       en: "App and machine settings — output, engine, appearance, and each plugin's own section.",
@@ -270,33 +315,39 @@ export function registerCoreWorkspace(): void {
   // capped it at a fixed 1000×640 box over the work it describes; as a context it gets the window.
   contextRegistry.register({
     id: 'machine', title: 'Show Machine', shortTitle: 'Machine', icon: <Workflow size={16} />,
-    cluster: 'show', order: 2,
+    cluster: 'show', order: 1,
     viewport: VIEWPORT_MACHINE,
+    bottom: VIEWPORT_TIMELINE,
     browser: [],
     inspector: [],
-    layout: { showLeft: false, showRight: false, dockOpen: false, splitView: false },
-    layoutRev: 1,
+    layout: { showLeft: false, showRight: false, dockOpen: false, splitView: false, bottomOpen: false },
+    layoutRev: 2,
     hint: {
       en: 'The show graph over your scenes — double-click empty space to add a state, drag a nub to link.',
       fr: 'Le graphe du spectacle sur vos scènes — double-clic pour ajouter un état, glissez un nub pour relier.',
     },
     actions: [
       { id: 'scenes', label: 'Scenes & Cues', icon: <Clapperboard size={13} />, run: () => goToContext('scenes') },
-      { id: 'timeline', label: 'Timeline', icon: <Film size={13} />, run: () => goToContext('timeline') },
+      // Opens the drawer BELOW the graph rather than switching away from it — the state you just wired
+      // and the lanes it plays stay on screen together.
+      { id: 'timeline', label: 'Timeline', icon: <Film size={13} />, run: () => revealBottom() },
     ],
   });
 
   contextRegistry.register({
     id: 'audio', title: 'Audio', shortTitle: 'Audio', icon: <Music size={16} />,
-    cluster: 'show', order: 3,
+    cluster: 'show', order: 2,
     // The audio PLUGIN claims this viewport (the mixer) via contextRegistry.extend. The stage below is
     // only the fallback for a build with that plugin disabled — the rail entry then still opens on
     // something rather than a blank pane.
     viewport: VIEWPORT_STAGE_2D,
+    // Keeps the media library as a BROWSER panel (the dock flavour is Mapping's): here the column is
+    // the only thing in it, so a full-height grid is the right shape.
     browser: ['core.browser.media'],
+    bottom: VIEWPORT_TIMELINE,
     inspector: [],
-    layout: { showLeft: true, showRight: false, dockOpen: false, splitView: false },
-    layoutRev: 2,
+    layout: { showLeft: true, showRight: false, dockOpen: false, splitView: false, bottomOpen: false },
+    layoutRev: 3,
     hint: {
       en: 'The bed, the mix and the insert chains — drag audio in from the library on the left.',
       fr: "Le lit sonore, le mixage et les chaînes d'effets — glissez l'audio depuis la bibliothèque à gauche.",
@@ -304,40 +355,23 @@ export function registerCoreWorkspace(): void {
     actions: [],
   });
 
-  contextRegistry.register({
-    id: 'tracking', title: 'Tracking', shortTitle: 'Track', icon: <Radar size={16} />,
-    cluster: 'show', order: 4,
-    viewport: VIEWPORT_STAGE_2D,
-    browser: [],
-    // The same Tracking section the 3D context carries — these overlays are what this context is FOR,
-    // and the 3D scene showing them is its right pane, so tuning them here saves a round trip.
-    inspector: ['core.inspector.scene.tracking'],
-    layout: { showLeft: false, showRight: true, dockOpen: false, splitView: true },
-    layoutRev: 2,   // showRight flipped on — existing installs need the revision to pick it up
-    hint: {
-      en: 'LiDAR, camera pose and Augmenta sources — the 3D scene shows live blobs.',
-      fr: 'Sources LiDAR, pose caméra et Augmenta — la scène 3D affiche les blobs en direct.',
-    },
-    // The three tracking plugins append their own monitors as DOCK TABS here, via
-    // `ctx.contexts.extend('tracking', { dock: [...] })` — this context declares none of them itself.
-    // Only the floor-calibration WIZARD stays an action: it is a modal step-by-step flow, not a monitor.
-    actions: [
-      { id: 'pose-cal', label: 'Pose Floor Calibration…', icon: <Crosshair size={13} />, menuAction: 'pose-calibrate' },
-    ],
-  });
+  // There is NO `tracking` context — it merged into `3d` (2026-07-26). See the comment there for why:
+  // no browser, one inspector section `3d` already carried, and a layout whose whole purpose was to get
+  // the 3D scene on screen. Its plugins now extend '3d'.
 
   contextRegistry.register({
     id: 'show', title: 'Show / Perform', shortTitle: 'Show', icon: <Play size={16} />,
-    cluster: 'show', order: 5,
+    cluster: 'show', order: 3,
     viewport: VIEWPORT_STAGE_2D,
+    bottom: VIEWPORT_TIMELINE,
     browser: ['core.browser.globals'],
     inspector: [],
     // The show-control plugin appends Schedule / Playlist / Metrics / Show Control here and claims
     // the viewport (its operator deck) — see plugins/show-control/src/plugin.renderer.ts.
     dock: ['core.dock.outputsPreview', 'core.dock.programPreview', 'core.dock.monitor', 'core.dock.perf'],
     // The old `perform` preset — everything out of the way except the stage.
-    layout: { showLeft: false, showRight: false, dockOpen: true, splitView: false },
-    layoutRev: 2,
+    layout: { showLeft: false, showRight: false, dockOpen: true, splitView: false, bottomOpen: false },
+    layoutRev: 3,
     hint: {
       en: 'Running the show — scenes, transport, schedule, playlist and live metrics.',
       fr: 'Conduite du spectacle — scènes, transport, planning, playlist et métriques live.',

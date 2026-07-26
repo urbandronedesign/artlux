@@ -1,0 +1,4207 @@
+[
+ {
+  "id": "kino-flo/celeb-250-led-dmx",
+  "manufacturer": "Kino Flo",
+  "model": "Celeb 250 LED DMX",
+  "aliases": [
+   "Celeb 250",
+   "Celeb 250 LED DMX",
+   "Celeb 250-DMX",
+   "Kino Flo Celeb 250 LED DMX",
+   "Kino Flo Celeb 250-DMX",
+   "Kino Flo celeb-led-250-dmx",
+   "celeb-led-250-dmx",
+   "celeb250",
+   "celeb250dmx",
+   "celeb250leddmx",
+   "celebled250dmx",
+   "kinofloceleb250dmx",
+   "kinofloceleb250leddmx",
+   "kinoflocelebled250dmx"
+  ],
+  "categories": [
+   "Dimmer",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "tungsten",
+    "label": "Tungsten",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "daylight",
+    "label": "Daylight",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "color-temperature-2",
+    "label": "Color Temperature 2",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "gel",
+    "label": "Gel",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 3,
+      "label": "NoFunction"
+     },
+     {
+      "from": 4,
+      "to": 5,
+      "label": "KF Candle Flame",
+      "color": "#fc8004"
+     },
+     {
+      "from": 6,
+      "to": 7,
+      "label": "KF Flo Warm White",
+      "color": "#ffffcc"
+     },
+     {
+      "from": 8,
+      "to": 9,
+      "label": "KF Flo Cool White",
+      "color": "#ccffff"
+     },
+     {
+      "from": 10,
+      "to": 11,
+      "label": "KF LP Sodium Vpr",
+      "color": "#ff9933"
+     },
+     {
+      "from": 12,
+      "to": 13,
+      "label": "KF Mercury Vpr",
+      "color": "#ccccff"
+     },
+     {
+      "from": 14,
+      "to": 15,
+      "label": "KF 20K Blue Sky",
+      "color": "#9bc2e6"
+     },
+     {
+      "from": 16,
+      "to": 17,
+      "label": "KF Green Screen",
+      "color": "#92d050"
+     },
+     {
+      "from": 18,
+      "to": 19,
+      "label": "KF Blue Screen",
+      "color": "#0070c0"
+     },
+     {
+      "from": 20,
+      "to": 21,
+      "label": "Smokey Pink",
+      "color": "#ff99cc"
+     },
+     {
+      "from": 22,
+      "to": 23,
+      "label": "Dark Magenta",
+      "color": "#cc00ff"
+     },
+     {
+      "from": 24,
+      "to": 25,
+      "label": "Bright Rose",
+      "color": "#ff33cc"
+     },
+     {
+      "from": 26,
+      "to": 27,
+      "label": "Pale Salmon",
+      "color": "#ff66cc"
+     },
+     {
+      "from": 28,
+      "to": 29,
+      "label": "Light Rose",
+      "color": "#ff6699"
+     },
+     {
+      "from": 30,
+      "to": 31,
+      "label": "Light Salmon",
+      "color": "#ff9999"
+     },
+     {
+      "from": 32,
+      "to": 33,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 34,
+      "to": 35,
+      "label": "Pink",
+      "color": "#ff66cc"
+     },
+     {
+      "from": 36,
+      "to": 37,
+      "label": "Rosy Amber",
+      "color": "#ff7c80"
+     },
+     {
+      "from": 38,
+      "to": 39,
+      "label": "Pale Red",
+      "color": "#ff5050"
+     },
+     {
+      "from": 40,
+      "to": 41,
+      "label": "Scarlet",
+      "color": "#ff3300"
+     },
+     {
+      "from": 42,
+      "to": 43,
+      "label": "Loving Amber",
+      "color": "#ff9933"
+     },
+     {
+      "from": 44,
+      "to": 45,
+      "label": "Pale Rose",
+      "color": "#ff7c80"
+     },
+     {
+      "from": 46,
+      "to": 47,
+      "label": "Medium Red",
+      "color": "#ff5050"
+     },
+     {
+      "from": 48,
+      "to": 49,
+      "label": "Gold Tint",
+      "color": "#ffcc00"
+     },
+     {
+      "from": 50,
+      "to": 51,
+      "label": "M Bastard Amber",
+      "color": "#ffcc99"
+     },
+     {
+      "from": 52,
+      "to": 53,
+      "label": "Bright Red",
+      "color": "#ff3300"
+     },
+     {
+      "from": 54,
+      "to": 55,
+      "label": "Flame Red",
+      "color": "#ff6600"
+     },
+     {
+      "from": 56,
+      "to": 57,
+      "label": "Primary Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 58,
+      "to": 59,
+      "label": "Light Red",
+      "color": "#ff5050"
+     },
+     {
+      "from": 60,
+      "to": 61,
+      "label": "Dark Salmon",
+      "color": "#f96435"
+     },
+     {
+      "from": 62,
+      "to": 63,
+      "label": "Fire",
+      "color": "#f95427"
+     },
+     {
+      "from": 64,
+      "to": 65,
+      "label": "Sunset Red",
+      "color": "#ee6612"
+     },
+     {
+      "from": 66,
+      "to": 67,
+      "label": "Pale Gold",
+      "color": "#f0b31c"
+     },
+     {
+      "from": 68,
+      "to": 69,
+      "label": "English Rose",
+      "color": "#f68276"
+     },
+     {
+      "from": 70,
+      "to": 71,
+      "label": "Bastard Amber",
+      "color": "#f3a25f"
+     },
+     {
+      "from": 72,
+      "to": 73,
+      "label": "Surprise Peach",
+      "color": "#f4ae74"
+     },
+     {
+      "from": 74,
+      "to": 75,
+      "label": "Deep Gld Amber",
+      "color": "#f8a714"
+     },
+     {
+      "from": 76,
+      "to": 77,
+      "label": "Dark Amber",
+      "color": "#f3c003"
+     },
+     {
+      "from": 78,
+      "to": 79,
+      "label": "Apricot",
+      "color": "#f98545"
+     },
+     {
+      "from": 80,
+      "to": 81,
+      "label": "Gold Amber",
+      "color": "#f98545"
+     },
+     {
+      "from": 82,
+      "to": 83,
+      "label": "Cosmetic Peach",
+      "color": "#fecaba"
+     },
+     {
+      "from": 84,
+      "to": 85,
+      "label": "Deep Orange",
+      "color": "#ef7903"
+     },
+     {
+      "from": 86,
+      "to": 87,
+      "label": "Chocolate",
+      "color": "#bb6209"
+     },
+     {
+      "from": 88,
+      "to": 89,
+      "label": "Orange",
+      "color": "#e55809"
+     },
+     {
+      "from": 90,
+      "to": 91,
+      "label": "White Flame",
+      "color": "#f0fed2"
+     },
+     {
+      "from": 92,
+      "to": 93,
+      "label": "Medium Amber",
+      "color": "#f9cf59"
+     },
+     {
+      "from": 94,
+      "to": 95,
+      "label": "Pale Amber Gold",
+      "color": "#f7d36d"
+     },
+     {
+      "from": 96,
+      "to": 97,
+      "label": "Chrome Orange",
+      "color": "#fd8c4d"
+     },
+     {
+      "from": 98,
+      "to": 99,
+      "label": "Straw Tint",
+      "color": "#fafcaa"
+     },
+     {
+      "from": 100,
+      "to": 101,
+      "label": "Straw",
+      "color": "#fffc79"
+     },
+     {
+      "from": 102,
+      "to": 103,
+      "label": "Deep Straw",
+      "color": "#f6f000"
+     },
+     {
+      "from": 104,
+      "to": 105,
+      "label": "Deep Amber",
+      "color": "#f3c003"
+     },
+     {
+      "from": 106,
+      "to": 107,
+      "label": "Light Amber",
+      "color": "#fddb5f"
+     },
+     {
+      "from": 108,
+      "to": 109,
+      "label": "Yellow",
+      "color": "#fffb37"
+     },
+     {
+      "from": 110,
+      "to": 111,
+      "label": "Medium Yellow",
+      "color": "#fdfda1"
+     },
+     {
+      "from": 112,
+      "to": 113,
+      "label": "Spring Yellow",
+      "color": "#ffff66"
+     },
+     {
+      "from": 114,
+      "to": 115,
+      "label": "Pale Yellow",
+      "color": "#fdfda1"
+     },
+     {
+      "from": 116,
+      "to": 117,
+      "label": "Lime Green",
+      "color": "#8ffc0c"
+     },
+     {
+      "from": 118,
+      "to": 119,
+      "label": "Pale Green",
+      "color": "#b9fd67"
+     },
+     {
+      "from": 120,
+      "to": 121,
+      "label": "Leaf Green",
+      "color": "#92d050"
+     },
+     {
+      "from": 122,
+      "to": 123,
+      "label": "Fern Green",
+      "color": "#00cc66"
+     },
+     {
+      "from": 124,
+      "to": 125,
+      "label": "Primary Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 126,
+      "to": 127,
+      "label": "Moss Green",
+      "color": "#05fc10"
+     },
+     {
+      "from": 128,
+      "to": 129,
+      "label": "Dark Y Green",
+      "color": "#91fb03"
+     },
+     {
+      "from": 130,
+      "to": 131,
+      "label": "Dark Green",
+      "color": "#03df03"
+     },
+     {
+      "from": 132,
+      "to": 133,
+      "label": "Marine Blue",
+      "color": "#4088fe"
+     },
+     {
+      "from": 134,
+      "to": 135,
+      "label": "Peacock Blue",
+      "color": "#0099ff"
+     },
+     {
+      "from": 136,
+      "to": 137,
+      "label": "Med Blue-Green",
+      "color": "#3399ff"
+     },
+     {
+      "from": 138,
+      "to": 139,
+      "label": "Sp Steel Blue",
+      "color": "#89c4ff"
+     },
+     {
+      "from": 140,
+      "to": 141,
+      "label": "Lagoon Blue",
+      "color": "#4bd1fb"
+     },
+     {
+      "from": 142,
+      "to": 143,
+      "label": "Steel Blue",
+      "color": "#c1e0ff"
+     },
+     {
+      "from": 144,
+      "to": 145,
+      "label": "Lighter Blue",
+      "color": "#c1eaff"
+     },
+     {
+      "from": 146,
+      "to": 147,
+      "label": "Summer Blue",
+      "color": "#92d6f8"
+     },
+     {
+      "from": 148,
+      "to": 149,
+      "label": "Light Blue",
+      "color": "#c1e0ff"
+     },
+     {
+      "from": 150,
+      "to": 151,
+      "label": "Moonlight Blue",
+      "color": "#3a7bfc"
+     },
+     {
+      "from": 152,
+      "to": 153,
+      "label": "Pale Blue",
+      "color": "#aec1fc"
+     },
+     {
+      "from": 154,
+      "to": 155,
+      "label": "Pale Navy Blue",
+      "color": "#6387f9"
+     },
+     {
+      "from": 156,
+      "to": 157,
+      "label": "Mist Blue",
+      "color": "#99ccff"
+     },
+     {
+      "from": 158,
+      "to": 159,
+      "label": "Bright Blue",
+      "color": "#0066cc"
+     },
+     {
+      "from": 160,
+      "to": 161,
+      "label": "True Blue",
+      "color": "#2190ff"
+     },
+     {
+      "from": 162,
+      "to": 163,
+      "label": "Dark Steel Blue",
+      "color": "#2994ff"
+     },
+     {
+      "from": 164,
+      "to": 165,
+      "label": "Daylight Blue",
+      "color": "#99ccff"
+     },
+     {
+      "from": 166,
+      "to": 167,
+      "label": "Slate Blue",
+      "color": "#006f6c"
+     },
+     {
+      "from": 168,
+      "to": 169,
+      "label": "Medium Blue",
+      "color": "#2994ff"
+     },
+     {
+      "from": 170,
+      "to": 171,
+      "label": "Sky Blue",
+      "color": "#5badff"
+     },
+     {
+      "from": 172,
+      "to": 173,
+      "label": "Paler Lavender",
+      "color": "#acaefe"
+     },
+     {
+      "from": 174,
+      "to": 175,
+      "label": "Alice Blue",
+      "color": "#7b7efd"
+     },
+     {
+      "from": 176,
+      "to": 177,
+      "label": "Special Lavender",
+      "color": "#8859fd"
+     },
+     {
+      "from": 178,
+      "to": 179,
+      "label": "Pale Violet",
+      "color": "#af83fd"
+     },
+     {
+      "from": 180,
+      "to": 181,
+      "label": "Just Blue",
+      "color": "#7c58fe"
+     },
+     {
+      "from": 182,
+      "to": 183,
+      "label": "Violet",
+      "color": "#9b39fd"
+     },
+     {
+      "from": 184,
+      "to": 185,
+      "label": "Dark Blue",
+      "color": "#5c41fd"
+     },
+     {
+      "from": 186,
+      "to": 187,
+      "label": "Surprise Pink",
+      "color": "#fb6efe"
+     },
+     {
+      "from": 188,
+      "to": 189,
+      "label": "Deeper Blue",
+      "color": "#2b08fc"
+     },
+     {
+      "from": 190,
+      "to": 191,
+      "label": "Special M Blue",
+      "color": "#745dfd"
+     },
+     {
+      "from": 192,
+      "to": 193,
+      "label": "Zenith Blue",
+      "color": "#b694fa"
+     },
+     {
+      "from": 194,
+      "to": 195,
+      "label": "Light Lavender",
+      "color": "#cdb6fc"
+     },
+     {
+      "from": 196,
+      "to": 197,
+      "label": "Palace Blue",
+      "color": "#745dfd"
+     },
+     {
+      "from": 198,
+      "to": 199,
+      "label": "Lilac Tint",
+      "color": "#d77def"
+     },
+     {
+      "from": 200,
+      "to": 201,
+      "label": "Deep Blue",
+      "color": "#5c41fd"
+     },
+     {
+      "from": 202,
+      "to": 203,
+      "label": "Lavender Tint",
+      "color": "#ba35ef"
+     },
+     {
+      "from": 204,
+      "to": 205,
+      "label": "Pale Lavender",
+      "color": "#d37ff5"
+     },
+     {
+      "from": 206,
+      "to": 207,
+      "label": "Dark Lavender",
+      "color": "#a011d9"
+     },
+     {
+      "from": 208,
+      "to": 209,
+      "label": "Lavender",
+      "color": "#a011d9"
+     },
+     {
+      "from": 210,
+      "to": 211,
+      "label": "Deep Lavender",
+      "color": "#780da3"
+     },
+     {
+      "from": 212,
+      "to": 213,
+      "label": "Congo Blue",
+      "color": "#471aee"
+     },
+     {
+      "from": 214,
+      "to": 215,
+      "label": "Rose Purple",
+      "color": "#da10d0"
+     },
+     {
+      "from": 216,
+      "to": 217,
+      "label": "Mauve",
+      "color": "#f0346a"
+     },
+     {
+      "from": 218,
+      "to": 219,
+      "label": "Rose Pink",
+      "color": "#f35b86"
+     },
+     {
+      "from": 220,
+      "to": 221,
+      "label": "Follies Pink",
+      "color": "#f46c93"
+     },
+     {
+      "from": 222,
+      "to": 223,
+      "label": "Bright Pink",
+      "color": "#f2548c"
+     },
+     {
+      "from": 224,
+      "to": 225,
+      "label": "Middle Rose",
+      "color": "#f577a4"
+     },
+     {
+      "from": 226,
+      "to": 227,
+      "label": "Medium Pink",
+      "color": "#f8a6c3"
+     },
+     {
+      "from": 228,
+      "to": 229,
+      "label": "Light Pink",
+      "color": "#fcd4e2"
+     },
+     {
+      "from": 230,
+      "to": 231,
+      "label": "Dark Pink",
+      "color": "#f2548c"
+     },
+     {
+      "from": 232,
+      "to": 233,
+      "label": "Flesh Pink",
+      "color": "#fdd3d3"
+     },
+     {
+      "from": 234,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "green-magenta-point",
+    "label": "Green-Magenta Point",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Neutral"
+     },
+     {
+      "from": 11,
+      "to": 20,
+      "label": "Full minus green"
+     },
+     {
+      "from": 21,
+      "to": 119,
+      "label": "-99%…-1%"
+     },
+     {
+      "from": 120,
+      "to": 145,
+      "label": "Neutral"
+     },
+     {
+      "from": 146,
+      "to": 244,
+      "label": "1%…99%"
+     },
+     {
+      "from": 245,
+      "to": 255,
+      "label": "Full plus green"
+     }
+    ]
+   },
+   {
+    "key": "hue",
+    "label": "Hue",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "saturation",
+    "label": "Saturation",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "effect",
+    "label": "Effect",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 19,
+      "label": "Candle"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "Fire"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "TV"
+     },
+     {
+      "from": 40,
+      "to": 49,
+      "label": "Police"
+     },
+     {
+      "from": 50,
+      "to": 59,
+      "label": "Lightning"
+     },
+     {
+      "from": 60,
+      "to": 69,
+      "label": "Paparazzi"
+     },
+     {
+      "from": 70,
+      "to": 79,
+      "label": "Pulse"
+     },
+     {
+      "from": 80,
+      "to": 89,
+      "label": "Scroll"
+     },
+     {
+      "from": 90,
+      "to": 255,
+      "label": "Reserved"
+     }
+    ]
+   },
+   {
+    "key": "fx-param-1",
+    "label": "FX Param 1",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "fx-param-2",
+    "label": "FX Param 2",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "fx-param-3",
+    "label": "FX Param 3",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "fx-param-4",
+    "label": "FX Param 4",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "fx-param-5",
+    "label": "FX Param 5",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "cie-x",
+    "label": "CIE x",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "cie-y",
+    "label": "CIE y",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "cie-x2",
+    "label": "CIE x2",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "cie-y2",
+    "label": "CIE y2",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "crossfade",
+    "label": "Crossfade",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "p1",
+    "name": "P1 DIMMING & CCT",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p2",
+    "name": "P2 HSI + CCT, Gel 8bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "gel",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p3",
+    "name": "P3 CCT, RGB 8bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p4",
+    "name": "P4 FX 8bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "effect",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-1",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-3",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-4",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-5",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p5",
+    "name": "P5 CIE xy 8bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "cie-x",
+      "byte": 0
+     },
+     {
+      "channelKey": "cie-y",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p6",
+    "name": "P6 CCT 16bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p7",
+    "name": "P7 HSI & CCT, Gel 16bit",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "gel",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p8",
+    "name": "P8 CCT, RGB 16bit",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p9",
+    "name": "P9 FX 16bit",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "effect",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-1",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-3",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-4",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-5",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p10",
+    "name": "P10 CIE xy 16bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "cie-x",
+      "byte": 0
+     },
+     {
+      "channelKey": "cie-y",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p11",
+    "name": "P11 CCT 8bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p12",
+    "name": "P12 CCT 16bit",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p13",
+    "name": "P13 Gel 8bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "gel",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p14",
+    "name": "P14 Gel 16bit",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "gel",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p15",
+    "name": "P15 HSI & CCT 8bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p16",
+    "name": "P16 HSI & CCT 16bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p17",
+    "name": "P17 RGB & CCT 8bit",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p18",
+    "name": "P18 RGB & CCT 16bit",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p19",
+    "name": "P19 CIE xy 8bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "cie-x",
+      "byte": 0
+     },
+     {
+      "channelKey": "cie-y",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p20",
+    "name": "P20 CIE xy 16bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "cie-x",
+      "byte": 0
+     },
+     {
+      "channelKey": "cie-x",
+      "byte": 1
+     },
+     {
+      "channelKey": "cie-y",
+      "byte": 0
+     },
+     {
+      "channelKey": "cie-y",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p21",
+    "name": "P21 FX 8bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "effect",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-1",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-3",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-4",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-5",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p22",
+    "name": "P22 FX 16bit",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "effect",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "fx-param-1",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-3",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-4",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-5",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p23",
+    "name": "P23 xfade CCT & HSI 8bit",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "crossfade",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p24",
+    "name": "P24 xfade CCT & HSI 16bit",
+    "footprint": 13,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "crossfade",
+      "byte": 0
+     },
+     {
+      "channelKey": "crossfade",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p25",
+    "name": "P25 xfade CCT & RBG 8bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "crossfade",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p26",
+    "name": "P26 xfade CCT & RBG 16bit",
+    "footprint": 15,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "crossfade",
+      "byte": 0
+     },
+     {
+      "channelKey": "crossfade",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p27",
+    "name": "P27 xfade CIE xy1 & CIE xy2 8bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "cie-x",
+      "byte": 0
+     },
+     {
+      "channelKey": "cie-y",
+      "byte": 0
+     },
+     {
+      "channelKey": "crossfade",
+      "byte": 0
+     },
+     {
+      "channelKey": "cie-x2",
+      "byte": 0
+     },
+     {
+      "channelKey": "cie-y2",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p28",
+    "name": "P28 xfade CIE xy1 & CIE xy2 16bit",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "cie-x",
+      "byte": 0
+     },
+     {
+      "channelKey": "cie-x",
+      "byte": 1
+     },
+     {
+      "channelKey": "cie-y",
+      "byte": 0
+     },
+     {
+      "channelKey": "cie-y",
+      "byte": 1
+     },
+     {
+      "channelKey": "crossfade",
+      "byte": 0
+     },
+     {
+      "channelKey": "crossfade",
+      "byte": 1
+     },
+     {
+      "channelKey": "cie-x2",
+      "byte": 0
+     },
+     {
+      "channelKey": "cie-x2",
+      "byte": 1
+     },
+     {
+      "channelKey": "cie-y2",
+      "byte": 0
+     },
+     {
+      "channelKey": "cie-y2",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p29",
+    "name": "P29 xfade CCT & TDRGB 8bit",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "crossfade",
+      "byte": 0
+     },
+     {
+      "channelKey": "tungsten",
+      "byte": 0
+     },
+     {
+      "channelKey": "daylight",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p30",
+    "name": "P30 xfade CCT & TDRGB 16bit",
+    "footprint": 17,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "crossfade",
+      "byte": 0
+     },
+     {
+      "channelKey": "crossfade",
+      "byte": 1
+     },
+     {
+      "channelKey": "tungsten",
+      "byte": 0
+     },
+     {
+      "channelKey": "tungsten",
+      "byte": 1
+     },
+     {
+      "channelKey": "daylight",
+      "byte": 0
+     },
+     {
+      "channelKey": "daylight",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    610,
+    360,
+    130
+   ],
+   "weightKg": 6.8,
+   "powerW": 144
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "kino-flo/celeb-250-led-dmx",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "kino-flo/celeb-450-led-dmx",
+  "manufacturer": "Kino Flo",
+  "model": "Celeb 450 LED DMX",
+  "aliases": [
+   "Celeb 450",
+   "Celeb 450 LED DMX",
+   "Celeb 450-DMX",
+   "Kino Flo Celeb 450 LED DMX",
+   "Kino Flo Celeb 450-DMX",
+   "Kino Flo celeb-led-450-dmx",
+   "celeb-led-450-dmx",
+   "celeb450",
+   "celeb450dmx",
+   "celeb450leddmx",
+   "celebled450dmx",
+   "kinofloceleb450dmx",
+   "kinofloceleb450leddmx",
+   "kinoflocelebled450dmx"
+  ],
+  "categories": [
+   "Dimmer",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "tungsten",
+    "label": "Tungsten",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "daylight",
+    "label": "Daylight",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "color-temperature-2",
+    "label": "Color Temperature 2",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "gel",
+    "label": "Gel",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 3,
+      "label": "NoFunction"
+     },
+     {
+      "from": 4,
+      "to": 5,
+      "label": "KF Candle Flame",
+      "color": "#fc8004"
+     },
+     {
+      "from": 6,
+      "to": 7,
+      "label": "KF Flo Warm White",
+      "color": "#ffffcc"
+     },
+     {
+      "from": 8,
+      "to": 9,
+      "label": "KF Flo Cool White",
+      "color": "#ccffff"
+     },
+     {
+      "from": 10,
+      "to": 11,
+      "label": "KF LP Sodium Vpr",
+      "color": "#ff9933"
+     },
+     {
+      "from": 12,
+      "to": 13,
+      "label": "KF Mercury Vpr",
+      "color": "#ccccff"
+     },
+     {
+      "from": 14,
+      "to": 15,
+      "label": "KF 20K Blue Sky",
+      "color": "#9bc2e6"
+     },
+     {
+      "from": 16,
+      "to": 17,
+      "label": "KF Green Screen",
+      "color": "#92d050"
+     },
+     {
+      "from": 18,
+      "to": 19,
+      "label": "KF Blue Screen",
+      "color": "#0070c0"
+     },
+     {
+      "from": 20,
+      "to": 21,
+      "label": "Smokey Pink",
+      "color": "#ff99cc"
+     },
+     {
+      "from": 22,
+      "to": 23,
+      "label": "Dark Magenta",
+      "color": "#cc00ff"
+     },
+     {
+      "from": 24,
+      "to": 25,
+      "label": "Bright Rose",
+      "color": "#ff33cc"
+     },
+     {
+      "from": 26,
+      "to": 27,
+      "label": "Pale Salmon",
+      "color": "#ff66cc"
+     },
+     {
+      "from": 28,
+      "to": 29,
+      "label": "Light Rose",
+      "color": "#ff6699"
+     },
+     {
+      "from": 30,
+      "to": 31,
+      "label": "Light Salmon",
+      "color": "#ff9999"
+     },
+     {
+      "from": 32,
+      "to": 33,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 34,
+      "to": 35,
+      "label": "Pink",
+      "color": "#ff66cc"
+     },
+     {
+      "from": 36,
+      "to": 37,
+      "label": "Rosy Amber",
+      "color": "#ff7c80"
+     },
+     {
+      "from": 38,
+      "to": 39,
+      "label": "Pale Red",
+      "color": "#ff5050"
+     },
+     {
+      "from": 40,
+      "to": 41,
+      "label": "Scarlet",
+      "color": "#ff3300"
+     },
+     {
+      "from": 42,
+      "to": 43,
+      "label": "Loving Amber",
+      "color": "#ff9933"
+     },
+     {
+      "from": 44,
+      "to": 45,
+      "label": "Pale Rose",
+      "color": "#ff7c80"
+     },
+     {
+      "from": 46,
+      "to": 47,
+      "label": "Medium Red",
+      "color": "#ff5050"
+     },
+     {
+      "from": 48,
+      "to": 49,
+      "label": "Gold Tint",
+      "color": "#ffcc00"
+     },
+     {
+      "from": 50,
+      "to": 51,
+      "label": "M Bastard Amber",
+      "color": "#ffcc99"
+     },
+     {
+      "from": 52,
+      "to": 53,
+      "label": "Bright Red",
+      "color": "#ff3300"
+     },
+     {
+      "from": 54,
+      "to": 55,
+      "label": "Flame Red",
+      "color": "#ff6600"
+     },
+     {
+      "from": 56,
+      "to": 57,
+      "label": "Primary Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 58,
+      "to": 59,
+      "label": "Light Red",
+      "color": "#ff5050"
+     },
+     {
+      "from": 60,
+      "to": 61,
+      "label": "Dark Salmon",
+      "color": "#f96435"
+     },
+     {
+      "from": 62,
+      "to": 63,
+      "label": "Fire",
+      "color": "#f95427"
+     },
+     {
+      "from": 64,
+      "to": 65,
+      "label": "Sunset Red",
+      "color": "#ee6612"
+     },
+     {
+      "from": 66,
+      "to": 67,
+      "label": "Pale Gold",
+      "color": "#f0b31c"
+     },
+     {
+      "from": 68,
+      "to": 69,
+      "label": "English Rose",
+      "color": "#f68276"
+     },
+     {
+      "from": 70,
+      "to": 71,
+      "label": "Bastard Amber",
+      "color": "#f3a25f"
+     },
+     {
+      "from": 72,
+      "to": 73,
+      "label": "Surprise Peach",
+      "color": "#f4ae74"
+     },
+     {
+      "from": 74,
+      "to": 75,
+      "label": "Deep Gld Amber",
+      "color": "#f8a714"
+     },
+     {
+      "from": 76,
+      "to": 77,
+      "label": "Dark Amber",
+      "color": "#f3c003"
+     },
+     {
+      "from": 78,
+      "to": 79,
+      "label": "Apricot",
+      "color": "#f98545"
+     },
+     {
+      "from": 80,
+      "to": 81,
+      "label": "Gold Amber",
+      "color": "#f98545"
+     },
+     {
+      "from": 82,
+      "to": 83,
+      "label": "Cosmetic Peach",
+      "color": "#fecaba"
+     },
+     {
+      "from": 84,
+      "to": 85,
+      "label": "Deep Orange",
+      "color": "#ef7903"
+     },
+     {
+      "from": 86,
+      "to": 87,
+      "label": "Chocolate",
+      "color": "#bb6209"
+     },
+     {
+      "from": 88,
+      "to": 89,
+      "label": "Orange",
+      "color": "#e55809"
+     },
+     {
+      "from": 90,
+      "to": 91,
+      "label": "White Flame",
+      "color": "#f0fed2"
+     },
+     {
+      "from": 92,
+      "to": 93,
+      "label": "Medium Amber",
+      "color": "#f9cf59"
+     },
+     {
+      "from": 94,
+      "to": 95,
+      "label": "Pale Amber Gold",
+      "color": "#f7d36d"
+     },
+     {
+      "from": 96,
+      "to": 97,
+      "label": "Chrome Orange",
+      "color": "#fd8c4d"
+     },
+     {
+      "from": 98,
+      "to": 99,
+      "label": "Straw Tint",
+      "color": "#fafcaa"
+     },
+     {
+      "from": 100,
+      "to": 101,
+      "label": "Straw",
+      "color": "#fffc79"
+     },
+     {
+      "from": 102,
+      "to": 103,
+      "label": "Deep Straw",
+      "color": "#f6f000"
+     },
+     {
+      "from": 104,
+      "to": 105,
+      "label": "Deep Amber",
+      "color": "#f3c003"
+     },
+     {
+      "from": 106,
+      "to": 107,
+      "label": "Light Amber",
+      "color": "#fddb5f"
+     },
+     {
+      "from": 108,
+      "to": 109,
+      "label": "Yellow",
+      "color": "#fffb37"
+     },
+     {
+      "from": 110,
+      "to": 111,
+      "label": "Medium Yellow",
+      "color": "#fdfda1"
+     },
+     {
+      "from": 112,
+      "to": 113,
+      "label": "Spring Yellow",
+      "color": "#ffff66"
+     },
+     {
+      "from": 114,
+      "to": 115,
+      "label": "Pale Yellow",
+      "color": "#fdfda1"
+     },
+     {
+      "from": 116,
+      "to": 117,
+      "label": "Lime Green",
+      "color": "#8ffc0c"
+     },
+     {
+      "from": 118,
+      "to": 119,
+      "label": "Pale Green",
+      "color": "#b9fd67"
+     },
+     {
+      "from": 120,
+      "to": 121,
+      "label": "Leaf Green",
+      "color": "#92d050"
+     },
+     {
+      "from": 122,
+      "to": 123,
+      "label": "Fern Green",
+      "color": "#00cc66"
+     },
+     {
+      "from": 124,
+      "to": 125,
+      "label": "Primary Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 126,
+      "to": 127,
+      "label": "Moss Green",
+      "color": "#05fc10"
+     },
+     {
+      "from": 128,
+      "to": 129,
+      "label": "Dark Y Green",
+      "color": "#91fb03"
+     },
+     {
+      "from": 130,
+      "to": 131,
+      "label": "Dark Green",
+      "color": "#03df03"
+     },
+     {
+      "from": 132,
+      "to": 133,
+      "label": "Marine Blue",
+      "color": "#4088fe"
+     },
+     {
+      "from": 134,
+      "to": 135,
+      "label": "Peacock Blue",
+      "color": "#0099ff"
+     },
+     {
+      "from": 136,
+      "to": 137,
+      "label": "Med Blue-Green",
+      "color": "#3399ff"
+     },
+     {
+      "from": 138,
+      "to": 139,
+      "label": "Sp Steel Blue",
+      "color": "#89c4ff"
+     },
+     {
+      "from": 140,
+      "to": 141,
+      "label": "Lagoon Blue",
+      "color": "#4bd1fb"
+     },
+     {
+      "from": 142,
+      "to": 143,
+      "label": "Steel Blue",
+      "color": "#c1e0ff"
+     },
+     {
+      "from": 144,
+      "to": 145,
+      "label": "Lighter Blue",
+      "color": "#c1eaff"
+     },
+     {
+      "from": 146,
+      "to": 147,
+      "label": "Summer Blue",
+      "color": "#92d6f8"
+     },
+     {
+      "from": 148,
+      "to": 149,
+      "label": "Light Blue",
+      "color": "#c1e0ff"
+     },
+     {
+      "from": 150,
+      "to": 151,
+      "label": "Moonlight Blue",
+      "color": "#3a7bfc"
+     },
+     {
+      "from": 152,
+      "to": 153,
+      "label": "Pale Blue",
+      "color": "#aec1fc"
+     },
+     {
+      "from": 154,
+      "to": 155,
+      "label": "Pale Navy Blue",
+      "color": "#6387f9"
+     },
+     {
+      "from": 156,
+      "to": 157,
+      "label": "Mist Blue",
+      "color": "#99ccff"
+     },
+     {
+      "from": 158,
+      "to": 159,
+      "label": "Bright Blue",
+      "color": "#0066cc"
+     },
+     {
+      "from": 160,
+      "to": 161,
+      "label": "True Blue",
+      "color": "#2190ff"
+     },
+     {
+      "from": 162,
+      "to": 163,
+      "label": "Dark Steel Blue",
+      "color": "#2994ff"
+     },
+     {
+      "from": 164,
+      "to": 165,
+      "label": "Daylight Blue",
+      "color": "#99ccff"
+     },
+     {
+      "from": 166,
+      "to": 167,
+      "label": "Slate Blue",
+      "color": "#006f6c"
+     },
+     {
+      "from": 168,
+      "to": 169,
+      "label": "Medium Blue",
+      "color": "#2994ff"
+     },
+     {
+      "from": 170,
+      "to": 171,
+      "label": "Sky Blue",
+      "color": "#5badff"
+     },
+     {
+      "from": 172,
+      "to": 173,
+      "label": "Paler Lavender",
+      "color": "#acaefe"
+     },
+     {
+      "from": 174,
+      "to": 175,
+      "label": "Alice Blue",
+      "color": "#7b7efd"
+     },
+     {
+      "from": 176,
+      "to": 177,
+      "label": "Special Lavender",
+      "color": "#8859fd"
+     },
+     {
+      "from": 178,
+      "to": 179,
+      "label": "Pale Violet",
+      "color": "#af83fd"
+     },
+     {
+      "from": 180,
+      "to": 181,
+      "label": "Just Blue",
+      "color": "#7c58fe"
+     },
+     {
+      "from": 182,
+      "to": 183,
+      "label": "Violet",
+      "color": "#9b39fd"
+     },
+     {
+      "from": 184,
+      "to": 185,
+      "label": "Dark Blue",
+      "color": "#5c41fd"
+     },
+     {
+      "from": 186,
+      "to": 187,
+      "label": "Surprise Pink",
+      "color": "#fb6efe"
+     },
+     {
+      "from": 188,
+      "to": 189,
+      "label": "Deeper Blue",
+      "color": "#2b08fc"
+     },
+     {
+      "from": 190,
+      "to": 191,
+      "label": "Special M Blue",
+      "color": "#745dfd"
+     },
+     {
+      "from": 192,
+      "to": 193,
+      "label": "Zenith Blue",
+      "color": "#b694fa"
+     },
+     {
+      "from": 194,
+      "to": 195,
+      "label": "Light Lavender",
+      "color": "#cdb6fc"
+     },
+     {
+      "from": 196,
+      "to": 197,
+      "label": "Palace Blue",
+      "color": "#745dfd"
+     },
+     {
+      "from": 198,
+      "to": 199,
+      "label": "Lilac Tint",
+      "color": "#d77def"
+     },
+     {
+      "from": 200,
+      "to": 201,
+      "label": "Deep Blue",
+      "color": "#5c41fd"
+     },
+     {
+      "from": 202,
+      "to": 203,
+      "label": "Lavender Tint",
+      "color": "#ba35ef"
+     },
+     {
+      "from": 204,
+      "to": 205,
+      "label": "Pale Lavender",
+      "color": "#d37ff5"
+     },
+     {
+      "from": 206,
+      "to": 207,
+      "label": "Dark Lavender",
+      "color": "#a011d9"
+     },
+     {
+      "from": 208,
+      "to": 209,
+      "label": "Lavender",
+      "color": "#a011d9"
+     },
+     {
+      "from": 210,
+      "to": 211,
+      "label": "Deep Lavender",
+      "color": "#780da3"
+     },
+     {
+      "from": 212,
+      "to": 213,
+      "label": "Congo Blue",
+      "color": "#471aee"
+     },
+     {
+      "from": 214,
+      "to": 215,
+      "label": "Rose Purple",
+      "color": "#da10d0"
+     },
+     {
+      "from": 216,
+      "to": 217,
+      "label": "Mauve",
+      "color": "#f0346a"
+     },
+     {
+      "from": 218,
+      "to": 219,
+      "label": "Rose Pink",
+      "color": "#f35b86"
+     },
+     {
+      "from": 220,
+      "to": 221,
+      "label": "Follies Pink",
+      "color": "#f46c93"
+     },
+     {
+      "from": 222,
+      "to": 223,
+      "label": "Bright Pink",
+      "color": "#f2548c"
+     },
+     {
+      "from": 224,
+      "to": 225,
+      "label": "Middle Rose",
+      "color": "#f577a4"
+     },
+     {
+      "from": 226,
+      "to": 227,
+      "label": "Medium Pink",
+      "color": "#f8a6c3"
+     },
+     {
+      "from": 228,
+      "to": 229,
+      "label": "Light Pink",
+      "color": "#fcd4e2"
+     },
+     {
+      "from": 230,
+      "to": 231,
+      "label": "Dark Pink",
+      "color": "#f2548c"
+     },
+     {
+      "from": 232,
+      "to": 233,
+      "label": "Flesh Pink",
+      "color": "#fdd3d3"
+     },
+     {
+      "from": 234,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "green-magenta-point",
+    "label": "Green-Magenta Point",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Neutral"
+     },
+     {
+      "from": 11,
+      "to": 20,
+      "label": "Full minus green"
+     },
+     {
+      "from": 21,
+      "to": 119,
+      "label": "-99%…-1%"
+     },
+     {
+      "from": 120,
+      "to": 145,
+      "label": "Neutral"
+     },
+     {
+      "from": 146,
+      "to": 244,
+      "label": "1%…99%"
+     },
+     {
+      "from": 245,
+      "to": 255,
+      "label": "Full plus green"
+     }
+    ]
+   },
+   {
+    "key": "hue",
+    "label": "Hue",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "saturation",
+    "label": "Saturation",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "effect",
+    "label": "Effect",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 19,
+      "label": "Candle"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "Fire"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "TV"
+     },
+     {
+      "from": 40,
+      "to": 49,
+      "label": "Police"
+     },
+     {
+      "from": 50,
+      "to": 59,
+      "label": "Lightning"
+     },
+     {
+      "from": 60,
+      "to": 69,
+      "label": "Paparazzi"
+     },
+     {
+      "from": 70,
+      "to": 79,
+      "label": "Pulse"
+     },
+     {
+      "from": 80,
+      "to": 89,
+      "label": "Scroll"
+     },
+     {
+      "from": 90,
+      "to": 255,
+      "label": "Reserved"
+     }
+    ]
+   },
+   {
+    "key": "fx-param-1",
+    "label": "FX Param 1",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "fx-param-2",
+    "label": "FX Param 2",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "fx-param-3",
+    "label": "FX Param 3",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "fx-param-4",
+    "label": "FX Param 4",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "fx-param-5",
+    "label": "FX Param 5",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "cie-x",
+    "label": "CIE x",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "cie-y",
+    "label": "CIE y",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "cie-x2",
+    "label": "CIE x2",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "cie-y2",
+    "label": "CIE y2",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "crossfade",
+    "label": "Crossfade",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "p1",
+    "name": "P1 DIMMING & CCT",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p2",
+    "name": "P2 HSI + CCT, Gel 8bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "gel",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p3",
+    "name": "P3 CCT, RGB 8bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p4",
+    "name": "P4 FX 8bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "effect",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-1",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-3",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-4",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-5",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p5",
+    "name": "P5 CIE xy 8bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "cie-x",
+      "byte": 0
+     },
+     {
+      "channelKey": "cie-y",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p6",
+    "name": "P6 CCT 16bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p7",
+    "name": "P7 HSI & CCT, Gel 16bit",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "gel",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p8",
+    "name": "P8 CCT, RGB 16bit",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p9",
+    "name": "P9 FX 16bit",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "effect",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-1",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-3",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-4",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-5",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p10",
+    "name": "P10 CIE xy 16bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "cie-x",
+      "byte": 0
+     },
+     {
+      "channelKey": "cie-y",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p11",
+    "name": "P11 CCT 8bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p12",
+    "name": "P12 CCT 16bit",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p13",
+    "name": "P13 Gel 8bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "gel",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p14",
+    "name": "P14 Gel 16bit",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "gel",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p15",
+    "name": "P15 HSI & CCT 8bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p16",
+    "name": "P16 HSI & CCT 16bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p17",
+    "name": "P17 RGB & CCT 8bit",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p18",
+    "name": "P18 RGB & CCT 16bit",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p19",
+    "name": "P19 CIE xy 8bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "cie-x",
+      "byte": 0
+     },
+     {
+      "channelKey": "cie-y",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p20",
+    "name": "P20 CIE xy 16bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "cie-x",
+      "byte": 0
+     },
+     {
+      "channelKey": "cie-x",
+      "byte": 1
+     },
+     {
+      "channelKey": "cie-y",
+      "byte": 0
+     },
+     {
+      "channelKey": "cie-y",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p21",
+    "name": "P21 FX 8bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "effect",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-1",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-3",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-4",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-5",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p22",
+    "name": "P22 FX 16bit",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "effect",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "fx-param-1",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-3",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-4",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-param-5",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p23",
+    "name": "P23 xfade CCT & HSI 8bit",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "crossfade",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p24",
+    "name": "P24 xfade CCT & HSI 16bit",
+    "footprint": 13,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "crossfade",
+      "byte": 0
+     },
+     {
+      "channelKey": "crossfade",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p25",
+    "name": "P25 xfade CCT & RBG 8bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "crossfade",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p26",
+    "name": "P26 xfade CCT & RBG 16bit",
+    "footprint": 15,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "crossfade",
+      "byte": 0
+     },
+     {
+      "channelKey": "crossfade",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p27",
+    "name": "P27 xfade CIE xy1 & CIE xy2 8bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "cie-x",
+      "byte": 0
+     },
+     {
+      "channelKey": "cie-y",
+      "byte": 0
+     },
+     {
+      "channelKey": "crossfade",
+      "byte": 0
+     },
+     {
+      "channelKey": "cie-x2",
+      "byte": 0
+     },
+     {
+      "channelKey": "cie-y2",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p28",
+    "name": "P28 xfade CIE xy1 & CIE xy2 16bit",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "cie-x",
+      "byte": 0
+     },
+     {
+      "channelKey": "cie-x",
+      "byte": 1
+     },
+     {
+      "channelKey": "cie-y",
+      "byte": 0
+     },
+     {
+      "channelKey": "cie-y",
+      "byte": 1
+     },
+     {
+      "channelKey": "crossfade",
+      "byte": 0
+     },
+     {
+      "channelKey": "crossfade",
+      "byte": 1
+     },
+     {
+      "channelKey": "cie-x2",
+      "byte": 0
+     },
+     {
+      "channelKey": "cie-x2",
+      "byte": 1
+     },
+     {
+      "channelKey": "cie-y2",
+      "byte": 0
+     },
+     {
+      "channelKey": "cie-y2",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p29",
+    "name": "P29 xfade CCT & TDRGB 8bit",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "crossfade",
+      "byte": 0
+     },
+     {
+      "channelKey": "tungsten",
+      "byte": 0
+     },
+     {
+      "channelKey": "daylight",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p30",
+    "name": "P30 xfade CCT & TDRGB 16bit",
+    "footprint": 17,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "crossfade",
+      "byte": 0
+     },
+     {
+      "channelKey": "crossfade",
+      "byte": 1
+     },
+     {
+      "channelKey": "tungsten",
+      "byte": 0
+     },
+     {
+      "channelKey": "tungsten",
+      "byte": 1
+     },
+     {
+      "channelKey": "daylight",
+      "byte": 0
+     },
+     {
+      "channelKey": "daylight",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    1145,
+    360,
+    130
+   ],
+   "weightKg": 12,
+   "powerW": 300
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "kino-flo/celeb-450-led-dmx",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "kino-flo/celeb-led-201-dmx",
+  "manufacturer": "Kino Flo",
+  "model": "Celeb LED 201 DMX",
+  "aliases": [
+   "Celeb 201",
+   "Celeb LED 201 DMX",
+   "Kino Flo Celeb LED 201 DMX",
+   "celeb201",
+   "celebled201dmx",
+   "kinoflocelebled201dmx"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 22,
+      "label": "ColorTemperature"
+     },
+     {
+      "from": 23,
+      "to": 32,
+      "label": "ColorTemperature"
+     },
+     {
+      "from": 33,
+      "to": 114,
+      "label": "ColorTemperature"
+     },
+     {
+      "from": 115,
+      "to": 119,
+      "label": "ColorTemperature"
+     },
+     {
+      "from": 120,
+      "to": 181,
+      "label": "ColorTemperature"
+     },
+     {
+      "from": 182,
+      "to": 186,
+      "label": "ColorTemperature"
+     },
+     {
+      "from": 187,
+      "to": 249,
+      "label": "ColorTemperature"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "ColorTemperature"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "dim-cct",
+    "name": "DIMMING + CCT",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    610,
+    360,
+    130
+   ],
+   "weightKg": 6.8,
+   "powerW": 100
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "kino-flo/celeb-led-201-dmx",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

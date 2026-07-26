@@ -1,0 +1,743 @@
+[
+ {
+  "id": "fractal-lights/par-led-7x10w",
+  "manufacturer": "Fractal Lights",
+  "model": "PAR LED 7x10W",
+  "aliases": [
+   "Fractal Lights PAR LED 7x10W",
+   "PAR LED 7x10W",
+   "fractallightsparled7x10w",
+   "parled7x10w"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 4,
+      "label": "NoFunction"
+     },
+     {
+      "from": 5,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "mode",
+    "label": "Mode",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 50,
+      "label": "Manual control"
+     },
+     {
+      "from": 51,
+      "to": 100,
+      "label": "Color presets"
+     },
+     {
+      "from": 101,
+      "to": 150,
+      "label": "ColorJump"
+     },
+     {
+      "from": 151,
+      "to": 200,
+      "label": "ColorFade"
+     },
+     {
+      "from": 201,
+      "to": 250,
+      "label": "ColorFade (black between colors)"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "Sound control (select color or color change)"
+     }
+    ]
+   },
+   {
+    "key": "color-presets",
+    "label": "Color Presets",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 96,
+      "to": 127,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 128,
+      "to": 159,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "Cyan",
+      "color": "#00ffff"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "RGBW",
+      "color": "#ffffff"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "8ch",
+    "name": "8-channel",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "mode",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-presets",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "rgbw",
+    "name": "RGBW",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    180,
+    180,
+    110
+   ],
+   "weightKg": 2,
+   "powerW": 90,
+   "lensDegMin": 25,
+   "lensDegMax": 25
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "fractal-lights/par-led-7x10w",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "fractal-lights/par-led-7x12w",
+  "manufacturer": "Fractal Lights",
+  "model": "PAR LED 7x12W",
+  "aliases": [
+   "Fractal Lights PAR LED 7x12W",
+   "PAR LED 7x12W",
+   "fractallightsparled7x12w",
+   "parled7x12w"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 4,
+      "label": "NoFunction"
+     },
+     {
+      "from": 5,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "mode",
+    "label": "Mode",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 50,
+      "label": "Manual control"
+     },
+     {
+      "from": 51,
+      "to": 100,
+      "label": "Color presets"
+     },
+     {
+      "from": 101,
+      "to": 150,
+      "label": "ColorJump"
+     },
+     {
+      "from": 151,
+      "to": 200,
+      "label": "ColorFade"
+     },
+     {
+      "from": 201,
+      "to": 250,
+      "label": "ColorFade (black between colors)"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "Sound control (select color or color change)"
+     }
+    ]
+   },
+   {
+    "key": "color-presets",
+    "label": "Color Presets",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 96,
+      "to": 127,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 128,
+      "to": 159,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "Cyan",
+      "color": "#00ffff"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "RGBW",
+      "color": "#ffffff"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "9ch",
+    "name": "9-channel",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "mode",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-presets",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "rgbwa",
+    "name": "RGBWA",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    180,
+    180,
+    110
+   ],
+   "weightKg": 2,
+   "powerW": 100,
+   "lensDegMin": 25,
+   "lensDegMax": 25
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "fractal-lights/par-led-7x12w",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "fractal-lights/par-led-7x9w",
+  "manufacturer": "Fractal Lights",
+  "model": "PAR LED 7x9W",
+  "aliases": [
+   "Fractal Lights PAR LED 7x9W",
+   "PAR LED 7x9W",
+   "fractallightsparled7x9w",
+   "parled7x9w"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 4,
+      "label": "NoFunction"
+     },
+     {
+      "from": 5,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "mode",
+    "label": "Mode",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 50,
+      "label": "Manual control"
+     },
+     {
+      "from": 51,
+      "to": 100,
+      "label": "Color presets"
+     },
+     {
+      "from": 101,
+      "to": 150,
+      "label": "ColorJump"
+     },
+     {
+      "from": 151,
+      "to": 200,
+      "label": "ColorFade"
+     },
+     {
+      "from": 201,
+      "to": 250,
+      "label": "ColorFade (dimming between colors)"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "Sound control (select color or color change)"
+     }
+    ]
+   },
+   {
+    "key": "color-presets",
+    "label": "Color Presets",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 32,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 33,
+      "to": 63,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 96,
+      "to": 127,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 128,
+      "to": 159,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "Cyan",
+      "color": "#00ffff"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "RGBW",
+      "color": "#ffffff"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "7ch",
+    "name": "7-channel",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "mode",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-presets",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "rgb",
+    "name": "RGB",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    180,
+    180,
+    110
+   ],
+   "weightKg": 2,
+   "powerW": 80,
+   "lensDegMin": 25,
+   "lensDegMax": 25
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "fractal-lights/par-led-7x9w",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

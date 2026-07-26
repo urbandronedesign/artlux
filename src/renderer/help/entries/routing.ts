@@ -3,6 +3,20 @@ import type { HelpEntry } from '../types';
 // Routing / controllers / addressing controls (group: "Routing"). Filled during migration.
 export const routingHelp: HelpEntry[] = [
   {
+    id: 'routing.controller-device',
+    title: 'USB DMX interface',
+    short: 'Which physical widget this controller sends to.',
+    body: 'Lists the USB serial devices attached right now, by their own product name — an ENTTEC DMX '
+      + 'USB Pro appears as itself, not as "COM3". Plug the widget in and press the refresh button if it '
+      + 'is not listed; devices are enumerated on demand because a widget is usually connected after the '
+      + 'app is already open. A port saved in a project but not currently attached stays selected and is '
+      + 'marked "not connected", so opening a show on another machine does not silently clear it. '
+      + 'ONE WIDGET SENDS ONE UNIVERSE: fixtures auto-patched past it are badged rather than quietly '
+      + 'addressed somewhere the device will never transmit. USB DMX requires the native output engine.',
+    group: 'Routing',
+    keywords: ['usb', 'enttec', 'dmx pro', 'serial', 'com port', 'interface', 'device', 'widget'],
+  },
+  {
     id: 'routing.auto-patch',
     title: 'Auto-patch',
     short: 'Automatically assign universe + start address to every unlocked fixture.',

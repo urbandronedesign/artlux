@@ -106,6 +106,27 @@ export const IPC = {
   DOCS_OPEN_WINDOW: 'docs:open-window',
   /** Renderer (docs window) → main: load an example project into the MAIN editor window. */
   DOCS_OPEN_EXAMPLE: 'docs:open-example',
+  /**
+   * Renderer → main (invoke): the DMX fixture-library CATALOGUE — one small row per profile, enough
+   * to search and to render a picker. Loaded once at startup.
+   */
+  FIXTURE_LIBRARY_INDEX: 'fixtureLibrary:index',
+  /**
+   * Renderer → main (invoke): the FULL profiles for one manufacturer key, fetched lazily when the
+   * operator actually patches one. The whole library is ~4 MB of JSON and deliberately does NOT go
+   * into the renderer bundle.
+   */
+  FIXTURE_LIBRARY_GET: 'fixtureLibrary:get',
+  /**
+   * Renderer → main (invoke): USB serial devices that could be a DMX interface, for the Outputs
+   * picker. Re-queried on demand (Rescan), because a widget is routinely plugged in after launch.
+   */
+  SERIAL_DEVICES: 'dmx:serial-devices',
+  /**
+   * Renderer → main (invoke): pick a .gdtf and import it as a user fixture profile (channels, modes
+   * AND the real geometry). Returns the profile id plus any notes, or null if cancelled.
+   */
+  FIXTURE_IMPORT_GDTF: 'fixtureLibrary:import-gdtf',
   /** Renderer → main (invoke): write a recorded LiDAR-blob take to a sidecar file → absolute path. */
   SAVE_TRACKING_TAKE: 'tracking:save-take',
   /** Renderer → main (invoke): pick + copy media into the project's assets/<cat>/ → AssetEntry[]. */
@@ -349,7 +370,9 @@ export interface RenderStats {
   samples: number;     // frames observed in the window
 }
 
-export type OutputProtocol = 'artnet' | 'sacn';
+// 'enttec' is a USB-serial DMX interface rather than a network protocol: it carries a COM PORT in
+// the `ip` field (the wire format needed no new slot) and drives exactly one universe.
+export type OutputProtocol = 'artnet' | 'sacn' | 'enttec';
 
 // One routing destination: a controller and the universes destined for it.
 export interface UniverseTarget {
@@ -597,6 +620,13 @@ export interface Scene3D {
   environment: boolean;               // ambient/HDR base lighting
   exposure: number;                   // tone-mapping exposure
   gridVisible: boolean;
+  // ATMOSPHERE — how much haze the room has, 0..1 (absent ⇒ a modest default).
+  //
+  // A beam is only visible because of what is in the air; with no haze a real venue shows a pool of
+  // light and no beam at all. This scales the volumetric cones' opacity, so the 3D view can be made
+  // to match what the room will actually look like on the night rather than always showing the
+  // hazed-up version.
+  hazeDensity?: number;
   reflectiveFloor?: boolean;          // mirror floor reflecting the LEDs/meshes
   trackingViz?: boolean;              // overlay the LiDAR SOL/MUR zones + live blob markers
   trackingSmoothing?: number;         // 0 = raw, 1 = heavy (One-Euro min-cutoff)
@@ -674,6 +704,161 @@ export interface AssetEntry {
   addedAt?: string;        // ISO timestamp
 }
 
+// ── DMX fixture profiles (a "personality") ──────────────────────────────────────────────────────
+//
+// A renderer `Fixture` describes a PIXEL fixture: `ledCount` cells of RGB/W, occupying
+// `ledCount × channelsPerPixel` channels. That is LED tape and panels, and it cannot express a
+// moving head — named Pan/Tilt/Gobo/Shutter channels, 16-bit pairs, discrete gobo slots, and
+// several MODES of the same physical light.
+//
+// These types live in shared/ (re-exported from renderer/types.ts) because all three of the
+// renderer, MAIN (which reads the bundled library off disk) and the project file need them.
+//
+// A profile is that missing description. It is NOT a `FixtureTemplate` (which is a saved pixel
+// LAYOUT): a template says "16 LEDs, GRB, serpentine", a profile says "channel 9 is Pan, 0..540°,
+// 16-bit with its fine byte at channel 10".
+//
+// WHY OUR OWN FORMAT and not the source's. The generated library is converted from the Open
+// Fixture Library, whose own docs state its JSON is "not intended to be used directly by other
+// software" and may break between releases. We convert ONCE, at build time (scripts/build-fixture-
+// library.mjs), into the shape the packer actually wants — see `ProfileMode.slots`.
+export type ChannelRole =
+  // Intensity + colour mixing. The emitter list is exactly the one the source library actually
+  // uses, measured rather than guessed — and `warmWhite`/`coldWhite` are their OWN roles, not
+  // aliases of `white`: a CCT-mixing fixture has separate warm and cold emitters, and folding both
+  // onto one role would drive them together and make the fixture unable to reach either extreme.
+  | 'dimmer' | 'red' | 'green' | 'blue' | 'white' | 'warmWhite' | 'coldWhite'
+  | 'amber' | 'uv' | 'lime' | 'indigo' | 'cyan' | 'magenta' | 'yellow' | 'colorTemp'
+  // movement + optics
+  | 'pan' | 'tilt' | 'panTiltSpeed' | 'zoom' | 'focus' | 'iris' | 'frost'
+  // beam shaping + effects
+  | 'shutter' | 'strobe' | 'colorWheel' | 'goboWheel' | 'goboRotation'
+  | 'prism' | 'prismRotation' | 'speed' | 'maintenance' | 'macro'
+  // Atmospherics. A hazer is not a light, but it is patched on the same wire and the 3D scene's
+  // beam density is only believable when it tracks the haze that is actually in the room.
+  | 'fog'
+  // A channel we could not map semantically. STILL ADDRESSABLE AND CONTROLLABLE — it just gets no
+  // role-aware treatment (no colour mixing, no 3D aim, not matched when a take is retargeted).
+  // Unknown must never mean "dropped": an unmapped channel still occupies a DMX slot, and a
+  // fixture whose footprint shrank because we didn't recognise channel 12 is mis-patched.
+  | 'unknown';
+
+// One discrete band within a channel — a gobo, a colour-wheel slot, a strobe mode.
+export interface ProfileRange {
+  from: number;        // inclusive DMX byte 0..255
+  to: number;          // inclusive
+  label: string;
+  color?: string;      // colour-wheel slot, hex — drives the 3D beam tint
+  goboKey?: string;    // gobo image key → resources/fixture-library/gobos/<key>.png
+}
+
+export interface ProfileChannel {
+  key: string;              // stable slot key WITHIN this profile — 'pan', 'gobo1'
+  label: string;            // 'Pan', 'Gobo Wheel'
+  role: ChannelRole;
+  resolution: 1 | 2 | 3;    // bytes; a source format's "fine" channels are folded in here
+  default: number;          // 0..1 normalised — what the fixture holds before anything drives it
+  highlight?: number;       // 0..1 value for a "highlight this fixture" command
+  invert?: boolean;
+  // PHYSICAL range, in `unit`. Pan/tilt are stored in DEGREES on purpose: it is what lets a
+  // recorded movement replay correctly on a head with a different total sweep (a 540° take on a
+  // 630° head), and it is what the 3D scene needs to aim a beam at a point in the room. Consoles
+  // call the same idea "head morphing"; it only works because the value is not a raw DMX byte.
+  min?: number; max?: number; unit?: string;
+  ranges?: ProfileRange[];  // present ⇒ this is a discrete channel (author picks a slot, not a %)
+  geometry?: string;        // GDTF geometry node this channel drives (pan → yoke, tilt → head)
+}
+
+// A GDTF-imported mesh + its articulation. Absent ⇒ the renderer draws a procedural archetype
+// sized from `physical.dimsMm`. Absent is the NORMAL case: the bundled library carries no meshes,
+// and a GDTF is imported only for the handful of fixture types actually in the rig.
+//
+// ⚠ A GDTF DOES NOT SHIP ONE MESH. Each geometry node references its OWN model file (Body.glb,
+// Yoke.glb, …) and the tree says how they hinge — which is the whole point: a single baked mesh
+// could not articulate. The renderer composes them.
+export interface ProfileGeometry {
+  /** Directory the extracted meshes were cached into. */
+  modelPath: string;
+  nodes: ProfileGeoNode[];
+}
+export interface ProfileGeoNode {
+  name: string;
+  parent?: string;                   // absent ⇒ root
+  kind: 'normal' | 'axis' | 'beam';
+  // GDTF declares an <Axis> geometry for each moving part but does NOT say which is pan and which
+  // is tilt — that is determined by which DMX channel targets the geometry. Resolved at import.
+  axis?: 'pan' | 'tilt';
+  /** Offset from the PARENT node, in metres, already converted from GDTF's Z-up to Y-up. */
+  offset?: { x: number; y: number; z: number };
+  /** The GDTF Model this node uses (a name, not a file). */
+  model?: string;
+  /** Absolute path to this node's extracted .glb, when it had one. */
+  modelPath?: string;
+}
+
+// One MODE (a "personality") of a fixture: the same light, a different channel count and order.
+export interface ProfileMode {
+  key: string;
+  name: string;              // '16-Bit Extended'
+  footprint: number;         // DMX channels this mode consumes
+  // THE PACKER'S VIEW, and the reason this is an array and not a map: index = offset from the
+  // fixture's startAddress, so emitting a frame is a straight loop with no lookup and no ordering
+  // decision at runtime. `null` is a channel the manufacturer reserves but does not use — it still
+  // OCCUPIES its slot (that is why footprint counts it) and is written as 0.
+  //
+  // INVARIANT: slots.length === footprint. The build script enforces it and drops any profile that
+  // violates it, because a mode whose slot array is shorter than its footprint mis-addresses every
+  // fixture patched after it.
+  slots: Array<{ channelKey: string; byte: 0 | 1 | 2 } | null>;
+}
+
+export interface FixtureProfile {
+  id: string;                 // '<manufacturerKey>/<fixtureKey>', e.g. 'martin/mac-250-krypton'
+  manufacturer: string;
+  model: string;
+  // Alternate spellings the "add fixture by reference" search matches on — short codes ('MAC250'),
+  // the source's own short name, and a punctuation-stripped normal form. Without these, typing a
+  // real-world part code finds nothing and the library reads as if it lacked the fixture.
+  aliases?: string[];
+  categories?: string[];      // 'Moving Head' | 'Color Changer' | … — picks the 3D archetype
+  channels: ProfileChannel[];
+  modes: ProfileMode[];
+  physical?: {
+    weightKg?: number;
+    dimsMm?: [number, number, number];
+    powerW?: number;
+    lensDegMin?: number; lensDegMax?: number;   // beam cone half-angle range
+  };
+  geometry?: ProfileGeometry;
+  source: {
+    origin: 'ofl' | 'gdtf' | 'pdf' | 'manual';
+    ref?: string;             // upstream fixture key / file / URL
+    rev?: string;             // upstream revision or commit
+    importedAt: string;       // ISO date
+  };
+  // FALSE = a DRAFT whose channel table nobody has checked against the manufacturer's manual
+  // (PDF-extracted, or hand-authored in a hurry). A draft is deliberately still USABLE — you may
+  // need one at 2am in a venue — but it must never be silently trusted, so every surface that
+  // shows a profile shows this too. Only a human review sets it true.
+  verified: boolean;
+}
+
+// One row of the library CATALOGUE — what the picker and the "add by reference" search read. Small
+// enough that all ~500 rows load at startup; the full channel tables are fetched per manufacturer
+// only when a fixture is actually patched.
+export interface FixtureProfileSummary {
+  id: string;
+  manufacturer: string;
+  model: string;
+  aliases?: string[];
+  categories?: string[];
+  modes: Array<{ key: string; name: string; footprint: number }>;
+  /** Absent on bundled rows (all verified); false on a user draft awaiting review. */
+  verified?: boolean;
+  /** Where this row came from, so the UI can badge a user draft distinctly from the shipped set. */
+  origin?: FixtureProfile['source']['origin'];
+}
+
 // Full project file (kept loose here so shared/ stays decoupled from renderer types).
 // Asset paths inside surfaces/scene3D/timeline are stored relative to the project
 // folder when collected (see main/projectFolder.ts), and resolved to absolute on load.
@@ -700,6 +885,18 @@ export interface ProjectData {
   projectorFpsCap?: number; // performance mode: cap projector output fps (0 = uncapped/vsync)
   projectorBrightness?: number; // master brightness of projected content (1 = full)
   reserveLockedRanges?: boolean; // patch policy: pack auto fixtures AROUND locked ranges (was AppSettings)
+  // THE DMX FIXTURE PROFILES THIS SHOW USES, embedded on save.
+  //
+  // A profile is normally resolved out of the app's bundled library, so embedding looks redundant —
+  // it is not. A project is portable (docs/ASSETS.md): the operator copies the folder to the venue
+  // PC. If that machine's library is older, or the fixture came from a hand-authored/PDF-derived
+  // profile in THAT operator's userData, the profile is simply absent, and a fixture with an
+  // unresolved profile has NO KNOWN FOOTPRINT — so the patch silently shifts for every fixture after
+  // it on the same controller. Carrying the profiles with the show removes the failure entirely.
+  //
+  // Only the profiles actually referenced by a fixture are written, so this stays small.
+  // Resolution order on load: THIS → userData/fixture-profiles → bundled library.
+  fixtureProfiles?: FixtureProfile[];
 }
 
 // Result of a "Collect Assets" run.
@@ -801,22 +998,25 @@ export interface OpenProjectResult {
 // through, exactly like the existing `passthrough` items.
 //
 // A context registered by a PLUGIN appears on the rail and in the command palette but not here —
-// menus in this app are static by construction. Core's ten are the ones worth a menu entry.
+// menus in this app are static by construction. Core's nine are the ones worth a menu entry.
+//
+// The accelerator labels are POSITIONAL (the rail derives Ctrl+N from its own index), so this array's
+// order must match the rail's cluster/order sort or the labels lie. `verify:invariants` checks that
+// every id here still resolves to a registered context, because a dead entry is otherwise silent: the
+// menu item renders and `goToContext` no-ops.
 export interface ContextMenuEntry { id: string; label: string; accel?: string; sepBefore?: boolean }
 export const CONTEXT_MENU_ITEMS: ContextMenuEntry[] = [
-  { id: 'timeline', label: 'Timeline',           accel: 'Ctrl+1' },
-  { id: 'mapping',  label: 'Mapping',            accel: 'Ctrl+2' },
-  { id: '3d',       label: 'Venue / 3D Scene',   accel: 'Ctrl+3' },
-  { id: 'project',  label: 'Projection Outputs', accel: 'Ctrl+4', sepBefore: true },
-  { id: 'calib',    label: 'Calibration',        accel: 'Ctrl+5' },
-  { id: 'scenes',   label: 'Scenes & Cues',      accel: 'Ctrl+6', sepBefore: true },
-  { id: 'machine',  label: 'Show Machine',       accel: 'Ctrl+7' },
-  { id: 'audio',    label: 'Audio',              accel: 'Ctrl+8' },
-  { id: 'tracking', label: 'Tracking',           accel: 'Ctrl+9' },
-  { id: 'show',     label: 'Show / Perform' },
+  { id: 'mapping',  label: 'Mapping',            accel: 'Ctrl+1' },
+  { id: '3d',       label: 'Venue & Rig',        accel: 'Ctrl+2' },
+  { id: 'project',  label: 'Projection Outputs', accel: 'Ctrl+3', sepBefore: true },
+  { id: 'calib',    label: 'Calibration',        accel: 'Ctrl+4' },
+  { id: 'scenes',   label: 'Scenes & Cues',      accel: 'Ctrl+5', sepBefore: true },
+  { id: 'machine',  label: 'Show Machine',       accel: 'Ctrl+6' },
+  { id: 'audio',    label: 'Audio',              accel: 'Ctrl+7' },
+  { id: 'show',     label: 'Show / Perform',     accel: 'Ctrl+8' },
   // App-level, hence the rule above it — same split the rail draws. Also reachable as Ctrl+, from the
   // File menu; both land on the same context, so there is one place Preferences lives, not two.
-  { id: 'settings', label: 'Preferences',         accel: 'Ctrl+,', sepBefore: true },
+  { id: 'settings', label: 'Preferences',        accel: 'Ctrl+9', sepBefore: true },
 ];
 /** The menu action a context entry fires; App routes it through goToContext. */
 export const contextAction = (id: string): string => `context:${id}`;
@@ -929,6 +1129,18 @@ export interface ArtluxApi {
   // Generic file access (timeline video clips)
   readFile(path: string): Promise<Uint8Array | null>;
   // In-app Docs Browser (examples/tutorials + user guide)
+  // DMX fixture library (bundled generated set + the operator's own profiles in userData).
+  /** The whole catalogue, bundled + user, user rows winning on id. Cached in main. */
+  fixtureLibraryIndex(): Promise<FixtureProfileSummary[]>;
+  /**
+   * Full profiles for one manufacturer key (the `<manufacturer>` half of a profile id), plus any
+   * user profiles for that manufacturer. Returns [] for an unknown key rather than throwing.
+   */
+  fixtureLibraryGet(manufacturerKey: string): Promise<FixtureProfile[]>;
+  /** USB serial devices that could be a DMX interface (ENTTEC DMX USB Pro and compatibles). */
+  listSerialDevices(): Promise<Array<{ path: string; label: string }>>;
+  /** Pick and import a .gdtf → a user profile carrying the manufacturer's own channels and meshes. */
+  importGdtf(): Promise<{ id: string; model: string; notes: string[] } | null>;
   docsList(): Promise<DocSection[]>;
   docsRead(id: string): Promise<DocContent | null>;
   /** Read a sibling image referenced by a doc (absolute path, validated under the docs roots). */

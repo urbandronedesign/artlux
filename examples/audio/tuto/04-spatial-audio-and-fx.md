@@ -20,7 +20,7 @@ In the **Audio** context, look at **Tracks — the bed**: there are two now. *Be
 
 ## 2. The positioner pad
 
-In the **Timeline** context, with **Global** bound, click the **first orbit clip** on its lane to select it.
+In the **timeline drawer**, with **Global** bound, click the **first orbit clip** on its lane to select it.
 Now switch to the **Audio** context: the clip inspector on the right has filled in for the selected clip.
 
 This time it has a **Spatial** section: a checkbox (ticked), a small **top-down pad** with a dot in it, and a

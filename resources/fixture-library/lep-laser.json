@@ -1,0 +1,921 @@
+[
+ {
+  "id": "lep-laser/diamond-pro-2-8",
+  "manufacturer": "LEP-LASER",
+  "model": "Diamond PRO 2.8",
+  "aliases": [
+   "Diamond PRO 2.8",
+   "LEP-LASER Diamond PRO 2.8",
+   "diamondpro28",
+   "leplaserdiamondpro28"
+  ],
+  "categories": [
+   "Laser",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "mode-select",
+    "label": "Mode Select",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 63,
+      "label": "Laser off"
+     },
+     {
+      "from": 64,
+      "to": 127,
+      "label": "Sound mode, shutoff after 2 sec"
+     },
+     {
+      "from": 128,
+      "to": 159,
+      "label": "Sound mode (beam patterns)"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "Sound mode (graphics)"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "DMX Mode"
+     }
+    ]
+   },
+   {
+    "key": "pattern-selection",
+    "label": "Pattern Selection",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "1 Line horizontal"
+     },
+     {
+      "from": 1,
+      "to": 1,
+      "label": "2 Lines horizontal stacked"
+     },
+     {
+      "from": 2,
+      "to": 2,
+      "label": "2 Lines horizontal side by side"
+     },
+     {
+      "from": 3,
+      "to": 3,
+      "label": "1 Line vertical"
+     },
+     {
+      "from": 4,
+      "to": 4,
+      "label": "2 Lines vertical side by side"
+     },
+     {
+      "from": 5,
+      "to": 5,
+      "label": "2 Lines horizontal stacked"
+     },
+     {
+      "from": 6,
+      "to": 6,
+      "label": "Swastika-like pattern"
+     },
+     {
+      "from": 7,
+      "to": 7,
+      "label": "Sinus"
+     },
+     {
+      "from": 8,
+      "to": 8,
+      "label": "2 Sinus diagonally across each other"
+     },
+     {
+      "from": 9,
+      "to": 9,
+      "label": "Cardiogram"
+     },
+     {
+      "from": 10,
+      "to": 10,
+      "label": "Rectangle pulsed line"
+     },
+     {
+      "from": 11,
+      "to": 11,
+      "label": "Square"
+     },
+     {
+      "from": 12,
+      "to": 12,
+      "label": "2 Squares diagonally across each other"
+     },
+     {
+      "from": 13,
+      "to": 13,
+      "label": "Square big"
+     },
+     {
+      "from": 14,
+      "to": 14,
+      "label": "Rectangle"
+     },
+     {
+      "from": 15,
+      "to": 15,
+      "label": "Triangle"
+     },
+     {
+      "from": 16,
+      "to": 16,
+      "label": "Maze Square"
+     },
+     {
+      "from": 17,
+      "to": 17,
+      "label": "Maze Triangle"
+     },
+     {
+      "from": 18,
+      "to": 18,
+      "label": "Yin Yang"
+     },
+     {
+      "from": 19,
+      "to": 19,
+      "label": "Half Circle up"
+     },
+     {
+      "from": 20,
+      "to": 20,
+      "label": "Big Circle"
+     },
+     {
+      "from": 21,
+      "to": 21,
+      "label": "2 Circles same center"
+     },
+     {
+      "from": 22,
+      "to": 22,
+      "label": "5 Circles form a square"
+     },
+     {
+      "from": 23,
+      "to": 23,
+      "label": "4-pointed Star"
+     },
+     {
+      "from": 24,
+      "to": 24,
+      "label": "5-pointed Star"
+     },
+     {
+      "from": 25,
+      "to": 25,
+      "label": "Pentagon"
+     },
+     {
+      "from": 26,
+      "to": 26,
+      "label": "Octagon"
+     },
+     {
+      "from": 27,
+      "to": 27,
+      "label": "3 thin Spikes"
+     },
+     {
+      "from": 28,
+      "to": 28,
+      "label": "3 thick Spikes"
+     },
+     {
+      "from": 29,
+      "to": 29,
+      "label": "5 thick Spikes"
+     },
+     {
+      "from": 30,
+      "to": 30,
+      "label": "Stars twinkling"
+     },
+     {
+      "from": 31,
+      "to": 31,
+      "label": "Diamond horizontal"
+     },
+     {
+      "from": 32,
+      "to": 32,
+      "label": "2 Diamonds vertical"
+     },
+     {
+      "from": 33,
+      "to": 33,
+      "label": "Heart"
+     },
+     {
+      "from": 34,
+      "to": 34,
+      "label": "8 lines every 45 degrees"
+     },
+     {
+      "from": 35,
+      "to": 35,
+      "label": "4 lightnings"
+     },
+     {
+      "from": 36,
+      "to": 36,
+      "label": "3 Circles"
+     },
+     {
+      "from": 37,
+      "to": 37,
+      "label": "5 Circles"
+     },
+     {
+      "from": 38,
+      "to": 38,
+      "label": "3 Fishes"
+     },
+     {
+      "from": 39,
+      "to": 39,
+      "label": "5 Lines horizontal diagonal"
+     },
+     {
+      "from": 40,
+      "to": 40,
+      "label": "8 short lines horizontal"
+     },
+     {
+      "from": 41,
+      "to": 41,
+      "label": "8 short lines vertical"
+     },
+     {
+      "from": 42,
+      "to": 42,
+      "label": "7 Big points horizontal diagonal"
+     },
+     {
+      "from": 43,
+      "to": 43,
+      "label": "7 Big points vertical diagonal"
+     },
+     {
+      "from": 44,
+      "to": 44,
+      "label": "Big Letter S"
+     },
+     {
+      "from": 45,
+      "to": 45,
+      "label": "7 Small circles vertical"
+     },
+     {
+      "from": 46,
+      "to": 46,
+      "label": "5 thin spikes"
+     },
+     {
+      "from": 47,
+      "to": 47,
+      "label": "Big circle with breaks"
+     },
+     {
+      "from": 48,
+      "to": 48,
+      "label": "Big Square with breaks"
+     },
+     {
+      "from": 49,
+      "to": 49,
+      "label": "6 lines every 60 degrees"
+     },
+     {
+      "from": 50,
+      "to": 50,
+      "label": "Tumbler"
+     },
+     {
+      "from": 51,
+      "to": 51,
+      "label": "Medium Circle"
+     },
+     {
+      "from": 52,
+      "to": 52,
+      "label": "Big Arrow Right"
+     },
+     {
+      "from": 53,
+      "to": 53,
+      "label": "Big Square"
+     },
+     {
+      "from": 54,
+      "to": 54,
+      "label": "Tongs"
+     },
+     {
+      "from": 55,
+      "to": 55,
+      "label": "Hourglass"
+     },
+     {
+      "from": 56,
+      "to": 67,
+      "label": "Small circle 1…12 Hour CW"
+     },
+     {
+      "from": 68,
+      "to": 68,
+      "label": "4 deranged arrows"
+     },
+     {
+      "from": 69,
+      "to": 69,
+      "label": "4 arrows"
+     },
+     {
+      "from": 70,
+      "to": 73,
+      "label": "Diagonal lines"
+     },
+     {
+      "from": 74,
+      "to": 74,
+      "label": "Big circle with breaks"
+     },
+     {
+      "from": 75,
+      "to": 75,
+      "label": "4 Groups of 4 Triangles"
+     },
+     {
+      "from": 76,
+      "to": 76,
+      "label": "Big Letter V"
+     },
+     {
+      "from": 77,
+      "to": 77,
+      "label": "Big Letters XY"
+     },
+     {
+      "from": 78,
+      "to": 78,
+      "label": "Sinus"
+     },
+     {
+      "from": 79,
+      "to": 79,
+      "label": "Stars Twinkling"
+     },
+     {
+      "from": 80,
+      "to": 80,
+      "label": "7 Triangles vertical"
+     },
+     {
+      "from": 81,
+      "to": 81,
+      "label": "Circle with 8 arrows"
+     },
+     {
+      "from": 82,
+      "to": 82,
+      "label": "8 Circles"
+     },
+     {
+      "from": 83,
+      "to": 89,
+      "label": "Welcome"
+     },
+     {
+      "from": 90,
+      "to": 92,
+      "label": "Stars"
+     },
+     {
+      "from": 93,
+      "to": 95,
+      "label": "Dancer"
+     },
+     {
+      "from": 96,
+      "to": 98,
+      "label": "Hearts colliding"
+     },
+     {
+      "from": 99,
+      "to": 100,
+      "label": "Tumbler growing"
+     },
+     {
+      "from": 101,
+      "to": 102,
+      "label": "Circle"
+     },
+     {
+      "from": 103,
+      "to": 104,
+      "label": "Dotted Circle"
+     },
+     {
+      "from": 105,
+      "to": 106,
+      "label": "Dancing vertical line"
+     },
+     {
+      "from": 107,
+      "to": 108,
+      "label": "Dotted horizontal line up…down"
+     },
+     {
+      "from": 109,
+      "to": 114,
+      "label": "2 Circles dancing"
+     },
+     {
+      "from": 115,
+      "to": 116,
+      "label": "Wobbly Sinus"
+     },
+     {
+      "from": 117,
+      "to": 118,
+      "label": "Dotted Sinus up…down"
+     },
+     {
+      "from": 119,
+      "to": 120,
+      "label": "2 dotted horizontal lines up…down"
+     },
+     {
+      "from": 121,
+      "to": 122,
+      "label": "2 diagonals up…down"
+     },
+     {
+      "from": 123,
+      "to": 124,
+      "label": "2 Circles dancing"
+     },
+     {
+      "from": 125,
+      "to": 126,
+      "label": "Points Sinus up…down"
+     },
+     {
+      "from": 127,
+      "to": 128,
+      "label": "2 horizontal lines revolving"
+     },
+     {
+      "from": 129,
+      "to": 130,
+      "label": "4 dotted lines dancing"
+     },
+     {
+      "from": 131,
+      "to": 132,
+      "label": "2 dancing dotted vertical lines"
+     },
+     {
+      "from": 133,
+      "to": 134,
+      "label": "2 dancing vertical sinus"
+     },
+     {
+      "from": 135,
+      "to": 136,
+      "label": "2 Lines revolving"
+     },
+     {
+      "from": 137,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "strobe-effect",
+    "label": "Strobe Effect",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "horizontal-movement",
+    "label": "Horizontal Movement",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "BeamPosition"
+     },
+     {
+      "from": 1,
+      "to": 42,
+      "label": "BeamPosition"
+     },
+     {
+      "from": 43,
+      "to": 127,
+      "label": "BeamPosition"
+     },
+     {
+      "from": 128,
+      "to": 167,
+      "label": "BeamPosition"
+     },
+     {
+      "from": 168,
+      "to": 188,
+      "label": "Movement left…right alternating"
+     },
+     {
+      "from": 189,
+      "to": 210,
+      "label": "Movement right…left alternating"
+     },
+     {
+      "from": 211,
+      "to": 253,
+      "label": "Movement 5 Steps right…left alternating"
+     },
+     {
+      "from": 254,
+      "to": 255,
+      "label": "BeamPosition"
+     }
+    ]
+   },
+   {
+    "key": "vertical-movement",
+    "label": "Vertical Movement",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "BeamPosition"
+     },
+     {
+      "from": 1,
+      "to": 42,
+      "label": "BeamPosition"
+     },
+     {
+      "from": 43,
+      "to": 127,
+      "label": "BeamPosition"
+     },
+     {
+      "from": 128,
+      "to": 167,
+      "label": "BeamPosition"
+     },
+     {
+      "from": 168,
+      "to": 188,
+      "label": "Movement bottom…top alternating"
+     },
+     {
+      "from": 189,
+      "to": 210,
+      "label": "Movement top…bottom alternating"
+     },
+     {
+      "from": 211,
+      "to": 254,
+      "label": "Movement 5 Steps bottom…top alternating"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "BeamPosition"
+     }
+    ]
+   },
+   {
+    "key": "zoom",
+    "label": "Zoom",
+    "role": "zoom",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 109,
+      "label": "Zoom"
+     },
+     {
+      "from": 110,
+      "to": 154,
+      "label": "Zoom in"
+     },
+     {
+      "from": 155,
+      "to": 204,
+      "label": "Zoom out"
+     },
+     {
+      "from": 205,
+      "to": 255,
+      "label": "Alternate zoom in/out"
+     }
+    ]
+   },
+   {
+    "key": "rotation-y-axis",
+    "label": "Rotation Y-axis",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 150,
+      "label": "Rotation"
+     },
+     {
+      "from": 151,
+      "to": 255,
+      "label": "Rotation"
+     }
+    ]
+   },
+   {
+    "key": "rotation-x-axis",
+    "label": "Rotation X-axis",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 150,
+      "label": "Rotation"
+     },
+     {
+      "from": 151,
+      "to": 255,
+      "label": "Rotation"
+     }
+    ]
+   },
+   {
+    "key": "rotation-z-axis",
+    "label": "Rotation Z-axis",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 180,
+      "label": "Rotation"
+     },
+     {
+      "from": 181,
+      "to": 217,
+      "label": "Rotation"
+     },
+     {
+      "from": 218,
+      "to": 255,
+      "label": "Rotation"
+     }
+    ]
+   },
+   {
+    "key": "blanking",
+    "label": "Blanking",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 63,
+      "label": "NoFunction"
+     },
+     {
+      "from": 64,
+      "to": 127,
+      "label": "Dots visible with Pattern"
+     },
+     {
+      "from": 128,
+      "to": 191,
+      "label": "Dashed Lines"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "Dots instead of Pattern"
+     }
+    ]
+   },
+   {
+    "key": "wave-movement",
+    "label": "Wave Movement",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 255,
+      "label": "Wave overlay to Pattern"
+     }
+    ]
+   },
+   {
+    "key": "color-selection",
+    "label": "Color Selection",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 4,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 5,
+      "to": 9,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 10,
+      "to": 14,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 15,
+      "to": 19,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 20,
+      "to": 24,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 25,
+      "to": 29,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 30,
+      "to": 35,
+      "label": "Cyan",
+      "color": "#00ffff"
+     },
+     {
+      "from": 36,
+      "to": 138,
+      "label": "Generic"
+     },
+     {
+      "from": 139,
+      "to": 164,
+      "label": "Multi-color"
+     },
+     {
+      "from": 165,
+      "to": 174,
+      "label": "ColorJump"
+     },
+     {
+      "from": 175,
+      "to": 255,
+      "label": "Changing multi-color"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "12ch",
+    "name": "12-channel",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "mode-select",
+      "byte": 0
+     },
+     {
+      "channelKey": "pattern-selection",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe-effect",
+      "byte": 0
+     },
+     {
+      "channelKey": "horizontal-movement",
+      "byte": 0
+     },
+     {
+      "channelKey": "vertical-movement",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "rotation-y-axis",
+      "byte": 0
+     },
+     {
+      "channelKey": "rotation-x-axis",
+      "byte": 0
+     },
+     {
+      "channelKey": "rotation-z-axis",
+      "byte": 0
+     },
+     {
+      "channelKey": "blanking",
+      "byte": 0
+     },
+     {
+      "channelKey": "wave-movement",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-selection",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    334,
+    125,
+    390
+   ],
+   "weightKg": 7,
+   "powerW": 50
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "lep-laser/diamond-pro-2-8",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

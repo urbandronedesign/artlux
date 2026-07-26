@@ -24,7 +24,7 @@ Within a second or two, the show starts running by itself:
 - The **counting bed** plays straight through **all** of it, never restarting.
 - The **master gain** rises from 0.35 as the show comes up, holds, and falls again before the show wraps.
 
-In the **Timeline** context, watch the **state lane** (the top row): the ⚙ toggle is lit, and the current
+In the **timeline drawer**, watch the **state lane** (the top row): the ⚙ toggle is lit, and the current
 state's name changes as it advances. Switch to the **Audio** context and watch the **master fader** drift up
 and down on its own, greyed out, badged **`LANE`**.
 

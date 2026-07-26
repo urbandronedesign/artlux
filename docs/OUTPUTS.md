@@ -108,6 +108,60 @@ same teardown: unregister the shortcut, destroy the tray, and close every projec
 
 ---
 
+## USB DMX (ENTTEC DMX USB Pro)
+
+A DMX interface plugged into the machine, alongside — or instead of — Art-Net/sACN over the network.
+
+**Setting one up.** Routing → **+ Controller** → protocol **USB DMX**. The IP box becomes a *device
+picker* listing the USB devices attached right now, by their own product name; press the refresh
+button beside it if the widget was plugged in after the app started. Patch fixtures to that
+controller as usual.
+
+You never type a COM port. A port saved in a project but not currently attached stays selected and
+is marked *not connected*, so carrying a show to another machine does not silently clear it.
+
+### One widget, one universe
+
+A DMX USB Pro transmits a single universe (the Mk2's second port is not addressed yet). `autoPatch`
+respects that: a fixture that lands past the device's last universe is flagged `patchOverflow` and
+badged in Routing, rather than being addressed somewhere the widget will never transmit. An
+unpatched-looking fixture is a question an operator can answer; a fixture that silently never lights
+is not.
+
+### Why the failure mode drove the design
+
+`sender_loop` in the native engine is one thread driving every network destination. If a serial write
+happened inline and a widget were slow, unplugged, or its driver blocked, **Art-Net would stop
+mid-show** — a whole rig going dark because one USB device was pulled.
+
+So each port gets its own writer thread and a **single-slot mailbox**: the pacer drops the latest
+frame in and returns immediately. A frame that cannot be written is overwritten by the next one,
+which is correct rather than regrettable — DMX is a state protocol, and a frame from 40 ms ago has no
+value once a newer one exists. The widget behaves the same way (ENTTEC's docs say it drops rather
+than queues).
+
+Verified by patching a fixture to a **nonexistent** port and leaving it running: 446 Art-Net frames
+delivered, the network head still outputting correctly, and one log line —
+`[output-engine] serial open failed on COM99`. Loud once, destination disabled, show carries on.
+
+### Details worth knowing
+
+- **Paced at 40 Hz**, independent of the app's frame rate: the widget's own output rate tops out at
+  40 packets/second and discards the rest.
+- **The frame format needed no new field.** A serial target is `protocol == 2` with the COM path
+  travelling in the same slot the network protocols use for their address
+  ([frameCodec.ts](../shared/frameCodec.ts), [serial.rs](../native/output-engine/src/serial.rs)).
+- **The packet**: `0x7E | label | len_lo | len_hi | 0x00 | channels… | 0xE7`. Label 6 is *Output Only
+  Send DMX Packet*; note the end delimiter is `0xE7`, **not** `0x7E`. Four Rust unit tests pin the
+  framing byte-for-byte (`cargo test -p artlux-output-engine`) because a wrong length or end byte
+  makes the widget ignore the packet silently — the rig simply does not light, with nothing in a log.
+- **USB DMX needs the native engine.** The pure-TypeScript fallback transport has no serial support,
+  and explicitly drops those targets with a warning rather than blasting UDP at a host called "COM3".
+- **Not yet verified on hardware.** Everything above is checked against the spec, unit tests, and a
+  deliberately absent device. The baud used to open the port (115200) follows other open
+  implementations; the DMX wire itself runs at 250 kbaud on the widget's far side. Confirm against a
+  real Pro before a show, and see ENTTEC's API spec v1.44 if the Mk2's second port is ever needed.
+
 ## For developers / architecture
 
 ### Data model (`shared/protocol.ts`)

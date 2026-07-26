@@ -40,12 +40,12 @@ Bind **Main** (click it once). Now, in the **Audio** context, look at the mixer'
 - **Tracks — the bed** → *Bed*, with the count.
 - **Tracks — Main** → *Sting*. The heading **names the scene you are in.**
 
-And in the **Timeline** context, with Main bound: there is one audio lane, holding a short clip at **0:00** —
+And in the **timeline drawer**, with Main bound: there is one audio lane, holding a short clip at **0:00** —
 with its waveform, a sharp attack at the very start. **That clip sits at zero.** That is why the recall fires
 it: the playhead resets to 0, and there is the clip.
 
-![Timeline context — Main bound: the sting at 0:00 against the scene's own ruler](images/03-scene-ruler.png)
-<!-- TODO screenshot: Timeline context with the Main scene bound, one audio lane holding the sting clip at 0:00, the scene's playhead ruler (not the bed's show clock) -->
+![The timeline drawer — Main bound: the sting at 0:00 against the scene's own ruler](images/03-scene-ruler.png)
+<!-- TODO screenshot: the timeline drawer with the Main scene bound, one audio lane holding the sting clip at 0:00, the scene's playhead ruler (not the bed's show clock) -->
 
 Now look at the note under the clip inspector:
 
@@ -94,7 +94,7 @@ cannot touch it. Click the **Global** pill above the ruler and it returns.
 Let's give **Exit** a second sound.
 
 1. Bind **Exit**.
-2. In the **Timeline** context, in the audio gutter, click **`+`** to add an audio track to *this scene*.
+2. In the **timeline drawer**, in the audio gutter, click **`+`** to add an audio track to *this scene*.
    Call it *Tail*.
 3. From the **Media** library (the browser column on the left), drag **`orbit.wav`** onto that lane.
 4. Drag it so it starts at about **0.5 s** — a beat after the sting.

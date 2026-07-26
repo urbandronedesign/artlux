@@ -1,0 +1,7157 @@
+[
+ {
+  "id": "arri/broadcaster-2-plus",
+  "manufacturer": "ARRI",
+  "model": "Broadcaster 2 Plus",
+  "aliases": [
+   "ARRI Broadcaster 2 Plus",
+   "Broadcaster 2 Plus",
+   "arribroadcaster2plus",
+   "broadcaster2plus"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "plus-minus-green",
+    "label": "Plus/Minus Green",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "reserved",
+    "label": "Reserved",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "4ch",
+    "name": "4-channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "plus-minus-green",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    218,
+    96,
+    70
+   ],
+   "weightKg": 0.96,
+   "powerW": 35,
+   "lensDegMin": 63,
+   "lensDegMax": 63
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "arri/broadcaster-2-plus",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "arri/l10-c",
+  "manufacturer": "ARRI",
+  "model": "L10-C",
+  "aliases": [
+   "ARRI L10-C",
+   "L10-C",
+   "arril10c",
+   "l10c"
+  ],
+  "categories": [
+   "Dimmer",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "green-magenta-point-8bit",
+    "label": "Green-Magenta Point 8bit",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Neutral"
+     },
+     {
+      "from": 11,
+      "to": 20,
+      "label": "Full minus green"
+     },
+     {
+      "from": 21,
+      "to": 119,
+      "label": "-99%…-1%"
+     },
+     {
+      "from": 120,
+      "to": 145,
+      "label": "Neutral"
+     },
+     {
+      "from": 146,
+      "to": 244,
+      "label": "1%…99%"
+     },
+     {
+      "from": 245,
+      "to": 255,
+      "label": "Full plus green"
+     }
+    ]
+   },
+   {
+    "key": "green-magenta-point-16bit",
+    "label": "Green-Magenta Point 16bit",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 255,
+      "label": "Neutral"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Full minus green"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "-99%…-1%"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Neutral"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "1%…99%"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Full plus green"
+     }
+    ]
+   },
+   {
+    "key": "cross-fade-to-color",
+    "label": "Cross Fade to Color",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "hue",
+    "label": "Hue",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "saturation",
+    "label": "Saturation",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "p01",
+    "name": "P01: CCT & RGBW 8bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p02",
+    "name": "P02: CCT 8bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p03",
+    "name": "P03: CCT & HSI 8bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p04",
+    "name": "P04: RGBW 8bit",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p05",
+    "name": "P05: HSI 8bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p06",
+    "name": "P06: CCT & RGBW 16bit",
+    "footprint": 16,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 1
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p07",
+    "name": "P07: CCT 16bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p08",
+    "name": "P08: CCT & HSI 16bit",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 1
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p09",
+    "name": "P09: RGBW 16bit",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p10",
+    "name": "P10: HSI 16bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p11",
+    "name": "P11: CCT & RGBW 8/16bit",
+    "footprint": 14,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p12",
+    "name": "P12: CCT 8/16bit",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p13",
+    "name": "P13: CCT & HSI 8/16bit",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p14",
+    "name": "P14: RGBW 8/16bit",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p15",
+    "name": "P15: HSI 8/16bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    428,
+    395,
+    745
+   ],
+   "weightKg": 19,
+   "powerW": 510,
+   "lensDegMin": 15,
+   "lensDegMax": 50
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "arri/l10-c",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "arri/l5-c",
+  "manufacturer": "ARRI",
+  "model": "L5-C",
+  "aliases": [
+   "ARRI L5-C",
+   "L5-C",
+   "arril5c",
+   "l5c"
+  ],
+  "categories": [
+   "Dimmer",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "green-magenta-point-8bit",
+    "label": "Green-Magenta Point 8bit",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Neutral"
+     },
+     {
+      "from": 11,
+      "to": 20,
+      "label": "Full minus green"
+     },
+     {
+      "from": 21,
+      "to": 119,
+      "label": "-99%…-1%"
+     },
+     {
+      "from": 120,
+      "to": 145,
+      "label": "Neutral"
+     },
+     {
+      "from": 146,
+      "to": 244,
+      "label": "1%…99%"
+     },
+     {
+      "from": 245,
+      "to": 255,
+      "label": "Full plus green"
+     }
+    ]
+   },
+   {
+    "key": "green-magenta-point-16bit",
+    "label": "Green-Magenta Point 16bit",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 255,
+      "label": "Neutral"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Full minus green"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "-99%…-1%"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Neutral"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "1%…99%"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Full plus green"
+     }
+    ]
+   },
+   {
+    "key": "cross-fade-to-color",
+    "label": "Cross Fade to Color",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "hue",
+    "label": "Hue",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "saturation",
+    "label": "Saturation",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "p01",
+    "name": "P01: CCT & RGBW 8bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p02",
+    "name": "P02: CCT 8bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p03",
+    "name": "P03: CCT & HSI 8bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p04",
+    "name": "P04: RGBW 8bit",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p05",
+    "name": "P05: HSI 8bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p06",
+    "name": "P06: CCT & RGBW 16bit",
+    "footprint": 16,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 1
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p07",
+    "name": "P07: CCT 16bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p08",
+    "name": "P08: CCT & HSI 16bit",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 1
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p09",
+    "name": "P09: RGBW 16bit",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p10",
+    "name": "P10: HSI 16bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p11",
+    "name": "P11: CCT & RGBW 8/16bit",
+    "footprint": 14,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p12",
+    "name": "P12: CCT 8/16bit",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p13",
+    "name": "P13: CCT & HSI 8/16bit",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p14",
+    "name": "P14: RGBW 8/16bit",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p15",
+    "name": "P15: HSI 8/16bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    220,
+    240,
+    373
+   ],
+   "weightKg": 5.2,
+   "powerW": 115,
+   "lensDegMin": 14,
+   "lensDegMax": 50
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "arri/l5-c",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "arri/l7-c",
+  "manufacturer": "ARRI",
+  "model": "L7-C",
+  "aliases": [
+   "ARRI L7-C",
+   "L7-C",
+   "arril7c",
+   "l7c"
+  ],
+  "categories": [
+   "Dimmer",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "green-magenta-point-8bit",
+    "label": "Green-Magenta Point 8bit",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Neutral"
+     },
+     {
+      "from": 11,
+      "to": 20,
+      "label": "Full minus green"
+     },
+     {
+      "from": 21,
+      "to": 119,
+      "label": "-99%…-1%"
+     },
+     {
+      "from": 120,
+      "to": 145,
+      "label": "Neutral"
+     },
+     {
+      "from": 146,
+      "to": 244,
+      "label": "1%…99%"
+     },
+     {
+      "from": 245,
+      "to": 255,
+      "label": "Full plus green"
+     }
+    ]
+   },
+   {
+    "key": "green-magenta-point-16bit",
+    "label": "Green-Magenta Point 16bit",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 255,
+      "label": "Neutral"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Full minus green"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "-99%…-1%"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Neutral"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "1%…99%"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Full plus green"
+     }
+    ]
+   },
+   {
+    "key": "cross-fade-to-color",
+    "label": "Cross Fade to Color",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "hue",
+    "label": "Hue",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "saturation",
+    "label": "Saturation",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "p01",
+    "name": "P01: CCT & RGBW 8bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p02",
+    "name": "P02: CCT 8bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p03",
+    "name": "P03: CCT & HSI 8bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p04",
+    "name": "P04: RGBW 8bit",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p05",
+    "name": "P05: HSI 8bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p06",
+    "name": "P06: CCT & RGBW 16bit",
+    "footprint": 16,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 1
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p07",
+    "name": "P07: CCT 16bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p08",
+    "name": "P08: CCT & HSI 16bit",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 1
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p09",
+    "name": "P09: RGBW 16bit",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p10",
+    "name": "P10: HSI 16bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p11",
+    "name": "P11: CCT & RGBW 8/16bit",
+    "footprint": 14,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p12",
+    "name": "P12: CCT 8/16bit",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p13",
+    "name": "P13: CCT & HSI 8/16bit",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p14",
+    "name": "P14: RGBW 8/16bit",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p15",
+    "name": "P15: HSI 8/16bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    300,
+    308,
+    456
+   ],
+   "weightKg": 8.2,
+   "powerW": 220,
+   "lensDegMin": 15,
+   "lensDegMax": 50
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "arri/l7-c",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "arri/skypanel-s120c",
+  "manufacturer": "ARRI",
+  "model": "Skypanel S120C",
+  "aliases": [
+   "ARRI Skypanel S120C",
+   "Skypanel S120C",
+   "arriskypanels120c",
+   "skypanels120c"
+  ],
+  "categories": [
+   "Dimmer",
+   "Color Changer",
+   "Strobe"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "green-magenta-point-8bit",
+    "label": "Green-Magenta Point 8bit",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Neutral"
+     },
+     {
+      "from": 11,
+      "to": 20,
+      "label": "Full minus green"
+     },
+     {
+      "from": 21,
+      "to": 119,
+      "label": "-99%…-1%"
+     },
+     {
+      "from": 120,
+      "to": 145,
+      "label": "Neutral"
+     },
+     {
+      "from": 146,
+      "to": 244,
+      "label": "1%…99%"
+     },
+     {
+      "from": 245,
+      "to": 255,
+      "label": "Full plus green"
+     }
+    ]
+   },
+   {
+    "key": "green-magenta-point-16bit",
+    "label": "Green-Magenta Point 16bit",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 255,
+      "label": "Neutral"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Full minus green"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "-99%…-1%"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Neutral"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "1%…99%"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Full plus green"
+     }
+    ]
+   },
+   {
+    "key": "cross-fade-to-color",
+    "label": "Cross Fade to Color",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "hue",
+    "label": "Hue",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "saturation",
+    "label": "Saturation",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "fan-control",
+    "label": "Fan Control",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Use Fan Mode of Fixture Menu"
+     },
+     {
+      "from": 10,
+      "to": 57,
+      "label": "Quiet, Fan speed fixed"
+     },
+     {
+      "from": 58,
+      "to": 105,
+      "label": "Variable, Fan speed variable"
+     },
+     {
+      "from": 106,
+      "to": 153,
+      "label": "High Temp, Fan speed fixed"
+     },
+     {
+      "from": 154,
+      "to": 201,
+      "label": "NoFunction"
+     },
+     {
+      "from": 202,
+      "to": 249,
+      "label": "Fan At Full Speed"
+     },
+     {
+      "from": 250,
+      "to": 250,
+      "label": "NoFunction"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "Fan off"
+     }
+    ]
+   },
+   {
+    "key": "presets",
+    "label": "Presets",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 11,
+      "label": "NoFunction"
+     },
+     {
+      "from": 12,
+      "to": 23,
+      "label": "Preset 01 - User Defined"
+     },
+     {
+      "from": 24,
+      "to": 35,
+      "label": "Preset 02 - User Defined"
+     },
+     {
+      "from": 36,
+      "to": 47,
+      "label": "Preset 03 - User Defined"
+     },
+     {
+      "from": 48,
+      "to": 59,
+      "label": "Preset 04 - User Defined"
+     },
+     {
+      "from": 60,
+      "to": 71,
+      "label": "Preset 05 - User Defined"
+     },
+     {
+      "from": 72,
+      "to": 83,
+      "label": "Preset 06 - User Defined"
+     },
+     {
+      "from": 84,
+      "to": 95,
+      "label": "Preset 07 - User Defined"
+     },
+     {
+      "from": 96,
+      "to": 107,
+      "label": "Preset 08 - User Defined"
+     },
+     {
+      "from": 108,
+      "to": 119,
+      "label": "Preset 09 - User Defined"
+     },
+     {
+      "from": 120,
+      "to": 131,
+      "label": "Preset 10 - User Defined"
+     },
+     {
+      "from": 132,
+      "to": 143,
+      "label": "2900K (Preset 01)"
+     },
+     {
+      "from": 144,
+      "to": 155,
+      "label": "3200K (Preset 02)"
+     },
+     {
+      "from": 156,
+      "to": 167,
+      "label": "5600K (Preset 03)"
+     },
+     {
+      "from": 168,
+      "to": 179,
+      "label": "6500K (Preset 04)"
+     },
+     {
+      "from": 180,
+      "to": 191,
+      "label": "Preset 05 - 120° Hue, 100% Saturation"
+     },
+     {
+      "from": 192,
+      "to": 203,
+      "label": "Preset 06 - 240° Hue, 100% Saturation"
+     },
+     {
+      "from": 204,
+      "to": 215,
+      "label": "5600K (Preset 07 - Rosco 3408)"
+     },
+     {
+      "from": 216,
+      "to": 227,
+      "label": "3200K (Preset 08 - Lee 187)"
+     },
+     {
+      "from": 228,
+      "to": 239,
+      "label": "3200K (Preset 09 - Rosco 3152)"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "3200K (Preset 10 - Lee 162)"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 19,
+      "label": "NoFunction"
+     },
+     {
+      "from": 20,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "reserved-for-future-use",
+    "label": "Reserved for future use",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "p01",
+    "name": "P01: CCT & RGBW 8bit",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p02",
+    "name": "P02: CCT 8bit",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p03",
+    "name": "P03: CCT & HSI 8bit",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p04",
+    "name": "P04: RGBW 8bit",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p05",
+    "name": "P05: HSI 8bit",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p06",
+    "name": "P06: CCT & RGBW 16bit",
+    "footprint": 20,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 1
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p07",
+    "name": "P07: CCT 16bit",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p08",
+    "name": "P08: CCT & HSI 16bit",
+    "footprint": 16,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 1
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p09",
+    "name": "P09: RGBW 16bit",
+    "footprint": 14,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p10",
+    "name": "P10: HSI 16bit",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p11",
+    "name": "P11: CCT & RGBW 8/16bit",
+    "footprint": 18,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p12",
+    "name": "P12: CCT 8/16bit",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p13",
+    "name": "P13: CCT & HSI 8/16bit",
+    "footprint": 14,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p14",
+    "name": "P14: RGBW 8/16bit",
+    "footprint": 14,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p15",
+    "name": "P15: HSI 8/16bit",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    1332,
+    347,
+    133
+   ],
+   "weightKg": 13.7,
+   "powerW": 400,
+   "lensDegMin": 110,
+   "lensDegMax": 110
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "arri/skypanel-s120c",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "arri/skypanel-s30c",
+  "manufacturer": "ARRI",
+  "model": "Skypanel S30C",
+  "aliases": [
+   "ARRI Skypanel S30C",
+   "Skypanel S30C",
+   "arriskypanels30c",
+   "skypanels30c"
+  ],
+  "categories": [
+   "Dimmer",
+   "Color Changer",
+   "Strobe"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "green-magenta-point-8bit",
+    "label": "Green-Magenta Point 8bit",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Neutral"
+     },
+     {
+      "from": 11,
+      "to": 20,
+      "label": "Full minus green"
+     },
+     {
+      "from": 21,
+      "to": 119,
+      "label": "-99%…-1%"
+     },
+     {
+      "from": 120,
+      "to": 145,
+      "label": "Neutral"
+     },
+     {
+      "from": 146,
+      "to": 244,
+      "label": "1%…99%"
+     },
+     {
+      "from": 245,
+      "to": 255,
+      "label": "Full plus green"
+     }
+    ]
+   },
+   {
+    "key": "green-magenta-point-16bit",
+    "label": "Green-Magenta Point 16bit",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 255,
+      "label": "Neutral"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Full minus green"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "-99%…-1%"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Neutral"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "1%…99%"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Full plus green"
+     }
+    ]
+   },
+   {
+    "key": "cross-fade-to-color",
+    "label": "Cross Fade to Color",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "hue",
+    "label": "Hue",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "saturation",
+    "label": "Saturation",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "fan-control",
+    "label": "Fan Control",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Use Fan Mode of Fixture Menu"
+     },
+     {
+      "from": 10,
+      "to": 57,
+      "label": "Quiet, Fan speed fixed"
+     },
+     {
+      "from": 58,
+      "to": 105,
+      "label": "Variable, Fan speed variable"
+     },
+     {
+      "from": 106,
+      "to": 153,
+      "label": "High Temp, Fan speed fixed"
+     },
+     {
+      "from": 154,
+      "to": 201,
+      "label": "NoFunction"
+     },
+     {
+      "from": 202,
+      "to": 249,
+      "label": "Fan At Full Speed"
+     },
+     {
+      "from": 250,
+      "to": 250,
+      "label": "NoFunction"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "Fan off"
+     }
+    ]
+   },
+   {
+    "key": "presets",
+    "label": "Presets",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 11,
+      "label": "NoFunction"
+     },
+     {
+      "from": 12,
+      "to": 23,
+      "label": "Preset 01 - User Defined"
+     },
+     {
+      "from": 24,
+      "to": 35,
+      "label": "Preset 02 - User Defined"
+     },
+     {
+      "from": 36,
+      "to": 47,
+      "label": "Preset 03 - User Defined"
+     },
+     {
+      "from": 48,
+      "to": 59,
+      "label": "Preset 04 - User Defined"
+     },
+     {
+      "from": 60,
+      "to": 71,
+      "label": "Preset 05 - User Defined"
+     },
+     {
+      "from": 72,
+      "to": 83,
+      "label": "Preset 06 - User Defined"
+     },
+     {
+      "from": 84,
+      "to": 95,
+      "label": "Preset 07 - User Defined"
+     },
+     {
+      "from": 96,
+      "to": 107,
+      "label": "Preset 08 - User Defined"
+     },
+     {
+      "from": 108,
+      "to": 119,
+      "label": "Preset 09 - User Defined"
+     },
+     {
+      "from": 120,
+      "to": 131,
+      "label": "Preset 10 - User Defined"
+     },
+     {
+      "from": 132,
+      "to": 143,
+      "label": "2900K (Preset 01)",
+      "color": "#ffb165"
+     },
+     {
+      "from": 144,
+      "to": 155,
+      "label": "3200K (Preset 02)",
+      "color": "#ffbb78"
+     },
+     {
+      "from": 156,
+      "to": 167,
+      "label": "5600K (Preset 03)",
+      "color": "#ffe8d5"
+     },
+     {
+      "from": 168,
+      "to": 179,
+      "label": "6500K (Preset 04)",
+      "color": "#fff9fd"
+     },
+     {
+      "from": 180,
+      "to": 191,
+      "label": "Preset 05 - 120° Hue, 100% Saturation"
+     },
+     {
+      "from": 192,
+      "to": 203,
+      "label": "Preset 06 - 240° Hue, 100% Saturation"
+     },
+     {
+      "from": 204,
+      "to": 215,
+      "label": "5600K (Preset 07 - Rosco 3408)",
+      "color": "#fcc286"
+     },
+     {
+      "from": 216,
+      "to": 227,
+      "label": "3200K (Preset 08 - Lee 187)",
+      "color": "#f5e4d7"
+     },
+     {
+      "from": 228,
+      "to": 239,
+      "label": "3200K (Preset 09 - Rosco 3152)",
+      "color": "#f5802c"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "3200K (Preset 10 - Lee 162)",
+      "color": "#fcded8"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 19,
+      "label": "NoFunction"
+     },
+     {
+      "from": 20,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "reserved-for-future-use",
+    "label": "Reserved for future use",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "p01",
+    "name": "P01: CCT & RGBW 8bit",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p02",
+    "name": "P02: CCT 8bit",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p03",
+    "name": "P03: CCT & HSI 8bit",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p04",
+    "name": "P04: RGBW 8bit",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p05",
+    "name": "P05: HSI 8bit",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p06",
+    "name": "P06: CCT & RGBW 16bit",
+    "footprint": 20,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 1
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p07",
+    "name": "P07: CCT 16bit",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p08",
+    "name": "P08: CCT & HSI 16bit",
+    "footprint": 16,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 1
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p09",
+    "name": "P09: RGBW 16bit",
+    "footprint": 14,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p10",
+    "name": "P10: HSI 16bit",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p11",
+    "name": "P11: CCT & RGBW 8/16bit",
+    "footprint": 18,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p12",
+    "name": "P12: CCT 8/16bit",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p13",
+    "name": "P13: CCT & HSI 8/16bit",
+    "footprint": 14,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p14",
+    "name": "P14: RGBW 8/16bit",
+    "footprint": 14,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p15",
+    "name": "P15: HSI 8/16bit",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    499,
+    133,
+    397
+   ],
+   "weightKg": 8,
+   "powerW": 220,
+   "lensDegMin": 115,
+   "lensDegMax": 115
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "arri/skypanel-s30c",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "arri/skypanel-s360c",
+  "manufacturer": "ARRI",
+  "model": "Skypanel S360C",
+  "aliases": [
+   "ARRI Skypanel S360C",
+   "Skypanel S360C",
+   "arriskypanels360c",
+   "skypanels360c"
+  ],
+  "categories": [
+   "Dimmer",
+   "Color Changer",
+   "Strobe"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "green-magenta-point-8bit",
+    "label": "Green-Magenta Point 8bit",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Neutral"
+     },
+     {
+      "from": 11,
+      "to": 20,
+      "label": "Full minus green"
+     },
+     {
+      "from": 21,
+      "to": 119,
+      "label": "-99%…-1%"
+     },
+     {
+      "from": 120,
+      "to": 145,
+      "label": "Neutral"
+     },
+     {
+      "from": 146,
+      "to": 244,
+      "label": "1%…99%"
+     },
+     {
+      "from": 245,
+      "to": 255,
+      "label": "Full plus green"
+     }
+    ]
+   },
+   {
+    "key": "green-magenta-point-16bit",
+    "label": "Green-Magenta Point 16bit",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 255,
+      "label": "Neutral"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Full minus green"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "-99%…-1%"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Neutral"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "1%…99%"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Full plus green"
+     }
+    ]
+   },
+   {
+    "key": "cross-fade-to-color",
+    "label": "Cross Fade to Color",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "hue",
+    "label": "Hue",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "saturation",
+    "label": "Saturation",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "fan-control",
+    "label": "Fan Control",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Use Fan Mode of Fixture Menu"
+     },
+     {
+      "from": 10,
+      "to": 57,
+      "label": "Quiet, Fan speed fixed"
+     },
+     {
+      "from": 58,
+      "to": 105,
+      "label": "Variable, Fan speed variable"
+     },
+     {
+      "from": 106,
+      "to": 153,
+      "label": "High Temp, Fan speed fixed"
+     },
+     {
+      "from": 154,
+      "to": 201,
+      "label": "NoFunction"
+     },
+     {
+      "from": 202,
+      "to": 249,
+      "label": "Fan At Full Speed"
+     },
+     {
+      "from": 250,
+      "to": 250,
+      "label": "NoFunction"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "Fan off"
+     }
+    ]
+   },
+   {
+    "key": "presets",
+    "label": "Presets",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 11,
+      "label": "NoFunction"
+     },
+     {
+      "from": 12,
+      "to": 23,
+      "label": "Preset 01 - User Defined"
+     },
+     {
+      "from": 24,
+      "to": 35,
+      "label": "Preset 02 - User Defined"
+     },
+     {
+      "from": 36,
+      "to": 47,
+      "label": "Preset 03 - User Defined"
+     },
+     {
+      "from": 48,
+      "to": 59,
+      "label": "Preset 04 - User Defined"
+     },
+     {
+      "from": 60,
+      "to": 71,
+      "label": "Preset 05 - User Defined"
+     },
+     {
+      "from": 72,
+      "to": 83,
+      "label": "Preset 06 - User Defined"
+     },
+     {
+      "from": 84,
+      "to": 95,
+      "label": "Preset 07 - User Defined"
+     },
+     {
+      "from": 96,
+      "to": 107,
+      "label": "Preset 08 - User Defined"
+     },
+     {
+      "from": 108,
+      "to": 119,
+      "label": "Preset 09 - User Defined"
+     },
+     {
+      "from": 120,
+      "to": 131,
+      "label": "Preset 10 - User Defined"
+     },
+     {
+      "from": 132,
+      "to": 143,
+      "label": "2900K (Preset 01)"
+     },
+     {
+      "from": 144,
+      "to": 155,
+      "label": "3200K (Preset 02)"
+     },
+     {
+      "from": 156,
+      "to": 167,
+      "label": "5600K (Preset 03)"
+     },
+     {
+      "from": 168,
+      "to": 179,
+      "label": "6500K (Preset 04)"
+     },
+     {
+      "from": 180,
+      "to": 191,
+      "label": "Preset 05 - 120° Hue, 100% Saturation"
+     },
+     {
+      "from": 192,
+      "to": 203,
+      "label": "Preset 06 - 240° Hue, 100% Saturation"
+     },
+     {
+      "from": 204,
+      "to": 215,
+      "label": "5600K (Preset 07 - Rosco 3408)"
+     },
+     {
+      "from": 216,
+      "to": 227,
+      "label": "3200K (Preset 08 - Lee 187)"
+     },
+     {
+      "from": 228,
+      "to": 239,
+      "label": "3200K (Preset 09 - Rosco 3152)"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "3200K (Preset 10 - Lee 162)"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 19,
+      "label": "NoFunction"
+     },
+     {
+      "from": 20,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "reserved-for-future-use",
+    "label": "Reserved for future use",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "p01",
+    "name": "P01: CCT & RGBW 8bit",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p02",
+    "name": "P02: CCT 8bit",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p03",
+    "name": "P03: CCT & HSI 8bit",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p04",
+    "name": "P04: RGBW 8bit",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p05",
+    "name": "P05: HSI 8bit",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p06",
+    "name": "P06: CCT & RGBW 16bit",
+    "footprint": 20,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 1
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p07",
+    "name": "P07: CCT 16bit",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p08",
+    "name": "P08: CCT & HSI 16bit",
+    "footprint": 16,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 1
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p09",
+    "name": "P09: RGBW 16bit",
+    "footprint": 14,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p10",
+    "name": "P10: HSI 16bit",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p11",
+    "name": "P11: CCT & RGBW 8/16bit",
+    "footprint": 18,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p12",
+    "name": "P12: CCT 8/16bit",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p13",
+    "name": "P13: CCT & HSI 8/16bit",
+    "footprint": 14,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p14",
+    "name": "P14: RGBW 8/16bit",
+    "footprint": 14,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p15",
+    "name": "P15: HSI 8/16bit",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    1331,
+    947,
+    186
+   ],
+   "weightKg": 41,
+   "powerW": 1500,
+   "lensDegMin": 105,
+   "lensDegMax": 105
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "arri/skypanel-s360c",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "arri/skypanel-s60c",
+  "manufacturer": "ARRI",
+  "model": "Skypanel S60C",
+  "aliases": [
+   "ARRI Skypanel S60C",
+   "Skypanel S60C",
+   "arriskypanels60c",
+   "skypanels60c"
+  ],
+  "categories": [
+   "Dimmer",
+   "Color Changer",
+   "Strobe"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "green-magenta-point-8bit",
+    "label": "Green-Magenta Point 8bit",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Neutral"
+     },
+     {
+      "from": 11,
+      "to": 20,
+      "label": "Full minus green"
+     },
+     {
+      "from": 21,
+      "to": 119,
+      "label": "-99%…-1%"
+     },
+     {
+      "from": 120,
+      "to": 145,
+      "label": "Neutral"
+     },
+     {
+      "from": 146,
+      "to": 244,
+      "label": "1%…99%"
+     },
+     {
+      "from": 245,
+      "to": 255,
+      "label": "Full plus green"
+     }
+    ]
+   },
+   {
+    "key": "green-magenta-point-16bit",
+    "label": "Green-Magenta Point 16bit",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 255,
+      "label": "Neutral"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Full minus green"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "-99%…-1%"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Neutral"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "1%…99%"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Full plus green"
+     }
+    ]
+   },
+   {
+    "key": "cross-fade-to-color",
+    "label": "Cross Fade to Color",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "hue",
+    "label": "Hue",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "saturation",
+    "label": "Saturation",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "fan-control",
+    "label": "Fan Control",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Use Fan Mode of Fixture Menu"
+     },
+     {
+      "from": 10,
+      "to": 57,
+      "label": "Quiet, Fan speed fixed"
+     },
+     {
+      "from": 58,
+      "to": 105,
+      "label": "Variable, Fan speed variable"
+     },
+     {
+      "from": 106,
+      "to": 153,
+      "label": "High Temp, Fan speed fixed"
+     },
+     {
+      "from": 154,
+      "to": 201,
+      "label": "NoFunction"
+     },
+     {
+      "from": 202,
+      "to": 249,
+      "label": "Fan At Full Speed"
+     },
+     {
+      "from": 250,
+      "to": 250,
+      "label": "NoFunction"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "Fan off"
+     }
+    ]
+   },
+   {
+    "key": "presets",
+    "label": "Presets",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 11,
+      "label": "NoFunction"
+     },
+     {
+      "from": 12,
+      "to": 23,
+      "label": "Preset 01 - User Defined"
+     },
+     {
+      "from": 24,
+      "to": 35,
+      "label": "Preset 02 - User Defined"
+     },
+     {
+      "from": 36,
+      "to": 47,
+      "label": "Preset 03 - User Defined"
+     },
+     {
+      "from": 48,
+      "to": 59,
+      "label": "Preset 04 - User Defined"
+     },
+     {
+      "from": 60,
+      "to": 71,
+      "label": "Preset 05 - User Defined"
+     },
+     {
+      "from": 72,
+      "to": 83,
+      "label": "Preset 06 - User Defined"
+     },
+     {
+      "from": 84,
+      "to": 95,
+      "label": "Preset 07 - User Defined"
+     },
+     {
+      "from": 96,
+      "to": 107,
+      "label": "Preset 08 - User Defined"
+     },
+     {
+      "from": 108,
+      "to": 119,
+      "label": "Preset 09 - User Defined"
+     },
+     {
+      "from": 120,
+      "to": 131,
+      "label": "Preset 10 - User Defined"
+     },
+     {
+      "from": 132,
+      "to": 143,
+      "label": "2900K (Preset 01)"
+     },
+     {
+      "from": 144,
+      "to": 155,
+      "label": "3200K (Preset 02)"
+     },
+     {
+      "from": 156,
+      "to": 167,
+      "label": "5600K (Preset 03)"
+     },
+     {
+      "from": 168,
+      "to": 179,
+      "label": "6500K (Preset 04)"
+     },
+     {
+      "from": 180,
+      "to": 191,
+      "label": "Preset 05 - 120° Hue, 100% Saturation"
+     },
+     {
+      "from": 192,
+      "to": 203,
+      "label": "Preset 06 - 240° Hue, 100% Saturation"
+     },
+     {
+      "from": 204,
+      "to": 215,
+      "label": "5600K (Preset 07 - Rosco 3408)"
+     },
+     {
+      "from": 216,
+      "to": 227,
+      "label": "3200K (Preset 08 - Lee 187)"
+     },
+     {
+      "from": 228,
+      "to": 239,
+      "label": "3200K (Preset 09 - Rosco 3152)"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "3200K (Preset 10 - Lee 162)"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 19,
+      "label": "NoFunction"
+     },
+     {
+      "from": 20,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "reserved-for-future-use",
+    "label": "Reserved for future use",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "p01",
+    "name": "P01: CCT & RGBW 8bit",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p02",
+    "name": "P02: CCT 8bit",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p03",
+    "name": "P03: CCT & HSI 8bit",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p04",
+    "name": "P04: RGBW 8bit",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p05",
+    "name": "P05: HSI 8bit",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p06",
+    "name": "P06: CCT & RGBW 16bit",
+    "footprint": 20,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 1
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p07",
+    "name": "P07: CCT 16bit",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p08",
+    "name": "P08: CCT & HSI 16bit",
+    "footprint": 16,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 1
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p09",
+    "name": "P09: RGBW 16bit",
+    "footprint": 14,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p10",
+    "name": "P10: HSI 16bit",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p11",
+    "name": "P11: CCT & RGBW 8/16bit",
+    "footprint": 18,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p12",
+    "name": "P12: CCT 8/16bit",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p13",
+    "name": "P13: CCT & HSI 8/16bit",
+    "footprint": 14,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "cross-fade-to-color",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p14",
+    "name": "P14: RGBW 8/16bit",
+    "footprint": 14,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p15",
+    "name": "P15: HSI 8/16bit",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    688,
+    347,
+    133
+   ],
+   "weightKg": 12.8,
+   "powerW": 420,
+   "lensDegMin": 115,
+   "lensDegMax": 115
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "arri/skypanel-s60c",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

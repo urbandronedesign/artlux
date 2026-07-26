@@ -1,4 +1,4 @@
-import type { Surface, Fixture } from '../types';
+import type { Surface, Fixture, FixtureProfile } from '../types';
 
 // Parameter-addressing layer for Scenes & Cues. A "path" is a dot-string addressing one
 // controllable parameter on the live state view, e.g.:
@@ -16,6 +16,13 @@ export interface StateView {
   surfaces: Surface[];
   fixtures: Fixture[];
   globalBrightness: number;
+  /**
+   * Resolved DMX fixture profiles by id. OPTIONAL, and it must stay optional: StateView is built at
+   * nine sites, two of them inside Stage's rAF tick, and widening it to a required field would
+   * churn all of them for a rig that usually has no profiled fixtures at all. Absent simply means
+   * "no profile channels in the catalogue" — the geometry params still enumerate normally.
+   */
+  profiles?: ReadonlyMap<string, FixtureProfile>;
 }
 
 export type ParamCategory = 'surface' | 'fixture' | 'global';
@@ -73,7 +80,19 @@ export function isFadeablePath(path: string): boolean {
   const head = path.split('.')[0];
   const leaf = pathLeaf(path);
   if (head === 'surfaces') return SURFACE_FADEABLE.includes(leaf);
-  if (head === 'fixtures') return FIXTURE_FADEABLE.includes(leaf) || /^segments\.\d+\.(speed|intensity)$/.test(leaf);
+  // A profiled fixture's channels (`dmx.<key>`) are continuous 0..1 and fade cleanly — that is what
+  // makes a Pan crossfade rather than snap on a scene recall.
+  //
+  // A DISCRETE channel (a gobo or colour wheel) is deliberately still listed here, because the
+  // caller cannot tell them apart from the path alone and the alternative — snapping every wheel —
+  // is the worse default: interpolating across a wheel steps through the intermediate slots, which
+  // is how a real wheel physically moves anyway. A slot-aware "snap" belongs in the UI that authors
+  // the value, not in the fade engine.
+  if (head === 'fixtures') {
+    return FIXTURE_FADEABLE.includes(leaf)
+      || /^segments\.\d+\.(speed|intensity)$/.test(leaf)
+      || /^dmx\.[A-Za-z0-9_-]+$/.test(leaf);
+  }
   if (head === 'audio') return AUDIO_FADEABLE_RE.test(leaf);
   return false;
 }
@@ -174,15 +193,29 @@ export function surfaceParams(s: Surface): ParamDef[] {
   return defs;
 }
 
-export function fixtureParams(f: Fixture): ParamDef[] {
+export function fixtureParams(f: Fixture, profile?: FixtureProfile): ParamDef[] {
   const id = f.id;
-  return [
+  const defs: ParamDef[] = [
     { path: `fixtures.${id}.x`, label: 'X' },
     { path: `fixtures.${id}.y`, label: 'Y' },
     { path: `fixtures.${id}.width`, label: 'Width' },
     { path: `fixtures.${id}.height`, label: 'Height' },
     { path: `fixtures.${id}.rotation`, label: 'Rotation' },
   ];
+  // EVERY CHANNEL OF A PROFILED FIXTURE IS AUTOMATABLE, and this one function is why. Cues
+  // (`{path, value}`), timeline lanes, scene binding and collectFadeableTargets all read the param
+  // catalogue from here, so publishing Pan/Tilt/Gobo as paths makes them work everywhere at once
+  // with no per-feature wiring.
+  //
+  // ⚠ These paths only WRITE if `f.dmx` already exists: setIn deliberately refuses to fabricate a
+  // missing nested container (it is the guard that stopped a cue corrupting `segments`). So a
+  // profiled fixture is always created with `dmx` seeded from the profile's defaults — see
+  // seedProfileValues in App. A profiled fixture with no `dmx` object would silently ignore every
+  // cue and lane aimed at it.
+  if (profile) {
+    for (const c of profile.channels) defs.push({ path: `fixtures.${id}.dmx.${c.key}`, label: c.label });
+  }
+  return defs;
 }
 
 export interface FadeTarget { path: string; from: number; to: number }

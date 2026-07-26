@@ -1,0 +1,3238 @@
+[
+ {
+  "id": "laserworld/cs-1000rgb",
+  "manufacturer": "Laserworld",
+  "model": "CS-1000RGB",
+  "aliases": [
+   "CS-1000RGB",
+   "Laserworld CS-1000RGB",
+   "cs1000rgb",
+   "laserworldcs1000rgb"
+  ],
+  "categories": [
+   "Laser",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "mode",
+    "label": "Mode",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "pattern",
+    "label": "Pattern",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "circular-movement",
+    "label": "Circular Movement",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "y-rotation",
+    "label": "Y Rotation",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "x-rotation",
+    "label": "X Rotation",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "horizontal-movement",
+    "label": "Horizontal Movement",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "vertical-movement",
+    "label": "Vertical Movement",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "manual-zoom",
+    "label": "Manual Zoom",
+    "role": "zoom",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "pattern-buildup",
+    "label": "Pattern Buildup",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dot-effect-with-strobe",
+    "label": "Dot Effect with Strobe",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color",
+    "label": "Color",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "11ch",
+    "name": "11-channel",
+    "footprint": 11,
+    "slots": [
+     {
+      "channelKey": "mode",
+      "byte": 0
+     },
+     {
+      "channelKey": "pattern",
+      "byte": 0
+     },
+     {
+      "channelKey": "circular-movement",
+      "byte": 0
+     },
+     {
+      "channelKey": "y-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "x-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "horizontal-movement",
+      "byte": 0
+     },
+     {
+      "channelKey": "vertical-movement",
+      "byte": 0
+     },
+     {
+      "channelKey": "manual-zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "pattern-buildup",
+      "byte": 0
+     },
+     {
+      "channelKey": "dot-effect-with-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "color",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    220,
+    155,
+    145
+   ],
+   "weightKg": 3.15,
+   "powerW": 60
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "laserworld/cs-1000rgb",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "laserworld/ds-1000rgb",
+  "manufacturer": "Laserworld",
+  "model": "DS-1000RGB",
+  "aliases": [
+   "DS-1000RGB",
+   "Laserworld DS-1000RGB",
+   "ds1000rgb",
+   "laserworldds1000rgb"
+  ],
+  "categories": [
+   "Laser",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "mode-select",
+    "label": "Mode Select",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 63,
+      "label": "Laser Off"
+     },
+     {
+      "from": 64,
+      "to": 127,
+      "label": "Sound mode"
+     },
+     {
+      "from": 128,
+      "to": 159,
+      "label": "Auto mode (beam patterns)"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "Auto mode (graphics)"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "DMX Mode"
+     }
+    ]
+   },
+   {
+    "key": "pattern-selection",
+    "label": "Pattern Selection",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 87,
+      "label": "Graphics patterns"
+     },
+     {
+      "from": 88,
+      "to": 253,
+      "label": "Beam patterns"
+     },
+     {
+      "from": 254,
+      "to": 255,
+      "label": "Laser Off"
+     }
+    ]
+   },
+   {
+    "key": "strobe-effect",
+    "label": "Strobe Effect",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "horizontal-movement",
+    "label": "Horizontal Movement",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "BeamPosition"
+     },
+     {
+      "from": 1,
+      "to": 167,
+      "label": "BeamPosition"
+     },
+     {
+      "from": 168,
+      "to": 188,
+      "label": "Movement rightwards"
+     },
+     {
+      "from": 189,
+      "to": 209,
+      "label": "Movement leftwards"
+     },
+     {
+      "from": 210,
+      "to": 254,
+      "label": "Movement rightwards/leftwards alternating"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "BeamPosition"
+     }
+    ]
+   },
+   {
+    "key": "vertical-movement",
+    "label": "Vertical Movement",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "BeamPosition"
+     },
+     {
+      "from": 1,
+      "to": 167,
+      "label": "BeamPosition"
+     },
+     {
+      "from": 168,
+      "to": 188,
+      "label": "Movement downwards"
+     },
+     {
+      "from": 189,
+      "to": 209,
+      "label": "Movement upwards"
+     },
+     {
+      "from": 210,
+      "to": 254,
+      "label": "Movement downwards/upwards alternating"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "BeamPosition"
+     }
+    ]
+   },
+   {
+    "key": "zoom",
+    "label": "Zoom",
+    "role": "zoom",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 167,
+      "label": "Zoom"
+     },
+     {
+      "from": 168,
+      "to": 188,
+      "label": "Increasing angle"
+     },
+     {
+      "from": 189,
+      "to": 209,
+      "label": "Decreasing angle"
+     },
+     {
+      "from": 210,
+      "to": 254,
+      "label": "Alternate decreasing/increasing angle"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Opposite zoom of X- and Y-axis"
+     }
+    ]
+   },
+   {
+    "key": "rotation-y-axis",
+    "label": "Rotation Y-axis",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 150,
+      "label": "Rotation"
+     },
+     {
+      "from": 151,
+      "to": 255,
+      "label": "Rotation"
+     }
+    ]
+   },
+   {
+    "key": "rotation-x-axis",
+    "label": "Rotation X-axis",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 150,
+      "label": "Rotation"
+     },
+     {
+      "from": 151,
+      "to": 255,
+      "label": "Rotation"
+     }
+    ]
+   },
+   {
+    "key": "rotation-z-axis",
+    "label": "Rotation Z-axis",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 180,
+      "label": "Rotation"
+     },
+     {
+      "from": 181,
+      "to": 217,
+      "label": "Rotation"
+     },
+     {
+      "from": 218,
+      "to": 255,
+      "label": "Rotation"
+     }
+    ]
+   },
+   {
+    "key": "blanking",
+    "label": "Blanking",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 70,
+      "label": "NoFunction"
+     },
+     {
+      "from": 71,
+      "to": 139,
+      "label": "Dot visibility"
+     },
+     {
+      "from": 140,
+      "to": 209,
+      "label": "Dashed Lines"
+     },
+     {
+      "from": 210,
+      "to": 255,
+      "label": "Point selection"
+     }
+    ]
+   },
+   {
+    "key": "wave-movement",
+    "label": "Wave Movement",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 127,
+      "label": "Wave positioning"
+     },
+     {
+      "from": 128,
+      "to": 191,
+      "label": "Wave movement"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "Wave movement"
+     }
+    ]
+   },
+   {
+    "key": "color-selection",
+    "label": "Color Selection",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 19,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 20,
+      "to": 39,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 40,
+      "to": 59,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 60,
+      "to": 79,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 80,
+      "to": 99,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 100,
+      "to": 119,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 120,
+      "to": 138,
+      "label": "Cyan",
+      "color": "#00ffff"
+     },
+     {
+      "from": 139,
+      "to": 164,
+      "label": "Multi-color"
+     },
+     {
+      "from": 165,
+      "to": 248,
+      "label": "ColorJump"
+     },
+     {
+      "from": 249,
+      "to": 254,
+      "label": "Changing multi-color"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Multi-color without red"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "12ch",
+    "name": "12-channel",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "mode-select",
+      "byte": 0
+     },
+     {
+      "channelKey": "pattern-selection",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe-effect",
+      "byte": 0
+     },
+     {
+      "channelKey": "horizontal-movement",
+      "byte": 0
+     },
+     {
+      "channelKey": "vertical-movement",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "rotation-y-axis",
+      "byte": 0
+     },
+     {
+      "channelKey": "rotation-x-axis",
+      "byte": 0
+     },
+     {
+      "channelKey": "rotation-z-axis",
+      "byte": 0
+     },
+     {
+      "channelKey": "blanking",
+      "byte": 0
+     },
+     {
+      "channelKey": "wave-movement",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-selection",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    200,
+    110,
+    140
+   ],
+   "weightKg": 2.8,
+   "powerW": 40
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "laserworld/ds-1000rgb",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "laserworld/el-400rgb-mk2",
+  "manufacturer": "Laserworld",
+  "model": "EL-400RGB MK2",
+  "aliases": [
+   "EL-400RGB MK2",
+   "Laserworld EL-400RGB MK2",
+   "el400rgbmk2",
+   "laserworldel400rgbmk2"
+  ],
+  "categories": [
+   "Laser",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "mode",
+    "label": "Mode",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 49,
+      "label": "Laser off"
+     },
+     {
+      "from": 50,
+      "to": 99,
+      "label": "Sound mode"
+     },
+     {
+      "from": 100,
+      "to": 149,
+      "label": "Automatic mode"
+     },
+     {
+      "from": 150,
+      "to": 199,
+      "label": "Static pattern"
+     },
+     {
+      "from": 200,
+      "to": 255,
+      "label": "Dynamic pattern"
+     }
+    ]
+   },
+   {
+    "key": "pattern-selection",
+    "label": "Pattern Selection",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "horizontal-angle",
+    "label": "Horizontal Angle",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "BeamPosition"
+     },
+     {
+      "from": 11,
+      "to": 255,
+      "label": "BeamPosition"
+     }
+    ]
+   },
+   {
+    "key": "vertical-angle",
+    "label": "Vertical Angle",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "BeamPosition"
+     },
+     {
+      "from": 11,
+      "to": 255,
+      "label": "BeamPosition"
+     }
+    ]
+   },
+   {
+    "key": "scanning-speed",
+    "label": "Scanning Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dynamic-pattern-speed",
+    "label": "Dynamic Pattern Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "zoom",
+    "label": "Zoom",
+    "role": "zoom",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color",
+    "label": "Color",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 1,
+      "label": "Color Macros (Multi Color)"
+     },
+     {
+      "from": 2,
+      "to": 3,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 4,
+      "to": 5,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 6,
+      "to": 7,
+      "label": "Cyan",
+      "color": "#00ffff"
+     },
+     {
+      "from": 8,
+      "to": 9,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 10,
+      "to": 11,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 12,
+      "to": 13,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 14,
+      "to": 15,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 16,
+      "to": 21,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 22,
+      "to": 27,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 28,
+      "to": 33,
+      "label": "Cyan",
+      "color": "#00ffff"
+     },
+     {
+      "from": 34,
+      "to": 39,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 40,
+      "to": 45,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 46,
+      "to": 51,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 52,
+      "to": 57,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 58,
+      "to": 67,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 68,
+      "to": 77,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 78,
+      "to": 87,
+      "label": "Cyan",
+      "color": "#00ffff"
+     },
+     {
+      "from": 88,
+      "to": 97,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 98,
+      "to": 107,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 108,
+      "to": 117,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 118,
+      "to": 127,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 128,
+      "to": 137,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 138,
+      "to": 147,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 148,
+      "to": 157,
+      "label": "Cyan",
+      "color": "#00ffff"
+     },
+     {
+      "from": 158,
+      "to": 167,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 168,
+      "to": 177,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 178,
+      "to": 187,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 188,
+      "to": 197,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 198,
+      "to": 203,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 204,
+      "to": 209,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 210,
+      "to": 215,
+      "label": "Cyan",
+      "color": "#00ffff"
+     },
+     {
+      "from": 216,
+      "to": 221,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 222,
+      "to": 227,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 228,
+      "to": 233,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 234,
+      "to": 239,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 240,
+      "to": 241,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 242,
+      "to": 243,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 244,
+      "to": 245,
+      "label": "Cyan",
+      "color": "#00ffff"
+     },
+     {
+      "from": 246,
+      "to": 247,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 248,
+      "to": 249,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 250,
+      "to": 251,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 252,
+      "to": 253,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 254,
+      "to": 255,
+      "label": "White",
+      "color": "#ffffff"
+     }
+    ]
+   },
+   {
+    "key": "color-segment",
+    "label": "Color Segment",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "9ch",
+    "name": "9-channel",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "mode",
+      "byte": 0
+     },
+     {
+      "channelKey": "pattern-selection",
+      "byte": 0
+     },
+     {
+      "channelKey": "horizontal-angle",
+      "byte": 0
+     },
+     {
+      "channelKey": "vertical-angle",
+      "byte": 0
+     },
+     {
+      "channelKey": "scanning-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dynamic-pattern-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "color",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-segment",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    255,
+    245,
+    100
+   ],
+   "weightKg": 3.1,
+   "powerW": 30
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "laserworld/el-400rgb-mk2",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "laserworld/shownet",
+  "manufacturer": "Laserworld",
+  "model": "ShowNET",
+  "aliases": [
+   "Laserworld ShowNET",
+   "ShowNET",
+   "laserworldshownet",
+   "shownet"
+  ],
+  "categories": [
+   "Laser",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "patterns",
+    "label": "Patterns",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 1,
+      "label": "ILDA 1"
+     },
+     {
+      "from": 2,
+      "to": 2,
+      "label": "ILDA 2"
+     },
+     {
+      "from": 3,
+      "to": 3,
+      "label": "ILDA 3"
+     },
+     {
+      "from": 4,
+      "to": 4,
+      "label": "ILDA 4"
+     },
+     {
+      "from": 5,
+      "to": 5,
+      "label": "ILDA 5"
+     },
+     {
+      "from": 6,
+      "to": 6,
+      "label": "ILDA 6"
+     },
+     {
+      "from": 7,
+      "to": 7,
+      "label": "ILDA 7"
+     },
+     {
+      "from": 8,
+      "to": 8,
+      "label": "ILDA 8"
+     },
+     {
+      "from": 9,
+      "to": 9,
+      "label": "ILDA 9"
+     },
+     {
+      "from": 10,
+      "to": 10,
+      "label": "ILDA 10"
+     },
+     {
+      "from": 11,
+      "to": 11,
+      "label": "ILDA 11"
+     },
+     {
+      "from": 12,
+      "to": 12,
+      "label": "ILDA 12"
+     },
+     {
+      "from": 13,
+      "to": 13,
+      "label": "ILDA 13"
+     },
+     {
+      "from": 14,
+      "to": 14,
+      "label": "ILDA 14"
+     },
+     {
+      "from": 15,
+      "to": 15,
+      "label": "ILDA 15"
+     },
+     {
+      "from": 16,
+      "to": 16,
+      "label": "ILDA 16"
+     },
+     {
+      "from": 17,
+      "to": 17,
+      "label": "ILDA 17"
+     },
+     {
+      "from": 18,
+      "to": 18,
+      "label": "ILDA 18"
+     },
+     {
+      "from": 19,
+      "to": 19,
+      "label": "ILDA 19"
+     },
+     {
+      "from": 20,
+      "to": 20,
+      "label": "ILDA 20"
+     },
+     {
+      "from": 21,
+      "to": 21,
+      "label": "ILDA 21"
+     },
+     {
+      "from": 22,
+      "to": 22,
+      "label": "ILDA 22"
+     },
+     {
+      "from": 23,
+      "to": 23,
+      "label": "ILDA 23"
+     },
+     {
+      "from": 24,
+      "to": 24,
+      "label": "ILDA 24"
+     },
+     {
+      "from": 25,
+      "to": 25,
+      "label": "ILDA 25"
+     },
+     {
+      "from": 26,
+      "to": 26,
+      "label": "ILDA 26"
+     },
+     {
+      "from": 27,
+      "to": 27,
+      "label": "ILDA 27"
+     },
+     {
+      "from": 28,
+      "to": 28,
+      "label": "ILDA 28"
+     },
+     {
+      "from": 29,
+      "to": 29,
+      "label": "ILDA 29"
+     },
+     {
+      "from": 30,
+      "to": 30,
+      "label": "ILDA 30"
+     },
+     {
+      "from": 31,
+      "to": 31,
+      "label": "ILDA 31"
+     },
+     {
+      "from": 32,
+      "to": 32,
+      "label": "ILDA 32"
+     },
+     {
+      "from": 33,
+      "to": 33,
+      "label": "ILDA 33"
+     },
+     {
+      "from": 34,
+      "to": 34,
+      "label": "ILDA 34"
+     },
+     {
+      "from": 35,
+      "to": 35,
+      "label": "ILDA 35"
+     },
+     {
+      "from": 36,
+      "to": 36,
+      "label": "ILDA 36"
+     },
+     {
+      "from": 37,
+      "to": 37,
+      "label": "ILDA 37"
+     },
+     {
+      "from": 38,
+      "to": 38,
+      "label": "ILDA 38"
+     },
+     {
+      "from": 39,
+      "to": 39,
+      "label": "ILDA 39"
+     },
+     {
+      "from": 40,
+      "to": 40,
+      "label": "ILDA 40"
+     },
+     {
+      "from": 41,
+      "to": 41,
+      "label": "ILDA 41"
+     },
+     {
+      "from": 42,
+      "to": 42,
+      "label": "ILDA 42"
+     },
+     {
+      "from": 43,
+      "to": 43,
+      "label": "ILDA 43"
+     },
+     {
+      "from": 44,
+      "to": 44,
+      "label": "ILDA 44"
+     },
+     {
+      "from": 45,
+      "to": 45,
+      "label": "ILDA 45"
+     },
+     {
+      "from": 46,
+      "to": 46,
+      "label": "ILDA 46"
+     },
+     {
+      "from": 47,
+      "to": 47,
+      "label": "ILDA 47"
+     },
+     {
+      "from": 48,
+      "to": 48,
+      "label": "ILDA 48"
+     },
+     {
+      "from": 49,
+      "to": 49,
+      "label": "ILDA 49"
+     },
+     {
+      "from": 50,
+      "to": 50,
+      "label": "ILDA 50"
+     },
+     {
+      "from": 51,
+      "to": 51,
+      "label": "ILDA 51"
+     },
+     {
+      "from": 52,
+      "to": 52,
+      "label": "ILDA 52"
+     },
+     {
+      "from": 53,
+      "to": 53,
+      "label": "ILDA 53"
+     },
+     {
+      "from": 54,
+      "to": 54,
+      "label": "ILDA 54"
+     },
+     {
+      "from": 55,
+      "to": 55,
+      "label": "ILDA 55"
+     },
+     {
+      "from": 56,
+      "to": 56,
+      "label": "ILDA 56"
+     },
+     {
+      "from": 57,
+      "to": 57,
+      "label": "ILDA 57"
+     },
+     {
+      "from": 58,
+      "to": 58,
+      "label": "ILDA 58"
+     },
+     {
+      "from": 59,
+      "to": 59,
+      "label": "ILDA 59"
+     },
+     {
+      "from": 60,
+      "to": 60,
+      "label": "ILDA 60"
+     },
+     {
+      "from": 61,
+      "to": 61,
+      "label": "ILDA 61"
+     },
+     {
+      "from": 62,
+      "to": 62,
+      "label": "ILDA 62"
+     },
+     {
+      "from": 63,
+      "to": 63,
+      "label": "ILDA 63"
+     },
+     {
+      "from": 64,
+      "to": 64,
+      "label": "ILDA 64"
+     },
+     {
+      "from": 65,
+      "to": 65,
+      "label": "ILDA 65"
+     },
+     {
+      "from": 66,
+      "to": 66,
+      "label": "ILDA 66"
+     },
+     {
+      "from": 67,
+      "to": 67,
+      "label": "ILDA 67"
+     },
+     {
+      "from": 68,
+      "to": 68,
+      "label": "ILDA 68"
+     },
+     {
+      "from": 69,
+      "to": 69,
+      "label": "ILDA 69"
+     },
+     {
+      "from": 70,
+      "to": 70,
+      "label": "ILDA 70"
+     },
+     {
+      "from": 71,
+      "to": 71,
+      "label": "ILDA 71"
+     },
+     {
+      "from": 72,
+      "to": 72,
+      "label": "ILDA 72"
+     },
+     {
+      "from": 73,
+      "to": 73,
+      "label": "ILDA 73"
+     },
+     {
+      "from": 74,
+      "to": 74,
+      "label": "ILDA 74"
+     },
+     {
+      "from": 75,
+      "to": 75,
+      "label": "ILDA 75"
+     },
+     {
+      "from": 76,
+      "to": 76,
+      "label": "ILDA 76"
+     },
+     {
+      "from": 77,
+      "to": 77,
+      "label": "ILDA 77"
+     },
+     {
+      "from": 78,
+      "to": 78,
+      "label": "ILDA 78"
+     },
+     {
+      "from": 79,
+      "to": 79,
+      "label": "ILDA 79"
+     },
+     {
+      "from": 80,
+      "to": 80,
+      "label": "ILDA 80"
+     },
+     {
+      "from": 81,
+      "to": 81,
+      "label": "ILDA 81"
+     },
+     {
+      "from": 82,
+      "to": 82,
+      "label": "ILDA 82"
+     },
+     {
+      "from": 83,
+      "to": 83,
+      "label": "ILDA 83"
+     },
+     {
+      "from": 84,
+      "to": 84,
+      "label": "ILDA 84"
+     },
+     {
+      "from": 85,
+      "to": 85,
+      "label": "ILDA 85"
+     },
+     {
+      "from": 86,
+      "to": 86,
+      "label": "ILDA 86"
+     },
+     {
+      "from": 87,
+      "to": 87,
+      "label": "ILDA 87"
+     },
+     {
+      "from": 88,
+      "to": 88,
+      "label": "ILDA 88"
+     },
+     {
+      "from": 89,
+      "to": 89,
+      "label": "ILDA 89"
+     },
+     {
+      "from": 90,
+      "to": 90,
+      "label": "ILDA 90"
+     },
+     {
+      "from": 91,
+      "to": 91,
+      "label": "ILDA 91"
+     },
+     {
+      "from": 92,
+      "to": 92,
+      "label": "ILDA 92"
+     },
+     {
+      "from": 93,
+      "to": 93,
+      "label": "ILDA 93"
+     },
+     {
+      "from": 94,
+      "to": 94,
+      "label": "ILDA 94"
+     },
+     {
+      "from": 95,
+      "to": 95,
+      "label": "ILDA 95"
+     },
+     {
+      "from": 96,
+      "to": 96,
+      "label": "ILDA 96"
+     },
+     {
+      "from": 97,
+      "to": 97,
+      "label": "ILDA 97"
+     },
+     {
+      "from": 98,
+      "to": 98,
+      "label": "ILDA 98"
+     },
+     {
+      "from": 99,
+      "to": 99,
+      "label": "ILDA 99"
+     },
+     {
+      "from": 100,
+      "to": 100,
+      "label": "ILDA 100"
+     },
+     {
+      "from": 101,
+      "to": 101,
+      "label": "ILDA 101"
+     },
+     {
+      "from": 102,
+      "to": 102,
+      "label": "ILDA 102"
+     },
+     {
+      "from": 103,
+      "to": 103,
+      "label": "ILDA 103"
+     },
+     {
+      "from": 104,
+      "to": 104,
+      "label": "ILDA 104"
+     },
+     {
+      "from": 105,
+      "to": 105,
+      "label": "ILDA 105"
+     },
+     {
+      "from": 106,
+      "to": 106,
+      "label": "ILDA 106"
+     },
+     {
+      "from": 107,
+      "to": 107,
+      "label": "ILDA 107"
+     },
+     {
+      "from": 108,
+      "to": 108,
+      "label": "ILDA 108"
+     },
+     {
+      "from": 109,
+      "to": 109,
+      "label": "ILDA 109"
+     },
+     {
+      "from": 110,
+      "to": 110,
+      "label": "ILDA 110"
+     },
+     {
+      "from": 111,
+      "to": 111,
+      "label": "ILDA 111"
+     },
+     {
+      "from": 112,
+      "to": 112,
+      "label": "ILDA 112"
+     },
+     {
+      "from": 113,
+      "to": 113,
+      "label": "ILDA 113"
+     },
+     {
+      "from": 114,
+      "to": 114,
+      "label": "ILDA 114"
+     },
+     {
+      "from": 115,
+      "to": 115,
+      "label": "ILDA 115"
+     },
+     {
+      "from": 116,
+      "to": 116,
+      "label": "ILDA 116"
+     },
+     {
+      "from": 117,
+      "to": 117,
+      "label": "ILDA 117"
+     },
+     {
+      "from": 118,
+      "to": 118,
+      "label": "ILDA 118"
+     },
+     {
+      "from": 119,
+      "to": 119,
+      "label": "ILDA 119"
+     },
+     {
+      "from": 120,
+      "to": 120,
+      "label": "ILDA 120"
+     },
+     {
+      "from": 121,
+      "to": 121,
+      "label": "ILDA 121"
+     },
+     {
+      "from": 122,
+      "to": 122,
+      "label": "ILDA 122"
+     },
+     {
+      "from": 123,
+      "to": 123,
+      "label": "ILDA 123"
+     },
+     {
+      "from": 124,
+      "to": 124,
+      "label": "ILDA 124"
+     },
+     {
+      "from": 125,
+      "to": 125,
+      "label": "ILDA 125"
+     },
+     {
+      "from": 126,
+      "to": 126,
+      "label": "ILDA 126"
+     },
+     {
+      "from": 127,
+      "to": 127,
+      "label": "ILDA 127"
+     },
+     {
+      "from": 128,
+      "to": 128,
+      "label": "ILDA 128"
+     },
+     {
+      "from": 129,
+      "to": 129,
+      "label": "ILDA 129"
+     },
+     {
+      "from": 130,
+      "to": 130,
+      "label": "ILDA 130"
+     },
+     {
+      "from": 131,
+      "to": 131,
+      "label": "ILDA 131"
+     },
+     {
+      "from": 132,
+      "to": 132,
+      "label": "ILDA 132"
+     },
+     {
+      "from": 133,
+      "to": 133,
+      "label": "ILDA 133"
+     },
+     {
+      "from": 134,
+      "to": 134,
+      "label": "ILDA 134"
+     },
+     {
+      "from": 135,
+      "to": 135,
+      "label": "ILDA 135"
+     },
+     {
+      "from": 136,
+      "to": 136,
+      "label": "ILDA 136"
+     },
+     {
+      "from": 137,
+      "to": 137,
+      "label": "ILDA 137"
+     },
+     {
+      "from": 138,
+      "to": 138,
+      "label": "ILDA 138"
+     },
+     {
+      "from": 139,
+      "to": 139,
+      "label": "ILDA 139"
+     },
+     {
+      "from": 140,
+      "to": 140,
+      "label": "ILDA 140"
+     },
+     {
+      "from": 141,
+      "to": 141,
+      "label": "ILDA 141"
+     },
+     {
+      "from": 142,
+      "to": 142,
+      "label": "ILDA 142"
+     },
+     {
+      "from": 143,
+      "to": 143,
+      "label": "ILDA 143"
+     },
+     {
+      "from": 144,
+      "to": 144,
+      "label": "ILDA 144"
+     },
+     {
+      "from": 145,
+      "to": 145,
+      "label": "ILDA 145"
+     },
+     {
+      "from": 146,
+      "to": 146,
+      "label": "ILDA 146"
+     },
+     {
+      "from": 147,
+      "to": 147,
+      "label": "ILDA 147"
+     },
+     {
+      "from": 148,
+      "to": 148,
+      "label": "ILDA 148"
+     },
+     {
+      "from": 149,
+      "to": 149,
+      "label": "ILDA 149"
+     },
+     {
+      "from": 150,
+      "to": 150,
+      "label": "ILDA 150"
+     },
+     {
+      "from": 151,
+      "to": 151,
+      "label": "ILDA 151"
+     },
+     {
+      "from": 152,
+      "to": 152,
+      "label": "ILDA 152"
+     },
+     {
+      "from": 153,
+      "to": 153,
+      "label": "ILDA 153"
+     },
+     {
+      "from": 154,
+      "to": 154,
+      "label": "ILDA 154"
+     },
+     {
+      "from": 155,
+      "to": 155,
+      "label": "ILDA 155"
+     },
+     {
+      "from": 156,
+      "to": 156,
+      "label": "ILDA 156"
+     },
+     {
+      "from": 157,
+      "to": 157,
+      "label": "ILDA 157"
+     },
+     {
+      "from": 158,
+      "to": 158,
+      "label": "ILDA 158"
+     },
+     {
+      "from": 159,
+      "to": 159,
+      "label": "ILDA 159"
+     },
+     {
+      "from": 160,
+      "to": 160,
+      "label": "ILDA 160"
+     },
+     {
+      "from": 161,
+      "to": 161,
+      "label": "ILDA 161"
+     },
+     {
+      "from": 162,
+      "to": 162,
+      "label": "ILDA 162"
+     },
+     {
+      "from": 163,
+      "to": 163,
+      "label": "ILDA 163"
+     },
+     {
+      "from": 164,
+      "to": 164,
+      "label": "ILDA 164"
+     },
+     {
+      "from": 165,
+      "to": 165,
+      "label": "ILDA 165"
+     },
+     {
+      "from": 166,
+      "to": 166,
+      "label": "ILDA 166"
+     },
+     {
+      "from": 167,
+      "to": 167,
+      "label": "ILDA 167"
+     },
+     {
+      "from": 168,
+      "to": 168,
+      "label": "ILDA 168"
+     },
+     {
+      "from": 169,
+      "to": 169,
+      "label": "ILDA 169"
+     },
+     {
+      "from": 170,
+      "to": 170,
+      "label": "ILDA 170"
+     },
+     {
+      "from": 171,
+      "to": 171,
+      "label": "ILDA 171"
+     },
+     {
+      "from": 172,
+      "to": 172,
+      "label": "ILDA 172"
+     },
+     {
+      "from": 173,
+      "to": 173,
+      "label": "ILDA 173"
+     },
+     {
+      "from": 174,
+      "to": 174,
+      "label": "ILDA 174"
+     },
+     {
+      "from": 175,
+      "to": 175,
+      "label": "ILDA 175"
+     },
+     {
+      "from": 176,
+      "to": 176,
+      "label": "ILDA 176"
+     },
+     {
+      "from": 177,
+      "to": 177,
+      "label": "ILDA 177"
+     },
+     {
+      "from": 178,
+      "to": 178,
+      "label": "ILDA 178"
+     },
+     {
+      "from": 179,
+      "to": 179,
+      "label": "ILDA 179"
+     },
+     {
+      "from": 180,
+      "to": 180,
+      "label": "ILDA 180"
+     },
+     {
+      "from": 181,
+      "to": 181,
+      "label": "ILDA 181"
+     },
+     {
+      "from": 182,
+      "to": 182,
+      "label": "ILDA 182"
+     },
+     {
+      "from": 183,
+      "to": 183,
+      "label": "ILDA 183"
+     },
+     {
+      "from": 184,
+      "to": 184,
+      "label": "ILDA 184"
+     },
+     {
+      "from": 185,
+      "to": 185,
+      "label": "ILDA 185"
+     },
+     {
+      "from": 186,
+      "to": 186,
+      "label": "ILDA 186"
+     },
+     {
+      "from": 187,
+      "to": 187,
+      "label": "ILDA 187"
+     },
+     {
+      "from": 188,
+      "to": 188,
+      "label": "ILDA 188"
+     },
+     {
+      "from": 189,
+      "to": 189,
+      "label": "ILDA 189"
+     },
+     {
+      "from": 190,
+      "to": 190,
+      "label": "ILDA 190"
+     },
+     {
+      "from": 191,
+      "to": 191,
+      "label": "ILDA 191"
+     },
+     {
+      "from": 192,
+      "to": 192,
+      "label": "ILDA 192"
+     },
+     {
+      "from": 193,
+      "to": 193,
+      "label": "ILDA 193"
+     },
+     {
+      "from": 194,
+      "to": 194,
+      "label": "ILDA 194"
+     },
+     {
+      "from": 195,
+      "to": 195,
+      "label": "ILDA 195"
+     },
+     {
+      "from": 196,
+      "to": 196,
+      "label": "ILDA 196"
+     },
+     {
+      "from": 197,
+      "to": 197,
+      "label": "ILDA 197"
+     },
+     {
+      "from": 198,
+      "to": 198,
+      "label": "ILDA 198"
+     },
+     {
+      "from": 199,
+      "to": 199,
+      "label": "ILDA 199"
+     },
+     {
+      "from": 200,
+      "to": 200,
+      "label": "ILDA 200"
+     },
+     {
+      "from": 201,
+      "to": 201,
+      "label": "ILDA 201"
+     },
+     {
+      "from": 202,
+      "to": 202,
+      "label": "ILDA 202"
+     },
+     {
+      "from": 203,
+      "to": 203,
+      "label": "ILDA 203"
+     },
+     {
+      "from": 204,
+      "to": 204,
+      "label": "ILDA 204"
+     },
+     {
+      "from": 205,
+      "to": 205,
+      "label": "ILDA 205"
+     },
+     {
+      "from": 206,
+      "to": 206,
+      "label": "ILDA 206"
+     },
+     {
+      "from": 207,
+      "to": 207,
+      "label": "ILDA 207"
+     },
+     {
+      "from": 208,
+      "to": 208,
+      "label": "ILDA 208"
+     },
+     {
+      "from": 209,
+      "to": 209,
+      "label": "ILDA 209"
+     },
+     {
+      "from": 210,
+      "to": 210,
+      "label": "ILDA 210"
+     },
+     {
+      "from": 211,
+      "to": 211,
+      "label": "ILDA 211"
+     },
+     {
+      "from": 212,
+      "to": 212,
+      "label": "ILDA 212"
+     },
+     {
+      "from": 213,
+      "to": 213,
+      "label": "ILDA 213"
+     },
+     {
+      "from": 214,
+      "to": 214,
+      "label": "ILDA 214"
+     },
+     {
+      "from": 215,
+      "to": 215,
+      "label": "ILDA 215"
+     },
+     {
+      "from": 216,
+      "to": 216,
+      "label": "ILDA 216"
+     },
+     {
+      "from": 217,
+      "to": 217,
+      "label": "ILDA 217"
+     },
+     {
+      "from": 218,
+      "to": 218,
+      "label": "ILDA 218"
+     },
+     {
+      "from": 219,
+      "to": 219,
+      "label": "ILDA 219"
+     },
+     {
+      "from": 220,
+      "to": 220,
+      "label": "ILDA 220"
+     },
+     {
+      "from": 221,
+      "to": 221,
+      "label": "ILDA 221"
+     },
+     {
+      "from": 222,
+      "to": 222,
+      "label": "ILDA 222"
+     },
+     {
+      "from": 223,
+      "to": 223,
+      "label": "ILDA 223"
+     },
+     {
+      "from": 224,
+      "to": 224,
+      "label": "ILDA 224"
+     },
+     {
+      "from": 225,
+      "to": 225,
+      "label": "ILDA 225"
+     },
+     {
+      "from": 226,
+      "to": 226,
+      "label": "ILDA 226"
+     },
+     {
+      "from": 227,
+      "to": 227,
+      "label": "ILDA 227"
+     },
+     {
+      "from": 228,
+      "to": 228,
+      "label": "ILDA 228"
+     },
+     {
+      "from": 229,
+      "to": 229,
+      "label": "ILDA 229"
+     },
+     {
+      "from": 230,
+      "to": 230,
+      "label": "ILDA 230"
+     },
+     {
+      "from": 231,
+      "to": 231,
+      "label": "ILDA 231"
+     },
+     {
+      "from": 232,
+      "to": 232,
+      "label": "ILDA 232"
+     },
+     {
+      "from": 233,
+      "to": 233,
+      "label": "ILDA 233"
+     },
+     {
+      "from": 234,
+      "to": 234,
+      "label": "ILDA 234"
+     },
+     {
+      "from": 235,
+      "to": 235,
+      "label": "ILDA 235"
+     },
+     {
+      "from": 236,
+      "to": 236,
+      "label": "ILDA 236"
+     },
+     {
+      "from": 237,
+      "to": 237,
+      "label": "ILDA 237"
+     },
+     {
+      "from": 238,
+      "to": 238,
+      "label": "ILDA 238"
+     },
+     {
+      "from": 239,
+      "to": 239,
+      "label": "ILDA 239"
+     },
+     {
+      "from": 240,
+      "to": 240,
+      "label": "ILDA 240"
+     },
+     {
+      "from": 241,
+      "to": 241,
+      "label": "ILDA 241"
+     },
+     {
+      "from": 242,
+      "to": 242,
+      "label": "ILDA 242"
+     },
+     {
+      "from": 243,
+      "to": 243,
+      "label": "ILDA 243"
+     },
+     {
+      "from": 244,
+      "to": 244,
+      "label": "ILDA 244"
+     },
+     {
+      "from": 245,
+      "to": 245,
+      "label": "ILDA 245"
+     },
+     {
+      "from": 246,
+      "to": 246,
+      "label": "ILDA 246"
+     },
+     {
+      "from": 247,
+      "to": 247,
+      "label": "ILDA 247"
+     },
+     {
+      "from": 248,
+      "to": 248,
+      "label": "ILDA 248"
+     },
+     {
+      "from": 249,
+      "to": 249,
+      "label": "ILDA 249"
+     },
+     {
+      "from": 250,
+      "to": 250,
+      "label": "ILDA 250"
+     },
+     {
+      "from": 251,
+      "to": 251,
+      "label": "ILDA 251"
+     },
+     {
+      "from": 252,
+      "to": 252,
+      "label": "ILDA 252"
+     },
+     {
+      "from": 253,
+      "to": 253,
+      "label": "ILDA 253"
+     },
+     {
+      "from": 254,
+      "to": 254,
+      "label": "ILDA 254"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "ILDA 255"
+     }
+    ]
+   },
+   {
+    "key": "pattern-speed-dj",
+    "label": "Pattern Speed DJ",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "EffectSpeed"
+     },
+     {
+      "from": 16,
+      "to": 255,
+      "label": "EffectSpeed"
+     }
+    ]
+   },
+   {
+    "key": "pattern-speed",
+    "label": "Pattern Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0.5019607843137255
+   },
+   {
+    "key": "size",
+    "label": "Size",
+    "role": "zoom",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "width and height"
+     },
+     {
+      "from": 128,
+      "to": 191,
+      "label": "width"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "height"
+     }
+    ]
+   },
+   {
+    "key": "horizontal-size",
+    "label": "Horizontal Size",
+    "role": "zoom",
+    "resolution": 1,
+    "default": 0.5019607843137255
+   },
+   {
+    "key": "vertical-size",
+    "label": "Vertical Size",
+    "role": "zoom",
+    "resolution": 1,
+    "default": 0.5019607843137255
+   },
+   {
+    "key": "automatic-size",
+    "label": "Automatic Size",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 63,
+      "label": "NoFunction"
+     },
+     {
+      "from": 64,
+      "to": 127,
+      "label": "changing width and height"
+     },
+     {
+      "from": 128,
+      "to": 191,
+      "label": "changing width"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "changing height"
+     }
+    ]
+   },
+   {
+    "key": "rotation-dj",
+    "label": "Rotation DJ",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 192,
+      "label": "Rotation"
+     },
+     {
+      "from": 193,
+      "to": 224,
+      "label": "Rotation"
+     },
+     {
+      "from": 225,
+      "to": 255,
+      "label": "Rotation"
+     }
+    ]
+   },
+   {
+    "key": "rotation",
+    "label": "Rotation",
+    "role": "speed",
+    "resolution": 2,
+    "default": 0.5019607843137255,
+    "min": -180,
+    "max": 180,
+    "unit": "deg"
+   },
+   {
+    "key": "horizontal-position",
+    "label": "Horizontal Position",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0.5019607843137255
+   },
+   {
+    "key": "vertical-position",
+    "label": "Vertical Position",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0.5019607843137255
+   },
+   {
+    "key": "inversion",
+    "label": "Inversion",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 63,
+      "label": "NoFunction"
+     },
+     {
+      "from": 64,
+      "to": 127,
+      "label": "Invert X axis"
+     },
+     {
+      "from": 128,
+      "to": 191,
+      "label": "Invert Y axis"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "Invert X and Y axes"
+     }
+    ]
+   },
+   {
+    "key": "color-effects",
+    "label": "Color Effects",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "Original colors"
+     },
+     {
+      "from": 16,
+      "to": 79,
+      "label": "Single color (monochrome)"
+     },
+     {
+      "from": 80,
+      "to": 143,
+      "label": "Replace colors"
+     },
+     {
+      "from": 144,
+      "to": 255,
+      "label": "Color change"
+     }
+    ]
+   },
+   {
+    "key": "color-effects-extended",
+    "label": "Color Effects Extended",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "ColorFade"
+     },
+     {
+      "from": 128,
+      "to": 192,
+      "label": "ColorJump"
+     },
+     {
+      "from": 193,
+      "to": 255,
+      "label": "Automatic change of color fade effects"
+     }
+    ]
+   },
+   {
+    "key": "color-selection",
+    "label": "Color Selection",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "Original colors"
+     },
+     {
+      "from": 16,
+      "to": 47,
+      "label": "Red … Yellow"
+     },
+     {
+      "from": 48,
+      "to": 79,
+      "label": "Yellow … Green"
+     },
+     {
+      "from": 80,
+      "to": 111,
+      "label": "Green … Cyan"
+     },
+     {
+      "from": 112,
+      "to": 143,
+      "label": "Cyan … Blue"
+     },
+     {
+      "from": 144,
+      "to": 175,
+      "label": "Blue … Purple"
+     },
+     {
+      "from": 176,
+      "to": 207,
+      "label": "Purple … Red"
+     },
+     {
+      "from": 208,
+      "to": 223,
+      "label": "White 50%",
+      "color": "#808080"
+     },
+     {
+      "from": 224,
+      "to": 239,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "Manual control"
+     }
+    ]
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "NoFunction"
+     },
+     {
+      "from": 16,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "mode",
+    "label": "Mode",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 19,
+      "label": "Manual control"
+     },
+     {
+      "from": 20,
+      "to": 83,
+      "label": "Auto position X+Y"
+     },
+     {
+      "from": 84,
+      "to": 147,
+      "label": "Auto position X"
+     },
+     {
+      "from": 148,
+      "to": 211,
+      "label": "Auto position Y"
+     },
+     {
+      "from": 212,
+      "to": 233,
+      "label": "Demo mode"
+     },
+     {
+      "from": 234,
+      "to": 255,
+      "label": "Sound-to-light"
+     }
+    ]
+   },
+   {
+    "key": "scan-speed-dj",
+    "label": "Scan Speed DJ",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "Default"
+     },
+     {
+      "from": 32,
+      "to": 255,
+      "label": "Scan speed in kpps (thousands points per second):"
+     }
+    ]
+   },
+   {
+    "key": "scan-speed",
+    "label": "Scan Speed",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "Default"
+     },
+     {
+      "from": 32,
+      "to": 255,
+      "label": "Scan speed in kpps (thousands points per second):"
+     }
+    ]
+   },
+   {
+    "key": "safety-zone",
+    "label": "Safety Zone",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 63,
+      "label": "Safety bottom"
+     },
+     {
+      "from": 64,
+      "to": 127,
+      "label": "Safety top"
+     },
+     {
+      "from": 128,
+      "to": 191,
+      "label": "Safety left"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "Safety right"
+     }
+    ]
+   },
+   {
+    "key": "safety-zone-intensity-dj",
+    "label": "Safety Zone Intensity DJ",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "No reduction"
+     },
+     {
+      "from": 1,
+      "to": 128,
+      "label": "Reduction to 50% brightness"
+     },
+     {
+      "from": 129,
+      "to": 255,
+      "label": "Reduction to blackout"
+     }
+    ]
+   },
+   {
+    "key": "safety-zone-intensity",
+    "label": "Safety Zone Intensity",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-balancing-red",
+    "label": "Color Balancing Red",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-balancing-green",
+    "label": "Color Balancing Green",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-balancing-blue",
+    "label": "Color Balancing Blue",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blanking",
+    "label": "Blanking",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 192,
+      "label": "Manual blanking"
+     },
+     {
+      "from": 193,
+      "to": 255,
+      "label": "Automatic blanking"
+     }
+    ]
+   },
+   {
+    "key": "blank-shift",
+    "label": "Blank Shift",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 192,
+      "label": "Manual blank shift"
+     },
+     {
+      "from": 193,
+      "to": 255,
+      "label": "Automatic blank shift"
+     }
+    ]
+   },
+   {
+    "key": "reserved-1",
+    "label": "Reserved 1",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "reserved-2",
+    "label": "Reserved 2",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "reserved-3",
+    "label": "Reserved 3",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "reserved-4",
+    "label": "Reserved 4",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "reserved-5",
+    "label": "Reserved 5",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "reserved-6",
+    "label": "Reserved 6",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "reserved-7",
+    "label": "Reserved 7",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "reserved-8",
+    "label": "Reserved 8",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "reserved-9",
+    "label": "Reserved 9",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "reserved-10",
+    "label": "Reserved 10",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "reserved-11",
+    "label": "Reserved 11",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "dj",
+    "name": "DJ",
+    "footprint": 19,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "patterns",
+      "byte": 0
+     },
+     {
+      "channelKey": "pattern-speed-dj",
+      "byte": 0
+     },
+     {
+      "channelKey": "size",
+      "byte": 0
+     },
+     {
+      "channelKey": "automatic-size",
+      "byte": 0
+     },
+     {
+      "channelKey": "rotation-dj",
+      "byte": 0
+     },
+     {
+      "channelKey": "horizontal-position",
+      "byte": 0
+     },
+     {
+      "channelKey": "horizontal-position",
+      "byte": 1
+     },
+     {
+      "channelKey": "vertical-position",
+      "byte": 0
+     },
+     {
+      "channelKey": "vertical-position",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-effects",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-effects-extended",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "mode",
+      "byte": 0
+     },
+     {
+      "channelKey": "scan-speed-dj",
+      "byte": 0
+     },
+     {
+      "channelKey": "safety-zone",
+      "byte": 0
+     },
+     {
+      "channelKey": "safety-zone-intensity-dj",
+      "byte": 0
+     },
+     {
+      "channelKey": "blanking",
+      "byte": 0
+     },
+     {
+      "channelKey": "blank-shift",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "professional",
+    "name": "Professional",
+    "footprint": 34,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "patterns",
+      "byte": 0
+     },
+     {
+      "channelKey": "pattern-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "horizontal-position",
+      "byte": 0
+     },
+     {
+      "channelKey": "horizontal-position",
+      "byte": 1
+     },
+     {
+      "channelKey": "vertical-position",
+      "byte": 0
+     },
+     {
+      "channelKey": "vertical-position",
+      "byte": 1
+     },
+     {
+      "channelKey": "rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "rotation",
+      "byte": 1
+     },
+     {
+      "channelKey": "horizontal-size",
+      "byte": 0
+     },
+     {
+      "channelKey": "vertical-size",
+      "byte": 0
+     },
+     {
+      "channelKey": "inversion",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-selection",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "scan-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "safety-zone",
+      "byte": 0
+     },
+     {
+      "channelKey": "safety-zone-intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-balancing-red",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-balancing-green",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-balancing-blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-1",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-3",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-4",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-5",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-6",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-7",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-8",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-9",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-10",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-11",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "source": {
+   "origin": "ofl",
+   "ref": "laserworld/shownet",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

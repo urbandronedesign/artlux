@@ -17,6 +17,8 @@ interface NativeEngine {
   isReady(): boolean;
   pushFrame(frame: Buffer): void;
   getStats(): { pps: number; fps: number; universes: number };
+  /** Present only on engines built with USB DMX support; older .node files simply lack it. */
+  listSerialDevices?(): Array<{ path: string; label: string }>;
   close(): void;
 }
 
@@ -75,6 +77,8 @@ export function isReady(): boolean {
 // otherwise a mystery nobody connects back to a missing .node.
 export function isLoaded(): boolean { return !!native; }
 
+let warnedNoSerial = false;
+
 export function sendFrame(frame: ArrayBuffer | Uint8Array): void {
   if (native) {
     native.pushFrame(toBuffer(frame)); // hand off to the dedicated send thread
@@ -83,10 +87,35 @@ export function sendFrame(frame: ArrayBuffer | Uint8Array): void {
   // TS fallback: decode the binary frame and route per protocol.
   const targets = decodeFrame(toArrayBuffer(frame));
   if (!targets.length) return;
-  const artnetTargets = targets.filter(t => t.protocol !== 'sacn');
+  // 'enttec' TARGETS ARE DROPPED HERE, DELIBERATELY. USB DMX lives in the Rust engine (it needs a
+  // serial port and a per-port writer thread); this pure-TS path has neither. Without the explicit
+  // filter an enttec target would fall into the `!== 'sacn'` bucket and be blasted over UDP to a
+  // hostname of "COM3" — a stream of packets to nowhere, with no error to explain it.
+  const serial = targets.filter(t => t.protocol === 'enttec');
+  if (serial.length && !warnedNoSerial) {
+    warnedNoSerial = true;
+    console.warn('[output] USB DMX needs the native engine — those universes are not being sent');
+  }
+  const artnetTargets = targets.filter(t => t.protocol === 'artnet');
   const sacnTargets = targets.filter(t => t.protocol === 'sacn');
   if (artnetTargets.length) artnet.sendFrame({ targets: artnetTargets });
   if (sacnTargets.length) sacn.sendFrame({ targets: sacnTargets });
+}
+
+/**
+ * USB serial devices that could be a DMX interface, for the Outputs picker.
+ *
+ * Returns [] when the native engine is unavailable, which is honest rather than convenient: without
+ * it USB DMX cannot be sent at all, so offering devices to select would promise output that will
+ * never arrive.
+ */
+export function listSerialDevices(): Array<{ path: string; label: string }> {
+  try {
+    return native?.listSerialDevices?.() ?? [];
+  } catch (e) {
+    console.warn('[output] serial device enumeration failed', e);
+    return [];
+  }
 }
 
 export function close(): void {

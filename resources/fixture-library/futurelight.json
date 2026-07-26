@@ -1,0 +1,2420 @@
+[
+ {
+  "id": "futurelight/dj-scan-250",
+  "manufacturer": "Futurelight",
+  "model": "DJ-Scan 250",
+  "aliases": [
+   "DJ-Scan 250",
+   "Futurelight DJ-Scan 250",
+   "djscan250",
+   "futurelightdjscan250"
+  ],
+  "categories": [
+   "Scanner",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 1,
+    "default": 0.5019607843137255,
+    "min": 0,
+    "max": 100,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 1,
+    "default": 0.5019607843137255,
+    "min": 0,
+    "max": 100,
+    "unit": "deg"
+   },
+   {
+    "key": "color-wheel",
+    "label": "Color Wheel",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 18,
+      "label": "Open"
+     },
+     {
+      "from": 19,
+      "to": 35,
+      "label": "Dark blue"
+     },
+     {
+      "from": 36,
+      "to": 53,
+      "label": "Pink"
+     },
+     {
+      "from": 54,
+      "to": 71,
+      "label": "Light green"
+     },
+     {
+      "from": 72,
+      "to": 89,
+      "label": "Orange"
+     },
+     {
+      "from": 90,
+      "to": 107,
+      "label": "Light Blue"
+     },
+     {
+      "from": 108,
+      "to": 126,
+      "label": "Yellow"
+     },
+     {
+      "from": 127,
+      "to": 127,
+      "label": "Cherry red"
+     },
+     {
+      "from": 128,
+      "to": 191,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "gobo-wheel",
+    "label": "Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "Open"
+     },
+     {
+      "from": 16,
+      "to": 31,
+      "label": "Gobo"
+     },
+     {
+      "from": 32,
+      "to": 47,
+      "label": "Gobo"
+     },
+     {
+      "from": 48,
+      "to": 63,
+      "label": "Gobo"
+     },
+     {
+      "from": 64,
+      "to": 79,
+      "label": "Gobo"
+     },
+     {
+      "from": 80,
+      "to": 95,
+      "label": "Gobo"
+     },
+     {
+      "from": 96,
+      "to": 111,
+      "label": "Gobo"
+     },
+     {
+      "from": 112,
+      "to": 127,
+      "label": "Gobo"
+     },
+     {
+      "from": 128,
+      "to": 191,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "gobo-rotation",
+    "label": "Gobo Rotation",
+    "role": "goboRotation",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 16,
+      "to": 135,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 136,
+      "to": 255,
+      "label": "WheelSlotRotation"
+     }
+    ]
+   },
+   {
+    "key": "shutter-strobe",
+    "label": "Shutter / Strobe",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "Closed"
+     },
+     {
+      "from": 6,
+      "to": 128,
+      "label": "Intensity"
+     },
+     {
+      "from": 129,
+      "to": 131,
+      "label": "Reset"
+     },
+     {
+      "from": 132,
+      "to": 139,
+      "label": "Open"
+     },
+     {
+      "from": 140,
+      "to": 199,
+      "label": "Strobe"
+     },
+     {
+      "from": 200,
+      "to": 249,
+      "label": "Strobe"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "standard",
+    "name": "Standard",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    525,
+    300,
+    150
+   ],
+   "weightKg": 15,
+   "powerW": 500
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "futurelight/dj-scan-250",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "futurelight/dmh-75-i-led-moving-head",
+  "manufacturer": "Futurelight",
+  "model": "DMH-75.i LED Moving Head",
+  "aliases": [
+   "DMH-75.i LED Moving Head",
+   "Futurelight DMH-75.i LED Moving Head",
+   "FuturelightDMH75i",
+   "dmh75iledmovinghead",
+   "futurelightdmh75i",
+   "futurelightdmh75iledmovinghead"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0.5019607843137255,
+    "min": 0,
+    "max": 100,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0.5019607843137255,
+    "min": 0,
+    "max": 100,
+    "unit": "deg"
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan / Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "pan-tilt-function",
+    "label": "Pan / Tilt function",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "Normal"
+     },
+     {
+      "from": 16,
+      "to": 31,
+      "label": "Blackout at Pan / Tilt movement"
+     },
+     {
+      "from": 32,
+      "to": 47,
+      "label": "Pan rotation forwards"
+     },
+     {
+      "from": 48,
+      "to": 63,
+      "label": "Pan rotation backwards"
+     },
+     {
+      "from": 64,
+      "to": 79,
+      "label": "Tilt rotation forwards"
+     },
+     {
+      "from": 80,
+      "to": 95,
+      "label": "Tilt rotation backwards"
+     },
+     {
+      "from": 96,
+      "to": 111,
+      "label": "Pan / Tilt rotation forwards"
+     },
+     {
+      "from": 112,
+      "to": 127,
+      "label": "Pan / Tilt rotation backwards"
+     },
+     {
+      "from": 128,
+      "to": 143,
+      "label": "Pan rotation forwards, Tilt rotation backwards"
+     },
+     {
+      "from": 144,
+      "to": 159,
+      "label": "Pan rotation backwards, Tilt rotation forwards"
+     },
+     {
+      "from": 160,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "shutter-strobe-function",
+    "label": "Shutter / Strobe function",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "Strobe (Normal shutter function)"
+     },
+     {
+      "from": 16,
+      "to": 31,
+      "label": "RampUp"
+     },
+     {
+      "from": 32,
+      "to": 47,
+      "label": "RampDown"
+     },
+     {
+      "from": 48,
+      "to": 63,
+      "label": "Strobe"
+     },
+     {
+      "from": 64,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "shutter-strobe",
+    "label": "Shutter / Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "Closed"
+     },
+     {
+      "from": 32,
+      "to": 223,
+      "label": "StrobeSpeed"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "shutter-strobe-basic",
+    "label": "Shutter / Strobe basic",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "Closed"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "Open"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "Strobe"
+     },
+     {
+      "from": 96,
+      "to": 127,
+      "label": "Open"
+     },
+     {
+      "from": 128,
+      "to": 159,
+      "label": "Pulse (Pulse effect in sequences)"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "Open"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "Strobe"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "dimmer-intensity",
+    "label": "Dimmer intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-wheel-function",
+    "label": "Color wheel function",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "Normal color change"
+     },
+     {
+      "from": 16,
+      "to": 31,
+      "label": "Blackout at color change"
+     },
+     {
+      "from": 32,
+      "to": 47,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 48,
+      "to": 63,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 64,
+      "to": 79,
+      "label": "Color change at every position"
+     },
+     {
+      "from": 80,
+      "to": 111,
+      "label": "WheelShake"
+     },
+     {
+      "from": 112,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "color-wheel-color-selection",
+    "label": "Color wheel: Color selection",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 27,
+      "label": "Open"
+     },
+     {
+      "from": 28,
+      "to": 55,
+      "label": "Color"
+     },
+     {
+      "from": 56,
+      "to": 83,
+      "label": "Color"
+     },
+     {
+      "from": 84,
+      "to": 111,
+      "label": "Color"
+     },
+     {
+      "from": 112,
+      "to": 139,
+      "label": "Color"
+     },
+     {
+      "from": 140,
+      "to": 167,
+      "label": "Color"
+     },
+     {
+      "from": 168,
+      "to": 195,
+      "label": "Color"
+     },
+     {
+      "from": 196,
+      "to": 223,
+      "label": "Color"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "Color"
+     }
+    ]
+   },
+   {
+    "key": "color-wheel-basic",
+    "label": "Color wheel basic",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "Open"
+     },
+     {
+      "from": 6,
+      "to": 11,
+      "label": "Color"
+     },
+     {
+      "from": 12,
+      "to": 17,
+      "label": "Color"
+     },
+     {
+      "from": 18,
+      "to": 23,
+      "label": "Color"
+     },
+     {
+      "from": 24,
+      "to": 29,
+      "label": "Color"
+     },
+     {
+      "from": 30,
+      "to": 35,
+      "label": "Color"
+     },
+     {
+      "from": 36,
+      "to": 41,
+      "label": "Color"
+     },
+     {
+      "from": 42,
+      "to": 47,
+      "label": "Color"
+     },
+     {
+      "from": 48,
+      "to": 53,
+      "label": "Color"
+     },
+     {
+      "from": 54,
+      "to": 59,
+      "label": "Open (blackout at color change)"
+     },
+     {
+      "from": 60,
+      "to": 65,
+      "label": "Color (blackout at color change)"
+     },
+     {
+      "from": 66,
+      "to": 71,
+      "label": "Color (blackout at color change)"
+     },
+     {
+      "from": 72,
+      "to": 77,
+      "label": "Color (blackout at color change)"
+     },
+     {
+      "from": 78,
+      "to": 83,
+      "label": "Color (blackout at color change)"
+     },
+     {
+      "from": 84,
+      "to": 89,
+      "label": "Color (blackout at color change)"
+     },
+     {
+      "from": 90,
+      "to": 95,
+      "label": "Color (blackout at color change)"
+     },
+     {
+      "from": 96,
+      "to": 101,
+      "label": "Color (blackout at color change)"
+     },
+     {
+      "from": 102,
+      "to": 106,
+      "label": "Color (blackout at color change)"
+     },
+     {
+      "from": 107,
+      "to": 119,
+      "label": "Open"
+     },
+     {
+      "from": 120,
+      "to": 132,
+      "label": "Color"
+     },
+     {
+      "from": 133,
+      "to": 145,
+      "label": "Color"
+     },
+     {
+      "from": 146,
+      "to": 158,
+      "label": "Color"
+     },
+     {
+      "from": 159,
+      "to": 171,
+      "label": "Color"
+     },
+     {
+      "from": 172,
+      "to": 184,
+      "label": "Color"
+     },
+     {
+      "from": 185,
+      "to": 197,
+      "label": "Color"
+     },
+     {
+      "from": 198,
+      "to": 210,
+      "label": "Color"
+     },
+     {
+      "from": 211,
+      "to": 223,
+      "label": "Color"
+     },
+     {
+      "from": 224,
+      "to": 239,
+      "label": "Forwards rainbow effect"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "Backwards rainbow effect"
+     }
+    ]
+   },
+   {
+    "key": "gobo-wheel-function",
+    "label": "Gobo wheel function",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "Normal gobo change"
+     },
+     {
+      "from": 16,
+      "to": 31,
+      "label": "Blackout at gobo change"
+     },
+     {
+      "from": 32,
+      "to": 47,
+      "label": "Rotating gobo wheel forwards"
+     },
+     {
+      "from": 48,
+      "to": 63,
+      "label": "Rotating gobo wheel backwards"
+     },
+     {
+      "from": 64,
+      "to": 79,
+      "label": "Gobo change at every position"
+     },
+     {
+      "from": 80,
+      "to": 95,
+      "label": "WheelShake"
+     },
+     {
+      "from": 96,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "gobo-wheel-gobo-selection",
+    "label": "Gobo wheel: Gobo selection",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "Open"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "Gobo"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "Gobo"
+     },
+     {
+      "from": 96,
+      "to": 127,
+      "label": "Gobo"
+     },
+     {
+      "from": 128,
+      "to": 159,
+      "label": "Gobo"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "Gobo"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "Gobo"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "Gobo"
+     }
+    ]
+   },
+   {
+    "key": "gobo-wheel-basic",
+    "label": "Gobo wheel basic",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "Open"
+     },
+     {
+      "from": 6,
+      "to": 11,
+      "label": "Gobo"
+     },
+     {
+      "from": 12,
+      "to": 17,
+      "label": "Gobo"
+     },
+     {
+      "from": 18,
+      "to": 23,
+      "label": "Gobo"
+     },
+     {
+      "from": 24,
+      "to": 29,
+      "label": "Gobo"
+     },
+     {
+      "from": 30,
+      "to": 35,
+      "label": "Gobo"
+     },
+     {
+      "from": 36,
+      "to": 41,
+      "label": "Gobo"
+     },
+     {
+      "from": 42,
+      "to": 47,
+      "label": "Gobo"
+     },
+     {
+      "from": 48,
+      "to": 53,
+      "label": "Open (blackout at gobo change)"
+     },
+     {
+      "from": 54,
+      "to": 59,
+      "label": "Gobo (blackout at gobo change)"
+     },
+     {
+      "from": 60,
+      "to": 65,
+      "label": "Gobo (blackout at gobo change)"
+     },
+     {
+      "from": 66,
+      "to": 71,
+      "label": "Gobo (blackout at gobo change)"
+     },
+     {
+      "from": 72,
+      "to": 77,
+      "label": "Gobo (blackout at gobo change)"
+     },
+     {
+      "from": 78,
+      "to": 83,
+      "label": "Gobo (blackout at gobo change)"
+     },
+     {
+      "from": 84,
+      "to": 89,
+      "label": "Gobo (blackout at gobo change)"
+     },
+     {
+      "from": 90,
+      "to": 95,
+      "label": "Gobo (blackout at gobo change)"
+     },
+     {
+      "from": 96,
+      "to": 97,
+      "label": "NoFunction"
+     },
+     {
+      "from": 98,
+      "to": 115,
+      "label": "Gobo"
+     },
+     {
+      "from": 116,
+      "to": 133,
+      "label": "Gobo"
+     },
+     {
+      "from": 134,
+      "to": 151,
+      "label": "Gobo"
+     },
+     {
+      "from": 152,
+      "to": 169,
+      "label": "Gobo"
+     },
+     {
+      "from": 170,
+      "to": 187,
+      "label": "Gobo"
+     },
+     {
+      "from": 188,
+      "to": 205,
+      "label": "Gobo"
+     },
+     {
+      "from": 206,
+      "to": 223,
+      "label": "Gobo"
+     },
+     {
+      "from": 224,
+      "to": 224,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 225,
+      "to": 239,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 240,
+      "to": 240,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 241,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "gobo-rotation-function",
+    "label": "Gobo rotation function",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "Gobo indexing"
+     },
+     {
+      "from": 16,
+      "to": 31,
+      "label": "Rotating gobo wheel forwards"
+     },
+     {
+      "from": 32,
+      "to": 47,
+      "label": "Rotating gobo wheel backwards"
+     },
+     {
+      "from": 48,
+      "to": 63,
+      "label": "Motion macro forwards"
+     },
+     {
+      "from": 64,
+      "to": 79,
+      "label": "Motion macro forwards with blackout"
+     },
+     {
+      "from": 80,
+      "to": 95,
+      "label": "Motion macro backwards"
+     },
+     {
+      "from": 96,
+      "to": 111,
+      "label": "Motion macro backwards with blackout"
+     },
+     {
+      "from": 112,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "gobo-indexing",
+    "label": "Gobo indexing",
+    "role": "goboRotation",
+    "resolution": 1,
+    "default": 0,
+    "min": 0,
+    "max": 360,
+    "unit": "deg"
+   },
+   {
+    "key": "gobo-rotation-basic",
+    "label": "Gobo rotation basic",
+    "role": "goboRotation",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 191,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 192,
+      "to": 207,
+      "label": "Motion macro forwards"
+     },
+     {
+      "from": 208,
+      "to": 223,
+      "label": "Motion macro backwards"
+     },
+     {
+      "from": 224,
+      "to": 224,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 225,
+      "to": 239,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 240,
+      "to": 240,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 241,
+      "to": 255,
+      "label": "WheelSlotRotation"
+     }
+    ]
+   },
+   {
+    "key": "prism",
+    "label": "Prism",
+    "role": "prism",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 3,
+      "label": "NoFunction"
+     },
+     {
+      "from": 4,
+      "to": 127,
+      "label": "Prism"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "Prism"
+     }
+    ]
+   },
+   {
+    "key": "focus",
+    "label": "Focus",
+    "role": "focus",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "reset-display-control",
+    "label": "Reset, display control",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "NoFunction"
+     },
+     {
+      "from": 8,
+      "to": 15,
+      "label": "Reset all motors"
+     },
+     {
+      "from": 16,
+      "to": 23,
+      "label": "Reset Pan / Tilt"
+     },
+     {
+      "from": 24,
+      "to": 31,
+      "label": "Reset colors"
+     },
+     {
+      "from": 32,
+      "to": 39,
+      "label": "Reset gobo"
+     },
+     {
+      "from": 40,
+      "to": 47,
+      "label": "NoFunction"
+     },
+     {
+      "from": 48,
+      "to": 55,
+      "label": "Reset other motors"
+     },
+     {
+      "from": 56,
+      "to": 63,
+      "label": "Display off"
+     },
+     {
+      "from": 64,
+      "to": 71,
+      "label": "Display on"
+     },
+     {
+      "from": 72,
+      "to": 87,
+      "label": "NoFunction"
+     },
+     {
+      "from": 88,
+      "to": 95,
+      "label": "Hibernation"
+     },
+     {
+      "from": 96,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "std",
+    "name": "Standard",
+    "footprint": 16,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-function",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe-function",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel-function",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel-color-selection",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel-function",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel-gobo-selection",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-rotation-function",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-indexing",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "reset-display-control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "ext",
+    "name": "Extended",
+    "footprint": 18,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-function",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe-function",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel-function",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel-color-selection",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel-function",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel-gobo-selection",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-rotation-function",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-indexing",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "reset-display-control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "bas8bit",
+    "name": "Basic 8 bit",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-function",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe-basic",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel-basic",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel-basic",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-rotation-basic",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "reset-display-control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "bas16bit",
+    "name": "Basic 16 bit",
+    "footprint": 14,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-function",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe-basic",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel-basic",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel-basic",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-rotation-basic",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "reset-display-control",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    299,
+    398,
+    252
+   ],
+   "weightKg": 8.5,
+   "powerW": 115,
+   "lensDegMin": 13,
+   "lensDegMax": 18
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "futurelight/dmh-75-i-led-moving-head",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "futurelight/pro-slim-par-7-hcl",
+  "manufacturer": "Futurelight",
+  "model": "PRO Slim PAR-7 HCL",
+  "aliases": [
+   "Futurelight PRO Slim PAR-7 HCL",
+   "PRO Slim PAR-7 HCL",
+   "PROSlim7HCL",
+   "futurelightproslimpar7hcl",
+   "proslim7hcl",
+   "proslimpar7hcl"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "uv",
+    "label": "UV",
+    "role": "uv",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 5,
+      "label": "Sound Control"
+     },
+     {
+      "from": 6,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "color-presets",
+    "label": "Color Presets",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 30,
+      "label": "Red 100% / Green increasing / Blue 0%"
+     },
+     {
+      "from": 31,
+      "to": 50,
+      "label": "Red decreasing / Green 100% / Blue 0%"
+     },
+     {
+      "from": 51,
+      "to": 70,
+      "label": "Red 0% / Green 100% / Blue increasing"
+     },
+     {
+      "from": 71,
+      "to": 90,
+      "label": "Red 0% / Green decreasing / Blue 100%"
+     },
+     {
+      "from": 91,
+      "to": 110,
+      "label": "Red increasing / Green 0% / Blue 100%"
+     },
+     {
+      "from": 111,
+      "to": 130,
+      "label": "Red 100% / Green 0% / Blue decreasing"
+     },
+     {
+      "from": 131,
+      "to": 150,
+      "label": "Red 100% / Green increasing / Blue increasing"
+     },
+     {
+      "from": 151,
+      "to": 170,
+      "label": "Red decreasing / Green decreasing / Blue 100%"
+     },
+     {
+      "from": 171,
+      "to": 200,
+      "label": "Red 100% / Green 100% / Blue 100% / White 100%",
+      "color": "#ffffff"
+     },
+     {
+      "from": 201,
+      "to": 205,
+      "label": "3200K (White 1)",
+      "color": "#ffb87b"
+     },
+     {
+      "from": 206,
+      "to": 210,
+      "label": "3400K (White 2)",
+      "color": "#ffbe87"
+     },
+     {
+      "from": 211,
+      "to": 215,
+      "label": "4200K (White 3)",
+      "color": "#ffd3af"
+     },
+     {
+      "from": 216,
+      "to": 220,
+      "label": "4900K (White 4)",
+      "color": "#ffe2ca"
+     },
+     {
+      "from": 221,
+      "to": 225,
+      "label": "5600K (White 5)",
+      "color": "#ffefe1"
+     },
+     {
+      "from": 226,
+      "to": 230,
+      "label": "5900K (White 6)",
+      "color": "#fff4ea"
+     },
+     {
+      "from": 231,
+      "to": 235,
+      "label": "6500K (White 7)",
+      "color": "#fffefa"
+     },
+     {
+      "from": 236,
+      "to": 240,
+      "label": "7200K (White 8)",
+      "color": "#edefff"
+     },
+     {
+      "from": 241,
+      "to": 245,
+      "label": "8000K (White 9)",
+      "color": "#dde6ff"
+     },
+     {
+      "from": 246,
+      "to": 250,
+      "label": "8500K (White 10)",
+      "color": "#d7e2ff"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "10000K (White 11)",
+      "color": "#cadaff"
+     }
+    ]
+   },
+   {
+    "key": "internal-programs",
+    "label": "Internal Programs",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 60,
+      "label": "Internal Program 1"
+     },
+     {
+      "from": 61,
+      "to": 120,
+      "label": "Internal Program 2"
+     },
+     {
+      "from": 121,
+      "to": 180,
+      "label": "Internal Program 3"
+     },
+     {
+      "from": 181,
+      "to": 240,
+      "label": "Internal Program 4"
+     },
+     {
+      "from": 241,
+      "to": 250,
+      "label": "Internal Program 5"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "Music Control"
+     }
+    ]
+   },
+   {
+    "key": "program-speed",
+    "label": "Program Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer-speed",
+    "label": "Dimmer Speed",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 51,
+      "label": "Use Control Board setting dimmer speed"
+     },
+     {
+      "from": 52,
+      "to": 101,
+      "label": "Dimmer speed"
+     },
+     {
+      "from": 102,
+      "to": 152,
+      "label": "Dimmer speed"
+     },
+     {
+      "from": 153,
+      "to": 203,
+      "label": "Dimmer speed"
+     },
+     {
+      "from": 204,
+      "to": 255,
+      "label": "Dimmer speed"
+     }
+    ]
+   },
+   {
+    "key": "hue",
+    "label": "Hue",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "saturation",
+    "label": "Saturation",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "value-brightness",
+    "label": "Value / Brightness",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "6ch",
+    "name": "6-channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "8ch",
+    "name": "8-channel",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "12ch",
+    "name": "12-channel",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "internal-programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-speed",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "hsv",
+    "name": "HSV",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "value-brightness",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "hsi",
+    "name": "HSI",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    253,
+    259.8,
+    98
+   ],
+   "weightKg": 3.3,
+   "powerW": 60,
+   "lensDegMin": 23,
+   "lensDegMax": 23
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "futurelight/pro-slim-par-7-hcl",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "futurelight/sc-250-scanner",
+  "manufacturer": "Futurelight",
+  "model": "SC-250 Scanner",
+  "aliases": [
+   "Futurelight SC-250 Scanner",
+   "FuturelightSC250",
+   "SC-250 Scanner",
+   "futurelightsc250",
+   "futurelightsc250scanner",
+   "sc250scanner"
+  ],
+  "categories": [
+   "Scanner",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 1,
+    "default": 0.5019607843137255,
+    "min": 0,
+    "max": 100,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 1,
+    "default": 0.5019607843137255,
+    "min": 0,
+    "max": 100,
+    "unit": "deg"
+   },
+   {
+    "key": "color-wheel",
+    "label": "Color Wheel",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Open"
+     },
+     {
+      "from": 8,
+      "to": 15,
+      "label": "Turquoise",
+      "color": "#40e0d0"
+     },
+     {
+      "from": 16,
+      "to": 23,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 24,
+      "to": 31,
+      "label": "Cyan",
+      "color": "#00ffff"
+     },
+     {
+      "from": 32,
+      "to": 39,
+      "label": "Lightgreen",
+      "color": "#90ee90"
+     },
+     {
+      "from": 40,
+      "to": 47,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 48,
+      "to": 55,
+      "label": "Lightblue",
+      "color": "#66ccff"
+     },
+     {
+      "from": 56,
+      "to": 63,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 64,
+      "to": 71,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 72,
+      "to": 79,
+      "label": "Pink",
+      "color": "#ffaaaa"
+     },
+     {
+      "from": 80,
+      "to": 87,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 88,
+      "to": 95,
+      "label": "Orange",
+      "color": "#ffaa00"
+     },
+     {
+      "from": 96,
+      "to": 103,
+      "label": "UV",
+      "color": "#7f1ae5"
+     },
+     {
+      "from": 104,
+      "to": 111,
+      "label": "Red-Blue",
+      "color": "#ff0000"
+     },
+     {
+      "from": 112,
+      "to": 119,
+      "label": "Yellow-Green",
+      "color": "#ffff00"
+     },
+     {
+      "from": 120,
+      "to": 127,
+      "label": "Lightblue-Magenta",
+      "color": "#66ccff"
+     },
+     {
+      "from": 128,
+      "to": 190,
+      "label": "Rainbow Effect"
+     },
+     {
+      "from": 191,
+      "to": 192,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 193,
+      "to": 255,
+      "label": "Rainbow Effect"
+     }
+    ]
+   },
+   {
+    "key": "gobo-wheel",
+    "label": "Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 23,
+      "label": "Open"
+     },
+     {
+      "from": 24,
+      "to": 47,
+      "label": "Gobo"
+     },
+     {
+      "from": 48,
+      "to": 79,
+      "label": "Gobo"
+     },
+     {
+      "from": 80,
+      "to": 103,
+      "label": "Gobo"
+     },
+     {
+      "from": 104,
+      "to": 127,
+      "label": "Gobo"
+     },
+     {
+      "from": 128,
+      "to": 151,
+      "label": "Gobo"
+     },
+     {
+      "from": 152,
+      "to": 175,
+      "label": "Gobo"
+     },
+     {
+      "from": 176,
+      "to": 207,
+      "label": "Gobo"
+     },
+     {
+      "from": 208,
+      "to": 231,
+      "label": "Gobo"
+     },
+     {
+      "from": 232,
+      "to": 255,
+      "label": "Gobo"
+     }
+    ]
+   },
+   {
+    "key": "gobo-indexing-rotation",
+    "label": "Gobo Indexing / Rotation",
+    "role": "goboRotation",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 128,
+      "to": 191,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 192,
+      "to": 193,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 194,
+      "to": 255,
+      "label": "WheelSlotRotation"
+     }
+    ]
+   },
+   {
+    "key": "shutter-strobe",
+    "label": "Shutter / Strobe",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "Closed"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "Intensity"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "Open"
+     },
+     {
+      "from": 96,
+      "to": 127,
+      "label": "Strobe"
+     },
+     {
+      "from": 128,
+      "to": 139,
+      "label": "Reset"
+     },
+     {
+      "from": 140,
+      "to": 159,
+      "label": "Closed"
+     },
+     {
+      "from": 160,
+      "to": 175,
+      "label": "Pulse (in sequences)"
+     },
+     {
+      "from": 176,
+      "to": 191,
+      "label": "Pulse (in sequences)"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "Strobe"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "6ch",
+    "name": "6-channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-indexing-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    280,
+    160,
+    470
+   ],
+   "weightKg": 11.1,
+   "powerW": 250,
+   "lensDegMin": 19,
+   "lensDegMax": 19
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "futurelight/sc-250-scanner",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "futurelight/stb-648-led-strobe-smd-5050",
+  "manufacturer": "Futurelight",
+  "model": "STB-648 LED Strobe SMD 5050",
+  "aliases": [
+   "Futurelight STB-648 LED Strobe SMD 5050",
+   "STB-648 LED Strobe SMD 5050",
+   "futurelightstb648ledstrobesmd5050",
+   "stb648ledstrobesmd5050"
+  ],
+  "categories": [
+   "Strobe"
+  ],
+  "channels": [
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "brightness",
+    "label": "Brightness",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "2ch",
+    "name": "2-channel",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "brightness",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    420,
+    225,
+    165
+   ],
+   "weightKg": 4.5,
+   "powerW": 160
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "futurelight/stb-648-led-strobe-smd-5050",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

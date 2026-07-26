@@ -1,0 +1,1369 @@
+[
+ {
+  "id": "light-sky/aurora",
+  "manufacturer": "LIGHT SKY",
+  "model": "Aurora",
+  "aliases": [
+   "Aurora",
+   "LIGHT SKY Aurora",
+   "aurora",
+   "lightskyaurora"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 250,
+    "unit": "deg"
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan/Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Standard mode"
+     },
+     {
+      "from": 1,
+      "to": 1,
+      "label": "Max. speed mode"
+     },
+     {
+      "from": 2,
+      "to": 255,
+      "label": "PanTiltSpeed"
+     }
+    ]
+   },
+   {
+    "key": "control",
+    "label": "Control",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 19,
+      "label": "NoFunction"
+     },
+     {
+      "from": 20,
+      "to": 24,
+      "label": "LCD display On"
+     },
+     {
+      "from": 25,
+      "to": 29,
+      "label": "LCD display Off"
+     },
+     {
+      "from": 30,
+      "to": 34,
+      "label": "High CRI"
+     },
+     {
+      "from": 35,
+      "to": 39,
+      "label": "Standard CRI"
+     },
+     {
+      "from": 40,
+      "to": 59,
+      "label": "NoFunction"
+     },
+     {
+      "from": 60,
+      "to": 64,
+      "label": "Fans mode: Auto"
+     },
+     {
+      "from": 65,
+      "to": 69,
+      "label": "Fans mode: High"
+     },
+     {
+      "from": 70,
+      "to": 129,
+      "label": "NoFunction"
+     },
+     {
+      "from": 130,
+      "to": 139,
+      "label": "Lamp On"
+     },
+     {
+      "from": 140,
+      "to": 149,
+      "label": "Pan/Tilt reset"
+     },
+     {
+      "from": 150,
+      "to": 159,
+      "label": "Color reset"
+     },
+     {
+      "from": 160,
+      "to": 169,
+      "label": "Gobo reset"
+     },
+     {
+      "from": 170,
+      "to": 179,
+      "label": "Dimmer/Shutter reset"
+     },
+     {
+      "from": 180,
+      "to": 189,
+      "label": "Zoom/focus/frost/prism wheels reset"
+     },
+     {
+      "from": 190,
+      "to": 199,
+      "label": "Effect wheel reset"
+     },
+     {
+      "from": 200,
+      "to": 209,
+      "label": "Total reset"
+     },
+     {
+      "from": 210,
+      "to": 229,
+      "label": "NoFunction"
+     },
+     {
+      "from": 230,
+      "to": 239,
+      "label": "Lamp Off"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "cyan",
+    "label": "Cyan",
+    "role": "cyan",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "magenta",
+    "label": "Magenta",
+    "role": "magenta",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "yellow",
+    "label": "Yellow",
+    "role": "yellow",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-wheel",
+    "label": "Color Wheel",
+    "role": "colorWheel",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 8,
+      "label": "Open"
+     },
+     {
+      "from": 9,
+      "to": 17,
+      "label": "Dark red",
+      "color": "#fe0000"
+     },
+     {
+      "from": 18,
+      "to": 26,
+      "label": "Orange",
+      "color": "#ff450c"
+     },
+     {
+      "from": 27,
+      "to": 36,
+      "label": "Aquamarine",
+      "color": "#01fdfd"
+     },
+     {
+      "from": 37,
+      "to": 45,
+      "label": "Dark green",
+      "color": "#006401"
+     },
+     {
+      "from": 46,
+      "to": 54,
+      "label": "Green",
+      "color": "#01ff01"
+     },
+     {
+      "from": 55,
+      "to": 63,
+      "label": "Lavender",
+      "color": "#bfbff3"
+     },
+     {
+      "from": 64,
+      "to": 72,
+      "label": "Pink",
+      "color": "#febeca"
+     },
+     {
+      "from": 73,
+      "to": 81,
+      "label": "Yellow",
+      "color": "#fef100"
+     },
+     {
+      "from": 82,
+      "to": 90,
+      "label": "Magenta",
+      "color": "#e5007f"
+     },
+     {
+      "from": 91,
+      "to": 100,
+      "label": "Cyan",
+      "color": "#00a1e9"
+     },
+     {
+      "from": 101,
+      "to": 109,
+      "label": "CTO2",
+      "color": "#e79d6c"
+     },
+     {
+      "from": 110,
+      "to": 118,
+      "label": "CTO1",
+      "color": "#f2be9b"
+     },
+     {
+      "from": 119,
+      "to": 127,
+      "label": "Dark blue",
+      "color": "#1f1586"
+     },
+     {
+      "from": 128,
+      "to": 129,
+      "label": "Open"
+     },
+     {
+      "from": 130,
+      "to": 134,
+      "label": "Open"
+     },
+     {
+      "from": 135,
+      "to": 138,
+      "label": "Dark red",
+      "color": "#fe0000"
+     },
+     {
+      "from": 139,
+      "to": 143,
+      "label": "Orange",
+      "color": "#ff450c"
+     },
+     {
+      "from": 144,
+      "to": 147,
+      "label": "Aquamarine",
+      "color": "#01fdfd"
+     },
+     {
+      "from": 148,
+      "to": 152,
+      "label": "Dark green",
+      "color": "#006401"
+     },
+     {
+      "from": 153,
+      "to": 157,
+      "label": "Green",
+      "color": "#01ff01"
+     },
+     {
+      "from": 158,
+      "to": 161,
+      "label": "Lavender",
+      "color": "#bfbff3"
+     },
+     {
+      "from": 162,
+      "to": 166,
+      "label": "Pink",
+      "color": "#febeca"
+     },
+     {
+      "from": 167,
+      "to": 171,
+      "label": "Yellow",
+      "color": "#fef100"
+     },
+     {
+      "from": 172,
+      "to": 176,
+      "label": "Magenta",
+      "color": "#e5007f"
+     },
+     {
+      "from": 177,
+      "to": 180,
+      "label": "Cyan",
+      "color": "#00a1e9"
+     },
+     {
+      "from": 181,
+      "to": 185,
+      "label": "CTO2",
+      "color": "#e79d6c"
+     },
+     {
+      "from": 186,
+      "to": 189,
+      "label": "CTO1",
+      "color": "#f2be9b"
+     },
+     {
+      "from": 190,
+      "to": 215,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 216,
+      "to": 217,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 218,
+      "to": 243,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 244,
+      "to": 249,
+      "label": "Random color selection"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Auto random color"
+     }
+    ]
+   },
+   {
+    "key": "effect-disk-positioning",
+    "label": "Effect Disk Positioning",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 19,
+      "label": "NoFunction"
+     },
+     {
+      "from": 20,
+      "to": 127,
+      "label": "Effect Disk insertion"
+     },
+     {
+      "from": 128,
+      "to": 170,
+      "label": "Ramping from open to full position"
+     },
+     {
+      "from": 171,
+      "to": 213,
+      "label": "Ramping from open to half position"
+     },
+     {
+      "from": 214,
+      "to": 255,
+      "label": "Ramping from half position to full position"
+     }
+    ]
+   },
+   {
+    "key": "effect-disk-rotation",
+    "label": "Effect Disk Rotation",
+    "role": "goboRotation",
+    "resolution": 1,
+    "default": 0.5019607843137255,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 1,
+      "to": 127,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 128,
+      "to": 128,
+      "label": "No rotation"
+     },
+     {
+      "from": 129,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "static-gobo-wheel",
+    "label": "Static Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 3,
+      "label": "Open"
+     },
+     {
+      "from": 4,
+      "to": 9,
+      "label": "Iris"
+     },
+     {
+      "from": 10,
+      "to": 15,
+      "label": "Iris"
+     },
+     {
+      "from": 16,
+      "to": 21,
+      "label": "Iris"
+     },
+     {
+      "from": 22,
+      "to": 27,
+      "label": "Iris"
+     },
+     {
+      "from": 28,
+      "to": 33,
+      "label": "Gobo"
+     },
+     {
+      "from": 34,
+      "to": 39,
+      "label": "Gobo"
+     },
+     {
+      "from": 40,
+      "to": 45,
+      "label": "Gobo"
+     },
+     {
+      "from": 46,
+      "to": 51,
+      "label": "Gobo"
+     },
+     {
+      "from": 52,
+      "to": 57,
+      "label": "Gobo"
+     },
+     {
+      "from": 58,
+      "to": 63,
+      "label": "Gobo"
+     },
+     {
+      "from": 64,
+      "to": 69,
+      "label": "Gobo"
+     },
+     {
+      "from": 70,
+      "to": 75,
+      "label": "Gobo"
+     },
+     {
+      "from": 76,
+      "to": 81,
+      "label": "Gobo"
+     },
+     {
+      "from": 82,
+      "to": 87,
+      "label": "Gobo"
+     },
+     {
+      "from": 88,
+      "to": 95,
+      "label": "Iris"
+     },
+     {
+      "from": 96,
+      "to": 103,
+      "label": "Iris"
+     },
+     {
+      "from": 104,
+      "to": 111,
+      "label": "Iris"
+     },
+     {
+      "from": 112,
+      "to": 119,
+      "label": "Iris"
+     },
+     {
+      "from": 120,
+      "to": 127,
+      "label": "Gobo"
+     },
+     {
+      "from": 128,
+      "to": 135,
+      "label": "Gobo"
+     },
+     {
+      "from": 136,
+      "to": 143,
+      "label": "Gobo"
+     },
+     {
+      "from": 144,
+      "to": 151,
+      "label": "Gobo"
+     },
+     {
+      "from": 152,
+      "to": 159,
+      "label": "Gobo"
+     },
+     {
+      "from": 160,
+      "to": 167,
+      "label": "Gobo"
+     },
+     {
+      "from": 168,
+      "to": 175,
+      "label": "Gobo"
+     },
+     {
+      "from": 176,
+      "to": 183,
+      "label": "Gobo"
+     },
+     {
+      "from": 184,
+      "to": 191,
+      "label": "Gobo"
+     },
+     {
+      "from": 192,
+      "to": 199,
+      "label": "Gobo"
+     },
+     {
+      "from": 200,
+      "to": 201,
+      "label": "Open"
+     },
+     {
+      "from": 202,
+      "to": 222,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 223,
+      "to": 228,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 229,
+      "to": 249,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Auto random gobo selection"
+     }
+    ]
+   },
+   {
+    "key": "rotating-gobo-wheel",
+    "label": "Rotating Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 4,
+      "label": "Open"
+     },
+     {
+      "from": 5,
+      "to": 16,
+      "label": "Gobo"
+     },
+     {
+      "from": 17,
+      "to": 28,
+      "label": "Gobo"
+     },
+     {
+      "from": 29,
+      "to": 40,
+      "label": "Gobo"
+     },
+     {
+      "from": 41,
+      "to": 52,
+      "label": "Gobo"
+     },
+     {
+      "from": 53,
+      "to": 64,
+      "label": "Gobo"
+     },
+     {
+      "from": 65,
+      "to": 76,
+      "label": "Gobo"
+     },
+     {
+      "from": 77,
+      "to": 88,
+      "label": "Gobo"
+     },
+     {
+      "from": 89,
+      "to": 100,
+      "label": "Gobo"
+     },
+     {
+      "from": 101,
+      "to": 112,
+      "label": "Gobo"
+     },
+     {
+      "from": 113,
+      "to": 124,
+      "label": "Gobo"
+     },
+     {
+      "from": 125,
+      "to": 136,
+      "label": "Gobo"
+     },
+     {
+      "from": 137,
+      "to": 148,
+      "label": "Gobo"
+     },
+     {
+      "from": 149,
+      "to": 160,
+      "label": "Gobo"
+     },
+     {
+      "from": 161,
+      "to": 172,
+      "label": "Gobo"
+     },
+     {
+      "from": 173,
+      "to": 184,
+      "label": "Gobo"
+     },
+     {
+      "from": 185,
+      "to": 196,
+      "label": "Gobo"
+     },
+     {
+      "from": 197,
+      "to": 208,
+      "label": "Gobo"
+     },
+     {
+      "from": 209,
+      "to": 220,
+      "label": "Gobo"
+     },
+     {
+      "from": 221,
+      "to": 249,
+      "label": "Open"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Auto random gobo selection"
+     }
+    ]
+   },
+   {
+    "key": "gobo-rotation",
+    "label": "Gobo Rotation",
+    "role": "goboRotation",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 128,
+      "to": 187,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 188,
+      "to": 195,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 196,
+      "to": 255,
+      "label": "WheelSlotRotation"
+     }
+    ]
+   },
+   {
+    "key": "prism-1-selection",
+    "label": "Prism 1 Selection",
+    "role": "prism",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 3,
+      "label": "NoFunction"
+     },
+     {
+      "from": 4,
+      "to": 15,
+      "label": "8-facet 12° circular, indexing"
+     },
+     {
+      "from": 16,
+      "to": 27,
+      "label": "4-facet 12° circular, indexing"
+     },
+     {
+      "from": 28,
+      "to": 39,
+      "label": "6-facet linear, indexing"
+     },
+     {
+      "from": 40,
+      "to": 51,
+      "label": "8-facet 12° circular, rotating"
+     },
+     {
+      "from": 52,
+      "to": 63,
+      "label": "4-facet 12° circular, rotating"
+     },
+     {
+      "from": 64,
+      "to": 75,
+      "label": "6-facet linear, rotating"
+     },
+     {
+      "from": 76,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "prism-1-indexing",
+    "label": "Prism 1 Indexing",
+    "role": "prismRotation",
+    "resolution": 1,
+    "default": 0,
+    "min": 0,
+    "max": 360,
+    "unit": "deg"
+   },
+   {
+    "key": "prism-2-selection",
+    "label": "Prism 2 Selection",
+    "role": "prism",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 3,
+      "label": "NoFunction"
+     },
+     {
+      "from": 4,
+      "to": 15,
+      "label": "8-facet 18° circular, indexing"
+     },
+     {
+      "from": 16,
+      "to": 27,
+      "label": "8-facet 18° circular, rotating"
+     },
+     {
+      "from": 28,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "prism-2-indexing",
+    "label": "Prism 2 Indexing",
+    "role": "prismRotation",
+    "resolution": 1,
+    "default": 0,
+    "min": 0,
+    "max": 360,
+    "unit": "deg"
+   },
+   {
+    "key": "prism-macro-selection",
+    "label": "Prism Macro Selection",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 3,
+      "label": "NoFunction"
+     },
+     {
+      "from": 4,
+      "to": 14,
+      "label": "Indexing prism macro 1"
+     },
+     {
+      "from": 15,
+      "to": 25,
+      "label": "Indexing prism macro 2"
+     },
+     {
+      "from": 26,
+      "to": 36,
+      "label": "Indexing prism macro 3"
+     },
+     {
+      "from": 37,
+      "to": 47,
+      "label": "Indexing prism macro 4"
+     },
+     {
+      "from": 48,
+      "to": 58,
+      "label": "Indexing prism macro 5"
+     },
+     {
+      "from": 59,
+      "to": 69,
+      "label": "Indexing prism macro 6"
+     },
+     {
+      "from": 70,
+      "to": 80,
+      "label": "Indexing prism macro 7"
+     },
+     {
+      "from": 81,
+      "to": 91,
+      "label": "Rotation prism macro 1"
+     },
+     {
+      "from": 92,
+      "to": 102,
+      "label": "Rotation prism macro 2"
+     },
+     {
+      "from": 103,
+      "to": 113,
+      "label": "Rotation prism macro 3"
+     },
+     {
+      "from": 114,
+      "to": 124,
+      "label": "Rotation prism macro 4"
+     },
+     {
+      "from": 125,
+      "to": 135,
+      "label": "Rotation prism macro 5"
+     },
+     {
+      "from": 136,
+      "to": 146,
+      "label": "Rotation prism macro 6"
+     },
+     {
+      "from": 147,
+      "to": 157,
+      "label": "Rotation prism macro 7"
+     },
+     {
+      "from": 158,
+      "to": 168,
+      "label": "Rotation prism macro 8"
+     },
+     {
+      "from": 169,
+      "to": 179,
+      "label": "Rotation prism macro 9"
+     },
+     {
+      "from": 180,
+      "to": 190,
+      "label": "Rotation prism macro 10"
+     },
+     {
+      "from": 191,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "prism-macro-indexing",
+    "label": "Prism Macro Indexing",
+    "role": "prismRotation",
+    "resolution": 1,
+    "default": 0,
+    "min": 0,
+    "max": 360,
+    "unit": "deg"
+   },
+   {
+    "key": "frost",
+    "label": "Frost",
+    "role": "frost",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 50,
+      "label": "light frost"
+     },
+     {
+      "from": 51,
+      "to": 53,
+      "label": "light frost"
+     },
+     {
+      "from": 54,
+      "to": 63,
+      "label": "Pulse closing (light frost)"
+     },
+     {
+      "from": 64,
+      "to": 73,
+      "label": "Pulse opening (light frost)"
+     },
+     {
+      "from": 74,
+      "to": 83,
+      "label": "Ramping (light frost)"
+     },
+     {
+      "from": 84,
+      "to": 86,
+      "label": "NoFunction"
+     },
+     {
+      "from": 87,
+      "to": 136,
+      "label": "medium frost"
+     },
+     {
+      "from": 137,
+      "to": 139,
+      "label": "medium frost"
+     },
+     {
+      "from": 140,
+      "to": 149,
+      "label": "Pulse closing (medium frost)"
+     },
+     {
+      "from": 150,
+      "to": 159,
+      "label": "Pulse opening (medium frost)"
+     },
+     {
+      "from": 160,
+      "to": 169,
+      "label": "Ramping (medium frost)"
+     },
+     {
+      "from": 170,
+      "to": 172,
+      "label": "NoFunction"
+     },
+     {
+      "from": 173,
+      "to": 222,
+      "label": "medium frost, 100% light frost"
+     },
+     {
+      "from": 223,
+      "to": 225,
+      "label": "medium frost, 100% light frost"
+     },
+     {
+      "from": 226,
+      "to": 235,
+      "label": "Pulse closing (light+medium frost)"
+     },
+     {
+      "from": 236,
+      "to": 245,
+      "label": "Pulse opening (light+medium frost)"
+     },
+     {
+      "from": 246,
+      "to": 255,
+      "label": "Ramping (light+medium frost)"
+     }
+    ]
+   },
+   {
+    "key": "zoom",
+    "label": "Zoom",
+    "role": "zoom",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "focus",
+    "label": "Focus",
+    "role": "focus",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "focus-2",
+    "label": "Focus 2",
+    "role": "focus",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "autofocus",
+    "label": "Autofocus",
+    "role": "focus",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "Autofocus off"
+     },
+     {
+      "from": 16,
+      "to": 55,
+      "label": "Focus"
+     },
+     {
+      "from": 56,
+      "to": 95,
+      "label": "Focus"
+     },
+     {
+      "from": 96,
+      "to": 135,
+      "label": "Focus"
+     },
+     {
+      "from": 136,
+      "to": 175,
+      "label": "Focus"
+     },
+     {
+      "from": 176,
+      "to": 215,
+      "label": "Focus"
+     },
+     {
+      "from": 216,
+      "to": 255,
+      "label": "Focus"
+     }
+    ]
+   },
+   {
+    "key": "shutter-strobe",
+    "label": "Shutter / Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0.12549019607843137,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "Closed"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "Open"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "Strobe"
+     },
+     {
+      "from": 96,
+      "to": 127,
+      "label": "Open"
+     },
+     {
+      "from": 128,
+      "to": 143,
+      "label": "Pulse (opening pulses)"
+     },
+     {
+      "from": 144,
+      "to": 159,
+      "label": "Pulse (closing pulses)"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "Open"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "Strobe"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "Open (full lamp power)"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "33ch",
+    "name": "33-channel",
+    "footprint": 33,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "control",
+      "byte": 0
+     },
+     {
+      "channelKey": "cyan",
+      "byte": 0
+     },
+     {
+      "channelKey": "magenta",
+      "byte": 0
+     },
+     {
+      "channelKey": "yellow",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 1
+     },
+     {
+      "channelKey": "effect-disk-positioning",
+      "byte": 0
+     },
+     {
+      "channelKey": "effect-disk-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "static-gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "rotating-gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-1-selection",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-1-indexing",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-2-selection",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-2-indexing",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-macro-selection",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-macro-indexing",
+      "byte": 0
+     },
+     {
+      "channelKey": "frost",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 1
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 1
+     },
+     {
+      "channelKey": "focus-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "autofocus",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     null
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    401,
+    646,
+    300
+   ],
+   "weightKg": 58,
+   "powerW": 620,
+   "lensDegMin": 3,
+   "lensDegMax": 42
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "light-sky/aurora",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

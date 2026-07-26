@@ -1,0 +1,65 @@
+[
+ {
+  "id": "ultratec/radiance-hazer",
+  "manufacturer": "Ultratec",
+  "model": "Radiance Hazer",
+  "aliases": [
+   "Radiance Hazer",
+   "Ultratec Radiance Hazer",
+   "radiance-hazer",
+   "radiancehazer",
+   "ultratecradiancehazer"
+  ],
+  "categories": [
+   "Hazer"
+  ],
+  "channels": [
+   {
+    "key": "haze",
+    "label": "Haze",
+    "role": "fog",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "fan",
+    "label": "Fan",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "2ch",
+    "name": "2-channel",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "haze",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    279,
+    180,
+    419
+   ],
+   "weightKg": 13,
+   "powerW": 500
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "ultratec/radiance-hazer",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

@@ -1,0 +1,2702 @@
+[
+ {
+  "id": "ayrton/diablo-s",
+  "manufacturer": "Ayrton",
+  "model": "Diablo-S",
+  "aliases": [
+   "Ayrton Diablo-S",
+   "AyrtonDiabloS",
+   "Diablo-S",
+   "ayrtondiablos",
+   "diablos"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 270,
+    "unit": "deg"
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan/Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 225,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 226,
+      "to": 235,
+      "label": "Blackout by movement"
+     },
+     {
+      "from": 236,
+      "to": 245,
+      "label": "Blackout by all wheel changing"
+     },
+     {
+      "from": 246,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "shutter-strobe",
+    "label": "Shutter / Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0.043137254901960784,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Closed"
+     },
+     {
+      "from": 11,
+      "to": 20,
+      "label": "Open"
+     },
+     {
+      "from": 21,
+      "to": 117,
+      "label": "Strobe"
+     },
+     {
+      "from": 118,
+      "to": 126,
+      "label": "Open"
+     },
+     {
+      "from": 127,
+      "to": 180,
+      "label": "Pulse"
+     },
+     {
+      "from": 181,
+      "to": 191,
+      "label": "Open"
+     },
+     {
+      "from": 192,
+      "to": 245,
+      "label": "Strobe"
+     },
+     {
+      "from": 246,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "chase-pattern",
+    "label": "Chase Pattern",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Chase 1"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "Chase 2"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "Chase 3"
+     },
+     {
+      "from": 40,
+      "to": 49,
+      "label": "Chase 4"
+     },
+     {
+      "from": 50,
+      "to": 255,
+      "label": "Reserved"
+     }
+    ]
+   },
+   {
+    "key": "chase-speed",
+    "label": "Chase Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 125,
+      "label": "EffectSpeed"
+     },
+     {
+      "from": 126,
+      "to": 130,
+      "label": "EffectSpeed"
+     },
+     {
+      "from": 131,
+      "to": 255,
+      "label": "EffectSpeed"
+     }
+    ]
+   },
+   {
+    "key": "chase-fade",
+    "label": "Chase Fade",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "zoom",
+    "label": "Zoom",
+    "role": "zoom",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "focus",
+    "label": "Focus",
+    "role": "focus",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "auto-focus",
+    "label": "Auto Focus",
+    "role": "focus",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 50,
+      "label": "NoFunction"
+     },
+     {
+      "from": 51,
+      "to": 100,
+      "label": "Focus"
+     },
+     {
+      "from": 101,
+      "to": 150,
+      "label": "Focus"
+     },
+     {
+      "from": 151,
+      "to": 200,
+      "label": "Focus"
+     },
+     {
+      "from": 201,
+      "to": 255,
+      "label": "Focus"
+     }
+    ]
+   },
+   {
+    "key": "color-wheel",
+    "label": "Color Wheel",
+    "role": "colorWheel",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 3,
+      "label": "Open"
+     },
+     {
+      "from": 4,
+      "to": 7,
+      "label": "CTB",
+      "color": "#7db0db"
+     },
+     {
+      "from": 8,
+      "to": 11,
+      "label": "Magenta",
+      "color": "#a3639c"
+     },
+     {
+      "from": 12,
+      "to": 15,
+      "label": "Congo Blue",
+      "color": "#1a3885"
+     },
+     {
+      "from": 16,
+      "to": 19,
+      "label": "Green",
+      "color": "#00a13b"
+     },
+     {
+      "from": 20,
+      "to": 23,
+      "label": "Orange",
+      "color": "#e87817"
+     },
+     {
+      "from": 24,
+      "to": 27,
+      "label": "Blue",
+      "color": "#0091fa"
+     },
+     {
+      "from": 28,
+      "to": 31,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 32,
+      "to": 127,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 128,
+      "to": 189,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 190,
+      "to": 193,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 194,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "cyan",
+    "label": "Cyan",
+    "role": "cyan",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "magenta",
+    "label": "Magenta",
+    "role": "magenta",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "yellow",
+    "label": "Yellow",
+    "role": "yellow",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "cto",
+    "label": "CTO",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "gobo-wheel",
+    "label": "Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Open"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Gobo"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "Gobo"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "Gobo"
+     },
+     {
+      "from": 40,
+      "to": 49,
+      "label": "Gobo"
+     },
+     {
+      "from": 50,
+      "to": 59,
+      "label": "Gobo"
+     },
+     {
+      "from": 60,
+      "to": 69,
+      "label": "Gobo"
+     },
+     {
+      "from": 70,
+      "to": 77,
+      "label": "Gobo"
+     },
+     {
+      "from": 78,
+      "to": 93,
+      "label": "Gobo"
+     },
+     {
+      "from": 94,
+      "to": 109,
+      "label": "Gobo"
+     },
+     {
+      "from": 110,
+      "to": 125,
+      "label": "Gobo"
+     },
+     {
+      "from": 126,
+      "to": 141,
+      "label": "Gobo"
+     },
+     {
+      "from": 142,
+      "to": 157,
+      "label": "Gobo"
+     },
+     {
+      "from": 158,
+      "to": 173,
+      "label": "Gobo"
+     },
+     {
+      "from": 174,
+      "to": 189,
+      "label": "Gobo"
+     },
+     {
+      "from": 190,
+      "to": 221,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 222,
+      "to": 223,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "gobo-rotation",
+    "label": "Gobo Rotation",
+    "role": "goboRotation",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 128,
+      "to": 189,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 190,
+      "to": 193,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 194,
+      "to": 255,
+      "label": "WheelSlotRotation"
+     }
+    ]
+   },
+   {
+    "key": "animation-wheel",
+    "label": "Animation Wheel",
+    "role": "goboRotation",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Open"
+     },
+     {
+      "from": 8,
+      "to": 127,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 128,
+      "to": 135,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 136,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "iris",
+    "label": "Iris",
+    "role": "iris",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 191,
+      "label": "Iris"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "Pulse closing"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "Pulse opening"
+     }
+    ]
+   },
+   {
+    "key": "prism",
+    "label": "Prism",
+    "role": "prism",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "NoFunction"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "5-facet"
+     }
+    ]
+   },
+   {
+    "key": "prism-rotation",
+    "label": "Prism Rotation",
+    "role": "prismRotation",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 128,
+      "to": 189,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 190,
+      "to": 193,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 194,
+      "to": 255,
+      "label": "PrismRotation"
+     }
+    ]
+   },
+   {
+    "key": "blade-1a-insertion",
+    "label": "Blade 1A Insertion",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "blade-1b-insertion",
+    "label": "Blade 1B Insertion",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "blade-2a-insertion",
+    "label": "Blade 2A Insertion",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "blade-2b-insertion",
+    "label": "Blade 2B Insertion",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "blade-3a-insertion",
+    "label": "Blade 3A Insertion",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "blade-3b-insertion",
+    "label": "Blade 3B Insertion",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "blade-4a-insertion",
+    "label": "Blade 4A Insertion",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "frost",
+    "label": "Frost",
+    "role": "frost",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blade-4b-insertion",
+    "label": "Blade 4B Insertion",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "blade-system-rotation",
+    "label": "Blade System Rotation",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0,
+    "min": -45,
+    "max": 45,
+    "unit": "deg"
+   },
+   {
+    "key": "maintenance-programs",
+    "label": "Maintenance / Programs",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 4,
+      "label": "NoFunction"
+     },
+     {
+      "from": 5,
+      "to": 9,
+      "label": "Display Off"
+     },
+     {
+      "from": 10,
+      "to": 14,
+      "label": "Display On"
+     },
+     {
+      "from": 15,
+      "to": 19,
+      "label": "Display Invert Off"
+     },
+     {
+      "from": 20,
+      "to": 24,
+      "label": "Display Invert On"
+     },
+     {
+      "from": 25,
+      "to": 29,
+      "label": "Auto fan control mode"
+     },
+     {
+      "from": 30,
+      "to": 34,
+      "label": "Stage fan control mode"
+     },
+     {
+      "from": 35,
+      "to": 39,
+      "label": "Studio fan control mode"
+     },
+     {
+      "from": 40,
+      "to": 44,
+      "label": "Silence fan control mode"
+     },
+     {
+      "from": 45,
+      "to": 49,
+      "label": "Square Law"
+     },
+     {
+      "from": 50,
+      "to": 54,
+      "label": "Linear"
+     },
+     {
+      "from": 55,
+      "to": 59,
+      "label": "1.2K"
+     },
+     {
+      "from": 60,
+      "to": 64,
+      "label": "2.4K"
+     },
+     {
+      "from": 65,
+      "to": 69,
+      "label": "16K"
+     },
+     {
+      "from": 70,
+      "to": 74,
+      "label": "Gobo correction Off"
+     },
+     {
+      "from": 75,
+      "to": 79,
+      "label": "Gobo correction On"
+     },
+     {
+      "from": 80,
+      "to": 84,
+      "label": "All motor reset"
+     },
+     {
+      "from": 85,
+      "to": 87,
+      "label": "Scan motor reset"
+     },
+     {
+      "from": 88,
+      "to": 90,
+      "label": "Colors motor reset"
+     },
+     {
+      "from": 91,
+      "to": 93,
+      "label": "Gobo motor reset"
+     },
+     {
+      "from": 94,
+      "to": 96,
+      "label": "NoFunction"
+     },
+     {
+      "from": 97,
+      "to": 99,
+      "label": "Other motor reset"
+     },
+     {
+      "from": 100,
+      "to": 119,
+      "label": "Internal program 1 (Scene 1…8 of EEPROM)"
+     },
+     {
+      "from": 120,
+      "to": 139,
+      "label": "Internal program 2 (Scene 9…16 of EEPROM)"
+     },
+     {
+      "from": 140,
+      "to": 159,
+      "label": "Internal program 3 (Scene 17…24 of EEPROM)"
+     },
+     {
+      "from": 160,
+      "to": 179,
+      "label": "Internal program 4 (Scene 25…32 of EEPROM)"
+     },
+     {
+      "from": 180,
+      "to": 199,
+      "label": "Internal program 5 (Scene 33…40 of EEPROM)"
+     },
+     {
+      "from": 200,
+      "to": 219,
+      "label": "Internal program 6 (Scene 41…48 of EEPROM)"
+     },
+     {
+      "from": 220,
+      "to": 239,
+      "label": "Internal program 7 (Scene 49…56 of EEPROM)"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "Internal program 8 (Scene 57…64 of EEPROM)"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "std",
+    "name": "Standard",
+    "footprint": 36,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "chase-pattern",
+      "byte": 0
+     },
+     {
+      "channelKey": "chase-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "chase-fade",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-focus",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "cyan",
+      "byte": 0
+     },
+     {
+      "channelKey": "magenta",
+      "byte": 0
+     },
+     {
+      "channelKey": "yellow",
+      "byte": 0
+     },
+     {
+      "channelKey": "cto",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "animation-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "iris",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "frost",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-1a-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-1b-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-2a-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-2b-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-3a-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-3b-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-4a-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-4b-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-system-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "maintenance-programs",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "bas",
+    "name": "Basic",
+    "footprint": 34,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "chase-pattern",
+      "byte": 0
+     },
+     {
+      "channelKey": "chase-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "chase-fade",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-focus",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "cyan",
+      "byte": 0
+     },
+     {
+      "channelKey": "magenta",
+      "byte": 0
+     },
+     {
+      "channelKey": "yellow",
+      "byte": 0
+     },
+     {
+      "channelKey": "cto",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "animation-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "iris",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "frost",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-1a-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-1b-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-2a-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-2b-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-3a-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-3b-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-4a-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-4b-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-system-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "maintenance-programs",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "ext",
+    "name": "Extended",
+    "footprint": 56,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "chase-pattern",
+      "byte": 0
+     },
+     {
+      "channelKey": "chase-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "chase-fade",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 1
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 1
+     },
+     {
+      "channelKey": "auto-focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-focus",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 1
+     },
+     {
+      "channelKey": "cyan",
+      "byte": 0
+     },
+     {
+      "channelKey": "cyan",
+      "byte": 1
+     },
+     {
+      "channelKey": "magenta",
+      "byte": 0
+     },
+     {
+      "channelKey": "magenta",
+      "byte": 1
+     },
+     {
+      "channelKey": "yellow",
+      "byte": 0
+     },
+     {
+      "channelKey": "yellow",
+      "byte": 1
+     },
+     {
+      "channelKey": "cto",
+      "byte": 0
+     },
+     {
+      "channelKey": "cto",
+      "byte": 1
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-rotation",
+      "byte": 1
+     },
+     {
+      "channelKey": "animation-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "iris",
+      "byte": 0
+     },
+     {
+      "channelKey": "iris",
+      "byte": 1
+     },
+     {
+      "channelKey": "prism",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-rotation",
+      "byte": 1
+     },
+     {
+      "channelKey": "frost",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-1a-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-1a-insertion",
+      "byte": 1
+     },
+     {
+      "channelKey": "blade-1b-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-1b-insertion",
+      "byte": 1
+     },
+     {
+      "channelKey": "blade-2a-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-2a-insertion",
+      "byte": 1
+     },
+     {
+      "channelKey": "blade-2b-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-2b-insertion",
+      "byte": 1
+     },
+     {
+      "channelKey": "blade-3a-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-3a-insertion",
+      "byte": 1
+     },
+     {
+      "channelKey": "blade-3b-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-3b-insertion",
+      "byte": 1
+     },
+     {
+      "channelKey": "blade-4a-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-4a-insertion",
+      "byte": 1
+     },
+     {
+      "channelKey": "blade-4b-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-4b-insertion",
+      "byte": 1
+     },
+     {
+      "channelKey": "blade-system-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-system-rotation",
+      "byte": 1
+     },
+     {
+      "channelKey": "maintenance-programs",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    364.9,
+    591.6,
+    210.6
+   ],
+   "weightKg": 21.8,
+   "powerW": 550,
+   "lensDegMin": 6.7,
+   "lensDegMax": 53
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "ayrton/diablo-s",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "ayrton/diablo-tc",
+  "manufacturer": "Ayrton",
+  "model": "Diablo-TC",
+  "aliases": [
+   "Ayrton Diablo-TC",
+   "AyrtonDiabloTC",
+   "Diablo-TC",
+   "ayrtondiablotc",
+   "diablotc"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 270,
+    "unit": "deg"
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan/Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 225,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 226,
+      "to": 235,
+      "label": "Blackout by movement"
+     },
+     {
+      "from": 236,
+      "to": 245,
+      "label": "Blackout by all wheel changing"
+     },
+     {
+      "from": 246,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "shutter-strobe",
+    "label": "Shutter / Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0.043137254901960784,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Closed"
+     },
+     {
+      "from": 11,
+      "to": 20,
+      "label": "Open"
+     },
+     {
+      "from": 21,
+      "to": 117,
+      "label": "Strobe"
+     },
+     {
+      "from": 118,
+      "to": 126,
+      "label": "Open"
+     },
+     {
+      "from": 127,
+      "to": 180,
+      "label": "Pulse"
+     },
+     {
+      "from": 181,
+      "to": 191,
+      "label": "Open"
+     },
+     {
+      "from": 192,
+      "to": 245,
+      "label": "Strobe"
+     },
+     {
+      "from": 246,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "chase-pattern",
+    "label": "Chase Pattern",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Chase 1"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "Chase 2"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "Chase 3"
+     },
+     {
+      "from": 40,
+      "to": 49,
+      "label": "Chase 4"
+     },
+     {
+      "from": 50,
+      "to": 255,
+      "label": "Reserved"
+     }
+    ]
+   },
+   {
+    "key": "chase-speed",
+    "label": "Chase Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 125,
+      "label": "EffectSpeed"
+     },
+     {
+      "from": 126,
+      "to": 130,
+      "label": "EffectSpeed"
+     },
+     {
+      "from": 131,
+      "to": 255,
+      "label": "EffectSpeed"
+     }
+    ]
+   },
+   {
+    "key": "chase-fade",
+    "label": "Chase Fade",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "zoom",
+    "label": "Zoom",
+    "role": "zoom",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "focus",
+    "label": "Focus",
+    "role": "focus",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "auto-focus",
+    "label": "Auto Focus",
+    "role": "focus",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 50,
+      "label": "NoFunction"
+     },
+     {
+      "from": 51,
+      "to": 100,
+      "label": "Focus"
+     },
+     {
+      "from": 101,
+      "to": 150,
+      "label": "Focus"
+     },
+     {
+      "from": 151,
+      "to": 200,
+      "label": "Focus"
+     },
+     {
+      "from": 201,
+      "to": 255,
+      "label": "Focus"
+     }
+    ]
+   },
+   {
+    "key": "color-wheel",
+    "label": "Color Wheel",
+    "role": "colorWheel",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 3,
+      "label": "Open"
+     },
+     {
+      "from": 4,
+      "to": 7,
+      "label": "CTB",
+      "color": "#7db0db"
+     },
+     {
+      "from": 8,
+      "to": 11,
+      "label": "Magenta",
+      "color": "#a3639c"
+     },
+     {
+      "from": 12,
+      "to": 15,
+      "label": "Congo Blue",
+      "color": "#1a3885"
+     },
+     {
+      "from": 16,
+      "to": 19,
+      "label": "Green",
+      "color": "#00a13b"
+     },
+     {
+      "from": 20,
+      "to": 23,
+      "label": "Orange",
+      "color": "#e87817"
+     },
+     {
+      "from": 24,
+      "to": 27,
+      "label": "Blue",
+      "color": "#0091fa"
+     },
+     {
+      "from": 28,
+      "to": 31,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 32,
+      "to": 127,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 128,
+      "to": 189,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 190,
+      "to": 193,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 194,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "cyan",
+    "label": "Cyan",
+    "role": "cyan",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "magenta",
+    "label": "Magenta",
+    "role": "magenta",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "yellow",
+    "label": "Yellow",
+    "role": "yellow",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "cto",
+    "label": "CTO",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "gobo-wheel",
+    "label": "Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Open"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Gobo"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "Gobo"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "Gobo"
+     },
+     {
+      "from": 40,
+      "to": 49,
+      "label": "Gobo"
+     },
+     {
+      "from": 50,
+      "to": 59,
+      "label": "Gobo"
+     },
+     {
+      "from": 60,
+      "to": 69,
+      "label": "Gobo"
+     },
+     {
+      "from": 70,
+      "to": 77,
+      "label": "Gobo"
+     },
+     {
+      "from": 78,
+      "to": 93,
+      "label": "Gobo"
+     },
+     {
+      "from": 94,
+      "to": 109,
+      "label": "Gobo"
+     },
+     {
+      "from": 110,
+      "to": 125,
+      "label": "Gobo"
+     },
+     {
+      "from": 126,
+      "to": 141,
+      "label": "Gobo"
+     },
+     {
+      "from": 142,
+      "to": 157,
+      "label": "Gobo"
+     },
+     {
+      "from": 158,
+      "to": 173,
+      "label": "Gobo"
+     },
+     {
+      "from": 174,
+      "to": 189,
+      "label": "Gobo"
+     },
+     {
+      "from": 190,
+      "to": 221,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 222,
+      "to": 223,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "gobo-rotation",
+    "label": "Gobo Rotation",
+    "role": "goboRotation",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 128,
+      "to": 189,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 190,
+      "to": 193,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 194,
+      "to": 255,
+      "label": "WheelSlotRotation"
+     }
+    ]
+   },
+   {
+    "key": "animation-wheel",
+    "label": "Animation Wheel",
+    "role": "goboRotation",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Open"
+     },
+     {
+      "from": 8,
+      "to": 127,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 128,
+      "to": 135,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 136,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "iris",
+    "label": "Iris",
+    "role": "iris",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 191,
+      "label": "Iris"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "Pulse closing"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "Pulse opening"
+     }
+    ]
+   },
+   {
+    "key": "prism",
+    "label": "Prism",
+    "role": "prism",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "NoFunction"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "5-facet"
+     }
+    ]
+   },
+   {
+    "key": "prism-rotation",
+    "label": "Prism Rotation",
+    "role": "prismRotation",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 128,
+      "to": 189,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 190,
+      "to": 193,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 194,
+      "to": 255,
+      "label": "PrismRotation"
+     }
+    ]
+   },
+   {
+    "key": "blade-1a-insertion",
+    "label": "Blade 1A Insertion",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "blade-1b-insertion",
+    "label": "Blade 1B Insertion",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "blade-2a-insertion",
+    "label": "Blade 2A Insertion",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "blade-2b-insertion",
+    "label": "Blade 2B Insertion",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "blade-3a-insertion",
+    "label": "Blade 3A Insertion",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "blade-3b-insertion",
+    "label": "Blade 3B Insertion",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "blade-4a-insertion",
+    "label": "Blade 4A Insertion",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "frost",
+    "label": "Frost",
+    "role": "frost",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blade-4b-insertion",
+    "label": "Blade 4B Insertion",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "blade-system-rotation",
+    "label": "Blade System Rotation",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0,
+    "min": -45,
+    "max": 45,
+    "unit": "deg"
+   },
+   {
+    "key": "maintenance-programs",
+    "label": "Maintenance / Programs",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 4,
+      "label": "NoFunction"
+     },
+     {
+      "from": 5,
+      "to": 9,
+      "label": "Display Off"
+     },
+     {
+      "from": 10,
+      "to": 14,
+      "label": "Display On"
+     },
+     {
+      "from": 15,
+      "to": 19,
+      "label": "Display Invert Off"
+     },
+     {
+      "from": 20,
+      "to": 24,
+      "label": "Display Invert On"
+     },
+     {
+      "from": 25,
+      "to": 29,
+      "label": "Auto fan control mode"
+     },
+     {
+      "from": 30,
+      "to": 34,
+      "label": "Stage fan control mode"
+     },
+     {
+      "from": 35,
+      "to": 39,
+      "label": "Studio fan control mode"
+     },
+     {
+      "from": 40,
+      "to": 44,
+      "label": "Silence fan control mode"
+     },
+     {
+      "from": 45,
+      "to": 49,
+      "label": "Square Law"
+     },
+     {
+      "from": 50,
+      "to": 54,
+      "label": "Linear"
+     },
+     {
+      "from": 55,
+      "to": 59,
+      "label": "1.2K"
+     },
+     {
+      "from": 60,
+      "to": 64,
+      "label": "2.4K"
+     },
+     {
+      "from": 65,
+      "to": 69,
+      "label": "16K"
+     },
+     {
+      "from": 70,
+      "to": 74,
+      "label": "Gobo correction Off"
+     },
+     {
+      "from": 75,
+      "to": 79,
+      "label": "Gobo correction On"
+     },
+     {
+      "from": 80,
+      "to": 84,
+      "label": "All motor reset"
+     },
+     {
+      "from": 85,
+      "to": 87,
+      "label": "Scan motor reset"
+     },
+     {
+      "from": 88,
+      "to": 90,
+      "label": "Colors motor reset"
+     },
+     {
+      "from": 91,
+      "to": 93,
+      "label": "Gobo motor reset"
+     },
+     {
+      "from": 94,
+      "to": 96,
+      "label": "NoFunction"
+     },
+     {
+      "from": 97,
+      "to": 99,
+      "label": "Other motor reset"
+     },
+     {
+      "from": 100,
+      "to": 119,
+      "label": "Internal program 1 (Scene 1…8 of EEPROM)"
+     },
+     {
+      "from": 120,
+      "to": 139,
+      "label": "Internal program 2 (Scene 9…16 of EEPROM)"
+     },
+     {
+      "from": 140,
+      "to": 159,
+      "label": "Internal program 3 (Scene 17…24 of EEPROM)"
+     },
+     {
+      "from": 160,
+      "to": 179,
+      "label": "Internal program 4 (Scene 25…32 of EEPROM)"
+     },
+     {
+      "from": 180,
+      "to": 199,
+      "label": "Internal program 5 (Scene 33…40 of EEPROM)"
+     },
+     {
+      "from": 200,
+      "to": 219,
+      "label": "Internal program 6 (Scene 41…48 of EEPROM)"
+     },
+     {
+      "from": 220,
+      "to": 239,
+      "label": "Internal program 7 (Scene 49…56 of EEPROM)"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "Internal program 8 (Scene 57…64 of EEPROM)"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "std",
+    "name": "Standard",
+    "footprint": 36,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "chase-pattern",
+      "byte": 0
+     },
+     {
+      "channelKey": "chase-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "chase-fade",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-focus",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "cyan",
+      "byte": 0
+     },
+     {
+      "channelKey": "magenta",
+      "byte": 0
+     },
+     {
+      "channelKey": "yellow",
+      "byte": 0
+     },
+     {
+      "channelKey": "cto",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "animation-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "iris",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "frost",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-1a-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-1b-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-2a-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-2b-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-3a-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-3b-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-4a-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-4b-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-system-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "maintenance-programs",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "bas",
+    "name": "Basic",
+    "footprint": 34,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "chase-pattern",
+      "byte": 0
+     },
+     {
+      "channelKey": "chase-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "chase-fade",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-focus",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "cyan",
+      "byte": 0
+     },
+     {
+      "channelKey": "magenta",
+      "byte": 0
+     },
+     {
+      "channelKey": "yellow",
+      "byte": 0
+     },
+     {
+      "channelKey": "cto",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "animation-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "iris",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "frost",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-1a-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-1b-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-2a-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-2b-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-3a-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-3b-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-4a-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-4b-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-system-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "maintenance-programs",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "ext",
+    "name": "Extended",
+    "footprint": 56,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "chase-pattern",
+      "byte": 0
+     },
+     {
+      "channelKey": "chase-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "chase-fade",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 1
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 1
+     },
+     {
+      "channelKey": "auto-focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-focus",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 1
+     },
+     {
+      "channelKey": "cyan",
+      "byte": 0
+     },
+     {
+      "channelKey": "cyan",
+      "byte": 1
+     },
+     {
+      "channelKey": "magenta",
+      "byte": 0
+     },
+     {
+      "channelKey": "magenta",
+      "byte": 1
+     },
+     {
+      "channelKey": "yellow",
+      "byte": 0
+     },
+     {
+      "channelKey": "yellow",
+      "byte": 1
+     },
+     {
+      "channelKey": "cto",
+      "byte": 0
+     },
+     {
+      "channelKey": "cto",
+      "byte": 1
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-rotation",
+      "byte": 1
+     },
+     {
+      "channelKey": "animation-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "iris",
+      "byte": 0
+     },
+     {
+      "channelKey": "iris",
+      "byte": 1
+     },
+     {
+      "channelKey": "prism",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-rotation",
+      "byte": 1
+     },
+     {
+      "channelKey": "frost",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-1a-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-1a-insertion",
+      "byte": 1
+     },
+     {
+      "channelKey": "blade-1b-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-1b-insertion",
+      "byte": 1
+     },
+     {
+      "channelKey": "blade-2a-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-2a-insertion",
+      "byte": 1
+     },
+     {
+      "channelKey": "blade-2b-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-2b-insertion",
+      "byte": 1
+     },
+     {
+      "channelKey": "blade-3a-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-3a-insertion",
+      "byte": 1
+     },
+     {
+      "channelKey": "blade-3b-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-3b-insertion",
+      "byte": 1
+     },
+     {
+      "channelKey": "blade-4a-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-4a-insertion",
+      "byte": 1
+     },
+     {
+      "channelKey": "blade-4b-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-4b-insertion",
+      "byte": 1
+     },
+     {
+      "channelKey": "blade-system-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade-system-rotation",
+      "byte": 1
+     },
+     {
+      "channelKey": "maintenance-programs",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    364.9,
+    591.6,
+    210.6
+   ],
+   "weightKg": 21.8,
+   "powerW": 550,
+   "lensDegMin": 6.7,
+   "lensDegMax": 53
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "ayrton/diablo-tc",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

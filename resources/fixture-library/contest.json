@@ -1,0 +1,1202 @@
+[
+ {
+  "id": "contest/irled64-18x12six",
+  "manufacturer": "Contest",
+  "model": "irLED64 18x12SIX",
+  "aliases": [
+   "Contest irLED64 18x12SIX",
+   "contestirled6418x12six",
+   "irLED64 18x12SIX",
+   "irled6418x12six"
+  ],
+  "categories": [
+   "Dimmer",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "uv",
+    "label": "UV",
+    "role": "uv",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer-strobe",
+    "label": "Dimmer / Strobe",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 189,
+      "label": "Intensity"
+     },
+     {
+      "from": 190,
+      "to": 250,
+      "label": "Strobe"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "Open (Full power)"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "program",
+    "label": "Program",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "Off",
+      "color": "#000000"
+     },
+     {
+      "from": 6,
+      "to": 10,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 11,
+      "to": 15,
+      "label": "Orange",
+      "color": "#ff7f00"
+     },
+     {
+      "from": 16,
+      "to": 20,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 21,
+      "to": 25,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 26,
+      "to": 30,
+      "label": "Cyan",
+      "color": "#00ffff"
+     },
+     {
+      "from": 31,
+      "to": 35,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 36,
+      "to": 40,
+      "label": "Pink",
+      "color": "#ff007f"
+     },
+     {
+      "from": 41,
+      "to": 45,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 46,
+      "to": 50,
+      "label": "Cold White"
+     },
+     {
+      "from": 51,
+      "to": 55,
+      "label": "Warm White"
+     },
+     {
+      "from": 56,
+      "to": 60,
+      "label": "Full White"
+     },
+     {
+      "from": 61,
+      "to": 65,
+      "label": "Light Pink"
+     },
+     {
+      "from": 66,
+      "to": 70,
+      "label": "Light Apricot"
+     },
+     {
+      "from": 71,
+      "to": 75,
+      "label": "Light Ocre"
+     },
+     {
+      "from": 76,
+      "to": 80,
+      "label": "Green Pearl"
+     },
+     {
+      "from": 81,
+      "to": 85,
+      "label": "Grey Pearl"
+     },
+     {
+      "from": 86,
+      "to": 90,
+      "label": "Green Vernoese"
+     },
+     {
+      "from": 91,
+      "to": 95,
+      "label": "Blue Lagon"
+     },
+     {
+      "from": 96,
+      "to": 100,
+      "label": "Sky Blue"
+     },
+     {
+      "from": 101,
+      "to": 105,
+      "label": "Light Blue"
+     },
+     {
+      "from": 106,
+      "to": 110,
+      "label": "Cerulean Blue"
+     },
+     {
+      "from": 111,
+      "to": 115,
+      "label": "Fluo"
+     },
+     {
+      "from": 116,
+      "to": 120,
+      "label": "Candy"
+     },
+     {
+      "from": 121,
+      "to": 125,
+      "label": "Amber",
+      "color": "#ffbf00"
+     },
+     {
+      "from": 126,
+      "to": 130,
+      "label": "Sunset"
+     },
+     {
+      "from": 131,
+      "to": 135,
+      "label": "Ultra Violet",
+      "color": "#8800ff"
+     },
+     {
+      "from": 136,
+      "to": 140,
+      "label": "Ultra Green"
+     },
+     {
+      "from": 141,
+      "to": 145,
+      "label": "Ultra Blue"
+     },
+     {
+      "from": 146,
+      "to": 150,
+      "label": "Ultra Pink"
+     },
+     {
+      "from": 151,
+      "to": 155,
+      "label": "Ultra Light"
+     },
+     {
+      "from": 156,
+      "to": 160,
+      "label": "Macro 1"
+     },
+     {
+      "from": 161,
+      "to": 165,
+      "label": "Macro 2"
+     },
+     {
+      "from": 166,
+      "to": 170,
+      "label": "Macro 3"
+     },
+     {
+      "from": 171,
+      "to": 175,
+      "label": "Macro 4"
+     },
+     {
+      "from": 176,
+      "to": 180,
+      "label": "Macro 5"
+     },
+     {
+      "from": 181,
+      "to": 185,
+      "label": "Macro 6"
+     },
+     {
+      "from": 186,
+      "to": 190,
+      "label": "Macro 7"
+     },
+     {
+      "from": 191,
+      "to": 195,
+      "label": "Macro 8"
+     },
+     {
+      "from": 196,
+      "to": 200,
+      "label": "Macro 9"
+     },
+     {
+      "from": 201,
+      "to": 205,
+      "label": "Macro 10"
+     },
+     {
+      "from": 206,
+      "to": 210,
+      "label": "Macro 11"
+     },
+     {
+      "from": 211,
+      "to": 215,
+      "label": "Macro 12"
+     },
+     {
+      "from": 216,
+      "to": 220,
+      "label": "Macro 13"
+     },
+     {
+      "from": 221,
+      "to": 225,
+      "label": "Macro 14"
+     },
+     {
+      "from": 226,
+      "to": 233,
+      "label": "Music-sensitive Macro 1"
+     },
+     {
+      "from": 234,
+      "to": 241,
+      "label": "Music-sensitive Macro 7"
+     },
+     {
+      "from": 242,
+      "to": 249,
+      "label": "Music-sensitive Macro 11"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Music-sensitive Macro 14"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "2ch",
+    "name": "2-channel",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "program",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "4ch",
+    "name": "4-channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "5ch",
+    "name": "5-channel",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "6ch",
+    "name": "6-channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "7ch",
+    "name": "7-channel",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "8ch",
+    "name": "8-channel",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "9ch",
+    "name": "9-channel",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "program",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    340,
+    270,
+    220
+   ],
+   "weightKg": 5.4,
+   "powerW": 240,
+   "lensDegMin": 40,
+   "lensDegMax": 40
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "contest/irled64-18x12six",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "contest/irledflat-5x12SIXb",
+  "manufacturer": "Contest",
+  "model": "IrLEDFLAT 5x12SIXb",
+  "aliases": [
+   "Contest IrLEDFLAT 5x12SIXb",
+   "IrLEDFLAT 5x12SIXb",
+   "contestirledflat5x12sixb",
+   "irledflat5x12sixb"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "uv",
+    "label": "UV",
+    "role": "uv",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer-strobe",
+    "label": "Dimmer / Strobe",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 189,
+      "label": "Intensity"
+     },
+     {
+      "from": 190,
+      "to": 250,
+      "label": "Strobe"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "Intensity"
+     }
+    ]
+   },
+   {
+    "key": "macros",
+    "label": "Macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "NoFunction"
+     },
+     {
+      "from": 6,
+      "to": 10,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 11,
+      "to": 15,
+      "label": "Orange",
+      "color": "#ffaa00"
+     },
+     {
+      "from": 16,
+      "to": 20,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 21,
+      "to": 25,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 26,
+      "to": 30,
+      "label": "Cyan",
+      "color": "#00ffff"
+     },
+     {
+      "from": 31,
+      "to": 35,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 36,
+      "to": 40,
+      "label": "Pink",
+      "color": "#faadf0"
+     },
+     {
+      "from": 41,
+      "to": 45,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 46,
+      "to": 50,
+      "label": "cold (White)",
+      "color": "#ffffff"
+     },
+     {
+      "from": 51,
+      "to": 55,
+      "label": "warm (White)",
+      "color": "#ffffff"
+     },
+     {
+      "from": 56,
+      "to": 60,
+      "label": "Full White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 61,
+      "to": 65,
+      "label": "Light Pink",
+      "color": "#ffc8d2"
+     },
+     {
+      "from": 66,
+      "to": 70,
+      "label": "Light Apricot",
+      "color": "#fdd5b1"
+     },
+     {
+      "from": 71,
+      "to": 75,
+      "label": "Light Ocre",
+      "color": "#e1b150"
+     },
+     {
+      "from": 76,
+      "to": 80,
+      "label": "Green Pearl",
+      "color": "#134d24"
+     },
+     {
+      "from": 81,
+      "to": 85,
+      "label": "Grey Pearl",
+      "color": "#dee2d9"
+     },
+     {
+      "from": 86,
+      "to": 90,
+      "label": "Green Veronese",
+      "color": "#009b7d"
+     },
+     {
+      "from": 91,
+      "to": 95,
+      "label": "Blue Lagon",
+      "color": "#03787c"
+     },
+     {
+      "from": 96,
+      "to": 100,
+      "label": "Sky Blue",
+      "color": "#46b4f0"
+     },
+     {
+      "from": 101,
+      "to": 105,
+      "label": "Light Blue",
+      "color": "#00e1eb"
+     },
+     {
+      "from": 106,
+      "to": 110,
+      "label": "Cerulean Blue",
+      "color": "#2a52be"
+     },
+     {
+      "from": 111,
+      "to": 115,
+      "label": "Fluo"
+     },
+     {
+      "from": 116,
+      "to": 120,
+      "label": "Candy"
+     },
+     {
+      "from": 121,
+      "to": 125,
+      "label": "Amber",
+      "color": "#ffbf00"
+     },
+     {
+      "from": 126,
+      "to": 130,
+      "label": "Sunset",
+      "color": "#fad6a5"
+     },
+     {
+      "from": 131,
+      "to": 135,
+      "label": "Ultra violet",
+      "color": "#3e0694"
+     },
+     {
+      "from": 136,
+      "to": 140,
+      "label": "Ultra Green"
+     },
+     {
+      "from": 141,
+      "to": 145,
+      "label": "Ultra blue"
+     },
+     {
+      "from": 146,
+      "to": 150,
+      "label": "Ultra Pink"
+     },
+     {
+      "from": 151,
+      "to": 155,
+      "label": "Ultra Light"
+     },
+     {
+      "from": 156,
+      "to": 160,
+      "label": "Macro 1"
+     },
+     {
+      "from": 161,
+      "to": 165,
+      "label": "Macro 2"
+     },
+     {
+      "from": 166,
+      "to": 170,
+      "label": "Macro 3"
+     },
+     {
+      "from": 171,
+      "to": 175,
+      "label": "Macro 4"
+     },
+     {
+      "from": 176,
+      "to": 180,
+      "label": "Macro 5"
+     },
+     {
+      "from": 181,
+      "to": 185,
+      "label": "Macro 6"
+     },
+     {
+      "from": 186,
+      "to": 190,
+      "label": "Macro 7"
+     },
+     {
+      "from": 191,
+      "to": 195,
+      "label": "Macro 8"
+     },
+     {
+      "from": 196,
+      "to": 200,
+      "label": "Macro 9"
+     },
+     {
+      "from": 201,
+      "to": 205,
+      "label": "Macro 10"
+     },
+     {
+      "from": 206,
+      "to": 210,
+      "label": "Macro 11"
+     },
+     {
+      "from": 211,
+      "to": 215,
+      "label": "Macro 12"
+     },
+     {
+      "from": 216,
+      "to": 220,
+      "label": "Macro 13"
+     },
+     {
+      "from": 221,
+      "to": 225,
+      "label": "Macro 14"
+     },
+     {
+      "from": 226,
+      "to": 233,
+      "label": "Macro 1 music-sensitive"
+     },
+     {
+      "from": 234,
+      "to": 241,
+      "label": "Macro 7 music-sensitive"
+     },
+     {
+      "from": 242,
+      "to": 249,
+      "label": "Macro 11 music-sensitive"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Macro 14 music-sensitive"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "d2",
+    "name": "Macros / Dimmer",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "f4",
+    "name": "RGBD",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "g5",
+    "name": "RGBDW",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "a6",
+    "name": "RGBWAUV",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "b7",
+    "name": "RGBWAUV / Dimmer and Strobe",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "c8",
+    "name": "RGBWAUV / Dimmer / Strobe",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "e9",
+    "name": "RGBWAUV / Dimmer / Strobe / Macros",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "macros",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    240,
+    265,
+    110
+   ],
+   "weightKg": 2.8,
+   "powerW": 80,
+   "lensDegMin": 40,
+   "lensDegMax": 40
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "contest/irledflat-5x12SIXb",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

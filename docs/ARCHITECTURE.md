@@ -87,8 +87,10 @@ the left rail), and it declares the whole workbench — browser column, viewport
 sections and the action bar. A context is a **manifest of panel ids**; it owns no components, so a plugin
 can `contextRegistry.extend()` a context it does not own. `WorkspaceShell` imports zero panels; panels
 read state via `useEditor()/useEditorActions()` (`state/EditorStore.tsx`) — **but App still owns all
-state and every mutation**. Core registers **eleven contexts** (Mapping, 3D, Projection, Calibration,
-Timeline, Scenes, Preferences, Show Machine, Audio, Tracking, Show). `Stage` and the single `TimelinePanel`
+state and every mutation**. Core registers **nine contexts** (Mapping, Venue & Rig, Projection,
+Calibration, Scenes & Cues, Show Machine, Audio, Show, Preferences). The **timeline is not one of them**:
+it is a full-width **bottom drawer** (`Ctrl+T`) that eight of the nine can pull up, because it is a tool
+you want *while* working in a viewport, not a place you travel to. `Stage` and the single `TimelinePanel`
 are **persistent viewport elements** hidden with CSS, never unmounted (unmounting `Stage` stops
 `dmx:frame` mid-show). Canonical: [WORKSPACE.md](WORKSPACE.md).
 

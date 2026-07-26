@@ -13,6 +13,8 @@ import { collectSnapPoints, snap, type SnapPoint } from './snapping';
 import { AudioLane, type AudioDragMode } from './AudioLane';
 import { ensurePeaks, probeAudioDuration, sourceDurationFor } from './audioPeaks';
 import { TimelineToolbar } from './TimelineToolbar';
+import { LightingClipInspector } from './LightingClipInspector';
+import * as lightingRecorder from '../../services/lightingRecorder';
 import { TimelineRuler } from './TimelineRuler';
 import { TrackHeader } from './TrackHeader';
 import { Lane } from './Lane';
@@ -20,7 +22,7 @@ import { StateLane } from './StateLane';
 import { AutomationLane, AUTO_LANE_H } from './AutomationLane';
 import { AutomationTargetPicker } from './AutomationTargetPicker';
 import { automationTargetRegistry } from '../../host/registries';
-import type { AutomationLane as AutoLane } from '../../types';
+import type { AutomationLane as AutoLane, FixtureGroup, LightingClip } from '../../types';
 
 // A lane as the PANEL sees it. `origin` is where the lane LIVES (and therefore which clock it rides);
 // `shadowed` means a scene lane owns the same targetPath, so this global one is not applying right now.
@@ -50,6 +52,16 @@ interface Props {
   projectPath?: string | null; // when set, recorded takes are copied into the project's assets/tracking
   onRegisterAsset?: (entry: AssetEntry) => void; // a file dropped onto a lane is imported + added to the library
   scenes?: { id: string; name: string }[]; // for the FSM 'recallScene' action picker
+  /**
+   * Fixture groups, for a LIGHTING clip's target picker. A clip names a group, not a fixture list,
+   * because the group's ORDER is the axis a phase spread runs along — see docs/LIGHTING-SHOW.md.
+   */
+  fixtureGroups?: FixtureGroup[];
+  /**
+   * The fixtures currently selected, IN SELECTION ORDER — what a recorded take captures, and the
+   * order its parts (and therefore any later phase spread) run along.
+   */
+  selectedFixtureIds?: string[];
   cues?: { id: string; name: string }[];   // for the FSM 'fireCue' action picker
   // Per-state authoring context: which scene's timeline is bound to the editor, the scene list for the
   // pill, and the trigger→build→save→continue handlers. Absent → plain global-timeline editing.
@@ -84,7 +96,7 @@ export interface AuthorContext {
 // (top-bar play) drives the engine — the playback clock. Edits commit to project state via
 // onChange; the live playhead/time are read from the engine render-free. Layout is a single
 // vertical scroller with a sticky track-header gutter and a sticky timecode ruler.
-export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, onStateMachineChange, playing, onTogglePlay, maximized = false, onToggleMax, projectPath, onRegisterAsset, scenes = [], cues = [], author, audio: audioProp, baseAutomation = [] }) => {
+export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, onStateMachineChange, playing, onTogglePlay, maximized = false, onToggleMax, projectPath, onRegisterAsset, scenes = [], cues = [], fixtureGroups = [], selectedFixtureIds = [], author, audio: audioProp, baseAutomation = [] }) => {
   const [pxPerSec, setPxPerSec] = useState(40);
   const [pillOpen, setPillOpen] = useState(false); // scene/state selector dropdown
   const [selected, setSelected] = useState<string | null>(null);
@@ -945,6 +957,58 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   const hasTrackingLane = layers.some(l => l.kind === 'tracking');
   const addTrackingLane = () => { if (!hasTrackingLane) onChange({ ...timeline, layers: [...layers, { id: crypto.randomUUID(), name: 'Tracking', kind: 'tracking', color: '#7ed321', enabled: true }] }); };
   const startRecord = () => { if (!trackingRecorder.start()) console.warn('[timeline] cannot record now (a take is playing)'); };
+
+  // --- lighting clips: movement instanced onto a fixture group (docs/LIGHTING-SHOW.md) ---
+  const hasLightingLane = layers.some(l => l.kind === 'lighting');
+  const addLightingLane = () => {
+    if (hasLightingLane) return;
+    onChange({ ...timeline, layers: [...layers, { id: crypto.randomUUID(), name: 'Lighting', kind: 'lighting', color: '#f5a623', enabled: true }] });
+  };
+  // Recording a movement off the live rig. Independent of the transport — you busk the look, stop,
+  // and the take appears in the bin ready to place. See services/lightingRecorder.
+  const startLightingRecord = () => {
+    if (!lightingRecorder.start(selectedFixtureIds)) {
+      console.warn('[timeline] cannot record: select fixtures first, and stop any lighting clip driving them');
+    }
+  };
+  const stopLightingRecord = () => {
+    const tl = timelineRef.current;
+    const take = lightingRecorder.stop(nextNumberedName('Move', tl.lightingTakes ?? []));
+    if (!take) { console.warn('[timeline] nothing moved — no take recorded'); return; }
+    onChangeRef.current({ ...tl, lightingTakes: [...(tl.lightingTakes ?? []), take] });
+  };
+  const removeLightingTake = (id: string) => {
+    const tl = timelineRef.current;
+    onChangeRef.current({
+      ...tl,
+      lightingTakes: (tl.lightingTakes ?? []).filter(t => t.id !== id),
+      // A clip pointing at a deleted take would silently drive nothing; drop it back to a generated
+      // movement so the clip stays meaningful instead of becoming an invisible no-op.
+      clips: tl.clips.map(c => (c.kind === 'lighting' && c.lighting?.takeId === id
+        ? { ...c, lighting: { ...c.lighting, takeId: undefined, effect: c.lighting.effect ?? { form: 'sine' as const, role: 'pan' as const, centre: 270, amplitude: 60, periodSec: 4 } } }
+        : c)),
+    });
+  };
+
+  /**
+   * Drop a new lighting clip on the lane.
+   *
+   * It is created with a GENERATED movement, not an empty shell. A clip that does nothing until you
+   * have recorded a take is a dead end the first time anyone tries the feature; a slow pan sine is
+   * immediately visible in 3D and on the wire, and is the thing most people want first anyway.
+   */
+  const addLightingClip = (layerId: string, start: number) => {
+    const tl = timelineRef.current;
+    const clip: VideoClip = {
+      id: crypto.randomUUID(), layerId, name: 'Pan sweep', path: '', kind: 'lighting',
+      start, duration: 8, inPoint: 0,
+      lighting: {
+        effect: { form: 'sine', role: 'pan', centre: 270, amplitude: 60, periodSec: 4 },
+        groupId: undefined, phase: 0.25, phaseMode: 'spread',
+      },
+    };
+    onChangeRef.current({ ...tl, clips: [...tl.clips, clip] });
+  };
   // ⚠ THE COMMIT RUNS AFTER TWO AWAITS — a disk write and an asset import. Same door as `place()` above:
   // the world moves under it. `onChangeRef`/`timelineRef` are read AT COMMIT TIME, so they name WHATEVER IS
   // BOUND NOW — and a take recorded against Global, or against scene A, lands its `trackingTakes` entry AND
@@ -1176,7 +1240,12 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   const [contentMenu, setContentMenu] = useState<{ layerId: string; start: number; x: number; y: number } | null>(null);
   const openContentMenu = (e: React.MouseEvent, layerId: string) => {
     const layer = timelineRef.current.layers.find(l => l.id === layerId);
-    if (!layer || layer.kind === 'tracking' || layer.locked) return; // tracking lanes take recorded takes only
+    if (!layer || layer.locked) return;
+    // A LIGHTING lane has no source picker to show — there is nothing to choose between, because a
+    // movement is generated rather than loaded. Right-click (the established "add something here"
+    // gesture on an empty lane) therefore creates the clip directly.
+    if (layer.kind === 'lighting') { e.preventDefault(); addLightingClip(layerId, Math.max(0, clientXToTime(e.clientX))); return; }
+    if (layer.kind === 'tracking') return; // tracking lanes take recorded takes only
     e.preventDefault();
     setContentMenu({ layerId, start: Math.max(0, clientXToTime(e.clientX)), x: e.clientX, y: e.clientY });
   };
@@ -1191,6 +1260,11 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     setContentMenu(null);
   };
   // Edit the selected content clip's source config from the clip inspector.
+  /** Patch a lighting clip's instancing parameters. */
+  const patchLighting = (id: string, patch: Partial<LightingClip>) => onChangeRef.current({
+    ...timelineRef.current,
+    clips: timelineRef.current.clips.map(c => c.id === id ? { ...c, lighting: { ...(c.lighting ?? {}), ...patch } } : c),
+  });
   const patchClipContent = (id: string, patch: Partial<SurfaceContent>) => onChangeRef.current({
     ...timelineRef.current,
     clips: timelineRef.current.clips.map(c => c.id === id
@@ -1357,6 +1431,10 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
         takes={timeline.trackingTakes ?? []} hasTrackingLane={hasTrackingLane}
         onStartRecord={startRecord} onStopRecord={stopRecord}
         onAddTrackingLane={addTrackingLane} onRemoveTake={removeTake}
+        hasLightingLane={hasLightingLane} onAddLightingLane={addLightingLane}
+        lightingTakes={timeline.lightingTakes ?? []} selectedFixtureCount={selectedFixtureIds.length}
+        onStartLightingRecord={startLightingRecord} onStopLightingRecord={stopLightingRecord}
+        onRemoveLightingTake={removeLightingTake}
       />
 
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto relative">
@@ -1560,10 +1638,20 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
         </div>
       )}
 
+      {selectedClip && selectedClip.kind === 'lighting' && (
+        <LightingClipInspector
+          clip={selectedClip}
+          groups={fixtureGroups}
+          takes={timeline.lightingTakes ?? []}
+          onChange={(patch) => patchLighting(selectedClip.id, patch)}
+          onClose={() => setSelected(null)}
+        />
+      )}
+
       {/* Inspector for a selected PATH-BASED VIDEO clip — the only kind that carries a soundtrack. A
           generalized-content clip (Spout/NDI/camera/effect) has no file to conform, and a tracking clip is
           blob data; both are excluded here exactly as they are in the derivation. */}
-      {selectedClip && !isContentClip(selectedClip) && selectedClip.kind !== 'tracking' && !!selectedClip.path && (
+      {selectedClip && !isContentClip(selectedClip) && selectedClip.kind !== 'tracking' && selectedClip.kind !== 'lighting' && !!selectedClip.path && (
         <div className="absolute top-2 right-2 z-30 w-60 bg-surface-1/95 backdrop-blur-sm border border-line-1 rounded-md p-2.5 shadow-e2 space-y-2"
           onPointerDown={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between">

@@ -1,0 +1,198 @@
+[
+ {
+  "id": "gantom/precision-dmx",
+  "manufacturer": "Gantom",
+  "model": "Precision DMX",
+  "aliases": [
+   "Gantom Precision DMX",
+   "Precision DMX",
+   "gantomprecisiondmx",
+   "precisiondmx"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-macros",
+    "label": "Color Macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "NoFunction"
+     },
+     {
+      "from": 32,
+      "to": 255,
+      "label": "ColorPreset"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "built-in-functions",
+    "label": "Built-in Functions",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 31,
+      "label": "NoFunction"
+     },
+     {
+      "from": 32,
+      "to": 71,
+      "label": "RampUp"
+     },
+     {
+      "from": 72,
+      "to": 111,
+      "label": "RampDown"
+     },
+     {
+      "from": 112,
+      "to": 151,
+      "label": "Pulse"
+     },
+     {
+      "from": 152,
+      "to": 191,
+      "label": "ColorFade"
+     },
+     {
+      "from": 192,
+      "to": 231,
+      "label": "ColorJump (red, green, blue)"
+     },
+     {
+      "from": 232,
+      "to": 250,
+      "label": "ColorJump (6-color)"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "Candle Flicker"
+     }
+    ]
+   },
+   {
+    "key": "master-dimmer",
+    "label": "Master Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "3ch",
+    "name": "3-channel",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "7ch",
+    "name": "7-channel",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "built-in-functions",
+      "byte": 0
+     },
+     {
+      "channelKey": "master-dimmer",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    44.5,
+    52.5,
+    52
+   ],
+   "powerW": 3.8,
+   "lensDegMin": 21,
+   "lensDegMax": 21
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "gantom/precision-dmx",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

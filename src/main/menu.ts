@@ -91,6 +91,10 @@ function template(): MenuItemConstructorOptions[] {
         { label: 'Reload', accelerator: 'CmdOrCtrl+R', click: () => getWindowRef?.()?.webContents.reload() },
         { label: 'Toggle Developer Tools', accelerator: process.platform === 'darwin' ? 'Alt+Cmd+I' : 'Ctrl+Shift+I', click: () => getWindowRef?.()?.webContents.toggleDevTools() },
         { type: 'separator' },
+        // The timeline has no context of its own — it is a drawer under whichever workbench you are in.
+        // Shown, not registered: the renderer's global keydown owns Ctrl+T so a rebind takes effect.
+        { label: 'Timeline', accelerator: 'CmdOrCtrl+T', registerAccelerator: false, click: () => send('toggle-timeline') },
+        { type: 'separator' },
         { label: 'OSC Monitor…', accelerator: 'CmdOrCtrl+Shift+M', registerAccelerator: false, click: () => send('osc-monitor') },
         // These five existed ONLY in the renderer's menu bar until now, so they were unreachable from
         // the native menu that owns real accelerators — and on macOS the native menu is the only menu.

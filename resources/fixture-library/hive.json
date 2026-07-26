@@ -1,0 +1,2859 @@
+[
+ {
+  "id": "hive/bee-50-c",
+  "manufacturer": "Hive Lighting",
+  "model": "Bee 50-C",
+  "aliases": [
+   "Bee 50-C",
+   "Hive Lighting Bee 50-C",
+   "bee50c",
+   "hivelightingbee50c"
+  ],
+  "categories": [
+   "Dimmer",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "cct",
+    "label": "CCT",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "hue",
+    "label": "Hue",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "saturation",
+    "label": "Saturation",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "sources",
+    "label": "Sources",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 15,
+      "label": "Violet Glow Stick",
+      "color": "#f20dcc"
+     },
+     {
+      "from": 16,
+      "to": 21,
+      "label": "Pink Glow Stick",
+      "color": "#f9066b"
+     },
+     {
+      "from": 22,
+      "to": 27,
+      "label": "Yellow Glow Stick",
+      "color": "#daec13"
+     },
+     {
+      "from": 28,
+      "to": 34,
+      "label": "Red Glow Stick",
+      "color": "#ff0000"
+     },
+     {
+      "from": 35,
+      "to": 41,
+      "label": "Green Glow Stick",
+      "color": "#00fff7"
+     },
+     {
+      "from": 42,
+      "to": 46,
+      "label": "Blue Glow Stick",
+      "color": "#0055ff"
+     },
+     {
+      "from": 47,
+      "to": 52,
+      "label": "Red Traffic Light",
+      "color": "#f2330d"
+     },
+     {
+      "from": 53,
+      "to": 58,
+      "label": "Yellow Traffic Light",
+      "color": "#b9f20d"
+     },
+     {
+      "from": 59,
+      "to": 64,
+      "label": "Green Traffic Light",
+      "color": "#03fcf4"
+     },
+     {
+      "from": 65,
+      "to": 70,
+      "label": "Amber Caution",
+      "color": "#f2cc0d"
+     },
+     {
+      "from": 71,
+      "to": 76,
+      "label": "Road Flare",
+      "color": "#ec1313"
+     },
+     {
+      "from": 77,
+      "to": 82,
+      "label": "Blowtorch",
+      "color": "#0da6f2"
+     },
+     {
+      "from": 83,
+      "to": 88,
+      "label": "Luminescence",
+      "color": "#04f3fb"
+     },
+     {
+      "from": 89,
+      "to": 94,
+      "label": "Computer Monitor",
+      "color": "#99666f"
+     },
+     {
+      "from": 95,
+      "to": 100,
+      "label": "Mobile Phone",
+      "color": "#7b738c"
+     },
+     {
+      "from": 101,
+      "to": 106,
+      "label": "Sun Blue Hour",
+      "color": "#667f99"
+     },
+     {
+      "from": 107,
+      "to": 112,
+      "label": "Sun Overcast",
+      "color": "#8c8073"
+     },
+     {
+      "from": 113,
+      "to": 123,
+      "label": "Sun Direct",
+      "color": "#808080"
+     },
+     {
+      "from": 124,
+      "to": 130,
+      "label": "Gas Light",
+      "color": "#8c737b"
+     },
+     {
+      "from": 131,
+      "to": 136,
+      "label": "Candlelight",
+      "color": "#aabf40"
+     },
+     {
+      "from": 137,
+      "to": 142,
+      "label": "Antique Bulb",
+      "color": "#919966"
+     },
+     {
+      "from": 143,
+      "to": 148,
+      "label": "Warm Antique Bulb",
+      "color": "#889966"
+     },
+     {
+      "from": 149,
+      "to": 154,
+      "label": "Christmas Lights",
+      "color": "#848c73"
+     },
+     {
+      "from": 155,
+      "to": 160,
+      "label": "Night Light",
+      "color": "#69705c"
+     },
+     {
+      "from": 161,
+      "to": 166,
+      "label": "Heat Lamp",
+      "color": "#cc2200"
+     },
+     {
+      "from": 167,
+      "to": 177,
+      "label": "Grow Light",
+      "color": "#26d9bb"
+     },
+     {
+      "from": 178,
+      "to": 184,
+      "label": "Tungsten Bulb",
+      "color": "#86797b"
+     },
+     {
+      "from": 185,
+      "to": 190,
+      "label": "Incandescent",
+      "color": "#808080"
+     },
+     {
+      "from": 191,
+      "to": 196,
+      "label": "Halogen",
+      "color": "#867d79"
+     },
+     {
+      "from": 197,
+      "to": 202,
+      "label": "HMI",
+      "color": "#666f99"
+     },
+     {
+      "from": 203,
+      "to": 208,
+      "label": "High Pressure Sodium Vapor",
+      "color": "#dbf20d"
+     },
+     {
+      "from": 209,
+      "to": 214,
+      "label": "Low Pressure Sodium Vapor",
+      "color": "#e5e619"
+     },
+     {
+      "from": 215,
+      "to": 220,
+      "label": "Mercury Vapor",
+      "color": "#59a6a6"
+     },
+     {
+      "from": 221,
+      "to": 225,
+      "label": "Metal Halide",
+      "color": "#59a699"
+     },
+     {
+      "from": 226,
+      "to": 230,
+      "label": "Ceramic",
+      "color": "#996666"
+     },
+     {
+      "from": 231,
+      "to": 235,
+      "label": "Carbon Arc",
+      "color": "#84738c"
+     },
+     {
+      "from": 236,
+      "to": 240,
+      "label": "Xenon",
+      "color": "#84738c"
+     },
+     {
+      "from": 241,
+      "to": 245,
+      "label": "Blacklight",
+      "color": "#5500ff"
+     },
+     {
+      "from": 246,
+      "to": 250,
+      "label": "Cool White Fluorescent",
+      "color": "#609f67"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "Warm White Fluorescent",
+      "color": "#609f67"
+     }
+    ]
+   },
+   {
+    "key": "corrective",
+    "label": "Corrective",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 20,
+      "label": "Full +Green Daylight"
+     },
+     {
+      "from": 21,
+      "to": 30,
+      "label": "1/2 +Green Daylight"
+     },
+     {
+      "from": 31,
+      "to": 40,
+      "label": "1/4 +Green Daylight"
+     },
+     {
+      "from": 41,
+      "to": 50,
+      "label": "1/8 +Green Daylight"
+     },
+     {
+      "from": 51,
+      "to": 60,
+      "label": "Full +Green Tungsten"
+     },
+     {
+      "from": 61,
+      "to": 70,
+      "label": "1/2 +Green Tungsten"
+     },
+     {
+      "from": 71,
+      "to": 80,
+      "label": "1/4 +Green Tungsten"
+     },
+     {
+      "from": 81,
+      "to": 90,
+      "label": "1/8 +Green Tungsten"
+     },
+     {
+      "from": 91,
+      "to": 100,
+      "label": "Full -Green Daylight"
+     },
+     {
+      "from": 101,
+      "to": 110,
+      "label": "1/2 -Green Daylight"
+     },
+     {
+      "from": 111,
+      "to": 120,
+      "label": "1/4 -Green Daylight"
+     },
+     {
+      "from": 121,
+      "to": 130,
+      "label": "1/8 -Green Daylight"
+     },
+     {
+      "from": 131,
+      "to": 140,
+      "label": "Full -Green Tungsten"
+     },
+     {
+      "from": 141,
+      "to": 150,
+      "label": "1/2 -Green Tungsten"
+     },
+     {
+      "from": 151,
+      "to": 160,
+      "label": "1/4 -Green Tungsten"
+     },
+     {
+      "from": 161,
+      "to": 170,
+      "label": "1/8 -Green Tungsten"
+     },
+     {
+      "from": 171,
+      "to": 180,
+      "label": "Full CTS Daylight"
+     },
+     {
+      "from": 181,
+      "to": 190,
+      "label": "1/2 CTS Daylight"
+     },
+     {
+      "from": 191,
+      "to": 200,
+      "label": "1/4 CTS Daylight"
+     },
+     {
+      "from": 201,
+      "to": 210,
+      "label": "1/8 CTS Daylight"
+     },
+     {
+      "from": 211,
+      "to": 220,
+      "label": "Full CTS Tungsten"
+     },
+     {
+      "from": 221,
+      "to": 230,
+      "label": "1/2 CTS Tungsten"
+     },
+     {
+      "from": 231,
+      "to": 240,
+      "label": "1/4 CTS Tungsten"
+     },
+     {
+      "from": 241,
+      "to": 255,
+      "label": "1/8 CTS Tungsten"
+     }
+    ]
+   },
+   {
+    "key": "efx",
+    "label": "EFX",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 28,
+      "label": "Police Car 1"
+     },
+     {
+      "from": 29,
+      "to": 46,
+      "label": "Police Car 2"
+     },
+     {
+      "from": 47,
+      "to": 64,
+      "label": "Emergency 1"
+     },
+     {
+      "from": 65,
+      "to": 82,
+      "label": "Emergency 2"
+     },
+     {
+      "from": 83,
+      "to": 100,
+      "label": "Emergency 3"
+     },
+     {
+      "from": 101,
+      "to": 118,
+      "label": "Club Lights"
+     },
+     {
+      "from": 119,
+      "to": 136,
+      "label": "Paparazzi"
+     },
+     {
+      "from": 137,
+      "to": 154,
+      "label": "Color Chase"
+     },
+     {
+      "from": 155,
+      "to": 172,
+      "label": "Fire"
+     },
+     {
+      "from": 173,
+      "to": 190,
+      "label": "Fireworks"
+     },
+     {
+      "from": 191,
+      "to": 208,
+      "label": "Pulsing"
+     },
+     {
+      "from": 209,
+      "to": 226,
+      "label": "TV"
+     },
+     {
+      "from": 227,
+      "to": 255,
+      "label": "Lightning"
+     }
+    ]
+   },
+   {
+    "key": "efx-speed",
+    "label": "EFX Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "hsi",
+    "name": "HSI",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "rgb-cct",
+    "name": "RGB+CCT",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "fx",
+    "name": "FX+",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "sources",
+      "byte": 0
+     },
+     {
+      "channelKey": "corrective",
+      "byte": 0
+     },
+     {
+      "channelKey": "efx",
+      "byte": 0
+     },
+     {
+      "channelKey": "efx-speed",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    100,
+    100,
+    136
+   ],
+   "weightKg": 0.7,
+   "powerW": 40,
+   "lensDegMin": 13,
+   "lensDegMax": 180
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "hive/bee-50-c",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "hive/bumble-bee-25-cx",
+  "manufacturer": "Hive Lighting",
+  "model": "Bumble Bee 25-CX",
+  "aliases": [
+   "Bumble Bee 25-CX",
+   "Hive Lighting Bumble Bee 25-CX",
+   "bumblebee25cx",
+   "hivelightingbumblebee25cx"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "cct",
+    "label": "CCT",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "hue",
+    "label": "Hue",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "saturation",
+    "label": "Saturation",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "hsi",
+    "name": "HSI",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    100,
+    100,
+    67
+   ],
+   "weightKg": 0.5,
+   "powerW": 25,
+   "lensDegMin": 15,
+   "lensDegMax": 180
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "hive/bumble-bee-25-cx",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "hive/hornet-200-c",
+  "manufacturer": "Hive Lighting",
+  "model": "Hornet 200-C",
+  "aliases": [
+   "Hive Lighting Hornet 200-C",
+   "Hornet 200-C",
+   "hivelightinghornet200c",
+   "hornet200c"
+  ],
+  "categories": [
+   "Dimmer",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "cct",
+    "label": "CCT",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "hue",
+    "label": "Hue",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "saturation",
+    "label": "Saturation",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "sources",
+    "label": "Sources",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 15,
+      "label": "Violet Glow Stick",
+      "color": "#f20dcc"
+     },
+     {
+      "from": 16,
+      "to": 21,
+      "label": "Pink Glow Stick",
+      "color": "#f9066b"
+     },
+     {
+      "from": 22,
+      "to": 27,
+      "label": "Yellow Glow Stick",
+      "color": "#daec13"
+     },
+     {
+      "from": 28,
+      "to": 34,
+      "label": "Red Glow Stick",
+      "color": "#ff0000"
+     },
+     {
+      "from": 35,
+      "to": 41,
+      "label": "Green Glow Stick",
+      "color": "#00fff7"
+     },
+     {
+      "from": 42,
+      "to": 46,
+      "label": "Blue Glow Stick",
+      "color": "#0055ff"
+     },
+     {
+      "from": 47,
+      "to": 52,
+      "label": "Red Traffic Light",
+      "color": "#f2330d"
+     },
+     {
+      "from": 53,
+      "to": 58,
+      "label": "Yellow Traffic Light",
+      "color": "#b9f20d"
+     },
+     {
+      "from": 59,
+      "to": 64,
+      "label": "Green Traffic Light",
+      "color": "#03fcf4"
+     },
+     {
+      "from": 65,
+      "to": 70,
+      "label": "Amber Caution",
+      "color": "#f2cc0d"
+     },
+     {
+      "from": 71,
+      "to": 76,
+      "label": "Road Flare",
+      "color": "#ec1313"
+     },
+     {
+      "from": 77,
+      "to": 82,
+      "label": "Blowtorch",
+      "color": "#0da6f2"
+     },
+     {
+      "from": 83,
+      "to": 88,
+      "label": "Luminescence",
+      "color": "#04f3fb"
+     },
+     {
+      "from": 89,
+      "to": 94,
+      "label": "Computer Monitor",
+      "color": "#99666f"
+     },
+     {
+      "from": 95,
+      "to": 100,
+      "label": "Mobile Phone",
+      "color": "#7b738c"
+     },
+     {
+      "from": 101,
+      "to": 106,
+      "label": "Sun Blue Hour",
+      "color": "#667f99"
+     },
+     {
+      "from": 107,
+      "to": 112,
+      "label": "Sun Overcast",
+      "color": "#8c8073"
+     },
+     {
+      "from": 113,
+      "to": 123,
+      "label": "Sun Direct",
+      "color": "#808080"
+     },
+     {
+      "from": 124,
+      "to": 130,
+      "label": "Gas Light",
+      "color": "#8c737b"
+     },
+     {
+      "from": 131,
+      "to": 136,
+      "label": "Candlelight",
+      "color": "#aabf40"
+     },
+     {
+      "from": 137,
+      "to": 142,
+      "label": "Antique Bulb",
+      "color": "#919966"
+     },
+     {
+      "from": 143,
+      "to": 148,
+      "label": "Warm Antique Bulb",
+      "color": "#889966"
+     },
+     {
+      "from": 149,
+      "to": 154,
+      "label": "Christmas Lights",
+      "color": "#848c73"
+     },
+     {
+      "from": 155,
+      "to": 160,
+      "label": "Night Light",
+      "color": "#69705c"
+     },
+     {
+      "from": 161,
+      "to": 166,
+      "label": "Heat Lamp",
+      "color": "#cc2200"
+     },
+     {
+      "from": 167,
+      "to": 177,
+      "label": "Grow Light",
+      "color": "#26d9bb"
+     },
+     {
+      "from": 178,
+      "to": 184,
+      "label": "Tungsten Bulb",
+      "color": "#86797b"
+     },
+     {
+      "from": 185,
+      "to": 190,
+      "label": "Incandescent",
+      "color": "#808080"
+     },
+     {
+      "from": 191,
+      "to": 196,
+      "label": "Halogen",
+      "color": "#867d79"
+     },
+     {
+      "from": 197,
+      "to": 202,
+      "label": "HMI",
+      "color": "#666f99"
+     },
+     {
+      "from": 203,
+      "to": 208,
+      "label": "High Pressure Sodium Vapor",
+      "color": "#dbf20d"
+     },
+     {
+      "from": 209,
+      "to": 214,
+      "label": "Low Pressure Sodium Vapor",
+      "color": "#e5e619"
+     },
+     {
+      "from": 215,
+      "to": 220,
+      "label": "Mercury Vapor",
+      "color": "#59a6a6"
+     },
+     {
+      "from": 221,
+      "to": 225,
+      "label": "Metal Halide",
+      "color": "#59a699"
+     },
+     {
+      "from": 226,
+      "to": 230,
+      "label": "Ceramic",
+      "color": "#996666"
+     },
+     {
+      "from": 231,
+      "to": 235,
+      "label": "Carbon Arc",
+      "color": "#84738c"
+     },
+     {
+      "from": 236,
+      "to": 240,
+      "label": "Xenon",
+      "color": "#84738c"
+     },
+     {
+      "from": 241,
+      "to": 245,
+      "label": "Blacklight",
+      "color": "#5500ff"
+     },
+     {
+      "from": 246,
+      "to": 250,
+      "label": "Cool White Fluorescent",
+      "color": "#609f67"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "Warm White Fluorescent",
+      "color": "#609f67"
+     }
+    ]
+   },
+   {
+    "key": "corrective",
+    "label": "Corrective",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 20,
+      "label": "Full +Green Daylight"
+     },
+     {
+      "from": 21,
+      "to": 30,
+      "label": "1/2 +Green Daylight"
+     },
+     {
+      "from": 31,
+      "to": 40,
+      "label": "1/4 +Green Daylight"
+     },
+     {
+      "from": 41,
+      "to": 50,
+      "label": "1/8 +Green Daylight"
+     },
+     {
+      "from": 51,
+      "to": 60,
+      "label": "Full +Green Tungsten"
+     },
+     {
+      "from": 61,
+      "to": 70,
+      "label": "1/2 +Green Tungsten"
+     },
+     {
+      "from": 71,
+      "to": 80,
+      "label": "1/4 +Green Tungsten"
+     },
+     {
+      "from": 81,
+      "to": 90,
+      "label": "1/8 +Green Tungsten"
+     },
+     {
+      "from": 91,
+      "to": 100,
+      "label": "Full -Green Daylight"
+     },
+     {
+      "from": 101,
+      "to": 110,
+      "label": "1/2 -Green Daylight"
+     },
+     {
+      "from": 111,
+      "to": 120,
+      "label": "1/4 -Green Daylight"
+     },
+     {
+      "from": 121,
+      "to": 130,
+      "label": "1/8 -Green Daylight"
+     },
+     {
+      "from": 131,
+      "to": 140,
+      "label": "Full -Green Tungsten"
+     },
+     {
+      "from": 141,
+      "to": 150,
+      "label": "1/2 -Green Tungsten"
+     },
+     {
+      "from": 151,
+      "to": 160,
+      "label": "1/4 -Green Tungsten"
+     },
+     {
+      "from": 161,
+      "to": 170,
+      "label": "1/8 -Green Tungsten"
+     },
+     {
+      "from": 171,
+      "to": 180,
+      "label": "Full CTS Daylight"
+     },
+     {
+      "from": 181,
+      "to": 190,
+      "label": "1/2 CTS Daylight"
+     },
+     {
+      "from": 191,
+      "to": 200,
+      "label": "1/4 CTS Daylight"
+     },
+     {
+      "from": 201,
+      "to": 210,
+      "label": "1/8 CTS Daylight"
+     },
+     {
+      "from": 211,
+      "to": 220,
+      "label": "Full CTS Tungsten"
+     },
+     {
+      "from": 221,
+      "to": 230,
+      "label": "1/2 CTS Tungsten"
+     },
+     {
+      "from": 231,
+      "to": 240,
+      "label": "1/4 CTS Tungsten"
+     },
+     {
+      "from": 241,
+      "to": 255,
+      "label": "1/8 CTS Tungsten"
+     }
+    ]
+   },
+   {
+    "key": "efx",
+    "label": "EFX",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 28,
+      "label": "Police Car 1"
+     },
+     {
+      "from": 29,
+      "to": 46,
+      "label": "Police Car 2"
+     },
+     {
+      "from": 47,
+      "to": 64,
+      "label": "Emergency 1"
+     },
+     {
+      "from": 65,
+      "to": 82,
+      "label": "Emergency 2"
+     },
+     {
+      "from": 83,
+      "to": 100,
+      "label": "Emergency 3"
+     },
+     {
+      "from": 101,
+      "to": 118,
+      "label": "Club Lights"
+     },
+     {
+      "from": 119,
+      "to": 136,
+      "label": "Paparazzi"
+     },
+     {
+      "from": 137,
+      "to": 154,
+      "label": "Color Chase"
+     },
+     {
+      "from": 155,
+      "to": 172,
+      "label": "Fire"
+     },
+     {
+      "from": 173,
+      "to": 190,
+      "label": "Fireworks"
+     },
+     {
+      "from": 191,
+      "to": 208,
+      "label": "Pulsing"
+     },
+     {
+      "from": 209,
+      "to": 226,
+      "label": "TV"
+     },
+     {
+      "from": 227,
+      "to": 255,
+      "label": "Lightning"
+     }
+    ]
+   },
+   {
+    "key": "efx-speed",
+    "label": "EFX Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "hsi",
+    "name": "HSI",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "rgb-cct",
+    "name": "RGB+CCT",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "fx",
+    "name": "FX+",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "sources",
+      "byte": 0
+     },
+     {
+      "channelKey": "corrective",
+      "byte": 0
+     },
+     {
+      "channelKey": "efx",
+      "byte": 0
+     },
+     {
+      "channelKey": "efx-speed",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    100,
+    100,
+    224
+   ],
+   "weightKg": 2.6,
+   "powerW": 150,
+   "lensDegMin": 19,
+   "lensDegMax": 180
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "hive/hornet-200-c",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "hive/hornet-200-cx",
+  "manufacturer": "Hive Lighting",
+  "model": "Hornet 200-CX",
+  "aliases": [
+   "Hive Lighting Hornet 200-CX",
+   "Hornet 200-CX",
+   "hivelightinghornet200cx",
+   "hornet200cx"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "cct",
+    "label": "CCT",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "hue",
+    "label": "Hue",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "saturation",
+    "label": "Saturation",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "hsi",
+    "name": "HSI",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    100,
+    100,
+    222
+   ],
+   "weightKg": 2.2,
+   "powerW": 150,
+   "lensDegMin": 19,
+   "lensDegMax": 180
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "hive/hornet-200-cx",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "hive/super-hornet-575-c",
+  "manufacturer": "Hive Lighting",
+  "model": "Super Hornet 575-C",
+  "aliases": [
+   "Hive Lighting Super Hornet 575-C",
+   "Super Hornet 575-C",
+   "hivelightingsuperhornet575c",
+   "superhornet575c"
+  ],
+  "categories": [
+   "Dimmer",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "cct",
+    "label": "CCT",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "hue",
+    "label": "Hue",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "saturation",
+    "label": "Saturation",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "sources",
+    "label": "Sources",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 15,
+      "label": "Violet Glow Stick",
+      "color": "#f20dcc"
+     },
+     {
+      "from": 16,
+      "to": 21,
+      "label": "Pink Glow Stick",
+      "color": "#f9066b"
+     },
+     {
+      "from": 22,
+      "to": 27,
+      "label": "Yellow Glow Stick",
+      "color": "#daec13"
+     },
+     {
+      "from": 28,
+      "to": 34,
+      "label": "Red Glow Stick",
+      "color": "#ff0000"
+     },
+     {
+      "from": 35,
+      "to": 41,
+      "label": "Green Glow Stick",
+      "color": "#00fff7"
+     },
+     {
+      "from": 42,
+      "to": 46,
+      "label": "Blue Glow Stick",
+      "color": "#0055ff"
+     },
+     {
+      "from": 47,
+      "to": 52,
+      "label": "Red Traffic Light",
+      "color": "#f2330d"
+     },
+     {
+      "from": 53,
+      "to": 58,
+      "label": "Yellow Traffic Light",
+      "color": "#b9f20d"
+     },
+     {
+      "from": 59,
+      "to": 64,
+      "label": "Green Traffic Light",
+      "color": "#03fcf4"
+     },
+     {
+      "from": 65,
+      "to": 70,
+      "label": "Amber Caution",
+      "color": "#f2cc0d"
+     },
+     {
+      "from": 71,
+      "to": 76,
+      "label": "Road Flare",
+      "color": "#ec1313"
+     },
+     {
+      "from": 77,
+      "to": 82,
+      "label": "Blowtorch",
+      "color": "#0da6f2"
+     },
+     {
+      "from": 83,
+      "to": 88,
+      "label": "Luminescence",
+      "color": "#04f3fb"
+     },
+     {
+      "from": 89,
+      "to": 94,
+      "label": "Computer Monitor",
+      "color": "#99666f"
+     },
+     {
+      "from": 95,
+      "to": 100,
+      "label": "Mobile Phone",
+      "color": "#7b738c"
+     },
+     {
+      "from": 101,
+      "to": 106,
+      "label": "Sun Blue Hour",
+      "color": "#667f99"
+     },
+     {
+      "from": 107,
+      "to": 112,
+      "label": "Sun Overcast",
+      "color": "#8c8073"
+     },
+     {
+      "from": 113,
+      "to": 123,
+      "label": "Sun Direct",
+      "color": "#808080"
+     },
+     {
+      "from": 124,
+      "to": 130,
+      "label": "Gas Light",
+      "color": "#8c737b"
+     },
+     {
+      "from": 131,
+      "to": 136,
+      "label": "Candlelight",
+      "color": "#aabf40"
+     },
+     {
+      "from": 137,
+      "to": 142,
+      "label": "Antique Bulb",
+      "color": "#919966"
+     },
+     {
+      "from": 143,
+      "to": 148,
+      "label": "Warm Antique Bulb",
+      "color": "#889966"
+     },
+     {
+      "from": 149,
+      "to": 154,
+      "label": "Christmas Lights",
+      "color": "#848c73"
+     },
+     {
+      "from": 155,
+      "to": 160,
+      "label": "Night Light",
+      "color": "#69705c"
+     },
+     {
+      "from": 161,
+      "to": 166,
+      "label": "Heat Lamp",
+      "color": "#cc2200"
+     },
+     {
+      "from": 167,
+      "to": 177,
+      "label": "Grow Light",
+      "color": "#26d9bb"
+     },
+     {
+      "from": 178,
+      "to": 184,
+      "label": "Tungsten Bulb",
+      "color": "#86797b"
+     },
+     {
+      "from": 185,
+      "to": 190,
+      "label": "Incandescent",
+      "color": "#808080"
+     },
+     {
+      "from": 191,
+      "to": 196,
+      "label": "Halogen",
+      "color": "#867d79"
+     },
+     {
+      "from": 197,
+      "to": 202,
+      "label": "HMI",
+      "color": "#666f99"
+     },
+     {
+      "from": 203,
+      "to": 208,
+      "label": "High Pressure Sodium Vapor",
+      "color": "#dbf20d"
+     },
+     {
+      "from": 209,
+      "to": 214,
+      "label": "Low Pressure Sodium Vapor",
+      "color": "#e5e619"
+     },
+     {
+      "from": 215,
+      "to": 220,
+      "label": "Mercury Vapor",
+      "color": "#59a6a6"
+     },
+     {
+      "from": 221,
+      "to": 225,
+      "label": "Metal Halide",
+      "color": "#59a699"
+     },
+     {
+      "from": 226,
+      "to": 230,
+      "label": "Ceramic",
+      "color": "#996666"
+     },
+     {
+      "from": 231,
+      "to": 235,
+      "label": "Carbon Arc",
+      "color": "#84738c"
+     },
+     {
+      "from": 236,
+      "to": 240,
+      "label": "Xenon",
+      "color": "#84738c"
+     },
+     {
+      "from": 241,
+      "to": 245,
+      "label": "Blacklight",
+      "color": "#5500ff"
+     },
+     {
+      "from": 246,
+      "to": 250,
+      "label": "Cool White Fluorescent",
+      "color": "#609f67"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "Warm White Fluorescent",
+      "color": "#609f67"
+     }
+    ]
+   },
+   {
+    "key": "corrective",
+    "label": "Corrective",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 20,
+      "label": "Full +Green Daylight"
+     },
+     {
+      "from": 21,
+      "to": 30,
+      "label": "1/2 +Green Daylight"
+     },
+     {
+      "from": 31,
+      "to": 40,
+      "label": "1/4 +Green Daylight"
+     },
+     {
+      "from": 41,
+      "to": 50,
+      "label": "1/8 +Green Daylight"
+     },
+     {
+      "from": 51,
+      "to": 60,
+      "label": "Full +Green Tungsten"
+     },
+     {
+      "from": 61,
+      "to": 70,
+      "label": "1/2 +Green Tungsten"
+     },
+     {
+      "from": 71,
+      "to": 80,
+      "label": "1/4 +Green Tungsten"
+     },
+     {
+      "from": 81,
+      "to": 90,
+      "label": "1/8 +Green Tungsten"
+     },
+     {
+      "from": 91,
+      "to": 100,
+      "label": "Full -Green Daylight"
+     },
+     {
+      "from": 101,
+      "to": 110,
+      "label": "1/2 -Green Daylight"
+     },
+     {
+      "from": 111,
+      "to": 120,
+      "label": "1/4 -Green Daylight"
+     },
+     {
+      "from": 121,
+      "to": 130,
+      "label": "1/8 -Green Daylight"
+     },
+     {
+      "from": 131,
+      "to": 140,
+      "label": "Full -Green Tungsten"
+     },
+     {
+      "from": 141,
+      "to": 150,
+      "label": "1/2 -Green Tungsten"
+     },
+     {
+      "from": 151,
+      "to": 160,
+      "label": "1/4 -Green Tungsten"
+     },
+     {
+      "from": 161,
+      "to": 170,
+      "label": "1/8 -Green Tungsten"
+     },
+     {
+      "from": 171,
+      "to": 180,
+      "label": "Full CTS Daylight"
+     },
+     {
+      "from": 181,
+      "to": 190,
+      "label": "1/2 CTS Daylight"
+     },
+     {
+      "from": 191,
+      "to": 200,
+      "label": "1/4 CTS Daylight"
+     },
+     {
+      "from": 201,
+      "to": 210,
+      "label": "1/8 CTS Daylight"
+     },
+     {
+      "from": 211,
+      "to": 220,
+      "label": "Full CTS Tungsten"
+     },
+     {
+      "from": 221,
+      "to": 230,
+      "label": "1/2 CTS Tungsten"
+     },
+     {
+      "from": 231,
+      "to": 240,
+      "label": "1/4 CTS Tungsten"
+     },
+     {
+      "from": 241,
+      "to": 255,
+      "label": "1/8 CTS Tungsten"
+     }
+    ]
+   },
+   {
+    "key": "efx",
+    "label": "EFX",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 28,
+      "label": "Police Car 1"
+     },
+     {
+      "from": 29,
+      "to": 46,
+      "label": "Police Car 2"
+     },
+     {
+      "from": 47,
+      "to": 64,
+      "label": "Emergency 1"
+     },
+     {
+      "from": 65,
+      "to": 82,
+      "label": "Emergency 2"
+     },
+     {
+      "from": 83,
+      "to": 100,
+      "label": "Emergency 3"
+     },
+     {
+      "from": 101,
+      "to": 118,
+      "label": "Club Lights"
+     },
+     {
+      "from": 119,
+      "to": 136,
+      "label": "Paparazzi"
+     },
+     {
+      "from": 137,
+      "to": 154,
+      "label": "Color Chase"
+     },
+     {
+      "from": 155,
+      "to": 172,
+      "label": "Fire"
+     },
+     {
+      "from": 173,
+      "to": 190,
+      "label": "Fireworks"
+     },
+     {
+      "from": 191,
+      "to": 208,
+      "label": "Pulsing"
+     },
+     {
+      "from": 209,
+      "to": 226,
+      "label": "TV"
+     },
+     {
+      "from": 227,
+      "to": 255,
+      "label": "Lightning"
+     }
+    ]
+   },
+   {
+    "key": "efx-speed",
+    "label": "EFX Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "hsi",
+    "name": "HSI",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "rgb-cct",
+    "name": "RGB+CCT",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "fx",
+    "name": "FX+",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "sources",
+      "byte": 0
+     },
+     {
+      "channelKey": "corrective",
+      "byte": 0
+     },
+     {
+      "channelKey": "efx",
+      "byte": 0
+     },
+     {
+      "channelKey": "efx-speed",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    100,
+    100,
+    305
+   ],
+   "weightKg": 6.9,
+   "powerW": 600,
+   "lensDegMin": 19,
+   "lensDegMax": 180
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "hive/super-hornet-575-c",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "hive/wasp-100-c",
+  "manufacturer": "Hive Lighting",
+  "model": "Wasp 100-C",
+  "aliases": [
+   "Hive Lighting Wasp 100-C",
+   "Wasp 100-C",
+   "hivelightingwasp100c",
+   "wasp100c"
+  ],
+  "categories": [
+   "Dimmer",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "cct",
+    "label": "CCT",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "hue",
+    "label": "Hue",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "saturation",
+    "label": "Saturation",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "sources",
+    "label": "Sources",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 15,
+      "label": "Violet Glow Stick",
+      "color": "#f20dcc"
+     },
+     {
+      "from": 16,
+      "to": 21,
+      "label": "Pink Glow Stick",
+      "color": "#f9066b"
+     },
+     {
+      "from": 22,
+      "to": 27,
+      "label": "Yellow Glow Stick",
+      "color": "#daec13"
+     },
+     {
+      "from": 28,
+      "to": 34,
+      "label": "Red Glow Stick",
+      "color": "#ff0000"
+     },
+     {
+      "from": 35,
+      "to": 41,
+      "label": "Green Glow Stick",
+      "color": "#00fff7"
+     },
+     {
+      "from": 42,
+      "to": 46,
+      "label": "Blue Glow Stick",
+      "color": "#0055ff"
+     },
+     {
+      "from": 47,
+      "to": 52,
+      "label": "Red Traffic Light",
+      "color": "#f2330d"
+     },
+     {
+      "from": 53,
+      "to": 58,
+      "label": "Yellow Traffic Light",
+      "color": "#b9f20d"
+     },
+     {
+      "from": 59,
+      "to": 64,
+      "label": "Green Traffic Light",
+      "color": "#03fcf4"
+     },
+     {
+      "from": 65,
+      "to": 70,
+      "label": "Amber Caution",
+      "color": "#f2cc0d"
+     },
+     {
+      "from": 71,
+      "to": 76,
+      "label": "Road Flare",
+      "color": "#ec1313"
+     },
+     {
+      "from": 77,
+      "to": 82,
+      "label": "Blowtorch",
+      "color": "#0da6f2"
+     },
+     {
+      "from": 83,
+      "to": 88,
+      "label": "Luminescence",
+      "color": "#04f3fb"
+     },
+     {
+      "from": 89,
+      "to": 94,
+      "label": "Computer Monitor",
+      "color": "#99666f"
+     },
+     {
+      "from": 95,
+      "to": 100,
+      "label": "Mobile Phone",
+      "color": "#7b738c"
+     },
+     {
+      "from": 101,
+      "to": 106,
+      "label": "Sun Blue Hour",
+      "color": "#667f99"
+     },
+     {
+      "from": 107,
+      "to": 112,
+      "label": "Sun Overcast",
+      "color": "#8c8073"
+     },
+     {
+      "from": 113,
+      "to": 123,
+      "label": "Sun Direct",
+      "color": "#808080"
+     },
+     {
+      "from": 124,
+      "to": 130,
+      "label": "Gas Light",
+      "color": "#8c737b"
+     },
+     {
+      "from": 131,
+      "to": 136,
+      "label": "Candlelight",
+      "color": "#aabf40"
+     },
+     {
+      "from": 137,
+      "to": 142,
+      "label": "Antique Bulb",
+      "color": "#919966"
+     },
+     {
+      "from": 143,
+      "to": 148,
+      "label": "Warm Antique Bulb",
+      "color": "#889966"
+     },
+     {
+      "from": 149,
+      "to": 154,
+      "label": "Christmas Lights",
+      "color": "#848c73"
+     },
+     {
+      "from": 155,
+      "to": 160,
+      "label": "Night Light",
+      "color": "#69705c"
+     },
+     {
+      "from": 161,
+      "to": 166,
+      "label": "Heat Lamp",
+      "color": "#cc2200"
+     },
+     {
+      "from": 167,
+      "to": 177,
+      "label": "Grow Light",
+      "color": "#26d9bb"
+     },
+     {
+      "from": 178,
+      "to": 184,
+      "label": "Tungsten Bulb",
+      "color": "#86797b"
+     },
+     {
+      "from": 185,
+      "to": 190,
+      "label": "Incandescent",
+      "color": "#808080"
+     },
+     {
+      "from": 191,
+      "to": 196,
+      "label": "Halogen",
+      "color": "#867d79"
+     },
+     {
+      "from": 197,
+      "to": 202,
+      "label": "HMI",
+      "color": "#666f99"
+     },
+     {
+      "from": 203,
+      "to": 208,
+      "label": "High Pressure Sodium Vapor",
+      "color": "#dbf20d"
+     },
+     {
+      "from": 209,
+      "to": 214,
+      "label": "Low Pressure Sodium Vapor",
+      "color": "#e5e619"
+     },
+     {
+      "from": 215,
+      "to": 220,
+      "label": "Mercury Vapor",
+      "color": "#59a6a6"
+     },
+     {
+      "from": 221,
+      "to": 225,
+      "label": "Metal Halide",
+      "color": "#59a699"
+     },
+     {
+      "from": 226,
+      "to": 230,
+      "label": "Ceramic",
+      "color": "#996666"
+     },
+     {
+      "from": 231,
+      "to": 235,
+      "label": "Carbon Arc",
+      "color": "#84738c"
+     },
+     {
+      "from": 236,
+      "to": 240,
+      "label": "Xenon",
+      "color": "#84738c"
+     },
+     {
+      "from": 241,
+      "to": 245,
+      "label": "Blacklight",
+      "color": "#5500ff"
+     },
+     {
+      "from": 246,
+      "to": 250,
+      "label": "Cool White Fluorescent",
+      "color": "#609f67"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "Warm White Fluorescent",
+      "color": "#609f67"
+     }
+    ]
+   },
+   {
+    "key": "corrective",
+    "label": "Corrective",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 20,
+      "label": "Full +Green Daylight"
+     },
+     {
+      "from": 21,
+      "to": 30,
+      "label": "1/2 +Green Daylight"
+     },
+     {
+      "from": 31,
+      "to": 40,
+      "label": "1/4 +Green Daylight"
+     },
+     {
+      "from": 41,
+      "to": 50,
+      "label": "1/8 +Green Daylight"
+     },
+     {
+      "from": 51,
+      "to": 60,
+      "label": "Full +Green Tungsten"
+     },
+     {
+      "from": 61,
+      "to": 70,
+      "label": "1/2 +Green Tungsten"
+     },
+     {
+      "from": 71,
+      "to": 80,
+      "label": "1/4 +Green Tungsten"
+     },
+     {
+      "from": 81,
+      "to": 90,
+      "label": "1/8 +Green Tungsten"
+     },
+     {
+      "from": 91,
+      "to": 100,
+      "label": "Full -Green Daylight"
+     },
+     {
+      "from": 101,
+      "to": 110,
+      "label": "1/2 -Green Daylight"
+     },
+     {
+      "from": 111,
+      "to": 120,
+      "label": "1/4 -Green Daylight"
+     },
+     {
+      "from": 121,
+      "to": 130,
+      "label": "1/8 -Green Daylight"
+     },
+     {
+      "from": 131,
+      "to": 140,
+      "label": "Full -Green Tungsten"
+     },
+     {
+      "from": 141,
+      "to": 150,
+      "label": "1/2 -Green Tungsten"
+     },
+     {
+      "from": 151,
+      "to": 160,
+      "label": "1/4 -Green Tungsten"
+     },
+     {
+      "from": 161,
+      "to": 170,
+      "label": "1/8 -Green Tungsten"
+     },
+     {
+      "from": 171,
+      "to": 180,
+      "label": "Full CTS Daylight"
+     },
+     {
+      "from": 181,
+      "to": 190,
+      "label": "1/2 CTS Daylight"
+     },
+     {
+      "from": 191,
+      "to": 200,
+      "label": "1/4 CTS Daylight"
+     },
+     {
+      "from": 201,
+      "to": 210,
+      "label": "1/8 CTS Daylight"
+     },
+     {
+      "from": 211,
+      "to": 220,
+      "label": "Full CTS Tungsten"
+     },
+     {
+      "from": 221,
+      "to": 230,
+      "label": "1/2 CTS Tungsten"
+     },
+     {
+      "from": 231,
+      "to": 240,
+      "label": "1/4 CTS Tungsten"
+     },
+     {
+      "from": 241,
+      "to": 255,
+      "label": "1/8 CTS Tungsten"
+     }
+    ]
+   },
+   {
+    "key": "efx",
+    "label": "EFX",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 28,
+      "label": "Police Car 1"
+     },
+     {
+      "from": 29,
+      "to": 46,
+      "label": "Police Car 2"
+     },
+     {
+      "from": 47,
+      "to": 64,
+      "label": "Emergency 1"
+     },
+     {
+      "from": 65,
+      "to": 82,
+      "label": "Emergency 2"
+     },
+     {
+      "from": 83,
+      "to": 100,
+      "label": "Emergency 3"
+     },
+     {
+      "from": 101,
+      "to": 118,
+      "label": "Club Lights"
+     },
+     {
+      "from": 119,
+      "to": 136,
+      "label": "Paparazzi"
+     },
+     {
+      "from": 137,
+      "to": 154,
+      "label": "Color Chase"
+     },
+     {
+      "from": 155,
+      "to": 172,
+      "label": "Fire"
+     },
+     {
+      "from": 173,
+      "to": 190,
+      "label": "Fireworks"
+     },
+     {
+      "from": 191,
+      "to": 208,
+      "label": "Pulsing"
+     },
+     {
+      "from": 209,
+      "to": 226,
+      "label": "TV"
+     },
+     {
+      "from": 227,
+      "to": 255,
+      "label": "Lightning"
+     }
+    ]
+   },
+   {
+    "key": "efx-speed",
+    "label": "EFX Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "hsi",
+    "name": "HSI",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "rgb-cct",
+    "name": "RGB+CCT",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "fx",
+    "name": "FX+",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "sources",
+      "byte": 0
+     },
+     {
+      "channelKey": "corrective",
+      "byte": 0
+     },
+     {
+      "channelKey": "efx",
+      "byte": 0
+     },
+     {
+      "channelKey": "efx-speed",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    100,
+    100,
+    199
+   ],
+   "weightKg": 1.1,
+   "powerW": 75,
+   "lensDegMin": 13,
+   "lensDegMax": 180
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "hive/wasp-100-c",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "hive/wasp-100-cx",
+  "manufacturer": "Hive Lighting",
+  "model": "Wasp 100-CX",
+  "aliases": [
+   "Hive Lighting Wasp 100-CX",
+   "Wasp 100-CX",
+   "hivelightingwasp100cx",
+   "wasp100cx"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "cct",
+    "label": "CCT",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "hue",
+    "label": "Hue",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "saturation",
+    "label": "Saturation",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "hsi",
+    "name": "HSI",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    100,
+    100,
+    199
+   ],
+   "weightKg": 0.9,
+   "powerW": 75,
+   "lensDegMin": 13,
+   "lensDegMax": 180
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "hive/wasp-100-cx",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

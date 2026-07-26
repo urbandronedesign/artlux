@@ -1,0 +1,769 @@
+[
+ {
+  "id": "bitfocus/companion-v2",
+  "manufacturer": "Bitfocus",
+  "model": "Companion v2.0",
+  "aliases": [
+   "Bitfocus Companion v2.0",
+   "Companion v2.0",
+   "bitfocuscompanionv20",
+   "companionv20"
+  ],
+  "categories": [
+   "Other"
+  ],
+  "channels": [
+   {
+    "key": "page",
+    "label": "Page",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "No Page"
+     },
+     {
+      "from": 1,
+      "to": 1,
+      "label": "Page 1"
+     },
+     {
+      "from": 2,
+      "to": 2,
+      "label": "Page 2"
+     },
+     {
+      "from": 3,
+      "to": 3,
+      "label": "Page 3"
+     },
+     {
+      "from": 4,
+      "to": 4,
+      "label": "Page 4"
+     },
+     {
+      "from": 5,
+      "to": 5,
+      "label": "Page 5"
+     },
+     {
+      "from": 6,
+      "to": 6,
+      "label": "Page 6"
+     },
+     {
+      "from": 7,
+      "to": 7,
+      "label": "Page 7"
+     },
+     {
+      "from": 8,
+      "to": 8,
+      "label": "Page 8"
+     },
+     {
+      "from": 9,
+      "to": 9,
+      "label": "Page 9"
+     },
+     {
+      "from": 10,
+      "to": 10,
+      "label": "Page 10"
+     },
+     {
+      "from": 11,
+      "to": 11,
+      "label": "Page 11"
+     },
+     {
+      "from": 12,
+      "to": 12,
+      "label": "Page 12"
+     },
+     {
+      "from": 13,
+      "to": 13,
+      "label": "Page 13"
+     },
+     {
+      "from": 14,
+      "to": 14,
+      "label": "Page 14"
+     },
+     {
+      "from": 15,
+      "to": 15,
+      "label": "Page 15"
+     },
+     {
+      "from": 16,
+      "to": 16,
+      "label": "Page 16"
+     },
+     {
+      "from": 17,
+      "to": 17,
+      "label": "Page 17"
+     },
+     {
+      "from": 18,
+      "to": 18,
+      "label": "Page 18"
+     },
+     {
+      "from": 19,
+      "to": 19,
+      "label": "Page 19"
+     },
+     {
+      "from": 20,
+      "to": 20,
+      "label": "Page 20"
+     },
+     {
+      "from": 21,
+      "to": 21,
+      "label": "Page 21"
+     },
+     {
+      "from": 22,
+      "to": 22,
+      "label": "Page 22"
+     },
+     {
+      "from": 23,
+      "to": 23,
+      "label": "Page 23"
+     },
+     {
+      "from": 24,
+      "to": 24,
+      "label": "Page 24"
+     },
+     {
+      "from": 25,
+      "to": 25,
+      "label": "Page 25"
+     },
+     {
+      "from": 26,
+      "to": 26,
+      "label": "Page 26"
+     },
+     {
+      "from": 27,
+      "to": 27,
+      "label": "Page 27"
+     },
+     {
+      "from": 28,
+      "to": 28,
+      "label": "Page 28"
+     },
+     {
+      "from": 29,
+      "to": 29,
+      "label": "Page 29"
+     },
+     {
+      "from": 30,
+      "to": 30,
+      "label": "Page 30"
+     },
+     {
+      "from": 31,
+      "to": 31,
+      "label": "Page 31"
+     },
+     {
+      "from": 32,
+      "to": 32,
+      "label": "Page 32"
+     },
+     {
+      "from": 33,
+      "to": 33,
+      "label": "Page 33"
+     },
+     {
+      "from": 34,
+      "to": 34,
+      "label": "Page 34"
+     },
+     {
+      "from": 35,
+      "to": 35,
+      "label": "Page 35"
+     },
+     {
+      "from": 36,
+      "to": 36,
+      "label": "Page 36"
+     },
+     {
+      "from": 37,
+      "to": 37,
+      "label": "Page 37"
+     },
+     {
+      "from": 38,
+      "to": 38,
+      "label": "Page 38"
+     },
+     {
+      "from": 39,
+      "to": 39,
+      "label": "Page 39"
+     },
+     {
+      "from": 40,
+      "to": 40,
+      "label": "Page 40"
+     },
+     {
+      "from": 41,
+      "to": 41,
+      "label": "Page 41"
+     },
+     {
+      "from": 42,
+      "to": 42,
+      "label": "Page 42"
+     },
+     {
+      "from": 43,
+      "to": 43,
+      "label": "Page 43"
+     },
+     {
+      "from": 44,
+      "to": 44,
+      "label": "Page 44"
+     },
+     {
+      "from": 45,
+      "to": 45,
+      "label": "Page 45"
+     },
+     {
+      "from": 46,
+      "to": 46,
+      "label": "Page 46"
+     },
+     {
+      "from": 47,
+      "to": 47,
+      "label": "Page 47"
+     },
+     {
+      "from": 48,
+      "to": 48,
+      "label": "Page 48"
+     },
+     {
+      "from": 49,
+      "to": 49,
+      "label": "Page 49"
+     },
+     {
+      "from": 50,
+      "to": 50,
+      "label": "Page 50"
+     },
+     {
+      "from": 51,
+      "to": 51,
+      "label": "Page 51"
+     },
+     {
+      "from": 52,
+      "to": 52,
+      "label": "Page 52"
+     },
+     {
+      "from": 53,
+      "to": 53,
+      "label": "Page 53"
+     },
+     {
+      "from": 54,
+      "to": 54,
+      "label": "Page 54"
+     },
+     {
+      "from": 55,
+      "to": 55,
+      "label": "Page 55"
+     },
+     {
+      "from": 56,
+      "to": 56,
+      "label": "Page 56"
+     },
+     {
+      "from": 57,
+      "to": 57,
+      "label": "Page 57"
+     },
+     {
+      "from": 58,
+      "to": 58,
+      "label": "Page 58"
+     },
+     {
+      "from": 59,
+      "to": 59,
+      "label": "Page 59"
+     },
+     {
+      "from": 60,
+      "to": 60,
+      "label": "Page 60"
+     },
+     {
+      "from": 61,
+      "to": 61,
+      "label": "Page 61"
+     },
+     {
+      "from": 62,
+      "to": 62,
+      "label": "Page 62"
+     },
+     {
+      "from": 63,
+      "to": 63,
+      "label": "Page 63"
+     },
+     {
+      "from": 64,
+      "to": 64,
+      "label": "Page 64"
+     },
+     {
+      "from": 65,
+      "to": 65,
+      "label": "Page 65"
+     },
+     {
+      "from": 66,
+      "to": 66,
+      "label": "Page 66"
+     },
+     {
+      "from": 67,
+      "to": 67,
+      "label": "Page 67"
+     },
+     {
+      "from": 68,
+      "to": 68,
+      "label": "Page 68"
+     },
+     {
+      "from": 69,
+      "to": 69,
+      "label": "Page 69"
+     },
+     {
+      "from": 70,
+      "to": 70,
+      "label": "Page 70"
+     },
+     {
+      "from": 71,
+      "to": 71,
+      "label": "Page 71"
+     },
+     {
+      "from": 72,
+      "to": 72,
+      "label": "Page 72"
+     },
+     {
+      "from": 73,
+      "to": 73,
+      "label": "Page 73"
+     },
+     {
+      "from": 74,
+      "to": 74,
+      "label": "Page 74"
+     },
+     {
+      "from": 75,
+      "to": 75,
+      "label": "Page 75"
+     },
+     {
+      "from": 76,
+      "to": 76,
+      "label": "Page 76"
+     },
+     {
+      "from": 77,
+      "to": 77,
+      "label": "Page 77"
+     },
+     {
+      "from": 78,
+      "to": 78,
+      "label": "Page 78"
+     },
+     {
+      "from": 79,
+      "to": 79,
+      "label": "Page 79"
+     },
+     {
+      "from": 80,
+      "to": 80,
+      "label": "Page 80"
+     },
+     {
+      "from": 81,
+      "to": 81,
+      "label": "Page 81"
+     },
+     {
+      "from": 82,
+      "to": 82,
+      "label": "Page 82"
+     },
+     {
+      "from": 83,
+      "to": 83,
+      "label": "Page 83"
+     },
+     {
+      "from": 84,
+      "to": 84,
+      "label": "Page 84"
+     },
+     {
+      "from": 85,
+      "to": 85,
+      "label": "Page 85"
+     },
+     {
+      "from": 86,
+      "to": 86,
+      "label": "Page 86"
+     },
+     {
+      "from": 87,
+      "to": 87,
+      "label": "Page 87"
+     },
+     {
+      "from": 88,
+      "to": 88,
+      "label": "Page 88"
+     },
+     {
+      "from": 89,
+      "to": 89,
+      "label": "Page 89"
+     },
+     {
+      "from": 90,
+      "to": 90,
+      "label": "Page 90"
+     },
+     {
+      "from": 91,
+      "to": 91,
+      "label": "Page 91"
+     },
+     {
+      "from": 92,
+      "to": 92,
+      "label": "Page 92"
+     },
+     {
+      "from": 93,
+      "to": 93,
+      "label": "Page 93"
+     },
+     {
+      "from": 94,
+      "to": 94,
+      "label": "Page 94"
+     },
+     {
+      "from": 95,
+      "to": 95,
+      "label": "Page 95"
+     },
+     {
+      "from": 96,
+      "to": 96,
+      "label": "Page 96"
+     },
+     {
+      "from": 97,
+      "to": 97,
+      "label": "Page 97"
+     },
+     {
+      "from": 98,
+      "to": 98,
+      "label": "Page 98"
+     },
+     {
+      "from": 99,
+      "to": 99,
+      "label": "Page 99"
+     },
+     {
+      "from": 100,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "bank",
+    "label": "Bank",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "No Bank"
+     },
+     {
+      "from": 1,
+      "to": 1,
+      "label": "Bank 1"
+     },
+     {
+      "from": 2,
+      "to": 2,
+      "label": "Bank 2"
+     },
+     {
+      "from": 3,
+      "to": 3,
+      "label": "Bank 3"
+     },
+     {
+      "from": 4,
+      "to": 4,
+      "label": "Bank 4"
+     },
+     {
+      "from": 5,
+      "to": 5,
+      "label": "Bank 5"
+     },
+     {
+      "from": 6,
+      "to": 6,
+      "label": "Bank 6"
+     },
+     {
+      "from": 7,
+      "to": 7,
+      "label": "Bank 7"
+     },
+     {
+      "from": 8,
+      "to": 8,
+      "label": "Bank 8"
+     },
+     {
+      "from": 9,
+      "to": 9,
+      "label": "Bank 9"
+     },
+     {
+      "from": 10,
+      "to": 10,
+      "label": "Bank 10"
+     },
+     {
+      "from": 11,
+      "to": 11,
+      "label": "Bank 11"
+     },
+     {
+      "from": 12,
+      "to": 12,
+      "label": "Bank 12"
+     },
+     {
+      "from": 13,
+      "to": 13,
+      "label": "Bank 13"
+     },
+     {
+      "from": 14,
+      "to": 14,
+      "label": "Bank 14"
+     },
+     {
+      "from": 15,
+      "to": 15,
+      "label": "Bank 15"
+     },
+     {
+      "from": 16,
+      "to": 16,
+      "label": "Bank 16"
+     },
+     {
+      "from": 17,
+      "to": 17,
+      "label": "Bank 17"
+     },
+     {
+      "from": 18,
+      "to": 18,
+      "label": "Bank 18"
+     },
+     {
+      "from": 19,
+      "to": 19,
+      "label": "Bank 19"
+     },
+     {
+      "from": 20,
+      "to": 20,
+      "label": "Bank 20"
+     },
+     {
+      "from": 21,
+      "to": 21,
+      "label": "Bank 21"
+     },
+     {
+      "from": 22,
+      "to": 22,
+      "label": "Bank 22"
+     },
+     {
+      "from": 23,
+      "to": 23,
+      "label": "Bank 23"
+     },
+     {
+      "from": 24,
+      "to": 24,
+      "label": "Bank 24"
+     },
+     {
+      "from": 25,
+      "to": 25,
+      "label": "Bank 25"
+     },
+     {
+      "from": 26,
+      "to": 26,
+      "label": "Bank 26"
+     },
+     {
+      "from": 27,
+      "to": 27,
+      "label": "Bank 27"
+     },
+     {
+      "from": 28,
+      "to": 28,
+      "label": "Bank 28"
+     },
+     {
+      "from": 29,
+      "to": 29,
+      "label": "Bank 29"
+     },
+     {
+      "from": 30,
+      "to": 30,
+      "label": "Bank 30"
+     },
+     {
+      "from": 31,
+      "to": 31,
+      "label": "Bank 31"
+     },
+     {
+      "from": 32,
+      "to": 32,
+      "label": "Bank 32"
+     },
+     {
+      "from": 33,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "button",
+    "label": "Button",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "No Button"
+     },
+     {
+      "from": 11,
+      "to": 128,
+      "label": "Button Down"
+     },
+     {
+      "from": 129,
+      "to": 255,
+      "label": "Button Up"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "00",
+    "name": "00",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "page",
+      "byte": 0
+     },
+     {
+      "channelKey": "bank",
+      "byte": 0
+     },
+     {
+      "channelKey": "button",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    0,
+    0,
+    0
+   ]
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "bitfocus/companion-v2",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

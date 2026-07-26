@@ -11,7 +11,7 @@ yourself in about four minutes.
 ## 1. Open it and listen
 
 **File ▸ Open…** → `01-the-bed.artlux`. Go to the **Audio** context in the left rail (the ♪ icon, *show*
-cluster) — its viewport is the mixer. When a step sends you to the lanes, switch to the **Timeline** context
+cluster) — its viewport is the mixer. When a step sends you to the lanes, pull the **timeline drawer** up (**Ctrl+T**)
 (the film icon, *build* cluster); its bottom region is the timeline. (**View ▸ Audio Bed…** still works and
 just switches you to the Audio context.)
 
@@ -57,14 +57,14 @@ Back in the **Audio** context, look at the mixer's left column. Two headings:
   **Exit** — it names whichever document is currently bound. It is empty in all of them, for now. Chapter 3
   fills it.)
 
-Now switch to the **Timeline** context. While **Global** is bound (the pill above the ruler) you can see the
+Now pull the **timeline drawer** up (**Ctrl+T**). While **Global** is bound (the pill above the ruler) you can see the
 bed's audio lane, with its waveform.
 
 **Recall a Scene** — from **Scenes & Cues**, or by clicking a scene pill above the ruler. The bed's lane
 **vanishes from the timeline.**
 
-![Timeline context — the bed's lane on Global vs a bound scene's own ruler](images/01-bed-lane-vs-ruler.png)
-<!-- TODO screenshot: Timeline context, top the bed lane with Global bound, bottom the same timeline with a scene bound (bed lane gone, scene ruler at 0) -->
+![The timeline drawer — the bed's lane on Global vs a bound scene's own ruler](images/01-bed-lane-vs-ruler.png)
+<!-- TODO screenshot: the timeline drawer, top the bed lane with Global bound, bottom the same timeline with a scene bound (bed lane gone, scene ruler at 0) -->
 
 That is deliberate, and it is a signal rather than a bug. The ruler you are now looking at belongs to the
 *scene's* timeline — its playhead, its length. The bed is not on that clock, so drawing it against that ruler

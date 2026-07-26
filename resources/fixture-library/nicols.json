@@ -1,0 +1,296 @@
+[
+ {
+  "id": "nicols/pat-252",
+  "manufacturer": "Nicols",
+  "model": "PAT 252",
+  "aliases": [
+   "Nicols PAT 252",
+   "PAT 252",
+   "nicolspat252",
+   "pat252"
+  ],
+  "categories": [
+   "Scanner",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "shutter",
+    "label": "Shutter",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 16,
+      "label": "Open"
+     },
+     {
+      "from": 17,
+      "to": 92,
+      "label": "Strobe (Gobo)"
+     },
+     {
+      "from": 93,
+      "to": 136,
+      "label": "Strobe (Color)"
+     },
+     {
+      "from": 137,
+      "to": 196,
+      "label": "Strobe (Gobo + Color)"
+     },
+     {
+      "from": 197,
+      "to": 255,
+      "label": "WheelShake"
+     }
+    ]
+   },
+   {
+    "key": "gobo-wheel",
+    "label": "Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Closed"
+     },
+     {
+      "from": 8,
+      "to": 15,
+      "label": "Open"
+     },
+     {
+      "from": 16,
+      "to": 23,
+      "label": "Gobo"
+     },
+     {
+      "from": 24,
+      "to": 31,
+      "label": "Gobo"
+     },
+     {
+      "from": 32,
+      "to": 39,
+      "label": "Gobo"
+     },
+     {
+      "from": 40,
+      "to": 47,
+      "label": "Gobo"
+     },
+     {
+      "from": 48,
+      "to": 55,
+      "label": "Gobo"
+     },
+     {
+      "from": 56,
+      "to": 63,
+      "label": "Gobo"
+     },
+     {
+      "from": 64,
+      "to": 71,
+      "label": "Gobo"
+     },
+     {
+      "from": 72,
+      "to": 79,
+      "label": "Gobo"
+     },
+     {
+      "from": 80,
+      "to": 87,
+      "label": "Gobo"
+     },
+     {
+      "from": 88,
+      "to": 95,
+      "label": "Gobo"
+     },
+     {
+      "from": 96,
+      "to": 103,
+      "label": "Gobo"
+     },
+     {
+      "from": 104,
+      "to": 111,
+      "label": "Gobo"
+     },
+     {
+      "from": 112,
+      "to": 119,
+      "label": "Gobo"
+     },
+     {
+      "from": 120,
+      "to": 127,
+      "label": "Gobo"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "color-wheel",
+    "label": "Color Wheel",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 11,
+      "label": "Open"
+     },
+     {
+      "from": 12,
+      "to": 22,
+      "label": "Green",
+      "color": "#58b848"
+     },
+     {
+      "from": 23,
+      "to": 33,
+      "label": "Orange 306",
+      "color": "#f46f34"
+     },
+     {
+      "from": 34,
+      "to": 44,
+      "label": "Light blue",
+      "color": "#95d8e0"
+     },
+     {
+      "from": 45,
+      "to": 55,
+      "label": "Y52-Yellow",
+      "color": "#e8ea7c"
+     },
+     {
+      "from": 56,
+      "to": 66,
+      "label": "Red",
+      "color": "#ef332d"
+     },
+     {
+      "from": 67,
+      "to": 77,
+      "label": "Purple",
+      "color": "#73479a"
+     },
+     {
+      "from": 78,
+      "to": 88,
+      "label": "Pink",
+      "color": "#f097c0"
+     },
+     {
+      "from": 89,
+      "to": 99,
+      "label": "Light green",
+      "color": "#39b773"
+     },
+     {
+      "from": 100,
+      "to": 110,
+      "label": "Blue",
+      "color": "#1857a7"
+     },
+     {
+      "from": 111,
+      "to": 121,
+      "label": "Yellow",
+      "color": "#e6e74d"
+     },
+     {
+      "from": 122,
+      "to": 128,
+      "label": "Magenta",
+      "color": "#a65a9d"
+     },
+     {
+      "from": 129,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 1,
+    "default": 0,
+    "min": 0,
+    "max": 180,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 1,
+    "default": 0,
+    "min": 0,
+    "max": 60,
+    "unit": "deg"
+   }
+  ],
+  "modes": [
+   {
+    "key": "default",
+    "name": "Default",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "shutter",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    155,
+    500,
+    200
+   ],
+   "weightKg": 11,
+   "powerW": 350
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "nicols/pat-252",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

@@ -14,7 +14,7 @@ ArtLux ships three tracking sources, all interchangeable:
 | **MediaPipe** | any webcam | Google BlazePose, in‑app (no sensor) | lightest — a camera + one asset download |
 | **Augmenta** | an [Augmenta](https://augmenta.tech) box | Augmenta **OSC v2** into the app's OSC listener | a pre‑calibrated optical box |
 
-![The Tracking context — the 2D tracking map, a 3D floor grid, and the Trigger Zones dock tab](images/13-tracking.png)
+![Venue & Rig — the 3D floor grid with live blobs, and the Trigger Zones dock tab](images/13-tracking.png)
 <!-- Ideal future shot: add live per-person blob markers (run scripts/lidar-emitter.cjs during capture) and a 2nd wall zone. -->
 *Live tracking in the 3D Scene: the floor (SOL) and wall (MUR) zones at real scale, one glowing marker per person, with the Lighting panel's tracking toggles at the bottom‑right.*
 
@@ -201,7 +201,7 @@ tracker present — replay is indistinguishable from the live feed.
    zone, so no phantom enter/exit fires across the boundary.
 
 Takes are portable assets — they save into the project's `assets/tracking/` folder. See
-[Timeline ▸ Tracking takes](06-timeline.md#tracking-takes-record--replay-lidar-without-the-tracker).
+[the timeline drawer ▸ Tracking takes](06-timeline.md#tracking-takes-record--replay-lidar-without-the-tracker).
 
 ---
 

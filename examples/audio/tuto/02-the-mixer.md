@@ -49,7 +49,7 @@ Nothing surprising — except for what happened *underneath*:
 
 ## 3. Mute, solo, and which container they scope to
 
-Add a second bed track: **`+ Bed`** in the header. Call it *Room*. Then switch to the **Timeline** context and
+Add a second bed track: **`+ Bed`** in the header. Call it *Room*. Then pull the **timeline drawer** up (**Ctrl+T**) and
 drag `orbit.wav` from the **Media** library onto its lane (with **Global** bound — remember chapter 1: you can
 only *edit* the bed on Global). Switch back to **Audio** for the faders.
 

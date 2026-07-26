@@ -1,0 +1,692 @@
+[
+ {
+  "id": "big-dipper/lp001",
+  "manufacturer": "Big Dipper",
+  "model": "LP001",
+  "aliases": [
+   "Big Dipper LP001",
+   "LP001",
+   "bigdipperlp001",
+   "lp001"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "color-macros",
+    "label": "Color Macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 50,
+      "label": "Manual color selection"
+     },
+     {
+      "from": 51,
+      "to": 100,
+      "label": "Color transition"
+     },
+     {
+      "from": 101,
+      "to": 150,
+      "label": "Color shade"
+     },
+     {
+      "from": 151,
+      "to": 200,
+      "label": "Color pulse"
+     },
+     {
+      "from": 201,
+      "to": 255,
+      "label": "Sound mode"
+     }
+    ]
+   },
+   {
+    "key": "color-presets",
+    "label": "Color Presets",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "ColorPreset"
+     }
+    ]
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "8ch",
+    "name": "8-channel",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    255,
+    255,
+    365
+   ],
+   "weightKg": 2.8,
+   "powerW": 180
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "big-dipper/lp001",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "big-dipper/ls90",
+  "manufacturer": "Big Dipper",
+  "model": "LS90",
+  "aliases": [
+   "Big Dipper LS90",
+   "LS90",
+   "bigdipperls90",
+   "ls90"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 270,
+    "unit": "deg"
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Open"
+     },
+     {
+      "from": 11,
+      "to": 249,
+      "label": "Strobe"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "color-wheel",
+    "label": "Color Wheel",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Open"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 40,
+      "to": 49,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 50,
+      "to": 59,
+      "label": "Fuchsia",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 60,
+      "to": 69,
+      "label": "Blue Green",
+      "color": "#00ffff"
+     },
+     {
+      "from": 70,
+      "to": 79,
+      "label": "Dark Yellow",
+      "color": "#ccaa00"
+     },
+     {
+      "from": 80,
+      "to": 89,
+      "label": "Dark Yellow",
+      "color": "#ccaa00"
+     },
+     {
+      "from": 90,
+      "to": 99,
+      "label": "Blue Green",
+      "color": "#00ffff"
+     },
+     {
+      "from": 100,
+      "to": 109,
+      "label": "Fuchsia",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 110,
+      "to": 119,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 120,
+      "to": 129,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 130,
+      "to": 139,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 140,
+      "to": 149,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 150,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "glass-gobo-wheel",
+    "label": "Glass Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 35,
+      "label": "Open"
+     },
+     {
+      "from": 36,
+      "to": 71,
+      "label": "Gobo"
+     },
+     {
+      "from": 72,
+      "to": 107,
+      "label": "Gobo"
+     },
+     {
+      "from": 108,
+      "to": 143,
+      "label": "Gobo"
+     },
+     {
+      "from": 144,
+      "to": 179,
+      "label": "Gobo"
+     },
+     {
+      "from": 180,
+      "to": 215,
+      "label": "Gobo"
+     },
+     {
+      "from": 216,
+      "to": 219,
+      "label": "Gobo"
+     },
+     {
+      "from": 220,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "glass-gobo-rotation",
+    "label": "Glass Gobo Rotation",
+    "role": "goboRotation",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 89,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 90,
+      "to": 167,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 168,
+      "to": 178,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 179,
+      "to": 255,
+      "label": "WheelSlotRotation"
+     }
+    ]
+   },
+   {
+    "key": "glass-gobo-shake",
+    "label": "Glass Gobo Shake",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 250,
+      "label": "WheelShake"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "metal-gobo-wheel",
+    "label": "Metal Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 26,
+      "label": "Open"
+     },
+     {
+      "from": 27,
+      "to": 53,
+      "label": "Gobo"
+     },
+     {
+      "from": 54,
+      "to": 80,
+      "label": "Gobo"
+     },
+     {
+      "from": 81,
+      "to": 107,
+      "label": "Gobo"
+     },
+     {
+      "from": 108,
+      "to": 134,
+      "label": "Gobo"
+     },
+     {
+      "from": 135,
+      "to": 161,
+      "label": "Gobo"
+     },
+     {
+      "from": 162,
+      "to": 188,
+      "label": "Gobo"
+     },
+     {
+      "from": 189,
+      "to": 214,
+      "label": "Gobo"
+     },
+     {
+      "from": 215,
+      "to": 219,
+      "label": "Gobo"
+     },
+     {
+      "from": 220,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "metal-gobo-shake",
+    "label": "Metal Gobo Shake",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 250,
+      "label": "WheelShake"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "focus",
+    "label": "Focus",
+    "role": "focus",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "prism",
+    "label": "Prism",
+    "role": "prism",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 49,
+      "label": "NoFunction"
+     },
+     {
+      "from": 50,
+      "to": 100,
+      "label": "Prism"
+     },
+     {
+      "from": 101,
+      "to": 255,
+      "label": "Prism"
+     }
+    ]
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan/Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "reset",
+    "label": "Reset",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 149,
+      "label": "NoFunction"
+     },
+     {
+      "from": 150,
+      "to": 200,
+      "label": "Reset all motors"
+     },
+     {
+      "from": 201,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "16ch",
+    "name": "16-channel",
+    "footprint": 16,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "glass-gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "glass-gobo-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "glass-gobo-shake",
+      "byte": 0
+     },
+     {
+      "channelKey": "metal-gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "metal-gobo-shake",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "reset",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    245,
+    235,
+    350
+   ],
+   "weightKg": 7,
+   "powerW": 150
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "big-dipper/ls90",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

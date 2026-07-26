@@ -31,7 +31,9 @@ a project-level state machine, scenes/cues, OSC control, and a 3D simulator.
 | **Configurable keyboard shortcuts (registry + editor + rebinding)** | [docs/SHORTCUTS.md](docs/SHORTCUTS.md) |
 | Surfaces engine (content/mapping model) | [docs/SURFACES.md](docs/SURFACES.md) |
 | Outputs / controllers / routing | [docs/OUTPUTS.md](docs/OUTPUTS.md) |
-| LED map / fixture geometry | [docs/LEDMAP.md](docs/LEDMAP.md) |
+| **DMX fixture library (profiles / personalities) + the generator** | [docs/FIXTURE-LIBRARY.md](docs/FIXTURE-LIBRARY.md) |
+| **Encoding a light show — takes, lighting clips, phase spread, precedence** | [docs/LIGHTING-SHOW.md](docs/LIGHTING-SHOW.md) |
+| LED map / fixture geometry (pixel fixtures) | [docs/LEDMAP.md](docs/LEDMAP.md) |
 | Timeline NLE | [docs/TIMELINE.md](docs/TIMELINE.md) |
 | Scenes & cues | [docs/SCENES.md](docs/SCENES.md) |
 | **Project state machine (the "Show" graph over scenes)** | [docs/STATE-MACHINE.md](docs/STATE-MACHINE.md) |
@@ -103,7 +105,7 @@ src/preload/         contextBridge → the typed `window.artlux` API (contextIso
 src/renderer/        React UI + the frame-generation loop
   components/        UI (Stage, panels, wizards, timeline/, Simulator3D/, calib/)
     shell/           the context-driven editor shell (WorkspaceShell, ContextRail, ActionBar)
-  contexts/          the 11 core workspace contexts + the panels they compose (nav.ts = goToContext)
+  contexts/          the 9 core workspace contexts + the panels they compose (nav.ts = goToContext)
   state/             EditorStore — what shell panels read instead of props (App still owns the state)
   services/          engine singletons: contentSource, surfaceMedia, timeline, stateMachine,
                      cueBus, dmxSignal, addressing, mediaCache, …
@@ -139,6 +141,12 @@ Three processes: **main** (OS access — UDP, fs, `.node` addons), **preload** (
   or supply the viewport of, a context it does not own. `WorkspaceShell` imports zero panels.
   Panels read state via `useEditor()/useEditorActions()` (`state/EditorStore.tsx`), not props; **App
   still owns all state and every mutation**.
+- **The timeline is a DRAWER, not a context.** Eight of the nine contexts name it as their `bottom`; the
+  shell keeps it at one fixed tree position, collapsed to a 28px strip, opened per context with `Ctrl+T`.
+  That is deliberate and load-bearing: the timeline is wanted *while* you work in a viewport (cutting
+  against the 2D stage, recording a lighting take against the 3D rig, authoring a scene's timeline from
+  the cue grid), and it also means the element never remounts on a context switch. **Do not add a context
+  whose reason for existing is "so that X and the timeline are on screen together".**
 - **Persistence** (`main/persistence.ts` + `projectFolder.ts`): `.artlux` JSON projects (portable
   folders with `assets/`); **all asset-path translation lives in main — the renderer always sees absolute
   paths.** Prefs in `userData/artlux-prefs.json`.

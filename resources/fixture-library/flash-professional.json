@@ -1,0 +1,2026 @@
+[
+ {
+  "id": "flash-professional/led-moving-head-150w",
+  "manufacturer": "Flash Professional",
+  "model": "LED Moving Head 150W",
+  "aliases": [
+   "Flash Professional LED Moving Head 150W",
+   "LED Moving Head 150W",
+   "flashprofessionalledmovinghead150w",
+   "ledmovinghead150w"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 270,
+    "unit": "deg"
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan/Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "show-mode",
+    "label": "Show Mode",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "NoFunction"
+     },
+     {
+      "from": 16,
+      "to": 63,
+      "label": "Show 1"
+     },
+     {
+      "from": 64,
+      "to": 127,
+      "label": "Show 2"
+     },
+     {
+      "from": 128,
+      "to": 191,
+      "label": "Show 3"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "Show 4"
+     }
+    ]
+   },
+   {
+    "key": "pan-tilt-macro",
+    "label": "Pan/Tilt Macro",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "NoFunction"
+     },
+     {
+      "from": 8,
+      "to": 15,
+      "label": "Macro 1"
+     },
+     {
+      "from": 16,
+      "to": 23,
+      "label": "Macro 2"
+     },
+     {
+      "from": 24,
+      "to": 31,
+      "label": "Macro 3"
+     },
+     {
+      "from": 32,
+      "to": 39,
+      "label": "Macro 4"
+     },
+     {
+      "from": 40,
+      "to": 47,
+      "label": "Macro 5"
+     },
+     {
+      "from": 48,
+      "to": 55,
+      "label": "Macro 6"
+     },
+     {
+      "from": 56,
+      "to": 63,
+      "label": "Macro 7"
+     },
+     {
+      "from": 64,
+      "to": 71,
+      "label": "Macro 8"
+     },
+     {
+      "from": 72,
+      "to": 79,
+      "label": "Macro 9"
+     },
+     {
+      "from": 80,
+      "to": 87,
+      "label": "Macro 10"
+     },
+     {
+      "from": 88,
+      "to": 95,
+      "label": "Macro 11"
+     },
+     {
+      "from": 96,
+      "to": 103,
+      "label": "Macro 12"
+     },
+     {
+      "from": 104,
+      "to": 111,
+      "label": "Macro 13"
+     },
+     {
+      "from": 112,
+      "to": 119,
+      "label": "Macro 14"
+     },
+     {
+      "from": 120,
+      "to": 127,
+      "label": "Macro 15"
+     },
+     {
+      "from": 128,
+      "to": 135,
+      "label": "Macro 16"
+     },
+     {
+      "from": 136,
+      "to": 143,
+      "label": "Macro 17"
+     },
+     {
+      "from": 144,
+      "to": 151,
+      "label": "Macro 18"
+     },
+     {
+      "from": 152,
+      "to": 159,
+      "label": "Macro 19"
+     },
+     {
+      "from": 160,
+      "to": 167,
+      "label": "Macro 20"
+     },
+     {
+      "from": 168,
+      "to": 175,
+      "label": "Macro 21"
+     },
+     {
+      "from": 176,
+      "to": 183,
+      "label": "Macro 22"
+     },
+     {
+      "from": 184,
+      "to": 191,
+      "label": "Macro 23"
+     },
+     {
+      "from": 192,
+      "to": 199,
+      "label": "Macro 24"
+     },
+     {
+      "from": 200,
+      "to": 207,
+      "label": "Macro 25"
+     },
+     {
+      "from": 208,
+      "to": 215,
+      "label": "Macro 26"
+     },
+     {
+      "from": 216,
+      "to": 223,
+      "label": "Macro 27"
+     },
+     {
+      "from": 224,
+      "to": 231,
+      "label": "Macro 28"
+     },
+     {
+      "from": 232,
+      "to": 239,
+      "label": "Macro 29"
+     },
+     {
+      "from": 240,
+      "to": 247,
+      "label": "Macro 30"
+     },
+     {
+      "from": 248,
+      "to": 255,
+      "label": "Macro 31"
+     }
+    ]
+   },
+   {
+    "key": "macro-speed",
+    "label": "Macro Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-wheel",
+    "label": "Color Wheel",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "Open"
+     },
+     {
+      "from": 16,
+      "to": 18,
+      "label": "Open"
+     },
+     {
+      "from": 19,
+      "to": 21,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 22,
+      "to": 24,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 25,
+      "to": 27,
+      "label": "Orange",
+      "color": "#ffaa00"
+     },
+     {
+      "from": 28,
+      "to": 30,
+      "label": "Orange",
+      "color": "#ffaa00"
+     },
+     {
+      "from": 31,
+      "to": 33,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 34,
+      "to": 36,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 37,
+      "to": 39,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 40,
+      "to": 42,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 43,
+      "to": 45,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 46,
+      "to": 48,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 49,
+      "to": 51,
+      "label": "Magenta",
+      "color": "#ff00cc"
+     },
+     {
+      "from": 52,
+      "to": 54,
+      "label": "Magenta",
+      "color": "#ff00cc"
+     },
+     {
+      "from": 55,
+      "to": 57,
+      "label": "Turquoise",
+      "color": "#00ffcc"
+     },
+     {
+      "from": 58,
+      "to": 60,
+      "label": "Turquoise",
+      "color": "#00ffcc"
+     },
+     {
+      "from": 61,
+      "to": 63,
+      "label": "Pink",
+      "color": "#ffaaff"
+     },
+     {
+      "from": 64,
+      "to": 127,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 128,
+      "to": 189,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 190,
+      "to": 193,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 194,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "static-gobo-wheel",
+    "label": "Static Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Open"
+     },
+     {
+      "from": 8,
+      "to": 16,
+      "label": "Iris"
+     },
+     {
+      "from": 17,
+      "to": 25,
+      "label": "Iris"
+     },
+     {
+      "from": 26,
+      "to": 34,
+      "label": "Iris"
+     },
+     {
+      "from": 35,
+      "to": 43,
+      "label": "Iris"
+     },
+     {
+      "from": 44,
+      "to": 52,
+      "label": "Iris"
+     },
+     {
+      "from": 53,
+      "to": 61,
+      "label": "Biohazard"
+     },
+     {
+      "from": 62,
+      "to": 67,
+      "label": "Fuzzy rays"
+     },
+     {
+      "from": 68,
+      "to": 72,
+      "label": "Iris"
+     },
+     {
+      "from": 73,
+      "to": 81,
+      "label": "Iris"
+     },
+     {
+      "from": 82,
+      "to": 90,
+      "label": "Iris"
+     },
+     {
+      "from": 91,
+      "to": 99,
+      "label": "Iris"
+     },
+     {
+      "from": 100,
+      "to": 108,
+      "label": "Iris"
+     },
+     {
+      "from": 109,
+      "to": 117,
+      "label": "Biohazard"
+     },
+     {
+      "from": 118,
+      "to": 127,
+      "label": "Fuzzy rays"
+     },
+     {
+      "from": 128,
+      "to": 189,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 190,
+      "to": 193,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 194,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "rotating-gobo-wheel",
+    "label": "Rotating Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 8,
+      "label": "Open"
+     },
+     {
+      "from": 9,
+      "to": 17,
+      "label": "Bar"
+     },
+     {
+      "from": 18,
+      "to": 26,
+      "label": "Striped shutter"
+     },
+     {
+      "from": 27,
+      "to": 35,
+      "label": "Life"
+     },
+     {
+      "from": 36,
+      "to": 44,
+      "label": "Flower"
+     },
+     {
+      "from": 45,
+      "to": 53,
+      "label": "Arrows"
+     },
+     {
+      "from": 54,
+      "to": 63,
+      "label": "Stars"
+     },
+     {
+      "from": 64,
+      "to": 73,
+      "label": "Bar"
+     },
+     {
+      "from": 74,
+      "to": 83,
+      "label": "Striped shutter"
+     },
+     {
+      "from": 84,
+      "to": 93,
+      "label": "Life"
+     },
+     {
+      "from": 94,
+      "to": 103,
+      "label": "Flower"
+     },
+     {
+      "from": 104,
+      "to": 113,
+      "label": "Arrows"
+     },
+     {
+      "from": 114,
+      "to": 127,
+      "label": "Stars"
+     },
+     {
+      "from": 128,
+      "to": 189,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 190,
+      "to": 193,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 194,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "gobo-rotation",
+    "label": "Gobo Rotation",
+    "role": "goboRotation",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 128,
+      "to": 189,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 190,
+      "to": 193,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 194,
+      "to": 255,
+      "label": "WheelSlotRotation"
+     }
+    ]
+   },
+   {
+    "key": "angle-frost",
+    "label": "Angle / Frost",
+    "role": "zoom",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "NoFunction"
+     },
+     {
+      "from": 8,
+      "to": 128,
+      "label": "Zoom"
+     },
+     {
+      "from": 129,
+      "to": 255,
+      "label": "Frost"
+     }
+    ]
+   },
+   {
+    "key": "prism",
+    "label": "Prism",
+    "role": "prism",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "NoFunction"
+     },
+     {
+      "from": 8,
+      "to": 255,
+      "label": "3-facet"
+     }
+    ]
+   },
+   {
+    "key": "prism-rotation",
+    "label": "Prism Rotation",
+    "role": "prismRotation",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 128,
+      "to": 189,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 190,
+      "to": 193,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 194,
+      "to": 255,
+      "label": "PrismRotation"
+     }
+    ]
+   },
+   {
+    "key": "focus",
+    "label": "Focus",
+    "role": "focus",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "shutter",
+    "label": "Shutter",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Closed"
+     },
+     {
+      "from": 8,
+      "to": 15,
+      "label": "Open"
+     },
+     {
+      "from": 16,
+      "to": 131,
+      "label": "Strobe"
+     },
+     {
+      "from": 132,
+      "to": 139,
+      "label": "Open"
+     },
+     {
+      "from": 140,
+      "to": 181,
+      "label": "RampUp"
+     },
+     {
+      "from": 182,
+      "to": 189,
+      "label": "Open"
+     },
+     {
+      "from": 190,
+      "to": 231,
+      "label": "RampDown"
+     },
+     {
+      "from": 232,
+      "to": 239,
+      "label": "Open"
+     },
+     {
+      "from": 240,
+      "to": 247,
+      "label": "Strobe"
+     },
+     {
+      "from": 248,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "special-function",
+    "label": "Special Function",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 69,
+      "label": "NoFunction"
+     },
+     {
+      "from": 70,
+      "to": 79,
+      "label": "Enable blackout during Pan/Tilt movement"
+     },
+     {
+      "from": 80,
+      "to": 89,
+      "label": "Disable blackout during Pan/Tilt movement"
+     },
+     {
+      "from": 90,
+      "to": 99,
+      "label": "Enable blackout during Color change"
+     },
+     {
+      "from": 100,
+      "to": 109,
+      "label": "Disable blackout during Color change"
+     },
+     {
+      "from": 110,
+      "to": 119,
+      "label": "Enable blackout during Gobo change"
+     },
+     {
+      "from": 120,
+      "to": 129,
+      "label": "Disable blackout during Gobo change"
+     },
+     {
+      "from": 130,
+      "to": 139,
+      "label": "NoFunction"
+     },
+     {
+      "from": 140,
+      "to": 149,
+      "label": "Pan/Tilt reset"
+     },
+     {
+      "from": 150,
+      "to": 159,
+      "label": "Effect reset"
+     },
+     {
+      "from": 160,
+      "to": 199,
+      "label": "NoFunction"
+     },
+     {
+      "from": 200,
+      "to": 209,
+      "label": "All reset"
+     },
+     {
+      "from": 210,
+      "to": 219,
+      "label": "Enable blackout during Pan/Tilt movement / Color/Gobo change"
+     },
+     {
+      "from": 220,
+      "to": 229,
+      "label": "Disable blackout during Pan/Tilt movement / Color/Gobo change"
+     },
+     {
+      "from": 230,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "17ch",
+    "name": "17-channel",
+    "footprint": 17,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "show-mode",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-macro",
+      "byte": 0
+     },
+     {
+      "channelKey": "macro-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "static-gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "rotating-gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "angle-frost",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "special-function",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "20ch",
+    "name": "20-channel",
+    "footprint": 20,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "show-mode",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-macro",
+      "byte": 0
+     },
+     {
+      "channelKey": "macro-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "static-gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "rotating-gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "angle-frost",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "special-function",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    250,
+    452,
+    256
+   ],
+   "weightKg": 12,
+   "powerW": 189,
+   "lensDegMin": 2,
+   "lensDegMax": 28
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "flash-professional/led-moving-head-150w",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "flash-professional/led-par-64-cob-300w-rgbwauv",
+  "manufacturer": "Flash Professional",
+  "model": "LED PAR 64 COB 300W RGBWAUV",
+  "aliases": [
+   "Flash Professional LED PAR 64 COB 300W RGBWAUV",
+   "LED PAR 64 COB 300W RGBWAUV",
+   "flashprofessionalledpar64cob300wrgbwauv",
+   "ledpar64cob300wrgbwauv"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 11,
+      "label": "NoFunction"
+     },
+     {
+      "from": 12,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "uv",
+    "label": "UV",
+    "role": "uv",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "macro",
+    "label": "Macro",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 19,
+      "label": "NoFunction"
+     },
+     {
+      "from": 20,
+      "to": 39,
+      "label": "Macro 1"
+     },
+     {
+      "from": 40,
+      "to": 59,
+      "label": "Macro 2"
+     },
+     {
+      "from": 60,
+      "to": 79,
+      "label": "Macro 3"
+     },
+     {
+      "from": 80,
+      "to": 99,
+      "label": "Macro 4"
+     },
+     {
+      "from": 100,
+      "to": 119,
+      "label": "Color 1"
+     },
+     {
+      "from": 120,
+      "to": 139,
+      "label": "Color 2"
+     },
+     {
+      "from": 140,
+      "to": 159,
+      "label": "Color 3"
+     },
+     {
+      "from": 160,
+      "to": 179,
+      "label": "Color 4"
+     },
+     {
+      "from": 180,
+      "to": 199,
+      "label": "Color 5"
+     },
+     {
+      "from": 200,
+      "to": 219,
+      "label": "Color 6"
+     },
+     {
+      "from": 220,
+      "to": 239,
+      "label": "Color 7"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "Sound Mode"
+     }
+    ]
+   },
+   {
+    "key": "color-change",
+    "label": "Color Change",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 19,
+      "label": "NoFunction"
+     },
+     {
+      "from": 20,
+      "to": 39,
+      "label": "ColorJump (Color 1)"
+     },
+     {
+      "from": 40,
+      "to": 59,
+      "label": "ColorJump (Color 2)"
+     },
+     {
+      "from": 60,
+      "to": 79,
+      "label": "ColorJump (Color 3)"
+     },
+     {
+      "from": 80,
+      "to": 99,
+      "label": "ColorJump (Color 4)"
+     },
+     {
+      "from": 100,
+      "to": 119,
+      "label": "ColorJump (Color 5)"
+     },
+     {
+      "from": 120,
+      "to": 139,
+      "label": "ColorJump (Color 6)"
+     },
+     {
+      "from": 140,
+      "to": 159,
+      "label": "ColorJump (Color 7)"
+     },
+     {
+      "from": 160,
+      "to": 179,
+      "label": "ColorJump (Color 8)"
+     },
+     {
+      "from": 180,
+      "to": 199,
+      "label": "ColorJump (Color 9)"
+     },
+     {
+      "from": 200,
+      "to": 219,
+      "label": "ColorJump (Color 10)"
+     },
+     {
+      "from": 220,
+      "to": 239,
+      "label": "ColorJump (Color 11)"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "ColorJump (Color 12)"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "8ch",
+    "name": "8-channel",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "10ch1",
+    "name": "10-channel 1",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "macro",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-change",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "10ch2",
+    "name": "10-channel 2",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "macro",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-change",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    270,
+    280,
+    240
+   ],
+   "weightKg": 3.4,
+   "powerW": 354,
+   "lensDegMin": 37,
+   "lensDegMax": 37
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "flash-professional/led-par-64-cob-300w-rgbwauv",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "flash-professional/led-par-64-slim-7x10w-rgbw-mk2",
+  "manufacturer": "Flash Professional",
+  "model": "LED PAR 64 SLIM 7x10W RGBW Mk2",
+  "aliases": [
+   "Flash Professional LED PAR 64 SLIM 7x10W RGBW Mk2",
+   "LED PAR 64 SLIM 7x10W RGBW Mk2",
+   "flashprofessionalledpar64slim7x10wrgbwmk2",
+   "ledpar64slim7x10wrgbwmk2"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Open"
+     },
+     {
+      "from": 11,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "color-macro",
+    "label": "Color / Macro",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "Open"
+     },
+     {
+      "from": 6,
+      "to": 10,
+      "label": "Red",
+      "color": "#ff0004"
+     },
+     {
+      "from": 11,
+      "to": 15,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 16,
+      "to": 20,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 21,
+      "to": 25,
+      "label": "Cyan",
+      "color": "#00ffff"
+     },
+     {
+      "from": 26,
+      "to": 30,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 31,
+      "to": 35,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 36,
+      "to": 40,
+      "label": "Light Red",
+      "color": "#ff8082"
+     },
+     {
+      "from": 41,
+      "to": 45,
+      "label": "Light Green",
+      "color": "#80ff80"
+     },
+     {
+      "from": 46,
+      "to": 50,
+      "label": "Light Blue",
+      "color": "#8080ff"
+     },
+     {
+      "from": 51,
+      "to": 55,
+      "label": "Orange",
+      "color": "#ff6800"
+     },
+     {
+      "from": 56,
+      "to": 60,
+      "label": "Mint",
+      "color": "#6cffc2"
+     },
+     {
+      "from": 61,
+      "to": 65,
+      "label": "Sky Blue",
+      "color": "#b3e9ff"
+     },
+     {
+      "from": 66,
+      "to": 70,
+      "label": "Light Cyan",
+      "color": "#80ffff"
+     },
+     {
+      "from": 71,
+      "to": 75,
+      "label": "Light Magenta",
+      "color": "#ff80ff"
+     },
+     {
+      "from": 76,
+      "to": 80,
+      "label": "Light Yellow",
+      "color": "#ffff80"
+     },
+     {
+      "from": 81,
+      "to": 85,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 86,
+      "to": 90,
+      "label": "9000K (White)",
+      "color": "#ffffff"
+     },
+     {
+      "from": 91,
+      "to": 95,
+      "label": "6500K (White)",
+      "color": "#ffffe0"
+     },
+     {
+      "from": 96,
+      "to": 100,
+      "label": "5600K (White)",
+      "color": "#feffbe"
+     },
+     {
+      "from": 101,
+      "to": 105,
+      "label": "5000K (White)",
+      "color": "#ffffb4"
+     },
+     {
+      "from": 106,
+      "to": 110,
+      "label": "4500K (White)",
+      "color": "#feff8f"
+     },
+     {
+      "from": 111,
+      "to": 115,
+      "label": "3200K (White)",
+      "color": "#ffdf8b"
+     },
+     {
+      "from": 116,
+      "to": 120,
+      "label": "2500K (White)",
+      "color": "#ffcb70"
+     },
+     {
+      "from": 121,
+      "to": 125,
+      "label": "2200K (White)",
+      "color": "#ff9f31"
+     },
+     {
+      "from": 126,
+      "to": 130,
+      "label": "ColorJump (Macro 1)"
+     },
+     {
+      "from": 131,
+      "to": 135,
+      "label": "ColorJump (Macro 2)"
+     },
+     {
+      "from": 136,
+      "to": 140,
+      "label": "ColorJump (Macro 3)"
+     },
+     {
+      "from": 141,
+      "to": 145,
+      "label": "ColorJump (Macro 4)"
+     },
+     {
+      "from": 146,
+      "to": 150,
+      "label": "ColorFade (Macro 5)"
+     },
+     {
+      "from": 151,
+      "to": 155,
+      "label": "ColorFade (Macro 6)"
+     },
+     {
+      "from": 156,
+      "to": 160,
+      "label": "ColorFade (Macro 7)"
+     },
+     {
+      "from": 161,
+      "to": 165,
+      "label": "ColorFade (Macro 8)"
+     },
+     {
+      "from": 166,
+      "to": 170,
+      "label": "ColorFade (Macro 9)"
+     },
+     {
+      "from": 171,
+      "to": 175,
+      "label": "ColorFade (Macro 10)"
+     },
+     {
+      "from": 176,
+      "to": 180,
+      "label": "ColorFade (Macro 11)"
+     },
+     {
+      "from": 181,
+      "to": 235,
+      "label": "NoFunction"
+     },
+     {
+      "from": 236,
+      "to": 240,
+      "label": "ColorJump (Sound mode 1)"
+     },
+     {
+      "from": 241,
+      "to": 245,
+      "label": "ColorJump (Sound mode 2)"
+     },
+     {
+      "from": 246,
+      "to": 250,
+      "label": "ColorJump (Sound mode 3)"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "ColorJump (Sound mode 4)"
+     }
+    ]
+   },
+   {
+    "key": "pulse-speed",
+    "label": "Pulse Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "NoFunction"
+     },
+     {
+      "from": 6,
+      "to": 255,
+      "label": "pulse"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "classic-6",
+    "name": "Classic 6",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "classic-8",
+    "name": "Classic 8",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macro",
+      "byte": 0
+     },
+     {
+      "channelKey": "pulse-speed",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "pro-6",
+    "name": "Pro 6",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "pro-7",
+    "name": "Pro 7",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "rgb",
+    "name": "RGB",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "rgbw",
+    "name": "RGBW",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "rgb-16bit",
+    "name": "RGB 16bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "rgbw-16bit",
+    "name": "RGBW 16bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "flash-a-dmx",
+    "name": "Flash A-DMX",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     null,
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macro",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    255,
+    270,
+    110
+   ],
+   "weightKg": 1.3,
+   "powerW": 80,
+   "lensDegMin": 25,
+   "lensDegMax": 25
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "flash-professional/led-par-64-slim-7x10w-rgbw-mk2",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

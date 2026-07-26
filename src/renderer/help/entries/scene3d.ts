@@ -101,6 +101,18 @@ export const scene3dHelp: HelpEntry[] = [
     keywords: ['light', 'intensity', 'brightness', 'gain'],
   },
   {
+    id: 'scene3d.haze',
+    title: 'Haze',
+    short: 'How much atmosphere the room has — how visible the beams are.',
+    body: 'A beam is only visible because of what is suspended in the air. This scales the volumetric '
+      + 'cones drawn for every lit DMX fixture: at 0 you see pools of light on surfaces and no beams at '
+      + 'all, which is exactly what a venue without a hazer looks like; turn it up to preview the same '
+      + 'rig once the hazers are running. It changes the PREVIEW only — no DMX, no output, nothing the '
+      + 'audience sees.',
+    group: '3D Scene',
+    keywords: ['haze', 'fog', 'atmosphere', 'beam', 'volumetric', 'smoke'],
+  },
+  {
     id: 'scene3d.exposure',
     title: 'Exposure',
     short: 'Tone-mapping exposure of the 3D view.',

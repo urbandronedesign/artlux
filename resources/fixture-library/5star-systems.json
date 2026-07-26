@@ -1,0 +1,619 @@
+[
+ {
+  "id": "5star-systems/spica-250m",
+  "manufacturer": "5Star Systems",
+  "model": "Spica 250M",
+  "aliases": [
+   "5Star Systems Spica 250M",
+   "5starsystemsspica250m",
+   "Spica 250M",
+   "Spica250M",
+   "spica250m"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0.4980392156862745,
+    "min": 0,
+    "max": 530,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0.4980392156862745,
+    "min": 0,
+    "max": 280,
+    "unit": "deg"
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan/Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 249,
+      "label": "PanTiltSpeed"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "black while moving"
+     }
+    ]
+   },
+   {
+    "key": "reset",
+    "label": "Reset",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0.6666666666666666,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "Fan speed"
+     },
+     {
+      "from": 128,
+      "to": 139,
+      "label": "lamp on"
+     },
+     {
+      "from": 140,
+      "to": 179,
+      "label": "NoFunction"
+     },
+     {
+      "from": 180,
+      "to": 189,
+      "label": "reset"
+     },
+     {
+      "from": 190,
+      "to": 229,
+      "label": "NoFunction"
+     },
+     {
+      "from": 230,
+      "to": 239,
+      "label": "lamp off"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "color-wheel",
+    "label": "Color Wheel",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 6,
+      "label": "Open"
+     },
+     {
+      "from": 7,
+      "to": 13,
+      "label": "Open"
+     },
+     {
+      "from": 14,
+      "to": 20,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 21,
+      "to": 27,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 28,
+      "to": 34,
+      "label": "Orange",
+      "color": "#ff7f00"
+     },
+     {
+      "from": 35,
+      "to": 41,
+      "label": "Orange",
+      "color": "#ff7f00"
+     },
+     {
+      "from": 42,
+      "to": 48,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 49,
+      "to": 55,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 56,
+      "to": 62,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 63,
+      "to": 69,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 70,
+      "to": 76,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 77,
+      "to": 83,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 84,
+      "to": 90,
+      "label": "Pink",
+      "color": "#ffc0cb"
+     },
+     {
+      "from": 91,
+      "to": 97,
+      "label": "Pink",
+      "color": "#ffc0cb"
+     },
+     {
+      "from": 98,
+      "to": 104,
+      "label": "Turquoise",
+      "color": "#40e0d0"
+     },
+     {
+      "from": 105,
+      "to": 111,
+      "label": "Turquoise",
+      "color": "#40e0d0"
+     },
+     {
+      "from": 112,
+      "to": 118,
+      "label": "Purple",
+      "color": "#9800ff"
+     },
+     {
+      "from": 119,
+      "to": 127,
+      "label": "Purple",
+      "color": "#9800ff"
+     },
+     {
+      "from": 128,
+      "to": 189,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 190,
+      "to": 193,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 194,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "prism",
+    "label": "Prism",
+    "role": "prism",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 95,
+      "label": "NoFunction"
+     },
+     {
+      "from": 96,
+      "to": 159,
+      "label": "Prism"
+     },
+     {
+      "from": 160,
+      "to": 167,
+      "label": "Macro 1"
+     },
+     {
+      "from": 168,
+      "to": 175,
+      "label": "Macro 2"
+     },
+     {
+      "from": 176,
+      "to": 183,
+      "label": "Macro 3"
+     },
+     {
+      "from": 184,
+      "to": 191,
+      "label": "Macro 4"
+     },
+     {
+      "from": 192,
+      "to": 199,
+      "label": "Macro 5"
+     },
+     {
+      "from": 200,
+      "to": 207,
+      "label": "Macro 6"
+     },
+     {
+      "from": 208,
+      "to": 215,
+      "label": "Macro 7"
+     },
+     {
+      "from": 216,
+      "to": 223,
+      "label": "Macro 8"
+     },
+     {
+      "from": 224,
+      "to": 231,
+      "label": "Macro 9"
+     },
+     {
+      "from": 232,
+      "to": 239,
+      "label": "Macro 10"
+     },
+     {
+      "from": 240,
+      "to": 247,
+      "label": "Macro 11"
+     },
+     {
+      "from": 248,
+      "to": 255,
+      "label": "Macro 12"
+     }
+    ]
+   },
+   {
+    "key": "prism-rotation",
+    "label": "Prism rotation",
+    "role": "prismRotation",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 1,
+      "to": 126,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 127,
+      "to": 128,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 129,
+      "to": 255,
+      "label": "PrismRotation"
+     }
+    ]
+   },
+   {
+    "key": "gobo-wheel",
+    "label": "Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "Open"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "Gobo"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "Gobo"
+     },
+     {
+      "from": 96,
+      "to": 127,
+      "label": "Gobo"
+     },
+     {
+      "from": 128,
+      "to": 159,
+      "label": "Gobo"
+     },
+     {
+      "from": 160,
+      "to": 223,
+      "label": "Gobo"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "gobo-rotation",
+    "label": "Gobo rotation",
+    "role": "goboRotation",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 128,
+      "to": 190,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 191,
+      "to": 192,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 193,
+      "to": 255,
+      "label": "WheelSlotRotation"
+     }
+    ]
+   },
+   {
+    "key": "focus",
+    "label": "Focus",
+    "role": "focus",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "shutter-strobe",
+    "label": "Shutter / Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "Closed"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "Open"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "Strobe"
+     },
+     {
+      "from": 96,
+      "to": 127,
+      "label": "Open"
+     },
+     {
+      "from": 128,
+      "to": 159,
+      "label": "Pulse"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "Open"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "Strobe"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   }
+  ],
+  "modes": [
+   {
+    "key": "16bit",
+    "name": "16bit",
+    "footprint": 16,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "reset",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     null,
+     {
+      "channelKey": "prism",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-rotation",
+      "byte": 0
+     },
+     null,
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "8bit",
+    "name": "8bit",
+    "footprint": 14,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "reset",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     null,
+     {
+      "channelKey": "prism",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-rotation",
+      "byte": 0
+     },
+     null,
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    427,
+    459,
+    373
+   ],
+   "weightKg": 18,
+   "powerW": 500,
+   "lensDegMin": 18,
+   "lensDegMax": 18
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "5star-systems/spica-250m",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

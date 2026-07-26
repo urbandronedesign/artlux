@@ -1,0 +1,856 @@
+[
+ {
+  "id": "minuit-une/ivl-carre",
+  "manufacturer": "Minuit Une",
+  "model": "IVL Carré",
+  "aliases": [
+   "IVL Carré",
+   "M-Carré",
+   "Minuit Une IVL Carré",
+   "Minuit Une M-Carré",
+   "Minuit Une m-carre",
+   "ivlcarr",
+   "ivlcarre",
+   "m-carre",
+   "mcarr",
+   "mcarre",
+   "minuituneivlcarr",
+   "minuitunemcarr",
+   "minuitunemcarre"
+  ],
+  "categories": [
+   "Laser",
+   "Effect",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "control",
+    "label": "Control",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0.7490196078431373,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 23,
+      "label": "Off"
+     },
+     {
+      "from": 24,
+      "to": 49,
+      "label": "Reset"
+     },
+     {
+      "from": 50,
+      "to": 255,
+      "label": "On"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blade",
+    "label": "Blade",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 360,
+    "unit": "deg"
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "shutter",
+    "label": "Shutter",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 14,
+      "label": "Open"
+     },
+     {
+      "from": 15,
+      "to": 27,
+      "label": "Closed"
+     },
+     {
+      "from": 28,
+      "to": 227,
+      "label": "Strobe"
+     },
+     {
+      "from": 228,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "tilt-all",
+    "label": "Tilt All",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 12,
+      "label": "NoFunction"
+     },
+     {
+      "from": 13,
+      "to": 255,
+      "label": "Tilt"
+     }
+    ]
+   },
+   {
+    "key": "tilt-1",
+    "label": "Tilt 1",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 360,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt-2",
+    "label": "Tilt 2",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 360,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt-3",
+    "label": "Tilt 3",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 360,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt-4",
+    "label": "Tilt 4",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 360,
+    "unit": "deg"
+   },
+   {
+    "key": "gobo-all",
+    "label": "Gobo All",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 36,
+      "label": "1 Beam"
+     },
+     {
+      "from": 37,
+      "to": 73,
+      "label": "2 Beams"
+     },
+     {
+      "from": 74,
+      "to": 110,
+      "label": "3 Beams"
+     },
+     {
+      "from": 111,
+      "to": 147,
+      "label": "8 Beams"
+     },
+     {
+      "from": 148,
+      "to": 184,
+      "label": "16 Beams"
+     },
+     {
+      "from": 185,
+      "to": 255,
+      "label": "32 Beams"
+     }
+    ]
+   },
+   {
+    "key": "index",
+    "label": "Index",
+    "role": "speed",
+    "resolution": 2,
+    "default": 0.49999237048905165,
+    "min": 0,
+    "max": 360,
+    "unit": "deg"
+   },
+   {
+    "key": "rotation",
+    "label": "Rotation",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 12,
+      "label": "NoFunction"
+     },
+     {
+      "from": 13,
+      "to": 122,
+      "label": "Rotation"
+     },
+     {
+      "from": 123,
+      "to": 133,
+      "label": "Rotation"
+     },
+     {
+      "from": 134,
+      "to": 242,
+      "label": "Rotation"
+     },
+     {
+      "from": 243,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "gobo-beam-angle-all",
+    "label": "Gobo Beam Angle all",
+    "role": "zoom",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 360,
+    "unit": "deg"
+   },
+   {
+    "key": "red-gobo",
+    "label": "Red Gobo",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 36,
+      "label": "1 Beam"
+     },
+     {
+      "from": 37,
+      "to": 73,
+      "label": "2 Beams"
+     },
+     {
+      "from": 74,
+      "to": 110,
+      "label": "4 Beams"
+     },
+     {
+      "from": 111,
+      "to": 147,
+      "label": "8 Beams"
+     },
+     {
+      "from": 148,
+      "to": 184,
+      "label": "16 Beams"
+     },
+     {
+      "from": 185,
+      "to": 221,
+      "label": "32 Beams"
+     },
+     {
+      "from": 222,
+      "to": 255,
+      "label": "64 Beams"
+     }
+    ]
+   },
+   {
+    "key": "index-red",
+    "label": "Index Red",
+    "role": "speed",
+    "resolution": 2,
+    "default": 0.49999237048905165,
+    "min": 0,
+    "max": 360,
+    "unit": "deg"
+   },
+   {
+    "key": "green-gobo",
+    "label": "Green Gobo",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 36,
+      "label": "1 Beam"
+     },
+     {
+      "from": 37,
+      "to": 73,
+      "label": "2 Beams"
+     },
+     {
+      "from": 74,
+      "to": 110,
+      "label": "3 Beams"
+     },
+     {
+      "from": 111,
+      "to": 147,
+      "label": "8 Beams"
+     },
+     {
+      "from": 148,
+      "to": 184,
+      "label": "16 Beams"
+     },
+     {
+      "from": 185,
+      "to": 221,
+      "label": "32 Beams"
+     },
+     {
+      "from": 222,
+      "to": 255,
+      "label": "64 Beams"
+     }
+    ]
+   },
+   {
+    "key": "rotation-red",
+    "label": "Rotation Red",
+    "role": "speed",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 12,
+      "label": "NoFunction"
+     },
+     {
+      "from": 13,
+      "to": 122,
+      "label": "Rotation"
+     },
+     {
+      "from": 123,
+      "to": 133,
+      "label": "Rotation"
+     },
+     {
+      "from": 134,
+      "to": 242,
+      "label": "Rotation"
+     },
+     {
+      "from": 243,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "index-green",
+    "label": "Index Green",
+    "role": "speed",
+    "resolution": 2,
+    "default": 0.49999237048905165,
+    "min": 0,
+    "max": 360,
+    "unit": "deg"
+   },
+   {
+    "key": "rotation-green",
+    "label": "Rotation Green",
+    "role": "speed",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 12,
+      "label": "NoFunction"
+     },
+     {
+      "from": 13,
+      "to": 122,
+      "label": "Rotation"
+     },
+     {
+      "from": 123,
+      "to": 133,
+      "label": "Rotation"
+     },
+     {
+      "from": 134,
+      "to": 242,
+      "label": "Rotation"
+     },
+     {
+      "from": 243,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "blue-gobo",
+    "label": "Blue Gobo",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 36,
+      "label": "1 Beam"
+     },
+     {
+      "from": 37,
+      "to": 73,
+      "label": "2 Beams"
+     },
+     {
+      "from": 74,
+      "to": 110,
+      "label": "3 Beams"
+     },
+     {
+      "from": 111,
+      "to": 147,
+      "label": "8 Beams"
+     },
+     {
+      "from": 148,
+      "to": 184,
+      "label": "16 Beams"
+     },
+     {
+      "from": 185,
+      "to": 221,
+      "label": "32 Beams"
+     },
+     {
+      "from": 222,
+      "to": 255,
+      "label": "64 Beams"
+     }
+    ]
+   },
+   {
+    "key": "index-blue",
+    "label": "Index Blue",
+    "role": "speed",
+    "resolution": 2,
+    "default": 0.49999237048905165,
+    "min": 0,
+    "max": 360,
+    "unit": "deg"
+   },
+   {
+    "key": "rotation-blue",
+    "label": "Rotation Blue",
+    "role": "speed",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 12,
+      "label": "NoFunction"
+     },
+     {
+      "from": 13,
+      "to": 122,
+      "label": "Rotation"
+     },
+     {
+      "from": 123,
+      "to": 133,
+      "label": "Rotation"
+     },
+     {
+      "from": 134,
+      "to": 242,
+      "label": "Rotation"
+     },
+     {
+      "from": 243,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "gobo-beam-angle-red",
+    "label": "Gobo Beam Angle Red",
+    "role": "zoom",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 360,
+    "unit": "deg"
+   },
+   {
+    "key": "gobo-beam-angle-green",
+    "label": "Gobo Beam Angle Green",
+    "role": "zoom",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 360,
+    "unit": "deg"
+   },
+   {
+    "key": "gobo-beam-angle-blue",
+    "label": "Gobo Beam Angle Blue",
+    "role": "zoom",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 360,
+    "unit": "deg"
+   }
+  ],
+  "modes": [
+   {
+    "key": "25ch",
+    "name": "25 channel",
+    "footprint": 25,
+    "slots": [
+     {
+      "channelKey": "control",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt-all",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt-all",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt-1",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt-1",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt-2",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt-3",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt-3",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt-4",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt-4",
+      "byte": 1
+     },
+     {
+      "channelKey": "gobo-all",
+      "byte": 0
+     },
+     {
+      "channelKey": "index",
+      "byte": 0
+     },
+     {
+      "channelKey": "index",
+      "byte": 1
+     },
+     {
+      "channelKey": "rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-beam-angle-all",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-beam-angle-all",
+      "byte": 1
+     },
+     null
+    ]
+   },
+   {
+    "key": "45ch",
+    "name": "45 channel",
+    "footprint": 45,
+    "slots": [
+     {
+      "channelKey": "control",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade",
+      "byte": 0
+     },
+     {
+      "channelKey": "blade",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt-all",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt-all",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt-1",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt-1",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt-2",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt-3",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt-3",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt-4",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt-4",
+      "byte": 1
+     },
+     {
+      "channelKey": "red-gobo",
+      "byte": 0
+     },
+     {
+      "channelKey": "index-red",
+      "byte": 0
+     },
+     {
+      "channelKey": "index-red",
+      "byte": 1
+     },
+     {
+      "channelKey": "rotation-red",
+      "byte": 0
+     },
+     {
+      "channelKey": "rotation-red",
+      "byte": 1
+     },
+     {
+      "channelKey": "gobo-beam-angle-red",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-beam-angle-red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-gobo",
+      "byte": 0
+     },
+     {
+      "channelKey": "index-green",
+      "byte": 0
+     },
+     {
+      "channelKey": "index-green",
+      "byte": 1
+     },
+     {
+      "channelKey": "rotation-green",
+      "byte": 0
+     },
+     {
+      "channelKey": "rotation-green",
+      "byte": 1
+     },
+     {
+      "channelKey": "gobo-beam-angle-green",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-beam-angle-green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue-gobo",
+      "byte": 0
+     },
+     {
+      "channelKey": "index-blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "index-blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "rotation-blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "rotation-blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "gobo-beam-angle-blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-beam-angle-blue",
+      "byte": 1
+     },
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    594.3,
+    200,
+    551.9
+   ],
+   "weightKg": 13,
+   "powerW": 125
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "minuit-une/ivl-carre",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

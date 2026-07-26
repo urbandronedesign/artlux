@@ -1,0 +1,914 @@
+[
+ {
+  "id": "event-lighting/par12x12",
+  "manufacturer": "Event Lighting",
+  "model": "Par12x12",
+  "aliases": [
+   "Event Lighting Par12x12",
+   "Par12x12",
+   "eventlightingpar12x12",
+   "par12x12"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "uv",
+    "label": "UV",
+    "role": "uv",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Strobe"
+     },
+     {
+      "from": 20,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "strobe-simple",
+    "label": "Strobe simple",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-macro-temperature",
+    "label": "Color Macro / Temperature",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 19,
+      "label": "NoFunction"
+     },
+     {
+      "from": 20,
+      "to": 39,
+      "label": "Red … Yellow",
+      "color": "#ff0000"
+     },
+     {
+      "from": 40,
+      "to": 59,
+      "label": "Yellow … Green",
+      "color": "#ffff00"
+     },
+     {
+      "from": 60,
+      "to": 79,
+      "label": "Green … Cyan",
+      "color": "#00ff00"
+     },
+     {
+      "from": 80,
+      "to": 99,
+      "label": "Cyan … Blue",
+      "color": "#00ffff"
+     },
+     {
+      "from": 100,
+      "to": 119,
+      "label": "Blue … Magenta",
+      "color": "#0000ff"
+     },
+     {
+      "from": 120,
+      "to": 139,
+      "label": "Magenta … Red",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 140,
+      "to": 159,
+      "label": "Red … White",
+      "color": "#ff0000"
+     },
+     {
+      "from": 160,
+      "to": 179,
+      "label": "White … Blue",
+      "color": "#ffffff"
+     },
+     {
+      "from": 180,
+      "to": 200,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 201,
+      "to": 255,
+      "label": "ColorTemperature"
+     }
+    ]
+   },
+   {
+    "key": "auto-programs",
+    "label": "Auto Programs",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 49,
+      "label": "ColorJump (RGBWAUV colors)"
+     },
+     {
+      "from": 50,
+      "to": 90,
+      "label": "ColorJump (36 colors)"
+     },
+     {
+      "from": 91,
+      "to": 131,
+      "label": "ColorFade (RGBWAUV colors, RGBW model)"
+     },
+     {
+      "from": 132,
+      "to": 172,
+      "label": "ColorFade (36 colors)"
+     },
+     {
+      "from": 173,
+      "to": 213,
+      "label": "ColorFade (Macros)"
+     },
+     {
+      "from": 214,
+      "to": 255,
+      "label": "Sound-active mode"
+     }
+    ]
+   },
+   {
+    "key": "program-speed",
+    "label": "Program Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer-curve",
+    "label": "Dimmer Curve",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Use dimmer curve from control board setting"
+     },
+     {
+      "from": 10,
+      "to": 57,
+      "label": "16bit linear dimmer 1"
+     },
+     {
+      "from": 58,
+      "to": 106,
+      "label": "16bit non-linear dimmer 2"
+     },
+     {
+      "from": 107,
+      "to": 155,
+      "label": "16bit non-linear dimmer 3"
+     },
+     {
+      "from": 156,
+      "to": 204,
+      "label": "16bit non-linear dimmer 4"
+     },
+     {
+      "from": 205,
+      "to": 255,
+      "label": "8bit linear dimmer 5"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "2ch",
+    "name": "2-channel",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "3ch",
+    "name": "3-channel",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "6ch",
+    "name": "6-channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "8ch",
+    "name": "8-channel",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "12ch",
+    "name": "12-channel",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe-simple",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macro-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-curve",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    263,
+    293,
+    109
+   ],
+   "weightKg": 3.2,
+   "powerW": 120,
+   "lensDegMin": 30,
+   "lensDegMax": 30
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "event-lighting/par12x12",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "event-lighting/par5x12",
+  "manufacturer": "Event Lighting",
+  "model": "Par5x12",
+  "aliases": [
+   "Event Lighting Par5x12",
+   "Par5x12",
+   "eventlightingpar5x12",
+   "par5x12"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "uv",
+    "label": "UV",
+    "role": "uv",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Strobe"
+     },
+     {
+      "from": 20,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "strobe-simple",
+    "label": "Strobe simple",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-macro-temperature",
+    "label": "Color Macro / Temperature",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 19,
+      "label": "NoFunction"
+     },
+     {
+      "from": 20,
+      "to": 39,
+      "label": "Red … Yellow",
+      "color": "#ff0000"
+     },
+     {
+      "from": 40,
+      "to": 59,
+      "label": "Yellow … Green",
+      "color": "#ffff00"
+     },
+     {
+      "from": 60,
+      "to": 79,
+      "label": "Green … Cyan",
+      "color": "#00ff00"
+     },
+     {
+      "from": 80,
+      "to": 99,
+      "label": "Cyan … Blue",
+      "color": "#00ffff"
+     },
+     {
+      "from": 100,
+      "to": 119,
+      "label": "Blue … Magenta",
+      "color": "#0000ff"
+     },
+     {
+      "from": 120,
+      "to": 139,
+      "label": "Magenta … Red",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 140,
+      "to": 159,
+      "label": "Red … White",
+      "color": "#ff0000"
+     },
+     {
+      "from": 160,
+      "to": 179,
+      "label": "White … Blue",
+      "color": "#ffffff"
+     },
+     {
+      "from": 180,
+      "to": 200,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 201,
+      "to": 255,
+      "label": "ColorTemperature"
+     }
+    ]
+   },
+   {
+    "key": "auto-programs",
+    "label": "Auto Programs",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 49,
+      "label": "ColorJump (RGBWAUV colors)"
+     },
+     {
+      "from": 50,
+      "to": 90,
+      "label": "ColorJump (36 colors)"
+     },
+     {
+      "from": 91,
+      "to": 131,
+      "label": "ColorFade (RGBWAUV colors, RGBW model)"
+     },
+     {
+      "from": 132,
+      "to": 172,
+      "label": "ColorFade (36 colors)"
+     },
+     {
+      "from": 173,
+      "to": 213,
+      "label": "ColorFade (Macros)"
+     },
+     {
+      "from": 214,
+      "to": 255,
+      "label": "Sound-active mode"
+     }
+    ]
+   },
+   {
+    "key": "program-speed",
+    "label": "Program Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer-curve",
+    "label": "Dimmer Curve",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Use dimmer curve from control board setting"
+     },
+     {
+      "from": 10,
+      "to": 57,
+      "label": "16bit linear dimmer 1"
+     },
+     {
+      "from": 58,
+      "to": 106,
+      "label": "16bit non-linear dimmer 2"
+     },
+     {
+      "from": 107,
+      "to": 155,
+      "label": "16bit non-linear dimmer 3"
+     },
+     {
+      "from": 156,
+      "to": 204,
+      "label": "16bit non-linear dimmer 4"
+     },
+     {
+      "from": 205,
+      "to": 255,
+      "label": "8bit linear dimmer 5"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "2ch",
+    "name": "2-channel",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "3ch",
+    "name": "3-channel",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "6ch",
+    "name": "6-channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "8ch",
+    "name": "8-channel",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "12ch",
+    "name": "12-channel",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe-simple",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macro-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-curve",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    207,
+    227,
+    120
+   ],
+   "weightKg": 1.9,
+   "powerW": 50,
+   "lensDegMin": 30,
+   "lensDegMax": 30
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "event-lighting/par5x12",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

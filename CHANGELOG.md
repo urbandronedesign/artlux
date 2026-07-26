@@ -1,5 +1,45 @@
 # Changelog
 
+## Unreleased
+
+### The timeline is a drawer now, and there are two fewer workbenches
+
+The rail is down from **eleven contexts to nine**, and the timeline is not one of them. It is a full-width
+**drawer** that eight of the nine workbenches pull up with **Ctrl+T** (or View ▸ Timeline, or a click on
+the collapsed strip at the bottom of the window), with open/closed and height remembered **per
+workbench**.
+
+The reason is a mistake we nearly made. The light-show work needed the 3D scene and the timeline on screen
+together — to record a lighting take against the rig you are aiming — and the only way to get that was a
+twelfth context. Which exposed the real problem: **the timeline is a tool, not a place.** You want it
+*while* cutting against the 2D stage, *while* recording a take against the 3D rig, *while* authoring a
+scene's timeline from the cue grid. Reaching it cost you the viewport you were working in.
+
+So it became a drawer, and the `timeline` context had nothing left of its own — its program monitor is the
+`Program` dock tab (the same full-bleed component) and its media library is a new `Media Library` dock tab,
+both now in **Mapping** along with Collect Assets. Two side effects worth having: the timeline **no longer
+remounts** when you change context (it did, every time, losing your zoom, scroll and clip selection), and
+the Show Machine's *Timeline* button and a scene card's *Edit Timeline* now open the drawer **underneath**
+the graph or the cue grid instead of taking it away.
+
+**`Tracking` merged into the 3D context, retitled Venue & Rig.** It had become a near-duplicate: no
+browser column, one parameter section the 3D context already carried, and a default layout whose whole
+purpose was to get the 3D scene on screen — because the 3D scene is where live blobs are drawn. Its four
+plugin monitors (OSC, Trigger Zones, Pose, Augmenta) are dock tabs there now, in a dock region that was
+previously empty. Venue & Rig also gained the DMX Profile + Channels parameter sections and a **Record
+Lighting Take** action, so the whole light-show loop happens in one place.
+
+Also fixed, found while merging: turning split view on inside a 3D context produced an **empty left pane**
+— the shell pins the 3D scene to the right pane, so there was nothing to show. A context whose viewport is
+the 3D scene now names a `companion` for the other pane; Venue & Rig names the 2D stage, which restores the
+stage-beside-3D arrangement Tracking used to provide, as a toggle rather than a rail entry.
+
+Your saved workspace is migrated: an install sitting on `Timeline` or `Tracking` opens on Mapping or Venue
+& Rig rather than an unselected rail. Two new invariant guards were added for the failure modes this
+touched, both of which are silent by nature — a menu entry or a plugin's dock tabs that resolve to a
+context that no longer exists, and a context whose declared layout omits a banked flag (which made the
+drawer's per-workbench memory behave like a global one on first run).
+
 ## v0.25.0
 
 > **The first release since v0.21.0.** v0.22.0, v0.23.0 and v0.24.0 were each prepared — version bumped,

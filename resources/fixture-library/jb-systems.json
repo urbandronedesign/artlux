@@ -1,0 +1,1654 @@
+[
+ {
+  "id": "jb-systems/imove-5s",
+  "manufacturer": "JB Systems",
+  "model": "iMove 5S",
+  "aliases": [
+   "JB Systems iMove 5S",
+   "iMove 5S",
+   "imove5s",
+   "jbsystemsimove5s"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 1,
+    "default": 0,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 1,
+    "default": 0,
+    "min": 0,
+    "max": 270,
+    "unit": "deg"
+   },
+   {
+    "key": "shutter-shaking",
+    "label": "Shutter / Shaking",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Closed"
+     },
+     {
+      "from": 8,
+      "to": 15,
+      "label": "Open"
+     },
+     {
+      "from": 16,
+      "to": 131,
+      "label": "Strobe"
+     },
+     {
+      "from": 132,
+      "to": 247,
+      "label": "WheelShake"
+     },
+     {
+      "from": 248,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "gobo-wheel",
+    "label": "Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 8,
+      "label": "Open"
+     },
+     {
+      "from": 9,
+      "to": 17,
+      "label": "Gobo",
+      "goboKey": "10-circles"
+     },
+     {
+      "from": 18,
+      "to": 25,
+      "label": "Donut"
+     },
+     {
+      "from": 26,
+      "to": 34,
+      "label": "Gobo",
+      "goboKey": "biohazard"
+     },
+     {
+      "from": 35,
+      "to": 43,
+      "label": "Spider web"
+     },
+     {
+      "from": 44,
+      "to": 51,
+      "label": "3 circling drops"
+     },
+     {
+      "from": 52,
+      "to": 59,
+      "label": "Sprinkles"
+     },
+     {
+      "from": 60,
+      "to": 68,
+      "label": "Segmented square"
+     },
+     {
+      "from": 69,
+      "to": 76,
+      "label": "Radioactive"
+     },
+     {
+      "from": 77,
+      "to": 85,
+      "label": "Emblem"
+     },
+     {
+      "from": 86,
+      "to": 93,
+      "label": "5-pointed star"
+     },
+     {
+      "from": 94,
+      "to": 102,
+      "label": "5 dots row"
+     },
+     {
+      "from": 103,
+      "to": 110,
+      "label": "Segmented circle"
+     },
+     {
+      "from": 111,
+      "to": 119,
+      "label": "Atomic orbits"
+     },
+     {
+      "from": 120,
+      "to": 127,
+      "label": "Cross pattern"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "color-wheel",
+    "label": "Color Wheel",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Open"
+     },
+     {
+      "from": 11,
+      "to": 21,
+      "label": "Green",
+      "color": "#00c200"
+     },
+     {
+      "from": 22,
+      "to": 31,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 32,
+      "to": 42,
+      "label": "Light Blue",
+      "color": "#99ccff"
+     },
+     {
+      "from": 43,
+      "to": 53,
+      "label": "Amber",
+      "color": "#ffbf00"
+     },
+     {
+      "from": 54,
+      "to": 63,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 64,
+      "to": 74,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 75,
+      "to": 85,
+      "label": "UV Purple",
+      "color": "#8800ff"
+     },
+     {
+      "from": 86,
+      "to": 95,
+      "label": "Light Green",
+      "color": "#8aff8a"
+     },
+     {
+      "from": 96,
+      "to": 106,
+      "label": "Orange",
+      "color": "#ff8800"
+     },
+     {
+      "from": 107,
+      "to": 117,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 118,
+      "to": 127,
+      "label": "Pink",
+      "color": "#ff88ff"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "color-wheel-split",
+    "label": "Color Wheel Split",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Open"
+     },
+     {
+      "from": 8,
+      "to": 15,
+      "label": "Green",
+      "color": "#00c200"
+     },
+     {
+      "from": 16,
+      "to": 22,
+      "label": "Green",
+      "color": "#00c200"
+     },
+     {
+      "from": 23,
+      "to": 30,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 31,
+      "to": 37,
+      "label": "Light Blue",
+      "color": "#99ccff"
+     },
+     {
+      "from": 38,
+      "to": 45,
+      "label": "Amber",
+      "color": "#ffbf00"
+     },
+     {
+      "from": 46,
+      "to": 52,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 53,
+      "to": 60,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 61,
+      "to": 67,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 68,
+      "to": 75,
+      "label": "UV Purple",
+      "color": "#8800ff"
+     },
+     {
+      "from": 76,
+      "to": 82,
+      "label": "Light Green",
+      "color": "#8aff8a"
+     },
+     {
+      "from": 83,
+      "to": 90,
+      "label": "Light Green",
+      "color": "#8aff8a"
+     },
+     {
+      "from": 91,
+      "to": 97,
+      "label": "Orange",
+      "color": "#ff8800"
+     },
+     {
+      "from": 98,
+      "to": 105,
+      "label": "Orange",
+      "color": "#ff8800"
+     },
+     {
+      "from": 106,
+      "to": 112,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 113,
+      "to": 120,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 121,
+      "to": 127,
+      "label": "Pink",
+      "color": "#ff88ff"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "no",
+    "name": "Normal",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-shaking",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "sc",
+    "name": "Split Color",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-shaking",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel-split",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    290,
+    330,
+    380
+   ],
+   "weightKg": 12,
+   "powerW": 250,
+   "lensDegMin": 16,
+   "lensDegMax": 16
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "jb-systems/imove-5s",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "jb-systems/irock-5c",
+  "manufacturer": "JB Systems",
+  "model": "iRock 5C",
+  "aliases": [
+   "JB Systems iRock 5C",
+   "iRock 5C",
+   "irock5c",
+   "jbsystemsirock5c"
+  ],
+  "categories": [
+   "Effect",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "shutter-shaking",
+    "label": "Shutter/Shaking",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Closed"
+     },
+     {
+      "from": 8,
+      "to": 15,
+      "label": "Open"
+     },
+     {
+      "from": 16,
+      "to": 131,
+      "label": "Strobe"
+     },
+     {
+      "from": 132,
+      "to": 247,
+      "label": "WheelShake"
+     },
+     {
+      "from": 248,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "gobo-wheel",
+    "label": "Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "Open"
+     },
+     {
+      "from": 16,
+      "to": 31,
+      "label": "Gobo",
+      "goboKey": "10-circles"
+     },
+     {
+      "from": 32,
+      "to": 47,
+      "label": "Shattered"
+     },
+     {
+      "from": 48,
+      "to": 63,
+      "label": "Frost"
+     },
+     {
+      "from": 64,
+      "to": 79,
+      "label": "3D Donut"
+     },
+     {
+      "from": 80,
+      "to": 95,
+      "label": "Gobo",
+      "goboKey": "glass-raindrops-on-window"
+     },
+     {
+      "from": 96,
+      "to": 111,
+      "label": "3200K",
+      "color": "#ffad32"
+     },
+     {
+      "from": 112,
+      "to": 127,
+      "label": "5600K",
+      "color": "#ffd6a1"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "color-wheel",
+    "label": "Color Wheel",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Open"
+     },
+     {
+      "from": 8,
+      "to": 15,
+      "label": "Dark Green",
+      "color": "#005500"
+     },
+     {
+      "from": 16,
+      "to": 22,
+      "label": "Dark Green",
+      "color": "#005500"
+     },
+     {
+      "from": 23,
+      "to": 30,
+      "label": "Dark Magenta",
+      "color": "#7f005f"
+     },
+     {
+      "from": 31,
+      "to": 37,
+      "label": "Dark Magenta",
+      "color": "#7f005f"
+     },
+     {
+      "from": 38,
+      "to": 45,
+      "label": "Light Blue",
+      "color": "#00aaff"
+     },
+     {
+      "from": 46,
+      "to": 52,
+      "label": "Light Blue",
+      "color": "#00aaff"
+     },
+     {
+      "from": 53,
+      "to": 60,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 61,
+      "to": 67,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 68,
+      "to": 75,
+      "label": "Orange",
+      "color": "#ff9100"
+     },
+     {
+      "from": 76,
+      "to": 82,
+      "label": "Orange",
+      "color": "#ff9100"
+     },
+     {
+      "from": 83,
+      "to": 90,
+      "label": "Dark Blue",
+      "color": "#00007f"
+     },
+     {
+      "from": 91,
+      "to": 97,
+      "label": "Dark Blue",
+      "color": "#00007f"
+     },
+     {
+      "from": 98,
+      "to": 105,
+      "label": "Purple",
+      "color": "#aa55ff"
+     },
+     {
+      "from": 106,
+      "to": 112,
+      "label": "Purple",
+      "color": "#aa55ff"
+     },
+     {
+      "from": 113,
+      "to": 120,
+      "label": "Light Green",
+      "color": "#aaff7f"
+     },
+     {
+      "from": 121,
+      "to": 127,
+      "label": "Light Magenta",
+      "color": "#fd78e7"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "gobo-rotation",
+    "label": "Gobo Rotation",
+    "role": "goboRotation",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 10,
+      "to": 120,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 121,
+      "to": 134,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 135,
+      "to": 245,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 246,
+      "to": 255,
+      "label": "WheelSlotRotation"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "5ch",
+    "name": "5-channel",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "shutter-shaking",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    340,
+    360,
+    250
+   ],
+   "weightKg": 9.2,
+   "powerW": 300,
+   "lensDegMin": 17,
+   "lensDegMax": 17
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "jb-systems/irock-5c",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "jb-systems/twin-effect-laser",
+  "manufacturer": "JB Systems",
+  "model": "Twin Effect Laser",
+  "aliases": [
+   "JB Systems Twin Effect Laser",
+   "Twin Effect Laser",
+   "jbsystemstwineffectlaser",
+   "twineffectlaser"
+  ],
+  "categories": [
+   "Laser",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "laser-mode-1ch",
+    "label": "laser-mode-1ch",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 24,
+      "label": "Laser off"
+     },
+     {
+      "from": 25,
+      "to": 59,
+      "label": "AUd mode (Auto grating effects show)"
+     },
+     {
+      "from": 60,
+      "to": 99,
+      "label": "AUp mode (Auto pattern effects show)"
+     },
+     {
+      "from": 100,
+      "to": 139,
+      "label": "AUn mode (Auto grating + pattern effects show)"
+     },
+     {
+      "from": 140,
+      "to": 179,
+      "label": "Sod mode (Sound active grating effects show)"
+     },
+     {
+      "from": 180,
+      "to": 219,
+      "label": "SoP mode (Sound active pattern effects show)"
+     },
+     {
+      "from": 220,
+      "to": 255,
+      "label": "Son mode (Sound active grating / pattern effects show)"
+     }
+    ]
+   },
+   {
+    "key": "laser-mode-10ch-combined",
+    "label": "laser-mode-10ch-combined",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 24,
+      "label": "Laser off"
+     },
+     {
+      "from": 25,
+      "to": 49,
+      "label": "AUn mode (Auto grating + pattern effects show)"
+     },
+     {
+      "from": 50,
+      "to": 74,
+      "label": "Son mode (Sound active grating / pattern effects show)"
+     },
+     {
+      "from": 75,
+      "to": 99,
+      "label": "AUP mode (Auto pattern effects show)"
+     },
+     {
+      "from": 100,
+      "to": 124,
+      "label": "SoP (Sound active pattern effects show)"
+     },
+     {
+      "from": 125,
+      "to": 149,
+      "label": "AUd mode (Auto grating effects show)"
+     },
+     {
+      "from": 150,
+      "to": 174,
+      "label": "Sod mode (Sound active grating effects show)"
+     },
+     {
+      "from": 175,
+      "to": 199,
+      "label": "DMX mode with Grating Dot effects"
+     },
+     {
+      "from": 200,
+      "to": 224,
+      "label": "DMX mode with Grating Pattern effects"
+     },
+     {
+      "from": 225,
+      "to": 255,
+      "label": "DMX mode with traditional pattern effects"
+     }
+    ]
+   },
+   {
+    "key": "laser-mode-10ch-a",
+    "label": "laser-mode-10ch-A",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0.6862745098039216,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 24,
+      "label": "Laser off"
+     },
+     {
+      "from": 25,
+      "to": 49,
+      "label": "AUn mode (Auto grating + pattern effects show)"
+     },
+     {
+      "from": 50,
+      "to": 74,
+      "label": "Son mode (Sound active grating / pattern effects show)"
+     },
+     {
+      "from": 75,
+      "to": 99,
+      "label": "AUP mode (Auto pattern effects show)"
+     },
+     {
+      "from": 100,
+      "to": 124,
+      "label": "SoP (Sound active pattern effects show)"
+     },
+     {
+      "from": 125,
+      "to": 149,
+      "label": "AUd mode (Auto grating effects show)"
+     },
+     {
+      "from": 150,
+      "to": 174,
+      "label": "Sod mode (Sound active grating effects show)"
+     },
+     {
+      "from": 175,
+      "to": 199,
+      "label": "DMX mode with Grating Dot effects"
+     },
+     {
+      "from": 200,
+      "to": 224,
+      "label": "DMX mode with Grating Pattern effects"
+     },
+     {
+      "from": 225,
+      "to": 255,
+      "label": "DMX mode with traditional pattern effects"
+     }
+    ]
+   },
+   {
+    "key": "laser-mode-10ch-b",
+    "label": "laser-mode-10ch-B",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0.7843137254901961,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 24,
+      "label": "Laser off"
+     },
+     {
+      "from": 25,
+      "to": 49,
+      "label": "AUn mode (Auto grating + pattern effects show)"
+     },
+     {
+      "from": 50,
+      "to": 74,
+      "label": "Son mode (Sound active grating / pattern effects show)"
+     },
+     {
+      "from": 75,
+      "to": 99,
+      "label": "AUP mode (Auto pattern effects show)"
+     },
+     {
+      "from": 100,
+      "to": 124,
+      "label": "SoP (Sound active pattern effects show)"
+     },
+     {
+      "from": 125,
+      "to": 149,
+      "label": "AUd mode (Auto grating effects show)"
+     },
+     {
+      "from": 150,
+      "to": 174,
+      "label": "Sod mode (Sound active grating effects show)"
+     },
+     {
+      "from": 175,
+      "to": 199,
+      "label": "DMX mode with Grating Dot effects"
+     },
+     {
+      "from": 200,
+      "to": 224,
+      "label": "DMX mode with Grating Pattern effects"
+     },
+     {
+      "from": 225,
+      "to": 255,
+      "label": "DMX mode with traditional pattern effects"
+     }
+    ]
+   },
+   {
+    "key": "laser-mode-10ch-c",
+    "label": "laser-mode-10ch-C",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0.8823529411764706,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 24,
+      "label": "Laser off"
+     },
+     {
+      "from": 25,
+      "to": 49,
+      "label": "AUn mode (Auto grating + pattern effects show)"
+     },
+     {
+      "from": 50,
+      "to": 74,
+      "label": "Son mode (Sound active grating / pattern effects show)"
+     },
+     {
+      "from": 75,
+      "to": 99,
+      "label": "AUP mode (Auto pattern effects show)"
+     },
+     {
+      "from": 100,
+      "to": 124,
+      "label": "SoP (Sound active pattern effects show)"
+     },
+     {
+      "from": 125,
+      "to": 149,
+      "label": "AUd mode (Auto grating effects show)"
+     },
+     {
+      "from": 150,
+      "to": 174,
+      "label": "Sod mode (Sound active grating effects show)"
+     },
+     {
+      "from": 175,
+      "to": 199,
+      "label": "DMX mode with Grating Dot effects"
+     },
+     {
+      "from": 200,
+      "to": 224,
+      "label": "DMX mode with Grating Pattern effects"
+     },
+     {
+      "from": 225,
+      "to": 255,
+      "label": "DMX mode with traditional pattern effects"
+     }
+    ]
+   },
+   {
+    "key": "x-axis-moving",
+    "label": "X Axis Moving",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "BeamPosition"
+     },
+     {
+      "from": 128,
+      "to": 191,
+      "label": "Rotation"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "Rotation"
+     }
+    ]
+   },
+   {
+    "key": "y-axis-moving",
+    "label": "Y Axis Moving",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "BeamPosition"
+     },
+     {
+      "from": 128,
+      "to": 191,
+      "label": "Rotation"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "Rotation"
+     }
+    ]
+   },
+   {
+    "key": "x-axis-rolling",
+    "label": "X Axis Rolling",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "Rotation"
+     },
+     {
+      "from": 128,
+      "to": 191,
+      "label": "Rotation"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "Rotation"
+     }
+    ]
+   },
+   {
+    "key": "y-axis-rolling",
+    "label": "Y Axis Rolling",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "Rotation"
+     },
+     {
+      "from": 128,
+      "to": 191,
+      "label": "Rotation"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "Rotation"
+     }
+    ]
+   },
+   {
+    "key": "z-axis-rolling",
+    "label": "Z Axis Rolling",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "Rotation"
+     },
+     {
+      "from": 128,
+      "to": 191,
+      "label": "Rotation"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "Rotation"
+     }
+    ]
+   },
+   {
+    "key": "colors-10ch-a",
+    "label": "colors-10ch-A",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Laser blackout"
+     },
+     {
+      "from": 10,
+      "to": 63,
+      "label": "Red & green on OR red & green strobing",
+      "color": "#ff0000"
+     },
+     {
+      "from": 64,
+      "to": 127,
+      "label": "Red on OR red strobing",
+      "color": "#ff0000"
+     },
+     {
+      "from": 128,
+      "to": 191,
+      "label": "Green on OR green strobing",
+      "color": "#00ff00"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "Red & green on OR red & green strobing alternately",
+      "color": "#ff0000"
+     }
+    ]
+   },
+   {
+    "key": "colors-10ch-b",
+    "label": "colors-10ch-B",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 16,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 17,
+      "to": 31,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 32,
+      "to": 49,
+      "label": "Red & Green",
+      "color": "#ffff00"
+     },
+     {
+      "from": 50,
+      "to": 255,
+      "label": "ColorJump"
+     }
+    ]
+   },
+   {
+    "key": "colors-10ch-c",
+    "label": "colors-10ch-C",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 16,
+      "label": "Original colors"
+     },
+     {
+      "from": 17,
+      "to": 31,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 32,
+      "to": 47,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 48,
+      "to": 62,
+      "label": "Red + Green (Yellow)",
+      "color": "#ffff00"
+     },
+     {
+      "from": 63,
+      "to": 160,
+      "label": "ColorJump (Red / Green alternating)"
+     },
+     {
+      "from": 161,
+      "to": 255,
+      "label": "ColorJump (Changing mix of 3 colors)"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "No Strobing"
+     },
+     {
+      "from": 10,
+      "to": 249,
+      "label": "Strobe"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "grating-rotation-10ch-a",
+    "label": "grating-rotation-10ch-A",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 75,
+      "label": "Rotation"
+     },
+     {
+      "from": 76,
+      "to": 150,
+      "label": "Rotation"
+     },
+     {
+      "from": 151,
+      "to": 255,
+      "label": "Rotation"
+     }
+    ]
+   },
+   {
+    "key": "grating-rotation-10ch-b",
+    "label": "grating-rotation-10ch-B",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Rotation"
+     },
+     {
+      "from": 1,
+      "to": 75,
+      "label": "Rotation"
+     },
+     {
+      "from": 76,
+      "to": 150,
+      "label": "Rotation"
+     },
+     {
+      "from": 151,
+      "to": 255,
+      "label": "Rotation"
+     }
+    ]
+   },
+   {
+    "key": "patterns",
+    "label": "Patterns",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "zooming",
+    "label": "Zooming",
+    "role": "zoom",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "Pattern size"
+     },
+     {
+      "from": 128,
+      "to": 169,
+      "label": "Zooming in"
+     },
+     {
+      "from": 170,
+      "to": 209,
+      "label": "Zooming out"
+     },
+     {
+      "from": 210,
+      "to": 255,
+      "label": "Zooming in & out"
+     }
+    ]
+   },
+   {
+    "key": "unused-1",
+    "label": "Unused 1",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "unused-2",
+    "label": "Unused 2",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "unused-3",
+    "label": "Unused 3",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "unused-4",
+    "label": "Unused 4",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "unused-5",
+    "label": "Unused 5",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "unused-6",
+    "label": "Unused 6",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "unused-7",
+    "label": "Unused 7",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "unused-8",
+    "label": "Unused 8",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "unused-9",
+    "label": "Unused 9",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "1ch",
+    "name": "1-channel",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "laser-mode-1ch",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "10ch",
+    "name": "10-channel combined",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "laser-mode-10ch-combined",
+      "byte": 0
+     },
+     {
+      "channelKey": "unused-1",
+      "byte": 0
+     },
+     {
+      "channelKey": "unused-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "unused-3",
+      "byte": 0
+     },
+     {
+      "channelKey": "unused-4",
+      "byte": 0
+     },
+     {
+      "channelKey": "unused-5",
+      "byte": 0
+     },
+     {
+      "channelKey": "unused-6",
+      "byte": 0
+     },
+     {
+      "channelKey": "unused-7",
+      "byte": 0
+     },
+     {
+      "channelKey": "unused-8",
+      "byte": 0
+     },
+     {
+      "channelKey": "unused-9",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "10ch-a",
+    "name": "10-channel grating dot",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "laser-mode-10ch-a",
+      "byte": 0
+     },
+     {
+      "channelKey": "x-axis-moving",
+      "byte": 0
+     },
+     {
+      "channelKey": "y-axis-moving",
+      "byte": 0
+     },
+     {
+      "channelKey": "colors-10ch-a",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "grating-rotation-10ch-a",
+      "byte": 0
+     },
+     null,
+     null,
+     null,
+     null
+    ]
+   },
+   {
+    "key": "10ch-b",
+    "name": "10-channel grating pattern",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "laser-mode-10ch-b",
+      "byte": 0
+     },
+     {
+      "channelKey": "patterns",
+      "byte": 0
+     },
+     {
+      "channelKey": "zooming",
+      "byte": 0
+     },
+     {
+      "channelKey": "y-axis-rolling",
+      "byte": 0
+     },
+     {
+      "channelKey": "x-axis-rolling",
+      "byte": 0
+     },
+     {
+      "channelKey": "z-axis-rolling",
+      "byte": 0
+     },
+     {
+      "channelKey": "x-axis-moving",
+      "byte": 0
+     },
+     {
+      "channelKey": "y-axis-moving",
+      "byte": 0
+     },
+     {
+      "channelKey": "colors-10ch-b",
+      "byte": 0
+     },
+     {
+      "channelKey": "grating-rotation-10ch-b",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "10ch-c",
+    "name": "10-channel traditional pattern",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "laser-mode-10ch-c",
+      "byte": 0
+     },
+     {
+      "channelKey": "patterns",
+      "byte": 0
+     },
+     {
+      "channelKey": "zooming",
+      "byte": 0
+     },
+     {
+      "channelKey": "y-axis-rolling",
+      "byte": 0
+     },
+     {
+      "channelKey": "x-axis-rolling",
+      "byte": 0
+     },
+     {
+      "channelKey": "z-axis-rolling",
+      "byte": 0
+     },
+     {
+      "channelKey": "x-axis-moving",
+      "byte": 0
+     },
+     {
+      "channelKey": "y-axis-moving",
+      "byte": 0
+     },
+     {
+      "channelKey": "colors-10ch-c",
+      "byte": 0
+     },
+     null
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    240,
+    110,
+    215
+   ],
+   "weightKg": 2.6,
+   "powerW": 28
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "jb-systems/twin-effect-laser",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

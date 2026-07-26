@@ -1,0 +1,895 @@
+[
+ {
+  "id": "adb/europe-105",
+  "manufacturer": "ADB",
+  "model": "Europe 105",
+  "aliases": [
+   "ADB Europe 105",
+   "ADBEurope105",
+   "Europe 105",
+   "adbeurope105",
+   "europe105"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0.00392156862745098
+   }
+  ],
+  "modes": [
+   {
+    "key": "dw105-1k",
+    "name": "DW 105 1000W",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "dw105-1-2k",
+    "name": "DW 105 1200W",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "dvw105-1k",
+    "name": "DVW 105 1000W",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "dvw105-1-2k",
+    "name": "DVW 105 1200W",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "ds105-1k",
+    "name": "DS 105 1000W",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "ds105-1-2k",
+    "name": "DS 105 1200W",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "dsn105-1k",
+    "name": "DSN 105 1000W",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "dsn105-1-2k",
+    "name": "DSN 105 1200W",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "dn105-1k",
+    "name": "DN 105 1000W",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "dn105-1-2k",
+    "name": "DN 105 1200W",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "source": {
+   "origin": "ofl",
+   "ref": "adb/europe-105",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "adb/warp-m",
+  "manufacturer": "ADB",
+  "model": "WARP/M",
+  "aliases": [
+   "ADB WARP/M",
+   "ADBWarpM",
+   "WARP/M",
+   "adbwarpm",
+   "warpm"
+  ],
+  "categories": [
+   "Moving Head"
+  ],
+  "channels": [
+   {
+    "key": "control",
+    "label": "Control",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 20,
+      "label": "Fire"
+     },
+     {
+      "from": 21,
+      "to": 25,
+      "label": "Park"
+     },
+     {
+      "from": 26,
+      "to": 30,
+      "label": "Online"
+     },
+     {
+      "from": 31,
+      "to": 35,
+      "label": "NoFunction"
+     },
+     {
+      "from": 36,
+      "to": 40,
+      "label": "Stealth Mode"
+     },
+     {
+      "from": 41,
+      "to": 45,
+      "label": "Quiet Mode"
+     },
+     {
+      "from": 46,
+      "to": 50,
+      "label": "Fast mode"
+     },
+     {
+      "from": 51,
+      "to": 55,
+      "label": "Reset all"
+     },
+     {
+      "from": 56,
+      "to": 60,
+      "label": "Reset all Shutters"
+     },
+     {
+      "from": 61,
+      "to": 65,
+      "label": "Reset Gobo 1"
+     },
+     {
+      "from": 66,
+      "to": 70,
+      "label": "Gobo 2/iris"
+     },
+     {
+      "from": 71,
+      "to": 75,
+      "label": "Reset Zoom"
+     },
+     {
+      "from": 76,
+      "to": 80,
+      "label": "Reset Focus"
+     },
+     {
+      "from": 81,
+      "to": 85,
+      "label": "Reset Pan"
+     },
+     {
+      "from": 86,
+      "to": 90,
+      "label": "Reset Tilt"
+     },
+     {
+      "from": 91,
+      "to": 95,
+      "label": "NoFunction"
+     },
+     {
+      "from": 96,
+      "to": 100,
+      "label": "Calibration lens"
+     },
+     {
+      "from": 101,
+      "to": 105,
+      "label": "Calibration of Shutters"
+     },
+     {
+      "from": 106,
+      "to": 110,
+      "label": "Calibration of Pan/Tilt"
+     },
+     {
+      "from": 111,
+      "to": 115,
+      "label": "Calibration of Iris/Gobo"
+     },
+     {
+      "from": 116,
+      "to": 120,
+      "label": "NoFunction"
+     },
+     {
+      "from": 121,
+      "to": 125,
+      "label": "Pan invert On"
+     },
+     {
+      "from": 126,
+      "to": 130,
+      "label": "Pan invert Off"
+     },
+     {
+      "from": 131,
+      "to": 135,
+      "label": "Tilt invert On"
+     },
+     {
+      "from": 136,
+      "to": 140,
+      "label": "Tilt invert Off"
+     },
+     {
+      "from": 141,
+      "to": 145,
+      "label": "Pan/Tilt swap On"
+     },
+     {
+      "from": 146,
+      "to": 150,
+      "label": "Pan/Tilt swap Off"
+     },
+     {
+      "from": 151,
+      "to": 155,
+      "label": "Display On"
+     },
+     {
+      "from": 156,
+      "to": 160,
+      "label": "Display Off"
+     },
+     {
+      "from": 161,
+      "to": 165,
+      "label": "Factory default setting"
+     },
+     {
+      "from": 166,
+      "to": 170,
+      "label": "User setting 1"
+     },
+     {
+      "from": 171,
+      "to": 175,
+      "label": "User setting 2"
+     },
+     {
+      "from": 176,
+      "to": 180,
+      "label": "User setting 3"
+     },
+     {
+      "from": 181,
+      "to": 185,
+      "label": "NoFunction"
+     },
+     {
+      "from": 186,
+      "to": 190,
+      "label": "DMX address setting"
+     },
+     {
+      "from": 191,
+      "to": 195,
+      "label": "Accessory change"
+     },
+     {
+      "from": 196,
+      "to": 200,
+      "label": "Gobo Mode indexed"
+     },
+     {
+      "from": 201,
+      "to": 205,
+      "label": "Gobo Mode indexed and Endless rotation"
+     },
+     {
+      "from": 206,
+      "to": 210,
+      "label": "NoFunction"
+     },
+     {
+      "from": 211,
+      "to": 215,
+      "label": "NoFunction"
+     },
+     {
+      "from": 216,
+      "to": 220,
+      "label": "NoFunction"
+     },
+     {
+      "from": 221,
+      "to": 225,
+      "label": "NoFunction"
+     },
+     {
+      "from": 226,
+      "to": 230,
+      "label": "NoFunction"
+     },
+     {
+      "from": 231,
+      "to": 235,
+      "label": "NoFunction"
+     },
+     {
+      "from": 236,
+      "to": 240,
+      "label": "NoFunction"
+     },
+     {
+      "from": 241,
+      "to": 255,
+      "label": "Arm"
+     }
+    ]
+   },
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0.49999237048905165,
+    "min": 0,
+    "max": 400,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0.49999237048905165,
+    "min": 0,
+    "max": 275,
+    "unit": "deg"
+   },
+   {
+    "key": "zoom",
+    "label": "Zoom",
+    "role": "zoom",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "focus",
+    "label": "Focus",
+    "role": "focus",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "shutter-a-rotation",
+    "label": "Shutter A Rotation",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0.49999237048905165,
+    "min": 0,
+    "max": 720,
+    "unit": "deg"
+   },
+   {
+    "key": "shutter-a-insertion",
+    "label": "Shutter A Insertion",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "shutter-b-rotation",
+    "label": "Shutter B Rotation",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0.49999237048905165,
+    "min": 0,
+    "max": 720,
+    "unit": "deg"
+   },
+   {
+    "key": "shutter-b-insertion",
+    "label": "Shutter B Insertion",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "shutter-c-rotation",
+    "label": "Shutter C Rotation",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0.49999237048905165,
+    "min": 0,
+    "max": 720,
+    "unit": "deg"
+   },
+   {
+    "key": "shutter-c-insertion",
+    "label": "Shutter C Insertion",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "shutter-d-rotation",
+    "label": "Shutter D Rotation",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0.49999237048905165,
+    "min": 0,
+    "max": 720,
+    "unit": "deg"
+   },
+   {
+    "key": "shutter-d-insertion",
+    "label": "Shutter D Insertion",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "shutters-all-rotation-offset",
+    "label": "Shutters all rotation offset",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0.49999237048905165,
+    "min": 0,
+    "max": 720,
+    "unit": "deg"
+   },
+   {
+    "key": "gobo-1-rotation",
+    "label": "Gobo 1 rotation",
+    "role": "speed",
+    "resolution": 2,
+    "default": 0.49999237048905165,
+    "min": 0,
+    "max": 360,
+    "unit": "deg"
+   },
+   {
+    "key": "iris",
+    "label": "Iris",
+    "role": "iris",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "external-dimmer-optional",
+    "label": "External dimmer (optional)",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "external-dmx-output-1",
+    "label": "External DMX output 1",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "external-dmx-output-2",
+    "label": "External DMX output 2",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "external-dmx-output-3",
+    "label": "External DMX output 3",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "external-dmx-output-4",
+    "label": "External DMX output 4",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "external-dmx-output-5",
+    "label": "External DMX output 5",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "external-dmx-output-6",
+    "label": "External DMX output 6",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "external-dmx-output-7",
+    "label": "External DMX output 7",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "external-dmx-output-8",
+    "label": "External DMX output 8",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "warpm1230",
+    "name": "12-30",
+    "footprint": 34,
+    "slots": [
+     {
+      "channelKey": "control",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-a-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-a-rotation",
+      "byte": 1
+     },
+     {
+      "channelKey": "shutter-a-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-b-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-b-rotation",
+      "byte": 1
+     },
+     {
+      "channelKey": "shutter-b-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-c-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-c-rotation",
+      "byte": 1
+     },
+     {
+      "channelKey": "shutter-c-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-d-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-d-rotation",
+      "byte": 1
+     },
+     {
+      "channelKey": "shutter-d-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutters-all-rotation-offset",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutters-all-rotation-offset",
+      "byte": 1
+     },
+     {
+      "channelKey": "gobo-1-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-1-rotation",
+      "byte": 1
+     },
+     {
+      "channelKey": "iris",
+      "byte": 0
+     },
+     {
+      "channelKey": "iris",
+      "byte": 1
+     },
+     {
+      "channelKey": "external-dimmer-optional",
+      "byte": 0
+     },
+     {
+      "channelKey": "external-dmx-output-1",
+      "byte": 0
+     },
+     {
+      "channelKey": "external-dmx-output-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "external-dmx-output-3",
+      "byte": 0
+     },
+     {
+      "channelKey": "external-dmx-output-4",
+      "byte": 0
+     },
+     {
+      "channelKey": "external-dmx-output-5",
+      "byte": 0
+     },
+     {
+      "channelKey": "external-dmx-output-6",
+      "byte": 0
+     },
+     {
+      "channelKey": "external-dmx-output-7",
+      "byte": 0
+     },
+     {
+      "channelKey": "external-dmx-output-8",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "warpm2250",
+    "name": "22-50",
+    "footprint": 34,
+    "slots": [
+     {
+      "channelKey": "control",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-a-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-a-rotation",
+      "byte": 1
+     },
+     {
+      "channelKey": "shutter-a-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-b-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-b-rotation",
+      "byte": 1
+     },
+     {
+      "channelKey": "shutter-b-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-c-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-c-rotation",
+      "byte": 1
+     },
+     {
+      "channelKey": "shutter-c-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-d-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-d-rotation",
+      "byte": 1
+     },
+     {
+      "channelKey": "shutter-d-insertion",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutters-all-rotation-offset",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutters-all-rotation-offset",
+      "byte": 1
+     },
+     {
+      "channelKey": "gobo-1-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-1-rotation",
+      "byte": 1
+     },
+     {
+      "channelKey": "iris",
+      "byte": 0
+     },
+     {
+      "channelKey": "iris",
+      "byte": 1
+     },
+     {
+      "channelKey": "external-dimmer-optional",
+      "byte": 0
+     },
+     {
+      "channelKey": "external-dmx-output-1",
+      "byte": 0
+     },
+     {
+      "channelKey": "external-dmx-output-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "external-dmx-output-3",
+      "byte": 0
+     },
+     {
+      "channelKey": "external-dmx-output-4",
+      "byte": 0
+     },
+     {
+      "channelKey": "external-dmx-output-5",
+      "byte": 0
+     },
+     {
+      "channelKey": "external-dmx-output-6",
+      "byte": 0
+     },
+     {
+      "channelKey": "external-dmx-output-7",
+      "byte": 0
+     },
+     {
+      "channelKey": "external-dmx-output-8",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    549,
+    695,
+    448
+   ],
+   "weightKg": 32,
+   "powerW": 900
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "adb/warp-m",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

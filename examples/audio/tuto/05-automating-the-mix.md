@@ -11,7 +11,7 @@ is a lane.
 
 ## 1. Open it and watch the room duck
 
-**File ▸ Open…** → `04-automation.artlux`. Go to the **Timeline** context and make sure **Global** is bound
+**File ▸ Open…** → `04-automation.artlux`. Pull the **timeline drawer** up (**Ctrl+T**) and make sure **Global** is bound
 (the pill above the ruler). Press **Play**.
 
 Look at the timeline. Below the clips there are two new lanes with curves drawn on them:
@@ -78,12 +78,12 @@ the show clock — the same clock as the bed — so a cue does not reset it, any
 
 ## 4. …and you can *see* it, which is new
 
-With the Scene still bound, go back to the **Timeline** context.
+With the Scene still bound, go back to the **timeline drawer**.
 
 The two lanes are **still drawn** — dimmed, and each badged **`GLOBAL`**.
 
 ![A GLOBAL lane struck through in the timeline, beside the read-only LANE master fader in the mixer](images/05-global-vs-lane.png)
-<!-- TODO screenshot: left, the Timeline context with a base lane badged GLOBAL and struck through because a scene lane owns the same target; right, the Audio context master fader greyed out and badged LANE -->
+<!-- TODO screenshot: left, the timeline drawer with a base lane badged GLOBAL and struck through because a scene lane owns the same target; right, the Audio context master fader greyed out and badged LANE -->
 
 > ### Why they are on screen at all
 > They do not belong to this Scene. They belong to the **global** timeline, and they are *what is currently

@@ -35,6 +35,38 @@ const RANGE: Record<string, { min: number; max: number; step: number; unit?: str
   'content.speed': { min: 0, max: 4, step: 0.01, unit: '×' },
 };
 
+// A PROFILED FIXTURE'S CHANNEL RANGE CANNOT COME FROM THE TABLE ABOVE, because that table is keyed
+// on the leaf NAME and every profile channel shares the same leaf shape (`dmx.<key>`) while meaning
+// something different per fixture: Pan is 0..540°, Zoom 8..45°, a gobo wheel a list of slots.
+//
+// So resolve it from the profile instead.
+//
+// ⚠ THE AXIS IS 0..1, NOT DEGREES, and that is deliberate. `min`/`max` on an AutomationTargetDef are
+// not merely a drawing hint — compileAutomation CLAMPS every keyframe to them and then hands the
+// result straight to provider.write(), which lands in `Fixture.dmx` (normalised 0..1, see the type).
+// Publishing a Pan lane as 0..540 would therefore let the operator draw a curve to 540, clamp
+// nothing, and write 540 into a field the packer treats as a fraction — pinning the head at its
+// maximum for the whole curve. Showing degrees needs a display transform in the lane UI (author in
+// unit X, store in unit Y), which does not exist yet; until it does, an honest 0..1 axis beats a
+// unit label that lies. profilePack.physicalValue() converts for read-out in the meantime.
+//
+// What the profile DOES contribute is the step: one DMX byte for a discrete wheel (fractional slots
+// are meaningless), and the channel's true resolution otherwise — which is also the epsilon the
+// sampler change-detects on, so a 16-bit Pan is not quantised to 8-bit steps.
+function profileChannelRange(
+  view: StateView,
+  path: string,
+): { min: number; max: number; step: number; unit?: string } | null {
+  const parts = path.split('.');                       // fixtures.<id>.dmx.<key>
+  if (parts[0] !== 'fixtures' || parts[2] !== 'dmx' || !parts[3]) return null;
+  const fixture = view.fixtures.find((f) => f.id === parts[1]);
+  const profile = fixture?.profileId ? view.profiles?.get(fixture.profileId) : undefined;
+  const channel = profile?.channels.find((c) => c.key === parts[3]);
+  if (!channel) return null;
+  const step = channel.ranges?.length ? 1 / 255 : 1 / (256 ** channel.resolution - 1);
+  return { min: 0, max: 1, step };
+}
+
 export const coreAutomationProvider: AutomationTargetProvider = {
   // paramPath's grammar spans three heads, and this provider owns all of them.
   namespaces: ['surfaces', 'fixtures', 'globalBrightness'],
@@ -45,14 +77,17 @@ export const coreAutomationProvider: AutomationTargetProvider = {
     const push = (path: string, label: string, group: string) => {
       // A lane needs a min/max to draw an axis against — a leaf with no range is not automatable in P4.
       const leaf = path.includes('.') ? path.split('.').slice(2).join('.') : 'intensity';
-      const r = RANGE[leaf] ?? RANGE[leaf.replace(/^segments\.\d+\./, '')];
+      const r = profileChannelRange(view, path) ?? RANGE[leaf] ?? RANGE[leaf.replace(/^segments\.\d+\./, '')];
       if (!r) return;
       const cur = getByPath(view, path);
       out.push({ path, label, group, min: r.min, max: r.max, step: r.step, unit: r.unit, def: typeof cur === 'number' ? cur : r.min });
     };
     for (const p of globalParams()) push(p.path, p.label, 'Global');
     for (const s of view.surfaces) for (const p of surfaceParams(s)) push(p.path, p.label, `Surface ▸ ${s.name ?? s.id}`);
-    for (const f of view.fixtures) for (const p of fixtureParams(f)) push(p.path, p.label, `Fixture ▸ ${f.name ?? f.id}`);
+    for (const f of view.fixtures) {
+      const profile = f.profileId ? view.profiles?.get(f.profileId) : undefined;
+      for (const p of fixtureParams(f, profile)) push(p.path, p.label, `Fixture ▸ ${f.name ?? f.id}`);
+    }
     return out;
   },
 

@@ -1,0 +1,2095 @@
+[
+ {
+  "id": "litegear/litemat-plus-1",
+  "manufacturer": "LiteGear",
+  "model": "LiteMat Plus 1",
+  "aliases": [
+   "LiteGear LiteMat Plus 1",
+   "LiteMat Plus 1",
+   "litegearlitematplus1",
+   "litematplus1"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "dimmer-2",
+    "label": "Dimmer 2",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "color-temperature-2",
+    "label": "Color Temperature 2",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "1x8bit",
+    "name": "Single 8bit",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "1x16bit",
+    "name": "Single 16bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "2x8bit",
+    "name": "Double 8bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "2x16bit",
+    "name": "Double 16bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 1
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    533,
+    292,
+    23
+   ],
+   "weightKg": 1.13,
+   "powerW": 50
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "litegear/litemat-plus-1",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "litegear/litemat-plus-2",
+  "manufacturer": "LiteGear",
+  "model": "LiteMat Plus 2",
+  "aliases": [
+   "LiteGear LiteMat Plus 2",
+   "LiteMat Plus 2",
+   "litegearlitematplus2",
+   "litematplus2"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "dimmer-2",
+    "label": "Dimmer 2",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "color-temperature-2",
+    "label": "Color Temperature 2",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "1x8bit",
+    "name": "Single 8bit",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "1x16bit",
+    "name": "Single 16bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "2x8bit",
+    "name": "Double 8bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "2x16bit",
+    "name": "Double 16bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 1
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    533,
+    533,
+    23
+   ],
+   "weightKg": 1.72,
+   "powerW": 100
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "litegear/litemat-plus-2",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "litegear/litemat-plus-2l",
+  "manufacturer": "LiteGear",
+  "model": "LiteMat Plus 2L",
+  "aliases": [
+   "LiteGear LiteMat Plus 2L",
+   "LiteMat Plus 2L",
+   "litegearlitematplus2l",
+   "litematplus2l"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "dimmer-2",
+    "label": "Dimmer 2",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "color-temperature-2",
+    "label": "Color Temperature 2",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "1x8bit",
+    "name": "Single 8bit",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "1x16bit",
+    "name": "Single 16bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "2x8bit",
+    "name": "Double 8bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "2x16bit",
+    "name": "Double 16bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 1
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    1016,
+    292,
+    23
+   ],
+   "weightKg": 1.72,
+   "powerW": 100
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "litegear/litemat-plus-2l",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "litegear/litemat-plus-3",
+  "manufacturer": "LiteGear",
+  "model": "LiteMat Plus 3",
+  "aliases": [
+   "LiteGear LiteMat Plus 3",
+   "LiteMat Plus 3",
+   "litegearlitematplus3",
+   "litematplus3"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "dimmer-2",
+    "label": "Dimmer 2",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "color-temperature-2",
+    "label": "Color Temperature 2",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "1x8bit",
+    "name": "Single 8bit",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "1x16bit",
+    "name": "Single 16bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "2x8bit",
+    "name": "Double 8bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "2x16bit",
+    "name": "Double 16bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 1
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    775,
+    533,
+    23
+   ],
+   "weightKg": 2.18,
+   "powerW": 150
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "litegear/litemat-plus-3",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "litegear/litemat-plus-4",
+  "manufacturer": "LiteGear",
+  "model": "LiteMat Plus 4",
+  "aliases": [
+   "LiteGear LiteMat Plus 4",
+   "LiteMat Plus 4",
+   "litegearlitematplus4",
+   "litematplus4"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "dimmer-2",
+    "label": "Dimmer 2",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "color-temperature-2",
+    "label": "Color Temperature 2",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "1x8bit",
+    "name": "Single 8bit",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "1x16bit",
+    "name": "Single 16bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "2x8bit",
+    "name": "Double 8bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "2x16bit",
+    "name": "Double 16bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 1
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    1016,
+    533,
+    23
+   ],
+   "weightKg": 2.81,
+   "powerW": 200
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "litegear/litemat-plus-4",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "litegear/litemat-plus-8",
+  "manufacturer": "LiteGear",
+  "model": "LiteMat Plus 8",
+  "aliases": [
+   "LiteGear LiteMat Plus 8",
+   "LiteMat Plus 8",
+   "litegearlitematplus8",
+   "litematplus8"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "dimmer-2",
+    "label": "Dimmer 2",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "color-temperature-2",
+    "label": "Color Temperature 2",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "1x8bit",
+    "name": "Single 8bit",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "1x16bit",
+    "name": "Single 16bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "2x8bit",
+    "name": "Double 8bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "2x16bit",
+    "name": "Double 16bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 1
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    1016,
+    1016,
+    23
+   ],
+   "weightKg": 4.72,
+   "powerW": 400
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "litegear/litemat-plus-8",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "litegear/litetile-plus-4",
+  "manufacturer": "LiteGear",
+  "model": "LiteTile Plus 4",
+  "aliases": [
+   "LiteGear LiteTile Plus 4",
+   "LiteTile Plus 4",
+   "litegearlitetileplus4",
+   "litetileplus4"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "dimmer-2",
+    "label": "Dimmer 2",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "color-temperature-2",
+    "label": "Color Temperature 2",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "1x8bit",
+    "name": "Single 8bit",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "1x16bit",
+    "name": "Single 16bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "2x8bit",
+    "name": "Double 8bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "2x16bit",
+    "name": "Double 16bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 1
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    1182,
+    610,
+    14
+   ],
+   "weightKg": 2,
+   "powerW": 200
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "litegear/litetile-plus-4",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "litegear/litetile-plus-8",
+  "manufacturer": "LiteGear",
+  "model": "LiteTile Plus 8",
+  "aliases": [
+   "LiteGear LiteTile Plus 8",
+   "LiteTile Plus 8",
+   "litegearlitetileplus8",
+   "litetileplus8"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "dimmer-2",
+    "label": "Dimmer 2",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "color-temperature-2",
+    "label": "Color Temperature 2",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "1x8bit",
+    "name": "Single 8bit",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "1x16bit",
+    "name": "Single 16bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "2x8bit",
+    "name": "Double 8bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "2x16bit",
+    "name": "Double 16bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 1
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    2337,
+    610,
+    19
+   ],
+   "weightKg": 3.5,
+   "powerW": 400
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "litegear/litetile-plus-8",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "litegear/s2-litemat-1",
+  "manufacturer": "LiteGear",
+  "model": "S2 LiteMat 1",
+  "aliases": [
+   "LiteGear S2 LiteMat 1",
+   "S2 LiteMat 1",
+   "litegears2litemat1",
+   "s2litemat1"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "dimmer-2",
+    "label": "Dimmer 2",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "color-temperature-2",
+    "label": "Color Temperature 2",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "1x8bit",
+    "name": "Single 8bit",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "1x16bit",
+    "name": "Single 16bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "2x8bit",
+    "name": "Double 8bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "2x16bit",
+    "name": "Double 16bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 1
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    533,
+    292,
+    23
+   ],
+   "weightKg": 1.1,
+   "powerW": 50
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "litegear/s2-litemat-1",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "litegear/s2-litemat-2",
+  "manufacturer": "LiteGear",
+  "model": "S2 LiteMat 2",
+  "aliases": [
+   "LiteGear S2 LiteMat 2",
+   "S2 LiteMat 2",
+   "litegears2litemat2",
+   "s2litemat2"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "dimmer-2",
+    "label": "Dimmer 2",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "color-temperature-2",
+    "label": "Color Temperature 2",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "1x8bit",
+    "name": "Single 8bit",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "1x16bit",
+    "name": "Single 16bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "2x8bit",
+    "name": "Double 8bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "2x16bit",
+    "name": "Double 16bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 1
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    533,
+    533,
+    23
+   ],
+   "weightKg": 1.6,
+   "powerW": 100
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "litegear/s2-litemat-2",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "litegear/s2-litemat-2l",
+  "manufacturer": "LiteGear",
+  "model": "S2 LiteMat 2L",
+  "aliases": [
+   "LiteGear S2 LiteMat 2L",
+   "S2 LiteMat 2L",
+   "litegears2litemat2l",
+   "s2litemat2l"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "dimmer-2",
+    "label": "Dimmer 2",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "color-temperature-2",
+    "label": "Color Temperature 2",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "1x8bit",
+    "name": "Single 8bit",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "1x16bit",
+    "name": "Single 16bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "2x8bit",
+    "name": "Double 8bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "2x16bit",
+    "name": "Double 16bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 1
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    1016,
+    292,
+    23
+   ],
+   "weightKg": 1.6,
+   "powerW": 100
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "litegear/s2-litemat-2l",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "litegear/s2-litemat-3",
+  "manufacturer": "LiteGear",
+  "model": "S2 LiteMat 3",
+  "aliases": [
+   "LiteGear S2 LiteMat 3",
+   "S2 LiteMat 3",
+   "litegears2litemat3",
+   "s2litemat3"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "dimmer-2",
+    "label": "Dimmer 2",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "color-temperature-2",
+    "label": "Color Temperature 2",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "1x8bit",
+    "name": "Single 8bit",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "1x16bit",
+    "name": "Single 16bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "2x8bit",
+    "name": "Double 8bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "2x16bit",
+    "name": "Double 16bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 1
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    775,
+    533,
+    23
+   ],
+   "weightKg": 2.1,
+   "powerW": 150
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "litegear/s2-litemat-3",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "litegear/s2-litemat-4",
+  "manufacturer": "LiteGear",
+  "model": "S2 LiteMat 4",
+  "aliases": [
+   "LiteGear S2 LiteMat 4",
+   "S2 LiteMat 4",
+   "litegears2litemat4",
+   "s2litemat4"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "dimmer-2",
+    "label": "Dimmer 2",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "color-temperature-2",
+    "label": "Color Temperature 2",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "1x8bit",
+    "name": "Single 8bit",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "1x16bit",
+    "name": "Single 16bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "2x8bit",
+    "name": "Double 8bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "2x16bit",
+    "name": "Double 16bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-2",
+      "byte": 1
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    1016,
+    533,
+    23
+   ],
+   "weightKg": 2.6,
+   "powerW": 200
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "litegear/s2-litemat-4",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

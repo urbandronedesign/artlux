@@ -1,0 +1,452 @@
+[
+ {
+  "id": "sun-star/g-2011-nova",
+  "manufacturer": "Sun Star",
+  "model": "G-2011 / NOVA",
+  "aliases": [
+   "G-2011 / NOVA",
+   "Sun Star G-2011 / NOVA",
+   "g2011nova",
+   "sunstarg2011nova"
+  ],
+  "categories": [
+   "Laser"
+  ],
+  "channels": [
+   {
+    "key": "mode",
+    "label": "Mode",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 49,
+      "label": "NoFunction"
+     },
+     {
+      "from": 50,
+      "to": 99,
+      "label": "DMX"
+     },
+     {
+      "from": 100,
+      "to": 149,
+      "label": "Audio"
+     },
+     {
+      "from": 150,
+      "to": 255,
+      "label": "Auto"
+     }
+    ]
+   },
+   {
+    "key": "programs",
+    "label": "Programs",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 3,
+      "label": "Effect 1"
+     },
+     {
+      "from": 4,
+      "to": 7,
+      "label": "Effect 2"
+     },
+     {
+      "from": 8,
+      "to": 11,
+      "label": "Effect 3"
+     },
+     {
+      "from": 12,
+      "to": 15,
+      "label": "Effect 4"
+     },
+     {
+      "from": 16,
+      "to": 19,
+      "label": "Effect 5"
+     },
+     {
+      "from": 20,
+      "to": 23,
+      "label": "Effect 6"
+     },
+     {
+      "from": 24,
+      "to": 27,
+      "label": "Effect 7"
+     },
+     {
+      "from": 28,
+      "to": 31,
+      "label": "Effect 8"
+     },
+     {
+      "from": 32,
+      "to": 35,
+      "label": "Effect 9"
+     },
+     {
+      "from": 36,
+      "to": 39,
+      "label": "Effect 10"
+     },
+     {
+      "from": 40,
+      "to": 43,
+      "label": "Effect 11"
+     },
+     {
+      "from": 44,
+      "to": 47,
+      "label": "Effect 12"
+     },
+     {
+      "from": 48,
+      "to": 51,
+      "label": "Effect 13"
+     },
+     {
+      "from": 52,
+      "to": 55,
+      "label": "Effect 14"
+     },
+     {
+      "from": 56,
+      "to": 59,
+      "label": "Effect 15"
+     },
+     {
+      "from": 60,
+      "to": 63,
+      "label": "Effect 16"
+     },
+     {
+      "from": 64,
+      "to": 67,
+      "label": "Effect 17"
+     },
+     {
+      "from": 68,
+      "to": 71,
+      "label": "Effect 18"
+     },
+     {
+      "from": 72,
+      "to": 75,
+      "label": "Effect 19"
+     },
+     {
+      "from": 76,
+      "to": 79,
+      "label": "Effect 20"
+     },
+     {
+      "from": 80,
+      "to": 83,
+      "label": "Effect 21"
+     },
+     {
+      "from": 84,
+      "to": 87,
+      "label": "Effect 22"
+     },
+     {
+      "from": 88,
+      "to": 91,
+      "label": "Effect 23"
+     },
+     {
+      "from": 92,
+      "to": 95,
+      "label": "Effect 24"
+     },
+     {
+      "from": 96,
+      "to": 99,
+      "label": "Effect 25"
+     },
+     {
+      "from": 100,
+      "to": 103,
+      "label": "Effect 26"
+     },
+     {
+      "from": 104,
+      "to": 107,
+      "label": "Effect 27"
+     },
+     {
+      "from": 108,
+      "to": 111,
+      "label": "Effect 28"
+     },
+     {
+      "from": 112,
+      "to": 115,
+      "label": "Effect 29"
+     },
+     {
+      "from": 116,
+      "to": 119,
+      "label": "Effect 30"
+     },
+     {
+      "from": 120,
+      "to": 123,
+      "label": "Effect 31"
+     },
+     {
+      "from": 124,
+      "to": 127,
+      "label": "Effect 32"
+     },
+     {
+      "from": 128,
+      "to": 131,
+      "label": "Effect 33"
+     },
+     {
+      "from": 132,
+      "to": 135,
+      "label": "Effect 34"
+     },
+     {
+      "from": 136,
+      "to": 139,
+      "label": "Effect 35"
+     },
+     {
+      "from": 140,
+      "to": 143,
+      "label": "Effect 36"
+     },
+     {
+      "from": 144,
+      "to": 147,
+      "label": "Effect 37"
+     },
+     {
+      "from": 148,
+      "to": 151,
+      "label": "Effect 38"
+     },
+     {
+      "from": 152,
+      "to": 155,
+      "label": "Effect 39"
+     },
+     {
+      "from": 156,
+      "to": 159,
+      "label": "Effect 40"
+     },
+     {
+      "from": 160,
+      "to": 163,
+      "label": "Effect 41"
+     },
+     {
+      "from": 164,
+      "to": 167,
+      "label": "Effect 42"
+     },
+     {
+      "from": 168,
+      "to": 171,
+      "label": "Effect 43"
+     },
+     {
+      "from": 172,
+      "to": 175,
+      "label": "Effect 44"
+     },
+     {
+      "from": 176,
+      "to": 179,
+      "label": "Effect 45"
+     },
+     {
+      "from": 180,
+      "to": 183,
+      "label": "Effect 46"
+     },
+     {
+      "from": 184,
+      "to": 187,
+      "label": "Effect 47"
+     },
+     {
+      "from": 188,
+      "to": 191,
+      "label": "Effect 48"
+     },
+     {
+      "from": 192,
+      "to": 195,
+      "label": "Effect 49"
+     },
+     {
+      "from": 196,
+      "to": 199,
+      "label": "Effect 50"
+     },
+     {
+      "from": 200,
+      "to": 203,
+      "label": "Effect 51"
+     },
+     {
+      "from": 204,
+      "to": 207,
+      "label": "Effect 52"
+     },
+     {
+      "from": 208,
+      "to": 211,
+      "label": "Effect 53"
+     },
+     {
+      "from": 212,
+      "to": 215,
+      "label": "Effect 54"
+     },
+     {
+      "from": 216,
+      "to": 219,
+      "label": "Effect 55"
+     },
+     {
+      "from": 220,
+      "to": 223,
+      "label": "Effect 56"
+     },
+     {
+      "from": 224,
+      "to": 227,
+      "label": "Effect 57"
+     },
+     {
+      "from": 228,
+      "to": 231,
+      "label": "Effect 58"
+     },
+     {
+      "from": 232,
+      "to": 235,
+      "label": "Effect 59"
+     },
+     {
+      "from": 236,
+      "to": 239,
+      "label": "Effect 60"
+     },
+     {
+      "from": 240,
+      "to": 243,
+      "label": "Effect 61"
+     },
+     {
+      "from": 244,
+      "to": 247,
+      "label": "Effect 62"
+     },
+     {
+      "from": 248,
+      "to": 251,
+      "label": "Effect 63"
+     },
+     {
+      "from": 252,
+      "to": 255,
+      "label": "Effect 64"
+     }
+    ]
+   },
+   {
+    "key": "horizontal-position",
+    "label": "Horizontal Position",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "vertical-position",
+    "label": "Vertical Position",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "effect-speed",
+    "label": "Effect Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "rotation-speed",
+    "label": "Rotation Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "default",
+    "name": "Default",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "mode",
+      "byte": 0
+     },
+     {
+      "channelKey": "programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "horizontal-position",
+      "byte": 0
+     },
+     {
+      "channelKey": "vertical-position",
+      "byte": 0
+     },
+     {
+      "channelKey": "effect-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "rotation-speed",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    150,
+    130,
+    210
+   ],
+   "weightKg": 8,
+   "powerW": 30
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "sun-star/g-2011-nova",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

@@ -1,0 +1,477 @@
+{
+ "generator": "scripts/build-fixture-library.mjs",
+ "source": {
+  "repo": "https://github.com/OpenLightingProject/open-fixture-library.git",
+  "sha": "e911c7fceb44185e87808ccc32a2b1c576de034e",
+  "date": "2026-07-24T07:57:05+02:00",
+  "license": "MIT"
+ },
+ "counts": {
+  "profiles": 506,
+  "manufacturers": 117,
+  "modes": 1659,
+  "gobos": 46,
+  "skipped": 114,
+  "redirects": 7,
+  "danglingRedirects": 0
+ },
+ "skipped": [
+  {
+   "id": "adb/alc4",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "alien-pro/alien-s",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "american-dj/crazy-pocket-8",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "american-dj/galaxian-3d",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "american-dj/illusion-dotz-4-4",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "american-dj/mega-bar-rgba",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "american-dj/revo-4-ir",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "american-dj/revo-burst",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "american-dj/revo-sweep",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "american-dj/ultra-hex-bar-12",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "american-dj/vizi-q-wash7",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "astera/fp1-titan-tube",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "astera/fp2-helios-tube",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "astera/fp3-hyperion-tube",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "astera/fp5-nyx-bulb",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "ayra/tdc-triple-burst",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "ayrton/magicblade-fx",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "beamz/triple-flex-centre-pro-led",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "briteq/bt-ledrotor",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "briteq/btx-cirrus-ii",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "briteq/pro-beamer-zoom-indoor",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "briteq/pro-beamer-zoom-outdoor",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "cameo/auro-beam-150",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "cameo/flash-matrix-250",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "cameo/hydrabeam-300-rgbw",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "cameo/hydrabeam-400-rgbw",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "cameo/multi-fx-bar",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "cameo/multi-par-cob-1",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "cameo/storm",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "cameo/thunder-wash-600-w",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "chauvet-dj/colorband-pix",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "chauvet-dj/colorband-pix-ip",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "chauvet-dj/dmx-4",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "chauvet-dj/gigbar-2",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "chauvet-dj/megastrobe-fx12",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "chauvet-dj/washfx",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "chauvet-professional/colordash-batten-quad-6",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "chauvet-professional/rogue-r2-wash",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "chroma-q/color-force-ii-12",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "chroma-q/color-force-ii-48",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "chroma-q/color-force-ii-72",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "clay-paky/a-leda-b-eye-k10",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "clay-paky/a-leda-b-eye-k20",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "clay-paky/show-batten-100",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "elation/acl-360-roller",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "elation/cuepix-blinder-ww2",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "elation/cuepix-blinder-ww4",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "elation/platinum-seven",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "empire-lighting/8x-3w-led-spider-effect",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "epsilon/duo-q-beam-bar",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "equinox/gigabar",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "equinox/rgb-power-batten",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "eurolite/edx-4",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "eurolite/led-b-40",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "eurolite/led-dmx-pixel-tube-16-rgb-ip20",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "eurolite/led-kls-801",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "eurolite/led-pix-12-hcl",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "eurolite/led-pix-144",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "eurolite/led-tmh-18",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "eurolite/led-tmh-x25",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "eurolite/multiflood-pro-ip-smd-rgbw",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "evolight/colours-archspot-54-rgb",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "fun-generation/picowash-40-pixel-quad-led",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "generic/4-channel-dimmer-pack",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "glp/force-120",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "glp/impression-x4-bar-10",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "glp/jdc1",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "glp/knv-arc",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "glp/knv-cube",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "glx/gls-4-led-stage-4",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "gruft/pixel-tube",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "ignition/strip-blinder-x",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "infinity/iw-340-rdm",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "infinity/iw-720-rdm",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "ledj/slimline-12q5-rgba",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "ledj/slimline-12q5-rgbw",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "lightmaxx/cls-nano-cob",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "lightmaxx/led-blinder-4",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "lightmaxx/vector-pixel-bar-18x-15w-rgbwa",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "mark/mbar-381-ip",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "martin/mac-viper-airfx",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "martin/stagebar-54l",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "martin/stagebar-54s",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "mega-lite/mw1",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "nicols/led-bar-123-fc-ip",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "prolights/diamond19",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "prolights/pixpan16",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "prolights/polar3000",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "robe/robin-ledbeam-100",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "robe/robin-ledwash-600",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "showline/sl-nitro-510c",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "showlite/lb-4390",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "showpro/litebar-h9",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "showtec/dim-4lc",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "showtec/horizon-8",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "showtec/led-blinder-2-cob",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "showtec/led-light-bar-rgb-v3",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "showtec/phantom-matrix-fx",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "showtec/pixel-bar-12-mkii",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "showtec/sunstrip-active-mkii",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "skypix/ribalta-beam",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "stairville/clb5-2p-rgb-ww-compact-led-par",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "stairville/led-bar-240-8",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "stairville/sonicpulse-led-bar-05",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "stairville/sonicpulse-led-bar-10",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "stairville/stage-tri-led",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "stairville/wild-wash-648-led-white-dmx",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "stairville/xbrick-full-colour",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "stairville/xbrick-quad-16x8w-rgbw",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "starway/stickolor-1210uhd",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "tmb/solaris-flare",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "varytec/giga-bar-frost-pix-8-rgb",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "varytec/hero-wash-640fx",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  },
+  {
+   "id": "venue/tristrip3z",
+   "reason": "multi-cell (matrix/templateChannels) — not supported in v1"
+  }
+ ],
+ "danglingRedirects": []
+}

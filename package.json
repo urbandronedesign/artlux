@@ -26,6 +26,7 @@
     "prepack:assets": "npm run fetch:redist && npm run fetch:opencv && npm run assets:mediapipe",
     "build:native": "cargo build --release --manifest-path native/output-engine/Cargo.toml && cargo build --release --manifest-path native/spout-receiver/Cargo.toml && cargo build --release --manifest-path native/hap/Cargo.toml && node scripts/copy-native.cjs && node scripts/build-audio.cjs --optional",
     "build:audio": "node scripts/build-audio.cjs",
+    "build:fixtures": "node scripts/build-fixture-library.mjs",
     "build:ndi": "cargo build --release --features ndi --manifest-path native/ndi/Cargo.toml && node scripts/copy-ndi.cjs",
     "build:calib": "powershell -ExecutionPolicy Bypass -File scripts/build-calib.ps1",
     "build:nvwarp": "powershell -ExecutionPolicy Bypass -File scripts/build-nvwarp.ps1",
@@ -103,6 +104,10 @@
       {
         "from": "native/audio-engine/audio_engine.node",
         "to": "audio-engine.node"
+      },
+      {
+        "from": "resources/fixture-library",
+        "to": "fixture-library"
       },
       {
         "from": "examples",

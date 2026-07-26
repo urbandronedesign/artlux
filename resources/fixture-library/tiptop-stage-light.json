@@ -1,0 +1,148 @@
+[
+ {
+  "id": "tiptop-stage-light/3-10w-battery-led-wedge-par",
+  "manufacturer": "TIPTOP Stage Light",
+  "model": "3*10W Battery LED WEDGE PAR",
+  "aliases": [
+   "3*10W Battery LED WEDGE PAR",
+   "310wbatteryledwedgepar",
+   "TIPTOP Stage Light 3*10W Battery LED WEDGE PAR",
+   "TP-G3047-4IN1",
+   "tiptopstagelight310wbatteryledwedgepar",
+   "tpg30474in1"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "program",
+    "label": "Program",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 50,
+      "label": "Strobe"
+     },
+     {
+      "from": 51,
+      "to": 100,
+      "label": "ColorJump"
+     },
+     {
+      "from": 101,
+      "to": 150,
+      "label": "Color Dimmer"
+     },
+     {
+      "from": 151,
+      "to": 200,
+      "label": "Color Change"
+     },
+     {
+      "from": 201,
+      "to": 255,
+      "label": "Sound control"
+     }
+    ]
+   },
+   {
+    "key": "function-speed",
+    "label": "Function speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "7ch",
+    "name": "7-channel",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "program",
+      "byte": 0
+     },
+     {
+      "channelKey": "function-speed",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    118,
+    105,
+    114
+   ],
+   "weightKg": 0.35,
+   "powerW": 36
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "tiptop-stage-light/3-10w-battery-led-wedge-par",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

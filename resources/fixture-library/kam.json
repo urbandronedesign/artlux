@@ -1,0 +1,412 @@
+[
+ {
+  "id": "kam/gobotracer",
+  "manufacturer": "KAM",
+  "model": "GoboTracer",
+  "aliases": [
+   "GoboTracer",
+   "KAM GoboTracer",
+   "gobotracer",
+   "kamgobotracer"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 230,
+    "unit": "deg"
+   },
+   {
+    "key": "color-wheel",
+    "label": "Color Wheel",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Open"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 40,
+      "to": 49,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 50,
+      "to": 59,
+      "label": "Purple",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 60,
+      "to": 69,
+      "label": "Orange",
+      "color": "#ffaa00"
+     },
+     {
+      "from": 70,
+      "to": 79,
+      "label": "Cyan",
+      "color": "#00ffff"
+     },
+     {
+      "from": 80,
+      "to": 89,
+      "label": "Open"
+     },
+     {
+      "from": 90,
+      "to": 99,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 100,
+      "to": 109,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 110,
+      "to": 119,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 120,
+      "to": 129,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 130,
+      "to": 139,
+      "label": "Purple",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 140,
+      "to": 149,
+      "label": "Orange",
+      "color": "#ffaa00"
+     },
+     {
+      "from": 150,
+      "to": 159,
+      "label": "Cyan",
+      "color": "#00ffff"
+     },
+     {
+      "from": 160,
+      "to": 255,
+      "label": "Color scroll"
+     }
+    ]
+   },
+   {
+    "key": "gobo-wheel",
+    "label": "Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Open"
+     },
+     {
+      "from": 8,
+      "to": 15,
+      "label": "Gobo"
+     },
+     {
+      "from": 16,
+      "to": 23,
+      "label": "Gobo"
+     },
+     {
+      "from": 24,
+      "to": 31,
+      "label": "Gobo"
+     },
+     {
+      "from": 32,
+      "to": 39,
+      "label": "Gobo"
+     },
+     {
+      "from": 40,
+      "to": 47,
+      "label": "Gobo"
+     },
+     {
+      "from": 48,
+      "to": 55,
+      "label": "Gobo"
+     },
+     {
+      "from": 56,
+      "to": 63,
+      "label": "Gobo"
+     },
+     {
+      "from": 64,
+      "to": 127,
+      "label": "Gobo"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "horizontal-vertical-run",
+    "label": "Horizontal Vertical Run",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "auto-mode",
+    "label": "Auto Mode",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 59,
+      "label": "Other channels on"
+     },
+     {
+      "from": 60,
+      "to": 84,
+      "label": "Auto mode 3"
+     },
+     {
+      "from": 85,
+      "to": 109,
+      "label": "Auto mode 2"
+     },
+     {
+      "from": 110,
+      "to": 134,
+      "label": "Auto mode 1"
+     },
+     {
+      "from": 135,
+      "to": 159,
+      "label": "Sound-to-light mode 0"
+     },
+     {
+      "from": 160,
+      "to": 184,
+      "label": "Sound-to-light mode 3"
+     },
+     {
+      "from": 185,
+      "to": 209,
+      "label": "Sound-to-light mode 2"
+     },
+     {
+      "from": 210,
+      "to": 234,
+      "label": "Sound-to-light mode 1"
+     },
+     {
+      "from": 235,
+      "to": 255,
+      "label": "Sound-to-light mode 0"
+     }
+    ]
+   },
+   {
+    "key": "reset",
+    "label": "Reset",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 249,
+      "label": "NoFunction"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Reset"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "9ch",
+    "name": "9ch",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "horizontal-vertical-run",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-mode",
+      "byte": 0
+     },
+     {
+      "channelKey": "reset",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "11ch",
+    "name": "11ch",
+    "footprint": 11,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "horizontal-vertical-run",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-mode",
+      "byte": 0
+     },
+     {
+      "channelKey": "reset",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    210,
+    285,
+    147
+   ],
+   "weightKg": 3.2,
+   "lensDegMin": 12,
+   "lensDegMax": 12
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "kam/gobotracer",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

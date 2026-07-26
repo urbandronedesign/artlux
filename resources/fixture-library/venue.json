@@ -1,0 +1,245 @@
+[
+ {
+  "id": "venue/thintri64",
+  "manufacturer": "Venue",
+  "model": "ThinTri64",
+  "aliases": [
+   "ThinTri64",
+   "Venue ThinTri64",
+   "VenueThinTri64",
+   "thintri64",
+   "venuethintri64"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-macros",
+    "label": "Color Macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "NoFunction"
+     },
+     {
+      "from": 16,
+      "to": 255,
+      "label": "ColorPreset"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "NoFunction"
+     },
+     {
+      "from": 16,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "mode",
+    "label": "Mode",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "NoFunction"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "RampUp"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "RampDown"
+     },
+     {
+      "from": 96,
+      "to": 127,
+      "label": "RampUpDown"
+     },
+     {
+      "from": 128,
+      "to": 159,
+      "label": "ColorFade"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "ColorJump (3 colors)"
+     },
+     {
+      "from": 192,
+      "to": 224,
+      "label": "ColorJump (7 colors)"
+     },
+     {
+      "from": 225,
+      "to": 255,
+      "label": "Sound-active mode"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer-speed",
+    "label": "Dimmer Speed",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 51,
+      "label": "Dimmer speed"
+     },
+     {
+      "from": 52,
+      "to": 101,
+      "label": "Dimmer speed"
+     },
+     {
+      "from": 102,
+      "to": 152,
+      "label": "Dimmer speed"
+     },
+     {
+      "from": 153,
+      "to": 203,
+      "label": "Dimmer speed"
+     },
+     {
+      "from": 204,
+      "to": 255,
+      "label": "Dimmer speed"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "8ch",
+    "name": "8-channel",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "mode",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-speed",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "3ch",
+    "name": "3-channel",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    252,
+    227,
+    84
+   ],
+   "weightKg": 1.8,
+   "powerW": 39,
+   "lensDegMin": 15,
+   "lensDegMax": 15
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "venue/thintri64",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

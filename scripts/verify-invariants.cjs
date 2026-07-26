@@ -166,6 +166,70 @@ check(
   },
 );
 
+// ── Shell: every reference to a workspace context must resolve ─────────────────────────────────
+check(
+  'workspace context ids referenced anywhere still exist',
+  'Removing or renaming a context breaks four things and NONE of them raise: goToContext() no-ops on ' +
+  'an unknown id, contextRegistry.extend() queues its patch forever in silence (a plugin\'s dock tabs ' +
+  'just never appear), a CONTEXT_MENU_ITEMS entry renders a menu item that does nothing, and a stale ' +
+  'RETIRED_CONTEXTS target leaves the rail with nothing selected. Dissolving `timeline` and merging ' +
+  '`tracking` into `3d` touched all four.',
+  () => {
+    const core = read('src/renderer/contexts/index.tsx');
+    // The ids core registers. Anchored on the `contextRegistry.register({ id: '…'` shape so a panel id
+    // or an action id cannot be mistaken for a context.
+    const live = new Set();
+    for (const m of core.matchAll(/contextRegistry\.register\(\{\s*\n?\s*id:\s*'([^']+)'/g)) live.add(m[1]);
+    if (live.size < 5) return `only found ${live.size} registered contexts — the register() shape this check greps for has changed`;
+
+    const problems = [];
+    const want = (id, where) => { if (!live.has(id)) problems.push(`${where} → '${id}' is not a registered context`); };
+
+    // 1. The two static menus (both read this one array).
+    for (const m of read('shared/protocol.ts').matchAll(/\{\s*id:\s*'([^']+)',\s*label:/g)) {
+      // CONTEXT_MENU_ITEMS is the only `{ id, label }` array in that file that names contexts; entries
+      // for anything else would fail here loudly rather than silently, which is the right direction.
+      want(m[1], 'CONTEXT_MENU_ITEMS');
+    }
+    // 2. RETIRED_CONTEXTS values — the lookup is one hop, so a chain through a dead id does not resolve.
+    const retired = read('src/renderer/services/layoutStore.ts').match(/RETIRED_CONTEXTS[^=]*=\s*\{([\s\S]*?)\}/);
+    if (!retired) problems.push('layoutStore.ts no longer declares RETIRED_CONTEXTS');
+    else for (const m of retired[1].matchAll(/:\s*'([^']+)'/g)) want(m[1], 'RETIRED_CONTEXTS');
+    // 3. Literal goToContext('…') targets, host-wide.
+    for (const f of walk('src/renderer')) {
+      for (const m of read(f).matchAll(/goToContext\('([^']+)'\)/g)) want(m[1], f);
+    }
+    // 4. Plugin extend() targets — the silent one.
+    for (const f of walk('plugins')) {
+      for (const m of read(f).matchAll(/contexts\.extend\('([^']+)'/g)) want(m[1], f);
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── Shell: a context's declared layout must cover the banked visibility flags ──────────────────
+check(
+  'every context declares all four visibility flags',
+  'setContext() spreads only the keys a context DECLARES over the live layout, so any banked key it ' +
+  'omits silently keeps the OUTGOING context\'s value. Caught for real: `bottomOpen` was left ' +
+  'undeclared, so opening the timeline drawer in Mapping made it appear pre-opened the first time you ' +
+  'entered Venue & Rig — a per-context setting quietly behaving as a global one.',
+  () => {
+    const src = read('src/renderer/contexts/index.tsx');
+    const flags = ['showLeft', 'showRight', 'dockOpen', 'splitView', 'bottomOpen'];
+    const bad = [];
+    // Each `id: '<x>', … layout: { … }` pair, in registration order.
+    const ids = [...src.matchAll(/contextRegistry\.register\(\{\s*\n?\s*id:\s*'([^']+)'/g)].map((m) => m[1]);
+    const layouts = [...src.matchAll(/layout:\s*\{([^}]*)\}/g)].map((m) => m[1]);
+    if (ids.length !== layouts.length) return `${ids.length} contexts but ${layouts.length} layout literals — one is missing a \`layout\``;
+    ids.forEach((id, i) => {
+      const missing = flags.filter((f) => !new RegExp(`\\b${f}\\s*:`).test(layouts[i]));
+      if (missing.length) bad.push(`${id} omits ${missing.join('/')}`);
+    });
+    return bad.length ? bad.join('; ') : null;
+  },
+);
+
 // ── Shell: exactly one 3D scene ───────────────────────────────────────────────────────────────
 check(
   'the scene3d viewport id is declared once',
@@ -825,6 +889,37 @@ check(
       const src = read(f);
       const m = src.match(MINT) || src.match(SHAPE);
       if (m) problems.push(`${f} numbers a default name from a count: ${m[0].trim()}`);
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── Patch: ONE owner of the DMX footprint formula ─────────────────────────────────────────────
+check(
+  'DMX footprint is computed only by addressing.ts',
+  'How many channels a fixture occupies was open-coded as `ledCount * (channelsPerPixel ?? 4)` in ' +
+  'SEVEN places: three in addressing.ts, the DMX-in universe span in Stage, the DMX monitor\'s wire ' +
+  'footprint, the fixture editor\'s channel count and the routing modal\'s span. That was survivable ' +
+  'only while every fixture was a pixel strip. A PROFILED fixture (a moving head) occupies its ' +
+  'MODE\'s footprint instead, and the pixel product is simply the wrong number for it. Miss one site ' +
+  'and nothing throws: auto-patch overlaps two fixtures, or the collision detector promises a clean ' +
+  'patch while the packer writes over its neighbour, and the symptom is "half my rig is dead" at a ' +
+  'load-in. addressing.ts already owns destination resolution for the same reason — one formula, one ' +
+  'owner, so the patch, the collision detector, the monitor and the packer cannot drift.',
+  () => {
+    const OWNER = 'src/renderer/services/addressing.ts';
+    if (!exists(OWNER) || !/export function fixtureFootprint/.test(read(OWNER)))
+      return `${OWNER} no longer exports fixtureFootprint (the single owner of the footprint formula)`;
+    // Only the PRODUCT is banned, and only when the multiplier is the channels-per-pixel value.
+    // `ledCount * 4` is deliberately left alone: DMXMonitor's live pixel canvas indexes the
+    // canonical RGBW buffer, which really is 4 bytes per pixel regardless of the wire format, and
+    // conflating that index with a DMX span is its own bug.
+    const PRODUCT = /ledCount[^\n]{0,20}\*[^\n]{0,30}(channelsPerPixel|\bcpp\b)|(channelsPerPixel|\bcpp\b)[^\n]{0,30}\*[^\n]{0,20}ledCount/;
+    const problems = [];
+    for (const f of [...walk('src/renderer'), ...walk('src/main'), ...walk('plugins'), ...walk('shared')]) {
+      if (f === OWNER) continue;
+      const m = read(f).match(PRODUCT);
+      if (m) problems.push(`${f} computes a DMX footprint itself (${m[0].trim()}) — call fixtureFootprint()`);
     }
     return problems.length ? problems.join('; ') : null;
   },

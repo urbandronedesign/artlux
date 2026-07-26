@@ -38,6 +38,9 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
   { id: 'global.redo',        label: 'Redo',                 category: 'Editing',    scope: 'global', defaultBinding: ['Ctrl+Shift+Z', 'Ctrl+Y'] },
   { id: 'global.selectAll',   label: 'Select all fixtures',  category: 'Editing',    scope: 'global', defaultBinding: ['Ctrl+A'] },
   { id: 'global.perfDock',    label: 'Open Performance dock',category: 'View',       scope: 'global', defaultBinding: ['Ctrl+Alt+P'] },
+  // The timeline is a tool you pull up inside whatever workbench you are in, not a place you go — this
+  // is how you pull it up. Global on purpose: every context that names a bottom panel answers to it.
+  { id: 'global.toggleBottom',label: 'Show / hide the timeline drawer', category: 'View', scope: 'global', defaultBinding: ['Ctrl+T'] },
   { id: 'global.clearNvwarp', label: 'Clear all NV warp/blend', category: 'View',    scope: 'global', defaultBinding: ['Ctrl+Shift+W'] },
   { id: 'global.nextContext', label: 'Next workspace',       category: 'Navigation', scope: 'global', defaultBinding: ['Ctrl+Tab'] },
   { id: 'global.prevContext', label: 'Previous workspace',   category: 'Navigation', scope: 'global', defaultBinding: ['Ctrl+Shift+Tab'] },

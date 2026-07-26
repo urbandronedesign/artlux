@@ -1,0 +1,808 @@
+[
+ {
+  "id": "beamz/h2000-faze-machine",
+  "manufacturer": "BeamZ",
+  "model": "H2000 Faze Machine",
+  "aliases": [
+   "BeamZ H2000 Faze Machine",
+   "H2000 Faze Machine",
+   "beamzh2000fazemachine",
+   "h2000fazemachine"
+  ],
+  "categories": [
+   "Hazer",
+   "Smoke"
+  ],
+  "channels": [
+   {
+    "key": "smoke",
+    "label": "Smoke",
+    "role": "fog",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "fan",
+    "label": "Fan",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "2ch",
+    "name": "2-channel",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "smoke",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    185,
+    350,
+    360
+   ],
+   "weightKg": 6.8,
+   "powerW": 1700
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "beamz/h2000-faze-machine",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "beamz/panther-7r",
+  "manufacturer": "BeamZ",
+  "model": "Panther 7R",
+  "aliases": [
+   "BeamZ Panther 7R",
+   "Panther 7R",
+   "beamzpanther7r",
+   "panther-7r",
+   "panther7r"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 265,
+    "unit": "deg"
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan/Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 4,
+      "label": "NoFunction"
+     },
+     {
+      "from": 5,
+      "to": 250,
+      "label": "Strobe"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "auto",
+    "label": "Auto",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "NoFunction"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "Auto running"
+     }
+    ]
+   },
+   {
+    "key": "color-wheel",
+    "label": "Color Wheel",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Open"
+     },
+     {
+      "from": 8,
+      "to": 15,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 16,
+      "to": 23,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 24,
+      "to": 31,
+      "label": "Light blue",
+      "color": "#80aaff"
+     },
+     {
+      "from": 32,
+      "to": 39,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 40,
+      "to": 47,
+      "label": "Orange",
+      "color": "#ff8000"
+     },
+     {
+      "from": 48,
+      "to": 55,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 56,
+      "to": 63,
+      "label": "Cream white",
+      "color": "#ffcfaa"
+     },
+     {
+      "from": 64,
+      "to": 71,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 72,
+      "to": 79,
+      "label": "Light yellow",
+      "color": "#ffff80"
+     },
+     {
+      "from": 80,
+      "to": 87,
+      "label": "Cold white",
+      "color": "#c4e7ff"
+     },
+     {
+      "from": 88,
+      "to": 95,
+      "label": "Aquamarine",
+      "color": "#000080"
+     },
+     {
+      "from": 96,
+      "to": 103,
+      "label": "Warm white",
+      "color": "#ffdec4"
+     },
+     {
+      "from": 104,
+      "to": 111,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 112,
+      "to": 119,
+      "label": "Cyan",
+      "color": "#00ffff"
+     },
+     {
+      "from": 120,
+      "to": 127,
+      "label": "Open"
+     },
+     {
+      "from": 128,
+      "to": 191,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "gobo-wheel",
+    "label": "Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 3,
+      "label": "Open"
+     },
+     {
+      "from": 4,
+      "to": 7,
+      "label": "Iris"
+     },
+     {
+      "from": 8,
+      "to": 11,
+      "label": "Iris"
+     },
+     {
+      "from": 12,
+      "to": 15,
+      "label": "Iris"
+     },
+     {
+      "from": 16,
+      "to": 19,
+      "label": "Iris"
+     },
+     {
+      "from": 20,
+      "to": 23,
+      "label": "Iris"
+     },
+     {
+      "from": 24,
+      "to": 27,
+      "label": "Iris"
+     },
+     {
+      "from": 28,
+      "to": 31,
+      "label": "Lines"
+     },
+     {
+      "from": 32,
+      "to": 35,
+      "label": "3-pointed star"
+     },
+     {
+      "from": 36,
+      "to": 39,
+      "label": "4-pointed star"
+     },
+     {
+      "from": 40,
+      "to": 43,
+      "label": "Big bubbles"
+     },
+     {
+      "from": 44,
+      "to": 47,
+      "label": "Snakes"
+     },
+     {
+      "from": 48,
+      "to": 51,
+      "label": "12-pointed star"
+     },
+     {
+      "from": 52,
+      "to": 55,
+      "label": "Blob"
+     },
+     {
+      "from": 56,
+      "to": 59,
+      "label": "Many small bubbles"
+     },
+     {
+      "from": 60,
+      "to": 63,
+      "label": "Few small bubbles"
+     },
+     {
+      "from": 64,
+      "to": 67,
+      "label": "Line 1"
+     },
+     {
+      "from": 68,
+      "to": 71,
+      "label": "Line 2"
+     },
+     {
+      "from": 72,
+      "to": 113,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 114,
+      "to": 118,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 119,
+      "to": 160,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 161,
+      "to": 165,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 166,
+      "to": 170,
+      "label": "Open"
+     },
+     {
+      "from": 171,
+      "to": 175,
+      "label": "Iris"
+     },
+     {
+      "from": 176,
+      "to": 180,
+      "label": "Iris"
+     },
+     {
+      "from": 181,
+      "to": 185,
+      "label": "Iris"
+     },
+     {
+      "from": 186,
+      "to": 190,
+      "label": "Iris"
+     },
+     {
+      "from": 191,
+      "to": 195,
+      "label": "Iris"
+     },
+     {
+      "from": 196,
+      "to": 200,
+      "label": "Iris"
+     },
+     {
+      "from": 201,
+      "to": 205,
+      "label": "Lines"
+     },
+     {
+      "from": 206,
+      "to": 210,
+      "label": "3-pointed star"
+     },
+     {
+      "from": 211,
+      "to": 215,
+      "label": "4-pointed star"
+     },
+     {
+      "from": 216,
+      "to": 220,
+      "label": "Big bubbles"
+     },
+     {
+      "from": 221,
+      "to": 225,
+      "label": "Snakes"
+     },
+     {
+      "from": 226,
+      "to": 230,
+      "label": "12-pointed star"
+     },
+     {
+      "from": 231,
+      "to": 235,
+      "label": "Blob"
+     },
+     {
+      "from": 236,
+      "to": 240,
+      "label": "Many small bubbles"
+     },
+     {
+      "from": 241,
+      "to": 245,
+      "label": "Few small bubbles"
+     },
+     {
+      "from": 246,
+      "to": 250,
+      "label": "Line 1"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "Line 2"
+     }
+    ]
+   },
+   {
+    "key": "prism",
+    "label": "Prism",
+    "role": "prism",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "NoFunction"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "8-facet"
+     }
+    ]
+   },
+   {
+    "key": "prism-rotation",
+    "label": "Prism Rotation",
+    "role": "prismRotation",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 128,
+      "to": 190,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 191,
+      "to": 192,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 193,
+      "to": 255,
+      "label": "PrismRotation"
+     }
+    ]
+   },
+   {
+    "key": "focus",
+    "label": "Focus",
+    "role": "focus",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "reset",
+    "label": "Reset",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 76,
+      "label": "NoFunction"
+     },
+     {
+      "from": 77,
+      "to": 127,
+      "label": "Pan/Tilt reset"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "All reset"
+     }
+    ]
+   },
+   {
+    "key": "lamp",
+    "label": "Lamp",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 25,
+      "label": "NoFunction"
+     },
+     {
+      "from": 26,
+      "to": 100,
+      "label": "Lamp off"
+     },
+     {
+      "from": 101,
+      "to": 255,
+      "label": "Lamp on"
+     }
+    ]
+   },
+   {
+    "key": "frost",
+    "label": "Frost",
+    "role": "frost",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "16ch",
+    "name": "16-channel",
+    "footprint": 16,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "reset",
+      "byte": 0
+     },
+     {
+      "channelKey": "lamp",
+      "byte": 0
+     },
+     {
+      "channelKey": "frost",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    370,
+    470,
+    290
+   ],
+   "weightKg": 18.7,
+   "powerW": 380,
+   "lensDegMin": 2.5,
+   "lensDegMax": 2.5
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "beamz/panther-7r",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "beamz/pls25-par",
+  "manufacturer": "BeamZ",
+  "model": "PLS25 Par",
+  "aliases": [
+   "BeamZ PLS25 Par",
+   "PLS25 Par",
+   "beamzpls25par",
+   "pls25par"
+  ],
+  "categories": [
+   "Color Changer",
+   "Strobe"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 10,
+      "label": "ColorJump"
+     },
+     {
+      "from": 11,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "6ch",
+    "name": "6-channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    160,
+    115,
+    120
+   ],
+   "weightKg": 0.6,
+   "powerW": 15,
+   "lensDegMin": 13,
+   "lensDegMax": 13
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "beamz/pls25-par",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

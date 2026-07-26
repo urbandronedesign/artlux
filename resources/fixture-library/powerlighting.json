@@ -1,0 +1,454 @@
+[
+ {
+  "id": "powerlighting/wash-84w",
+  "manufacturer": "Power Lighting",
+  "model": "Wash 84W",
+  "aliases": [
+   "Power Lighting Wash 84W",
+   "Wash 84W",
+   "powerlightingwash84w",
+   "wash84w"
+  ],
+  "categories": [
+   "Color Changer",
+   "Moving Head"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 270,
+    "unit": "deg"
+   },
+   {
+    "key": "movement-speed",
+    "label": "Movement Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer-strobe",
+    "label": "Dimmer / Strobe",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Open"
+     },
+     {
+      "from": 8,
+      "to": 134,
+      "label": "Intensity"
+     },
+     {
+      "from": 135,
+      "to": 239,
+      "label": "Strobe"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "Closed"
+     }
+    ]
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "rgbw-presets",
+    "label": "RGBW Presets",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 4,
+      "label": "NoFunction"
+     },
+     {
+      "from": 5,
+      "to": 44,
+      "label": "static"
+     },
+     {
+      "from": 45,
+      "to": 49,
+      "label": "NoFunction"
+     },
+     {
+      "from": 50,
+      "to": 94,
+      "label": "ColorJump (cut)"
+     },
+     {
+      "from": 95,
+      "to": 99,
+      "label": "NoFunction"
+     },
+     {
+      "from": 100,
+      "to": 149,
+      "label": "ColorFade (smooth)"
+     },
+     {
+      "from": 150,
+      "to": 154,
+      "label": "NoFunction"
+     },
+     {
+      "from": 155,
+      "to": 255,
+      "label": "ColorFade (soft)"
+     }
+    ]
+   },
+   {
+    "key": "rgbw-presets-chase",
+    "label": "RGBW Presets / Chase",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "chase-speed",
+    "label": "Chase Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 6,
+      "label": "NoFunction"
+     },
+     {
+      "from": 7,
+      "to": 65,
+      "label": "Strobe"
+     },
+     {
+      "from": 66,
+      "to": 69,
+      "label": "NoFunction"
+     },
+     {
+      "from": 70,
+      "to": 128,
+      "label": "Strobe"
+     },
+     {
+      "from": 129,
+      "to": 132,
+      "label": "NoFunction"
+     },
+     {
+      "from": 133,
+      "to": 191,
+      "label": "RampUp"
+     },
+     {
+      "from": 192,
+      "to": 195,
+      "label": "NoFunction"
+     },
+     {
+      "from": 196,
+      "to": 255,
+      "label": "RampDown"
+     }
+    ]
+   },
+   {
+    "key": "music-control",
+    "label": "Music control",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "SoundSensitivity"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "SoundSensitivity"
+     }
+    ]
+   },
+   {
+    "key": "sound-effects",
+    "label": "Sound Effects",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "reset",
+    "label": "Reset",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 149,
+      "label": "NoFunction"
+     },
+     {
+      "from": 150,
+      "to": 200,
+      "label": "Reset"
+     },
+     {
+      "from": 201,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "9ch",
+    "name": "9-channel",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "movement-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "reset",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "13ch",
+    "name": "13-channel",
+    "footprint": 13,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "movement-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "rgbw-presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "music-control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "14ch",
+    "name": "14-channel",
+    "footprint": 14,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "movement-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "rgbw-presets-chase",
+      "byte": 0
+     },
+     {
+      "channelKey": "chase-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "sound-effects",
+      "byte": 0
+     },
+     {
+      "channelKey": "reset",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    177,
+    230,
+    177
+   ],
+   "weightKg": 2.7,
+   "powerW": 90
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "powerlighting/wash-84w",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

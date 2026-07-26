@@ -1,0 +1,428 @@
+[
+ {
+  "id": "lixada/mini-gobo-moving-head-light",
+  "manufacturer": "Lixada",
+  "model": "Mini Gobo Moving Head Light",
+  "aliases": [
+   "Lixada Mini Gobo Moving Head Light",
+   "Mini Gobo Moving Head Light",
+   "lixadaminigobomovingheadlight",
+   "minigobomovingheadlight"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 180,
+    "unit": "deg"
+   },
+   {
+    "key": "color-wheel",
+    "label": "Color Wheel",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "Open"
+     },
+     {
+      "from": 16,
+      "to": 31,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 32,
+      "to": 47,
+      "label": "Pale Blue",
+      "color": "#88dddd"
+     },
+     {
+      "from": 48,
+      "to": 63,
+      "label": "Orange",
+      "color": "#ffaa00"
+     },
+     {
+      "from": 64,
+      "to": 79,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 80,
+      "to": 95,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 96,
+      "to": 111,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 112,
+      "to": 127,
+      "label": "Pink",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 128,
+      "to": 189,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 190,
+      "to": 193,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 194,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "gobo-wheel",
+    "label": "Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 63,
+      "label": "Open"
+     },
+     {
+      "from": 64,
+      "to": 127,
+      "label": "Open"
+     },
+     {
+      "from": 128,
+      "to": 189,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 190,
+      "to": 193,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 194,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "shutter",
+    "label": "Shutter",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Closed"
+     },
+     {
+      "from": 8,
+      "to": 15,
+      "label": "Open"
+     },
+     {
+      "from": 16,
+      "to": 131,
+      "label": "Strobe"
+     },
+     {
+      "from": 132,
+      "to": 139,
+      "label": "Open"
+     },
+     {
+      "from": 140,
+      "to": 181,
+      "label": "RampUp"
+     },
+     {
+      "from": 182,
+      "to": 189,
+      "label": "Open"
+     },
+     {
+      "from": 190,
+      "to": 231,
+      "label": "RampDown"
+     },
+     {
+      "from": 232,
+      "to": 239,
+      "label": "Open"
+     },
+     {
+      "from": 240,
+      "to": 247,
+      "label": "Strobe"
+     },
+     {
+      "from": 248,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan/Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "control",
+    "label": "Control",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 69,
+      "label": "NoFunction"
+     },
+     {
+      "from": 70,
+      "to": 79,
+      "label": "Blackout while Pan/Tilt moving"
+     },
+     {
+      "from": 80,
+      "to": 89,
+      "label": "NoFunction"
+     },
+     {
+      "from": 90,
+      "to": 99,
+      "label": "Blackout while Color Wheel moving"
+     },
+     {
+      "from": 100,
+      "to": 109,
+      "label": "NoFunction"
+     },
+     {
+      "from": 110,
+      "to": 119,
+      "label": "Blackout while Gobo Wheel moving"
+     },
+     {
+      "from": 120,
+      "to": 199,
+      "label": "NoFunction"
+     },
+     {
+      "from": 200,
+      "to": 209,
+      "label": "Reset"
+     },
+     {
+      "from": 210,
+      "to": 249,
+      "label": "NoFunction"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Sound active mode"
+     }
+    ]
+   },
+   {
+    "key": "dimmer-type",
+    "label": "Dimmer Type",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 20,
+      "label": "Standard Dimmer"
+     },
+     {
+      "from": 21,
+      "to": 40,
+      "label": "Stage Dimmer"
+     },
+     {
+      "from": 41,
+      "to": 60,
+      "label": "TV Dimmer"
+     },
+     {
+      "from": 61,
+      "to": 80,
+      "label": "Architectural Dimmer"
+     },
+     {
+      "from": 81,
+      "to": 100,
+      "label": "Theatrical Dimmer"
+     },
+     {
+      "from": 101,
+      "to": 255,
+      "label": "Tacitly approve Dimmer"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "9ch",
+    "name": "9-channel",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "control",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-type",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "11ch",
+    "name": "11-channel",
+    "footprint": 11,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "control",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-type",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    210,
+    260,
+    280
+   ],
+   "weightKg": 2.67,
+   "powerW": 25,
+   "lensDegMin": 11,
+   "lensDegMax": 11
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "lixada/mini-gobo-moving-head-light",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

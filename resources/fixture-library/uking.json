@@ -1,0 +1,1156 @@
+[
+ {
+  "id": "uking/b117-par-can-4in1-rgbw-18-leds",
+  "manufacturer": "U`King",
+  "model": "B117 Par Can 4in1 RGBW 18 LEDs",
+  "aliases": [
+   "B117 Par Can 4in1 RGBW 18 LEDs",
+   "U`King B117 Par Can 4in1 RGBW 18 LEDs",
+   "b117-par-can",
+   "b117parcan",
+   "b117parcan4in1rgbw18leds",
+   "ukingb117parcan4in1rgbw18leds"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "effect",
+    "label": "Effect",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 50,
+      "label": "NoFunction"
+     },
+     {
+      "from": 51,
+      "to": 100,
+      "label": "Color Presets"
+     },
+     {
+      "from": 101,
+      "to": 150,
+      "label": "ColorJump"
+     },
+     {
+      "from": 151,
+      "to": 200,
+      "label": "ColorFade"
+     },
+     {
+      "from": 201,
+      "to": 250,
+      "label": "Colors Pulse Change"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "Sound-Active"
+     }
+    ]
+   },
+   {
+    "key": "no-function",
+    "label": "No Function",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Open"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "8ch",
+    "name": "8-channel",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "effect",
+      "byte": 0
+     },
+     {
+      "channelKey": "no-function",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "4ch",
+    "name": "4-channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    225,
+    225,
+    115
+   ],
+   "weightKg": 3.2,
+   "powerW": 200,
+   "lensDegMin": 25,
+   "lensDegMax": 25
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "uking/b117-par-can-4in1-rgbw-18-leds",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "uking/mini-led-spot-25w",
+  "manufacturer": "U`King",
+  "model": "Mini LED Spot 25W",
+  "aliases": [
+   "Mini LED Spot 25W",
+   "U`King Mini LED Spot 25W",
+   "miniledspot25w",
+   "ukingminiledspot25w"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 220,
+    "unit": "deg"
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan/Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-macros",
+    "label": "Color Macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Color 1"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "Color 2"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "Color 3"
+     },
+     {
+      "from": 40,
+      "to": 49,
+      "label": "Color 4"
+     },
+     {
+      "from": 50,
+      "to": 59,
+      "label": "Color 5"
+     },
+     {
+      "from": 60,
+      "to": 69,
+      "label": "Color 6"
+     },
+     {
+      "from": 70,
+      "to": 79,
+      "label": "Color 7"
+     },
+     {
+      "from": 80,
+      "to": 89,
+      "label": "Color 8"
+     },
+     {
+      "from": 90,
+      "to": 99,
+      "label": "Color 9"
+     },
+     {
+      "from": 100,
+      "to": 109,
+      "label": "Color 10"
+     },
+     {
+      "from": 110,
+      "to": 119,
+      "label": "Color 11"
+     },
+     {
+      "from": 120,
+      "to": 129,
+      "label": "Color 12"
+     },
+     {
+      "from": 130,
+      "to": 139,
+      "label": "Color 13"
+     },
+     {
+      "from": 140,
+      "to": 149,
+      "label": "Color 14"
+     },
+     {
+      "from": 150,
+      "to": 255,
+      "label": "ColorJump"
+     }
+    ]
+   },
+   {
+    "key": "gobo-wheel",
+    "label": "Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Open"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Gobo"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "Gobo"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "Gobo"
+     },
+     {
+      "from": 40,
+      "to": 49,
+      "label": "Gobo"
+     },
+     {
+      "from": 50,
+      "to": 59,
+      "label": "Gobo"
+     },
+     {
+      "from": 60,
+      "to": 69,
+      "label": "Gobo"
+     },
+     {
+      "from": 70,
+      "to": 79,
+      "label": "Gobo"
+     },
+     {
+      "from": 80,
+      "to": 89,
+      "label": "Gobo"
+     },
+     {
+      "from": 90,
+      "to": 99,
+      "label": "Gobo"
+     },
+     {
+      "from": 100,
+      "to": 109,
+      "label": "Gobo"
+     },
+     {
+      "from": 110,
+      "to": 119,
+      "label": "Gobo"
+     },
+     {
+      "from": 120,
+      "to": 129,
+      "label": "Gobo"
+     },
+     {
+      "from": 130,
+      "to": 139,
+      "label": "Gobo"
+     },
+     {
+      "from": 140,
+      "to": 149,
+      "label": "Gobo"
+     },
+     {
+      "from": 150,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "auto-programs",
+    "label": "Auto Programs",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 30,
+      "label": "NoFunction"
+     },
+     {
+      "from": 31,
+      "to": 60,
+      "label": "Auto Program 1"
+     },
+     {
+      "from": 61,
+      "to": 90,
+      "label": "Auto Program 2"
+     },
+     {
+      "from": 91,
+      "to": 120,
+      "label": "Auto Program 3"
+     },
+     {
+      "from": 121,
+      "to": 150,
+      "label": "Auto Program 4"
+     },
+     {
+      "from": 151,
+      "to": 180,
+      "label": "Sound Program 1"
+     },
+     {
+      "from": 181,
+      "to": 210,
+      "label": "Sound Program 2"
+     },
+     {
+      "from": 211,
+      "to": 255,
+      "label": "System reset"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "10ch",
+    "name": "10-channel",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-programs",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "7ch",
+    "name": "7-channel",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-programs",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    178,
+    250,
+    178
+   ],
+   "weightKg": 2.8,
+   "powerW": 25
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "uking/mini-led-spot-25w",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "uking/par-light-b262",
+  "manufacturer": "U`King",
+  "model": "Par Light B262",
+  "aliases": [
+   "Par Light B262",
+   "U`King Par Light B262",
+   "parlightb262",
+   "ukingparlightb262"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "master-dimmer",
+    "label": "Master Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Open"
+     },
+     {
+      "from": 8,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "mode",
+    "label": "Mode",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Manual mode"
+     },
+     {
+      "from": 11,
+      "to": 60,
+      "label": "Hue Select"
+     },
+     {
+      "from": 61,
+      "to": 110,
+      "label": "Hue Shift"
+     },
+     {
+      "from": 111,
+      "to": 160,
+      "label": "Hue Pulse Transform (Hue fades in and out, then shifts)"
+     },
+     {
+      "from": 161,
+      "to": 210,
+      "label": "Hue Transition (Hue transitions to next in sequence)"
+     },
+     {
+      "from": 211,
+      "to": 255,
+      "label": "Sound Control"
+     }
+    ]
+   },
+   {
+    "key": "hue-selection",
+    "label": "Hue Selection",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "7ch",
+    "name": "7-channel",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "master-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "mode",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue-selection",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    180,
+    180,
+    100
+   ],
+   "weightKg": 0.48,
+   "powerW": 36,
+   "lensDegMin": 30,
+   "lensDegMax": 30
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "uking/par-light-b262",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "uking/zq-b20-mini-spider-light",
+  "manufacturer": "U`King",
+  "model": "ZQ-B20 Mini Spider Light",
+  "aliases": [
+   "U`King ZQ-B20 Mini Spider Light",
+   "ZQ-B20 Mini Spider Light",
+   "ZQ-B20-MiniSpider",
+   "ukingzqb20minispiderlight",
+   "zqb20minispider",
+   "zqb20minispiderlight"
+  ],
+  "categories": [
+   "Effect",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "tilt-1",
+    "label": "Tilt 1",
+    "role": "tilt",
+    "resolution": 1,
+    "default": 0,
+    "min": 0,
+    "max": 135,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt-2",
+    "label": "Tilt 2",
+    "role": "tilt",
+    "resolution": 1,
+    "default": 0,
+    "min": 0,
+    "max": 135,
+    "unit": "deg"
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "effect",
+    "label": "Effect",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "NoFunction"
+     },
+     {
+      "from": 8,
+      "to": 17,
+      "label": "Effect 1"
+     },
+     {
+      "from": 18,
+      "to": 27,
+      "label": "Effect 2"
+     },
+     {
+      "from": 28,
+      "to": 37,
+      "label": "Effect 3"
+     },
+     {
+      "from": 38,
+      "to": 47,
+      "label": "Effect 4"
+     },
+     {
+      "from": 48,
+      "to": 57,
+      "label": "Effect 5"
+     },
+     {
+      "from": 58,
+      "to": 67,
+      "label": "Effect 6"
+     },
+     {
+      "from": 68,
+      "to": 77,
+      "label": "Effect 7"
+     },
+     {
+      "from": 78,
+      "to": 87,
+      "label": "Effect 8"
+     },
+     {
+      "from": 88,
+      "to": 97,
+      "label": "Effect 9"
+     },
+     {
+      "from": 98,
+      "to": 107,
+      "label": "Effect 10"
+     },
+     {
+      "from": 108,
+      "to": 117,
+      "label": "Effect 11"
+     },
+     {
+      "from": 118,
+      "to": 127,
+      "label": "Effect 12"
+     },
+     {
+      "from": 128,
+      "to": 136,
+      "label": "Effect 13"
+     },
+     {
+      "from": 137,
+      "to": 146,
+      "label": "Effect 14"
+     },
+     {
+      "from": 147,
+      "to": 156,
+      "label": "Effect 15"
+     },
+     {
+      "from": 157,
+      "to": 166,
+      "label": "Effect 16"
+     },
+     {
+      "from": 167,
+      "to": 176,
+      "label": "Effect 17"
+     },
+     {
+      "from": 177,
+      "to": 186,
+      "label": "Effect 18"
+     },
+     {
+      "from": 187,
+      "to": 196,
+      "label": "Effect 19"
+     },
+     {
+      "from": 197,
+      "to": 206,
+      "label": "Effect 20"
+     },
+     {
+      "from": 207,
+      "to": 216,
+      "label": "Effect 21"
+     },
+     {
+      "from": 217,
+      "to": 226,
+      "label": "Effect 22"
+     },
+     {
+      "from": 227,
+      "to": 236,
+      "label": "Effect 23"
+     },
+     {
+      "from": 237,
+      "to": 246,
+      "label": "Auto Mode"
+     },
+     {
+      "from": 247,
+      "to": 255,
+      "label": "Sound Active Mode"
+     }
+    ]
+   },
+   {
+    "key": "effect-speed",
+    "label": "Effect Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "reset",
+    "label": "Reset",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 240,
+      "label": "NoFunction"
+     },
+     {
+      "from": 241,
+      "to": 255,
+      "label": "Reset"
+     }
+    ]
+   },
+   {
+    "key": "red-1",
+    "label": "Red 1",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green-1",
+    "label": "Green 1",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue-1",
+    "label": "Blue 1",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white-1",
+    "label": "White 1",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red-2",
+    "label": "Red 2",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green-2",
+    "label": "Green 2",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue-2",
+    "label": "Blue 2",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white-2",
+    "label": "White 2",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "7ch",
+    "name": "7-channel",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "tilt-1",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "effect",
+      "byte": 0
+     },
+     {
+      "channelKey": "effect-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "reset",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "15ch",
+    "name": "15-channel",
+    "footprint": 15,
+    "slots": [
+     {
+      "channelKey": "tilt-1",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "red-1",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-1",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue-1",
+      "byte": 0
+     },
+     {
+      "channelKey": "white-1",
+      "byte": 0
+     },
+     {
+      "channelKey": "red-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "white-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "effect",
+      "byte": 0
+     },
+     {
+      "channelKey": "effect-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "reset",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    280,
+    150,
+    130
+   ],
+   "weightKg": 1.99,
+   "powerW": 80,
+   "lensDegMin": 3,
+   "lensDegMax": 3
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "uking/zq-b20-mini-spider-light",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

@@ -1,0 +1,276 @@
+[
+ {
+  "id": "showven/sparkular-fall",
+  "manufacturer": "Showven",
+  "model": "Sparkular Fall (BT04)",
+  "aliases": [
+   "Showven Sparkular Fall (BT04)",
+   "Sparkular Fall (BT04)",
+   "showvensparkularfallbt04",
+   "sparkularfallbt04"
+  ],
+  "categories": [
+   "Effect"
+  ],
+  "channels": [
+   {
+    "key": "fountain",
+    "label": "Fountain",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "Fountain off"
+     },
+     {
+      "from": 16,
+      "to": 135,
+      "label": "Fountain level"
+     },
+     {
+      "from": 136,
+      "to": 255,
+      "label": "Fountain level"
+     }
+    ]
+   },
+   {
+    "key": "control",
+    "label": "Control",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Pre-Heat OFF"
+     },
+     {
+      "from": 11,
+      "to": 19,
+      "label": "NoFunction"
+     },
+     {
+      "from": 20,
+      "to": 40,
+      "label": "Emergency Stop"
+     },
+     {
+      "from": 41,
+      "to": 59,
+      "label": "NoFunction"
+     },
+     {
+      "from": 60,
+      "to": 80,
+      "label": "Clear Material"
+     },
+     {
+      "from": 81,
+      "to": 239,
+      "label": "NoFunction"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "Pre-Heat ON"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "default",
+    "name": "Default",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "fountain",
+      "byte": 0
+     },
+     {
+      "channelKey": "control",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    192,
+    208,
+    192
+   ],
+   "weightKg": 6,
+   "powerW": 400
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "showven/sparkular-fall",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "showven/sparkular",
+  "manufacturer": "Showven",
+  "model": "Sparkular (BT01)",
+  "aliases": [
+   "Showven Sparkular (BT01)",
+   "Sparkular",
+   "Sparkular (BT01)",
+   "showvensparkularbt01",
+   "sparkular",
+   "sparkularbt01"
+  ],
+  "categories": [
+   "Effect"
+  ],
+  "channels": [
+   {
+    "key": "fountain",
+    "label": "Fountain",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "Fountain Off"
+     },
+     {
+      "from": 16,
+      "to": 39,
+      "label": "Height"
+     },
+     {
+      "from": 40,
+      "to": 63,
+      "label": "Height"
+     },
+     {
+      "from": 64,
+      "to": 87,
+      "label": "Height"
+     },
+     {
+      "from": 88,
+      "to": 111,
+      "label": "Height"
+     },
+     {
+      "from": 112,
+      "to": 135,
+      "label": "Height"
+     },
+     {
+      "from": 136,
+      "to": 159,
+      "label": "Height"
+     },
+     {
+      "from": 160,
+      "to": 183,
+      "label": "Height"
+     },
+     {
+      "from": 184,
+      "to": 207,
+      "label": "Height"
+     },
+     {
+      "from": 208,
+      "to": 231,
+      "label": "Height"
+     },
+     {
+      "from": 232,
+      "to": 255,
+      "label": "Height"
+     }
+    ]
+   },
+   {
+    "key": "control",
+    "label": "Control",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Pre-Heat OFF"
+     },
+     {
+      "from": 11,
+      "to": 19,
+      "label": "NoFunction"
+     },
+     {
+      "from": 20,
+      "to": 40,
+      "label": "EMERGENCY STOP"
+     },
+     {
+      "from": 41,
+      "to": 59,
+      "label": "NoFunction"
+     },
+     {
+      "from": 60,
+      "to": 80,
+      "label": "Clear Material"
+     },
+     {
+      "from": 81,
+      "to": 239,
+      "label": "NoFunction"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "Pre-Heat ON"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "default",
+    "name": "Default",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "fountain",
+      "byte": 0
+     },
+     {
+      "channelKey": "control",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    200,
+    215,
+    285
+   ],
+   "weightKg": 8.5,
+   "powerW": 365
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "showven/sparkular",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

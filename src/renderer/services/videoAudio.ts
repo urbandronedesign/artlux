@@ -39,7 +39,7 @@ let vaMemoOut: TimelineAudio = EMPTY_VIDEO_AUDIO;
  * `audio.enabled` is explicitly false has been switched off by the operator. Absent ⇒ audible.
  */
 const clipHasAudio = (c: VideoClip): boolean =>
-  c.kind !== 'tracking' && !isContentClip(c) && !!c.path && c.audio?.enabled !== false;
+  c.kind !== 'tracking' && c.kind !== 'lighting' && !isContentClip(c) && !!c.path && c.audio?.enabled !== false;
 
 export function videoAudioOf(t: Timeline): TimelineAudio {
   if (t.layers === vaMemoLayers && t.clips === vaMemoClips) return vaMemoOut;

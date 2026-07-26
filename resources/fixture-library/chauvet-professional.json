@@ -1,0 +1,3582 @@
+[
+ {
+  "id": "chauvet-professional/colorado-1-solo",
+  "manufacturer": "Chauvet Professional",
+  "model": "COLORado 1 Solo",
+  "aliases": [
+   "COLORado 1 Solo",
+   "Chauvet Professional COLORado 1 Solo",
+   "Solo 1",
+   "chauvetprofessionalcolorado1solo",
+   "colorado1solo",
+   "solo1"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "color-macros",
+    "label": "Color Macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 30,
+      "label": "Red … Yellow"
+     },
+     {
+      "from": 31,
+      "to": 50,
+      "label": "Yellow … Green"
+     },
+     {
+      "from": 51,
+      "to": 70,
+      "label": "Green … Cyan"
+     },
+     {
+      "from": 71,
+      "to": 90,
+      "label": "Cyan … Blue"
+     },
+     {
+      "from": 91,
+      "to": 110,
+      "label": "Blue … Magenta"
+     },
+     {
+      "from": 111,
+      "to": 130,
+      "label": "Magenta … Red"
+     },
+     {
+      "from": 131,
+      "to": 150,
+      "label": "Red … White"
+     },
+     {
+      "from": 151,
+      "to": 170,
+      "label": "White … Blue"
+     },
+     {
+      "from": 171,
+      "to": 195,
+      "label": "Full White"
+     },
+     {
+      "from": 196,
+      "to": 200,
+      "label": "White 1"
+     },
+     {
+      "from": 201,
+      "to": 205,
+      "label": "White 2"
+     },
+     {
+      "from": 206,
+      "to": 210,
+      "label": "White 3"
+     },
+     {
+      "from": 211,
+      "to": 215,
+      "label": "White 4"
+     },
+     {
+      "from": 216,
+      "to": 220,
+      "label": "White 5"
+     },
+     {
+      "from": 221,
+      "to": 225,
+      "label": "White 6"
+     },
+     {
+      "from": 226,
+      "to": 230,
+      "label": "White 7"
+     },
+     {
+      "from": 231,
+      "to": 235,
+      "label": "White  8"
+     },
+     {
+      "from": 236,
+      "to": 240,
+      "label": "White 9"
+     },
+     {
+      "from": 241,
+      "to": 245,
+      "label": "White 10"
+     },
+     {
+      "from": 246,
+      "to": 250,
+      "label": "White 11"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "White 12"
+     }
+    ]
+   },
+   {
+    "key": "white-color-macros",
+    "label": "White Color Macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 30,
+      "label": "White 1"
+     },
+     {
+      "from": 31,
+      "to": 50,
+      "label": "White 2"
+     },
+     {
+      "from": 51,
+      "to": 70,
+      "label": "White 3"
+     },
+     {
+      "from": 71,
+      "to": 90,
+      "label": "White 4"
+     },
+     {
+      "from": 91,
+      "to": 110,
+      "label": "White 5"
+     },
+     {
+      "from": 111,
+      "to": 130,
+      "label": "White 6"
+     },
+     {
+      "from": 131,
+      "to": 150,
+      "label": "White 7"
+     },
+     {
+      "from": 151,
+      "to": 170,
+      "label": "White  8"
+     },
+     {
+      "from": 171,
+      "to": 190,
+      "label": "White 9"
+     },
+     {
+      "from": 191,
+      "to": 210,
+      "label": "White 10"
+     },
+     {
+      "from": 211,
+      "to": 230,
+      "label": "White 11"
+     },
+     {
+      "from": 231,
+      "to": 255,
+      "label": "White 12"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 99,
+      "label": "Strobe"
+     },
+     {
+      "from": 100,
+      "to": 109,
+      "label": "NoFunction"
+     },
+     {
+      "from": 110,
+      "to": 179,
+      "label": "Lightning"
+     },
+     {
+      "from": 180,
+      "to": 189,
+      "label": "NoFunction"
+     },
+     {
+      "from": 190,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "programs",
+    "label": "Programs",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 40,
+      "label": "NoFunction"
+     },
+     {
+      "from": 41,
+      "to": 50,
+      "label": "Auto 1"
+     },
+     {
+      "from": 51,
+      "to": 60,
+      "label": "Auto 2"
+     },
+     {
+      "from": 61,
+      "to": 70,
+      "label": "Auto 3"
+     },
+     {
+      "from": 71,
+      "to": 80,
+      "label": "Auto 4"
+     },
+     {
+      "from": 81,
+      "to": 90,
+      "label": "Auto 5"
+     },
+     {
+      "from": 91,
+      "to": 100,
+      "label": "Auto 6"
+     },
+     {
+      "from": 101,
+      "to": 110,
+      "label": "Auto 7"
+     },
+     {
+      "from": 111,
+      "to": 120,
+      "label": "Auto 8"
+     },
+     {
+      "from": 121,
+      "to": 130,
+      "label": "Auto 9"
+     },
+     {
+      "from": 131,
+      "to": 140,
+      "label": "Auto 10"
+     },
+     {
+      "from": 141,
+      "to": 150,
+      "label": "Custom 1"
+     },
+     {
+      "from": 151,
+      "to": 160,
+      "label": "Custom 2"
+     },
+     {
+      "from": 161,
+      "to": 170,
+      "label": "Custom 3"
+     },
+     {
+      "from": 171,
+      "to": 180,
+      "label": "Custom 4"
+     },
+     {
+      "from": 181,
+      "to": 190,
+      "label": "Custom 5"
+     },
+     {
+      "from": 191,
+      "to": 200,
+      "label": "Custom 6"
+     },
+     {
+      "from": 201,
+      "to": 210,
+      "label": "Custom 7"
+     },
+     {
+      "from": 211,
+      "to": 220,
+      "label": "Custom 8"
+     },
+     {
+      "from": 221,
+      "to": 230,
+      "label": "Custom 9"
+     },
+     {
+      "from": 231,
+      "to": 255,
+      "label": "Custom 10"
+     }
+    ]
+   },
+   {
+    "key": "auto-speed",
+    "label": "Auto Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "zoom",
+    "label": "Zoom",
+    "role": "zoom",
+    "resolution": 1,
+    "default": 0,
+    "min": 4,
+    "max": 40,
+    "unit": "deg"
+   },
+   {
+    "key": "zoom-control",
+    "label": "Zoom Control",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 200,
+      "label": "NoFunction"
+     },
+     {
+      "from": 201,
+      "to": 220,
+      "label": "Reset Zoom"
+     },
+     {
+      "from": 221,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "dimmer-speed",
+    "label": "Dimmer Speed",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Preset Dimmer From Display Menu"
+     },
+     {
+      "from": 10,
+      "to": 29,
+      "label": "Linear Dimmer"
+     },
+     {
+      "from": 30,
+      "to": 69,
+      "label": "NonLinear Dimmer Curve 1 (Fastest)"
+     },
+     {
+      "from": 70,
+      "to": 129,
+      "label": "NonLinear Dimmer Curve 2"
+     },
+     {
+      "from": 130,
+      "to": 189,
+      "label": "NonLinear Dimmer Curve 3"
+     },
+     {
+      "from": 190,
+      "to": 255,
+      "label": "NonLinear Dimmer Curve 4 (Slowest)"
+     }
+    ]
+   },
+   {
+    "key": "hue",
+    "label": "Hue",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "saturation",
+    "label": "Saturation",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "std-y",
+    "name": "Std. Y",
+    "footprint": 17,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-speed",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "tr16",
+    "name": "TR16",
+    "footprint": 17,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-speed",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "tour",
+    "name": "TOUR",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-speed",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "ssp",
+    "name": "SSP",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-speed",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "hsic",
+    "name": "HSIC",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "white-color-macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-speed",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    242,
+    176,
+    346
+   ],
+   "weightKg": 5.4,
+   "powerW": 65,
+   "lensDegMin": 4,
+   "lensDegMax": 40
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "chauvet-professional/colorado-1-solo",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "chauvet-professional/colordash-s-par-1",
+  "manufacturer": "Chauvet Professional",
+  "model": "COLORdash S-Par 1",
+  "aliases": [
+   "COLORdash S-Par 1",
+   "Chauvet Professional COLORdash S-Par 1",
+   "chauvetprofessionalcolordashspar1",
+   "colordashspar1"
+  ],
+  "categories": [
+   "Dimmer",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Open"
+     },
+     {
+      "from": 11,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "color-macro-white-balance",
+    "label": "Color Macro + White Balance",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 30,
+      "label": "Red … Yellow"
+     },
+     {
+      "from": 31,
+      "to": 50,
+      "label": "Yellow … Green"
+     },
+     {
+      "from": 51,
+      "to": 70,
+      "label": "Green … Cyan"
+     },
+     {
+      "from": 71,
+      "to": 90,
+      "label": "Cyan … Blue"
+     },
+     {
+      "from": 91,
+      "to": 110,
+      "label": "Blue … Magenta"
+     },
+     {
+      "from": 111,
+      "to": 130,
+      "label": "Magenta … Red"
+     },
+     {
+      "from": 131,
+      "to": 150,
+      "label": "Red … White"
+     },
+     {
+      "from": 151,
+      "to": 170,
+      "label": "White … Blue"
+     },
+     {
+      "from": 171,
+      "to": 200,
+      "label": "RGBA white",
+      "color": "#ffebd9"
+     },
+     {
+      "from": 201,
+      "to": 205,
+      "label": "White 1",
+      "color": "#ffffff"
+     },
+     {
+      "from": 206,
+      "to": 210,
+      "label": "White 2",
+      "color": "#ffffff"
+     },
+     {
+      "from": 211,
+      "to": 215,
+      "label": "White 3",
+      "color": "#ffffff"
+     },
+     {
+      "from": 216,
+      "to": 220,
+      "label": "White 4",
+      "color": "#ffffff"
+     },
+     {
+      "from": 221,
+      "to": 225,
+      "label": "White 5",
+      "color": "#ffffff"
+     },
+     {
+      "from": 226,
+      "to": 230,
+      "label": "White 6",
+      "color": "#ffffff"
+     },
+     {
+      "from": 231,
+      "to": 235,
+      "label": "White 7",
+      "color": "#ffffff"
+     },
+     {
+      "from": 236,
+      "to": 240,
+      "label": "White 8",
+      "color": "#ffffff"
+     },
+     {
+      "from": 241,
+      "to": 245,
+      "label": "White 9",
+      "color": "#ffffff"
+     },
+     {
+      "from": 246,
+      "to": 250,
+      "label": "White 10",
+      "color": "#ffffff"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "White 11",
+      "color": "#ffffff"
+     }
+    ]
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "NoFunction"
+     },
+     {
+      "from": 6,
+      "to": 250,
+      "label": "ColorTemperature"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "auto-programs",
+    "label": "Auto Programs",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 60,
+      "label": "Program 1"
+     },
+     {
+      "from": 61,
+      "to": 110,
+      "label": "Program 2"
+     },
+     {
+      "from": 111,
+      "to": 160,
+      "label": "Program 3"
+     },
+     {
+      "from": 161,
+      "to": 210,
+      "label": "Program 4"
+     },
+     {
+      "from": 211,
+      "to": 255,
+      "label": "Program 5"
+     }
+    ]
+   },
+   {
+    "key": "auto-speed",
+    "label": "Auto Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer-curve",
+    "label": "Dimmer Curve",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 51,
+      "label": "Preset dimmer speed from display menu"
+     },
+     {
+      "from": 52,
+      "to": 101,
+      "label": "Linear Dimmer"
+     },
+     {
+      "from": 102,
+      "to": 152,
+      "label": "Nonlinear dimming curve 1 (fastest)"
+     },
+     {
+      "from": 153,
+      "to": 203,
+      "label": "Nonlinear dimming curve 2"
+     },
+     {
+      "from": 204,
+      "to": 255,
+      "label": "Nonlinear dimming curve 3 (slowest)"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "4ch",
+    "name": "4-channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "6ch",
+    "name": "6-channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "11ch",
+    "name": "11-channel",
+    "footprint": 11,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macro-white-balance",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-curve",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    231,
+    169,
+    313
+   ],
+   "weightKg": 6.5,
+   "powerW": 65,
+   "lensDegMin": 22,
+   "lensDegMax": 42
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "chauvet-professional/colordash-s-par-1",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "chauvet-professional/ovation-f-915vw",
+  "manufacturer": "Chauvet Professional",
+  "model": "Ovation F-915VW",
+  "aliases": [
+   "Chauvet Professional Ovation F-915VW",
+   "ChauvetOvationF915VW",
+   "Ovation F-915VW",
+   "chauvetovationf915vw",
+   "chauvetprofessionalovationf915vw",
+   "ovationf915vw"
+  ],
+  "categories": [
+   "Color Changer",
+   "Dimmer",
+   "Strobe"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "orange",
+    "label": "Orange",
+    "role": "amber",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "royal-blue",
+    "label": "Royal Blue",
+    "role": "blue",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "lime",
+    "label": "Lime",
+    "role": "lime",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "NoFunction"
+     },
+     {
+      "from": 6,
+      "to": 244,
+      "label": "ColorTemperature"
+     },
+     {
+      "from": 245,
+      "to": 255,
+      "label": "8000K"
+     }
+    ]
+   },
+   {
+    "key": "hue",
+    "label": "Hue",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "zoom",
+    "label": "Zoom",
+    "role": "zoom",
+    "resolution": 1,
+    "default": 0,
+    "min": 17,
+    "max": 54,
+    "unit": "deg"
+   },
+   {
+    "key": "dimmer-speed-mode",
+    "label": "Dimmer Speed Mode",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 51,
+      "label": "NoFunction"
+     },
+     {
+      "from": 52,
+      "to": 101,
+      "label": "Dimmer speed mode off"
+     },
+     {
+      "from": 102,
+      "to": 152,
+      "label": "Dimmer speed mode 1"
+     },
+     {
+      "from": 153,
+      "to": 203,
+      "label": "Dimmer speed mode 2"
+     },
+     {
+      "from": 204,
+      "to": 255,
+      "label": "Dimmer speed mode 3"
+     }
+    ]
+   },
+   {
+    "key": "motor-reset",
+    "label": "Motor Reset",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 200,
+      "label": "NoFunction"
+     },
+     {
+      "from": 201,
+      "to": 220,
+      "label": "Motor Reset"
+     },
+     {
+      "from": 221,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "18ch",
+    "name": "18-channel",
+    "footprint": 18,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "orange",
+      "byte": 0
+     },
+     {
+      "channelKey": "orange",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "royal-blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "royal-blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "lime",
+      "byte": 0
+     },
+     {
+      "channelKey": "lime",
+      "byte": 1
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "16ch",
+    "name": "16-channel",
+    "footprint": 16,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "orange",
+      "byte": 0
+     },
+     {
+      "channelKey": "orange",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "royal-blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "royal-blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "lime",
+      "byte": 0
+     },
+     {
+      "channelKey": "lime",
+      "byte": 1
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "13ch",
+    "name": "13-channel",
+    "footprint": 13,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "orange",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "royal-blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "lime",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-speed-mode",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "motor-reset",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "9ch",
+    "name": "9-channel",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "orange",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "royal-blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "lime",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "7ch",
+    "name": "7-channel",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "orange",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "royal-blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "lime",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "6ch",
+    "name": "6-channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "4ch",
+    "name": "4-channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    320,
+    275,
+    569.44
+   ],
+   "weightKg": 8.5,
+   "powerW": 223,
+   "lensDegMin": 17,
+   "lensDegMax": 54
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "chauvet-professional/ovation-f-915vw",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "chauvet-professional/rogue-r1-wash",
+  "manufacturer": "Chauvet Professional",
+  "model": "Rogue R1 Wash",
+  "aliases": [
+   "Chauvet Professional Rogue R1 Wash",
+   "Rogue R1 Wash",
+   "chauvetprofessionalroguer1wash",
+   "rogue-r1-wash",
+   "roguer1wash"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 230,
+    "unit": "deg"
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan/Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "shutter",
+    "label": "Shutter",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 19,
+      "label": "Closed"
+     },
+     {
+      "from": 20,
+      "to": 24,
+      "label": "Open"
+     },
+     {
+      "from": 25,
+      "to": 64,
+      "label": "Strobe"
+     },
+     {
+      "from": 65,
+      "to": 69,
+      "label": "Open"
+     },
+     {
+      "from": 70,
+      "to": 84,
+      "label": "RampDown"
+     },
+     {
+      "from": 85,
+      "to": 89,
+      "label": "Open"
+     },
+     {
+      "from": 90,
+      "to": 104,
+      "label": "RampUp"
+     },
+     {
+      "from": 105,
+      "to": 109,
+      "label": "Open"
+     },
+     {
+      "from": 110,
+      "to": 124,
+      "label": "Strobe"
+     },
+     {
+      "from": 125,
+      "to": 129,
+      "label": "Open"
+     },
+     {
+      "from": 130,
+      "to": 144,
+      "label": "RampDown"
+     },
+     {
+      "from": 145,
+      "to": 149,
+      "label": "Open"
+     },
+     {
+      "from": 150,
+      "to": 164,
+      "label": "RampUp"
+     },
+     {
+      "from": 165,
+      "to": 169,
+      "label": "Open"
+     },
+     {
+      "from": 170,
+      "to": 184,
+      "label": "Pulse"
+     },
+     {
+      "from": 185,
+      "to": 189,
+      "label": "Open"
+     },
+     {
+      "from": 190,
+      "to": 204,
+      "label": "Pulse"
+     },
+     {
+      "from": 205,
+      "to": 209,
+      "label": "Open"
+     },
+     {
+      "from": 210,
+      "to": 224,
+      "label": "RampUpDown"
+     },
+     {
+      "from": 225,
+      "to": 229,
+      "label": "Open"
+     },
+     {
+      "from": 230,
+      "to": 244,
+      "label": "Pulse"
+     },
+     {
+      "from": 245,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "color-presets",
+    "label": "Color Presets",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 4,
+      "label": "NoFunction"
+     },
+     {
+      "from": 5,
+      "to": 9,
+      "label": "Color 1 = White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 10,
+      "to": 14,
+      "label": "Color 2",
+      "color": "#ffeb34"
+     },
+     {
+      "from": 15,
+      "to": 19,
+      "label": "Color 3",
+      "color": "#d68630"
+     },
+     {
+      "from": 20,
+      "to": 24,
+      "label": "Color 4",
+      "color": "#ff002c"
+     },
+     {
+      "from": 25,
+      "to": 29,
+      "label": "Color 5",
+      "color": "#ff3b71"
+     },
+     {
+      "from": 30,
+      "to": 34,
+      "label": "Color 6",
+      "color": "#ff8adb"
+     },
+     {
+      "from": 35,
+      "to": 39,
+      "label": "Color 7",
+      "color": "#e2afe2"
+     },
+     {
+      "from": 40,
+      "to": 44,
+      "label": "Color 8",
+      "color": "#2801ff"
+     },
+     {
+      "from": 45,
+      "to": 49,
+      "label": "Color 9",
+      "color": "#0000ff"
+     },
+     {
+      "from": 50,
+      "to": 54,
+      "label": "Color 10",
+      "color": "#004eff"
+     },
+     {
+      "from": 55,
+      "to": 59,
+      "label": "Color 11",
+      "color": "#00c7ff"
+     },
+     {
+      "from": 60,
+      "to": 64,
+      "label": "Color 12",
+      "color": "#00ffea"
+     },
+     {
+      "from": 65,
+      "to": 69,
+      "label": "Color 13",
+      "color": "#95f6ff"
+     },
+     {
+      "from": 70,
+      "to": 74,
+      "label": "Color 14",
+      "color": "#89ffe3"
+     },
+     {
+      "from": 75,
+      "to": 79,
+      "label": "Color 15",
+      "color": "#d5dcde"
+     },
+     {
+      "from": 80,
+      "to": 84,
+      "label": "Color 16",
+      "color": "#dbe8af"
+     },
+     {
+      "from": 85,
+      "to": 89,
+      "label": "Color 17",
+      "color": "#cdffc7"
+     },
+     {
+      "from": 90,
+      "to": 94,
+      "label": "Color 18",
+      "color": "#73ffa5"
+     },
+     {
+      "from": 95,
+      "to": 99,
+      "label": "Color 19",
+      "color": "#06ff8f"
+     },
+     {
+      "from": 100,
+      "to": 104,
+      "label": "Color 20",
+      "color": "#00ff5e"
+     },
+     {
+      "from": 105,
+      "to": 109,
+      "label": "Color 21",
+      "color": "#1dff00"
+     },
+     {
+      "from": 110,
+      "to": 114,
+      "label": "Color 22",
+      "color": "#20df00"
+     },
+     {
+      "from": 115,
+      "to": 119,
+      "label": "Color 23",
+      "color": "#4bff00"
+     },
+     {
+      "from": 120,
+      "to": 124,
+      "label": "Color 24",
+      "color": "#50e800"
+     },
+     {
+      "from": 125,
+      "to": 129,
+      "label": "Color 25",
+      "color": "#6ce200"
+     },
+     {
+      "from": 130,
+      "to": 134,
+      "label": "Color 26",
+      "color": "#91c200"
+     },
+     {
+      "from": 135,
+      "to": 139,
+      "label": "Color 27",
+      "color": "#d2ff00"
+     },
+     {
+      "from": 140,
+      "to": 144,
+      "label": "Color 28",
+      "color": "#e1e800"
+     },
+     {
+      "from": 145,
+      "to": 149,
+      "label": "Color 29",
+      "color": "#17d700"
+     },
+     {
+      "from": 150,
+      "to": 154,
+      "label": "Color 30",
+      "color": "#f7d600"
+     },
+     {
+      "from": 155,
+      "to": 159,
+      "label": "Color 31",
+      "color": "#ffa300"
+     },
+     {
+      "from": 160,
+      "to": 164,
+      "label": "Color 32",
+      "color": "#ff9800"
+     },
+     {
+      "from": 165,
+      "to": 169,
+      "label": "Color 33",
+      "color": "#ff6c00"
+     },
+     {
+      "from": 170,
+      "to": 174,
+      "label": "Color 34 = Full White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 175,
+      "to": 179,
+      "label": "Closed",
+      "color": "#000000"
+     },
+     {
+      "from": 180,
+      "to": 201,
+      "label": "ColorFade"
+     },
+     {
+      "from": 202,
+      "to": 207,
+      "label": "ColorFade"
+     },
+     {
+      "from": 208,
+      "to": 229,
+      "label": "ColorFade"
+     },
+     {
+      "from": 230,
+      "to": 234,
+      "label": "Closed",
+      "color": "#000000"
+     },
+     {
+      "from": 235,
+      "to": 249,
+      "label": "ColorFade"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Closed",
+      "color": "#000000"
+     }
+    ]
+   },
+   {
+    "key": "zoom",
+    "label": "Zoom",
+    "role": "zoom",
+    "resolution": 1,
+    "default": 0,
+    "min": 8,
+    "max": 30,
+    "unit": "deg"
+   },
+   {
+    "key": "movement-macros",
+    "label": "Movement Macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "NoFunction"
+     },
+     {
+      "from": 8,
+      "to": 23,
+      "label": "Effect 1"
+     },
+     {
+      "from": 24,
+      "to": 39,
+      "label": "Effect 2"
+     },
+     {
+      "from": 40,
+      "to": 55,
+      "label": "Effect 3"
+     },
+     {
+      "from": 56,
+      "to": 71,
+      "label": "Effect 4"
+     },
+     {
+      "from": 72,
+      "to": 87,
+      "label": "Effect 5"
+     },
+     {
+      "from": 88,
+      "to": 103,
+      "label": "Effect 6"
+     },
+     {
+      "from": 104,
+      "to": 119,
+      "label": "Effect 7"
+     },
+     {
+      "from": 120,
+      "to": 135,
+      "label": "Effect 8"
+     },
+     {
+      "from": 136,
+      "to": 151,
+      "label": "Effect 9"
+     },
+     {
+      "from": 152,
+      "to": 167,
+      "label": "Effect 10"
+     },
+     {
+      "from": 168,
+      "to": 183,
+      "label": "Effect 11"
+     },
+     {
+      "from": 184,
+      "to": 199,
+      "label": "Effect 12"
+     },
+     {
+      "from": 200,
+      "to": 215,
+      "label": "Effect 13"
+     },
+     {
+      "from": 216,
+      "to": 231,
+      "label": "Effect 14"
+     },
+     {
+      "from": 232,
+      "to": 247,
+      "label": "Effect 15"
+     },
+     {
+      "from": 248,
+      "to": 255,
+      "label": "Effect 16"
+     }
+    ]
+   },
+   {
+    "key": "movement-macro-speed",
+    "label": "Movement Macro Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "control",
+    "label": "Control",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 14,
+      "label": "Blackout during pan/tilt"
+     },
+     {
+      "from": 15,
+      "to": 19,
+      "label": "NoFunction"
+     },
+     {
+      "from": 20,
+      "to": 24,
+      "label": "NoFunction"
+     },
+     {
+      "from": 25,
+      "to": 29,
+      "label": "NoFunction"
+     },
+     {
+      "from": 30,
+      "to": 34,
+      "label": "NoFunction"
+     },
+     {
+      "from": 35,
+      "to": 39,
+      "label": "NoFunction"
+     },
+     {
+      "from": 40,
+      "to": 44,
+      "label": "NoFunction"
+     },
+     {
+      "from": 45,
+      "to": 49,
+      "label": "NoFunction"
+     },
+     {
+      "from": 50,
+      "to": 54,
+      "label": "Pan reset"
+     },
+     {
+      "from": 55,
+      "to": 59,
+      "label": "Tilt reset"
+     },
+     {
+      "from": 60,
+      "to": 64,
+      "label": "Zoom reset"
+     },
+     {
+      "from": 65,
+      "to": 69,
+      "label": "NoFunction"
+     },
+     {
+      "from": 70,
+      "to": 74,
+      "label": "All reset"
+     },
+     {
+      "from": 75,
+      "to": 79,
+      "label": "NoFunction"
+     },
+     {
+      "from": 80,
+      "to": 84,
+      "label": "Pan/Tilt movement reverse"
+     },
+     {
+      "from": 85,
+      "to": 89,
+      "label": "Pan movement reverse"
+     },
+     {
+      "from": 90,
+      "to": 94,
+      "label": "Tilt movement reverse"
+     },
+     {
+      "from": 95,
+      "to": 99,
+      "label": "Disable Pan movement reverse"
+     },
+     {
+      "from": 100,
+      "to": 104,
+      "label": "Disable Tilt movement reverse"
+     },
+     {
+      "from": 105,
+      "to": 109,
+      "label": "Disable Pan/Tilt movement reverse"
+     },
+     {
+      "from": 110,
+      "to": 114,
+      "label": "NoFunction"
+     },
+     {
+      "from": 115,
+      "to": 119,
+      "label": "NoFunction"
+     },
+     {
+      "from": 120,
+      "to": 124,
+      "label": "Eco fan"
+     },
+     {
+      "from": 125,
+      "to": 129,
+      "label": "Full fan"
+     },
+     {
+      "from": 130,
+      "to": 134,
+      "label": "Auto fan"
+     },
+     {
+      "from": 135,
+      "to": 139,
+      "label": "Fast dimmer curve"
+     },
+     {
+      "from": 140,
+      "to": 144,
+      "label": "Smooth dimmer curve"
+     },
+     {
+      "from": 145,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "21ch",
+    "name": "21-channel",
+    "footprint": 21,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "shutter",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "movement-macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "movement-macro-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "19ch",
+    "name": "19-channel",
+    "footprint": 19,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "shutter",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "15ch",
+    "name": "15-channel",
+    "footprint": 15,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "shutter",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "14ch",
+    "name": "14-channel",
+    "footprint": 14,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "control",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    265,
+    354,
+    187
+   ],
+   "weightKg": 5.9,
+   "powerW": 161,
+   "lensDegMin": 8,
+   "lensDegMax": 30
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "chauvet-professional/rogue-r1-wash",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "chauvet-professional/vesuvio-rgba",
+  "manufacturer": "Chauvet Professional",
+  "model": "Vesuvio RGBA",
+  "aliases": [
+   "Chauvet Professional Vesuvio RGBA",
+   "Vesuvio RGBA",
+   "chauvetprofessionalvesuviorgba",
+   "vesuviorgba"
+  ],
+  "categories": [
+   "Smoke",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "fog",
+    "label": "Fog",
+    "role": "fog",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "strobe",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-macros",
+    "label": "Color Macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 11,
+      "label": "Amber/Blue"
+     },
+     {
+      "from": 12,
+      "to": 12,
+      "label": "Amber"
+     },
+     {
+      "from": 13,
+      "to": 15,
+      "label": "Amber/Blue dim to bright"
+     },
+     {
+      "from": 16,
+      "to": 16,
+      "label": "Green"
+     },
+     {
+      "from": 17,
+      "to": 19,
+      "label": "Green/Blue dim to bright"
+     },
+     {
+      "from": 20,
+      "to": 20,
+      "label": "Amber/Green"
+     },
+     {
+      "from": 21,
+      "to": 23,
+      "label": "Amber/Green/Blue dim to bright"
+     },
+     {
+      "from": 24,
+      "to": 24,
+      "label": "Amber/Green"
+     },
+     {
+      "from": 25,
+      "to": 27,
+      "label": "Amber/Green/Blue dim to bright"
+     },
+     {
+      "from": 28,
+      "to": 28,
+      "label": "Amber/Green"
+     },
+     {
+      "from": 29,
+      "to": 31,
+      "label": "Amber/Green/Blue dim to bright"
+     },
+     {
+      "from": 32,
+      "to": 32,
+      "label": "Green"
+     },
+     {
+      "from": 33,
+      "to": 35,
+      "label": "Green/Blue dim to bright"
+     },
+     {
+      "from": 36,
+      "to": 36,
+      "label": "Amber/Green"
+     },
+     {
+      "from": 37,
+      "to": 39,
+      "label": "Amber/Green/Blue dim to bright"
+     },
+     {
+      "from": 40,
+      "to": 40,
+      "label": "Amber/Green"
+     },
+     {
+      "from": 41,
+      "to": 43,
+      "label": "Green/Blue dim to bright"
+     },
+     {
+      "from": 44,
+      "to": 44,
+      "label": "Amber/Green"
+     },
+     {
+      "from": 45,
+      "to": 47,
+      "label": "Green/Blue dim to bright"
+     },
+     {
+      "from": 48,
+      "to": 48,
+      "label": "Green"
+     },
+     {
+      "from": 49,
+      "to": 51,
+      "label": "Green/Blue dim to bright"
+     },
+     {
+      "from": 52,
+      "to": 52,
+      "label": "Amber/Green"
+     },
+     {
+      "from": 53,
+      "to": 55,
+      "label": "Amber/Green/Blue dim to bright"
+     },
+     {
+      "from": 56,
+      "to": 56,
+      "label": "Amber/Green"
+     },
+     {
+      "from": 57,
+      "to": 59,
+      "label": "Amber/Green/Blue dim to bright"
+     },
+     {
+      "from": 60,
+      "to": 60,
+      "label": "Amber/Green"
+     },
+     {
+      "from": 61,
+      "to": 63,
+      "label": "Amber/Green/Blue dim to bright"
+     },
+     {
+      "from": 64,
+      "to": 64,
+      "label": "Red"
+     },
+     {
+      "from": 65,
+      "to": 67,
+      "label": "Red/Blue dim to bright"
+     },
+     {
+      "from": 68,
+      "to": 68,
+      "label": "Red/Amber"
+     },
+     {
+      "from": 69,
+      "to": 71,
+      "label": "Red/Amber/Blue dim to bright"
+     },
+     {
+      "from": 72,
+      "to": 72,
+      "label": "Red/Amber"
+     },
+     {
+      "from": 73,
+      "to": 75,
+      "label": "Red/Amber/Blue dim to bright"
+     },
+     {
+      "from": 76,
+      "to": 76,
+      "label": "Red/Amber"
+     },
+     {
+      "from": 77,
+      "to": 79,
+      "label": "Red/Amber/Blue dim to bright"
+     },
+     {
+      "from": 80,
+      "to": 80,
+      "label": "Red/Green"
+     },
+     {
+      "from": 81,
+      "to": 83,
+      "label": "Red/Green/Blue dim to bright"
+     },
+     {
+      "from": 84,
+      "to": 84,
+      "label": "Red/Green/Amber"
+     },
+     {
+      "from": 85,
+      "to": 87,
+      "label": "Red/Green/Amber/Blue dim to bright"
+     },
+     {
+      "from": 88,
+      "to": 88,
+      "label": "Red/Green/Amber"
+     },
+     {
+      "from": 89,
+      "to": 91,
+      "label": "Red/Green/Amber/Blue dim to bright"
+     },
+     {
+      "from": 92,
+      "to": 92,
+      "label": "Red/Green/Amber"
+     },
+     {
+      "from": 93,
+      "to": 95,
+      "label": "Red/Green/Amber/Blue dim to bright"
+     },
+     {
+      "from": 96,
+      "to": 96,
+      "label": "Red/Green"
+     },
+     {
+      "from": 97,
+      "to": 99,
+      "label": "Red/Green/Blue dim to bright"
+     },
+     {
+      "from": 100,
+      "to": 100,
+      "label": "Red/Green/Amber"
+     },
+     {
+      "from": 101,
+      "to": 103,
+      "label": "Red/Green/Amber/Blue dim to bright"
+     },
+     {
+      "from": 104,
+      "to": 104,
+      "label": "Red/Green/Amber"
+     },
+     {
+      "from": 105,
+      "to": 107,
+      "label": "Red/Green/Amber/Blue dim to bright"
+     },
+     {
+      "from": 108,
+      "to": 108,
+      "label": "Red/Green/Amber"
+     },
+     {
+      "from": 109,
+      "to": 111,
+      "label": "Red/Green/Amber/Blue"
+     },
+     {
+      "from": 112,
+      "to": 112,
+      "label": "Red/Green"
+     },
+     {
+      "from": 113,
+      "to": 115,
+      "label": "Red/Green/Blue dim to bright"
+     },
+     {
+      "from": 116,
+      "to": 116,
+      "label": "Red/Green/Amber"
+     },
+     {
+      "from": 117,
+      "to": 119,
+      "label": "Red/Green/Amber/Blue dim to bright"
+     },
+     {
+      "from": 120,
+      "to": 120,
+      "label": "Red/Green/Amber"
+     },
+     {
+      "from": 121,
+      "to": 123,
+      "label": "Red/Green/Amber/Blue dim to bright"
+     },
+     {
+      "from": 124,
+      "to": 124,
+      "label": "Red/Green/Amber"
+     },
+     {
+      "from": 125,
+      "to": 127,
+      "label": "Red/Green/Amber/Blue dim to bright"
+     },
+     {
+      "from": 128,
+      "to": 128,
+      "label": "Red"
+     },
+     {
+      "from": 129,
+      "to": 131,
+      "label": "Red/Blue dim to bright"
+     },
+     {
+      "from": 132,
+      "to": 132,
+      "label": "Red/Amber"
+     },
+     {
+      "from": 133,
+      "to": 135,
+      "label": "Red/Amber/Blue dim to bright"
+     },
+     {
+      "from": 136,
+      "to": 136,
+      "label": "Red/Amber"
+     },
+     {
+      "from": 137,
+      "to": 139,
+      "label": "Red/Amber/Blue dim to bright"
+     },
+     {
+      "from": 140,
+      "to": 140,
+      "label": "Red/Amber"
+     },
+     {
+      "from": 141,
+      "to": 143,
+      "label": "Red/Amber/Blue dim to bright"
+     },
+     {
+      "from": 144,
+      "to": 144,
+      "label": "Red/Green"
+     },
+     {
+      "from": 145,
+      "to": 147,
+      "label": "Red/Amber/Blue dim to bright"
+     },
+     {
+      "from": 148,
+      "to": 148,
+      "label": "Red/Green/Amber"
+     },
+     {
+      "from": 149,
+      "to": 151,
+      "label": "Red/Green/Amber/Blue dim to bright"
+     },
+     {
+      "from": 152,
+      "to": 152,
+      "label": "Red/Green/Amber"
+     },
+     {
+      "from": 153,
+      "to": 155,
+      "label": "Red/Green/Amber/Blue dim to bright"
+     },
+     {
+      "from": 156,
+      "to": 156,
+      "label": "Red/Green/Amber"
+     },
+     {
+      "from": 157,
+      "to": 159,
+      "label": "Red/Green/Amber/Blue dim to bright"
+     },
+     {
+      "from": 160,
+      "to": 160,
+      "label": "Red/Green"
+     },
+     {
+      "from": 161,
+      "to": 163,
+      "label": "Red/Green/Blue dim to bright"
+     },
+     {
+      "from": 164,
+      "to": 164,
+      "label": "Red/Green/Amber"
+     },
+     {
+      "from": 165,
+      "to": 167,
+      "label": "Red/Green/Amber/Blue dim to bright"
+     },
+     {
+      "from": 168,
+      "to": 168,
+      "label": "Red/Green/Amber"
+     },
+     {
+      "from": 169,
+      "to": 171,
+      "label": "Red/Green/Amber/Blue dim to bright"
+     },
+     {
+      "from": 172,
+      "to": 172,
+      "label": "Red/Green/Amber"
+     },
+     {
+      "from": 173,
+      "to": 175,
+      "label": "Red/Green/Amber/Blue dim to bright"
+     },
+     {
+      "from": 176,
+      "to": 176,
+      "label": "Red/Green"
+     },
+     {
+      "from": 177,
+      "to": 179,
+      "label": "Red/Green/Amber/Blue dim to bright"
+     },
+     {
+      "from": 180,
+      "to": 180,
+      "label": "Red/Green/Amber"
+     },
+     {
+      "from": 181,
+      "to": 183,
+      "label": "Red/Green/Amber/Blue dim to bright"
+     },
+     {
+      "from": 184,
+      "to": 184,
+      "label": "Red/Green/Amber"
+     },
+     {
+      "from": 185,
+      "to": 187,
+      "label": "Red/Green/Amber/Blue dim to bright"
+     },
+     {
+      "from": 188,
+      "to": 188,
+      "label": "Red/Green/Amber"
+     },
+     {
+      "from": 189,
+      "to": 191,
+      "label": "Red/Green/Amber/Blue dim to bright"
+     },
+     {
+      "from": 192,
+      "to": 192,
+      "label": "Red"
+     },
+     {
+      "from": 193,
+      "to": 195,
+      "label": "Red/Blue dim to bright"
+     },
+     {
+      "from": 196,
+      "to": 196,
+      "label": "Red/Amber"
+     },
+     {
+      "from": 197,
+      "to": 199,
+      "label": "Red/Amber/Blue dim to bright"
+     },
+     {
+      "from": 200,
+      "to": 200,
+      "label": "Red/Amber"
+     },
+     {
+      "from": 201,
+      "to": 203,
+      "label": "Red/Amber/Blue dim to bright"
+     },
+     {
+      "from": 204,
+      "to": 204,
+      "label": "Red/Amber"
+     },
+     {
+      "from": 205,
+      "to": 207,
+      "label": "Red/Amber/Blue dim to bright"
+     },
+     {
+      "from": 208,
+      "to": 208,
+      "label": "Red/Green"
+     },
+     {
+      "from": 209,
+      "to": 211,
+      "label": "Red/Green/Blue dim to bright"
+     },
+     {
+      "from": 212,
+      "to": 212,
+      "label": "Red/Green/Amber"
+     },
+     {
+      "from": 213,
+      "to": 215,
+      "label": "Red/Amber/Blue dim to bright"
+     },
+     {
+      "from": 216,
+      "to": 216,
+      "label": "Red/Green/Amber"
+     },
+     {
+      "from": 217,
+      "to": 219,
+      "label": "Red/Green/Amber/Blue dim to bright"
+     },
+     {
+      "from": 220,
+      "to": 220,
+      "label": "Red/Green/Amber"
+     },
+     {
+      "from": 221,
+      "to": 223,
+      "label": "Red/Green/Amber/Blue dim to bright"
+     },
+     {
+      "from": 224,
+      "to": 224,
+      "label": "Red/Green"
+     },
+     {
+      "from": 225,
+      "to": 227,
+      "label": "Red/Green/Blue dim to bright"
+     },
+     {
+      "from": 228,
+      "to": 228,
+      "label": "Red/Green/Amber"
+     },
+     {
+      "from": 229,
+      "to": 231,
+      "label": "Red/Green/Amber/Blue dim to bright"
+     },
+     {
+      "from": 232,
+      "to": 232,
+      "label": "Red/Green/Amber"
+     },
+     {
+      "from": 233,
+      "to": 235,
+      "label": "Red/Green/Amber/Blue dim to bright"
+     },
+     {
+      "from": 236,
+      "to": 236,
+      "label": "Red/Green/Amber"
+     },
+     {
+      "from": 237,
+      "to": 239,
+      "label": "Red/Green/Amber/Blue dim to bright"
+     },
+     {
+      "from": 240,
+      "to": 240,
+      "label": "Red/Green"
+     },
+     {
+      "from": 241,
+      "to": 243,
+      "label": "Red/Green/Blue dim to bright"
+     },
+     {
+      "from": 244,
+      "to": 244,
+      "label": "Red/Green/Amber"
+     },
+     {
+      "from": 245,
+      "to": 247,
+      "label": "Red/Green/Amber/Blue dim to bright"
+     },
+     {
+      "from": 248,
+      "to": 248,
+      "label": "Red/Green/Amber"
+     },
+     {
+      "from": 249,
+      "to": 251,
+      "label": "Red/Green/Amber/Blue dim to bright"
+     },
+     {
+      "from": 252,
+      "to": 252,
+      "label": "Red/Green/Amber"
+     },
+     {
+      "from": 253,
+      "to": 255,
+      "label": "Red/Green/Amber/Blue dim to bright"
+     }
+    ]
+   },
+   {
+    "key": "effect-speed",
+    "label": "Effect Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "9ch",
+    "name": "9-channel",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "fog",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "effect-speed",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    336,
+    488,
+    231
+   ],
+   "weightKg": 13.6,
+   "powerW": 1590
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "chauvet-professional/vesuvio-rgba",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

@@ -1,0 +1,10417 @@
+[
+ {
+  "id": "eurolite/led-7c-7-silent-slim",
+  "manufacturer": "Eurolite",
+  "model": "LED 7C-7 Silent Slim",
+  "aliases": [
+   "Eurolite LED 7C-7 Silent Slim",
+   "LED 7C-7 Silent Slim",
+   "euroliteled7c7silentslim",
+   "led7c7silentslim"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "master-dimmer",
+    "label": "Master Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe-effect",
+    "label": "Strobe Effect",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "cold-white",
+    "label": "Cold white",
+    "role": "coldWhite",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "warm-white",
+    "label": "Warm white",
+    "role": "warmWhite",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "uv",
+    "label": "UV",
+    "role": "uv",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "preset-colors",
+    "label": "Preset Colors",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Red"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "Green"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "Blue"
+     },
+     {
+      "from": 40,
+      "to": 49,
+      "label": "Cold white"
+     },
+     {
+      "from": 50,
+      "to": 59,
+      "label": "Warm White"
+     },
+     {
+      "from": 60,
+      "to": 69,
+      "label": "Amber"
+     },
+     {
+      "from": 70,
+      "to": 79,
+      "label": "UV"
+     },
+     {
+      "from": 80,
+      "to": 89,
+      "label": "Yellow"
+     },
+     {
+      "from": 90,
+      "to": 99,
+      "label": "Magenta"
+     },
+     {
+      "from": 100,
+      "to": 109,
+      "label": "Cyan"
+     },
+     {
+      "from": 110,
+      "to": 119,
+      "label": "Dark Orange"
+     },
+     {
+      "from": 120,
+      "to": 129,
+      "label": "Green yellow"
+     },
+     {
+      "from": 130,
+      "to": 139,
+      "label": "Salmon"
+     },
+     {
+      "from": 140,
+      "to": 149,
+      "label": "Turquoise"
+     },
+     {
+      "from": 150,
+      "to": 159,
+      "label": "Light Green"
+     },
+     {
+      "from": 160,
+      "to": 169,
+      "label": "Orange"
+     },
+     {
+      "from": 170,
+      "to": 179,
+      "label": "Straw"
+     },
+     {
+      "from": 180,
+      "to": 189,
+      "label": "Lavender"
+     },
+     {
+      "from": 190,
+      "to": 199,
+      "label": "Light Blue"
+     },
+     {
+      "from": 200,
+      "to": 209,
+      "label": "Dark Blue"
+     },
+     {
+      "from": 210,
+      "to": 255,
+      "label": "Pink"
+     }
+    ]
+   },
+   {
+    "key": "internal-programs",
+    "label": "Internal Programs",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 69,
+      "label": "ColorFade"
+     },
+     {
+      "from": 70,
+      "to": 129,
+      "label": "ColorJump"
+     },
+     {
+      "from": 130,
+      "to": 189,
+      "label": "ColorFade"
+     },
+     {
+      "from": 190,
+      "to": 255,
+      "label": "ColorJump"
+     }
+    ]
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color temperature",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 49,
+      "label": "2700K"
+     },
+     {
+      "from": 50,
+      "to": 89,
+      "label": "3200K"
+     },
+     {
+      "from": 90,
+      "to": 129,
+      "label": "4300K"
+     },
+     {
+      "from": 130,
+      "to": 169,
+      "label": "5600K"
+     },
+     {
+      "from": 170,
+      "to": 209,
+      "label": "6500K"
+     },
+     {
+      "from": 210,
+      "to": 255,
+      "label": "8000K"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "3ch",
+    "name": "3-channel",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "5ch",
+    "name": "5-channel",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "master-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe-effect",
+      "byte": 0
+     },
+     {
+      "channelKey": "preset-colors",
+      "byte": 0
+     },
+     {
+      "channelKey": "internal-programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "7ch",
+    "name": "7-channel",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "cold-white",
+      "byte": 0
+     },
+     {
+      "channelKey": "warm-white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "9ch",
+    "name": "9-channel",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "cold-white",
+      "byte": 0
+     },
+     {
+      "channelKey": "warm-white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "master-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe-effect",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "12ch",
+    "name": "12-channel",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "master-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe-effect",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "cold-white",
+      "byte": 0
+     },
+     {
+      "channelKey": "warm-white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "preset-colors",
+      "byte": 0
+     },
+     {
+      "channelKey": "internal-programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    220,
+    255,
+    110
+   ],
+   "weightKg": 2.4,
+   "powerW": 45
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eurolite/led-7c-7-silent-slim",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "eurolite/led-bar-12-qcl-rgba-bar",
+  "manufacturer": "Eurolite",
+  "model": "LED Bar-12 QCL RGBA Bar",
+  "aliases": [
+   "Eurolite LED Bar-12 QCL RGBA Bar",
+   "LED Bar-12 QCL RGBA Bar",
+   "euroliteledbar12qclrgbabar",
+   "ledbar12qclrgbabar"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "auto-program",
+    "label": "Auto Program",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 119,
+      "label": "ColorFade"
+     },
+     {
+      "from": 120,
+      "to": 255,
+      "label": "ColorFade"
+     }
+    ]
+   },
+   {
+    "key": "auto-program-speed",
+    "label": "Auto Program Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-presets",
+    "label": "Color Presets",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 40,
+      "to": 49,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 50,
+      "to": 59,
+      "label": "Amber",
+      "color": "#ffbf00"
+     },
+     {
+      "from": 60,
+      "to": 69,
+      "label": "UV",
+      "color": "#8800ff"
+     },
+     {
+      "from": 70,
+      "to": 79,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 80,
+      "to": 89,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 90,
+      "to": 99,
+      "label": "Cyan",
+      "color": "#00ffff"
+     },
+     {
+      "from": 100,
+      "to": 109,
+      "label": "Dark Orange",
+      "color": "#be6500"
+     },
+     {
+      "from": 110,
+      "to": 119,
+      "label": "Green Yellow",
+      "color": "#8cff00"
+     },
+     {
+      "from": 120,
+      "to": 129,
+      "label": "Salmon",
+      "color": "#ff8c8c"
+     },
+     {
+      "from": 130,
+      "to": 139,
+      "label": "Turquoise",
+      "color": "#8cffff"
+     },
+     {
+      "from": 140,
+      "to": 149,
+      "label": "Light Green",
+      "color": "#8cff8c"
+     },
+     {
+      "from": 150,
+      "to": 159,
+      "label": "Orange",
+      "color": "#ff8c00"
+     },
+     {
+      "from": 160,
+      "to": 169,
+      "label": "Lavender",
+      "color": "#ccbfff"
+     },
+     {
+      "from": 170,
+      "to": 179,
+      "label": "Light Blue",
+      "color": "#8c8cff"
+     },
+     {
+      "from": 180,
+      "to": 189,
+      "label": "Dark Blue",
+      "color": "#00008c"
+     },
+     {
+      "from": 190,
+      "to": 255,
+      "label": "Pink",
+      "color": "#ff008c"
+     }
+    ]
+   },
+   {
+    "key": "strobe-program",
+    "label": "Strobe / Program",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 5,
+      "label": "ColorJump"
+     },
+     {
+      "from": 6,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 29,
+      "label": "2700K"
+     },
+     {
+      "from": 30,
+      "to": 49,
+      "label": "3200K"
+     },
+     {
+      "from": 50,
+      "to": 69,
+      "label": "3400K"
+     },
+     {
+      "from": 70,
+      "to": 89,
+      "label": "4200K"
+     },
+     {
+      "from": 90,
+      "to": 109,
+      "label": "4900K"
+     },
+     {
+      "from": 110,
+      "to": 129,
+      "label": "5600K"
+     },
+     {
+      "from": 130,
+      "to": 149,
+      "label": "6000K"
+     },
+     {
+      "from": 150,
+      "to": 169,
+      "label": "6500K"
+     },
+     {
+      "from": 170,
+      "to": 189,
+      "label": "7500K"
+     },
+     {
+      "from": 190,
+      "to": 255,
+      "label": "8000K"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 0.5019607843137255,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Open"
+     },
+     {
+      "from": 10,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "2ch",
+    "name": "2-channel",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "auto-program",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-program-speed",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "4ch",
+    "name": "4-channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "5ch",
+    "name": "5-channel",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-program",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-program-speed",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "6ch",
+    "name": "6-channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe-program",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "9ch",
+    "name": "9-channel",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-program",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-program-speed",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    1090,
+    65,
+    100
+   ],
+   "weightKg": 2.9,
+   "powerW": 24,
+   "lensDegMin": 17,
+   "lensDegMax": 17
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eurolite/led-bar-12-qcl-rgba-bar",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "eurolite/led-bar-3-hcl-bar",
+  "manufacturer": "Eurolite",
+  "model": "LED Bar-3 HCL Bar",
+  "aliases": [
+   "Eurolite LED Bar-3 HCL Bar",
+   "LED Bar-3 HCL Bar",
+   "euroliteledbar3hclbar",
+   "ledbar3hclbar"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "uv",
+    "label": "UV",
+    "role": "uv",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "mode",
+    "label": "Mode",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 69,
+      "label": "ColorFade"
+     },
+     {
+      "from": 70,
+      "to": 129,
+      "label": "ColorJump"
+     },
+     {
+      "from": 130,
+      "to": 189,
+      "label": "ColorFade"
+     },
+     {
+      "from": 190,
+      "to": 255,
+      "label": "ColorJump"
+     }
+    ]
+   },
+   {
+    "key": "color-presets",
+    "label": "Color Presets",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 40,
+      "to": 49,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 50,
+      "to": 59,
+      "label": "Amber",
+      "color": "#ffbf00"
+     },
+     {
+      "from": 60,
+      "to": 69,
+      "label": "UV",
+      "color": "#8800ff"
+     },
+     {
+      "from": 70,
+      "to": 79,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 80,
+      "to": 89,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 90,
+      "to": 99,
+      "label": "Cyan",
+      "color": "#00ffff"
+     },
+     {
+      "from": 100,
+      "to": 109,
+      "label": "Dark Orange",
+      "color": "#be6500"
+     },
+     {
+      "from": 110,
+      "to": 119,
+      "label": "Green Yellow",
+      "color": "#8cff00"
+     },
+     {
+      "from": 120,
+      "to": 129,
+      "label": "Salmon",
+      "color": "#ff8c8c"
+     },
+     {
+      "from": 130,
+      "to": 139,
+      "label": "Turquoise",
+      "color": "#8cffff"
+     },
+     {
+      "from": 140,
+      "to": 149,
+      "label": "Light Green",
+      "color": "#8cff8c"
+     },
+     {
+      "from": 150,
+      "to": 159,
+      "label": "Orange",
+      "color": "#ff8c00"
+     },
+     {
+      "from": 160,
+      "to": 169,
+      "label": "Lavender",
+      "color": "#ccbfff"
+     },
+     {
+      "from": 170,
+      "to": 179,
+      "label": "Light Blue",
+      "color": "#8c8cff"
+     },
+     {
+      "from": 180,
+      "to": 189,
+      "label": "Dark Blue",
+      "color": "#00008c"
+     },
+     {
+      "from": 190,
+      "to": 255,
+      "label": "Pink",
+      "color": "#ff008c"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 0.5019607843137255,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Open"
+     },
+     {
+      "from": 10,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "2ch",
+    "name": "2-channel",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-presets",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "3ch",
+    "name": "3-channel",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "4ch",
+    "name": "4-channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "mode",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "6ch",
+    "name": "6-channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "10ch",
+    "name": "10-channel",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "mode",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    265,
+    129,
+    87
+   ],
+   "weightKg": 0.9,
+   "powerW": 12,
+   "lensDegMin": 20,
+   "lensDegMax": 20
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eurolite/led-bar-3-hcl-bar",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "eurolite/led-bar-6-qcl-rgbw",
+  "manufacturer": "Eurolite",
+  "model": "LED Bar-6 QCL RGBW",
+  "aliases": [
+   "Eurolite LED Bar-6 QCL RGBW",
+   "LED Bar-6 QCL RGBW",
+   "euroliteledbar6qclrgbw",
+   "ledbar6qclrgbw"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "auto-program",
+    "label": "Auto Program",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 119,
+      "label": "Auto mode"
+     },
+     {
+      "from": 120,
+      "to": 255,
+      "label": "Sound mode"
+     }
+    ]
+   },
+   {
+    "key": "auto-program-speed",
+    "label": "Auto Program Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-presets",
+    "label": "Color Presets",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 40,
+      "to": 49,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 50,
+      "to": 59,
+      "label": "Green yellow",
+      "color": "#d4fb79"
+     },
+     {
+      "from": 60,
+      "to": 69,
+      "label": "Cyan",
+      "color": "#00fdff"
+     },
+     {
+      "from": 70,
+      "to": 79,
+      "label": "Magenta",
+      "color": "#ff40ff"
+     },
+     {
+      "from": 80,
+      "to": 89,
+      "label": "Yellow",
+      "color": "#fffb00"
+     },
+     {
+      "from": 90,
+      "to": 99,
+      "label": "Turquoise",
+      "color": "#00fdff"
+     },
+     {
+      "from": 100,
+      "to": 109,
+      "label": "Magenta",
+      "color": "#ff40ff"
+     },
+     {
+      "from": 110,
+      "to": 119,
+      "label": "Orange",
+      "color": "#ff9300"
+     },
+     {
+      "from": 120,
+      "to": 129,
+      "label": "Light Green",
+      "color": "#73fa79"
+     },
+     {
+      "from": 130,
+      "to": 139,
+      "label": "Magenta",
+      "color": "#ff40ff"
+     },
+     {
+      "from": 140,
+      "to": 149,
+      "label": "Pink",
+      "color": "#8cff8c"
+     },
+     {
+      "from": 150,
+      "to": 159,
+      "label": "Light Green",
+      "color": "#73fa79"
+     },
+     {
+      "from": 160,
+      "to": 169,
+      "label": "Light Blue",
+      "color": "#76d6ff"
+     },
+     {
+      "from": 170,
+      "to": 179,
+      "label": "Cold White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 180,
+      "to": 189,
+      "label": "Warm White",
+      "color": "#fff8af"
+     },
+     {
+      "from": 190,
+      "to": 255,
+      "label": "Lavender",
+      "color": "#d783ff"
+     }
+    ]
+   },
+   {
+    "key": "strobe-program",
+    "label": "Strobe / Program",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 5,
+      "label": "Sound control"
+     },
+     {
+      "from": 6,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 29,
+      "label": "2700K"
+     },
+     {
+      "from": 30,
+      "to": 49,
+      "label": "3200K"
+     },
+     {
+      "from": 50,
+      "to": 69,
+      "label": "3400K"
+     },
+     {
+      "from": 70,
+      "to": 89,
+      "label": "4200K"
+     },
+     {
+      "from": 90,
+      "to": 109,
+      "label": "4900K"
+     },
+     {
+      "from": 110,
+      "to": 129,
+      "label": "5600K"
+     },
+     {
+      "from": 130,
+      "to": 149,
+      "label": "6000K"
+     },
+     {
+      "from": 150,
+      "to": 169,
+      "label": "6500K"
+     },
+     {
+      "from": 170,
+      "to": 189,
+      "label": "7500K"
+     },
+     {
+      "from": 190,
+      "to": 255,
+      "label": "8000K"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Open"
+     },
+     {
+      "from": 10,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "2ch",
+    "name": "2-channel",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "auto-program",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-program-speed",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "4ch",
+    "name": "4-channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "5ch",
+    "name": "5-channel",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-program",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-program-speed",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "6ch",
+    "name": "6-channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe-program",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "9ch",
+    "name": "9-channel",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-program",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-program-speed",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    585,
+    65,
+    100
+   ],
+   "weightKg": 2.9,
+   "powerW": 15,
+   "lensDegMin": 17,
+   "lensDegMax": 17
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eurolite/led-bar-6-qcl-rgbw",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "eurolite/led-big-party-spot",
+  "manufacturer": "Eurolite",
+  "model": "LED Big PARty Spot",
+  "aliases": [
+   "Eurolite LED Big PARty Spot",
+   "EuroliteBigPARtySpot",
+   "LED Big PARty Spot",
+   "eurolitebigpartyspot",
+   "euroliteledbigpartyspot",
+   "ledbigpartyspot"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "effects",
+    "label": "Effects",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 10,
+      "label": "Sound Control"
+     },
+     {
+      "from": 11,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "6ch",
+    "name": "6-Channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "effects",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    250,
+    245,
+    130
+   ],
+   "weightKg": 1.1,
+   "powerW": 60,
+   "lensDegMin": 12,
+   "lensDegMax": 12
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eurolite/led-big-party-spot",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "eurolite/led-big-party-tcl-spot",
+  "manufacturer": "Eurolite",
+  "model": "LED Big PARty TCL Spot",
+  "aliases": [
+   "Eurolite LED Big PARty TCL Spot",
+   "EuroliteBigPARtyTCLSpot",
+   "LED Big PARty TCL Spot",
+   "eurolitebigpartytclspot",
+   "euroliteledbigpartytclspot",
+   "ledbigpartytclspot"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "effects",
+    "label": "Effects",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 5,
+      "label": "Sound Control"
+     },
+     {
+      "from": 6,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "5ch",
+    "name": "5-Channel",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "effects",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    150,
+    245,
+    255
+   ],
+   "weightKg": 1,
+   "powerW": 50,
+   "lensDegMin": 12,
+   "lensDegMax": 12
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eurolite/led-big-party-tcl-spot",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "eurolite/led-fe-1500",
+  "manufacturer": "Eurolite",
+  "model": "LED FE-1500",
+  "aliases": [
+   "ELFE1500",
+   "Eurolite LED FE-1500",
+   "LED FE-1500",
+   "elfe1500",
+   "euroliteledfe1500",
+   "ledfe1500"
+  ],
+  "categories": [
+   "Flower",
+   "Laser",
+   "Strobe",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "operating-mode",
+    "label": "Operating Mode",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 1,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Closed (Blackout)"
+     },
+     {
+      "from": 10,
+      "to": 24,
+      "label": "Aut0: Laser + RGBWA LEDs + white LEDs"
+     },
+     {
+      "from": 25,
+      "to": 39,
+      "label": "Aut1: Laser + RGBWA LEDs"
+     },
+     {
+      "from": 40,
+      "to": 54,
+      "label": "Aut2: Laser + white LEDs"
+     },
+     {
+      "from": 55,
+      "to": 69,
+      "label": "Aut3: RGBWA LEDs + white LEDs"
+     },
+     {
+      "from": 70,
+      "to": 84,
+      "label": "Aut4: RGBWA LEDs"
+     },
+     {
+      "from": 85,
+      "to": 99,
+      "label": "Aut5: Laser"
+     },
+     {
+      "from": 100,
+      "to": 114,
+      "label": "Aut6: white LEDs"
+     },
+     {
+      "from": 115,
+      "to": 129,
+      "label": "Sou0: Laser + RGBWA LEDs + white LEDs"
+     },
+     {
+      "from": 130,
+      "to": 144,
+      "label": "Sou1: Laser + RGBWA LEDs"
+     },
+     {
+      "from": 145,
+      "to": 159,
+      "label": "Sou2: Laser + white LEDs"
+     },
+     {
+      "from": 160,
+      "to": 174,
+      "label": "Sou3: RGBWA LEDs + white LEDs"
+     },
+     {
+      "from": 175,
+      "to": 189,
+      "label": "Sou4: RGBWA LEDs"
+     },
+     {
+      "from": 190,
+      "to": 204,
+      "label": "Sou5: Laser"
+     },
+     {
+      "from": 205,
+      "to": 219,
+      "label": "Sou6: white LEDs"
+     },
+     {
+      "from": 220,
+      "to": 255,
+      "label": "DMX mode"
+     }
+    ]
+   },
+   {
+    "key": "rgbwa-leds",
+    "label": "RGBWA LEDs",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Blackout",
+      "color": "#000000"
+     },
+     {
+      "from": 10,
+      "to": 14,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 15,
+      "to": 19,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 20,
+      "to": 24,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 25,
+      "to": 29,
+      "label": "Amber",
+      "color": "#ffbf00"
+     },
+     {
+      "from": 30,
+      "to": 34,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 35,
+      "to": 39,
+      "label": "White + red",
+      "color": "#ffffff"
+     },
+     {
+      "from": 40,
+      "to": 44,
+      "label": "Red + green",
+      "color": "#ff0000"
+     },
+     {
+      "from": 45,
+      "to": 49,
+      "label": "Green + blue",
+      "color": "#00ff00"
+     },
+     {
+      "from": 50,
+      "to": 54,
+      "label": "Blue + amber",
+      "color": "#0000ff"
+     },
+     {
+      "from": 55,
+      "to": 59,
+      "label": "Amber + white",
+      "color": "#ffbf00"
+     },
+     {
+      "from": 60,
+      "to": 64,
+      "label": "White + green",
+      "color": "#ffffff"
+     },
+     {
+      "from": 65,
+      "to": 69,
+      "label": "Green + amber",
+      "color": "#00ff00"
+     },
+     {
+      "from": 70,
+      "to": 74,
+      "label": "Amber + red",
+      "color": "#ffbf00"
+     },
+     {
+      "from": 75,
+      "to": 79,
+      "label": "Red + blue",
+      "color": "#ff0000"
+     },
+     {
+      "from": 80,
+      "to": 84,
+      "label": "Blue + white",
+      "color": "#0000ff"
+     },
+     {
+      "from": 85,
+      "to": 89,
+      "label": "Red + green + blue",
+      "color": "#ff0000"
+     },
+     {
+      "from": 90,
+      "to": 94,
+      "label": "Red + green + amber",
+      "color": "#ff0000"
+     },
+     {
+      "from": 95,
+      "to": 99,
+      "label": "Red + green + white",
+      "color": "#ff0000"
+     },
+     {
+      "from": 100,
+      "to": 104,
+      "label": "Red + amber + blue",
+      "color": "#ff0000"
+     },
+     {
+      "from": 105,
+      "to": 109,
+      "label": "Red + white + blue",
+      "color": "#ff0000"
+     },
+     {
+      "from": 110,
+      "to": 114,
+      "label": "Red + amber + white",
+      "color": "#ff0000"
+     },
+     {
+      "from": 115,
+      "to": 119,
+      "label": "Amber + green + blue",
+      "color": "#ffbf00"
+     },
+     {
+      "from": 120,
+      "to": 124,
+      "label": "Blue + green + white",
+      "color": "#0000ff"
+     },
+     {
+      "from": 125,
+      "to": 129,
+      "label": "Amber + green + white",
+      "color": "#ffbf00"
+     },
+     {
+      "from": 130,
+      "to": 134,
+      "label": "Amber + white + blue",
+      "color": "#ffbf00"
+     },
+     {
+      "from": 135,
+      "to": 139,
+      "label": "Red + green + blue + amber",
+      "color": "#ff0000"
+     },
+     {
+      "from": 140,
+      "to": 144,
+      "label": "Red + green + blue + white",
+      "color": "#ff0000"
+     },
+     {
+      "from": 145,
+      "to": 149,
+      "label": "Blue + green + white + amber",
+      "color": "#0000ff"
+     },
+     {
+      "from": 150,
+      "to": 154,
+      "label": "Red + green + amber + white",
+      "color": "#ff0000"
+     },
+     {
+      "from": 155,
+      "to": 159,
+      "label": "White + red + blue + amber",
+      "color": "#ffffff"
+     },
+     {
+      "from": 160,
+      "to": 164,
+      "label": "Red + green + blue + amber + white",
+      "color": "#ff0000"
+     },
+     {
+      "from": 165,
+      "to": 209,
+      "label": "Automatic color change (one color)"
+     },
+     {
+      "from": 210,
+      "to": 255,
+      "label": "Automatic color change (two colors)"
+     }
+    ]
+   },
+   {
+    "key": "color-change-speed",
+    "label": "Color Change Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "rgbwa-led-strobe",
+    "label": "RGBWA LED Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 4,
+      "label": "NoFunction"
+     },
+     {
+      "from": 5,
+      "to": 254,
+      "label": "Strobe"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "white-led-strobe",
+    "label": "White LED Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Blackout"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Strobe (Light pattern 1)"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "Strobe (Light pattern 2)"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "Strobe (Light pattern 3)"
+     },
+     {
+      "from": 40,
+      "to": 49,
+      "label": "Strobe (Light pattern 4)"
+     },
+     {
+      "from": 50,
+      "to": 59,
+      "label": "Strobe (Light pattern 5)"
+     },
+     {
+      "from": 60,
+      "to": 69,
+      "label": "Strobe (Light pattern 6)"
+     },
+     {
+      "from": 70,
+      "to": 79,
+      "label": "Strobe (Light pattern 7)"
+     },
+     {
+      "from": 80,
+      "to": 89,
+      "label": "Strobe (Light pattern 8)"
+     },
+     {
+      "from": 90,
+      "to": 99,
+      "label": "Strobe (Light pattern 9)"
+     },
+     {
+      "from": 100,
+      "to": 109,
+      "label": "Strobe (Light pattern 10)"
+     },
+     {
+      "from": 110,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "laser",
+    "label": "Laser",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Blackout"
+     },
+     {
+      "from": 10,
+      "to": 49,
+      "label": "Red on",
+      "color": "#ff0000"
+     },
+     {
+      "from": 50,
+      "to": 89,
+      "label": "Green on",
+      "color": "#00ff00"
+     },
+     {
+      "from": 90,
+      "to": 129,
+      "label": "Change green and red",
+      "color": "#00ff00"
+     },
+     {
+      "from": 130,
+      "to": 169,
+      "label": "Red on + Green strobe",
+      "color": "#ff0000"
+     },
+     {
+      "from": 170,
+      "to": 209,
+      "label": "Green on + Red strobe",
+      "color": "#00ff00"
+     },
+     {
+      "from": 210,
+      "to": 255,
+      "label": "Red strobe + Green strobe",
+      "color": "#aa0000"
+     }
+    ]
+   },
+   {
+    "key": "laser-strobe",
+    "label": "Laser Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 4,
+      "label": "No strobe"
+     },
+     {
+      "from": 5,
+      "to": 254,
+      "label": "Strobe"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "rgbwa-led-rotation",
+    "label": "RGBWA LED rotation",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 4,
+      "label": "Rotation"
+     },
+     {
+      "from": 5,
+      "to": 127,
+      "label": "Rotation"
+     },
+     {
+      "from": 128,
+      "to": 133,
+      "label": "Rotation"
+     },
+     {
+      "from": 134,
+      "to": 255,
+      "label": "Rotation"
+     }
+    ]
+   },
+   {
+    "key": "laser-rotation",
+    "label": "Laser rotation",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 4,
+      "label": "Rotation"
+     },
+     {
+      "from": 5,
+      "to": 127,
+      "label": "Rotation"
+     },
+     {
+      "from": 128,
+      "to": 133,
+      "label": "Rotation"
+     },
+     {
+      "from": 134,
+      "to": 255,
+      "label": "Rotation"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "9ch",
+    "name": "9-channel",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "operating-mode",
+      "byte": 0
+     },
+     {
+      "channelKey": "rgbwa-leds",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-change-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "rgbwa-led-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "white-led-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "laser",
+      "byte": 0
+     },
+     {
+      "channelKey": "laser-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "rgbwa-led-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "laser-rotation",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    313,
+    315,
+    246
+   ],
+   "weightKg": 4.2,
+   "powerW": 40,
+   "lensDegMin": 17,
+   "lensDegMax": 17
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eurolite/led-fe-1500",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "eurolite/led-h2o",
+  "manufacturer": "Eurolite",
+  "model": "LED H2O",
+  "aliases": [
+   "ELH2O",
+   "Eurolite LED H2O",
+   "LED H2O",
+   "elh2o",
+   "euroliteledh2o",
+   "ledh2o"
+  ],
+  "categories": [
+   "Effect",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "shutter",
+    "label": "Shutter",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Open"
+     },
+     {
+      "from": 1,
+      "to": 5,
+      "label": "Closed"
+     },
+     {
+      "from": 6,
+      "to": 10,
+      "label": "Open"
+     },
+     {
+      "from": 11,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "5ch",
+    "name": "5-channel",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    165,
+    170,
+    135
+   ],
+   "weightKg": 0.8,
+   "powerW": 26,
+   "lensDegMin": 35,
+   "lensDegMax": 35
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eurolite/led-h2o",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "eurolite/led-ml-56-rgbw",
+  "manufacturer": "Eurolite",
+  "model": "LED ML-56 RGBW",
+  "aliases": [
+   "Eurolite LED ML-56 RGBW",
+   "LED ML-56 RGBW",
+   "euroliteledml56rgbw",
+   "ledml56rgbw"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "cool-white",
+    "label": "Cool White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "function",
+    "label": "Function",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 5,
+      "label": "Sound Controlled (15 Colors)"
+     },
+     {
+      "from": 6,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "4ch",
+    "name": "4-channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "cool-white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "6ch",
+    "name": "6-channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "cool-white",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "function",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    240,
+    300,
+    310
+   ],
+   "weightKg": 5,
+   "powerW": 150
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eurolite/led-ml-56-rgbw",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "eurolite/led-par-56-tcl",
+  "manufacturer": "Eurolite",
+  "model": "LED PAR-56 TCL",
+  "aliases": [
+   "Eurolite LED PAR-56 TCL",
+   "LED PAR-56 TCL",
+   "PAR56",
+   "euroliteledpar56tcl",
+   "ledpar56tcl",
+   "par56"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "shutter",
+    "label": "Shutter",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 0.8627450980392157,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Open"
+     },
+     {
+      "from": 1,
+      "to": 5,
+      "label": "Music control"
+     },
+     {
+      "from": 6,
+      "to": 10,
+      "label": "Open"
+     },
+     {
+      "from": 11,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "5ch",
+    "name": "5-channel",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "3ch",
+    "name": "3-channel",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    165,
+    205,
+    215
+   ],
+   "weightKg": 1.5,
+   "powerW": 45,
+   "lensDegMin": 14,
+   "lensDegMax": 14
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eurolite/led-par-56-tcl",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "eurolite/led-party-spot",
+  "manufacturer": "Eurolite",
+  "model": "LED PARty Spot",
+  "aliases": [
+   "Eurolite LED PARty Spot",
+   "EurolitePARtySpot",
+   "LED PARty Spot",
+   "euroliteledpartyspot",
+   "eurolitepartyspot",
+   "ledpartyspot"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "effects",
+    "label": "Effects",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 10,
+      "label": "Sound Control"
+     },
+     {
+      "from": 11,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "6ch",
+    "name": "6-Channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "effects",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    145,
+    155,
+    90
+   ],
+   "weightKg": 0.46,
+   "powerW": 15,
+   "lensDegMin": 13,
+   "lensDegMax": 13
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eurolite/led-party-spot",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "eurolite/led-party-tcl-spot",
+  "manufacturer": "Eurolite",
+  "model": "LED PARty TCL Spot",
+  "aliases": [
+   "Eurolite LED PARty TCL Spot",
+   "EurolitePARtyTCLSpot",
+   "LED PARty TCL Spot",
+   "euroliteledpartytclspot",
+   "eurolitepartytclspot",
+   "ledpartytclspot"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "effects",
+    "label": "Effects",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 5,
+      "label": "Sound Control"
+     },
+     {
+      "from": 6,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "5ch",
+    "name": "5-Channel",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "effects",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    150,
+    160,
+    90
+   ],
+   "weightKg": 0.46,
+   "powerW": 10,
+   "lensDegMin": 17,
+   "lensDegMax": 17
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eurolite/led-party-tcl-spot",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "eurolite/led-ps-4-hcl",
+  "manufacturer": "Eurolite",
+  "model": "LED PS-4 HCL",
+  "aliases": [
+   "Eurolite LED PS-4 HCL",
+   "LED PS-4 HCL",
+   "LEDPS4",
+   "euroliteledps4hcl",
+   "ledps4",
+   "ledps4hcl"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "color-presets",
+    "label": "Color Presets",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 40,
+      "to": 49,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 50,
+      "to": 59,
+      "label": "Amber",
+      "color": "#ffbf00"
+     },
+     {
+      "from": 60,
+      "to": 69,
+      "label": "UV",
+      "color": "#8800ff"
+     },
+     {
+      "from": 70,
+      "to": 79,
+      "label": "Red + Green",
+      "color": "#ffff00"
+     },
+     {
+      "from": 80,
+      "to": 89,
+      "label": "Red + Blue",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 90,
+      "to": 99,
+      "label": "Red + White",
+      "color": "#ff8080"
+     },
+     {
+      "from": 100,
+      "to": 109,
+      "label": "Red + Amber",
+      "color": "#ff6000"
+     },
+     {
+      "from": 110,
+      "to": 119,
+      "label": "Red + UV",
+      "color": "#ff0000"
+     },
+     {
+      "from": 120,
+      "to": 129,
+      "label": "Green + Blue",
+      "color": "#00ffff"
+     },
+     {
+      "from": 130,
+      "to": 139,
+      "label": "Green + White",
+      "color": "#80ff80"
+     },
+     {
+      "from": 140,
+      "to": 149,
+      "label": "Green + Amber",
+      "color": "#92ff00"
+     },
+     {
+      "from": 150,
+      "to": 159,
+      "label": "Green + UV",
+      "color": "#00ff00"
+     },
+     {
+      "from": 160,
+      "to": 169,
+      "label": "Blue + White",
+      "color": "#8080ff"
+     },
+     {
+      "from": 170,
+      "to": 179,
+      "label": "Blue + Amber",
+      "color": "#ffbfff"
+     },
+     {
+      "from": 180,
+      "to": 189,
+      "label": "Blue + UV",
+      "color": "#0000ff"
+     },
+     {
+      "from": 190,
+      "to": 199,
+      "label": "White + Amber",
+      "color": "#ffdf80"
+     },
+     {
+      "from": 200,
+      "to": 209,
+      "label": "White + UV",
+      "color": "#ffffff"
+     },
+     {
+      "from": 210,
+      "to": 219,
+      "label": "Amber + UV",
+      "color": "#ffbf00"
+     },
+     {
+      "from": 220,
+      "to": 229,
+      "label": "Red + Green + Blue",
+      "color": "#ffffff"
+     },
+     {
+      "from": 230,
+      "to": 239,
+      "label": "Red + Blue + Amber",
+      "color": "#ff6080"
+     },
+     {
+      "from": 240,
+      "to": 249,
+      "label": "Green + White + UV",
+      "color": "#80ff80"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "All",
+      "color": "#ffdf80"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 0.5019607843137255,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "programs",
+    "label": "Programs",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 199,
+      "label": "Auto mode"
+     },
+     {
+      "from": 200,
+      "to": 255,
+      "label": "Sound mode"
+     }
+    ]
+   },
+   {
+    "key": "program-speed",
+    "label": "Program Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0.5019607843137255,
+    "highlight": 1
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "uv",
+    "label": "UV",
+    "role": "uv",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   }
+  ],
+  "modes": [
+   {
+    "key": "4ch",
+    "name": "4 channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "color-presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-speed",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "10ch",
+    "name": "10 channel",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-speed",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    188.5,
+    195.5,
+    117
+   ],
+   "weightKg": 1.5,
+   "powerW": 33
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eurolite/led-ps-4-hcl",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "eurolite/led-sls-12-bcl",
+  "manufacturer": "Eurolite",
+  "model": "LED SLS-12 BCL",
+  "aliases": [
+   "Eurolite LED SLS-12 BCL",
+   "LED SLS-12 BCL",
+   "euroliteledsls12bcl",
+   "ledsls12bcl"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "sound-strobe",
+    "label": "Sound / Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 5,
+      "label": "Sound control"
+     },
+     {
+      "from": 6,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "effect",
+    "label": "Effect",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 28,
+      "label": "NoFunction"
+     },
+     {
+      "from": 29,
+      "to": 57,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 58,
+      "to": 82,
+      "label": "Amber",
+      "color": "#ffbf00"
+     },
+     {
+      "from": 83,
+      "to": 87,
+      "label": "Color Dreaming 1"
+     },
+     {
+      "from": 88,
+      "to": 92,
+      "label": "Color Dreaming 2"
+     },
+     {
+      "from": 93,
+      "to": 97,
+      "label": "Color Dreaming 3"
+     },
+     {
+      "from": 98,
+      "to": 163,
+      "label": "NoFunction"
+     },
+     {
+      "from": 164,
+      "to": 168,
+      "label": "ColorJump"
+     },
+     {
+      "from": 169,
+      "to": 245,
+      "label": "NoFunction"
+     },
+     {
+      "from": 246,
+      "to": 255,
+      "label": "Sound Active"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "2ch",
+    "name": "2-channel",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "3ch",
+    "name": "3-channel",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "4ch",
+    "name": "4-channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "sound-strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "5ch",
+    "name": "5-channel",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "effect",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    270,
+    310,
+    110
+   ],
+   "weightKg": 3.5,
+   "powerW": 60,
+   "lensDegMin": 23,
+   "lensDegMax": 23
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eurolite/led-sls-12-bcl",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "eurolite/led-sls-5-bcl",
+  "manufacturer": "Eurolite",
+  "model": "LED SLS-5 BCL",
+  "aliases": [
+   "Eurolite LED SLS-5 BCL",
+   "LED SLS-5 BCL",
+   "euroliteledsls5bcl",
+   "ledsls5bcl"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "sound-strobe",
+    "label": "Sound / Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 5,
+      "label": "Sound control"
+     },
+     {
+      "from": 6,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "effect",
+    "label": "Effect",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 28,
+      "label": "NoFunction"
+     },
+     {
+      "from": 29,
+      "to": 57,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 58,
+      "to": 82,
+      "label": "Amber",
+      "color": "#ffbf00"
+     },
+     {
+      "from": 83,
+      "to": 87,
+      "label": "Color Dreaming 1"
+     },
+     {
+      "from": 88,
+      "to": 92,
+      "label": "Color Dreaming 2"
+     },
+     {
+      "from": 93,
+      "to": 97,
+      "label": "Color Dreaming 3"
+     },
+     {
+      "from": 98,
+      "to": 163,
+      "label": "NoFunction"
+     },
+     {
+      "from": 164,
+      "to": 168,
+      "label": "ColorJump"
+     },
+     {
+      "from": 169,
+      "to": 245,
+      "label": "NoFunction"
+     },
+     {
+      "from": 246,
+      "to": 255,
+      "label": "Sound Active"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "2ch",
+    "name": "2-channel",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "3ch",
+    "name": "3-channel",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "4ch",
+    "name": "4-channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "sound-strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "5ch",
+    "name": "5-channel",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "effect",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    230,
+    270,
+    110
+   ],
+   "weightKg": 3,
+   "powerW": 24,
+   "lensDegMin": 20,
+   "lensDegMax": 20
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eurolite/led-sls-5-bcl",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "eurolite/led-sls-6-uv-floor",
+  "manufacturer": "Eurolite",
+  "model": "LED SLS-6 UV Floor",
+  "aliases": [
+   "Eurolite LED SLS-6 UV Floor",
+   "LED SLS-6 UV Floor",
+   "LEDSLS6UV",
+   "euroliteledsls6uvfloor",
+   "ledsls6uv",
+   "ledsls6uvfloor"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "uv",
+    "label": "UV",
+    "role": "uv",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 0.5019607843137255,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "programs",
+    "label": "Programs",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 199,
+      "label": "Auto mode"
+     },
+     {
+      "from": 200,
+      "to": 255,
+      "label": "Sound mode"
+     }
+    ]
+   },
+   {
+    "key": "program-speed",
+    "label": "Program Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0.5019607843137255
+   }
+  ],
+  "modes": [
+   {
+    "key": "2ch",
+    "name": "2 channel",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "4ch",
+    "name": "4 channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-speed",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    230,
+    230,
+    110
+   ],
+   "weightKg": 1,
+   "powerW": 20
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eurolite/led-sls-6-uv-floor",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "eurolite/led-svf-1",
+  "manufacturer": "Eurolite",
+  "model": "LED SVF-1",
+  "aliases": [
+   "Eurolite LED SVF-1",
+   "LED SVF-1",
+   "SVF1",
+   "euroliteledsvf1",
+   "ledsvf1",
+   "svf1"
+  ],
+  "categories": [
+   "Flower"
+  ],
+  "channels": [
+   {
+    "key": "programs",
+    "label": "Programs",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 12,
+      "label": "Program 1"
+     },
+     {
+      "from": 13,
+      "to": 25,
+      "label": "Program 2"
+     },
+     {
+      "from": 26,
+      "to": 38,
+      "label": "Program 3"
+     },
+     {
+      "from": 39,
+      "to": 51,
+      "label": "Program 4"
+     },
+     {
+      "from": 52,
+      "to": 64,
+      "label": "Program 5"
+     },
+     {
+      "from": 65,
+      "to": 77,
+      "label": "Program 6"
+     },
+     {
+      "from": 78,
+      "to": 90,
+      "label": "Program 7"
+     },
+     {
+      "from": 91,
+      "to": 103,
+      "label": "Program 8"
+     },
+     {
+      "from": 104,
+      "to": 116,
+      "label": "Program 9"
+     },
+     {
+      "from": 117,
+      "to": 129,
+      "label": "Program 10"
+     },
+     {
+      "from": 130,
+      "to": 142,
+      "label": "Program 11"
+     },
+     {
+      "from": 143,
+      "to": 155,
+      "label": "Program 12"
+     },
+     {
+      "from": 156,
+      "to": 168,
+      "label": "Program 13"
+     },
+     {
+      "from": 169,
+      "to": 181,
+      "label": "Program 14"
+     },
+     {
+      "from": 182,
+      "to": 194,
+      "label": "Program 15"
+     },
+     {
+      "from": 195,
+      "to": 214,
+      "label": "All programs looping"
+     },
+     {
+      "from": 215,
+      "to": 255,
+      "label": "Sound Control"
+     }
+    ]
+   },
+   {
+    "key": "program-speed",
+    "label": "Program Speed",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0.5176470588235295,
+    "highlight": 1,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Closed (All LEDs off)"
+     },
+     {
+      "from": 11,
+      "to": 255,
+      "label": "EffectSpeed"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "2ch",
+    "name": "2-Channel",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-speed",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    580,
+    325,
+    625
+   ],
+   "weightKg": 6,
+   "powerW": 60,
+   "lensDegMin": 25,
+   "lensDegMax": 25
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eurolite/led-svf-1",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "eurolite/led-tha-100f-mk2",
+  "manufacturer": "Eurolite",
+  "model": "LED THA-100F MK2",
+  "aliases": [
+   "Eurolite LED THA-100F MK2",
+   "EuroliteTHA100F-2",
+   "LED THA-100F MK2",
+   "euroliteledtha100fmk2",
+   "eurolitetha100f2",
+   "ledtha100fmk2"
+  ],
+  "categories": [
+   "Dimmer",
+   "Strobe"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "dimmer-curve",
+    "label": "Dimmer Curve",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "Control Board setting"
+     },
+     {
+      "from": 16,
+      "to": 45,
+      "label": "Linear (halogen)"
+     },
+     {
+      "from": 46,
+      "to": 75,
+      "label": "Square (halogen)"
+     },
+     {
+      "from": 76,
+      "to": 105,
+      "label": "Inverse (halogen)"
+     },
+     {
+      "from": 106,
+      "to": 135,
+      "label": "S-shaped (halogen)"
+     },
+     {
+      "from": 136,
+      "to": 165,
+      "label": "Linear (LED)"
+     },
+     {
+      "from": 166,
+      "to": 195,
+      "label": "Square (LED)"
+     },
+     {
+      "from": 196,
+      "to": 225,
+      "label": "Inverse (LED)"
+     },
+     {
+      "from": 226,
+      "to": 255,
+      "label": "S-shaped (LED)"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "3ch",
+    "name": "3-channel",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-curve",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "1ch",
+    "name": "1-channel",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    265,
+    335,
+    370
+   ],
+   "weightKg": 6,
+   "powerW": 120,
+   "lensDegMin": 6,
+   "lensDegMax": 31
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eurolite/led-tha-100f-mk2",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "eurolite/led-tha-100f",
+  "manufacturer": "Eurolite",
+  "model": "LED THA-100F",
+  "aliases": [
+   "Eurolite LED THA-100F",
+   "EuroliteTHA100F",
+   "LED THA-100F",
+   "euroliteledtha100f",
+   "eurolitetha100f",
+   "ledtha100f"
+  ],
+  "categories": [
+   "Dimmer",
+   "Strobe"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "dimmer-curve",
+    "label": "Dimmer Curve",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "Control Board setting"
+     },
+     {
+      "from": 16,
+      "to": 45,
+      "label": "Linear (halogen)"
+     },
+     {
+      "from": 46,
+      "to": 75,
+      "label": "Square (halogen)"
+     },
+     {
+      "from": 76,
+      "to": 105,
+      "label": "Inverse (halogen)"
+     },
+     {
+      "from": 106,
+      "to": 135,
+      "label": "S-shaped (halogen)"
+     },
+     {
+      "from": 136,
+      "to": 165,
+      "label": "Linear (LED)"
+     },
+     {
+      "from": 166,
+      "to": 195,
+      "label": "Square (LED)"
+     },
+     {
+      "from": 196,
+      "to": 225,
+      "label": "Inverse (LED)"
+     },
+     {
+      "from": 226,
+      "to": 255,
+      "label": "S-shaped (LED)"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "3ch",
+    "name": "3-channel",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-curve",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "1ch",
+    "name": "1-channel",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    305,
+    369.5,
+    387.3
+   ],
+   "weightKg": 5.5,
+   "powerW": 120,
+   "lensDegMin": 10,
+   "lensDegMax": 50
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eurolite/led-tha-100f",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "eurolite/led-theatre-cob-200-rgb-ww",
+  "manufacturer": "Eurolite",
+  "model": "LED Theatre COB 200 RGB+WW",
+  "aliases": [
+   "Eurolite LED Theatre COB 200 RGB+WW",
+   "LED THA COB 200",
+   "LED Theatre COB 200 RGB+WW",
+   "euroliteledtheatrecob200rgbww",
+   "ledthacob200",
+   "ledtheatrecob200rgbww"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "warm-white",
+    "label": "Warm White",
+    "role": "warmWhite",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "master-dimmer",
+    "label": "Master Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Open"
+     },
+     {
+      "from": 10,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "color-presets",
+    "label": "Color Presets",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Red"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "Green"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "Blue"
+     },
+     {
+      "from": 40,
+      "to": 49,
+      "label": "Warm White"
+     },
+     {
+      "from": 50,
+      "to": 59,
+      "label": "Yellow"
+     },
+     {
+      "from": 60,
+      "to": 69,
+      "label": "Magenta"
+     },
+     {
+      "from": 70,
+      "to": 79,
+      "label": "Cyan"
+     },
+     {
+      "from": 80,
+      "to": 89,
+      "label": "Dark Orange"
+     },
+     {
+      "from": 90,
+      "to": 99,
+      "label": "Green yellow"
+     },
+     {
+      "from": 100,
+      "to": 109,
+      "label": "Salmon"
+     },
+     {
+      "from": 110,
+      "to": 119,
+      "label": "Turquoise"
+     },
+     {
+      "from": 120,
+      "to": 129,
+      "label": "Light green"
+     },
+     {
+      "from": 130,
+      "to": 139,
+      "label": "Orange"
+     },
+     {
+      "from": 140,
+      "to": 149,
+      "label": "Straw"
+     },
+     {
+      "from": 150,
+      "to": 159,
+      "label": "Lavender"
+     },
+     {
+      "from": 160,
+      "to": 169,
+      "label": "Light blue"
+     },
+     {
+      "from": 170,
+      "to": 179,
+      "label": "Dark blue"
+     },
+     {
+      "from": 180,
+      "to": 189,
+      "label": "Pink"
+     },
+     {
+      "from": 190,
+      "to": 255,
+      "label": "Full on"
+     }
+    ]
+   },
+   {
+    "key": "internal-programs",
+    "label": "Internal Programs",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Auto program 1"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "Auto program 2"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "Auto program 3"
+     },
+     {
+      "from": 40,
+      "to": 49,
+      "label": "Auto program 4"
+     },
+     {
+      "from": 50,
+      "to": 59,
+      "label": "Auto program 5"
+     },
+     {
+      "from": 60,
+      "to": 69,
+      "label": "Auto program 6"
+     },
+     {
+      "from": 70,
+      "to": 79,
+      "label": "Auto program 7"
+     },
+     {
+      "from": 80,
+      "to": 89,
+      "label": "Auto program 8"
+     },
+     {
+      "from": 90,
+      "to": 99,
+      "label": "Auto program 9"
+     },
+     {
+      "from": 100,
+      "to": 109,
+      "label": "Sound control program 1"
+     },
+     {
+      "from": 110,
+      "to": 119,
+      "label": "Sound control program 2"
+     },
+     {
+      "from": 120,
+      "to": 129,
+      "label": "Sound control program 3"
+     },
+     {
+      "from": 130,
+      "to": 139,
+      "label": "Sound control program 4"
+     },
+     {
+      "from": 140,
+      "to": 149,
+      "label": "Sound control program 5"
+     },
+     {
+      "from": 150,
+      "to": 159,
+      "label": "Sound control program 6"
+     },
+     {
+      "from": 160,
+      "to": 169,
+      "label": "Sound control program 7"
+     },
+     {
+      "from": 170,
+      "to": 179,
+      "label": "Sound control program 8"
+     },
+     {
+      "from": 180,
+      "to": 255,
+      "label": "Sound control program 9"
+     }
+    ]
+   },
+   {
+    "key": "program-speed",
+    "label": "Program Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe-2",
+    "label": "Strobe 2",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 5,
+      "label": "Music-controlled program"
+     },
+     {
+      "from": 6,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 39,
+      "label": "1800K"
+     },
+     {
+      "from": 40,
+      "to": 69,
+      "label": "2200K"
+     },
+     {
+      "from": 70,
+      "to": 99,
+      "label": "2700K"
+     },
+     {
+      "from": 100,
+      "to": 129,
+      "label": "3200K"
+     },
+     {
+      "from": 130,
+      "to": 159,
+      "label": "4300K"
+     },
+     {
+      "from": 160,
+      "to": 189,
+      "label": "5600K"
+     },
+     {
+      "from": 190,
+      "to": 219,
+      "label": "6500K"
+     },
+     {
+      "from": 220,
+      "to": 255,
+      "label": "8000K"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "3ch",
+    "name": "3-channel",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "4ch",
+    "name": "4-channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "warm-white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "5ch",
+    "name": "5-channel",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "master-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "internal-programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-speed",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "6ch",
+    "name": "6-channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "warm-white",
+      "byte": 0
+     },
+     {
+      "channelKey": "master-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe-2",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "10ch",
+    "name": "10-channel",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "master-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "warm-white",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "internal-programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    260,
+    380,
+    200
+   ],
+   "weightKg": 4.11,
+   "powerW": 140,
+   "lensDegMin": 17,
+   "lensDegMax": 35
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eurolite/led-theatre-cob-200-rgb-ww",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "eurolite/led-tl-3-rgb-uv",
+  "manufacturer": "Eurolite",
+  "model": "LED TL-3 RGB+UV",
+  "aliases": [
+   "Eurolite LED TL-3 RGB+UV",
+   "LED TL-3 RGB+UV",
+   "euroliteledtl3rgbuv",
+   "ledtl3rgbuv"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "master-dimmer",
+    "label": "Master Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Open"
+     },
+     {
+      "from": 10,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "uv",
+    "label": "UV",
+    "role": "uv",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "preset-colours",
+    "label": "Preset Colours",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 40,
+      "to": 49,
+      "label": "UV",
+      "color": "#8800ff"
+     },
+     {
+      "from": 50,
+      "to": 59,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 60,
+      "to": 69,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 70,
+      "to": 79,
+      "label": "Cyan",
+      "color": "#00ffff"
+     },
+     {
+      "from": 80,
+      "to": 89,
+      "label": "Dark orange",
+      "color": "#f07b27"
+     },
+     {
+      "from": 90,
+      "to": 99,
+      "label": "Green yellow",
+      "color": "#88ff00"
+     },
+     {
+      "from": 100,
+      "to": 109,
+      "label": "Salmon",
+      "color": "#ff8888"
+     },
+     {
+      "from": 110,
+      "to": 119,
+      "label": "Turquoise",
+      "color": "#00cccc"
+     },
+     {
+      "from": 120,
+      "to": 129,
+      "label": "Light green",
+      "color": "#88ff88"
+     },
+     {
+      "from": 130,
+      "to": 139,
+      "label": "Orange",
+      "color": "#ffaa00"
+     },
+     {
+      "from": 140,
+      "to": 149,
+      "label": "Lavender",
+      "color": "#cfb5e2"
+     },
+     {
+      "from": 150,
+      "to": 159,
+      "label": "Light blue",
+      "color": "#88ffff"
+     },
+     {
+      "from": 160,
+      "to": 169,
+      "label": "Dark blue",
+      "color": "#000088"
+     },
+     {
+      "from": 170,
+      "to": 255,
+      "label": "Pink",
+      "color": "#ff88ff"
+     }
+    ]
+   },
+   {
+    "key": "auto-mode-sound-control",
+    "label": "Auto mode / Sound control",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 69,
+      "label": "ColorFade"
+     },
+     {
+      "from": 70,
+      "to": 129,
+      "label": "ColorJump"
+     },
+     {
+      "from": 130,
+      "to": 189,
+      "label": "ColorFade"
+     },
+     {
+      "from": 190,
+      "to": 255,
+      "label": "ColorJump"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "3ch",
+    "name": "3-channel",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "4-1c",
+    "name": "4-channel 1",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "4ch",
+    "name": "4-channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "master-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "preset-colours",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-mode-sound-control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "8ch",
+    "name": "8-channel",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "master-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "preset-colours",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-mode-sound-control",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    122,
+    108,
+    117
+   ],
+   "weightKg": 0.89,
+   "powerW": 15
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eurolite/led-tl-3-rgb-uv",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "eurolite/led-tl-4-qcl",
+  "manufacturer": "Eurolite",
+  "model": "LED TL-4 QCL",
+  "aliases": [
+   "Eurolite LED TL-4 QCL",
+   "LED TL-4 QCL",
+   "euroliteledtl4qcl",
+   "ledtl4qcl"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "master-dimmer",
+    "label": "Master Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "uv",
+    "label": "UV",
+    "role": "uv",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-presets",
+    "label": "Color Presets",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 40,
+      "to": 49,
+      "label": "UV",
+      "color": "#8800ff"
+     },
+     {
+      "from": 50,
+      "to": 59,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 60,
+      "to": 69,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 70,
+      "to": 79,
+      "label": "Cyan",
+      "color": "#00ffff"
+     },
+     {
+      "from": 80,
+      "to": 89,
+      "label": "Dark orange",
+      "color": "#c04d00"
+     },
+     {
+      "from": 90,
+      "to": 99,
+      "label": "Green yellow",
+      "color": "#88ff00"
+     },
+     {
+      "from": 100,
+      "to": 109,
+      "label": "Salmon",
+      "color": "#ff8888"
+     },
+     {
+      "from": 110,
+      "to": 119,
+      "label": "Turquoise",
+      "color": "#1d9cce"
+     },
+     {
+      "from": 120,
+      "to": 129,
+      "label": "Light green",
+      "color": "#88ff88"
+     },
+     {
+      "from": 130,
+      "to": 139,
+      "label": "Orange",
+      "color": "#ff8800"
+     },
+     {
+      "from": 140,
+      "to": 149,
+      "label": "Lavender",
+      "color": "#cc61cc"
+     },
+     {
+      "from": 150,
+      "to": 159,
+      "label": "Light blue",
+      "color": "#52aeff"
+     },
+     {
+      "from": 160,
+      "to": 169,
+      "label": "Dark blue",
+      "color": "#000088"
+     },
+     {
+      "from": 170,
+      "to": 179,
+      "label": "Pink",
+      "color": "#ff88ff"
+     },
+     {
+      "from": 180,
+      "to": 255,
+      "label": "White",
+      "color": "#ffffff"
+     }
+    ]
+   },
+   {
+    "key": "auto-mode-sound-control",
+    "label": "Auto Mode / Sound Control",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 69,
+      "label": "ColorFade"
+     },
+     {
+      "from": 70,
+      "to": 129,
+      "label": "ColorJump"
+     },
+     {
+      "from": 130,
+      "to": 189,
+      "label": "ColorFade"
+     },
+     {
+      "from": 190,
+      "to": 255,
+      "label": "ColorJump"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "3ch",
+    "name": "3-channel",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "4ch1",
+    "name": "4-channel 1",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "4ch",
+    "name": "4-channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "master-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-mode-sound-control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "8ch",
+    "name": "8-channel",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "master-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-mode-sound-control",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    145,
+    130,
+    155
+   ],
+   "weightKg": 1.3,
+   "powerW": 15,
+   "lensDegMin": 13,
+   "lensDegMax": 30
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eurolite/led-tl-4-qcl",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "eurolite/led-tmh-14",
+  "manufacturer": "Eurolite",
+  "model": "LED TMH-14",
+  "aliases": [
+   "Eurolite LED TMH-14",
+   "LED TMH-14",
+   "TMH-14",
+   "euroliteledtmh14",
+   "ledtmh14",
+   "tmh14"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0.5000076295109483,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0.5000076295109483,
+    "min": 0,
+    "max": 190,
+    "unit": "deg"
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan/Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Open"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "zoom",
+    "label": "Zoom",
+    "role": "zoom",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "colors-color-change",
+    "label": "Colors, color change",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 15,
+      "label": "light blue",
+      "color": "#61b8ff"
+     },
+     {
+      "from": 16,
+      "to": 23,
+      "label": "blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 24,
+      "to": 31,
+      "label": "purple",
+      "color": "#ac00ac"
+     },
+     {
+      "from": 32,
+      "to": 39,
+      "label": "pink",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 40,
+      "to": 47,
+      "label": "rose",
+      "color": "#ff0080"
+     },
+     {
+      "from": 48,
+      "to": 71,
+      "label": "red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 72,
+      "to": 79,
+      "label": "orange",
+      "color": "#ff8000"
+     },
+     {
+      "from": 80,
+      "to": 87,
+      "label": "warm white (mixed from rgbw)",
+      "color": "#ffda95"
+     },
+     {
+      "from": 88,
+      "to": 95,
+      "label": "yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 96,
+      "to": 103,
+      "label": "lime",
+      "color": "#a6ff00"
+     },
+     {
+      "from": 104,
+      "to": 119,
+      "label": "green",
+      "color": "#00ec27"
+     },
+     {
+      "from": 120,
+      "to": 127,
+      "label": "white (mixed rgbw)",
+      "color": "#ffffff"
+     },
+     {
+      "from": 128,
+      "to": 160,
+      "label": "ColorJump"
+     },
+     {
+      "from": 161,
+      "to": 200,
+      "label": "ColorFade (fade in and fade out)"
+     },
+     {
+      "from": 201,
+      "to": 255,
+      "label": "ColorFade (crossfade)"
+     }
+    ]
+   },
+   {
+    "key": "color-change-speed",
+    "label": "Color change speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "internal-programs",
+    "label": "Internal programs",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 120,
+      "label": "Internal program 1"
+     },
+     {
+      "from": 121,
+      "to": 244,
+      "label": "Internal program 2"
+     },
+     {
+      "from": 245,
+      "to": 255,
+      "label": "Music control"
+     }
+    ]
+   },
+   {
+    "key": "internal-programs-speed",
+    "label": "Internal programs speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "reset",
+    "label": "Reset",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 149,
+      "label": "NoFunction"
+     },
+     {
+      "from": 150,
+      "to": 200,
+      "label": "Reset all motors"
+     },
+     {
+      "from": 201,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "11ch",
+    "name": "11-channel",
+    "footprint": 11,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "reset",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "17ch",
+    "name": "17-channel",
+    "footprint": 17,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "colors-color-change",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-change-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "internal-programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "internal-programs-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "reset",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    145,
+    200,
+    280
+   ],
+   "weightKg": 3.25,
+   "powerW": 65,
+   "lensDegMin": 4,
+   "lensDegMax": 32
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eurolite/led-tmh-14",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "eurolite/led-tmh-17",
+  "manufacturer": "Eurolite",
+  "model": "LED TMH-17",
+  "aliases": [
+   "Eurolite LED TMH-17",
+   "LED TMH-17",
+   "euroliteledtmh17",
+   "ledtmh17"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0.5019607843137255,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0.5019607843137255,
+    "min": 0,
+    "max": 200,
+    "unit": "deg"
+   },
+   {
+    "key": "color-wheel",
+    "label": "Color wheel",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Open"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 40,
+      "to": 49,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 50,
+      "to": 59,
+      "label": "Light blue",
+      "color": "#aaeeff"
+     },
+     {
+      "from": 60,
+      "to": 69,
+      "label": "Orange",
+      "color": "#ffaa00"
+     },
+     {
+      "from": 70,
+      "to": 79,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 80,
+      "to": 89,
+      "label": "Orange",
+      "color": "#ffaa00"
+     },
+     {
+      "from": 90,
+      "to": 99,
+      "label": "Light blue",
+      "color": "#aaeeff"
+     },
+     {
+      "from": 100,
+      "to": 109,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 110,
+      "to": 119,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 120,
+      "to": 129,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 130,
+      "to": 139,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 140,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "gobo-wheel",
+    "label": "Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Open"
+     },
+     {
+      "from": 8,
+      "to": 15,
+      "label": "Gobo"
+     },
+     {
+      "from": 16,
+      "to": 24,
+      "label": "Gobo"
+     },
+     {
+      "from": 25,
+      "to": 31,
+      "label": "Gobo"
+     },
+     {
+      "from": 32,
+      "to": 39,
+      "label": "Gobo"
+     },
+     {
+      "from": 40,
+      "to": 47,
+      "label": "Gobo"
+     },
+     {
+      "from": 48,
+      "to": 55,
+      "label": "Gobo"
+     },
+     {
+      "from": 56,
+      "to": 63,
+      "label": "Gobo"
+     },
+     {
+      "from": 64,
+      "to": 71,
+      "label": "Gobo"
+     },
+     {
+      "from": 72,
+      "to": 79,
+      "label": "Gobo"
+     },
+     {
+      "from": 80,
+      "to": 87,
+      "label": "Gobo"
+     },
+     {
+      "from": 88,
+      "to": 95,
+      "label": "Gobo"
+     },
+     {
+      "from": 96,
+      "to": 103,
+      "label": "Gobo"
+     },
+     {
+      "from": 104,
+      "to": 111,
+      "label": "Gobo"
+     },
+     {
+      "from": 112,
+      "to": 119,
+      "label": "Gobo"
+     },
+     {
+      "from": 120,
+      "to": 127,
+      "label": "Open"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 249,
+      "label": "Strobe"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan/Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "auto-programs",
+    "label": "Auto Programs",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 59,
+      "label": "NoFunction"
+     },
+     {
+      "from": 60,
+      "to": 159,
+      "label": "Internal program"
+     },
+     {
+      "from": 160,
+      "to": 255,
+      "label": "Sound to Light"
+     }
+    ]
+   },
+   {
+    "key": "maintenance",
+    "label": "Maintenance",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 20,
+      "label": "NoFunction"
+     },
+     {
+      "from": 21,
+      "to": 100,
+      "label": "Pan movement"
+     },
+     {
+      "from": 101,
+      "to": 200,
+      "label": "Tilt movement"
+     },
+     {
+      "from": 201,
+      "to": 249,
+      "label": "Pan/tilt movement"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Reset"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "9ch",
+    "name": "9-channel",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "maintenance",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "11ch",
+    "name": "11-channel",
+    "footprint": 11,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "maintenance",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    170,
+    240,
+    145
+   ],
+   "weightKg": 2.65,
+   "powerW": 50,
+   "lensDegMin": 12,
+   "lensDegMax": 12
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eurolite/led-tmh-17",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "eurolite/led-tmh-7",
+  "manufacturer": "Eurolite",
+  "model": "LED TMH-7",
+  "aliases": [
+   "Eurolite LED TMH-7",
+   "LED TMH-7",
+   "euroliteledtmh7",
+   "ledtmh7"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0.5019607843137255,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0.5019607843137255,
+    "min": 0,
+    "max": 180,
+    "unit": "deg"
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan / Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-macros",
+    "label": "Color Macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 40,
+      "label": "NoFunction"
+     },
+     {
+      "from": 41,
+      "to": 80,
+      "label": "Macro 1"
+     },
+     {
+      "from": 81,
+      "to": 120,
+      "label": "Macro 2"
+     },
+     {
+      "from": 121,
+      "to": 140,
+      "label": "Macro 3"
+     },
+     {
+      "from": 141,
+      "to": 160,
+      "label": "Macro 4"
+     },
+     {
+      "from": 161,
+      "to": 200,
+      "label": "Macro 5"
+     },
+     {
+      "from": 201,
+      "to": 240,
+      "label": "Macro 6"
+     },
+     {
+      "from": 241,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "shutter",
+    "label": "Shutter",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 1,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Closed"
+     },
+     {
+      "from": 11,
+      "to": 20,
+      "label": "NoFunction"
+     },
+     {
+      "from": 21,
+      "to": 30,
+      "label": "Reset"
+     },
+     {
+      "from": 31,
+      "to": 200,
+      "label": "Strobe"
+     },
+     {
+      "from": 201,
+      "to": 250,
+      "label": "Strobe"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "dimmer-intensity",
+    "label": "Dimmer Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "11ch",
+    "name": "11-channel",
+    "footprint": 11,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    175,
+    245,
+    175
+   ],
+   "weightKg": 3,
+   "powerW": 75,
+   "lensDegMin": 25,
+   "lensDegMax": 25
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eurolite/led-tmh-7",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "eurolite/led-tmh-8",
+  "manufacturer": "Eurolite",
+  "model": "LED TMH-8",
+  "aliases": [
+   "Eurolite LED TMH-8",
+   "LED TMH-8",
+   "euroliteledtmh8",
+   "ledtmh8"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0.5000076295109483,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0.5000076295109483,
+    "min": 0,
+    "max": 230,
+    "unit": "deg"
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan/Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer-strobe",
+    "label": "Dimmer / Strobe",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Closed"
+     },
+     {
+      "from": 8,
+      "to": 134,
+      "label": "Intensity"
+     },
+     {
+      "from": 135,
+      "to": 239,
+      "label": "Strobe"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-macros",
+    "label": "Color Macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 31,
+      "label": "RGBW White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 32,
+      "to": 52,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 53,
+      "to": 73,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 74,
+      "to": 94,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 95,
+      "to": 115,
+      "label": "Pure White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 116,
+      "to": 136,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 137,
+      "to": 157,
+      "label": "Cyan",
+      "color": "#00ffff"
+     },
+     {
+      "from": 158,
+      "to": 178,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 179,
+      "to": 199,
+      "label": "Color change Macro 1"
+     },
+     {
+      "from": 200,
+      "to": 220,
+      "label": "Color change Macro 2"
+     },
+     {
+      "from": 221,
+      "to": 241,
+      "label": "Color change Macro 3"
+     },
+     {
+      "from": 242,
+      "to": 252,
+      "label": "Color change Macro 4"
+     },
+     {
+      "from": 253,
+      "to": 255,
+      "label": "Color change Macro 5"
+     }
+    ]
+   },
+   {
+    "key": "rgbw-speed",
+    "label": "RGBW Speed",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "motion-macros",
+    "label": "Motion Macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "NoFunction"
+     },
+     {
+      "from": 8,
+      "to": 23,
+      "label": "Motion macro 1"
+     },
+     {
+      "from": 24,
+      "to": 39,
+      "label": "Motion macro 2"
+     },
+     {
+      "from": 40,
+      "to": 55,
+      "label": "Motion macro 3"
+     },
+     {
+      "from": 56,
+      "to": 71,
+      "label": "Motion macro 4"
+     },
+     {
+      "from": 72,
+      "to": 87,
+      "label": "Motion macro 5"
+     },
+     {
+      "from": 88,
+      "to": 103,
+      "label": "Motion macro 6"
+     },
+     {
+      "from": 104,
+      "to": 119,
+      "label": "Motion macro 7"
+     },
+     {
+      "from": 120,
+      "to": 135,
+      "label": "Motion macro 8"
+     },
+     {
+      "from": 136,
+      "to": 151,
+      "label": "Sound-controlled Motion macro 1"
+     },
+     {
+      "from": 152,
+      "to": 167,
+      "label": "Sound-controlled Motion macro 2"
+     },
+     {
+      "from": 168,
+      "to": 183,
+      "label": "Sound-controlled Motion macro 3"
+     },
+     {
+      "from": 184,
+      "to": 199,
+      "label": "Sound-controlled Motion macro 4"
+     },
+     {
+      "from": 200,
+      "to": 215,
+      "label": "Sound-controlled Motion macro 5"
+     },
+     {
+      "from": 216,
+      "to": 231,
+      "label": "Sound-controlled Motion macro 6"
+     },
+     {
+      "from": 232,
+      "to": 247,
+      "label": "Sound-controlled Motion macro 7"
+     },
+     {
+      "from": 248,
+      "to": 255,
+      "label": "Sound-controlled Motion macro 8"
+     }
+    ]
+   },
+   {
+    "key": "gobo-wheel",
+    "label": "Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Open"
+     },
+     {
+      "from": 8,
+      "to": 15,
+      "label": "Gobo"
+     },
+     {
+      "from": 16,
+      "to": 23,
+      "label": "Gobo"
+     },
+     {
+      "from": 24,
+      "to": 31,
+      "label": "Gobo"
+     },
+     {
+      "from": 32,
+      "to": 39,
+      "label": "Gobo"
+     },
+     {
+      "from": 40,
+      "to": 47,
+      "label": "Gobo"
+     },
+     {
+      "from": 48,
+      "to": 55,
+      "label": "Gobo"
+     },
+     {
+      "from": 56,
+      "to": 63,
+      "label": "Gobo"
+     },
+     {
+      "from": 64,
+      "to": 71,
+      "label": "Gobo"
+     },
+     {
+      "from": 72,
+      "to": 79,
+      "label": "Gobo"
+     },
+     {
+      "from": 80,
+      "to": 94,
+      "label": "Gobo"
+     },
+     {
+      "from": 95,
+      "to": 109,
+      "label": "Gobo"
+     },
+     {
+      "from": 110,
+      "to": 124,
+      "label": "Gobo"
+     },
+     {
+      "from": 125,
+      "to": 139,
+      "label": "Gobo"
+     },
+     {
+      "from": 140,
+      "to": 154,
+      "label": "Gobo"
+     },
+     {
+      "from": 155,
+      "to": 169,
+      "label": "Gobo"
+     },
+     {
+      "from": 170,
+      "to": 184,
+      "label": "Gobo"
+     },
+     {
+      "from": 185,
+      "to": 199,
+      "label": "Gobo"
+     },
+     {
+      "from": 200,
+      "to": 214,
+      "label": "Gobo"
+     },
+     {
+      "from": 215,
+      "to": 235,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 236,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "5ch",
+    "name": "5-channel",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "14ch",
+    "name": "14-channel",
+    "footprint": 14,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "rgbw-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "motion-macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    180,
+    175,
+    245
+   ],
+   "weightKg": 3,
+   "powerW": 35,
+   "lensDegMin": 13,
+   "lensDegMax": 13
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eurolite/led-tmh-8",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "eurolite/led-tmh-9",
+  "manufacturer": "Eurolite",
+  "model": "LED TMH-9",
+  "aliases": [
+   "Eurolite LED TMH-9",
+   "LED TMH-9",
+   "LEDTMH9",
+   "euroliteledtmh9",
+   "ledtmh9"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0.5019607843137255,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0.5019607843137255,
+    "min": 0,
+    "max": 180,
+    "unit": "deg"
+   },
+   {
+    "key": "color-macros",
+    "label": "Color macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "Blackout",
+      "color": "#000000"
+     },
+     {
+      "from": 16,
+      "to": 31,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 32,
+      "to": 47,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 48,
+      "to": 63,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 64,
+      "to": 79,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 80,
+      "to": 95,
+      "label": "Red + Green",
+      "color": "#ffff00"
+     },
+     {
+      "from": 96,
+      "to": 111,
+      "label": "Red + Blue",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 112,
+      "to": 127,
+      "label": "Red + White",
+      "color": "#ff8080"
+     },
+     {
+      "from": 128,
+      "to": 143,
+      "label": "Green + Blue",
+      "color": "#00ffff"
+     },
+     {
+      "from": 144,
+      "to": 159,
+      "label": "Green + White",
+      "color": "#80ff80"
+     },
+     {
+      "from": 160,
+      "to": 175,
+      "label": "Blue + White",
+      "color": "#8080ff"
+     },
+     {
+      "from": 176,
+      "to": 191,
+      "label": "Red + Green + Blue",
+      "color": "#ffffff"
+     },
+     {
+      "from": 192,
+      "to": 207,
+      "label": "Red + Green + White",
+      "color": "#ffff80"
+     },
+     {
+      "from": 208,
+      "to": 223,
+      "label": "Green + Blue + White",
+      "color": "#80ffff"
+     },
+     {
+      "from": 224,
+      "to": 239,
+      "label": "Red + Blue + White",
+      "color": "#ff80ff"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "Red + Green + Blue + White",
+      "color": "#ffffff"
+     }
+    ]
+   },
+   {
+    "key": "shutter",
+    "label": "Shutter",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 20,
+      "label": "NoFunction"
+     },
+     {
+      "from": 21,
+      "to": 30,
+      "label": "Reset"
+     },
+     {
+      "from": 31,
+      "to": 200,
+      "label": "Strobe"
+     },
+     {
+      "from": 201,
+      "to": 250,
+      "label": "Strobe"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan / Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer-intensity",
+    "label": "Dimmer Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   }
+  ],
+  "modes": [
+   {
+    "key": "4ch",
+    "name": "4-channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "12ch",
+    "name": "12-channel",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    175,
+    245,
+    175
+   ],
+   "weightKg": 3,
+   "powerW": 50,
+   "lensDegMin": 18,
+   "lensDegMax": 18
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eurolite/led-tmh-9",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "eurolite/led-tmh-w36",
+  "manufacturer": "Eurolite",
+  "model": "LED TMH-W36",
+  "aliases": [
+   "Eurolite LED TMH-W36",
+   "LED TMH-W36",
+   "TMHW36",
+   "euroliteledtmhw36",
+   "ledtmhw36",
+   "tmhw36"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0.5019607843137255,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0.5019607843137255,
+    "min": 0,
+    "max": 220,
+    "unit": "deg"
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan/Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 3,
+      "label": "Open"
+     },
+     {
+      "from": 4,
+      "to": 95,
+      "label": "Strobe"
+     },
+     {
+      "from": 96,
+      "to": 176,
+      "label": "Strobe"
+     },
+     {
+      "from": 177,
+      "to": 255,
+      "label": "Pulse"
+     }
+    ]
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "zoom",
+    "label": "Zoom",
+    "role": "zoom",
+    "resolution": 1,
+    "default": 0,
+    "min": 25,
+    "max": 6,
+    "unit": "deg"
+   },
+   {
+    "key": "internal-programs",
+    "label": "Internal Programs",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "NoFunction"
+     },
+     {
+      "from": 16,
+      "to": 128,
+      "label": "Auto mode"
+     },
+     {
+      "from": 129,
+      "to": 255,
+      "label": "Sound control"
+     }
+    ]
+   },
+   {
+    "key": "program-speed",
+    "label": "Program Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "motion-macros-reset",
+    "label": "Motion Macros / Reset",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 20,
+      "label": "NoFunction"
+     },
+     {
+      "from": 21,
+      "to": 100,
+      "label": "Pan motion macro"
+     },
+     {
+      "from": 101,
+      "to": 200,
+      "label": "Tilt motion macro"
+     },
+     {
+      "from": 201,
+      "to": 249,
+      "label": "Pan/Tilt motion macro"
+     },
+     {
+      "from": 250,
+      "to": 250,
+      "label": "NoFunction"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "Reset"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "15ch",
+    "name": "15-channel",
+    "footprint": 15,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "internal-programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "motion-macros-reset",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    155,
+    255,
+    145
+   ],
+   "weightKg": 2.5,
+   "powerW": 65,
+   "lensDegMin": 6,
+   "lensDegMax": 25
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eurolite/led-tmh-w36",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "eurolite/led-tmh-x12",
+  "manufacturer": "Eurolite",
+  "model": "LED TMH-X12",
+  "aliases": [
+   "Eurolite LED TMH-X12",
+   "LED TMH-X12",
+   "euroliteledtmhx12",
+   "ledtmhx12"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0.5019607843137255,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0.5019607843137255,
+    "min": 0,
+    "max": 270,
+    "unit": "deg"
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan/Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "shutter-strobe",
+    "label": "Shutter / Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 3,
+      "label": "Closed"
+     },
+     {
+      "from": 4,
+      "to": 109,
+      "label": "Strobe"
+     },
+     {
+      "from": 110,
+      "to": 209,
+      "label": "Pulse"
+     },
+     {
+      "from": 210,
+      "to": 251,
+      "label": "Strobe"
+     },
+     {
+      "from": 252,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-wheel",
+    "label": "Color Wheel",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 8,
+      "label": "Open"
+     },
+     {
+      "from": 9,
+      "to": 10,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 11,
+      "to": 18,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 19,
+      "to": 20,
+      "label": "Orange",
+      "color": "#ffaa00"
+     },
+     {
+      "from": 21,
+      "to": 28,
+      "label": "Orange",
+      "color": "#ffaa00"
+     },
+     {
+      "from": 29,
+      "to": 30,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 31,
+      "to": 38,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 39,
+      "to": 40,
+      "label": "Light Blue",
+      "color": "#aaccff"
+     },
+     {
+      "from": 41,
+      "to": 48,
+      "label": "Light Blue",
+      "color": "#aaccff"
+     },
+     {
+      "from": 49,
+      "to": 50,
+      "label": "Purple",
+      "color": "#cc00bb"
+     },
+     {
+      "from": 51,
+      "to": 58,
+      "label": "Purple",
+      "color": "#cc00bb"
+     },
+     {
+      "from": 59,
+      "to": 60,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 61,
+      "to": 68,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 69,
+      "to": 70,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 71,
+      "to": 78,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 79,
+      "to": 80,
+      "label": "Pink",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 81,
+      "to": 88,
+      "label": "Pink",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 89,
+      "to": 90,
+      "label": "Open"
+     },
+     {
+      "from": 91,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "gobo-wheel",
+    "label": "Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 4,
+      "label": "Open"
+     },
+     {
+      "from": 5,
+      "to": 9,
+      "label": "Gobo"
+     },
+     {
+      "from": 10,
+      "to": 14,
+      "label": "Gobo"
+     },
+     {
+      "from": 15,
+      "to": 19,
+      "label": "Gobo"
+     },
+     {
+      "from": 20,
+      "to": 24,
+      "label": "Gobo"
+     },
+     {
+      "from": 25,
+      "to": 29,
+      "label": "Gobo"
+     },
+     {
+      "from": 30,
+      "to": 34,
+      "label": "Gobo"
+     },
+     {
+      "from": 35,
+      "to": 39,
+      "label": "Gobo"
+     },
+     {
+      "from": 40,
+      "to": 129,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 130,
+      "to": 134,
+      "label": "Open"
+     },
+     {
+      "from": 135,
+      "to": 220,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 221,
+      "to": 225,
+      "label": "Gobo"
+     },
+     {
+      "from": 226,
+      "to": 230,
+      "label": "Gobo"
+     },
+     {
+      "from": 231,
+      "to": 235,
+      "label": "Gobo"
+     },
+     {
+      "from": 236,
+      "to": 240,
+      "label": "Gobo"
+     },
+     {
+      "from": 241,
+      "to": 245,
+      "label": "Gobo"
+     },
+     {
+      "from": 246,
+      "to": 250,
+      "label": "Gobo"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "Gobo"
+     }
+    ]
+   },
+   {
+    "key": "gobo-stencil-rotation",
+    "label": "Gobo Stencil Rotation",
+    "role": "goboRotation",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 63,
+      "label": "NoFunction"
+     },
+     {
+      "from": 64,
+      "to": 126,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 127,
+      "to": 127,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 128,
+      "to": 191,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 192,
+      "to": 192,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 193,
+      "to": 255,
+      "label": "Gobo Stencil Shake"
+     }
+    ]
+   },
+   {
+    "key": "focus",
+    "label": "Focus",
+    "role": "focus",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "prism",
+    "label": "Prism",
+    "role": "prism",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "NoFunction"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "3-facet"
+     }
+    ]
+   },
+   {
+    "key": "prism-rotation",
+    "label": "Prism Rotation",
+    "role": "prismRotation",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 63,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 64,
+      "to": 127,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 128,
+      "to": 191,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "Prism Shake"
+     }
+    ]
+   },
+   {
+    "key": "internal-programs",
+    "label": "Internal Programs",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "Fade delay off"
+     },
+     {
+      "from": 6,
+      "to": 10,
+      "label": "Fade delay on"
+     },
+     {
+      "from": 11,
+      "to": 15,
+      "label": "NoFunction"
+     },
+     {
+      "from": 16,
+      "to": 75,
+      "label": "Internal Program Auto 1"
+     },
+     {
+      "from": 76,
+      "to": 135,
+      "label": "Internal Program Auto 2"
+     },
+     {
+      "from": 136,
+      "to": 195,
+      "label": "Internal Program Auto 3"
+     },
+     {
+      "from": 196,
+      "to": 255,
+      "label": "Internal Program Auto 4"
+     }
+    ]
+   },
+   {
+    "key": "reset",
+    "label": "Reset",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 25,
+      "label": "NoFunction"
+     },
+     {
+      "from": 26,
+      "to": 45,
+      "label": "Reset others"
+     },
+     {
+      "from": 46,
+      "to": 103,
+      "label": "NoFunction"
+     },
+     {
+      "from": 104,
+      "to": 119,
+      "label": "Reset Pan/Tilt"
+     },
+     {
+      "from": 120,
+      "to": 190,
+      "label": "NoFunction"
+     },
+     {
+      "from": 191,
+      "to": 205,
+      "label": "Reset all"
+     },
+     {
+      "from": 206,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "13ch",
+    "name": "13-channel",
+    "footprint": 13,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-stencil-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "internal-programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "reset",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "15ch",
+    "name": "15-channel",
+    "footprint": 15,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-stencil-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "internal-programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "reset",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    320,
+    400,
+    330
+   ],
+   "weightKg": 10.5,
+   "powerW": 170,
+   "lensDegMin": 12,
+   "lensDegMax": 12
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eurolite/led-tmh-x12",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "eurolite/led-z-200-tcl",
+  "manufacturer": "Eurolite",
+  "model": "LED Z-200 TCL",
+  "aliases": [
+   "Eurolite LED Z-200 TCL",
+   "LED Z-200 TCL",
+   "euroliteledz200tcl",
+   "ledz200tcl"
+  ],
+  "categories": [
+   "Effect",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "motor-rotation",
+    "label": "Motor Rotation",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 20,
+      "label": "Rotation"
+     },
+     {
+      "from": 21,
+      "to": 170,
+      "label": "Rotation"
+     },
+     {
+      "from": 171,
+      "to": 255,
+      "label": "Clockwise and counter clockwise rotation"
+     }
+    ]
+   },
+   {
+    "key": "program",
+    "label": "Program",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 35,
+      "label": "NoFunction"
+     },
+     {
+      "from": 36,
+      "to": 70,
+      "label": "Strobe"
+     },
+     {
+      "from": 71,
+      "to": 105,
+      "label": "Fade"
+     },
+     {
+      "from": 106,
+      "to": 140,
+      "label": "Color-change"
+     },
+     {
+      "from": 141,
+      "to": 175,
+      "label": "Color-change + strobe"
+     },
+     {
+      "from": 176,
+      "to": 210,
+      "label": "Cross-fade"
+     },
+     {
+      "from": 211,
+      "to": 255,
+      "label": "Cross-fade + strobe"
+     }
+    ]
+   },
+   {
+    "key": "program-speed",
+    "label": "Program Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "6ch",
+    "name": "6-channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "motor-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "program",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    360,
+    300,
+    280
+   ],
+   "weightKg": 3,
+   "powerW": 40,
+   "lensDegMin": 125,
+   "lensDegMax": 125
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eurolite/led-z-200-tcl",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "eurolite/md-2030",
+  "manufacturer": "Eurolite",
+  "model": "MD-2030",
+  "aliases": [
+   "Eurolite MD-2030",
+   "MD-2030",
+   "eurolitemd2030",
+   "md2030"
+  ],
+  "categories": [
+   "Other"
+  ],
+  "channels": [
+   {
+    "key": "rotation",
+    "label": "Rotation",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Rotation"
+     },
+     {
+      "from": 1,
+      "to": 127,
+      "label": "Rotation"
+     },
+     {
+      "from": 128,
+      "to": 128,
+      "label": "Rotation"
+     },
+     {
+      "from": 129,
+      "to": 255,
+      "label": "Rotation"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "1ch",
+    "name": "1-channel",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "rotation",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    230,
+    149,
+    130
+   ],
+   "weightKg": 3,
+   "powerW": 13
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eurolite/md-2030",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "eurolite/n-150",
+  "manufacturer": "Eurolite",
+  "model": "N-150",
+  "aliases": [
+   "Eurolite N-150",
+   "N-150",
+   "euroliten150",
+   "n150"
+  ],
+  "categories": [
+   "Smoke"
+  ],
+  "channels": [
+   {
+    "key": "mode",
+    "label": "Mode",
+    "role": "fog",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 13,
+      "label": "Fog"
+     },
+     {
+      "from": 14,
+      "to": 127,
+      "label": "Select volume on channel 2"
+     },
+     {
+      "from": 128,
+      "to": 231,
+      "label": "Timer mode"
+     },
+     {
+      "from": 232,
+      "to": 255,
+      "label": "Fog"
+     }
+    ]
+   },
+   {
+    "key": "fog-volume",
+    "label": "Fog Volume",
+    "role": "fog",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 70,
+      "label": "FogOutput"
+     },
+     {
+      "from": 71,
+      "to": 75,
+      "label": "permanent"
+     },
+     {
+      "from": 76,
+      "to": 100,
+      "label": "50sec"
+     },
+     {
+      "from": 101,
+      "to": 125,
+      "label": "43sec"
+     },
+     {
+      "from": 126,
+      "to": 150,
+      "label": "34sec"
+     },
+     {
+      "from": 151,
+      "to": 175,
+      "label": "29sec"
+     },
+     {
+      "from": 176,
+      "to": 200,
+      "label": "25sec"
+     },
+     {
+      "from": 201,
+      "to": 225,
+      "label": "23sec"
+     },
+     {
+      "from": 226,
+      "to": 245,
+      "label": "21sec"
+     },
+     {
+      "from": 246,
+      "to": 255,
+      "label": "20sec"
+     }
+    ]
+   },
+   {
+    "key": "timer-duration",
+    "label": "Timer Duration",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "Time"
+     },
+     {
+      "from": 6,
+      "to": 29,
+      "label": "Time"
+     },
+     {
+      "from": 30,
+      "to": 54,
+      "label": "Time"
+     },
+     {
+      "from": 55,
+      "to": 79,
+      "label": "Time"
+     },
+     {
+      "from": 80,
+      "to": 104,
+      "label": "Time"
+     },
+     {
+      "from": 105,
+      "to": 129,
+      "label": "Time"
+     },
+     {
+      "from": 130,
+      "to": 154,
+      "label": "Time"
+     },
+     {
+      "from": 155,
+      "to": 179,
+      "label": "Time"
+     },
+     {
+      "from": 180,
+      "to": 204,
+      "label": "Time"
+     },
+     {
+      "from": 205,
+      "to": 229,
+      "label": "Time"
+     },
+     {
+      "from": 230,
+      "to": 254,
+      "label": "Time"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Time"
+     }
+    ]
+   },
+   {
+    "key": "timer-interval",
+    "label": "Timer Interval",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "Time"
+     },
+     {
+      "from": 6,
+      "to": 29,
+      "label": "Time"
+     },
+     {
+      "from": 30,
+      "to": 54,
+      "label": "Time"
+     },
+     {
+      "from": 55,
+      "to": 79,
+      "label": "Time"
+     },
+     {
+      "from": 80,
+      "to": 104,
+      "label": "Time"
+     },
+     {
+      "from": 105,
+      "to": 129,
+      "label": "Time"
+     },
+     {
+      "from": 130,
+      "to": 154,
+      "label": "Time"
+     },
+     {
+      "from": 155,
+      "to": 179,
+      "label": "Time"
+     },
+     {
+      "from": 180,
+      "to": 204,
+      "label": "Time"
+     },
+     {
+      "from": 205,
+      "to": 229,
+      "label": "Time"
+     },
+     {
+      "from": 230,
+      "to": 254,
+      "label": "Time"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Time"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "4ch",
+    "name": "4-channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "mode",
+      "byte": 0
+     },
+     {
+      "channelKey": "fog-volume",
+      "byte": 0
+     },
+     {
+      "channelKey": "timer-duration",
+      "byte": 0
+     },
+     {
+      "channelKey": "timer-interval",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    300,
+    240,
+    670
+   ],
+   "weightKg": 15,
+   "powerW": 1500
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eurolite/n-150",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "eurolite/tmh-xb-130",
+  "manufacturer": "Eurolite",
+  "model": "TMH XB-130",
+  "aliases": [
+   "Eurolite TMH XB-130",
+   "TMH XB-130",
+   "eurolitetmhxb130",
+   "tmhxb130"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 630,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 270,
+    "unit": "deg"
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan/Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "pan-tilt-function",
+    "label": "Pan/Tilt Function",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "Normal"
+     },
+     {
+      "from": 16,
+      "to": 31,
+      "label": "Blackout at Pan/Tilt movement"
+     },
+     {
+      "from": 32,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "shutter-strobe",
+    "label": "Shutter / Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "Closed"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "Open"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "Strobe"
+     },
+     {
+      "from": 96,
+      "to": 127,
+      "label": "Open"
+     },
+     {
+      "from": 128,
+      "to": 159,
+      "label": "Pulse (in sequences)"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "Open"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "Strobe"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-wheel",
+    "label": "Color Wheel",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 6,
+      "label": "Open"
+     },
+     {
+      "from": 7,
+      "to": 13,
+      "label": "Color"
+     },
+     {
+      "from": 14,
+      "to": 20,
+      "label": "Color"
+     },
+     {
+      "from": 21,
+      "to": 27,
+      "label": "Color"
+     },
+     {
+      "from": 28,
+      "to": 34,
+      "label": "Color"
+     },
+     {
+      "from": 35,
+      "to": 41,
+      "label": "Color"
+     },
+     {
+      "from": 42,
+      "to": 48,
+      "label": "Color"
+     },
+     {
+      "from": 49,
+      "to": 55,
+      "label": "Color"
+     },
+     {
+      "from": 56,
+      "to": 62,
+      "label": "Color"
+     },
+     {
+      "from": 63,
+      "to": 69,
+      "label": "Color"
+     },
+     {
+      "from": 70,
+      "to": 76,
+      "label": "Color"
+     },
+     {
+      "from": 77,
+      "to": 83,
+      "label": "Color"
+     },
+     {
+      "from": 84,
+      "to": 89,
+      "label": "Color"
+     },
+     {
+      "from": 90,
+      "to": 98,
+      "label": "Open"
+     },
+     {
+      "from": 99,
+      "to": 107,
+      "label": "Color"
+     },
+     {
+      "from": 108,
+      "to": 116,
+      "label": "Color"
+     },
+     {
+      "from": 117,
+      "to": 125,
+      "label": "Color"
+     },
+     {
+      "from": 126,
+      "to": 134,
+      "label": "Color"
+     },
+     {
+      "from": 135,
+      "to": 143,
+      "label": "Color"
+     },
+     {
+      "from": 144,
+      "to": 152,
+      "label": "Color"
+     },
+     {
+      "from": 153,
+      "to": 161,
+      "label": "Color"
+     },
+     {
+      "from": 162,
+      "to": 170,
+      "label": "Color"
+     },
+     {
+      "from": 171,
+      "to": 179,
+      "label": "Color"
+     },
+     {
+      "from": 180,
+      "to": 188,
+      "label": "Color"
+     },
+     {
+      "from": 189,
+      "to": 206,
+      "label": "Color"
+     },
+     {
+      "from": 207,
+      "to": 223,
+      "label": "Color"
+     },
+     {
+      "from": 224,
+      "to": 239,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "gobo-wheel",
+    "label": "Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 4,
+      "label": "Open"
+     },
+     {
+      "from": 5,
+      "to": 9,
+      "label": "Gobo"
+     },
+     {
+      "from": 10,
+      "to": 14,
+      "label": "Gobo"
+     },
+     {
+      "from": 15,
+      "to": 19,
+      "label": "Gobo"
+     },
+     {
+      "from": 20,
+      "to": 24,
+      "label": "Gobo"
+     },
+     {
+      "from": 25,
+      "to": 29,
+      "label": "Gobo"
+     },
+     {
+      "from": 30,
+      "to": 34,
+      "label": "Gobo"
+     },
+     {
+      "from": 35,
+      "to": 39,
+      "label": "Gobo"
+     },
+     {
+      "from": 40,
+      "to": 44,
+      "label": "Gobo"
+     },
+     {
+      "from": 45,
+      "to": 49,
+      "label": "Gobo"
+     },
+     {
+      "from": 50,
+      "to": 54,
+      "label": "Gobo"
+     },
+     {
+      "from": 55,
+      "to": 59,
+      "label": "Gobo"
+     },
+     {
+      "from": 60,
+      "to": 64,
+      "label": "Gobo"
+     },
+     {
+      "from": 65,
+      "to": 69,
+      "label": "Gobo"
+     },
+     {
+      "from": 70,
+      "to": 74,
+      "label": "Gobo"
+     },
+     {
+      "from": 75,
+      "to": 89,
+      "label": "Gobo"
+     },
+     {
+      "from": 90,
+      "to": 98,
+      "label": "Gobo"
+     },
+     {
+      "from": 99,
+      "to": 107,
+      "label": "Gobo"
+     },
+     {
+      "from": 108,
+      "to": 116,
+      "label": "Gobo"
+     },
+     {
+      "from": 117,
+      "to": 125,
+      "label": "Gobo"
+     },
+     {
+      "from": 126,
+      "to": 134,
+      "label": "Gobo"
+     },
+     {
+      "from": 135,
+      "to": 143,
+      "label": "Gobo"
+     },
+     {
+      "from": 144,
+      "to": 152,
+      "label": "Gobo"
+     },
+     {
+      "from": 153,
+      "to": 161,
+      "label": "Gobo"
+     },
+     {
+      "from": 162,
+      "to": 170,
+      "label": "Gobo"
+     },
+     {
+      "from": 171,
+      "to": 179,
+      "label": "Gobo"
+     },
+     {
+      "from": 180,
+      "to": 188,
+      "label": "Gobo"
+     },
+     {
+      "from": 189,
+      "to": 197,
+      "label": "Gobo"
+     },
+     {
+      "from": 198,
+      "to": 206,
+      "label": "Gobo"
+     },
+     {
+      "from": 207,
+      "to": 215,
+      "label": "Gobo"
+     },
+     {
+      "from": 216,
+      "to": 223,
+      "label": "Gobo"
+     },
+     {
+      "from": 224,
+      "to": 224,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 225,
+      "to": 239,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 240,
+      "to": 240,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 241,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "prism-frost",
+    "label": "Prism + Frost",
+    "role": "frost",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 63,
+      "label": "NoFunction"
+     },
+     {
+      "from": 64,
+      "to": 127,
+      "label": "Prism"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "Frost"
+     }
+    ]
+   },
+   {
+    "key": "prism-rotation",
+    "label": "Prism Rotation",
+    "role": "prismRotation",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 3,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 4,
+      "to": 127,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 128,
+      "to": 131,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 132,
+      "to": 255,
+      "label": "PrismRotation"
+     }
+    ]
+   },
+   {
+    "key": "focus",
+    "label": "Focus",
+    "role": "focus",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "reset",
+    "label": "Reset",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "NoFunction"
+     },
+     {
+      "from": 8,
+      "to": 15,
+      "label": "Reset all motors"
+     },
+     {
+      "from": 16,
+      "to": 23,
+      "label": "Reset only Pan/Tilt"
+     },
+     {
+      "from": 24,
+      "to": 31,
+      "label": "Reset only colors"
+     },
+     {
+      "from": 32,
+      "to": 39,
+      "label": "Reset only gobo"
+     },
+     {
+      "from": 40,
+      "to": 47,
+      "label": "Reset shutter"
+     },
+     {
+      "from": 48,
+      "to": 55,
+      "label": "Reset other"
+     },
+     {
+      "from": 56,
+      "to": 63,
+      "label": "Display Off"
+     },
+     {
+      "from": 64,
+      "to": 71,
+      "label": "Display On"
+     },
+     {
+      "from": 72,
+      "to": 79,
+      "label": "Lamp Off"
+     },
+     {
+      "from": 80,
+      "to": 87,
+      "label": "Lamp On"
+     },
+     {
+      "from": 88,
+      "to": 95,
+      "label": "Hibernation"
+     },
+     {
+      "from": 96,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "11ch",
+    "name": "Use1",
+    "footprint": 11,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-frost",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "reset",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "14ch",
+    "name": "Use2",
+    "footprint": 14,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-function",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-frost",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "reset",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    299,
+    435,
+    252
+   ],
+   "weightKg": 10,
+   "powerW": 170,
+   "lensDegMin": 1,
+   "lensDegMax": 1
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eurolite/tmh-xb-130",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "eurolite/ts-2",
+  "manufacturer": "Eurolite",
+  "model": "TS-2 DMX-Scanner",
+  "aliases": [
+   "Eurolite TS-2 DMX-Scanner",
+   "TS-2",
+   "TS-2 DMX-Scanner",
+   "eurolitets2dmxscanner",
+   "ts2",
+   "ts2dmxscanner"
+  ],
+  "categories": [
+   "Scanner",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 1,
+    "default": 0,
+    "min": 0,
+    "max": 130,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 1,
+    "default": 0,
+    "min": 0,
+    "max": 90,
+    "unit": "deg"
+   },
+   {
+    "key": "color-wheel",
+    "label": "Color Wheel",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 17,
+      "label": "Open"
+     },
+     {
+      "from": 18,
+      "to": 35,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 36,
+      "to": 53,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 54,
+      "to": 71,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 72,
+      "to": 89,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 90,
+      "to": 107,
+      "label": "Orange",
+      "color": "#ff8000"
+     },
+     {
+      "from": 108,
+      "to": 125,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 126,
+      "to": 143,
+      "label": "Pink",
+      "color": "#ff0080"
+     },
+     {
+      "from": 144,
+      "to": 161,
+      "label": "Light Green",
+      "color": "#00ff80"
+     },
+     {
+      "from": 162,
+      "to": 179,
+      "label": "Cyan",
+      "color": "#00ffff"
+     },
+     {
+      "from": 180,
+      "to": 197,
+      "label": "Orange",
+      "color": "#ff8000"
+     },
+     {
+      "from": 198,
+      "to": 215,
+      "label": "Light Yellow",
+      "color": "#ffff80"
+     },
+     {
+      "from": 216,
+      "to": 233,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 234,
+      "to": 251,
+      "label": "Red and Blue",
+      "color": "#ff0000"
+     },
+     {
+      "from": 252,
+      "to": 255,
+      "label": "Yellow and Green",
+      "color": "#ffff00"
+     }
+    ]
+   },
+   {
+    "key": "gobo-wheel",
+    "label": "Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 6,
+      "label": "Open"
+     },
+     {
+      "from": 7,
+      "to": 13,
+      "label": "Gobo 1"
+     },
+     {
+      "from": 14,
+      "to": 20,
+      "label": "Gobo 2"
+     },
+     {
+      "from": 21,
+      "to": 27,
+      "label": "Gobo 3"
+     },
+     {
+      "from": 28,
+      "to": 34,
+      "label": "Gobo 4"
+     },
+     {
+      "from": 35,
+      "to": 41,
+      "label": "Gobo 5"
+     },
+     {
+      "from": 42,
+      "to": 48,
+      "label": "Gobo 6"
+     },
+     {
+      "from": 49,
+      "to": 55,
+      "label": "Gobo 7"
+     },
+     {
+      "from": 56,
+      "to": 62,
+      "label": "Gobo 8"
+     },
+     {
+      "from": 63,
+      "to": 69,
+      "label": "Gobo 9"
+     },
+     {
+      "from": 70,
+      "to": 76,
+      "label": "Gobo 10"
+     },
+     {
+      "from": 77,
+      "to": 83,
+      "label": "Gobo 11"
+     },
+     {
+      "from": 84,
+      "to": 90,
+      "label": "Gobo 12"
+     },
+     {
+      "from": 91,
+      "to": 112,
+      "label": "Closed"
+     },
+     {
+      "from": 113,
+      "to": 127,
+      "label": "Open"
+     },
+     {
+      "from": 128,
+      "to": 238,
+      "label": "Open (Strobe-effect with increasing speed)"
+     },
+     {
+      "from": 239,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "lamp",
+    "label": "Lamp",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Intensity"
+     },
+     {
+      "from": 1,
+      "to": 254,
+      "label": "NoFunction"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Intensity"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "5ch",
+    "name": "5-channel",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "lamp",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    195,
+    290,
+    295
+   ],
+   "weightKg": 4,
+   "powerW": 115
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eurolite/ts-2",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

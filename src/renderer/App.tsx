@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, useSyncExternalStore } from 'react';
-import { Fixture, Surface, SurfaceContent, SourceType, AppSettings, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, normalizeCueBanks, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, timelineAudioTracks, sceneAudioEntries, cueEntries, isAddressableEntry, type AudioClip, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType, type PatchPolicy, readPatchPolicy } from './types';
+import { Fixture, Surface, SurfaceContent, SourceType, AppSettings, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, normalizeCueBanks, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, timelineAudioTracks, sceneAudioEntries, cueEntries, isAddressableEntry, type AudioClip, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType, type PatchPolicy, readPatchPolicy, type FixtureProfile } from './types';
 import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge, WINDOWED_DISPLAY } from '../../shared/protocol';
 import type { ProjectorCalibration } from '../../shared/protocol';
 import { calibCapture as cam, measureGamma, calibWorkspace } from '@artlux/plugin-calibration/renderer';
@@ -39,6 +39,7 @@ import { getDrawable, getDrawableGeneration, resolveSource } from './services/su
 import { timeline as timelineEngine, GLOBAL_POOL } from './services/timeline';
 import { usageForPath, normPath, libraryItems, type ProjectRefs } from './services/assetLibrary';
 import { setCoreStateView } from './services/automationTargets.core';
+import * as profiles from './services/fixtureProfiles';
 import * as timelinePreloader from './services/timelinePreloader';
 import * as bootGate from './services/bootGate';
 import { nextAccent, GLOBAL_ACCENT } from './sceneAccent';
@@ -58,6 +59,8 @@ import * as selection from './services/selection';
 import * as transitions from './services/transitions';
 import { collectFadeableTargets, getByPath, setByPath, isFadeablePath, type StateView } from './services/paramPath';
 import { trackingPlayback, trackingDrawable, resetPeopleTracking } from '@artlux/plugin-lidar-tracking';
+import * as lightingPlayback from './services/lightingPlayback';
+import * as lightingRecorder from './services/lightingRecorder';
 import { Columns2, Maximize2, Minimize2 } from 'lucide-react';
 import { useHistory } from './hooks/useHistory';
 import { useToast, useConfirm } from './components/ui';
@@ -188,6 +191,21 @@ const App: React.FC = () => {
   // Live mirror of fixtures for the global keydown handler (avoids stale closure).
   const fixturesRef = useRef<Fixture[]>(fixtures);
   fixturesRef.current = fixtures;
+  // ── DMX fixture profiles in play ──────────────────────────────────────────────────────────────
+  // Resolved from the open project's embedded copies, the operator's own profiles and the bundled
+  // library (services/fixtureProfiles owns that precedence). Held as state, not a ref, because a
+  // profiled fixture's DMX FOOTPRINT comes from here — so the patch, the collision detector and the
+  // packer must all re-derive when it changes.
+  const [fixtureProfiles, setFixtureProfiles] = useState<ReadonlyMap<string, FixtureProfile>>(profiles.snapshot());
+  useEffect(() => profiles.subscribe(() => setFixtureProfiles(profiles.snapshot())), []);
+  // Pull in whatever the current rig references. Cheap and idempotent: already-resolved ids and
+  // in-flight manufacturers cost nothing, so running it on every fixture change is fine.
+  useEffect(() => {
+    const ids = fixtures.filter(f => f.profileId).map(f => f.profileId as string);
+    if (ids.length) void profiles.ensureLoaded(ids);
+  }, [fixtures]);
+  const fixtureProfilesRef = useRef(fixtureProfiles);
+  fixtureProfilesRef.current = fixtureProfiles;
   const [surfaces, setSurfaces] = useState<Surface[]>([
     { id: 'surf-1', name: 'Surface 1', x: 0, y: 0, width: 1, height: 1, rotation: 0, zIndex: 0, content: { type: SourceType.NONE } },
   ]);
@@ -240,7 +258,9 @@ const App: React.FC = () => {
   const scene3dMountedRef = useRef(false);
   if (scene3dVisible) scene3dMountedRef.current = true;
   const scene3dMounted = scene3dMountedRef.current;
-  const setTimelineMax = setLayoutField('timelineMax');
+  // Maximize / restore the timeline. Restoring MUST also open the drawer: the drawer is where the
+  // timeline docks, so F-then-F into a closed drawer would look like the timeline vanished.
+  const setTimelineMax = (v: boolean) => layoutStore.set(v ? { timelineMax: true } : { timelineMax: false, bottomOpen: true });
   const setShowHelp = setLayoutField('showHelp');
   const setHelpWidth = setLayoutField('helpWidth');
   // Docs Browser panel (local UI state — not persisted in the layout yet).
@@ -342,7 +362,11 @@ const App: React.FC = () => {
   // WITHOUT re-rendering React, so its view of the world has to be a live ref, not a captured value.
   const brightnessRef = useRef(globalBrightness); brightnessRef.current = globalBrightness;
   useEffect(() => {
-    setCoreStateView(() => ({ surfaces: surfacesRef.current, fixtures: fixturesRef.current, globalBrightness: brightnessRef.current }));
+    setCoreStateView(() => ({
+      surfaces: surfacesRef.current, fixtures: fixturesRef.current, globalBrightness: brightnessRef.current,
+      // The target picker needs these to enumerate a profiled fixture's channels and size their step.
+      profiles: fixtureProfilesRef.current,
+    }));
   }, []);
 
   // ─────────────────────────────── DOCUMENT HISTORY (undo / redo) ───────────────────────────────
@@ -478,6 +502,12 @@ const App: React.FC = () => {
         // Open the Performance dock tab (renderer frame-time metrics).
         else if (keymap.matches(e, 'global.perfDock')) {
             openDockPanel(PERF_PANEL);
+            e.preventDefault();
+        }
+        // Pull the timeline drawer up / down in whatever workbench you are in. Not gated on `typing`:
+        // it is a modified chord a text field has no claim on, unlike Ctrl+Z.
+        else if (keymap.matches(e, 'global.toggleBottom')) {
+            layoutStore.set({ bottomOpen: !layoutStore.get().bottomOpen });
             e.preventDefault();
         }
     };
@@ -836,13 +866,77 @@ const App: React.FC = () => {
       colorData: [],
       surfaceId: selectedSurfaceId ?? surfaces[0]?.id,
     };
-    setFixtures(autoPatch([...fixtures, fx], controllers, patchPolicy));
+    setFixtures(autoPatch([...fixtures, fx], controllers, patchPolicy, undefined, fixtureProfiles));
+    handleSelectFixture(newId);
+  };
+
+  // ── DMX-profile fixtures (moving heads, washes, beams) ────────────────────────────────────────
+  // Assigning a profile changes the fixture's DMX FOOTPRINT, so both of these repatch: a 14-channel
+  // head where a 120-channel strip used to be would otherwise leave a hole, and the reverse would
+  // silently overlap its neighbour.
+  //
+  // `dmx` is seeded from the profile's own defaults rather than left empty, for two reasons: the
+  // fixture then holds the state the manufacturer says it powers up in (a centred head, not pan 0),
+  // and — the load-bearing one — setByPath refuses to fabricate a missing nested container, so a
+  // fixture with no `dmx` object silently ignores every cue, lane and scene aimed at its channels.
+  const applyProfile = (f: Fixture, profile: FixtureProfile, modeKey?: string): Fixture => ({
+    ...f,
+    profileId: profile.id,
+    profileMode: modeKey ?? profile.modes[0]?.key,
+    // A profiled fixture is ONE emitter, not a pixel run. Leaving ledCount at 30 would draw thirty
+    // LED spheres inside one housing in the 3D scene and consume thirty pixels of the sample buffer.
+    ledCount: 1,
+    dmx: { ...profiles.seedValues(profile), ...(f.dmx ?? {}) },
+  });
+
+  const handleSetFixtureProfile = async (id: string, profileId: string | null, modeKey?: string) => {
+    if (!profileId) {
+      recordHistory();
+      // Back to a pixel fixture. profileId/profileMode/dmx are dropped rather than kept "in case" —
+      // a stale profile id is exactly what would resolve to footprint 0 later and shift the patch.
+      setFixtures(autoPatch(
+        fixtures.map(f => {
+          if (f.id !== id) return f;
+          const { profileId: _p, profileMode: _m, dmx: _d, ...rest } = f;
+          return { ...rest, ledCount: Math.max(1, f.ledCount) };
+        }),
+        controllers, patchPolicy, undefined, fixtureProfiles,
+      ));
+      return;
+    }
+    // The profile may not be resolved yet (its manufacturer chunk is fetched lazily), so make sure
+    // it is before patching — the footprint depends on it.
+    await profiles.ensureLoaded([profileId]);
+    const profile = profiles.get(profileId);
+    if (!profile) { toast.error('Fixture profile unavailable', profileId); return; }
+    recordHistory();
+    setFixtures(autoPatch(
+      fixtures.map(f => (f.id === id ? applyProfile(f, profile, modeKey) : f)),
+      controllers, patchPolicy, undefined, fixtureProfiles,
+    ));
+  };
+
+  const handleAddFixtureFromProfile = async (profileId: string, modeKey?: string) => {
+    await profiles.ensureLoaded([profileId]);
+    const profile = profiles.get(profileId);
+    if (!profile) { toast.error('Fixture profile unavailable', profileId); return; }
+    recordHistory();
+    const newId = generateId();
+    const base: Fixture = {
+      id: newId,
+      name: nextNumberedName(profile.model, fixtures),
+      x: 0.4, y: 0.4, width: 0.2, height: 0.2,
+      universe: 0, startAddress: 1, ledCount: 1, reverse: false, rotation: 0,
+      colorData: [],
+      surfaceId: selectedSurfaceId ?? surfaces[0]?.id,
+    };
+    setFixtures(autoPatch([...fixtures, applyProfile(base, profile, modeKey)], controllers, patchPolicy, undefined, fixtureProfiles));
     handleSelectFixture(newId);
   };
 
   const handleRemoveFixture = (id: string) => {
     recordHistory();
-    setFixtures(autoPatch(fixtures.filter(f => f.id !== id), controllers, patchPolicy));
+    setFixtures(autoPatch(fixtures.filter(f => f.id !== id), controllers, patchPolicy, undefined, fixtureProfiles));
     setSelectedFixtureIds(prev => prev.filter(x => x !== id));
     if (selectedFixtureId === id) setSelectedFixtureId(null);
   };
@@ -853,12 +947,12 @@ const App: React.FC = () => {
     recordHistory();
     const mapped = fixtures.map(f => f.id === id ? { ...f, ...updates } : f);
     const repatch = REPATCH_KEYS.some(k => k in updates);
-    const next = repatch ? autoPatch(mapped, controllers, patchPolicy) : mapped;
+    const next = repatch ? autoPatch(mapped, controllers, patchPolicy, undefined, fixtureProfiles) : mapped;
     dropTakenOverLegs({ surfaces, fixtures, globalBrightness }, { surfaces, fixtures: next, globalBrightness });
     setFixtures(next);
   };
 
-  const handleAutoPatch = () => setFixtures(autoPatch(fixtures, controllers, patchPolicy));
+  const handleAutoPatch = () => setFixtures(autoPatch(fixtures, controllers, patchPolicy, undefined, fixtureProfiles));
 
   // --- Controllers (output devices) ---
   const handleAddController = () => {
@@ -870,7 +964,7 @@ const App: React.FC = () => {
   const handleUpdateController = (id: string, patch: Partial<Controller>) => {
     const next = controllers.map(c => c.id === id ? { ...c, ...patch } : c);
     setControllers(next);
-    if ('startUniverse' in patch) setFixtures(autoPatch(fixtures, next, patchPolicy));
+    if ('startUniverse' in patch) setFixtures(autoPatch(fixtures, next, patchPolicy, undefined, fixtureProfiles));
   };
   const handleRemoveController = async (id: string) => {
     const ctrl = controllers.find(c => c.id === id);
@@ -884,7 +978,7 @@ const App: React.FC = () => {
     })) return;
     const next = controllers.filter(c => c.id !== id);
     setControllers(next);
-    setFixtures(autoPatch(fixtures.map(f => f.controllerId === id ? { ...f, controllerId: undefined } : f), next, patchPolicy));
+    setFixtures(autoPatch(fixtures.map(f => f.controllerId === id ? { ...f, controllerId: undefined } : f), next, patchPolicy, undefined, fixtureProfiles));
   };
 
   const handleRenameFixture = (id: string, newName: string) => {
@@ -892,8 +986,12 @@ const App: React.FC = () => {
   };
 
   // 3D gizmo commit: history already recorded at drag-start, so don't re-record.
-  const handleCommitFixture3D = (id: string, updates: Partial<Fixture>) => {
-    const next = fixtures.map(f => f.id === id ? { ...f, ...updates } : f);
+  // ONE state change per gesture, however many fixtures the gizmo moved — so dragging ten heads is
+  // one undo step, not ten, and the fade engine sees a single coherent before/after.
+  const handleCommitFixture3D = (updates: Array<{ id: string } & Partial<Fixture>>) => {
+    if (!updates.length) return;
+    const byId = new Map(updates.map(u => [u.id, u]));
+    const next = fixtures.map(f => { const u = byId.get(f.id); return u ? { ...f, ...u } : f; });
     dropTakenOverLegs({ surfaces, fixtures, globalBrightness }, { surfaces, fixtures: next, globalBrightness });
     setFixtures(next);
   };
@@ -1250,6 +1348,20 @@ const App: React.FC = () => {
     if (activeSceneId) setScenes(prev => prev.map(s => s.id === activeSceneId ? { ...s, timeline: next } : s));
     else setTimeline(next);
   };
+  // Arm / stop the lighting recorder from the Venue & Rig action bar — the same gesture the timeline's
+  // Takes bin offers, so that you can busk a look on the heads you can SEE without first hunting for the
+  // bin. The two entry points cannot disagree about whether it is armed: `lightingRecorder` is the sole
+  // owner of that state, and this only decides where the finished take is appended (the active scene's
+  // timeline, or the global one — the same binding handleTimelineChange routes on).
+  const handleToggleLightingRecord = () => {
+    if (lightingRecorder.isRecording()) {
+      const take = lightingRecorder.stop(nextNumberedName('Move', activeTimeline.lightingTakes ?? []));
+      if (!take) { console.warn('[app] nothing moved — no lighting take recorded'); return; }
+      handleTimelineChange({ ...activeTimeline, lightingTakes: [...(activeTimeline.lightingTakes ?? []), take] });
+    } else if (!lightingRecorder.start(selectedFixtureIds)) {
+      console.warn('[app] cannot record: select fixtures first, and stop any lighting clip driving them');
+    }
+  };
   // ── THE PLUGIN WRITE PATH INTO `Timeline.audio` (host.audio.patchTimelineClip) ────────────────────
   //
   // The mixer is a PLUGIN, and it has to be able to shape a clip that lives in a SCENE — its gain, mute,
@@ -1490,6 +1602,12 @@ const App: React.FC = () => {
       surfaces,
       fixtures,
       controllers,
+      // The DMX profiles this rig references, carried WITH the show. A project is portable: on a
+      // venue PC whose library is older, or which never had a hand-authored profile, an unembedded
+      // profile is simply absent — and a fixture with no resolvable profile has no known footprint,
+      // so the patch silently shifts for everything after it on the same controller. Only the
+      // profiles actually in use are written.
+      fixtureProfiles: profiles.usedBy(fixtures),
       reserveLockedRanges: patchPolicy.reserveLockedRanges,
       globalBrightness,
       groups,
@@ -1517,11 +1635,27 @@ const App: React.FC = () => {
       // (back-compat with pre-surfaces projects).
       const surf = Array.isArray(data?.surfaces) && data.surfaces.length ? data.surfaces as Surface[] : defaultSurfaces();
       setSurfaces(surf);
+      // The profiles this show carries, adopted BEFORE the fixtures that reference them, so the very
+      // first patch/footprint pass already resolves. Per-document, not accumulated: a profile from a
+      // closed show must stop shadowing the library.
+      profiles.setEmbedded(Array.isArray(data?.fixtureProfiles) ? data.fixtureProfiles : []);
       if (data?.fixtures && Array.isArray(data.fixtures)) {
           // Default-link any unlinked fixture to the first surface (strict per-surface). Repair legacy
           // corruption: a non-array `segments` (e.g. `{"0":…}` from a pre-fix cue write) is always
           // garbage — coerce it back to undefined so Stage's `segments.map` can't throw on load.
-          setFixtures(data.fixtures.map((f: any) => ({ ...f, colorData: [], surfaceId: f.surfaceId ?? surf[0]?.id, segments: Array.isArray(f.segments) ? f.segments : undefined })));
+          //
+          // A PROFILED FIXTURE ALWAYS GETS A `dmx` OBJECT. setByPath refuses to fabricate a missing
+          // nested container (the guard that stopped a cue corrupting `segments`), so a profiled
+          // fixture loaded without one would silently swallow every cue, lane and scene aimed at its
+          // channels — no error, no output, nothing to debug. An empty object is enough: every
+          // channel falls back to the profile's own default when its key is absent.
+          setFixtures(data.fixtures.map((f: any) => ({
+            ...f,
+            colorData: [],
+            surfaceId: f.surfaceId ?? surf[0]?.id,
+            segments: Array.isArray(f.segments) ? f.segments : undefined,
+            ...(f.profileId && (!f.dmx || typeof f.dmx !== 'object') ? { dmx: {} } : {}),
+          })));
       }
       // ── A PROJECT DOES NOT RECONFIGURE THE BUILDING ────────────────────────────────────────────────
       // `settings` is NOT read from the file, and `buildProjectData` no longer writes it. AppSettings is
@@ -2180,6 +2314,9 @@ const App: React.FC = () => {
           case 'import-rig': handleImportRig(); break;
           case 'preferences': goToContext('settings'); break;
           case 'routing': openDockPanel(ROUTING_PANEL); break;
+          // The timeline drawer, from either menu. Same target as Ctrl+T (global.toggleBottom).
+          case 'toggle-timeline': layoutStore.set({ bottomOpen: !layoutStore.get().bottomOpen }); break;
+          case 'record-lighting-take': handleToggleLightingRecord(); break;
           // Context action-bar targets. These functions already existed as panel buttons; routing them
           // through the same dispatcher is what lets a WorkspaceContext name them by id (see
           // contexts/index.tsx) instead of every action needing a callback threaded to the shell.
@@ -2253,6 +2390,7 @@ const App: React.FC = () => {
       if (timelineEngine.activePoolKey() !== (activeSceneId ?? GLOBAL_POOL)) return;
       timelineEngine.setData(activeTimeline);
       trackingPlayback.setData(activeTimeline); // replay recorded blob takes when the playhead crosses them
+      lightingPlayback.setData(activeTimeline);  // …and lighting clips, which drive fixtures by role
       for (const port of projectorPortsRef.current.values()) port.postMessage({ t: 'timeline', timeline: activeTimeline });
   }, [activeTimeline, activeSceneId]);
   // FSM look-ahead preloading: when the machine enters a state, warm the timelines of every reachable
@@ -2270,6 +2408,10 @@ const App: React.FC = () => {
   }), []);
   // Start the tracking-take replay loop once (main window only).
   useEffect(() => { trackingPlayback.start(); }, []);
+  useEffect(() => { lightingPlayback.start(); }, []);
+  // The rig a lighting clip resolves its group against. Kept fresh rather than captured, because a
+  // clip names a GROUP and the group's membership (and order) is edited while the show is running.
+  useEffect(() => { lightingPlayback.setRig(fixtures, groups); }, [fixtures, groups]);
   // ⚠ DECLARATION ORDER IS LOAD-BEARING: THIS EFFECT MUST STAY *AFTER* THE `setData` EFFECT ABOVE.
   // Effects flush in declaration order. The engine's setData guard needs the engine's `playing` to be
   // still true when the new document lands, so setData has to run first in the flush. Hoisting this one
@@ -3094,7 +3236,7 @@ const App: React.FC = () => {
   // CLAUDE.md, and exactly why the old ScenePanel3D was React.memo'd on its data props). This memo is
   // that same guarantee, applied once for every panel instead of per component.
   const editorData: EditorData = useMemo(() => ({
-    surfaces, fixtures, groups, controllers, templates,
+    surfaces, fixtures, groups, controllers, templates, fixtureProfiles,
     selectedSurfaceId, selectedFixtureId, selectedFixtureIds, selectedModelId,
     selection: editorSelection,
     projectorOutputs, displays, scene3D, modelNaturalSizes, sceneSaved,
@@ -3102,7 +3244,7 @@ const App: React.FC = () => {
     timeline: activeTimeline, globalTimeline: timeline, scenes, cueBanks, stateMachine, activeSceneId,
     settings, patchPolicy, globalBrightness, projectorBrightness, isVideoPlaying,
   }), [
-    surfaces, fixtures, groups, controllers, templates,
+    surfaces, fixtures, groups, controllers, templates, fixtureProfiles,
     selectedSurfaceId, selectedFixtureId, selectedFixtureIds, selectedModelId, editorSelection,
     projectorOutputs, displays, scene3D, modelNaturalSizes, sceneSaved,
     assets, currentProjectPath, projectRefs,
@@ -3138,6 +3280,8 @@ const App: React.FC = () => {
     removeController: handleRemoveController,
     saveTemplate: handleSaveTemplate,
     addFromTemplate: handleAddFromTemplate,
+    setFixtureProfile: (id, profileId, modeKey) => { void handleSetFixtureProfile(id, profileId, modeKey); },
+    addFixtureFromProfile: (profileId, modeKey) => { void handleAddFixtureFromProfile(profileId, modeKey); },
     removeTemplate: handleRemoveTemplate,
     selectModel: handleSelectModel,
     addModel: handleAddModel,
@@ -3181,6 +3325,7 @@ const App: React.FC = () => {
           selectedSurfaceId={null}
           onSelectSurface={() => { /* no-op */ }}
           controllers={controllers}
+          fixtureProfiles={fixtureProfiles}
           fixtures={fixtures}
           onUpdateFixtures={setFixtures}
           selectedFixtureId={null}
@@ -3279,6 +3424,7 @@ const App: React.FC = () => {
                         selectedSurfaceId={selectedSurfaceId}
                         onSelectSurface={handleSelectSurface}
                         controllers={controllers}
+                        fixtureProfiles={fixtureProfiles}
                         fixtures={fixtures}
                         onUpdateFixtures={setFixtures}
                         selectedFixtureId={selectedFixtureId}
@@ -3331,9 +3477,11 @@ const App: React.FC = () => {
                                 scene3D={scene3D}
                                 modelUrls={modelUrls}
                                 selectedModelId={selectedModelId}
+                                fixtureProfiles={fixtureProfiles}
                                 onSelectFixture={(id: string) => handleSelectFixture(id || null)}
+                                onSelectFixtures={handleSelectFixtures}
                                 onSelectModel={handleSelectModel}
-                                onCommitFixture3D={(id, u) => handleCommitFixture3D(id, u)}
+                                onCommitFixture3D={handleCommitFixture3D}
                                 onCommitModel={handleCommitModel}
                                 onModelNaturalSize={handleModelNaturalSize}
                                 onSceneConfig={handleSceneConfig}
@@ -3358,7 +3506,7 @@ const App: React.FC = () => {
                     timelineMax ? (
                         <div className="h-full flex items-center justify-center text-fg-3 text-mini italic">Timeline maximized — press F or the restore button to dock it</div>
                     ) : (
-                        <TimelinePanel timeline={activeTimeline} onChange={handleTimelineChange} author={timelineAuthor} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} onToggleMax={() => setTimelineMax(true)} projectPath={currentProjectPath} onRegisterAsset={handleRegisterAsset} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} audio={timelineBedProp} baseAutomation={baseAutomationProp} />
+                        <TimelinePanel timeline={activeTimeline} onChange={handleTimelineChange} author={timelineAuthor} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} onToggleMax={() => setTimelineMax(true)} projectPath={currentProjectPath} onRegisterAsset={handleRegisterAsset} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} fixtureGroups={groups} selectedFixtureIds={selectedFixtureIds} audio={timelineBedProp} baseAutomation={baseAutomationProp} />
                     )
           ),
           // Projector outputs. Was a modal; it is the `project` context's viewport now — you bind
@@ -3470,7 +3618,7 @@ const App: React.FC = () => {
 
       {timelineMax && (
         <div className="fixed inset-0 z-50 bg-surface-0 flex flex-col">
-          <TimelinePanel timeline={activeTimeline} onChange={handleTimelineChange} author={timelineAuthor} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} maximized onToggleMax={() => setTimelineMax(false)} projectPath={currentProjectPath} onRegisterAsset={handleRegisterAsset} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} audio={timelineBedProp} baseAutomation={baseAutomationProp} />
+          <TimelinePanel timeline={activeTimeline} onChange={handleTimelineChange} author={timelineAuthor} stateMachine={stateMachine} onStateMachineChange={setStateMachine} playing={isVideoPlaying} onTogglePlay={() => setIsVideoPlaying(!isVideoPlaying)} maximized onToggleMax={() => setTimelineMax(false)} projectPath={currentProjectPath} onRegisterAsset={handleRegisterAsset} scenes={scenes} cues={cueBanks.flatMap(b => b.cues.map(c => ({ id: c.id, name: c.name })))} fixtureGroups={groups} selectedFixtureIds={selectedFixtureIds} audio={timelineBedProp} baseAutomation={baseAutomationProp} />
         </div>
       )}
 

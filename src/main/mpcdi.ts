@@ -42,7 +42,15 @@ function zipStore(files: { name: string; data: Buffer }[]): Buffer {
   return Buffer.concat([...locals, cd, end]);
 }
 
-function zipRead(buf: Buffer): Map<string, Buffer> {
+/**
+ * Minimal ZIP reader (stored + deflate), shared with the GDTF importer — a .gdtf is a ZIP too.
+ *
+ * ⚠ Reads sizes from the LOCAL file header, so an archive written with data descriptors (general
+ * purpose bit 3, where the local header's sizes are zero and the real ones follow the data) is not
+ * supported. Every .mpcdi and .gdtf seen so far writes real sizes; `zipEntries` returns an empty map
+ * rather than garbage if that ever stops being true.
+ */
+export function zipRead(buf: Buffer): Map<string, Buffer> {
   const out = new Map<string, Buffer>();
   let p = 0;
   while (p + 4 <= buf.length && buf.readUInt32LE(p) === 0x04034b50) {

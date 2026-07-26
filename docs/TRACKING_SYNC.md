@@ -54,7 +54,8 @@ Fill this in on-site:
 | 2 people apart | | | | |
 | 2 people close | | | | |
 
-> Tip: also **record a LiDAR take** (Timeline ▸ Takes bin ▸ record) during the test — it captures the
+> Tip: also **record a LiDAR take** (`Ctrl+T` for the timeline drawer ▸ Takes bin ▸ record) during the
+> test — it captures the
 > raw feed so we can replay and inspect it back at the desk if the live read is too fast.
 
 ### What an on-site recording showed (Take 2, 34 s, 3–4 people)

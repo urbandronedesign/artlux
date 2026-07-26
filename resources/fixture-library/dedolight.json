@@ -1,0 +1,130 @@
+[
+ {
+  "id": "dedolight/dled4-bi",
+  "manufacturer": "Dedolight",
+  "model": "DLED4-BI",
+  "aliases": [
+   "DLED4-BI",
+   "Dedolight DLED4-BI",
+   "dedolightdled4bi",
+   "dled4bi"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "dt4-bi-dmx",
+    "name": "DT4-BI-DMX",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    109,
+    200,
+    100
+   ],
+   "weightKg": 1.3,
+   "powerW": 47,
+   "lensDegMin": 4,
+   "lensDegMax": 60
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "dedolight/dled4-bi",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "dedolight/dled7-bi",
+  "manufacturer": "Dedolight",
+  "model": "DLED7-BI",
+  "aliases": [
+   "DLED7-BI",
+   "Dedolight DLED7-BI",
+   "dedolightdled7bi",
+   "dled7bi"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "dt7-bi-dmx",
+    "name": "DT7-BI-DMX",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    109,
+    200,
+    100
+   ],
+   "weightKg": 1.3,
+   "powerW": 90,
+   "lensDegMin": 4,
+   "lensDegMax": 60
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "dedolight/dled7-bi",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

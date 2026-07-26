@@ -1,0 +1,283 @@
+[
+ {
+  "id": "eyourlife/led-rgbw-54x3-par64",
+  "manufacturer": "Eyourlife",
+  "model": "LED RGBW 54x3 Par64",
+  "aliases": [
+   "Eyourlife LED RGBW 54x3 Par64",
+   "LED RGBW 54x3 Par64",
+   "eyourlifeledrgbw54x3par64",
+   "ledrgbw54x3par64"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "master-dimmer",
+    "label": "Master Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-macros-effects",
+    "label": "Color Macros/Effects",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 4,
+      "label": "NoFunction"
+     },
+     {
+      "from": 5,
+      "to": 10,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 11,
+      "to": 15,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 16,
+      "to": 20,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 21,
+      "to": 25,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 26,
+      "to": 30,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 31,
+      "to": 35,
+      "label": "Cyan",
+      "color": "#00ffff"
+     },
+     {
+      "from": 36,
+      "to": 40,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 41,
+      "to": 45,
+      "label": "Pink",
+      "color": "#ff69b4"
+     },
+     {
+      "from": 46,
+      "to": 50,
+      "label": "Bright green",
+      "color": "#90ee90"
+     },
+     {
+      "from": 51,
+      "to": 55,
+      "label": "Lavender",
+      "color": "#e6e6fa"
+     },
+     {
+      "from": 56,
+      "to": 60,
+      "label": "Pale Pink",
+      "color": "#ffc0cb"
+     },
+     {
+      "from": 61,
+      "to": 65,
+      "label": "Bright yellow",
+      "color": "#ffffe0"
+     },
+     {
+      "from": 66,
+      "to": 70,
+      "label": "Bright magenta",
+      "color": "#ff55ff"
+     },
+     {
+      "from": 71,
+      "to": 75,
+      "label": "Pale cyan",
+      "color": "#e0ffff"
+     },
+     {
+      "from": 76,
+      "to": 80,
+      "label": "Warm white",
+      "color": "#faebd7"
+     },
+     {
+      "from": 81,
+      "to": 150,
+      "label": "ColorJump"
+     },
+     {
+      "from": 151,
+      "to": 220,
+      "label": "ColorFade"
+     },
+     {
+      "from": 221,
+      "to": 255,
+      "label": "Sound control"
+     }
+    ]
+   },
+   {
+    "key": "speed",
+    "label": "Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "8ch",
+    "name": "8-channel",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "master-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros-effects",
+      "byte": 0
+     },
+     {
+      "channelKey": "speed",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "eyl2",
+    "name": "EYL2 variant 8-channel",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros-effects",
+      "byte": 0
+     },
+     {
+      "channelKey": "speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "master-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    230,
+    220,
+    255
+   ],
+   "weightKg": 4.5,
+   "powerW": 170,
+   "lensDegMin": 25,
+   "lensDegMax": 25
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eyourlife/led-rgbw-54x3-par64",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

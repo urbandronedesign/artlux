@@ -19,6 +19,20 @@ export const fixturesHelp: HelpEntry[] = [
     keywords: ['patch', 'address', 'addresses', 'universe', 'dmx', 'artnet', 'sacn'],
   },
   {
+    id: 'fixtures.profile-search',
+    title: 'Add a fixture by reference',
+    short: 'Type what is printed on the case — “MAC250”, “Martin MAC 250 Krypton”.',
+    body: 'Searches the shipped DMX fixture library (about 500 fixtures) plus any profiles you have '
+      + 'imported yourself. Spacing, capitalisation and punctuation are ignored, so “MAC250” and '
+      + '“mac 250 krypton” both work, and fixtures that were renamed are still found by their old '
+      + 'name. Pick the MODE before adding: it decides how many DMX channels the fixture occupies. '
+      + 'If nothing matches, the fixture is genuinely not in the library — import a .gdtf or .qxf '
+      + 'file for it, or build a profile by hand, rather than settling for a near match: a profile '
+      + 'from the wrong fixture patches the wrong channels.',
+    group: 'Fixtures',
+    keywords: ['profile', 'library', 'dmx', 'moving head', 'personality', 'gdtf', 'search', 'reference'],
+  },
+  {
     id: 'fixtures.save-template',
     title: 'Save as template',
     short: 'Save the selected fixture as a reusable template.',

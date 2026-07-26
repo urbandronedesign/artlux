@@ -39,7 +39,8 @@ const REFERENCE_ID = 'docs';
 // link; that is the bug this whole section exists to fix.
 const REFERENCE_PAGES = [
   'FEATURES.md', 'AUDIO.md', 'TIMELINE.md', 'SCENES.md', 'SCENE-TIMELINES.md', 'STATE-MACHINE.md',
-  'SHOW-CONTROL.md', 'SURFACES.md', 'EFFECTS.md', 'ASSETS.md', 'CODECS.md', 'OUTPUTS.md', 'LEDMAP.md',
+  'SHOW-CONTROL.md', 'SURFACES.md', 'EFFECTS.md', 'ASSETS.md', 'CODECS.md', 'OUTPUTS.md',
+  'FIXTURE-LIBRARY.md', 'LIGHTING-SHOW.md', 'LEDMAP.md',
   'CALIBRATION.md', 'AUTO-ALIGN.md', 'NVWARP.md', 'OSC.md', 'NDI.md', 'SPOUT.md', 'AUGMENTA.md',
   'MEDIAPIPE.md', 'TRACKING_TAKES.md', 'TRACKING_SYNC.md', 'MONITORING.md', 'WATCHDOG.md', 'WORKSPACE.md',
   'PLUGINS.md', 'SDK.md', 'ARCHITECTURE.md', 'DEVELOPMENT.md',

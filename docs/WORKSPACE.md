@@ -37,7 +37,8 @@ Layout lives in a module-singleton pub/sub store (the `cueBus`/`helpBus` idiom):
 
 - **`WorkspaceLayout`** — one serializable object: panel **sizes** (`dockHeight`, `helpWidth`,
   `splitRatio`, `bottomHeight`, `leftWidth`, `rightWidth`), **visibility** (`showLeft/Right/Help`,
-  `dockOpen`, `splitView`, `timelineMax`), **selections** (`leftTab`, `dockTab`), and `activePreset`.
+  `dockOpen`, `splitView`, `bottomOpen`, `timelineMax`), **selections** (`leftTab`, `dockTab`), and
+  `activePreset`.
 - **Persistence:** debounced (~300ms) write of the whole object to **one top-level `Prefs.layoutState`**
   key. It's one object on purpose — `setPrefs` is a one-level shallow merge, so a single top-level field
   is safe to patch (same rule as `modalPositions`; see [SDK.md](SDK.md) → `useDraggable`).
@@ -63,15 +64,15 @@ useResizable({ axis: 'x'|'y', min, max: number|(()=>number), invert?, mode?: 'de
   moves toward it. `mode:'ratio'` computes a 0–1 fraction from `containerRef`'s box.
 - Callers: the split divider (`WorkspaceShell.tsx`, `ratio` + `splitHostRef`), the dock top edge
   (`Dock.tsx`, `invert`, dynamic `max: () => innerHeight-120`), the help left edge (`HelpPanel.tsx`,
-  `invert`), the bottom region's top edge, and the **two side columns** (below).
+  `invert`), the bottom drawer's top edge, and the **two side columns** (below).
 
 ### The two side columns
 
 The browser column and the parameter column are dragged from their inner edges — a 2px handle
-overlapping the viewport, the same idiom as the bottom region — and **double-click resets** either to
+overlapping the viewport, the same idiom as the bottom drawer — and **double-click resets** either to
 its default (288 / 320px, the `w-72` / `w-80` they used to be hard-coded to). Both widths ride
 `leftWidth` / `rightWidth`, so they are banked **per context** (`CONTEXT_KEYS`) and persisted with
-everything else: a wide media browser in Timeline does not force a wide outliner in Mapping.
+everything else: a wide mixer column in Audio does not force a wide outliner in Mapping.
 
 Two details that are easy to get wrong:
 
@@ -97,7 +98,7 @@ not change what was *in* the panels. `BUILTIN_PRESETS`/`applyPreset`/`PresetId` 
 survives only as a one-time migration input (see below).
 
 - **Contract:** `WorkspaceContext` + `ContextRegistry` in [`@artlux/sdk/renderer`](SDK.md); a context is a
-  **manifest of panel ids** and owns no components. Core registers its eleven in
+  **manifest of panel ids** and owns no components. Core registers its nine in
   [`src/renderer/contexts/index.tsx`](../src/renderer/contexts/index.tsx) through exactly the same API a
   plugin uses — there is no privileged core path.
 - **Shell:** [`components/shell/WorkspaceShell.tsx`](../src/renderer/components/shell/WorkspaceShell.tsx)
@@ -110,23 +111,24 @@ survives only as a one-time migration input (see below).
   that plugin disabled. Extends queue if the target hasn't registered yet, so activation order doesn't
   matter.
 
-### The eleven contexts
+### The nine contexts
 
 | Cluster | Context | Viewport | What it is for |
 |---|---|---|---|
-| **Build** | `timeline` | program monitor + timeline as `bottom` | cutting the show; media library on the left |
-| | `mapping` | 2D stage | surfaces **and** fixtures — placement, content, patch, DMX |
-| | `3d` | `Simulator3D` | venue layout, models, fixture 3D positions, lighting, tracking overlays |
+| **Build** | `mapping` | 2D stage | surfaces **and** fixtures — placement, content, patch, DMX; media library + program monitor in the dock |
+| | `3d` | `Simulator3D` | venue layout, models, the rig, lighting, tracking overlays, lighting takes |
 | **Align** | `project` | outputs table | bind displays, warp, blend, span, gamma; previews in the dock |
 | | `calib` | *plugin* — wizard + camera | structured-light / markerless alignment, 3D alongside |
 | **Show** | `scenes` | `CueBankPanel` | capture scenes, fire them from the grid; program preview + both clocks on the left |
 | | `machine` | `StateGraphEditor` | the show graph over those scenes |
 | | `audio` | *plugin* — the mixer | bed, mix, inserts, spatial |
-| | `tracking` | 2D stage + 3D | LiDAR / MediaPipe / Augmenta; the same Tracking section in the parameter column, monitors in the dock |
 | | `show` | *plugin* — Show Deck | running it: transport, scene pads, schedule, playlist, metrics |
 | **App** | `settings` | `Preferences` | machine-level: output protocol, engine, appearance, watchdog, GPU, plugin sections |
 
-Five of these are worth knowing the history of, because the shape was arrived at, not designed up front:
+**The timeline is not on this list, deliberately** — it is a *drawer* every one of these except `calib`
+and `settings` can pull up (`Ctrl+T`). See [the bottom drawer](#the-full-width-bottom-drawer-workspacecontextbottom).
+
+Seven of these are worth knowing the history of, because the shape was arrived at, not designed up front:
 
 - **`mapping` = the old `map` + `led`.** Surface placement and the DMX patch were separate contexts, but
   you place a surface *in order to* map LEDs onto it, and you check a patch against the surface it
@@ -135,9 +137,26 @@ Five of these are worth knowing the history of, because the shape was arrived at
 - **`machine` was the state-graph modal.** The show graph was a fixed 1000×640 dialog centred over the
   timeline it describes. It is a long-lived authoring surface, so it became a context and got the whole
   window; the timeline's "Edit logic" button and the state lane's edit affordance switch to it.
-- **`timeline` replaced `media`.** "Media & Content" was only a media browser beside the stage; that
-  library is now the timeline's browser column, so you import media where you actually cut it. Timeline
-  leads the Build cluster in its place.
+- **`timeline` was dissolved** (2026-07-26), having itself replaced `media` ("Media & Content" was only a
+  media browser beside the stage). It led the Build cluster in the NLE shape: a program monitor on top,
+  lanes across the full width underneath. What killed it is that **the timeline is a tool, not a place**
+  — you want it while cutting against the 2D stage, while recording a lighting take against the 3D rig,
+  while authoring a scene's timeline from the cue grid — and reaching it cost you the viewport you were
+  working in. That is also why a 12th `light` context looked necessary for the light-show workflow: a
+  rail entry was the only way to get the 3D scene and the timeline on screen together.
+
+  So the timeline became every context's **bottom drawer**, and this context had nothing left of its own:
+  its program monitor is the `core.dock.programPreview` tab (the same full-bleed `ProgramMonitorViewport`
+  component — a dock tab is the same shape as a viewport), its media library is the new `core.dock.media`
+  tab, and both moved to **Mapping** along with Collect Assets / Collect a Copy. One rail entry and one
+  remount-per-visit were lost; nothing else.
+- **`tracking` merged into `3d`** (2026-07-26). It had become a near-duplicate: no browser column, one
+  parameter section (`core.inspector.scene.tracking`) that `3d` already declared, and a default layout of
+  `splitView: true` whose entire purpose was to get the 3D scene on screen beside the stage — because the
+  3D scene is where live blobs are drawn. Being *in* the 3D scene is the better version of that. Its
+  three plugins contributed only **dock tabs**, and `3d` had no dock at all, so the region was free; they
+  now `extend('3d', …)`. `3d` was retitled **Venue & Rig** and is where a light show is prepped: pick
+  heads, aim them, pull the drawer up, record a take against the rig you can see.
 - **`settings` was the Preferences modal**, and it is the only context in its own `app` cluster (a rule
   separates it on the rail, last). Preferences started as a 460px dialog over output protocol + engine
   and grew into appearance, unattended watchdog, GPU probing and every plugin's `SettingsSection` — a
@@ -169,13 +188,15 @@ item or a floating window:
 | Surfaces / Fixtures outliner, the old left panel | **Mapping** — browser column |
 | The properties panel (surface + fixture params) | **Mapping** — parameter column, filtered by what is selected |
 | Fixture Editor, Routing | **Mapping** — dock tabs |
-| Media library, Asset Manager | **Timeline** — browser column. The Asset Manager was deleted; its per-asset inspector (size, dimensions, path, and the resolved **Usage** list) is the bottom section of the library |
+| The timeline (was its own rail entry) | **the bottom drawer** — `Ctrl+T`, View ▸ Timeline, or click the collapsed strip. Available in every context except Calib and Prefs |
+| Media library, Asset Manager | **Mapping** — dock tab (`Media Library`); also **Audio** — browser column. The Asset Manager was deleted; its per-asset inspector (size, dimensions, path, and the resolved **Usage** list) is the bottom section of the library |
+| The program monitor (was the Timeline context's viewport) | **Mapping** / **Proj** / **Show** — the `Program` dock tab, same full-bleed component |
 | Outputs… (was a modal) | **Proj** — the viewport; live per-output previews in the dock |
 | Calibrate | **Proj** ▸ Calibrate on a row → jumps to **Calib** |
 | Scenes & Cues | **Cues** |
 | "Edit logic" / the state graph (was a 1000×640 dialog) | **Logic** |
 | Audio Bed (was a floating window) | **Audio** — the whole workspace |
-| OSC / Pose / Augmenta monitors | **Track** — dock tabs |
+| OSC / Pose / Augmenta monitors, Trigger Zones (were **Track**) | **3D** — dock tabs. The `tracking` context merged into `3d` |
 | Schedule, project Playlist (were tablet-only) | **Show** — dock tabs |
 | 3D scene outliner (was a column inside the 3D view) | **3D** — browser + parameter columns |
 
@@ -183,26 +204,56 @@ Still modal, deliberately, because they are global and momentary rather than wor
 update notice, the audio-engine warning, and MediaPipe's floor-calibration wizard. Docs and Help remain
 right-hand drawers on every context.
 
-**Getting around:** click the rail, press `Ctrl+1..9`, use the **Context** menu, or press `Ctrl+K` for
-the command palette — which searches every context *and* every action any context declares, and
+**Getting around:** click the rail, press `Ctrl+1..9` (nine contexts, so every one has a number now),
+use the **Context** menu, or press `Ctrl+K` for the command palette — which searches every context *and* every action any context declares, and
 switches context for you before running one.
 
-### The full-width bottom region (`WorkspaceContext.bottom`)
+### The full-width bottom drawer (`WorkspaceContext.bottom`)
 
 A context may name **one** panel that gets the workspace's full width, below everything else — the
 browser column and the parameter column both stop above it. This is NOT the dock: the dock lives
 *inside* the centre column and is flanked by those two.
 
-`timeline` is the reason it exists. An editing timeline wants the NLE shape — program monitor on top,
-lanes across the full width underneath — and lanes squeezed between a browser and an inspector are
-simply too narrow to cut in. Height is dragged from its top edge and remembered per context
-(`ContextLayout.bottomHeight`).
+The timeline is the reason it exists. An editing timeline wants the NLE shape — lanes across the full
+width, the picture above them — and lanes squeezed between a browser and an inspector are simply too
+narrow to cut in.
+
+**It is a drawer, not a fixed region.** Eight of the nine contexts name `VIEWPORT_TIMELINE` here (all but
+`calib`, a full-window wizard, and `settings`). The shell renders it collapsed to a **28px title strip**
+and opens it on `WorkspaceLayout.bottomOpen`, which is banked per context — so Mapping remembers that you
+were cutting in it while Venue & Rig stays closed. Height is dragged from its top edge, also per context
+(`ContextLayout.bottomHeight`, default 340).
+
+Three ways in: click the strip, `Ctrl+T` (`global.toggleBottom`, rebindable), or **View ▸ Timeline** in
+either menu. From code, `revealBottom()` in [`contexts/nav.ts`](../src/renderer/contexts/nav.ts) — which
+is what the Show Machine's *Timeline* action and a scene card's *Edit Timeline* call. Both used to be
+`goToContext('timeline')`, i.e. they took away the graph or the cue grid you were working in.
 
 ⚠ A **persistent viewport** named as `bottom` is rendered there and **nowhere else** — the shell filters
 it out of the left pane. A React element exists at exactly one position, and mounting `TimelinePanel`
 twice would double its keyboard hook and engine subscription, which is the one thing that must never
-happen. Moving between positions remounts it, exactly as the old dock-tab timeline did on every tab
-change.
+happen.
+
+That constraint is *why* the drawer only ever changes height rather than being conditionally rendered:
+with eight contexts naming the same id, the element keeps the same parent across a context switch and
+**never remounts**. When the timeline was a context it physically moved between the left pane's hidden
+slot and this region on every entry and exit, throwing away the operator's zoom, scroll and clip
+selection each time. Collapsed, the content sits at zero height, still mounted — verified safe because
+nothing under `components/timeline/` measures its own size at mount (every `getBoundingClientRect` /
+`clientWidth` read is inside a pointer handler or `onZoomFit`).
+
+One thing the operator has to arbitrate: **Mapping defaults to `dockOpen: true`**, so opening the drawer
+there on a short window leaves the 2D stage thin. Both regions collapse and both are remembered per
+context, which is exactly what banking is for — collapse one once and Mapping keeps it that way.
+
+### `companion` — the other pane, for a 3D context
+
+The shell pins the 3D scene to the **right** pane permanently (one WebGL context, never remounted), and
+the left pane shows the active context's own viewport. For a context whose viewport *is* the 3D scene
+that leaves nothing for the left pane, so `splitView` used to produce an empty half — a real dead state.
+Such a context names a **`companion`** viewport instead: `3d` declares `VIEWPORT_STAGE_2D`, which restores
+the stage-beside-3D arrangement the retired `tracking` context provided, now as a toggle rather than a
+rail entry. Contexts without a `companion` are unaffected.
 
 ### Live previews
 
@@ -211,8 +262,9 @@ each frame — neither adds a decode or a composite:
 
 - **Program Preview** — the whole timeline composited. It must `retainProgram()` while mounted (the
   engine only builds that canvas while something wants it) and `releaseProgram()` on unmount. Two
-  flavours: a padded inspector/dock card, and `ProgramMonitorViewport`, the full-bleed monitor the
-  `timeline` context puts above its lanes. Measured cost of keeping it open: **none** (60 fps with it
+  flavours: `ProgramPreviewPanel`, a padded card for the narrow browser/inspector columns, and
+  `ProgramMonitorViewport`, the full-bleed monitor — which is the `Program` **dock tab**, and was the
+  retired `timeline` context's viewport (a dock tab is the same shape, so nothing was lost). Measured cost of keeping it open: **none** (60 fps with it
   on vs 61 without) — it only blits a composite the engine already builds.
 - **Output Preview** — one live tile per enabled projector output. This is the **multi-screen** view:
   a surface spanned across several projectors becomes one slice surface per output, so the tiles show
@@ -278,10 +330,19 @@ rev into the banked slice and re-applies `layout` exactly once when the two diff
 meaningfully. Core contexts currently ship `layoutRev` 1–3 (bumped as their layouts were revised
 during the migration).
 
+⚠ `setContext` spreads only the keys a context **declares** over the live layout, so any banked key it
+omits silently keeps the *outgoing* context's value. That is how `bottomOpen` first shipped wrong: open
+the drawer in Mapping and it appeared pre-opened the first time you entered Venue & Rig — a per-context
+setting quietly behaving as a global one. Every context therefore declares all of `showLeft`,
+`showRight`, `dockOpen`, `splitView`, `bottomOpen`, and `verify:invariants` checks that it does.
+
 **Migration:** an install with no saved `activeContext` maps its last preset once — `edit→mapping`,
 `perform→show`, `calibrate→calib`, anything else (incl. `'custom'`) → the `mapping` default. A saved id
-that no longer resolves is remapped by `RETIRED_CONTEXTS` (`map`/`led`→`mapping`, `media`→`timeline`);
-without that the rail would open with nothing selected.
+that no longer resolves is remapped by `RETIRED_CONTEXTS` (`map`/`led`/`media`/`timeline`→`mapping`,
+`tracking`→`3d`); without that the rail would open with nothing selected. The lookup is **one hop, not
+transitive** — which is why dissolving `timeline` also meant repointing `media` at `mapping` rather than
+leaving it aimed at an id that no longer exists. Orphaned `contexts[id]` slices are never pruned and are
+harmless.
 
 ## How to…
 
@@ -325,7 +386,7 @@ npm run verify          # invariant guards + typecheck — the normal loop
 npm run verify:invariants   # just the guards (reads source, instant)
 ```
 
-`scripts/verify-invariants.cjs` — nine checks, each carrying the bug it came from and printing **why**
+`scripts/verify-invariants.cjs` — eleven checks, each carrying the bug it came from and printing **why**
 it matters when it fires:
 
 | Guard | The bug it prevents |
@@ -338,6 +399,8 @@ it matters when it fires:
 | the `scene3d` viewport id is declared once | a drifted copy mounts `Simulator3D` in both panes |
 | one `<Simulator3D>` mount site | two WebGL contexts, visible only as halved frame rate |
 | `Stage` / `TimelinePanel` mounted once | `Stage` publishes `dmx:frame`; two timelines double its keyboard hook and engine subscription |
+| every referenced context id still exists | removing a context breaks four things and none of them raise: `goToContext` no-ops, `extend()` queues its patch forever (a plugin's dock tabs never appear), a `CONTEXT_MENU_ITEMS` entry does nothing, a stale `RETIRED_CONTEXTS` target leaves the rail unselected |
+| every context declares all four visibility flags | an omitted banked key silently keeps the outgoing context's value — `bottomOpen` behaved as a global |
 | `EditorData` is memoized | rebuilt per render it re-renders every panel and closes native `<select>` popups |
 
 Two things learned writing them, worth keeping if you add more:

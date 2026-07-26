@@ -1,0 +1,284 @@
+[
+ {
+  "id": "lalucenatz/18leds-par-light",
+  "manufacturer": "LaluceNatz",
+  "model": "18LEDs Par Light",
+  "aliases": [
+   "18LEDs Par Light",
+   "18ledsparlight",
+   "LaluceNatz 18LEDs Par Light",
+   "lalucenatz18ledsparlight"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "master",
+    "label": "Master",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "rgb",
+    "label": "RGB",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Open"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "mode",
+    "label": "Mode",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "4ch",
+    "name": "4-channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "master",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "7ch",
+    "name": "7-channel",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "master",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "rgb",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "mode",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    175,
+    175,
+    99
+   ],
+   "weightKg": 0.8,
+   "powerW": 21,
+   "lensDegMin": 25,
+   "lensDegMax": 25
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "lalucenatz/18leds-par-light",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "lalucenatz/dj-lights",
+  "manufacturer": "LaluceNatz",
+  "model": "DJ Lights",
+  "aliases": [
+   "DJ Lights",
+   "LaluceNatz DJ Lights",
+   "djlights",
+   "lalucenatzdjlights"
+  ],
+  "categories": [
+   "Flower",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red-orange-dimmer",
+    "label": "Red + Orange Dimmer",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green-purple-dimmer",
+    "label": "Green + Purple Dimmer",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue-white",
+    "label": "Blue + White",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green-yellow-dimmer",
+    "label": "Green + Yellow Dimmer",
+    "role": "yellow",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "shutter-strobe",
+    "label": "Shutter / Strobe",
+    "role": "strobe",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "light-always-on",
+    "label": "Light Always On",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "sound-mode",
+    "label": "Sound Mode",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "8ch",
+    "name": "8-channel",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red-orange-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-purple-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue-white",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-yellow-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "light-always-on",
+      "byte": 0
+     },
+     {
+      "channelKey": "sound-mode",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    188,
+    196,
+    229
+   ],
+   "weightKg": 1.3
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "lalucenatz/dj-lights",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

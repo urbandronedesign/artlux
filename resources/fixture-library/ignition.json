@@ -1,0 +1,2033 @@
+[
+ {
+  "id": "ignition/2bright-par-18-ip",
+  "manufacturer": "Ignition",
+  "model": "2bright Par 18 IP",
+  "aliases": [
+   "2bright Par 18 IP",
+   "2brightpar18ip",
+   "Ignition 2bright Par 18 IP",
+   "ignition2brightpar18ip"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "Closed"
+     },
+     {
+      "from": 6,
+      "to": 255,
+      "label": "ColorTemperature"
+     }
+    ]
+   },
+   {
+    "key": "shutter-strobe",
+    "label": "Shutter / Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "Open"
+     },
+     {
+      "from": 6,
+      "to": 10,
+      "label": "Closed"
+     },
+     {
+      "from": 11,
+      "to": 33,
+      "label": "Spikes"
+     },
+     {
+      "from": 34,
+      "to": 56,
+      "label": "RampUp"
+     },
+     {
+      "from": 57,
+      "to": 79,
+      "label": "RampDown"
+     },
+     {
+      "from": 80,
+      "to": 102,
+      "label": "Strobe"
+     },
+     {
+      "from": 103,
+      "to": 127,
+      "label": "Spikes"
+     },
+     {
+      "from": 128,
+      "to": 250,
+      "label": "Strobe"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "color-macros",
+    "label": "Color Macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "NoFunction"
+     },
+     {
+      "from": 6,
+      "to": 10,
+      "label": "Blackout",
+      "color": "#000000"
+     },
+     {
+      "from": 11,
+      "to": 13,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 14,
+      "to": 16,
+      "label": "Dark orange",
+      "color": "#ff7f00"
+     },
+     {
+      "from": 17,
+      "to": 19,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 20,
+      "to": 22,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 23,
+      "to": 25,
+      "label": "Light blue",
+      "color": "#53b2ff"
+     },
+     {
+      "from": 26,
+      "to": 28,
+      "label": "Dark blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 29,
+      "to": 31,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 32,
+      "to": 34,
+      "label": "Pink",
+      "color": "#ff9def"
+     },
+     {
+      "from": 35,
+      "to": 37,
+      "label": "Lime",
+      "color": "#c8ff00"
+     },
+     {
+      "from": 38,
+      "to": 40,
+      "label": "Grey (dimmed white)",
+      "color": "#8a8a8a"
+     },
+     {
+      "from": 41,
+      "to": 43,
+      "label": "Red / orangeish",
+      "color": "#ff1e00"
+     },
+     {
+      "from": 44,
+      "to": 45,
+      "label": "Red / more orangeish",
+      "color": "#ff3c00"
+     },
+     {
+      "from": 46,
+      "to": 49,
+      "label": "Red / even more orangeish",
+      "color": "#ff5100"
+     },
+     {
+      "from": 50,
+      "to": 52,
+      "label": "Red / even even more orangeish",
+      "color": "#ff6600"
+     },
+     {
+      "from": 53,
+      "to": 58,
+      "label": "Orange",
+      "color": "#ff9100"
+     },
+     {
+      "from": 59,
+      "to": 61,
+      "label": "Dimmed orange",
+      "color": "#9b5800"
+     },
+     {
+      "from": 62,
+      "to": 64,
+      "label": "Dimmed yellow",
+      "color": "#9b9100"
+     },
+     {
+      "from": 65,
+      "to": 67,
+      "label": "Greenish yellow",
+      "color": "#eeff00"
+     },
+     {
+      "from": 68,
+      "to": 70,
+      "label": "More greenish yellow",
+      "color": "#c8ff00"
+     },
+     {
+      "from": 71,
+      "to": 73,
+      "label": "Green / slightly turquoise",
+      "color": "#00ff40"
+     },
+     {
+      "from": 74,
+      "to": 76,
+      "label": "Green / more turquoise",
+      "color": "#00ff80"
+     },
+     {
+      "from": 77,
+      "to": 79,
+      "label": "Turquoise",
+      "color": "#00ff9e"
+     },
+     {
+      "from": 80,
+      "to": 82,
+      "label": "Light blue",
+      "color": "#00e1ff"
+     },
+     {
+      "from": 83,
+      "to": 85,
+      "label": "Sky blue",
+      "color": "#00bfff"
+     },
+     {
+      "from": 86,
+      "to": 88,
+      "label": "Dark blue",
+      "color": "#0026ff"
+     },
+     {
+      "from": 89,
+      "to": 91,
+      "label": "Pale pink",
+      "color": "#ffd2f7"
+     },
+     {
+      "from": 92,
+      "to": 94,
+      "label": "More pink",
+      "color": "#ffa6f0"
+     },
+     {
+      "from": 95,
+      "to": 97,
+      "label": "Bright pink",
+      "color": "#ff60ec"
+     },
+     {
+      "from": 98,
+      "to": 100,
+      "label": "Dark red",
+      "color": "#910000"
+     },
+     {
+      "from": 101,
+      "to": 105,
+      "label": "Grey",
+      "color": "#8a8a8a"
+     },
+     {
+      "from": 106,
+      "to": 110,
+      "label": "Lighter grey",
+      "color": "#b3b3b3"
+     },
+     {
+      "from": 111,
+      "to": 115,
+      "label": "White / slightly blueish",
+      "color": "#ceffff"
+     },
+     {
+      "from": 116,
+      "to": 120,
+      "label": "White / more blueish",
+      "color": "#8affff"
+     },
+     {
+      "from": 121,
+      "to": 125,
+      "label": "UV",
+      "color": "#8800ff"
+     },
+     {
+      "from": 126,
+      "to": 127,
+      "label": "EffectSpeed"
+     },
+     {
+      "from": 128,
+      "to": 191,
+      "label": "ColorJump"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "ColorFade"
+     }
+    ]
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "uv",
+    "label": "UV",
+    "role": "uv",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer-curve",
+    "label": "Dimmer Curve",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "NoFunction"
+     },
+     {
+      "from": 6,
+      "to": 63,
+      "label": "Linear course"
+     },
+     {
+      "from": 64,
+      "to": 127,
+      "label": "Exponential course"
+     },
+     {
+      "from": 128,
+      "to": 191,
+      "label": "Logarithmic course"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "S-courve shaped course"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "2ch",
+    "name": "2-channel",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "3ch",
+    "name": "3-channel",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "6ch",
+    "name": "6-channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "9ch",
+    "name": "9-channel",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "11ch",
+    "name": "11-channel",
+    "footprint": 11,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-curve",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    290,
+    220,
+    140
+   ],
+   "weightKg": 7.5,
+   "powerW": 200,
+   "lensDegMin": 25,
+   "lensDegMax": 25
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "ignition/2bright-par-18-ip",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "ignition/led-accu-par",
+  "manufacturer": "Ignition",
+  "model": "LED Accu PAR",
+  "aliases": [
+   "Ignition LED Accu PAR",
+   "LED Accu PAR",
+   "ignitionledaccupar",
+   "ledaccupar"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "color-presets",
+    "label": "Color Presets",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "36 color presets"
+     }
+    ]
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "coldWhite",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "NoFunction"
+     },
+     {
+      "from": 16,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "effects",
+    "label": "Effects",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 31,
+      "label": "NoFunction"
+     },
+     {
+      "from": 32,
+      "to": 63,
+      "label": "RampUp"
+     },
+     {
+      "from": 64,
+      "to": 95,
+      "label": "RampDown"
+     },
+     {
+      "from": 96,
+      "to": 127,
+      "label": "RampUpDown"
+     },
+     {
+      "from": 128,
+      "to": 159,
+      "label": "ColorJump"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "ColorJump (3-color, random)"
+     },
+     {
+      "from": 192,
+      "to": 223,
+      "label": "ColorJump (7-color, random)"
+     },
+     {
+      "from": 224,
+      "to": 255,
+      "label": "Sound to light"
+     }
+    ]
+   },
+   {
+    "key": "effect-speed",
+    "label": "Effect Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer-2",
+    "label": "Dimmer 2",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "1-1ch",
+    "name": "1 / 1-channel",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "color-presets",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "2-2ch",
+    "name": "2 / 2-channel",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "color-presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "3-3ch",
+    "name": "3 / 3-channel",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "4-4ch",
+    "name": "4 / 4-channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "5-6ch",
+    "name": "5 / 6-channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "6-8ch1",
+    "name": "6 / 8-channel 1",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "effects",
+      "byte": 0
+     },
+     {
+      "channelKey": "effect-speed",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "7-8ch2",
+    "name": "7 / 8-channel 2",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "effects",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-2",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    285,
+    377.5,
+    274
+   ],
+   "weightKg": 7.1,
+   "powerW": 65,
+   "lensDegMin": 25,
+   "lensDegMax": 40
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "ignition/led-accu-par",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "ignition/teatro-led-spot-100-fr",
+  "manufacturer": "Ignition",
+  "model": "Teatro LED Spot 100 FR",
+  "aliases": [
+   "Ignition Teatro LED Spot 100 FR",
+   "Teatro LED Spot 100 FR",
+   "ignitionteatroledspot100fr",
+   "teatroledspot100fr"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "shutter",
+    "label": "Shutter",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Closed"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Open"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "Closed"
+     },
+     {
+      "from": 30,
+      "to": 119,
+      "label": "Strobe"
+     },
+     {
+      "from": 120,
+      "to": 149,
+      "label": "RampUp"
+     },
+     {
+      "from": 150,
+      "to": 179,
+      "label": "RampDown"
+     },
+     {
+      "from": 180,
+      "to": 229,
+      "label": "Strobe"
+     },
+     {
+      "from": 230,
+      "to": 235,
+      "label": "Strobe (Single flash 30 ms)"
+     },
+     {
+      "from": 236,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "functions",
+    "label": "Functions",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 14,
+      "label": "NoFunction"
+     },
+     {
+      "from": 15,
+      "to": 24,
+      "label": "Smooth: off"
+     },
+     {
+      "from": 25,
+      "to": 26,
+      "label": "Smooth: 1 (25ms)"
+     },
+     {
+      "from": 27,
+      "to": 28,
+      "label": "Smooth: 2 (50ms)"
+     },
+     {
+      "from": 29,
+      "to": 30,
+      "label": "Smooth: 3 (75ms)"
+     },
+     {
+      "from": 31,
+      "to": 32,
+      "label": "Smooth: 4 (100ms, default)"
+     },
+     {
+      "from": 33,
+      "to": 34,
+      "label": "Smooth: 5 (125ms)"
+     },
+     {
+      "from": 35,
+      "to": 36,
+      "label": "Smooth: 6 (150ms)"
+     },
+     {
+      "from": 37,
+      "to": 38,
+      "label": "Smooth: 7 (175ms)"
+     },
+     {
+      "from": 39,
+      "to": 40,
+      "label": "Smooth: 8 (200ms)"
+     },
+     {
+      "from": 41,
+      "to": 42,
+      "label": "Smooth: 9 (225ms)"
+     },
+     {
+      "from": 43,
+      "to": 44,
+      "label": "Smooth: 10 (250ms)"
+     },
+     {
+      "from": 45,
+      "to": 46,
+      "label": "Smooth: 11 (275ms)"
+     },
+     {
+      "from": 47,
+      "to": 48,
+      "label": "Smooth: 12 (300ms)"
+     },
+     {
+      "from": 49,
+      "to": 50,
+      "label": "Smooth: 13 (325ms)"
+     },
+     {
+      "from": 51,
+      "to": 52,
+      "label": "Smooth: 14 (350ms)"
+     },
+     {
+      "from": 53,
+      "to": 54,
+      "label": "Smooth: 15 (375ms)"
+     },
+     {
+      "from": 55,
+      "to": 56,
+      "label": "Smooth: 16 (400ms)"
+     },
+     {
+      "from": 57,
+      "to": 58,
+      "label": "Smooth: 17 (425ms)"
+     },
+     {
+      "from": 59,
+      "to": 60,
+      "label": "Smooth: 18 (450ms)"
+     },
+     {
+      "from": 61,
+      "to": 62,
+      "label": "Smooth: 19 (475ms)"
+     },
+     {
+      "from": 63,
+      "to": 64,
+      "label": "Smooth: 20 (500ms)"
+     },
+     {
+      "from": 65,
+      "to": 74,
+      "label": "Gamma correction: quadratic (default)"
+     },
+     {
+      "from": 75,
+      "to": 84,
+      "label": "Gamma correction: linear"
+     },
+     {
+      "from": 85,
+      "to": 104,
+      "label": "Output frequency: 610Hz (default)"
+     },
+     {
+      "from": 105,
+      "to": 105,
+      "label": "Output frequency: 800Hz"
+     },
+     {
+      "from": 106,
+      "to": 106,
+      "label": "Output frequency: 1000Hz"
+     },
+     {
+      "from": 107,
+      "to": 107,
+      "label": "Output frequency: 1500Hz"
+     },
+     {
+      "from": 108,
+      "to": 108,
+      "label": "Output frequency: 2000Hz"
+     },
+     {
+      "from": 109,
+      "to": 109,
+      "label": "Output frequency: 2500Hz"
+     },
+     {
+      "from": 110,
+      "to": 110,
+      "label": "Output frequency: 3000Hz"
+     },
+     {
+      "from": 111,
+      "to": 111,
+      "label": "Output frequency: 3500Hz"
+     },
+     {
+      "from": 112,
+      "to": 112,
+      "label": "Output frequency: 4000Hz"
+     },
+     {
+      "from": 113,
+      "to": 113,
+      "label": "Output frequency: 4500Hz"
+     },
+     {
+      "from": 114,
+      "to": 114,
+      "label": "Output frequency: 5000Hz"
+     },
+     {
+      "from": 115,
+      "to": 115,
+      "label": "Output frequency: 5500Hz"
+     },
+     {
+      "from": 116,
+      "to": 116,
+      "label": "Output frequency: 6000Hz"
+     },
+     {
+      "from": 117,
+      "to": 117,
+      "label": "Output frequency: 6500Hz"
+     },
+     {
+      "from": 118,
+      "to": 118,
+      "label": "Output frequency: 7000Hz"
+     },
+     {
+      "from": 119,
+      "to": 119,
+      "label": "Output frequency: 7500Hz"
+     },
+     {
+      "from": 120,
+      "to": 120,
+      "label": "Output frequency: 8000Hz"
+     },
+     {
+      "from": 121,
+      "to": 121,
+      "label": "Output frequency: 8500Hz"
+     },
+     {
+      "from": 122,
+      "to": 122,
+      "label": "Output frequency: 9000Hz"
+     },
+     {
+      "from": 123,
+      "to": 123,
+      "label": "Output frequency: 9500Hz"
+     },
+     {
+      "from": 124,
+      "to": 124,
+      "label": "Output frequency: 10000Hz"
+     },
+     {
+      "from": 125,
+      "to": 125,
+      "label": "Output frequency: 11000Hz"
+     },
+     {
+      "from": 126,
+      "to": 126,
+      "label": "Output frequency: 12000Hz"
+     },
+     {
+      "from": 127,
+      "to": 127,
+      "label": "Output frequency: 13000Hz"
+     },
+     {
+      "from": 128,
+      "to": 128,
+      "label": "Output frequency: 14000Hz"
+     },
+     {
+      "from": 129,
+      "to": 129,
+      "label": "Output frequency: 15000Hz"
+     },
+     {
+      "from": 130,
+      "to": 130,
+      "label": "Output frequency: 16000Hz"
+     },
+     {
+      "from": 131,
+      "to": 131,
+      "label": "Output frequency: 17000Hz"
+     },
+     {
+      "from": 132,
+      "to": 132,
+      "label": "Output frequency: 18000Hz"
+     },
+     {
+      "from": 133,
+      "to": 133,
+      "label": "Output frequency: 19000Hz"
+     },
+     {
+      "from": 134,
+      "to": 134,
+      "label": "Output frequency: 20000Hz"
+     },
+     {
+      "from": 135,
+      "to": 144,
+      "label": "Boost: on (default)"
+     },
+     {
+      "from": 145,
+      "to": 154,
+      "label": "Boost: off"
+     },
+     {
+      "from": 155,
+      "to": 164,
+      "label": "Display stand-by: off (default)"
+     },
+     {
+      "from": 165,
+      "to": 174,
+      "label": "Display stand-by: on"
+     },
+     {
+      "from": 175,
+      "to": 176,
+      "label": "No DMX action: keep last DMX (default)"
+     },
+     {
+      "from": 177,
+      "to": 178,
+      "label": "No DMX action: blackout"
+     },
+     {
+      "from": 179,
+      "to": 180,
+      "label": "No DMX action: LED on @ 100% (ZOOM @ 50%)"
+     },
+     {
+      "from": 181,
+      "to": 182,
+      "label": "No DMX action: LED on @ 60% (ZOOM @ 50%)"
+     },
+     {
+      "from": 183,
+      "to": 184,
+      "label": "No DMX action: custom (default: Dimmer 255; Shutter 015; Zoom 128)"
+     },
+     {
+      "from": 185,
+      "to": 194,
+      "label": "NoFunction"
+     },
+     {
+      "from": 195,
+      "to": 204,
+      "label": "NoFunction"
+     },
+     {
+      "from": 205,
+      "to": 214,
+      "label": "NoFunction"
+     },
+     {
+      "from": 215,
+      "to": 224,
+      "label": "NoFunction"
+     },
+     {
+      "from": 225,
+      "to": 234,
+      "label": "NoFunction"
+     },
+     {
+      "from": 235,
+      "to": 239,
+      "label": "Fan mode: standard"
+     },
+     {
+      "from": 240,
+      "to": 244,
+      "label": "Fan mode: silent (default)"
+     },
+     {
+      "from": 245,
+      "to": 248,
+      "label": "Zoom mode: standard"
+     },
+     {
+      "from": 249,
+      "to": 252,
+      "label": "Zoom mode: silent (default)"
+     },
+     {
+      "from": 253,
+      "to": 255,
+      "label": "Set all default values"
+     }
+    ]
+   },
+   {
+    "key": "zoom",
+    "label": "Zoom",
+    "role": "zoom",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "reset",
+    "label": "Reset",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "NoFunction"
+     },
+     {
+      "from": 16,
+      "to": 255,
+      "label": "Reset Zoom"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "2ch",
+    "name": "2-channel",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "6ch",
+    "name": "6-channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "shutter",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "functions",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "reset",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    214,
+    188,
+    315
+   ],
+   "weightKg": 5.2,
+   "powerW": 150,
+   "lensDegMin": 17,
+   "lensDegMax": 82
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "ignition/teatro-led-spot-100-fr",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "ignition/teatro-led-spot-100-pc",
+  "manufacturer": "Ignition",
+  "model": "Teatro LED Spot 100 PC",
+  "aliases": [
+   "Ignition Teatro LED Spot 100 PC",
+   "Teatro LED Spot 100 PC",
+   "ignitionteatroledspot100pc",
+   "teatroledspot100pc"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "shutter",
+    "label": "Shutter",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Closed"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Open"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "Closed"
+     },
+     {
+      "from": 30,
+      "to": 119,
+      "label": "Strobe"
+     },
+     {
+      "from": 120,
+      "to": 149,
+      "label": "RampUp"
+     },
+     {
+      "from": 150,
+      "to": 179,
+      "label": "RampDown"
+     },
+     {
+      "from": 180,
+      "to": 229,
+      "label": "Strobe"
+     },
+     {
+      "from": 230,
+      "to": 235,
+      "label": "Strobe (Single flash 30 ms)"
+     },
+     {
+      "from": 236,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "functions",
+    "label": "Functions",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 14,
+      "label": "NoFunction"
+     },
+     {
+      "from": 15,
+      "to": 24,
+      "label": "Smooth: off"
+     },
+     {
+      "from": 25,
+      "to": 26,
+      "label": "Smooth: 1 (25ms)"
+     },
+     {
+      "from": 27,
+      "to": 28,
+      "label": "Smooth: 2 (50ms)"
+     },
+     {
+      "from": 29,
+      "to": 30,
+      "label": "Smooth: 3 (75ms)"
+     },
+     {
+      "from": 31,
+      "to": 32,
+      "label": "Smooth: 4 (100ms, default)"
+     },
+     {
+      "from": 33,
+      "to": 34,
+      "label": "Smooth: 5 (125ms)"
+     },
+     {
+      "from": 35,
+      "to": 36,
+      "label": "Smooth: 6 (150ms)"
+     },
+     {
+      "from": 37,
+      "to": 38,
+      "label": "Smooth: 7 (175ms)"
+     },
+     {
+      "from": 39,
+      "to": 40,
+      "label": "Smooth: 8 (200ms)"
+     },
+     {
+      "from": 41,
+      "to": 42,
+      "label": "Smooth: 9 (225ms)"
+     },
+     {
+      "from": 43,
+      "to": 44,
+      "label": "Smooth: 10 (250ms)"
+     },
+     {
+      "from": 45,
+      "to": 46,
+      "label": "Smooth: 11 (275ms)"
+     },
+     {
+      "from": 47,
+      "to": 48,
+      "label": "Smooth: 12 (300ms)"
+     },
+     {
+      "from": 49,
+      "to": 50,
+      "label": "Smooth: 13 (325ms)"
+     },
+     {
+      "from": 51,
+      "to": 52,
+      "label": "Smooth: 14 (350ms)"
+     },
+     {
+      "from": 53,
+      "to": 54,
+      "label": "Smooth: 15 (375ms)"
+     },
+     {
+      "from": 55,
+      "to": 56,
+      "label": "Smooth: 16 (400ms)"
+     },
+     {
+      "from": 57,
+      "to": 58,
+      "label": "Smooth: 17 (425ms)"
+     },
+     {
+      "from": 59,
+      "to": 60,
+      "label": "Smooth: 18 (450ms)"
+     },
+     {
+      "from": 61,
+      "to": 62,
+      "label": "Smooth: 19 (475ms)"
+     },
+     {
+      "from": 63,
+      "to": 64,
+      "label": "Smooth: 20 (500ms)"
+     },
+     {
+      "from": 65,
+      "to": 74,
+      "label": "Gamma correction: quadratic (default)"
+     },
+     {
+      "from": 75,
+      "to": 84,
+      "label": "Gamma correction: linear"
+     },
+     {
+      "from": 85,
+      "to": 104,
+      "label": "Output frequency: 610Hz (default)"
+     },
+     {
+      "from": 105,
+      "to": 105,
+      "label": "Output frequency: 800Hz"
+     },
+     {
+      "from": 106,
+      "to": 106,
+      "label": "Output frequency: 1000Hz"
+     },
+     {
+      "from": 107,
+      "to": 107,
+      "label": "Output frequency: 1500Hz"
+     },
+     {
+      "from": 108,
+      "to": 108,
+      "label": "Output frequency: 2000Hz"
+     },
+     {
+      "from": 109,
+      "to": 109,
+      "label": "Output frequency: 2500Hz"
+     },
+     {
+      "from": 110,
+      "to": 110,
+      "label": "Output frequency: 3000Hz"
+     },
+     {
+      "from": 111,
+      "to": 111,
+      "label": "Output frequency: 3500Hz"
+     },
+     {
+      "from": 112,
+      "to": 112,
+      "label": "Output frequency: 4000Hz"
+     },
+     {
+      "from": 113,
+      "to": 113,
+      "label": "Output frequency: 4500Hz"
+     },
+     {
+      "from": 114,
+      "to": 114,
+      "label": "Output frequency: 5000Hz"
+     },
+     {
+      "from": 115,
+      "to": 115,
+      "label": "Output frequency: 5500Hz"
+     },
+     {
+      "from": 116,
+      "to": 116,
+      "label": "Output frequency: 6000Hz"
+     },
+     {
+      "from": 117,
+      "to": 117,
+      "label": "Output frequency: 6500Hz"
+     },
+     {
+      "from": 118,
+      "to": 118,
+      "label": "Output frequency: 7000Hz"
+     },
+     {
+      "from": 119,
+      "to": 119,
+      "label": "Output frequency: 7500Hz"
+     },
+     {
+      "from": 120,
+      "to": 120,
+      "label": "Output frequency: 8000Hz"
+     },
+     {
+      "from": 121,
+      "to": 121,
+      "label": "Output frequency: 8500Hz"
+     },
+     {
+      "from": 122,
+      "to": 122,
+      "label": "Output frequency: 9000Hz"
+     },
+     {
+      "from": 123,
+      "to": 123,
+      "label": "Output frequency: 9500Hz"
+     },
+     {
+      "from": 124,
+      "to": 124,
+      "label": "Output frequency: 10000Hz"
+     },
+     {
+      "from": 125,
+      "to": 125,
+      "label": "Output frequency: 11000Hz"
+     },
+     {
+      "from": 126,
+      "to": 126,
+      "label": "Output frequency: 12000Hz"
+     },
+     {
+      "from": 127,
+      "to": 127,
+      "label": "Output frequency: 13000Hz"
+     },
+     {
+      "from": 128,
+      "to": 128,
+      "label": "Output frequency: 14000Hz"
+     },
+     {
+      "from": 129,
+      "to": 129,
+      "label": "Output frequency: 15000Hz"
+     },
+     {
+      "from": 130,
+      "to": 130,
+      "label": "Output frequency: 16000Hz"
+     },
+     {
+      "from": 131,
+      "to": 131,
+      "label": "Output frequency: 17000Hz"
+     },
+     {
+      "from": 132,
+      "to": 132,
+      "label": "Output frequency: 18000Hz"
+     },
+     {
+      "from": 133,
+      "to": 133,
+      "label": "Output frequency: 19000Hz"
+     },
+     {
+      "from": 134,
+      "to": 134,
+      "label": "Output frequency: 20000Hz"
+     },
+     {
+      "from": 135,
+      "to": 144,
+      "label": "Boost: on (default)"
+     },
+     {
+      "from": 145,
+      "to": 154,
+      "label": "Boost: off"
+     },
+     {
+      "from": 155,
+      "to": 164,
+      "label": "Display stand-by: off (default)"
+     },
+     {
+      "from": 165,
+      "to": 174,
+      "label": "Display stand-by: on"
+     },
+     {
+      "from": 175,
+      "to": 176,
+      "label": "No DMX action: keep last DMX (default)"
+     },
+     {
+      "from": 177,
+      "to": 178,
+      "label": "No DMX action: blackout"
+     },
+     {
+      "from": 179,
+      "to": 180,
+      "label": "No DMX action: LED on @ 100% (ZOOM @ 50%)"
+     },
+     {
+      "from": 181,
+      "to": 182,
+      "label": "No DMX action: LED on @ 60% (ZOOM @ 50%)"
+     },
+     {
+      "from": 183,
+      "to": 184,
+      "label": "No DMX action: custom (default: Dimmer 255; Shutter 015; Zoom 128)"
+     },
+     {
+      "from": 185,
+      "to": 194,
+      "label": "NoFunction"
+     },
+     {
+      "from": 195,
+      "to": 204,
+      "label": "NoFunction"
+     },
+     {
+      "from": 205,
+      "to": 214,
+      "label": "NoFunction"
+     },
+     {
+      "from": 215,
+      "to": 224,
+      "label": "NoFunction"
+     },
+     {
+      "from": 225,
+      "to": 234,
+      "label": "NoFunction"
+     },
+     {
+      "from": 235,
+      "to": 239,
+      "label": "Fan mode: standard"
+     },
+     {
+      "from": 240,
+      "to": 244,
+      "label": "Fan mode: silent (default)"
+     },
+     {
+      "from": 245,
+      "to": 248,
+      "label": "Zoom mode: standard"
+     },
+     {
+      "from": 249,
+      "to": 252,
+      "label": "Zoom mode: silent (default)"
+     },
+     {
+      "from": 253,
+      "to": 255,
+      "label": "Set all default values"
+     }
+    ]
+   },
+   {
+    "key": "zoom",
+    "label": "Zoom",
+    "role": "zoom",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "reset",
+    "label": "Reset",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 15,
+      "label": "NoFunction"
+     },
+     {
+      "from": 16,
+      "to": 255,
+      "label": "Reset Zoom"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "2ch",
+    "name": "2-channel",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "6ch",
+    "name": "6-channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "shutter",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "functions",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "reset",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    214,
+    188,
+    315
+   ],
+   "weightKg": 5.5,
+   "powerW": 150,
+   "lensDegMin": 12,
+   "lensDegMax": 79
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "ignition/teatro-led-spot-100-pc",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

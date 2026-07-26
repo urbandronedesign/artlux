@@ -1,0 +1,6477 @@
+[
+ {
+  "id": "etc/colorsource-par-deep-blue",
+  "manufacturer": "ETC",
+  "model": "ColorSource PAR Deep Blue",
+  "aliases": [
+   "ColorSource PAR Deep Blue",
+   "ETC ColorSource PAR Deep Blue",
+   "colorsourcepardeepblue",
+   "etccolorsourcepardeepblue"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "indigo",
+    "label": "Indigo",
+    "role": "indigo",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "lime",
+    "label": "Lime",
+    "role": "lime",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 254,
+      "label": "Strobe"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "5ch",
+    "name": "5 Channel (Default)",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "indigo",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "dir",
+    "name": "Direct",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "indigo",
+      "byte": 0
+     },
+     {
+      "channelKey": "lime",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "1ch",
+    "name": "1 Channel",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "rgb",
+    "name": "RGB",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "indigo",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    203,
+    310,
+    240
+   ],
+   "weightKg": 3.77,
+   "powerW": 90,
+   "lensDegMin": 14.5,
+   "lensDegMax": 14.5
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "etc/colorsource-par-deep-blue",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "etc/colorsource-par",
+  "manufacturer": "ETC",
+  "model": "ColorSource PAR",
+  "aliases": [
+   "ColorSource PAR",
+   "ETC ColorSource PAR",
+   "colorsourcepar",
+   "etccolorsourcepar"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "lime",
+    "label": "Lime",
+    "role": "lime",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 254,
+      "label": "Strobe"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "5ch",
+    "name": "5 Channel (Default)",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "dir",
+    "name": "Direct",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "lime",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "1ch",
+    "name": "1 Channel",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "rgb",
+    "name": "RGB",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    203,
+    310,
+    240
+   ],
+   "weightKg": 3.77,
+   "powerW": 90,
+   "lensDegMin": 14.5,
+   "lensDegMax": 14.5
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "etc/colorsource-par",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "etc/colorsource-spot-deep-blue",
+  "manufacturer": "ETC",
+  "model": "ColorSource Spot Deep Blue",
+  "aliases": [
+   "ColorSource Spot Deep Blue",
+   "ETC ColorSource Spot Deep Blue",
+   "colorsourcespotdeepblue",
+   "etccolorsourcespotdeepblue"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "indigo",
+    "label": "Indigo",
+    "role": "indigo",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "lime",
+    "label": "Lime",
+    "role": "lime",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 254,
+      "label": "Strobe"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "5ch",
+    "name": "5 Channel (Default)",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "indigo",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "dir",
+    "name": "Direct",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "indigo",
+      "byte": 0
+     },
+     {
+      "channelKey": "lime",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "1ch",
+    "name": "1 Channel",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "rgb",
+    "name": "RGB",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "indigo",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    339,
+    593,
+    672
+   ],
+   "weightKg": 7.7,
+   "powerW": 147
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "etc/colorsource-spot-deep-blue",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "etc/colorsource-spot",
+  "manufacturer": "ETC",
+  "model": "ColorSource Spot",
+  "aliases": [
+   "ColorSource Spot",
+   "ETC ColorSource Spot",
+   "colorsourcespot",
+   "etccolorsourcespot"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "lime",
+    "label": "Lime",
+    "role": "lime",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 254,
+      "label": "Strobe"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "5ch",
+    "name": "5 Channel (Default)",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "dir",
+    "name": "Direct",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "lime",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "1ch",
+    "name": "1 Channel",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "rgb",
+    "name": "RGB",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    339,
+    593,
+    672
+   ],
+   "weightKg": 7.7,
+   "powerW": 147
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "etc/colorsource-spot",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "etc/fos4PD16",
+  "manufacturer": "ETC",
+  "model": "fos/4 PD16",
+  "aliases": [
+   "ETC fos/4 PD16",
+   "etcfos4pd16",
+   "fos/4 PD16",
+   "fos4pd16"
+  ],
+  "categories": [
+   "Dimmer",
+   "Color Changer",
+   "Strobe"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "deep-red",
+    "label": "Deep Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "mint",
+    "label": "Mint",
+    "role": "lime",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "cyan",
+    "label": "Cyan",
+    "role": "cyan",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "indigo",
+    "label": "Indigo",
+    "role": "indigo",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Open"
+     },
+     {
+      "from": 1,
+      "to": 40,
+      "label": "Strobe (Dark Strobe)"
+     },
+     {
+      "from": 41,
+      "to": 80,
+      "label": "Strobe (Bright Strobe)"
+     },
+     {
+      "from": 81,
+      "to": 120,
+      "label": "Pulse"
+     },
+     {
+      "from": 121,
+      "to": 160,
+      "label": "Pulse (Random)"
+     },
+     {
+      "from": 161,
+      "to": 200,
+      "label": "Spikes (Flicker)"
+     },
+     {
+      "from": 201,
+      "to": 240,
+      "label": "Open"
+     },
+     {
+      "from": 241,
+      "to": 254,
+      "label": "Closed"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "dimmer-curve",
+    "label": "Dimmer Curve",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Incandescent"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Linear"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "Incandescent Red Shift"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "Linear Red Shift"
+     },
+     {
+      "from": 40,
+      "to": 255,
+      "label": "Reserved"
+     }
+    ]
+   },
+   {
+    "key": "fan",
+    "label": "Fan",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Fan auto"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Rotation"
+     },
+     {
+      "from": 20,
+      "to": 249,
+      "label": "Rotation"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Fan auto"
+     }
+    ]
+   },
+   {
+    "key": "mix",
+    "label": "Mix",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Full Studio"
+     },
+     {
+      "from": 1,
+      "to": 254,
+      "label": "Linear interpolation from Studio to RGB"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Full RGB"
+     }
+    ]
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "3200K"
+     },
+     {
+      "from": 1,
+      "to": 165,
+      "label": "ColorTemperature"
+     },
+     {
+      "from": 166,
+      "to": 254,
+      "label": "ColorTemperature"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "5600K"
+     }
+    ]
+   },
+   {
+    "key": "tint",
+    "label": "Tint",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Tint"
+     },
+     {
+      "from": 1,
+      "to": 127,
+      "label": "Tint"
+     },
+     {
+      "from": 128,
+      "to": 128,
+      "label": "Tint"
+     },
+     {
+      "from": 129,
+      "to": 255,
+      "label": "Tint"
+     }
+    ]
+   },
+   {
+    "key": "tuning",
+    "label": "Tuning",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 49,
+      "label": "Brightest"
+     },
+     {
+      "from": 50,
+      "to": 99,
+      "label": "Hybrid"
+     },
+     {
+      "from": 100,
+      "to": 149,
+      "label": "Spectral"
+     },
+     {
+      "from": 150,
+      "to": 255,
+      "label": "Reserved"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "direct",
+    "name": "Direct",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "deep-red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "mint",
+      "byte": 0
+     },
+     {
+      "channelKey": "cyan",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "indigo",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-curve",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "expanded",
+    "name": "Expanded",
+    "footprint": 11,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "tint",
+      "byte": 0
+     },
+     {
+      "channelKey": "tuning",
+      "byte": 0
+     },
+     {
+      "channelKey": "mix",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-curve",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "studio",
+    "name": "Studio",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "tint",
+      "byte": 0
+     },
+     {
+      "channelKey": "tuning",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-curve",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "3-ch-rgb",
+    "name": "3 Ch RGB",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "intensity",
+    "name": "Intensity",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    406,
+    610,
+    631
+   ],
+   "weightKg": 25.4,
+   "powerW": 1070
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "etc/fos4PD16",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "etc/fos4PD24",
+  "manufacturer": "ETC",
+  "model": "fos/4 PD24",
+  "aliases": [
+   "ETC fos/4 PD24",
+   "etcfos4pd24",
+   "fos/4 PD24",
+   "fos4pd24"
+  ],
+  "categories": [
+   "Dimmer",
+   "Color Changer",
+   "Strobe"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "deep-red",
+    "label": "Deep Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "mint",
+    "label": "Mint",
+    "role": "lime",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "cyan",
+    "label": "Cyan",
+    "role": "cyan",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "indigo",
+    "label": "Indigo",
+    "role": "indigo",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Open"
+     },
+     {
+      "from": 1,
+      "to": 40,
+      "label": "Strobe (Dark Strobe)"
+     },
+     {
+      "from": 41,
+      "to": 80,
+      "label": "Strobe (Bright Strobe)"
+     },
+     {
+      "from": 81,
+      "to": 120,
+      "label": "Pulse"
+     },
+     {
+      "from": 121,
+      "to": 160,
+      "label": "Pulse (Random)"
+     },
+     {
+      "from": 161,
+      "to": 200,
+      "label": "Spikes (Flicker)"
+     },
+     {
+      "from": 201,
+      "to": 240,
+      "label": "Open"
+     },
+     {
+      "from": 241,
+      "to": 254,
+      "label": "Closed"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "dimmer-curve",
+    "label": "Dimmer Curve",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Incandescent"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Linear"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "Incandescent Red Shift"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "Linear Red Shift"
+     },
+     {
+      "from": 40,
+      "to": 255,
+      "label": "Reserved"
+     }
+    ]
+   },
+   {
+    "key": "fan",
+    "label": "Fan",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Fan auto"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Rotation"
+     },
+     {
+      "from": 20,
+      "to": 249,
+      "label": "Rotation"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Fan auto"
+     }
+    ]
+   },
+   {
+    "key": "mix",
+    "label": "Mix",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Full Studio"
+     },
+     {
+      "from": 1,
+      "to": 254,
+      "label": "Linear interpolation from Studio to RGB"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Full RGB"
+     }
+    ]
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "3200K"
+     },
+     {
+      "from": 1,
+      "to": 165,
+      "label": "ColorTemperature"
+     },
+     {
+      "from": 166,
+      "to": 254,
+      "label": "ColorTemperature"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "5600K"
+     }
+    ]
+   },
+   {
+    "key": "tint",
+    "label": "Tint",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Tint"
+     },
+     {
+      "from": 1,
+      "to": 127,
+      "label": "Tint"
+     },
+     {
+      "from": 128,
+      "to": 128,
+      "label": "Tint"
+     },
+     {
+      "from": 129,
+      "to": 255,
+      "label": "Tint"
+     }
+    ]
+   },
+   {
+    "key": "tuning",
+    "label": "Tuning",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 49,
+      "label": "Brightest"
+     },
+     {
+      "from": 50,
+      "to": 99,
+      "label": "Hybrid"
+     },
+     {
+      "from": 100,
+      "to": 149,
+      "label": "Spectral"
+     },
+     {
+      "from": 150,
+      "to": 255,
+      "label": "Reserved"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "direct",
+    "name": "Direct",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "deep-red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "mint",
+      "byte": 0
+     },
+     {
+      "channelKey": "cyan",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "indigo",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-curve",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "expanded",
+    "name": "Expanded",
+    "footprint": 11,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "tint",
+      "byte": 0
+     },
+     {
+      "channelKey": "tuning",
+      "byte": 0
+     },
+     {
+      "channelKey": "mix",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-curve",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "studio",
+    "name": "Studio",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "tint",
+      "byte": 0
+     },
+     {
+      "channelKey": "tuning",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-curve",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "3-ch-rgb",
+    "name": "3 Ch RGB",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "intensity",
+    "name": "Intensity",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    610,
+    610,
+    631
+   ],
+   "weightKg": 35.8,
+   "powerW": 1600
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "etc/fos4PD24",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "etc/fos4PD8",
+  "manufacturer": "ETC",
+  "model": "fos/4 PD8",
+  "aliases": [
+   "ETC fos/4 PD8",
+   "etcfos4pd8",
+   "fos/4 PD8",
+   "fos4pd8"
+  ],
+  "categories": [
+   "Dimmer",
+   "Color Changer",
+   "Strobe"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "deep-red",
+    "label": "Deep Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "mint",
+    "label": "Mint",
+    "role": "lime",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "cyan",
+    "label": "Cyan",
+    "role": "cyan",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "indigo",
+    "label": "Indigo",
+    "role": "indigo",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Open"
+     },
+     {
+      "from": 1,
+      "to": 40,
+      "label": "Strobe (Dark Strobe)"
+     },
+     {
+      "from": 41,
+      "to": 80,
+      "label": "Strobe (Bright Strobe)"
+     },
+     {
+      "from": 81,
+      "to": 120,
+      "label": "Pulse"
+     },
+     {
+      "from": 121,
+      "to": 160,
+      "label": "Pulse (Random)"
+     },
+     {
+      "from": 161,
+      "to": 200,
+      "label": "Spikes (Flicker)"
+     },
+     {
+      "from": 201,
+      "to": 240,
+      "label": "Open"
+     },
+     {
+      "from": 241,
+      "to": 254,
+      "label": "Closed"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "dimmer-curve",
+    "label": "Dimmer Curve",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Incandescent"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Linear"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "Incandescent Red Shift"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "Linear Red Shift"
+     },
+     {
+      "from": 40,
+      "to": 255,
+      "label": "Reserved"
+     }
+    ]
+   },
+   {
+    "key": "fan",
+    "label": "Fan",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Fan auto"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Rotation"
+     },
+     {
+      "from": 20,
+      "to": 249,
+      "label": "Rotation"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Fan auto"
+     }
+    ]
+   },
+   {
+    "key": "mix",
+    "label": "Mix",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Full Studio"
+     },
+     {
+      "from": 1,
+      "to": 254,
+      "label": "Linear interpolation from Studio to RGB"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Full RGB"
+     }
+    ]
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "3200K"
+     },
+     {
+      "from": 1,
+      "to": 165,
+      "label": "ColorTemperature"
+     },
+     {
+      "from": 166,
+      "to": 254,
+      "label": "ColorTemperature"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "5600K"
+     }
+    ]
+   },
+   {
+    "key": "tint",
+    "label": "Tint",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Tint"
+     },
+     {
+      "from": 1,
+      "to": 127,
+      "label": "Tint"
+     },
+     {
+      "from": 128,
+      "to": 128,
+      "label": "Tint"
+     },
+     {
+      "from": 129,
+      "to": 255,
+      "label": "Tint"
+     }
+    ]
+   },
+   {
+    "key": "tuning",
+    "label": "Tuning",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 49,
+      "label": "Brightest"
+     },
+     {
+      "from": 50,
+      "to": 99,
+      "label": "Hybrid"
+     },
+     {
+      "from": 100,
+      "to": 149,
+      "label": "Spectral"
+     },
+     {
+      "from": 150,
+      "to": 255,
+      "label": "Reserved"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "direct",
+    "name": "Direct",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "deep-red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "mint",
+      "byte": 0
+     },
+     {
+      "channelKey": "cyan",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "indigo",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-curve",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "expanded",
+    "name": "Expanded",
+    "footprint": 11,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "tint",
+      "byte": 0
+     },
+     {
+      "channelKey": "tuning",
+      "byte": 0
+     },
+     {
+      "channelKey": "mix",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-curve",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "studio",
+    "name": "Studio",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "tint",
+      "byte": 0
+     },
+     {
+      "channelKey": "tuning",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-curve",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "3-ch-rgb",
+    "name": "3 Ch RGB",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "intensity",
+    "name": "Intensity",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    203,
+    610,
+    631
+   ],
+   "weightKg": 14.5,
+   "powerW": 540
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "etc/fos4PD8",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "etc/fos4PL16",
+  "manufacturer": "ETC",
+  "model": "fos/4 PL16",
+  "aliases": [
+   "ETC fos/4 PL16",
+   "etcfos4pl16",
+   "fos/4 PL16",
+   "fos4pl16"
+  ],
+  "categories": [
+   "Dimmer",
+   "Color Changer",
+   "Strobe"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "deep-red",
+    "label": "Deep Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "lime",
+    "label": "Lime",
+    "role": "lime",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "cyan",
+    "label": "Cyan",
+    "role": "cyan",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "indigo",
+    "label": "Indigo",
+    "role": "indigo",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Open"
+     },
+     {
+      "from": 1,
+      "to": 40,
+      "label": "Strobe (Dark Strobe)"
+     },
+     {
+      "from": 41,
+      "to": 80,
+      "label": "Strobe (Bright Strobe)"
+     },
+     {
+      "from": 81,
+      "to": 120,
+      "label": "Pulse"
+     },
+     {
+      "from": 121,
+      "to": 160,
+      "label": "Pulse (Random)"
+     },
+     {
+      "from": 161,
+      "to": 200,
+      "label": "Spikes (Flicker)"
+     },
+     {
+      "from": 201,
+      "to": 240,
+      "label": "Open"
+     },
+     {
+      "from": 241,
+      "to": 254,
+      "label": "Closed"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "dimmer-curve",
+    "label": "Dimmer Curve",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Incandescent"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Linear"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "Incandescent Red Shift"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "Linear Red Shift"
+     },
+     {
+      "from": 40,
+      "to": 255,
+      "label": "Reserved"
+     }
+    ]
+   },
+   {
+    "key": "fan",
+    "label": "Fan",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Fan auto"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Rotation"
+     },
+     {
+      "from": 20,
+      "to": 249,
+      "label": "Rotation"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Fan auto"
+     }
+    ]
+   },
+   {
+    "key": "mix",
+    "label": "Mix",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Full Studio"
+     },
+     {
+      "from": 1,
+      "to": 254,
+      "label": "Linear interpolation from Studio to RGB"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Full RGB"
+     }
+    ]
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "3200K"
+     },
+     {
+      "from": 1,
+      "to": 165,
+      "label": "ColorTemperature"
+     },
+     {
+      "from": 166,
+      "to": 254,
+      "label": "ColorTemperature"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "5600K"
+     }
+    ]
+   },
+   {
+    "key": "tint",
+    "label": "Tint",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Tint"
+     },
+     {
+      "from": 1,
+      "to": 127,
+      "label": "Tint"
+     },
+     {
+      "from": 128,
+      "to": 128,
+      "label": "Tint"
+     },
+     {
+      "from": 129,
+      "to": 255,
+      "label": "Tint"
+     }
+    ]
+   },
+   {
+    "key": "tuning",
+    "label": "Tuning",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 49,
+      "label": "Brightest"
+     },
+     {
+      "from": 50,
+      "to": 99,
+      "label": "Hybrid"
+     },
+     {
+      "from": 100,
+      "to": 149,
+      "label": "Spectral"
+     },
+     {
+      "from": 150,
+      "to": 255,
+      "label": "Reserved"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "direct",
+    "name": "Direct",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "deep-red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "lime",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "cyan",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "indigo",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-curve",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "expanded",
+    "name": "Expanded",
+    "footprint": 11,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "tint",
+      "byte": 0
+     },
+     {
+      "channelKey": "tuning",
+      "byte": 0
+     },
+     {
+      "channelKey": "mix",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-curve",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "studio",
+    "name": "Studio",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "tint",
+      "byte": 0
+     },
+     {
+      "channelKey": "tuning",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-curve",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "3-ch-rgb",
+    "name": "3 Ch RGB",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "intensity",
+    "name": "Intensity",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    406,
+    610,
+    631
+   ],
+   "weightKg": 25.4,
+   "powerW": 1070
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "etc/fos4PL16",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "etc/fos4PL24",
+  "manufacturer": "ETC",
+  "model": "fos/4 PL24",
+  "aliases": [
+   "ETC fos/4 PL24",
+   "etcfos4pl24",
+   "fos/4 PL24",
+   "fos4pl24"
+  ],
+  "categories": [
+   "Dimmer",
+   "Color Changer",
+   "Strobe"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "deep-red",
+    "label": "Deep Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "lime",
+    "label": "Lime",
+    "role": "lime",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "cyan",
+    "label": "Cyan",
+    "role": "cyan",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "indigo",
+    "label": "Indigo",
+    "role": "indigo",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Open"
+     },
+     {
+      "from": 1,
+      "to": 40,
+      "label": "Strobe (Dark Strobe)"
+     },
+     {
+      "from": 41,
+      "to": 80,
+      "label": "Strobe (Bright Strobe)"
+     },
+     {
+      "from": 81,
+      "to": 120,
+      "label": "Pulse"
+     },
+     {
+      "from": 121,
+      "to": 160,
+      "label": "Pulse (Random)"
+     },
+     {
+      "from": 161,
+      "to": 200,
+      "label": "Spikes (Flicker)"
+     },
+     {
+      "from": 201,
+      "to": 240,
+      "label": "Open"
+     },
+     {
+      "from": 241,
+      "to": 254,
+      "label": "Closed"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "dimmer-curve",
+    "label": "Dimmer Curve",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Incandescent"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Linear"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "Incandescent Red Shift"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "Linear Red Shift"
+     },
+     {
+      "from": 40,
+      "to": 255,
+      "label": "Reserved"
+     }
+    ]
+   },
+   {
+    "key": "fan",
+    "label": "Fan",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Fan auto"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Rotation"
+     },
+     {
+      "from": 20,
+      "to": 249,
+      "label": "Rotation"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Fan auto"
+     }
+    ]
+   },
+   {
+    "key": "mix",
+    "label": "Mix",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Full Studio"
+     },
+     {
+      "from": 1,
+      "to": 254,
+      "label": "Linear interpolation from Studio to RGB"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Full RGB"
+     }
+    ]
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "3200K"
+     },
+     {
+      "from": 1,
+      "to": 165,
+      "label": "ColorTemperature"
+     },
+     {
+      "from": 166,
+      "to": 254,
+      "label": "ColorTemperature"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "5600K"
+     }
+    ]
+   },
+   {
+    "key": "tint",
+    "label": "Tint",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Tint"
+     },
+     {
+      "from": 1,
+      "to": 127,
+      "label": "Tint"
+     },
+     {
+      "from": 128,
+      "to": 128,
+      "label": "Tint"
+     },
+     {
+      "from": 129,
+      "to": 255,
+      "label": "Tint"
+     }
+    ]
+   },
+   {
+    "key": "tuning",
+    "label": "Tuning",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 49,
+      "label": "Brightest"
+     },
+     {
+      "from": 50,
+      "to": 99,
+      "label": "Hybrid"
+     },
+     {
+      "from": 100,
+      "to": 149,
+      "label": "Spectral"
+     },
+     {
+      "from": 150,
+      "to": 255,
+      "label": "Reserved"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "direct",
+    "name": "Direct",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "deep-red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "lime",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "cyan",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "indigo",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-curve",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "expanded",
+    "name": "Expanded",
+    "footprint": 11,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "tint",
+      "byte": 0
+     },
+     {
+      "channelKey": "tuning",
+      "byte": 0
+     },
+     {
+      "channelKey": "mix",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-curve",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "studio",
+    "name": "Studio",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "tint",
+      "byte": 0
+     },
+     {
+      "channelKey": "tuning",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-curve",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "3-ch-rgb",
+    "name": "3 Ch RGB",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "intensity",
+    "name": "Intensity",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    610,
+    610,
+    631
+   ],
+   "weightKg": 35.8,
+   "powerW": 1600
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "etc/fos4PL24",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "etc/fos4PL8",
+  "manufacturer": "ETC",
+  "model": "fos/4 PL8",
+  "aliases": [
+   "ETC fos/4 PL8",
+   "etcfos4pl8",
+   "fos/4 PL8",
+   "fos4pl8"
+  ],
+  "categories": [
+   "Dimmer",
+   "Color Changer",
+   "Strobe"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "deep-red",
+    "label": "Deep Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "lime",
+    "label": "Lime",
+    "role": "lime",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "cyan",
+    "label": "Cyan",
+    "role": "cyan",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "indigo",
+    "label": "Indigo",
+    "role": "indigo",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Open"
+     },
+     {
+      "from": 1,
+      "to": 40,
+      "label": "Strobe (Dark Strobe)"
+     },
+     {
+      "from": 41,
+      "to": 80,
+      "label": "Strobe (Bright Strobe)"
+     },
+     {
+      "from": 81,
+      "to": 120,
+      "label": "Pulse"
+     },
+     {
+      "from": 121,
+      "to": 160,
+      "label": "Pulse (Random)"
+     },
+     {
+      "from": 161,
+      "to": 200,
+      "label": "Spikes (Flicker)"
+     },
+     {
+      "from": 201,
+      "to": 240,
+      "label": "Open"
+     },
+     {
+      "from": 241,
+      "to": 254,
+      "label": "Closed"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "dimmer-curve",
+    "label": "Dimmer Curve",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Incandescent"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Linear"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "Incandescent Red Shift"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "Linear Red Shift"
+     },
+     {
+      "from": 40,
+      "to": 255,
+      "label": "Reserved"
+     }
+    ]
+   },
+   {
+    "key": "fan",
+    "label": "Fan",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Fan auto"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Rotation"
+     },
+     {
+      "from": 20,
+      "to": 249,
+      "label": "Rotation"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Fan auto"
+     }
+    ]
+   },
+   {
+    "key": "mix",
+    "label": "Mix",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Full Studio"
+     },
+     {
+      "from": 1,
+      "to": 254,
+      "label": "Linear interpolation from Studio to RGB"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Full RGB"
+     }
+    ]
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "3200K"
+     },
+     {
+      "from": 1,
+      "to": 165,
+      "label": "ColorTemperature"
+     },
+     {
+      "from": 166,
+      "to": 254,
+      "label": "ColorTemperature"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "5600K"
+     }
+    ]
+   },
+   {
+    "key": "tint",
+    "label": "Tint",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Tint"
+     },
+     {
+      "from": 1,
+      "to": 127,
+      "label": "Tint"
+     },
+     {
+      "from": 128,
+      "to": 128,
+      "label": "Tint"
+     },
+     {
+      "from": 129,
+      "to": 255,
+      "label": "Tint"
+     }
+    ]
+   },
+   {
+    "key": "tuning",
+    "label": "Tuning",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 49,
+      "label": "Brightest"
+     },
+     {
+      "from": 50,
+      "to": 99,
+      "label": "Hybrid"
+     },
+     {
+      "from": 100,
+      "to": 149,
+      "label": "Spectral"
+     },
+     {
+      "from": 150,
+      "to": 255,
+      "label": "Reserved"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "direct",
+    "name": "Direct",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "deep-red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "lime",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "cyan",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "indigo",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-curve",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "expanded",
+    "name": "Expanded",
+    "footprint": 11,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "tint",
+      "byte": 0
+     },
+     {
+      "channelKey": "tuning",
+      "byte": 0
+     },
+     {
+      "channelKey": "mix",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-curve",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "studio",
+    "name": "Studio",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "tint",
+      "byte": 0
+     },
+     {
+      "channelKey": "tuning",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-curve",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "3-ch-rgb",
+    "name": "3 Ch RGB",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "intensity",
+    "name": "Intensity",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    203,
+    610,
+    631
+   ],
+   "weightKg": 14.5,
+   "powerW": 540
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "etc/fos4PL8",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "etc/source-4wrd-color-ii",
+  "manufacturer": "ETC",
+  "model": "Source 4WRD Color II",
+  "aliases": [
+   "ETC Source 4WRD Color II",
+   "Source 4WRD Color II",
+   "etcsource4wrdcolorii",
+   "source4wrdcolorii"
+  ],
+  "categories": [
+   "Color Changer",
+   "Strobe"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Open"
+     },
+     {
+      "from": 1,
+      "to": 254,
+      "label": "Strobe"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "6ch",
+    "name": "6-channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    178,
+    142,
+    160
+   ],
+   "weightKg": 1.69,
+   "powerW": 150
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "etc/source-4wrd-color-ii",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "etc/source-four-led-series-2-daylight-hd",
+  "manufacturer": "ETC",
+  "model": "Source Four LED Series 2 Daylight HD",
+  "aliases": [
+   "ETC Source Four LED Series 2 Daylight HD",
+   "EtcSF2DaylightHD",
+   "Source Four LED Series 2 Daylight HD",
+   "etcsf2daylighthd",
+   "etcsourcefourledseries2daylighthd",
+   "sourcefourledseries2daylighthd"
+  ],
+  "categories": [
+   "Dimmer",
+   "Color Changer",
+   "Strobe"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "mint",
+    "label": "Mint",
+    "role": "lime",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "indigo",
+    "label": "Indigo",
+    "role": "indigo",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Open"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "fan-control",
+    "label": "Fan Control",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Fan auto"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Rotation"
+     }
+    ]
+   },
+   {
+    "key": "hue",
+    "label": "Hue",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "saturation",
+    "label": "Saturation",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-point",
+    "label": "Color Point",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 1,
+      "label": "3200K"
+     },
+     {
+      "from": 2,
+      "to": 253,
+      "label": "ColorTemperature"
+     },
+     {
+      "from": 254,
+      "to": 255,
+      "label": "5600K"
+     }
+    ]
+   },
+   {
+    "key": "red-emulated",
+    "label": "Red Emulated",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green-emulated",
+    "label": "Green Emulated",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue-emulated",
+    "label": "Blue Emulated",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "tint",
+    "label": "Tint",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 1,
+      "label": "Neutral white"
+     },
+     {
+      "from": 2,
+      "to": 127,
+      "label": "Full plus-green to neutral white"
+     },
+     {
+      "from": 128,
+      "to": 128,
+      "label": "Neutral white"
+     },
+     {
+      "from": 129,
+      "to": 255,
+      "label": "Neutral white to full magenta"
+     }
+    ]
+   },
+   {
+    "key": "plus-7-control",
+    "label": "Plus 7 Control",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "Individual color adjust disabled"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "Individual color adjust enabled"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "studio",
+    "name": "Studio",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "tint",
+      "byte": 0
+     },
+     null,
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "direct",
+    "name": "Direct",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "mint",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "indigo",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "hsi",
+    "name": "HSI",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "hsic",
+    "name": "HSIC",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-point",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "rgb",
+    "name": "RGB",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red-emulated",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-emulated",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue-emulated",
+      "byte": 0
+     },
+     null,
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "hsi-7",
+    "name": "HSI Plus 7",
+    "footprint": 15,
+    "slots": [
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     null,
+     {
+      "channelKey": "plus-7-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     null,
+     {
+      "channelKey": "mint",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "indigo",
+      "byte": 0
+     },
+     null,
+     null
+    ]
+   },
+   {
+    "key": "hsic-7",
+    "name": "HSIC Plus 7",
+    "footprint": 16,
+    "slots": [
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-point",
+      "byte": 0
+     },
+     null,
+     {
+      "channelKey": "plus-7-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     null,
+     {
+      "channelKey": "mint",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "indigo",
+      "byte": 0
+     },
+     null,
+     null
+    ]
+   },
+   {
+    "key": "rgb-7",
+    "name": "RGB Plus 7",
+    "footprint": 15,
+    "slots": [
+     {
+      "channelKey": "red-emulated",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-emulated",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue-emulated",
+      "byte": 0
+     },
+     null,
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     null,
+     {
+      "channelKey": "plus-7-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     null,
+     {
+      "channelKey": "mint",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "indigo",
+      "byte": 0
+     },
+     null,
+     null
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    338,
+    615,
+    631
+   ],
+   "weightKg": 8.3,
+   "powerW": 248,
+   "lensDegMin": 5,
+   "lensDegMax": 90
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "etc/source-four-led-series-2-daylight-hd",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "etc/source-four-led-series-2-lustr",
+  "manufacturer": "ETC",
+  "model": "Source Four LED Series 2 Lustr",
+  "aliases": [
+   "ETC Source Four LED Series 2 Lustr",
+   "EtcSF2Lustr",
+   "Source Four LED Series 2 Lustr",
+   "etcsf2lustr",
+   "etcsourcefourledseries2lustr",
+   "sourcefourledseries2lustr"
+  ],
+  "categories": [
+   "Dimmer",
+   "Color Changer",
+   "Strobe"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "lime",
+    "label": "Lime",
+    "role": "lime",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "cyan",
+    "label": "Cyan",
+    "role": "cyan",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "indigo",
+    "label": "Indigo",
+    "role": "indigo",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Open"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "fan-control",
+    "label": "Fan Control",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Fan auto"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Rotation"
+     }
+    ]
+   },
+   {
+    "key": "hue",
+    "label": "Hue",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "saturation",
+    "label": "Saturation",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-point",
+    "label": "Color Point",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 1,
+      "label": "3200K"
+     },
+     {
+      "from": 2,
+      "to": 253,
+      "label": "ColorTemperature"
+     },
+     {
+      "from": 254,
+      "to": 255,
+      "label": "5600K"
+     }
+    ]
+   },
+   {
+    "key": "red-emulated",
+    "label": "Red Emulated",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green-emulated",
+    "label": "Green Emulated",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue-emulated",
+    "label": "Blue Emulated",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "tint",
+    "label": "Tint",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 1,
+      "label": "Neutral white"
+     },
+     {
+      "from": 2,
+      "to": 127,
+      "label": "Full plus-green to neutral white"
+     },
+     {
+      "from": 128,
+      "to": 128,
+      "label": "Neutral white"
+     },
+     {
+      "from": 129,
+      "to": 255,
+      "label": "Neutral white to full magenta"
+     }
+    ]
+   },
+   {
+    "key": "plus-7-control",
+    "label": "Plus 7 Control",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "Individual color adjust disabled"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "Individual color adjust enabled"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "direct",
+    "name": "Direct",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "lime",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "cyan",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "indigo",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "hsi",
+    "name": "HSI",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "hsic",
+    "name": "HSIC",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-point",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "rgb",
+    "name": "RGB",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red-emulated",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-emulated",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue-emulated",
+      "byte": 0
+     },
+     null,
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "studio",
+    "name": "Studio",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "tint",
+      "byte": 0
+     },
+     null,
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "hsi-7",
+    "name": "HSI Plus 7",
+    "footprint": 15,
+    "slots": [
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     null,
+     {
+      "channelKey": "plus-7-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "lime",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "cyan",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "indigo",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "hsic-7",
+    "name": "HSIC Plus 7",
+    "footprint": 16,
+    "slots": [
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-point",
+      "byte": 0
+     },
+     null,
+     {
+      "channelKey": "plus-7-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "lime",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "cyan",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "indigo",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "rgb-7",
+    "name": "RGB Plus 7",
+    "footprint": 15,
+    "slots": [
+     {
+      "channelKey": "red-emulated",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-emulated",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue-emulated",
+      "byte": 0
+     },
+     null,
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     null,
+     {
+      "channelKey": "plus-7-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "lime",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "cyan",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "indigo",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    338,
+    615,
+    631
+   ],
+   "weightKg": 8.3,
+   "powerW": 171,
+   "lensDegMin": 5,
+   "lensDegMax": 90
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "etc/source-four-led-series-2-lustr",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "etc/source-four-led-series-2-tungsten-hd",
+  "manufacturer": "ETC",
+  "model": "Source Four LED Series 2 Tungsten HD",
+  "aliases": [
+   "ETC Source Four LED Series 2 Tungsten HD",
+   "EtcSF2TungstenHD",
+   "Source Four LED Series 2 Tungsten HD",
+   "etcsf2tungstenhd",
+   "etcsourcefourledseries2tungstenhd",
+   "sourcefourledseries2tungstenhd"
+  ],
+  "categories": [
+   "Dimmer",
+   "Color Changer",
+   "Strobe"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red-orange",
+    "label": "Red Orange",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "mint",
+    "label": "Mint",
+    "role": "lime",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "indigo",
+    "label": "Indigo",
+    "role": "indigo",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Open"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "fan-control",
+    "label": "Fan Control",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Fan auto"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Rotation"
+     }
+    ]
+   },
+   {
+    "key": "hue",
+    "label": "Hue",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "saturation",
+    "label": "Saturation",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-point",
+    "label": "Color Point",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 1,
+      "label": "3200K"
+     },
+     {
+      "from": 2,
+      "to": 253,
+      "label": "ColorTemperature"
+     },
+     {
+      "from": 254,
+      "to": 255,
+      "label": "5600K"
+     }
+    ]
+   },
+   {
+    "key": "red-emulated",
+    "label": "Red Emulated",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green-emulated",
+    "label": "Green Emulated",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue-emulated",
+    "label": "Blue Emulated",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "tint",
+    "label": "Tint",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 1,
+      "label": "Neutral white"
+     },
+     {
+      "from": 2,
+      "to": 127,
+      "label": "Full plus-green to neutral white"
+     },
+     {
+      "from": 128,
+      "to": 128,
+      "label": "Neutral white"
+     },
+     {
+      "from": 129,
+      "to": 255,
+      "label": "Neutral white to full magenta"
+     }
+    ]
+   },
+   {
+    "key": "plus-7-control",
+    "label": "Plus 7 Control",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "Individual color adjust disabled"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "Individual color adjust enabled"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "studio",
+    "name": "Studio",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "tint",
+      "byte": 0
+     },
+     null,
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "direct",
+    "name": "Direct",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red-orange",
+      "byte": 0
+     },
+     {
+      "channelKey": "mint",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "indigo",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "hsi",
+    "name": "HSI",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "hsic",
+    "name": "HSIC",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-point",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "rgb",
+    "name": "RGB",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red-emulated",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-emulated",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue-emulated",
+      "byte": 0
+     },
+     null,
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "hsi-7",
+    "name": "HSI Plus 7",
+    "footprint": 15,
+    "slots": [
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     null,
+     {
+      "channelKey": "plus-7-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red-orange",
+      "byte": 0
+     },
+     {
+      "channelKey": "mint",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "indigo",
+      "byte": 0
+     },
+     null,
+     null
+    ]
+   },
+   {
+    "key": "hsic-7",
+    "name": "HSIC Plus 7",
+    "footprint": 16,
+    "slots": [
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-point",
+      "byte": 0
+     },
+     null,
+     {
+      "channelKey": "plus-7-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red-orange",
+      "byte": 0
+     },
+     {
+      "channelKey": "mint",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "indigo",
+      "byte": 0
+     },
+     null,
+     null
+    ]
+   },
+   {
+    "key": "rgb-7",
+    "name": "RGB Plus 7",
+    "footprint": 15,
+    "slots": [
+     {
+      "channelKey": "red-emulated",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-emulated",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue-emulated",
+      "byte": 0
+     },
+     null,
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan-control",
+      "byte": 0
+     },
+     null,
+     {
+      "channelKey": "plus-7-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     null,
+     {
+      "channelKey": "mint",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "indigo",
+      "byte": 0
+     },
+     null,
+     null
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    338,
+    615,
+    631
+   ],
+   "weightKg": 8.3,
+   "powerW": 208,
+   "lensDegMin": 5,
+   "lensDegMax": 90
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "etc/source-four-led-series-2-tungsten-hd",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "etc/source-four-led-series-3-daylight-hdr",
+  "manufacturer": "ETC",
+  "model": "Source Four LED Series 3 Daylight HDR",
+  "aliases": [
+   "ETC Source Four LED Series 3 Daylight HDR",
+   "EtcSF3DaylightHDR",
+   "Source Four LED Series 3 Daylight HDR",
+   "etcsf3daylighthdr",
+   "etcsourcefourledseries3daylighthdr",
+   "sourcefourledseries3daylighthdr"
+  ],
+  "categories": [
+   "Dimmer",
+   "Color Changer",
+   "Strobe"
+  ],
+  "channels": [
+   {
+    "key": "deep-red",
+    "label": "Deep Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "mint",
+    "label": "Mint",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "cyan",
+    "label": "Cyan",
+    "role": "cyan",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "indigo",
+    "label": "Indigo",
+    "role": "indigo",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Open"
+     },
+     {
+      "from": 1,
+      "to": 40,
+      "label": "Strobe (Dark Strobe)"
+     },
+     {
+      "from": 41,
+      "to": 80,
+      "label": "Strobe (Bright Strobe)"
+     },
+     {
+      "from": 81,
+      "to": 120,
+      "label": "Pulse"
+     },
+     {
+      "from": 121,
+      "to": 160,
+      "label": "Pulse (Random)"
+     },
+     {
+      "from": 161,
+      "to": 200,
+      "label": "Spikes (Flicker)"
+     },
+     {
+      "from": 201,
+      "to": 240,
+      "label": "Open"
+     },
+     {
+      "from": 241,
+      "to": 254,
+      "label": "Closed"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "dimmer-curve",
+    "label": "Dimmer Curve",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Incandescent"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Linear"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "Incandescent Red Shift"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "Linear Red Shift"
+     },
+     {
+      "from": 40,
+      "to": 255,
+      "label": "Reserved"
+     }
+    ]
+   },
+   {
+    "key": "fan",
+    "label": "Fan",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Fan auto"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Rotation"
+     },
+     {
+      "from": 20,
+      "to": 249,
+      "label": "Rotation"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Fan auto"
+     }
+    ]
+   },
+   {
+    "key": "mix",
+    "label": "Mix",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Full Studio"
+     },
+     {
+      "from": 1,
+      "to": 254,
+      "label": "Linear interpolation from Studio to RGB"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Full RGB"
+     }
+    ]
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "3200K"
+     },
+     {
+      "from": 1,
+      "to": 165,
+      "label": "ColorTemperature"
+     },
+     {
+      "from": 166,
+      "to": 254,
+      "label": "ColorTemperature"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "5600K"
+     }
+    ]
+   },
+   {
+    "key": "tint",
+    "label": "Tint",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Tint"
+     },
+     {
+      "from": 1,
+      "to": 127,
+      "label": "Tint"
+     },
+     {
+      "from": 128,
+      "to": 128,
+      "label": "Tint"
+     },
+     {
+      "from": 129,
+      "to": 255,
+      "label": "Tint"
+     }
+    ]
+   },
+   {
+    "key": "tuning",
+    "label": "Tuning",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 49,
+      "label": "Brightest"
+     },
+     {
+      "from": 50,
+      "to": 149,
+      "label": "Spectral"
+     },
+     {
+      "from": 150,
+      "to": 170,
+      "label": "Metamer"
+     },
+     {
+      "from": 171,
+      "to": 255,
+      "label": "Reserved"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "direct",
+    "name": "Direct",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "deep-red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "mint",
+      "byte": 0
+     },
+     {
+      "channelKey": "cyan",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "indigo",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-curve",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "expanded",
+    "name": "Expanded",
+    "footprint": 11,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "tint",
+      "byte": 0
+     },
+     {
+      "channelKey": "tuning",
+      "byte": 0
+     },
+     {
+      "channelKey": "mix",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-curve",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "studio",
+    "name": "Studio",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "tint",
+      "byte": 0
+     },
+     {
+      "channelKey": "tuning",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-curve",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "3-ch-rgb",
+    "name": "3 Ch RGB",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "intensity",
+    "name": "Intensity",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    216,
+    298,
+    700
+   ],
+   "weightKg": 8.9,
+   "powerW": 307,
+   "lensDegMin": 5,
+   "lensDegMax": 90
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "etc/source-four-led-series-3-daylight-hdr",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "etc/source-four-led-series-3-lustr-x8",
+  "manufacturer": "ETC",
+  "model": "Source Four LED Series 3 Lustr X8",
+  "aliases": [
+   "ETC Source Four LED Series 3 Lustr X8",
+   "EtcSF3LustrX8",
+   "Source Four LED Series 3 Lustr X8",
+   "etcsf3lustrx8",
+   "etcsourcefourledseries3lustrx8",
+   "sourcefourledseries3lustrx8"
+  ],
+  "categories": [
+   "Dimmer",
+   "Color Changer",
+   "Strobe"
+  ],
+  "channels": [
+   {
+    "key": "deep-red",
+    "label": "Deep Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "lime",
+    "label": "Lime",
+    "role": "lime",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "cyan",
+    "label": "Cyan",
+    "role": "cyan",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "indigo",
+    "label": "Indigo",
+    "role": "indigo",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Open"
+     },
+     {
+      "from": 1,
+      "to": 40,
+      "label": "Strobe (Dark Strobe)"
+     },
+     {
+      "from": 41,
+      "to": 80,
+      "label": "Strobe (Bright Strobe)"
+     },
+     {
+      "from": 81,
+      "to": 120,
+      "label": "Pulse"
+     },
+     {
+      "from": 121,
+      "to": 160,
+      "label": "Pulse (Random)"
+     },
+     {
+      "from": 161,
+      "to": 200,
+      "label": "Spikes (Flicker)"
+     },
+     {
+      "from": 201,
+      "to": 240,
+      "label": "Open"
+     },
+     {
+      "from": 241,
+      "to": 254,
+      "label": "Closed"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "dimmer-curve",
+    "label": "Dimmer Curve",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Incandescent"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Linear"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "Incandescent Red Shift"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "Linear Red Shift"
+     },
+     {
+      "from": 40,
+      "to": 255,
+      "label": "Reserved"
+     }
+    ]
+   },
+   {
+    "key": "fan",
+    "label": "Fan",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Fan auto"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Rotation"
+     },
+     {
+      "from": 20,
+      "to": 249,
+      "label": "Rotation"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Fan auto"
+     }
+    ]
+   },
+   {
+    "key": "mix",
+    "label": "Mix",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Full Studio"
+     },
+     {
+      "from": 1,
+      "to": 254,
+      "label": "Linear interpolation from Studio to RGB"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Full RGB"
+     }
+    ]
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "3200K"
+     },
+     {
+      "from": 1,
+      "to": 165,
+      "label": "ColorTemperature"
+     },
+     {
+      "from": 166,
+      "to": 254,
+      "label": "ColorTemperature"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "5600K"
+     }
+    ]
+   },
+   {
+    "key": "tint",
+    "label": "Tint",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Tint"
+     },
+     {
+      "from": 1,
+      "to": 127,
+      "label": "Tint"
+     },
+     {
+      "from": 128,
+      "to": 128,
+      "label": "Tint"
+     },
+     {
+      "from": 129,
+      "to": 255,
+      "label": "Tint"
+     }
+    ]
+   },
+   {
+    "key": "tuning",
+    "label": "Tuning",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 49,
+      "label": "Brightest"
+     },
+     {
+      "from": 50,
+      "to": 149,
+      "label": "Spectral"
+     },
+     {
+      "from": 150,
+      "to": 170,
+      "label": "Metamer"
+     },
+     {
+      "from": 171,
+      "to": 255,
+      "label": "Reserved"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "direct",
+    "name": "Direct",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "deep-red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "lime",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "cyan",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "indigo",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-curve",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "expanded",
+    "name": "Expanded",
+    "footprint": 11,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "tint",
+      "byte": 0
+     },
+     {
+      "channelKey": "tuning",
+      "byte": 0
+     },
+     {
+      "channelKey": "mix",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-curve",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "studio",
+    "name": "Studio",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "tint",
+      "byte": 0
+     },
+     {
+      "channelKey": "tuning",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-curve",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "3-ch-rgb",
+    "name": "3 Ch RGB",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "intensity",
+    "name": "Intensity",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    216,
+    298,
+    700
+   ],
+   "weightKg": 8.9,
+   "powerW": 340,
+   "lensDegMin": 5,
+   "lensDegMax": 90
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "etc/source-four-led-series-3-lustr-x8",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

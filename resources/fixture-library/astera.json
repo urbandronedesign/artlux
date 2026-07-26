@@ -1,0 +1,4213 @@
+[
+ {
+  "id": "astera/ax3-lightdrop",
+  "manufacturer": "Astera",
+  "model": "AX3 Lightdrop",
+  "aliases": [
+   "AX3 Lightdrop",
+   "Astera AX3 Lightdrop",
+   "asteraax3lightdrop",
+   "ax3lightdrop"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "master-dimmer",
+    "label": "Master dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-temperature-cct",
+    "label": "Color Temperature CCT",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 4,
+      "label": "default"
+     },
+     {
+      "from": 5,
+      "to": 255,
+      "label": "Color Temperature = 2000 + 20*DMX-Value"
+     }
+    ]
+   },
+   {
+    "key": "lee-color-gel-1",
+    "label": "LEE Color Gel 1",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 1,
+      "label": "No effect"
+     },
+     {
+      "from": 2,
+      "to": 2,
+      "label": "Rose Pink"
+     },
+     {
+      "from": 3,
+      "to": 3,
+      "label": "Lavender Tint"
+     },
+     {
+      "from": 4,
+      "to": 6,
+      "label": "Medium Bastard Amber"
+     },
+     {
+      "from": 7,
+      "to": 7,
+      "label": "Pale Yellow"
+     },
+     {
+      "from": 8,
+      "to": 8,
+      "label": "Dark Salmon"
+     },
+     {
+      "from": 9,
+      "to": 9,
+      "label": "Pale Amber Gold"
+     },
+     {
+      "from": 10,
+      "to": 12,
+      "label": "Medium Yellow"
+     },
+     {
+      "from": 13,
+      "to": 14,
+      "label": "Straw Tint"
+     },
+     {
+      "from": 15,
+      "to": 16,
+      "label": "Deep Straw"
+     },
+     {
+      "from": 17,
+      "to": 18,
+      "label": "Surprise Peach"
+     },
+     {
+      "from": 19,
+      "to": 19,
+      "label": "Fire"
+     },
+     {
+      "from": 20,
+      "to": 20,
+      "label": "Medium Amber"
+     },
+     {
+      "from": 21,
+      "to": 21,
+      "label": "Gold Amber"
+     },
+     {
+      "from": 22,
+      "to": 23,
+      "label": "Dark Amber"
+     },
+     {
+      "from": 24,
+      "to": 24,
+      "label": "Scarlet"
+     },
+     {
+      "from": 25,
+      "to": 25,
+      "label": "Sunset Red"
+     },
+     {
+      "from": 26,
+      "to": 26,
+      "label": "Bright Red"
+     },
+     {
+      "from": 27,
+      "to": 28,
+      "label": "Medium Red"
+     },
+     {
+      "from": 29,
+      "to": 34,
+      "label": "Plasa Red"
+     },
+     {
+      "from": 35,
+      "to": 35,
+      "label": "Light Pink"
+     },
+     {
+      "from": 36,
+      "to": 45,
+      "label": "Medium Pink"
+     },
+     {
+      "from": 46,
+      "to": 47,
+      "label": "Dark Magenta"
+     },
+     {
+      "from": 48,
+      "to": 48,
+      "label": "Rose Purple"
+     },
+     {
+      "from": 49,
+      "to": 51,
+      "label": "Medium Purple"
+     },
+     {
+      "from": 52,
+      "to": 52,
+      "label": "Light Lavender"
+     },
+     {
+      "from": 53,
+      "to": 57,
+      "label": "Paler Lavender"
+     },
+     {
+      "from": 58,
+      "to": 60,
+      "label": "Lavender"
+     },
+     {
+      "from": 61,
+      "to": 62,
+      "label": "Mist Blue"
+     },
+     {
+      "from": 63,
+      "to": 67,
+      "label": "Pale Blue"
+     },
+     {
+      "from": 68,
+      "to": 70,
+      "label": "Sky Blue"
+     },
+     {
+      "from": 71,
+      "to": 74,
+      "label": "Tokyo Blue"
+     },
+     {
+      "from": 75,
+      "to": 78,
+      "label": "Evening Blue"
+     },
+     {
+      "from": 79,
+      "to": 84,
+      "label": "Just Blue"
+     },
+     {
+      "from": 85,
+      "to": 87,
+      "label": "Deeper Blue"
+     },
+     {
+      "from": 88,
+      "to": 88,
+      "label": "Lime Green"
+     },
+     {
+      "from": 89,
+      "to": 89,
+      "label": "Moss Green"
+     },
+     {
+      "from": 90,
+      "to": 99,
+      "label": "Dark Yellow Green"
+     },
+     {
+      "from": 100,
+      "to": 100,
+      "label": "Spring Yellow"
+     },
+     {
+      "from": 101,
+      "to": 101,
+      "label": "Yellow"
+     },
+     {
+      "from": 102,
+      "to": 102,
+      "label": "Light Amber"
+     },
+     {
+      "from": 103,
+      "to": 103,
+      "label": "Straw"
+     },
+     {
+      "from": 104,
+      "to": 104,
+      "label": "Deep Amber"
+     },
+     {
+      "from": 105,
+      "to": 105,
+      "label": "Orange"
+     },
+     {
+      "from": 106,
+      "to": 106,
+      "label": "Primary Red"
+     },
+     {
+      "from": 107,
+      "to": 107,
+      "label": "Light Rose"
+     },
+     {
+      "from": 108,
+      "to": 108,
+      "label": "English Rose"
+     },
+     {
+      "from": 109,
+      "to": 109,
+      "label": "Light Salmon"
+     },
+     {
+      "from": 110,
+      "to": 110,
+      "label": "Middle Rose"
+     },
+     {
+      "from": 111,
+      "to": 112,
+      "label": "Dark Pink"
+     },
+     {
+      "from": 113,
+      "to": 114,
+      "label": "Magenta"
+     },
+     {
+      "from": 115,
+      "to": 115,
+      "label": "Peacock Blue"
+     },
+     {
+      "from": 116,
+      "to": 116,
+      "label": "Medium Blue-Green"
+     },
+     {
+      "from": 117,
+      "to": 117,
+      "label": "Steel Blue"
+     },
+     {
+      "from": 118,
+      "to": 118,
+      "label": "Light Blue"
+     },
+     {
+      "from": 119,
+      "to": 119,
+      "label": "Dark Blue"
+     },
+     {
+      "from": 120,
+      "to": 120,
+      "label": "Deep Blue"
+     },
+     {
+      "from": 121,
+      "to": 121,
+      "label": "LEE Green"
+     },
+     {
+      "from": 122,
+      "to": 123,
+      "label": "Fern Green"
+     },
+     {
+      "from": 124,
+      "to": 125,
+      "label": "Dark Green"
+     },
+     {
+      "from": 126,
+      "to": 126,
+      "label": "Mauve"
+     },
+     {
+      "from": 127,
+      "to": 127,
+      "label": "Smokey Pink"
+     },
+     {
+      "from": 128,
+      "to": 128,
+      "label": "Bright Pink"
+     },
+     {
+      "from": 129,
+      "to": 129,
+      "label": "Heavy Frost"
+     },
+     {
+      "from": 130,
+      "to": 130,
+      "label": "Clear"
+     },
+     {
+      "from": 131,
+      "to": 131,
+      "label": "Marine Blue"
+     },
+     {
+      "from": 132,
+      "to": 133,
+      "label": "Medium Blue"
+     },
+     {
+      "from": 134,
+      "to": 134,
+      "label": "Golden Amber"
+     },
+     {
+      "from": 135,
+      "to": 135,
+      "label": "Deep Golden Amber"
+     },
+     {
+      "from": 136,
+      "to": 136,
+      "label": "Pale Lavender"
+     },
+     {
+      "from": 137,
+      "to": 137,
+      "label": "Special Lavender"
+     },
+     {
+      "from": 138,
+      "to": 138,
+      "label": "Pale Green"
+     },
+     {
+      "from": 139,
+      "to": 139,
+      "label": "Primary Green"
+     },
+     {
+      "from": 140,
+      "to": 140,
+      "label": "Summer Blue"
+     },
+     {
+      "from": 141,
+      "to": 141,
+      "label": "Bright Blue"
+     },
+     {
+      "from": 142,
+      "to": 142,
+      "label": "Pale Violet"
+     },
+     {
+      "from": 143,
+      "to": 143,
+      "label": "Pale Navy Blue"
+     },
+     {
+      "from": 144,
+      "to": 146,
+      "label": "No Colour Blue"
+     },
+     {
+      "from": 147,
+      "to": 147,
+      "label": "Apricot"
+     },
+     {
+      "from": 148,
+      "to": 150,
+      "label": "Bright Rose"
+     },
+     {
+      "from": 151,
+      "to": 151,
+      "label": "Gold Tint"
+     },
+     {
+      "from": 152,
+      "to": 152,
+      "label": "Pale Gold"
+     },
+     {
+      "from": 153,
+      "to": 153,
+      "label": "Pale Salmon"
+     },
+     {
+      "from": 154,
+      "to": 155,
+      "label": "Pale Rose"
+     },
+     {
+      "from": 156,
+      "to": 156,
+      "label": "Chocolate"
+     },
+     {
+      "from": 157,
+      "to": 157,
+      "label": "Pink"
+     },
+     {
+      "from": 158,
+      "to": 158,
+      "label": "Deep Orange"
+     },
+     {
+      "from": 159,
+      "to": 160,
+      "label": "No Colour Straw"
+     },
+     {
+      "from": 161,
+      "to": 161,
+      "label": "Slate Blue"
+     },
+     {
+      "from": 162,
+      "to": 163,
+      "label": "Bastard Amber"
+     },
+     {
+      "from": 164,
+      "to": 164,
+      "label": "Flame Red"
+     },
+     {
+      "from": 165,
+      "to": 168,
+      "label": "Daylight Blue"
+     },
+     {
+      "from": 169,
+      "to": 169,
+      "label": "Lilac Tint"
+     },
+     {
+      "from": 170,
+      "to": 171,
+      "label": "Deep Lavender"
+     },
+     {
+      "from": 172,
+      "to": 173,
+      "label": "Lagoon Blue"
+     },
+     {
+      "from": 174,
+      "to": 175,
+      "label": "Dark Steel Blue"
+     },
+     {
+      "from": 176,
+      "to": 178,
+      "label": "Loving Amber"
+     },
+     {
+      "from": 179,
+      "to": 179,
+      "label": "Chrome Orange"
+     },
+     {
+      "from": 180,
+      "to": 180,
+      "label": "Dark Lavender"
+     },
+     {
+      "from": 181,
+      "to": 181,
+      "label": "Congo Blue"
+     },
+     {
+      "from": 182,
+      "to": 182,
+      "label": "Light Red"
+     },
+     {
+      "from": 183,
+      "to": 183,
+      "label": "Moonlight Blue"
+     },
+     {
+      "from": 184,
+      "to": 185,
+      "label": "Cosmetic Peach"
+     },
+     {
+      "from": 186,
+      "to": 186,
+      "label": "Cosmetic Silver Rose"
+     },
+     {
+      "from": 187,
+      "to": 187,
+      "label": "Cosmetic Rouge"
+     },
+     {
+      "from": 188,
+      "to": 188,
+      "label": "Cosmetic Highlight"
+     },
+     {
+      "from": 189,
+      "to": 190,
+      "label": "Cosmetic Silver Moss"
+     },
+     {
+      "from": 191,
+      "to": 191,
+      "label": "Cosmetic Aqua Blue"
+     },
+     {
+      "from": 192,
+      "to": 193,
+      "label": "Flesh Pink"
+     },
+     {
+      "from": 194,
+      "to": 194,
+      "label": "Surprise Pink"
+     },
+     {
+      "from": 195,
+      "to": 195,
+      "label": "Zenith Blue"
+     },
+     {
+      "from": 196,
+      "to": 196,
+      "label": "True Blue"
+     },
+     {
+      "from": 197,
+      "to": 197,
+      "label": "Alice Blue"
+     },
+     {
+      "from": 198,
+      "to": 198,
+      "label": "Palace Blue"
+     },
+     {
+      "from": 199,
+      "to": 199,
+      "label": "Regal Blue"
+     },
+     {
+      "from": 200,
+      "to": 200,
+      "label": "Double CT Blue"
+     },
+     {
+      "from": 201,
+      "to": 201,
+      "label": "Full CT Blue"
+     },
+     {
+      "from": 202,
+      "to": 202,
+      "label": "1/2 CT Blue"
+     },
+     {
+      "from": 203,
+      "to": 203,
+      "label": "1/4 CT Blue"
+     },
+     {
+      "from": 204,
+      "to": 204,
+      "label": "Full CT Orange"
+     },
+     {
+      "from": 205,
+      "to": 205,
+      "label": "1/2 CT Orange"
+     },
+     {
+      "from": 206,
+      "to": 206,
+      "label": "1/4 CT Orange"
+     },
+     {
+      "from": 207,
+      "to": 207,
+      "label": "Full CT Orange +"
+     },
+     {
+      "from": 208,
+      "to": 208,
+      "label": "Full CT Orange +"
+     },
+     {
+      "from": 209,
+      "to": 209,
+      "label": "0.3 Neutral Density"
+     },
+     {
+      "from": 210,
+      "to": 210,
+      "label": "0.6 Neutral Density"
+     },
+     {
+      "from": 211,
+      "to": 211,
+      "label": "0.9 Neutral Density"
+     },
+     {
+      "from": 212,
+      "to": 212,
+      "label": "LCT Yellow"
+     },
+     {
+      "from": 213,
+      "to": 215,
+      "label": "White Flame Green"
+     },
+     {
+      "from": 216,
+      "to": 216,
+      "label": "White Diffusion"
+     },
+     {
+      "from": 217,
+      "to": 217,
+      "label": "Blue Diffusion"
+     },
+     {
+      "from": 218,
+      "to": 218,
+      "label": "1/8 CT Blue"
+     },
+     {
+      "from": 219,
+      "to": 219,
+      "label": "LEE Fluorescent Green"
+     },
+     {
+      "from": 220,
+      "to": 220,
+      "label": "White Frost"
+     },
+     {
+      "from": 221,
+      "to": 222,
+      "label": "Blue Frost"
+     },
+     {
+      "from": 223,
+      "to": 223,
+      "label": "1/8 CT Orange"
+     },
+     {
+      "from": 224,
+      "to": 224,
+      "label": "Daylight Blue Frost"
+     },
+     {
+      "from": 225,
+      "to": 225,
+      "label": "LEE N.D. Frost"
+     },
+     {
+      "from": 226,
+      "to": 227,
+      "label": "LEE U.V."
+     },
+     {
+      "from": 228,
+      "to": 228,
+      "label": "Brushed Silk"
+     },
+     {
+      "from": 229,
+      "to": 229,
+      "label": "1/4 Tough Spun"
+     },
+     {
+      "from": 230,
+      "to": 231,
+      "label": "Super Correction"
+     },
+     {
+      "from": 232,
+      "to": 235,
+      "label": "Super White Flame Green"
+     },
+     {
+      "from": 236,
+      "to": 236,
+      "label": "H.M.I (To Tungsten)"
+     },
+     {
+      "from": 237,
+      "to": 237,
+      "label": "C.I.D. (To Tungsten)"
+     },
+     {
+      "from": 238,
+      "to": 238,
+      "label": "C.S.I. (To Tungsten)"
+     },
+     {
+      "from": 239,
+      "to": 240,
+      "label": "Polariser"
+     },
+     {
+      "from": 241,
+      "to": 241,
+      "label": "LEE Fluorescent 5700 K"
+     },
+     {
+      "from": 242,
+      "to": 242,
+      "label": "LEE Fluorescent 4300 K"
+     },
+     {
+      "from": 243,
+      "to": 243,
+      "label": "LEE Fluorescent 3600 K"
+     },
+     {
+      "from": 244,
+      "to": 244,
+      "label": "LEE Plus Green"
+     },
+     {
+      "from": 245,
+      "to": 245,
+      "label": "1/2 Plus Green"
+     },
+     {
+      "from": 246,
+      "to": 246,
+      "label": "1/4 Plus Green"
+     },
+     {
+      "from": 247,
+      "to": 247,
+      "label": "LEE Minus Green"
+     },
+     {
+      "from": 248,
+      "to": 248,
+      "label": "1/2 Minus Green"
+     },
+     {
+      "from": 249,
+      "to": 249,
+      "label": "1/4 Minus Green"
+     },
+     {
+      "from": 250,
+      "to": 250,
+      "label": "1/2 White Diffusion"
+     },
+     {
+      "from": 251,
+      "to": 251,
+      "label": "1/4 White Diffusion"
+     },
+     {
+      "from": 252,
+      "to": 252,
+      "label": "1/8 White Diffusion"
+     },
+     {
+      "from": 253,
+      "to": 253,
+      "label": "Hampshire Frost"
+     },
+     {
+      "from": 254,
+      "to": 254,
+      "label": "New Hampshire Frost"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Hollywood Frost"
+     }
+    ]
+   },
+   {
+    "key": "lee-color-gel-2",
+    "label": "LEE Color Gel 2",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 1,
+      "label": "No effect"
+     },
+     {
+      "from": 2,
+      "to": 2,
+      "label": "Rose Pink"
+     },
+     {
+      "from": 3,
+      "to": 3,
+      "label": "Lavender Tint"
+     },
+     {
+      "from": 4,
+      "to": 6,
+      "label": "Medium Bastard Amber"
+     },
+     {
+      "from": 7,
+      "to": 7,
+      "label": "Pale Yellow"
+     },
+     {
+      "from": 8,
+      "to": 8,
+      "label": "Dark Salmon"
+     },
+     {
+      "from": 9,
+      "to": 9,
+      "label": "Pale Amber Gold"
+     },
+     {
+      "from": 10,
+      "to": 12,
+      "label": "Medium Yellow"
+     },
+     {
+      "from": 13,
+      "to": 14,
+      "label": "Straw Tint"
+     },
+     {
+      "from": 15,
+      "to": 16,
+      "label": "Deep Straw"
+     },
+     {
+      "from": 17,
+      "to": 18,
+      "label": "Surprise Peach"
+     },
+     {
+      "from": 19,
+      "to": 19,
+      "label": "Fire"
+     },
+     {
+      "from": 20,
+      "to": 20,
+      "label": "Medium Amber"
+     },
+     {
+      "from": 21,
+      "to": 21,
+      "label": "Gold Amber"
+     },
+     {
+      "from": 22,
+      "to": 23,
+      "label": "Dark Amber"
+     },
+     {
+      "from": 24,
+      "to": 24,
+      "label": "Scarlet"
+     },
+     {
+      "from": 25,
+      "to": 25,
+      "label": "Sunset Red"
+     },
+     {
+      "from": 26,
+      "to": 26,
+      "label": "Bright Red"
+     },
+     {
+      "from": 27,
+      "to": 28,
+      "label": "Medium Red"
+     },
+     {
+      "from": 29,
+      "to": 34,
+      "label": "Plasa Red"
+     },
+     {
+      "from": 35,
+      "to": 35,
+      "label": "Light Pink"
+     },
+     {
+      "from": 36,
+      "to": 45,
+      "label": "Medium Pink"
+     },
+     {
+      "from": 46,
+      "to": 47,
+      "label": "Dark Magenta"
+     },
+     {
+      "from": 48,
+      "to": 48,
+      "label": "Rose Purple"
+     },
+     {
+      "from": 49,
+      "to": 51,
+      "label": "Medium Purple"
+     },
+     {
+      "from": 52,
+      "to": 52,
+      "label": "Light Lavender"
+     },
+     {
+      "from": 53,
+      "to": 57,
+      "label": "Paler Lavender"
+     },
+     {
+      "from": 58,
+      "to": 60,
+      "label": "Lavender"
+     },
+     {
+      "from": 61,
+      "to": 62,
+      "label": "Mist Blue"
+     },
+     {
+      "from": 63,
+      "to": 67,
+      "label": "Pale Blue"
+     },
+     {
+      "from": 68,
+      "to": 70,
+      "label": "Sky Blue"
+     },
+     {
+      "from": 71,
+      "to": 74,
+      "label": "Tokyo Blue"
+     },
+     {
+      "from": 75,
+      "to": 78,
+      "label": "Evening Blue"
+     },
+     {
+      "from": 79,
+      "to": 84,
+      "label": "Just Blue"
+     },
+     {
+      "from": 85,
+      "to": 87,
+      "label": "Deeper Blue"
+     },
+     {
+      "from": 88,
+      "to": 88,
+      "label": "Lime Green"
+     },
+     {
+      "from": 89,
+      "to": 89,
+      "label": "Moss Green"
+     },
+     {
+      "from": 90,
+      "to": 99,
+      "label": "Dark Yellow Green"
+     },
+     {
+      "from": 100,
+      "to": 100,
+      "label": "Spring Yellow"
+     },
+     {
+      "from": 101,
+      "to": 101,
+      "label": "Yellow"
+     },
+     {
+      "from": 102,
+      "to": 102,
+      "label": "Light Amber"
+     },
+     {
+      "from": 103,
+      "to": 103,
+      "label": "Straw"
+     },
+     {
+      "from": 104,
+      "to": 104,
+      "label": "Deep Amber"
+     },
+     {
+      "from": 105,
+      "to": 105,
+      "label": "Orange"
+     },
+     {
+      "from": 106,
+      "to": 106,
+      "label": "Primary Red"
+     },
+     {
+      "from": 107,
+      "to": 107,
+      "label": "Light Rose"
+     },
+     {
+      "from": 108,
+      "to": 108,
+      "label": "English Rose"
+     },
+     {
+      "from": 109,
+      "to": 109,
+      "label": "Light Salmon"
+     },
+     {
+      "from": 110,
+      "to": 110,
+      "label": "Middle Rose"
+     },
+     {
+      "from": 111,
+      "to": 112,
+      "label": "Dark Pink"
+     },
+     {
+      "from": 113,
+      "to": 114,
+      "label": "Magenta"
+     },
+     {
+      "from": 115,
+      "to": 115,
+      "label": "Peacock Blue"
+     },
+     {
+      "from": 116,
+      "to": 116,
+      "label": "Medium Blue-Green"
+     },
+     {
+      "from": 117,
+      "to": 117,
+      "label": "Steel Blue"
+     },
+     {
+      "from": 118,
+      "to": 118,
+      "label": "Light Blue"
+     },
+     {
+      "from": 119,
+      "to": 119,
+      "label": "Dark Blue"
+     },
+     {
+      "from": 120,
+      "to": 120,
+      "label": "Deep Blue"
+     },
+     {
+      "from": 121,
+      "to": 121,
+      "label": "LEE Green"
+     },
+     {
+      "from": 122,
+      "to": 123,
+      "label": "Fern Green"
+     },
+     {
+      "from": 124,
+      "to": 125,
+      "label": "Dark Green"
+     },
+     {
+      "from": 126,
+      "to": 126,
+      "label": "Mauve"
+     },
+     {
+      "from": 127,
+      "to": 127,
+      "label": "Smokey Pink"
+     },
+     {
+      "from": 128,
+      "to": 128,
+      "label": "Bright Pink"
+     },
+     {
+      "from": 129,
+      "to": 129,
+      "label": "Heavy Frost"
+     },
+     {
+      "from": 130,
+      "to": 130,
+      "label": "Clear"
+     },
+     {
+      "from": 131,
+      "to": 131,
+      "label": "Marine Blue"
+     },
+     {
+      "from": 132,
+      "to": 133,
+      "label": "Medium Blue"
+     },
+     {
+      "from": 134,
+      "to": 134,
+      "label": "Golden Amber"
+     },
+     {
+      "from": 135,
+      "to": 135,
+      "label": "Deep Golden Amber"
+     },
+     {
+      "from": 136,
+      "to": 136,
+      "label": "Pale Lavender"
+     },
+     {
+      "from": 137,
+      "to": 137,
+      "label": "Special Lavender"
+     },
+     {
+      "from": 138,
+      "to": 138,
+      "label": "Pale Green"
+     },
+     {
+      "from": 139,
+      "to": 139,
+      "label": "Primary Green"
+     },
+     {
+      "from": 140,
+      "to": 140,
+      "label": "Summer Blue"
+     },
+     {
+      "from": 141,
+      "to": 141,
+      "label": "Bright Blue"
+     },
+     {
+      "from": 142,
+      "to": 142,
+      "label": "Pale Violet"
+     },
+     {
+      "from": 143,
+      "to": 143,
+      "label": "Pale Navy Blue"
+     },
+     {
+      "from": 144,
+      "to": 146,
+      "label": "No Colour Blue"
+     },
+     {
+      "from": 147,
+      "to": 147,
+      "label": "Apricot"
+     },
+     {
+      "from": 148,
+      "to": 150,
+      "label": "Bright Rose"
+     },
+     {
+      "from": 151,
+      "to": 151,
+      "label": "Gold Tint"
+     },
+     {
+      "from": 152,
+      "to": 152,
+      "label": "Pale Gold"
+     },
+     {
+      "from": 153,
+      "to": 153,
+      "label": "Pale Salmon"
+     },
+     {
+      "from": 154,
+      "to": 155,
+      "label": "Pale Rose"
+     },
+     {
+      "from": 156,
+      "to": 156,
+      "label": "Chocolate"
+     },
+     {
+      "from": 157,
+      "to": 157,
+      "label": "Pink"
+     },
+     {
+      "from": 158,
+      "to": 158,
+      "label": "Deep Orange"
+     },
+     {
+      "from": 159,
+      "to": 160,
+      "label": "No Colour Straw"
+     },
+     {
+      "from": 161,
+      "to": 161,
+      "label": "Slate Blue"
+     },
+     {
+      "from": 162,
+      "to": 163,
+      "label": "Bastard Amber"
+     },
+     {
+      "from": 164,
+      "to": 164,
+      "label": "Flame Red"
+     },
+     {
+      "from": 165,
+      "to": 168,
+      "label": "Daylight Blue"
+     },
+     {
+      "from": 169,
+      "to": 169,
+      "label": "Lilac Tint"
+     },
+     {
+      "from": 170,
+      "to": 171,
+      "label": "Deep Lavender"
+     },
+     {
+      "from": 172,
+      "to": 173,
+      "label": "Lagoon Blue"
+     },
+     {
+      "from": 174,
+      "to": 175,
+      "label": "Dark Steel Blue"
+     },
+     {
+      "from": 176,
+      "to": 178,
+      "label": "Loving Amber"
+     },
+     {
+      "from": 179,
+      "to": 179,
+      "label": "Chrome Orange"
+     },
+     {
+      "from": 180,
+      "to": 180,
+      "label": "Dark Lavender"
+     },
+     {
+      "from": 181,
+      "to": 181,
+      "label": "Congo Blue"
+     },
+     {
+      "from": 182,
+      "to": 182,
+      "label": "Light Red"
+     },
+     {
+      "from": 183,
+      "to": 183,
+      "label": "Moonlight Blue"
+     },
+     {
+      "from": 184,
+      "to": 185,
+      "label": "Cosmetic Peach"
+     },
+     {
+      "from": 186,
+      "to": 186,
+      "label": "Cosmetic Silver Rose"
+     },
+     {
+      "from": 187,
+      "to": 187,
+      "label": "Cosmetic Rouge"
+     },
+     {
+      "from": 188,
+      "to": 188,
+      "label": "Cosmetic Highlight"
+     },
+     {
+      "from": 189,
+      "to": 190,
+      "label": "Cosmetic Silver Moss"
+     },
+     {
+      "from": 191,
+      "to": 191,
+      "label": "Cosmetic Aqua Blue"
+     },
+     {
+      "from": 192,
+      "to": 193,
+      "label": "Flesh Pink"
+     },
+     {
+      "from": 194,
+      "to": 194,
+      "label": "Surprise Pink"
+     },
+     {
+      "from": 195,
+      "to": 195,
+      "label": "Zenith Blue"
+     },
+     {
+      "from": 196,
+      "to": 196,
+      "label": "True Blue"
+     },
+     {
+      "from": 197,
+      "to": 197,
+      "label": "Alice Blue"
+     },
+     {
+      "from": 198,
+      "to": 198,
+      "label": "Palace Blue"
+     },
+     {
+      "from": 199,
+      "to": 199,
+      "label": "Regal Blue"
+     },
+     {
+      "from": 200,
+      "to": 200,
+      "label": "Double CT Blue"
+     },
+     {
+      "from": 201,
+      "to": 201,
+      "label": "Full CT Blue"
+     },
+     {
+      "from": 202,
+      "to": 202,
+      "label": "1/2 CT Blue"
+     },
+     {
+      "from": 203,
+      "to": 203,
+      "label": "1/4 CT Blue"
+     },
+     {
+      "from": 204,
+      "to": 204,
+      "label": "Full CT Orange"
+     },
+     {
+      "from": 205,
+      "to": 205,
+      "label": "1/2 CT Orange"
+     },
+     {
+      "from": 206,
+      "to": 206,
+      "label": "1/4 CT Orange"
+     },
+     {
+      "from": 207,
+      "to": 207,
+      "label": "Full CT Orange +"
+     },
+     {
+      "from": 208,
+      "to": 208,
+      "label": "Full CT Orange +"
+     },
+     {
+      "from": 209,
+      "to": 209,
+      "label": "0.3 Neutral Density"
+     },
+     {
+      "from": 210,
+      "to": 210,
+      "label": "0.6 Neutral Density"
+     },
+     {
+      "from": 211,
+      "to": 211,
+      "label": "0.9 Neutral Density"
+     },
+     {
+      "from": 212,
+      "to": 212,
+      "label": "LCT Yellow"
+     },
+     {
+      "from": 213,
+      "to": 215,
+      "label": "White Flame Green"
+     },
+     {
+      "from": 216,
+      "to": 216,
+      "label": "White Diffusion"
+     },
+     {
+      "from": 217,
+      "to": 217,
+      "label": "Blue Diffusion"
+     },
+     {
+      "from": 218,
+      "to": 218,
+      "label": "1/8 CT Blue"
+     },
+     {
+      "from": 219,
+      "to": 219,
+      "label": "LEE Fluorescent Green"
+     },
+     {
+      "from": 220,
+      "to": 220,
+      "label": "White Frost"
+     },
+     {
+      "from": 221,
+      "to": 222,
+      "label": "Blue Frost"
+     },
+     {
+      "from": 223,
+      "to": 223,
+      "label": "1/8 CT Orange"
+     },
+     {
+      "from": 224,
+      "to": 224,
+      "label": "Daylight Blue Frost"
+     },
+     {
+      "from": 225,
+      "to": 225,
+      "label": "LEE N.D. Frost"
+     },
+     {
+      "from": 226,
+      "to": 227,
+      "label": "LEE U.V."
+     },
+     {
+      "from": 228,
+      "to": 228,
+      "label": "Brushed Silk"
+     },
+     {
+      "from": 229,
+      "to": 229,
+      "label": "1/4 Tough Spun"
+     },
+     {
+      "from": 230,
+      "to": 231,
+      "label": "Super Correction"
+     },
+     {
+      "from": 232,
+      "to": 235,
+      "label": "Super White Flame Green"
+     },
+     {
+      "from": 236,
+      "to": 236,
+      "label": "H.M.I (To Tungsten)"
+     },
+     {
+      "from": 237,
+      "to": 237,
+      "label": "C.I.D. (To Tungsten)"
+     },
+     {
+      "from": 238,
+      "to": 238,
+      "label": "C.S.I. (To Tungsten)"
+     },
+     {
+      "from": 239,
+      "to": 240,
+      "label": "Polariser"
+     },
+     {
+      "from": 241,
+      "to": 241,
+      "label": "LEE Fluorescent 5700 K"
+     },
+     {
+      "from": 242,
+      "to": 242,
+      "label": "LEE Fluorescent 4300 K"
+     },
+     {
+      "from": 243,
+      "to": 243,
+      "label": "LEE Fluorescent 3600 K"
+     },
+     {
+      "from": 244,
+      "to": 244,
+      "label": "LEE Plus Green"
+     },
+     {
+      "from": 245,
+      "to": 245,
+      "label": "1/2 Plus Green"
+     },
+     {
+      "from": 246,
+      "to": 246,
+      "label": "1/4 Plus Green"
+     },
+     {
+      "from": 247,
+      "to": 247,
+      "label": "LEE Minus Green"
+     },
+     {
+      "from": 248,
+      "to": 248,
+      "label": "1/2 Minus Green"
+     },
+     {
+      "from": 249,
+      "to": 249,
+      "label": "1/4 Minus Green"
+     },
+     {
+      "from": 250,
+      "to": 250,
+      "label": "1/2 White Diffusion"
+     },
+     {
+      "from": 251,
+      "to": 251,
+      "label": "1/4 White Diffusion"
+     },
+     {
+      "from": 252,
+      "to": 252,
+      "label": "1/8 White Diffusion"
+     },
+     {
+      "from": 253,
+      "to": 253,
+      "label": "Hampshire Frost"
+     },
+     {
+      "from": 254,
+      "to": 254,
+      "label": "New Hampshire Frost"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Hollywood Frost"
+     }
+    ]
+   },
+   {
+    "key": "lee-color-gel-3",
+    "label": "LEE Color Gel 3",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 1,
+      "label": "No effect"
+     },
+     {
+      "from": 2,
+      "to": 2,
+      "label": "Rose Pink"
+     },
+     {
+      "from": 3,
+      "to": 3,
+      "label": "Lavender Tint"
+     },
+     {
+      "from": 4,
+      "to": 6,
+      "label": "Medium Bastard Amber"
+     },
+     {
+      "from": 7,
+      "to": 7,
+      "label": "Pale Yellow"
+     },
+     {
+      "from": 8,
+      "to": 8,
+      "label": "Dark Salmon"
+     },
+     {
+      "from": 9,
+      "to": 9,
+      "label": "Pale Amber Gold"
+     },
+     {
+      "from": 10,
+      "to": 12,
+      "label": "Medium Yellow"
+     },
+     {
+      "from": 13,
+      "to": 14,
+      "label": "Straw Tint"
+     },
+     {
+      "from": 15,
+      "to": 16,
+      "label": "Deep Straw"
+     },
+     {
+      "from": 17,
+      "to": 18,
+      "label": "Surprise Peach"
+     },
+     {
+      "from": 19,
+      "to": 19,
+      "label": "Fire"
+     },
+     {
+      "from": 20,
+      "to": 20,
+      "label": "Medium Amber"
+     },
+     {
+      "from": 21,
+      "to": 21,
+      "label": "Gold Amber"
+     },
+     {
+      "from": 22,
+      "to": 23,
+      "label": "Dark Amber"
+     },
+     {
+      "from": 24,
+      "to": 24,
+      "label": "Scarlet"
+     },
+     {
+      "from": 25,
+      "to": 25,
+      "label": "Sunset Red"
+     },
+     {
+      "from": 26,
+      "to": 26,
+      "label": "Bright Red"
+     },
+     {
+      "from": 27,
+      "to": 28,
+      "label": "Medium Red"
+     },
+     {
+      "from": 29,
+      "to": 34,
+      "label": "Plasa Red"
+     },
+     {
+      "from": 35,
+      "to": 35,
+      "label": "Light Pink"
+     },
+     {
+      "from": 36,
+      "to": 45,
+      "label": "Medium Pink"
+     },
+     {
+      "from": 46,
+      "to": 47,
+      "label": "Dark Magenta"
+     },
+     {
+      "from": 48,
+      "to": 48,
+      "label": "Rose Purple"
+     },
+     {
+      "from": 49,
+      "to": 51,
+      "label": "Medium Purple"
+     },
+     {
+      "from": 52,
+      "to": 52,
+      "label": "Light Lavender"
+     },
+     {
+      "from": 53,
+      "to": 57,
+      "label": "Paler Lavender"
+     },
+     {
+      "from": 58,
+      "to": 60,
+      "label": "Lavender"
+     },
+     {
+      "from": 61,
+      "to": 62,
+      "label": "Mist Blue"
+     },
+     {
+      "from": 63,
+      "to": 67,
+      "label": "Pale Blue"
+     },
+     {
+      "from": 68,
+      "to": 70,
+      "label": "Sky Blue"
+     },
+     {
+      "from": 71,
+      "to": 74,
+      "label": "Tokyo Blue"
+     },
+     {
+      "from": 75,
+      "to": 78,
+      "label": "Evening Blue"
+     },
+     {
+      "from": 79,
+      "to": 84,
+      "label": "Just Blue"
+     },
+     {
+      "from": 85,
+      "to": 87,
+      "label": "Deeper Blue"
+     },
+     {
+      "from": 88,
+      "to": 88,
+      "label": "Lime Green"
+     },
+     {
+      "from": 89,
+      "to": 89,
+      "label": "Moss Green"
+     },
+     {
+      "from": 90,
+      "to": 99,
+      "label": "Dark Yellow Green"
+     },
+     {
+      "from": 100,
+      "to": 100,
+      "label": "Spring Yellow"
+     },
+     {
+      "from": 101,
+      "to": 101,
+      "label": "Yellow"
+     },
+     {
+      "from": 102,
+      "to": 102,
+      "label": "Light Amber"
+     },
+     {
+      "from": 103,
+      "to": 103,
+      "label": "Straw"
+     },
+     {
+      "from": 104,
+      "to": 104,
+      "label": "Deep Amber"
+     },
+     {
+      "from": 105,
+      "to": 105,
+      "label": "Orange"
+     },
+     {
+      "from": 106,
+      "to": 106,
+      "label": "Primary Red"
+     },
+     {
+      "from": 107,
+      "to": 107,
+      "label": "Light Rose"
+     },
+     {
+      "from": 108,
+      "to": 108,
+      "label": "English Rose"
+     },
+     {
+      "from": 109,
+      "to": 109,
+      "label": "Light Salmon"
+     },
+     {
+      "from": 110,
+      "to": 110,
+      "label": "Middle Rose"
+     },
+     {
+      "from": 111,
+      "to": 112,
+      "label": "Dark Pink"
+     },
+     {
+      "from": 113,
+      "to": 114,
+      "label": "Magenta"
+     },
+     {
+      "from": 115,
+      "to": 115,
+      "label": "Peacock Blue"
+     },
+     {
+      "from": 116,
+      "to": 116,
+      "label": "Medium Blue-Green"
+     },
+     {
+      "from": 117,
+      "to": 117,
+      "label": "Steel Blue"
+     },
+     {
+      "from": 118,
+      "to": 118,
+      "label": "Light Blue"
+     },
+     {
+      "from": 119,
+      "to": 119,
+      "label": "Dark Blue"
+     },
+     {
+      "from": 120,
+      "to": 120,
+      "label": "Deep Blue"
+     },
+     {
+      "from": 121,
+      "to": 121,
+      "label": "LEE Green"
+     },
+     {
+      "from": 122,
+      "to": 123,
+      "label": "Fern Green"
+     },
+     {
+      "from": 124,
+      "to": 125,
+      "label": "Dark Green"
+     },
+     {
+      "from": 126,
+      "to": 126,
+      "label": "Mauve"
+     },
+     {
+      "from": 127,
+      "to": 127,
+      "label": "Smokey Pink"
+     },
+     {
+      "from": 128,
+      "to": 128,
+      "label": "Bright Pink"
+     },
+     {
+      "from": 129,
+      "to": 129,
+      "label": "Heavy Frost"
+     },
+     {
+      "from": 130,
+      "to": 130,
+      "label": "Clear"
+     },
+     {
+      "from": 131,
+      "to": 131,
+      "label": "Marine Blue"
+     },
+     {
+      "from": 132,
+      "to": 133,
+      "label": "Medium Blue"
+     },
+     {
+      "from": 134,
+      "to": 134,
+      "label": "Golden Amber"
+     },
+     {
+      "from": 135,
+      "to": 135,
+      "label": "Deep Golden Amber"
+     },
+     {
+      "from": 136,
+      "to": 136,
+      "label": "Pale Lavender"
+     },
+     {
+      "from": 137,
+      "to": 137,
+      "label": "Special Lavender"
+     },
+     {
+      "from": 138,
+      "to": 138,
+      "label": "Pale Green"
+     },
+     {
+      "from": 139,
+      "to": 139,
+      "label": "Primary Green"
+     },
+     {
+      "from": 140,
+      "to": 140,
+      "label": "Summer Blue"
+     },
+     {
+      "from": 141,
+      "to": 141,
+      "label": "Bright Blue"
+     },
+     {
+      "from": 142,
+      "to": 142,
+      "label": "Pale Violet"
+     },
+     {
+      "from": 143,
+      "to": 143,
+      "label": "Pale Navy Blue"
+     },
+     {
+      "from": 144,
+      "to": 146,
+      "label": "No Colour Blue"
+     },
+     {
+      "from": 147,
+      "to": 147,
+      "label": "Apricot"
+     },
+     {
+      "from": 148,
+      "to": 150,
+      "label": "Bright Rose"
+     },
+     {
+      "from": 151,
+      "to": 151,
+      "label": "Gold Tint"
+     },
+     {
+      "from": 152,
+      "to": 152,
+      "label": "Pale Gold"
+     },
+     {
+      "from": 153,
+      "to": 153,
+      "label": "Pale Salmon"
+     },
+     {
+      "from": 154,
+      "to": 155,
+      "label": "Pale Rose"
+     },
+     {
+      "from": 156,
+      "to": 156,
+      "label": "Chocolate"
+     },
+     {
+      "from": 157,
+      "to": 157,
+      "label": "Pink"
+     },
+     {
+      "from": 158,
+      "to": 158,
+      "label": "Deep Orange"
+     },
+     {
+      "from": 159,
+      "to": 160,
+      "label": "No Colour Straw"
+     },
+     {
+      "from": 161,
+      "to": 161,
+      "label": "Slate Blue"
+     },
+     {
+      "from": 162,
+      "to": 163,
+      "label": "Bastard Amber"
+     },
+     {
+      "from": 164,
+      "to": 164,
+      "label": "Flame Red"
+     },
+     {
+      "from": 165,
+      "to": 168,
+      "label": "Daylight Blue"
+     },
+     {
+      "from": 169,
+      "to": 169,
+      "label": "Lilac Tint"
+     },
+     {
+      "from": 170,
+      "to": 171,
+      "label": "Deep Lavender"
+     },
+     {
+      "from": 172,
+      "to": 173,
+      "label": "Lagoon Blue"
+     },
+     {
+      "from": 174,
+      "to": 175,
+      "label": "Dark Steel Blue"
+     },
+     {
+      "from": 176,
+      "to": 178,
+      "label": "Loving Amber"
+     },
+     {
+      "from": 179,
+      "to": 179,
+      "label": "Chrome Orange"
+     },
+     {
+      "from": 180,
+      "to": 180,
+      "label": "Dark Lavender"
+     },
+     {
+      "from": 181,
+      "to": 181,
+      "label": "Congo Blue"
+     },
+     {
+      "from": 182,
+      "to": 182,
+      "label": "Light Red"
+     },
+     {
+      "from": 183,
+      "to": 183,
+      "label": "Moonlight Blue"
+     },
+     {
+      "from": 184,
+      "to": 185,
+      "label": "Cosmetic Peach"
+     },
+     {
+      "from": 186,
+      "to": 186,
+      "label": "Cosmetic Silver Rose"
+     },
+     {
+      "from": 187,
+      "to": 187,
+      "label": "Cosmetic Rouge"
+     },
+     {
+      "from": 188,
+      "to": 188,
+      "label": "Cosmetic Highlight"
+     },
+     {
+      "from": 189,
+      "to": 190,
+      "label": "Cosmetic Silver Moss"
+     },
+     {
+      "from": 191,
+      "to": 191,
+      "label": "Cosmetic Aqua Blue"
+     },
+     {
+      "from": 192,
+      "to": 193,
+      "label": "Flesh Pink"
+     },
+     {
+      "from": 194,
+      "to": 194,
+      "label": "Surprise Pink"
+     },
+     {
+      "from": 195,
+      "to": 195,
+      "label": "Zenith Blue"
+     },
+     {
+      "from": 196,
+      "to": 196,
+      "label": "True Blue"
+     },
+     {
+      "from": 197,
+      "to": 197,
+      "label": "Alice Blue"
+     },
+     {
+      "from": 198,
+      "to": 198,
+      "label": "Palace Blue"
+     },
+     {
+      "from": 199,
+      "to": 199,
+      "label": "Regal Blue"
+     },
+     {
+      "from": 200,
+      "to": 200,
+      "label": "Double CT Blue"
+     },
+     {
+      "from": 201,
+      "to": 201,
+      "label": "Full CT Blue"
+     },
+     {
+      "from": 202,
+      "to": 202,
+      "label": "1/2 CT Blue"
+     },
+     {
+      "from": 203,
+      "to": 203,
+      "label": "1/4 CT Blue"
+     },
+     {
+      "from": 204,
+      "to": 204,
+      "label": "Full CT Orange"
+     },
+     {
+      "from": 205,
+      "to": 205,
+      "label": "1/2 CT Orange"
+     },
+     {
+      "from": 206,
+      "to": 206,
+      "label": "1/4 CT Orange"
+     },
+     {
+      "from": 207,
+      "to": 207,
+      "label": "Full CT Orange +"
+     },
+     {
+      "from": 208,
+      "to": 208,
+      "label": "Full CT Orange +"
+     },
+     {
+      "from": 209,
+      "to": 209,
+      "label": "0.3 Neutral Density"
+     },
+     {
+      "from": 210,
+      "to": 210,
+      "label": "0.6 Neutral Density"
+     },
+     {
+      "from": 211,
+      "to": 211,
+      "label": "0.9 Neutral Density"
+     },
+     {
+      "from": 212,
+      "to": 212,
+      "label": "LCT Yellow"
+     },
+     {
+      "from": 213,
+      "to": 215,
+      "label": "White Flame Green"
+     },
+     {
+      "from": 216,
+      "to": 216,
+      "label": "White Diffusion"
+     },
+     {
+      "from": 217,
+      "to": 217,
+      "label": "Blue Diffusion"
+     },
+     {
+      "from": 218,
+      "to": 218,
+      "label": "1/8 CT Blue"
+     },
+     {
+      "from": 219,
+      "to": 219,
+      "label": "LEE Fluorescent Green"
+     },
+     {
+      "from": 220,
+      "to": 220,
+      "label": "White Frost"
+     },
+     {
+      "from": 221,
+      "to": 222,
+      "label": "Blue Frost"
+     },
+     {
+      "from": 223,
+      "to": 223,
+      "label": "1/8 CT Orange"
+     },
+     {
+      "from": 224,
+      "to": 224,
+      "label": "Daylight Blue Frost"
+     },
+     {
+      "from": 225,
+      "to": 225,
+      "label": "LEE N.D. Frost"
+     },
+     {
+      "from": 226,
+      "to": 227,
+      "label": "LEE U.V."
+     },
+     {
+      "from": 228,
+      "to": 228,
+      "label": "Brushed Silk"
+     },
+     {
+      "from": 229,
+      "to": 229,
+      "label": "1/4 Tough Spun"
+     },
+     {
+      "from": 230,
+      "to": 231,
+      "label": "Super Correction"
+     },
+     {
+      "from": 232,
+      "to": 235,
+      "label": "Super White Flame Green"
+     },
+     {
+      "from": 236,
+      "to": 236,
+      "label": "H.M.I (To Tungsten)"
+     },
+     {
+      "from": 237,
+      "to": 237,
+      "label": "C.I.D. (To Tungsten)"
+     },
+     {
+      "from": 238,
+      "to": 238,
+      "label": "C.S.I. (To Tungsten)"
+     },
+     {
+      "from": 239,
+      "to": 240,
+      "label": "Polariser"
+     },
+     {
+      "from": 241,
+      "to": 241,
+      "label": "LEE Fluorescent 5700 K"
+     },
+     {
+      "from": 242,
+      "to": 242,
+      "label": "LEE Fluorescent 4300 K"
+     },
+     {
+      "from": 243,
+      "to": 243,
+      "label": "LEE Fluorescent 3600 K"
+     },
+     {
+      "from": 244,
+      "to": 244,
+      "label": "LEE Plus Green"
+     },
+     {
+      "from": 245,
+      "to": 245,
+      "label": "1/2 Plus Green"
+     },
+     {
+      "from": 246,
+      "to": 246,
+      "label": "1/4 Plus Green"
+     },
+     {
+      "from": 247,
+      "to": 247,
+      "label": "LEE Minus Green"
+     },
+     {
+      "from": 248,
+      "to": 248,
+      "label": "1/2 Minus Green"
+     },
+     {
+      "from": 249,
+      "to": 249,
+      "label": "1/4 Minus Green"
+     },
+     {
+      "from": 250,
+      "to": 250,
+      "label": "1/2 White Diffusion"
+     },
+     {
+      "from": 251,
+      "to": 251,
+      "label": "1/4 White Diffusion"
+     },
+     {
+      "from": 252,
+      "to": 252,
+      "label": "1/8 White Diffusion"
+     },
+     {
+      "from": 253,
+      "to": 253,
+      "label": "Hampshire Frost"
+     },
+     {
+      "from": 254,
+      "to": 254,
+      "label": "New Hampshire Frost"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Hollywood Frost"
+     }
+    ]
+   },
+   {
+    "key": "lee-color-gel-4",
+    "label": "LEE Color Gel 4",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 1,
+      "label": "No effect"
+     },
+     {
+      "from": 2,
+      "to": 2,
+      "label": "Rose Pink"
+     },
+     {
+      "from": 3,
+      "to": 3,
+      "label": "Lavender Tint"
+     },
+     {
+      "from": 4,
+      "to": 6,
+      "label": "Medium Bastard Amber"
+     },
+     {
+      "from": 7,
+      "to": 7,
+      "label": "Pale Yellow"
+     },
+     {
+      "from": 8,
+      "to": 8,
+      "label": "Dark Salmon"
+     },
+     {
+      "from": 9,
+      "to": 9,
+      "label": "Pale Amber Gold"
+     },
+     {
+      "from": 10,
+      "to": 12,
+      "label": "Medium Yellow"
+     },
+     {
+      "from": 13,
+      "to": 14,
+      "label": "Straw Tint"
+     },
+     {
+      "from": 15,
+      "to": 16,
+      "label": "Deep Straw"
+     },
+     {
+      "from": 17,
+      "to": 18,
+      "label": "Surprise Peach"
+     },
+     {
+      "from": 19,
+      "to": 19,
+      "label": "Fire"
+     },
+     {
+      "from": 20,
+      "to": 20,
+      "label": "Medium Amber"
+     },
+     {
+      "from": 21,
+      "to": 21,
+      "label": "Gold Amber"
+     },
+     {
+      "from": 22,
+      "to": 23,
+      "label": "Dark Amber"
+     },
+     {
+      "from": 24,
+      "to": 24,
+      "label": "Scarlet"
+     },
+     {
+      "from": 25,
+      "to": 25,
+      "label": "Sunset Red"
+     },
+     {
+      "from": 26,
+      "to": 26,
+      "label": "Bright Red"
+     },
+     {
+      "from": 27,
+      "to": 28,
+      "label": "Medium Red"
+     },
+     {
+      "from": 29,
+      "to": 34,
+      "label": "Plasa Red"
+     },
+     {
+      "from": 35,
+      "to": 35,
+      "label": "Light Pink"
+     },
+     {
+      "from": 36,
+      "to": 45,
+      "label": "Medium Pink"
+     },
+     {
+      "from": 46,
+      "to": 47,
+      "label": "Dark Magenta"
+     },
+     {
+      "from": 48,
+      "to": 48,
+      "label": "Rose Purple"
+     },
+     {
+      "from": 49,
+      "to": 51,
+      "label": "Medium Purple"
+     },
+     {
+      "from": 52,
+      "to": 52,
+      "label": "Light Lavender"
+     },
+     {
+      "from": 53,
+      "to": 57,
+      "label": "Paler Lavender"
+     },
+     {
+      "from": 58,
+      "to": 60,
+      "label": "Lavender"
+     },
+     {
+      "from": 61,
+      "to": 62,
+      "label": "Mist Blue"
+     },
+     {
+      "from": 63,
+      "to": 67,
+      "label": "Pale Blue"
+     },
+     {
+      "from": 68,
+      "to": 70,
+      "label": "Sky Blue"
+     },
+     {
+      "from": 71,
+      "to": 74,
+      "label": "Tokyo Blue"
+     },
+     {
+      "from": 75,
+      "to": 78,
+      "label": "Evening Blue"
+     },
+     {
+      "from": 79,
+      "to": 84,
+      "label": "Just Blue"
+     },
+     {
+      "from": 85,
+      "to": 87,
+      "label": "Deeper Blue"
+     },
+     {
+      "from": 88,
+      "to": 88,
+      "label": "Lime Green"
+     },
+     {
+      "from": 89,
+      "to": 89,
+      "label": "Moss Green"
+     },
+     {
+      "from": 90,
+      "to": 99,
+      "label": "Dark Yellow Green"
+     },
+     {
+      "from": 100,
+      "to": 100,
+      "label": "Spring Yellow"
+     },
+     {
+      "from": 101,
+      "to": 101,
+      "label": "Yellow"
+     },
+     {
+      "from": 102,
+      "to": 102,
+      "label": "Light Amber"
+     },
+     {
+      "from": 103,
+      "to": 103,
+      "label": "Straw"
+     },
+     {
+      "from": 104,
+      "to": 104,
+      "label": "Deep Amber"
+     },
+     {
+      "from": 105,
+      "to": 105,
+      "label": "Orange"
+     },
+     {
+      "from": 106,
+      "to": 106,
+      "label": "Primary Red"
+     },
+     {
+      "from": 107,
+      "to": 107,
+      "label": "Light Rose"
+     },
+     {
+      "from": 108,
+      "to": 108,
+      "label": "English Rose"
+     },
+     {
+      "from": 109,
+      "to": 109,
+      "label": "Light Salmon"
+     },
+     {
+      "from": 110,
+      "to": 110,
+      "label": "Middle Rose"
+     },
+     {
+      "from": 111,
+      "to": 112,
+      "label": "Dark Pink"
+     },
+     {
+      "from": 113,
+      "to": 114,
+      "label": "Magenta"
+     },
+     {
+      "from": 115,
+      "to": 115,
+      "label": "Peacock Blue"
+     },
+     {
+      "from": 116,
+      "to": 116,
+      "label": "Medium Blue-Green"
+     },
+     {
+      "from": 117,
+      "to": 117,
+      "label": "Steel Blue"
+     },
+     {
+      "from": 118,
+      "to": 118,
+      "label": "Light Blue"
+     },
+     {
+      "from": 119,
+      "to": 119,
+      "label": "Dark Blue"
+     },
+     {
+      "from": 120,
+      "to": 120,
+      "label": "Deep Blue"
+     },
+     {
+      "from": 121,
+      "to": 121,
+      "label": "LEE Green"
+     },
+     {
+      "from": 122,
+      "to": 123,
+      "label": "Fern Green"
+     },
+     {
+      "from": 124,
+      "to": 125,
+      "label": "Dark Green"
+     },
+     {
+      "from": 126,
+      "to": 126,
+      "label": "Mauve"
+     },
+     {
+      "from": 127,
+      "to": 127,
+      "label": "Smokey Pink"
+     },
+     {
+      "from": 128,
+      "to": 128,
+      "label": "Bright Pink"
+     },
+     {
+      "from": 129,
+      "to": 129,
+      "label": "Heavy Frost"
+     },
+     {
+      "from": 130,
+      "to": 130,
+      "label": "Clear"
+     },
+     {
+      "from": 131,
+      "to": 131,
+      "label": "Marine Blue"
+     },
+     {
+      "from": 132,
+      "to": 133,
+      "label": "Medium Blue"
+     },
+     {
+      "from": 134,
+      "to": 134,
+      "label": "Golden Amber"
+     },
+     {
+      "from": 135,
+      "to": 135,
+      "label": "Deep Golden Amber"
+     },
+     {
+      "from": 136,
+      "to": 136,
+      "label": "Pale Lavender"
+     },
+     {
+      "from": 137,
+      "to": 137,
+      "label": "Special Lavender"
+     },
+     {
+      "from": 138,
+      "to": 138,
+      "label": "Pale Green"
+     },
+     {
+      "from": 139,
+      "to": 139,
+      "label": "Primary Green"
+     },
+     {
+      "from": 140,
+      "to": 140,
+      "label": "Summer Blue"
+     },
+     {
+      "from": 141,
+      "to": 141,
+      "label": "Bright Blue"
+     },
+     {
+      "from": 142,
+      "to": 142,
+      "label": "Pale Violet"
+     },
+     {
+      "from": 143,
+      "to": 143,
+      "label": "Pale Navy Blue"
+     },
+     {
+      "from": 144,
+      "to": 146,
+      "label": "No Colour Blue"
+     },
+     {
+      "from": 147,
+      "to": 147,
+      "label": "Apricot"
+     },
+     {
+      "from": 148,
+      "to": 150,
+      "label": "Bright Rose"
+     },
+     {
+      "from": 151,
+      "to": 151,
+      "label": "Gold Tint"
+     },
+     {
+      "from": 152,
+      "to": 152,
+      "label": "Pale Gold"
+     },
+     {
+      "from": 153,
+      "to": 153,
+      "label": "Pale Salmon"
+     },
+     {
+      "from": 154,
+      "to": 155,
+      "label": "Pale Rose"
+     },
+     {
+      "from": 156,
+      "to": 156,
+      "label": "Chocolate"
+     },
+     {
+      "from": 157,
+      "to": 157,
+      "label": "Pink"
+     },
+     {
+      "from": 158,
+      "to": 158,
+      "label": "Deep Orange"
+     },
+     {
+      "from": 159,
+      "to": 160,
+      "label": "No Colour Straw"
+     },
+     {
+      "from": 161,
+      "to": 161,
+      "label": "Slate Blue"
+     },
+     {
+      "from": 162,
+      "to": 163,
+      "label": "Bastard Amber"
+     },
+     {
+      "from": 164,
+      "to": 164,
+      "label": "Flame Red"
+     },
+     {
+      "from": 165,
+      "to": 168,
+      "label": "Daylight Blue"
+     },
+     {
+      "from": 169,
+      "to": 169,
+      "label": "Lilac Tint"
+     },
+     {
+      "from": 170,
+      "to": 171,
+      "label": "Deep Lavender"
+     },
+     {
+      "from": 172,
+      "to": 173,
+      "label": "Lagoon Blue"
+     },
+     {
+      "from": 174,
+      "to": 175,
+      "label": "Dark Steel Blue"
+     },
+     {
+      "from": 176,
+      "to": 178,
+      "label": "Loving Amber"
+     },
+     {
+      "from": 179,
+      "to": 179,
+      "label": "Chrome Orange"
+     },
+     {
+      "from": 180,
+      "to": 180,
+      "label": "Dark Lavender"
+     },
+     {
+      "from": 181,
+      "to": 181,
+      "label": "Congo Blue"
+     },
+     {
+      "from": 182,
+      "to": 182,
+      "label": "Light Red"
+     },
+     {
+      "from": 183,
+      "to": 183,
+      "label": "Moonlight Blue"
+     },
+     {
+      "from": 184,
+      "to": 185,
+      "label": "Cosmetic Peach"
+     },
+     {
+      "from": 186,
+      "to": 186,
+      "label": "Cosmetic Silver Rose"
+     },
+     {
+      "from": 187,
+      "to": 187,
+      "label": "Cosmetic Rouge"
+     },
+     {
+      "from": 188,
+      "to": 188,
+      "label": "Cosmetic Highlight"
+     },
+     {
+      "from": 189,
+      "to": 190,
+      "label": "Cosmetic Silver Moss"
+     },
+     {
+      "from": 191,
+      "to": 191,
+      "label": "Cosmetic Aqua Blue"
+     },
+     {
+      "from": 192,
+      "to": 193,
+      "label": "Flesh Pink"
+     },
+     {
+      "from": 194,
+      "to": 194,
+      "label": "Surprise Pink"
+     },
+     {
+      "from": 195,
+      "to": 195,
+      "label": "Zenith Blue"
+     },
+     {
+      "from": 196,
+      "to": 196,
+      "label": "True Blue"
+     },
+     {
+      "from": 197,
+      "to": 197,
+      "label": "Alice Blue"
+     },
+     {
+      "from": 198,
+      "to": 198,
+      "label": "Palace Blue"
+     },
+     {
+      "from": 199,
+      "to": 199,
+      "label": "Regal Blue"
+     },
+     {
+      "from": 200,
+      "to": 200,
+      "label": "Double CT Blue"
+     },
+     {
+      "from": 201,
+      "to": 201,
+      "label": "Full CT Blue"
+     },
+     {
+      "from": 202,
+      "to": 202,
+      "label": "1/2 CT Blue"
+     },
+     {
+      "from": 203,
+      "to": 203,
+      "label": "1/4 CT Blue"
+     },
+     {
+      "from": 204,
+      "to": 204,
+      "label": "Full CT Orange"
+     },
+     {
+      "from": 205,
+      "to": 205,
+      "label": "1/2 CT Orange"
+     },
+     {
+      "from": 206,
+      "to": 206,
+      "label": "1/4 CT Orange"
+     },
+     {
+      "from": 207,
+      "to": 207,
+      "label": "Full CT Orange +"
+     },
+     {
+      "from": 208,
+      "to": 208,
+      "label": "Full CT Orange +"
+     },
+     {
+      "from": 209,
+      "to": 209,
+      "label": "0.3 Neutral Density"
+     },
+     {
+      "from": 210,
+      "to": 210,
+      "label": "0.6 Neutral Density"
+     },
+     {
+      "from": 211,
+      "to": 211,
+      "label": "0.9 Neutral Density"
+     },
+     {
+      "from": 212,
+      "to": 212,
+      "label": "LCT Yellow"
+     },
+     {
+      "from": 213,
+      "to": 215,
+      "label": "White Flame Green"
+     },
+     {
+      "from": 216,
+      "to": 216,
+      "label": "White Diffusion"
+     },
+     {
+      "from": 217,
+      "to": 217,
+      "label": "Blue Diffusion"
+     },
+     {
+      "from": 218,
+      "to": 218,
+      "label": "1/8 CT Blue"
+     },
+     {
+      "from": 219,
+      "to": 219,
+      "label": "LEE Fluorescent Green"
+     },
+     {
+      "from": 220,
+      "to": 220,
+      "label": "White Frost"
+     },
+     {
+      "from": 221,
+      "to": 222,
+      "label": "Blue Frost"
+     },
+     {
+      "from": 223,
+      "to": 223,
+      "label": "1/8 CT Orange"
+     },
+     {
+      "from": 224,
+      "to": 224,
+      "label": "Daylight Blue Frost"
+     },
+     {
+      "from": 225,
+      "to": 225,
+      "label": "LEE N.D. Frost"
+     },
+     {
+      "from": 226,
+      "to": 227,
+      "label": "LEE U.V."
+     },
+     {
+      "from": 228,
+      "to": 228,
+      "label": "Brushed Silk"
+     },
+     {
+      "from": 229,
+      "to": 229,
+      "label": "1/4 Tough Spun"
+     },
+     {
+      "from": 230,
+      "to": 231,
+      "label": "Super Correction"
+     },
+     {
+      "from": 232,
+      "to": 235,
+      "label": "Super White Flame Green"
+     },
+     {
+      "from": 236,
+      "to": 236,
+      "label": "H.M.I (To Tungsten)"
+     },
+     {
+      "from": 237,
+      "to": 237,
+      "label": "C.I.D. (To Tungsten)"
+     },
+     {
+      "from": 238,
+      "to": 238,
+      "label": "C.S.I. (To Tungsten)"
+     },
+     {
+      "from": 239,
+      "to": 240,
+      "label": "Polariser"
+     },
+     {
+      "from": 241,
+      "to": 241,
+      "label": "LEE Fluorescent 5700 K"
+     },
+     {
+      "from": 242,
+      "to": 242,
+      "label": "LEE Fluorescent 4300 K"
+     },
+     {
+      "from": 243,
+      "to": 243,
+      "label": "LEE Fluorescent 3600 K"
+     },
+     {
+      "from": 244,
+      "to": 244,
+      "label": "LEE Plus Green"
+     },
+     {
+      "from": 245,
+      "to": 245,
+      "label": "1/2 Plus Green"
+     },
+     {
+      "from": 246,
+      "to": 246,
+      "label": "1/4 Plus Green"
+     },
+     {
+      "from": 247,
+      "to": 247,
+      "label": "LEE Minus Green"
+     },
+     {
+      "from": 248,
+      "to": 248,
+      "label": "1/2 Minus Green"
+     },
+     {
+      "from": 249,
+      "to": 249,
+      "label": "1/4 Minus Green"
+     },
+     {
+      "from": 250,
+      "to": 250,
+      "label": "1/2 White Diffusion"
+     },
+     {
+      "from": 251,
+      "to": 251,
+      "label": "1/4 White Diffusion"
+     },
+     {
+      "from": 252,
+      "to": 252,
+      "label": "1/8 White Diffusion"
+     },
+     {
+      "from": 253,
+      "to": 253,
+      "label": "Hampshire Frost"
+     },
+     {
+      "from": 254,
+      "to": 254,
+      "label": "New Hampshire Frost"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Hollywood Frost"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 3,
+      "label": "Open"
+     },
+     {
+      "from": 4,
+      "to": 4,
+      "label": "Strobe"
+     },
+     {
+      "from": 5,
+      "to": 5,
+      "label": "Strobe"
+     },
+     {
+      "from": 6,
+      "to": 6,
+      "label": "Strobe"
+     },
+     {
+      "from": 7,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "program",
+    "label": "Program",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "One Color Static"
+     },
+     {
+      "from": 8,
+      "to": 15,
+      "label": "Two Color Static"
+     },
+     {
+      "from": 16,
+      "to": 23,
+      "label": "Three Color Static"
+     },
+     {
+      "from": 24,
+      "to": 31,
+      "label": "Four Color Static"
+     },
+     {
+      "from": 32,
+      "to": 39,
+      "label": "One Color Fade"
+     },
+     {
+      "from": 40,
+      "to": 47,
+      "label": "Two Color Fade"
+     },
+     {
+      "from": 48,
+      "to": 55,
+      "label": "Three Color Fade"
+     },
+     {
+      "from": 56,
+      "to": 63,
+      "label": "Four Color Fade"
+     },
+     {
+      "from": 64,
+      "to": 71,
+      "label": "Simple Running"
+     },
+     {
+      "from": 72,
+      "to": 79,
+      "label": "Double Running"
+     },
+     {
+      "from": 80,
+      "to": 87,
+      "label": "Two Col Running"
+     },
+     {
+      "from": 88,
+      "to": 95,
+      "label": "Flag Running"
+     },
+     {
+      "from": 96,
+      "to": 101,
+      "label": "Double Flag Running"
+     },
+     {
+      "from": 102,
+      "to": 109,
+      "label": "Spiral 4 Color"
+     },
+     {
+      "from": 110,
+      "to": 117,
+      "label": "Spiral 2 Color"
+     },
+     {
+      "from": 118,
+      "to": 125,
+      "label": "Rainbow"
+     },
+     {
+      "from": 126,
+      "to": 133,
+      "label": "Fire"
+     },
+     {
+      "from": 134,
+      "to": 141,
+      "label": "Rotor"
+     },
+     {
+      "from": 142,
+      "to": 149,
+      "label": "Rotor Split 2"
+     },
+     {
+      "from": 150,
+      "to": 157,
+      "label": "Rotor Split 4"
+     },
+     {
+      "from": 158,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "program-speed",
+    "label": "Program Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "program-cross-fade",
+    "label": "Program Cross Fade",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "program-direction",
+    "label": "Program Direction",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 63,
+      "label": "Forward with loop"
+     },
+     {
+      "from": 64,
+      "to": 127,
+      "label": "Forward one time and stop"
+     },
+     {
+      "from": 128,
+      "to": 190,
+      "label": "Reverse one time and stop"
+     },
+     {
+      "from": 191,
+      "to": 255,
+      "label": "Reverse with loop"
+     }
+    ]
+   },
+   {
+    "key": "program-group-size",
+    "label": "Program Group Size",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 63,
+      "label": "EffectParameter"
+     },
+     {
+      "from": 64,
+      "to": 127,
+      "label": "EffectParameter"
+     },
+     {
+      "from": 128,
+      "to": 190,
+      "label": "EffectParameter"
+     },
+     {
+      "from": 191,
+      "to": 255,
+      "label": "EffectParameter"
+     }
+    ]
+   },
+   {
+    "key": "program-user-offset-in-groups",
+    "label": "Program user Offset in Groups",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "program-restart",
+    "label": "Program Restart",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "intensity-red-of-color-1",
+    "label": "Intensity Red of Color 1",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "intensity-green-of-color-1",
+    "label": "Intensity Green of Color 1",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "intensity-blue-of-color-1",
+    "label": "Intensity Blue of Color 1",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "intensity-red-of-color-2",
+    "label": "Intensity Red of Color 2",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "intensity-green-of-color-2",
+    "label": "Intensity Green of Color 2",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "intensity-blue-of-color-2",
+    "label": "Intensity Blue of Color 2",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "intensity-red-of-color-3",
+    "label": "Intensity Red of Color 3",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "intensity-green-of-color-3",
+    "label": "Intensity Green of Color 3",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "intensity-blue-of-color-3",
+    "label": "Intensity Blue of Color 3",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "intensity-red-of-color-4",
+    "label": "Intensity Red of Color 4",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "intensity-green-of-color-4",
+    "label": "Intensity Green of Color 4",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "intensity-blue-of-color-4",
+    "label": "Intensity Blue of Color 4",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "1-rgb",
+    "name": "1: RGB",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "2-rgbw",
+    "name": "2: RGBW",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "3-rgbaw",
+    "name": "3: RGBAW",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     null,
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "4-dim-rgb",
+    "name": "4: DIM RGB",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "master-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "5-dim-rgbw",
+    "name": "5: DIM RGBW",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "master-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "6-dim-rgbaw",
+    "name": "6: DIM RGBAW",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "master-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     null,
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "7-dim-rgb-cct-dim-ind",
+    "name": "7: DIM RGB CCT DIM IND",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "master-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "lee-color-gel-1",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "8-rgbs",
+    "name": "8: RGBS",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "9-rgbws",
+    "name": "9: RGBWS",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "10-rgbaws",
+    "name": "10: RGBAWS",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     null,
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "11-dim-rgbs",
+    "name": "11: DIM RGBS",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "master-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "12-dim-rgbws",
+    "name": "12: DIM RGBWS",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "master-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "13-dim-rgbaws",
+    "name": "13: DIM RGBAWS",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "master-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     null,
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "14-rgb-cct-dim-ind-s",
+    "name": "14: RGB CCT DIM IND S",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature-cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "master-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "lee-color-gel-1",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "15-effect-fix",
+    "name": "15: EFFECT FIX",
+    "footprint": 13,
+    "slots": [
+     {
+      "channelKey": "master-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "program",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-cross-fade",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-direction",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-group-size",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-user-offset-in-groups",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-restart",
+      "byte": 0
+     },
+     {
+      "channelKey": "lee-color-gel-1",
+      "byte": 0
+     },
+     {
+      "channelKey": "lee-color-gel-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "lee-color-gel-3",
+      "byte": 0
+     },
+     {
+      "channelKey": "lee-color-gel-4",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "16-effect-rgb",
+    "name": "16: EFFECT RGB",
+    "footprint": 21,
+    "slots": [
+     {
+      "channelKey": "master-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "program",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-cross-fade",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-direction",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-group-size",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-user-offset-in-groups",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-restart",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity-red-of-color-1",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity-green-of-color-1",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity-blue-of-color-1",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity-red-of-color-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity-green-of-color-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity-blue-of-color-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity-red-of-color-3",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity-green-of-color-3",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity-blue-of-color-3",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity-red-of-color-4",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity-green-of-color-4",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity-blue-of-color-4",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    96.4,
+    96.4,
+    59
+   ],
+   "weightKg": 0.4,
+   "powerW": 15,
+   "lensDegMin": 13,
+   "lensDegMax": 13
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "astera/ax3-lightdrop",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

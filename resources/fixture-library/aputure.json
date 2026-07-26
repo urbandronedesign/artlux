@@ -1,0 +1,2390 @@
+[
+ {
+  "id": "aputure/ls-1200d-pro",
+  "manufacturer": "Aputure",
+  "model": "LS 1200D Pro",
+  "aliases": [
+   "Aputure LS 1200D Pro",
+   "LS 1200D Pro",
+   "aputurels1200dpro",
+   "ls1200dpro"
+  ],
+  "categories": [
+   "Dimmer",
+   "Effect"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "effects",
+    "label": "Effects",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 19,
+      "label": "Paparazzi"
+     },
+     {
+      "from": 20,
+      "to": 39,
+      "label": "Fireworks"
+     },
+     {
+      "from": 40,
+      "to": 59,
+      "label": "Faulty bulb"
+     },
+     {
+      "from": 60,
+      "to": 79,
+      "label": "Lightning"
+     },
+     {
+      "from": 80,
+      "to": 99,
+      "label": "TV"
+     },
+     {
+      "from": 100,
+      "to": 119,
+      "label": "Pulsing"
+     },
+     {
+      "from": 120,
+      "to": 139,
+      "label": "Strobe"
+     },
+     {
+      "from": 140,
+      "to": 159,
+      "label": "Explosion"
+     },
+     {
+      "from": 160,
+      "to": 255,
+      "label": "Reserved"
+     }
+    ]
+   },
+   {
+    "key": "frequency",
+    "label": "Frequency",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 19,
+      "label": "1"
+     },
+     {
+      "from": 20,
+      "to": 39,
+      "label": "2"
+     },
+     {
+      "from": 40,
+      "to": 59,
+      "label": "3"
+     },
+     {
+      "from": 60,
+      "to": 79,
+      "label": "4"
+     },
+     {
+      "from": 80,
+      "to": 99,
+      "label": "5"
+     },
+     {
+      "from": 100,
+      "to": 119,
+      "label": "6"
+     },
+     {
+      "from": 120,
+      "to": 139,
+      "label": "7"
+     },
+     {
+      "from": 140,
+      "to": 159,
+      "label": "8"
+     },
+     {
+      "from": 160,
+      "to": 179,
+      "label": "9"
+     },
+     {
+      "from": 180,
+      "to": 199,
+      "label": "10"
+     },
+     {
+      "from": 200,
+      "to": 219,
+      "label": "Random"
+     },
+     {
+      "from": 220,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "mode-selection",
+    "label": "Mode Selection",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "Manual Mode"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "FX Mode"
+     }
+    ]
+   },
+   {
+    "key": "lightning",
+    "label": "Lightning",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Stop"
+     },
+     {
+      "from": 11,
+      "to": 127,
+      "label": "Trigger"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "Loop"
+     }
+    ]
+   },
+   {
+    "key": "explosion",
+    "label": "Explosion",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Stop"
+     },
+     {
+      "from": 11,
+      "to": 127,
+      "label": "Trigger"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "Reserved"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "p1",
+    "name": "Lighting 8-bit",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p2",
+    "name": "Effect 8-bit",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "effects",
+      "byte": 0
+     },
+     {
+      "channelKey": "frequency",
+      "byte": 0
+     },
+     {
+      "channelKey": "lightning",
+      "byte": 0
+     },
+     {
+      "channelKey": "explosion",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p3",
+    "name": "Lighting & Effect 8-bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "mode-selection",
+      "byte": 0
+     },
+     {
+      "channelKey": "effects",
+      "byte": 0
+     },
+     {
+      "channelKey": "frequency",
+      "byte": 0
+     },
+     {
+      "channelKey": "lightning",
+      "byte": 0
+     },
+     {
+      "channelKey": "explosion",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p4",
+    "name": "Lighting 16-bit",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "p5",
+    "name": "Effect 16-bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity",
+      "byte": 1
+     },
+     {
+      "channelKey": "effects",
+      "byte": 0
+     },
+     {
+      "channelKey": "frequency",
+      "byte": 0
+     },
+     {
+      "channelKey": "lightning",
+      "byte": 0
+     },
+     {
+      "channelKey": "explosion",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p6",
+    "name": "Lighting & Effect 16-bit",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity",
+      "byte": 1
+     },
+     {
+      "channelKey": "mode-selection",
+      "byte": 0
+     },
+     {
+      "channelKey": "effects",
+      "byte": 0
+     },
+     {
+      "channelKey": "frequency",
+      "byte": 0
+     },
+     {
+      "channelKey": "lightning",
+      "byte": 0
+     },
+     {
+      "channelKey": "explosion",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    332,
+    231,
+    216
+   ],
+   "weightKg": 7.6,
+   "powerW": 1200
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "aputure/ls-1200d-pro",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "aputure/ls-300x",
+  "manufacturer": "Aputure",
+  "model": "LS 300x",
+  "aliases": [
+   "Aputure LS 300x",
+   "LS 300x",
+   "aputurels300x",
+   "ls300x"
+  ],
+  "categories": [
+   "Dimmer",
+   "Effect"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "cct-control",
+    "label": "CCT Control",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 195,
+      "label": "ColorTemperature"
+     },
+     {
+      "from": 196,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "frequency-control",
+    "label": "Frequency Control",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 19,
+      "label": "1"
+     },
+     {
+      "from": 20,
+      "to": 39,
+      "label": "2"
+     },
+     {
+      "from": 40,
+      "to": 59,
+      "label": "3"
+     },
+     {
+      "from": 60,
+      "to": 79,
+      "label": "4"
+     },
+     {
+      "from": 80,
+      "to": 99,
+      "label": "5"
+     },
+     {
+      "from": 100,
+      "to": 119,
+      "label": "6"
+     },
+     {
+      "from": 120,
+      "to": 139,
+      "label": "7"
+     },
+     {
+      "from": 140,
+      "to": 159,
+      "label": "8"
+     },
+     {
+      "from": 160,
+      "to": 179,
+      "label": "9"
+     },
+     {
+      "from": 180,
+      "to": 199,
+      "label": "10"
+     },
+     {
+      "from": 200,
+      "to": 219,
+      "label": "R"
+     },
+     {
+      "from": 220,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "mode-selection",
+    "label": "Mode Selection",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "Manual Mode"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "FX Mode"
+     }
+    ]
+   },
+   {
+    "key": "fx-control",
+    "label": "FX Control",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 19,
+      "label": "Paparazzi"
+     },
+     {
+      "from": 20,
+      "to": 39,
+      "label": "Fireworks"
+     },
+     {
+      "from": 40,
+      "to": 59,
+      "label": "Faulty Bulb"
+     },
+     {
+      "from": 60,
+      "to": 79,
+      "label": "Lightning"
+     },
+     {
+      "from": 80,
+      "to": 99,
+      "label": "TV"
+     },
+     {
+      "from": 100,
+      "to": 119,
+      "label": "Pulsing"
+     },
+     {
+      "from": 120,
+      "to": 139,
+      "label": "Strobe"
+     },
+     {
+      "from": 140,
+      "to": 159,
+      "label": "Explosion"
+     },
+     {
+      "from": 160,
+      "to": 179,
+      "label": "Fire"
+     },
+     {
+      "from": 180,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "start-trigger",
+    "label": "Start Trigger",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Start Point"
+     },
+     {
+      "from": 1,
+      "to": 127,
+      "label": "Single Trigger"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "Cycle Mode (Lightning)"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "default",
+    "name": "Default",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "frequency-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "mode-selection",
+      "byte": 0
+     },
+     {
+      "channelKey": "fx-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "start-trigger",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    298,
+    216,
+    345
+   ],
+   "weightKg": 11.4,
+   "powerW": 300
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "aputure/ls-300x",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "aputure/ls-600d-pro",
+  "manufacturer": "Aputure",
+  "model": "LS 600D Pro",
+  "aliases": [
+   "Aputure LS 600D Pro",
+   "LS 600D Pro",
+   "aputurels600dpro",
+   "ls600dpro"
+  ],
+  "categories": [
+   "Dimmer",
+   "Effect"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "effects",
+    "label": "Effects",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 19,
+      "label": "Paparazzi"
+     },
+     {
+      "from": 20,
+      "to": 39,
+      "label": "Fireworks"
+     },
+     {
+      "from": 40,
+      "to": 59,
+      "label": "Faulty bulb"
+     },
+     {
+      "from": 60,
+      "to": 79,
+      "label": "Lightning"
+     },
+     {
+      "from": 80,
+      "to": 99,
+      "label": "TV"
+     },
+     {
+      "from": 100,
+      "to": 119,
+      "label": "Pulsing"
+     },
+     {
+      "from": 120,
+      "to": 139,
+      "label": "Strobe"
+     },
+     {
+      "from": 140,
+      "to": 159,
+      "label": "Explosion"
+     },
+     {
+      "from": 160,
+      "to": 255,
+      "label": "Reserved"
+     }
+    ]
+   },
+   {
+    "key": "frequency",
+    "label": "Frequency",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 19,
+      "label": "1"
+     },
+     {
+      "from": 20,
+      "to": 39,
+      "label": "2"
+     },
+     {
+      "from": 40,
+      "to": 59,
+      "label": "3"
+     },
+     {
+      "from": 60,
+      "to": 79,
+      "label": "4"
+     },
+     {
+      "from": 80,
+      "to": 99,
+      "label": "5"
+     },
+     {
+      "from": 100,
+      "to": 119,
+      "label": "6"
+     },
+     {
+      "from": 120,
+      "to": 139,
+      "label": "7"
+     },
+     {
+      "from": 140,
+      "to": 159,
+      "label": "8"
+     },
+     {
+      "from": 160,
+      "to": 179,
+      "label": "9"
+     },
+     {
+      "from": 180,
+      "to": 199,
+      "label": "10"
+     },
+     {
+      "from": 200,
+      "to": 219,
+      "label": "Random"
+     },
+     {
+      "from": 220,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "mode-selection",
+    "label": "Mode Selection",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "Manual Mode"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "FX Mode"
+     }
+    ]
+   },
+   {
+    "key": "lightning",
+    "label": "Lightning",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Stop"
+     },
+     {
+      "from": 11,
+      "to": 127,
+      "label": "Trigger"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "Loop"
+     }
+    ]
+   },
+   {
+    "key": "explosion",
+    "label": "Explosion",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Stop"
+     },
+     {
+      "from": 11,
+      "to": 127,
+      "label": "Trigger"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "Reserved"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "lighting-effect-8-bit",
+    "name": "Lighting & Effect 8-bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "mode-selection",
+      "byte": 0
+     },
+     {
+      "channelKey": "effects",
+      "byte": 0
+     },
+     {
+      "channelKey": "frequency",
+      "byte": 0
+     },
+     {
+      "channelKey": "lightning",
+      "byte": 0
+     },
+     {
+      "channelKey": "explosion",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    308,
+    156,
+    150
+   ],
+   "weightKg": 4.6,
+   "powerW": 600
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "aputure/ls-600d-pro",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "aputure/ls-600d",
+  "manufacturer": "Aputure",
+  "model": "LS 600D",
+  "aliases": [
+   "Aputure LS 600D",
+   "LS 600D",
+   "aputurels600d",
+   "ls600d"
+  ],
+  "categories": [
+   "Dimmer",
+   "Effect"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "effects",
+    "label": "Effects",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 19,
+      "label": "Paparazzi"
+     },
+     {
+      "from": 20,
+      "to": 39,
+      "label": "Fireworks"
+     },
+     {
+      "from": 40,
+      "to": 59,
+      "label": "Faulty bulb"
+     },
+     {
+      "from": 60,
+      "to": 79,
+      "label": "Lightning"
+     },
+     {
+      "from": 80,
+      "to": 99,
+      "label": "TV"
+     },
+     {
+      "from": 100,
+      "to": 119,
+      "label": "Pulsing"
+     },
+     {
+      "from": 120,
+      "to": 139,
+      "label": "Strobe"
+     },
+     {
+      "from": 140,
+      "to": 159,
+      "label": "Explosion"
+     },
+     {
+      "from": 160,
+      "to": 255,
+      "label": "Reserved"
+     }
+    ]
+   },
+   {
+    "key": "frequency",
+    "label": "Frequency",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 19,
+      "label": "1"
+     },
+     {
+      "from": 20,
+      "to": 39,
+      "label": "2"
+     },
+     {
+      "from": 40,
+      "to": 59,
+      "label": "3"
+     },
+     {
+      "from": 60,
+      "to": 79,
+      "label": "4"
+     },
+     {
+      "from": 80,
+      "to": 99,
+      "label": "5"
+     },
+     {
+      "from": 100,
+      "to": 119,
+      "label": "6"
+     },
+     {
+      "from": 120,
+      "to": 139,
+      "label": "7"
+     },
+     {
+      "from": 140,
+      "to": 159,
+      "label": "8"
+     },
+     {
+      "from": 160,
+      "to": 179,
+      "label": "9"
+     },
+     {
+      "from": 180,
+      "to": 199,
+      "label": "10"
+     },
+     {
+      "from": 200,
+      "to": 219,
+      "label": "Random"
+     },
+     {
+      "from": 220,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "mode-selection",
+    "label": "Mode Selection",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "Manual Mode"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "FX Mode"
+     }
+    ]
+   },
+   {
+    "key": "lightning",
+    "label": "Lightning",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Stop"
+     },
+     {
+      "from": 11,
+      "to": 127,
+      "label": "Trigger"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "Loop"
+     }
+    ]
+   },
+   {
+    "key": "explosion",
+    "label": "Explosion",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Stop"
+     },
+     {
+      "from": 11,
+      "to": 127,
+      "label": "Trigger"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "Reserved"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "p1",
+    "name": "Lighting 8-bit",
+    "footprint": 1,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p2",
+    "name": "Effect 8-bit",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "effects",
+      "byte": 0
+     },
+     {
+      "channelKey": "frequency",
+      "byte": 0
+     },
+     {
+      "channelKey": "lightning",
+      "byte": 0
+     },
+     {
+      "channelKey": "explosion",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p3",
+    "name": "Lighting & Effect 8-bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "mode-selection",
+      "byte": 0
+     },
+     {
+      "channelKey": "effects",
+      "byte": 0
+     },
+     {
+      "channelKey": "frequency",
+      "byte": 0
+     },
+     {
+      "channelKey": "lightning",
+      "byte": 0
+     },
+     {
+      "channelKey": "explosion",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    308,
+    156,
+    121
+   ],
+   "weightKg": 4.7,
+   "powerW": 600
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "aputure/ls-600d",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "aputure/ls-600x-pro",
+  "manufacturer": "Aputure",
+  "model": "LS 600X Pro",
+  "aliases": [
+   "Aputure LS 600X Pro",
+   "LS 600X Pro",
+   "aputurels600xpro",
+   "ls600xpro"
+  ],
+  "categories": [
+   "Dimmer",
+   "Effect"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "cct",
+    "label": "CCT",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "effects",
+    "label": "Effects",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 19,
+      "label": "Paparazzi"
+     },
+     {
+      "from": 20,
+      "to": 39,
+      "label": "Fireworks"
+     },
+     {
+      "from": 40,
+      "to": 59,
+      "label": "Faulty bulb"
+     },
+     {
+      "from": 60,
+      "to": 79,
+      "label": "Lightning"
+     },
+     {
+      "from": 80,
+      "to": 99,
+      "label": "TV"
+     },
+     {
+      "from": 100,
+      "to": 119,
+      "label": "Pulsing"
+     },
+     {
+      "from": 120,
+      "to": 139,
+      "label": "Strobe"
+     },
+     {
+      "from": 140,
+      "to": 159,
+      "label": "Explosion"
+     },
+     {
+      "from": 160,
+      "to": 255,
+      "label": "Reserved"
+     }
+    ]
+   },
+   {
+    "key": "frequency",
+    "label": "Frequency",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 19,
+      "label": "1"
+     },
+     {
+      "from": 20,
+      "to": 39,
+      "label": "2"
+     },
+     {
+      "from": 40,
+      "to": 59,
+      "label": "3"
+     },
+     {
+      "from": 60,
+      "to": 79,
+      "label": "4"
+     },
+     {
+      "from": 80,
+      "to": 99,
+      "label": "5"
+     },
+     {
+      "from": 100,
+      "to": 119,
+      "label": "6"
+     },
+     {
+      "from": 120,
+      "to": 139,
+      "label": "7"
+     },
+     {
+      "from": 140,
+      "to": 159,
+      "label": "8"
+     },
+     {
+      "from": 160,
+      "to": 179,
+      "label": "9"
+     },
+     {
+      "from": 180,
+      "to": 199,
+      "label": "10"
+     },
+     {
+      "from": 200,
+      "to": 219,
+      "label": "Random"
+     },
+     {
+      "from": 220,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "mode-selection",
+    "label": "Mode Selection",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "Manual Mode"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "FX Mode"
+     }
+    ]
+   },
+   {
+    "key": "lightning",
+    "label": "Lightning",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Stop"
+     },
+     {
+      "from": 11,
+      "to": 127,
+      "label": "Trigger"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "Loop"
+     }
+    ]
+   },
+   {
+    "key": "explosion",
+    "label": "Explosion",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Stop"
+     },
+     {
+      "from": 11,
+      "to": 127,
+      "label": "Trigger"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "Reserved"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "p1",
+    "name": "Lighting 8-bit",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p2",
+    "name": "Effects 8-bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "effects",
+      "byte": 0
+     },
+     {
+      "channelKey": "frequency",
+      "byte": 0
+     },
+     {
+      "channelKey": "lightning",
+      "byte": 0
+     },
+     {
+      "channelKey": "explosion",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "p3",
+    "name": "Lighting & Effects 8-bit",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "mode-selection",
+      "byte": 0
+     },
+     {
+      "channelKey": "effects",
+      "byte": 0
+     },
+     {
+      "channelKey": "frequency",
+      "byte": 0
+     },
+     {
+      "channelKey": "lightning",
+      "byte": 0
+     },
+     {
+      "channelKey": "explosion",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    302,
+    147,
+    149
+   ],
+   "weightKg": 5.2,
+   "powerW": 600
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "aputure/ls-600x-pro",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "aputure/nova-p300c",
+  "manufacturer": "Aputure",
+  "model": "Nova P300c",
+  "aliases": [
+   "Aputure Nova P300c",
+   "Nova P300c",
+   "aputurenovap300c",
+   "novap300c"
+  ],
+  "categories": [
+   "Dimmer",
+   "Color Changer",
+   "Effect"
+  ],
+  "channels": [
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "cct",
+    "label": "CCT",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "gel-cct",
+    "label": "Gel CCT",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 126,
+      "label": "3200K"
+     },
+     {
+      "from": 127,
+      "to": 255,
+      "label": "5600K"
+     }
+    ]
+   },
+   {
+    "key": "cct-rgb",
+    "label": "CCT <-> RGB",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green-magenta-point",
+    "label": "Green/Magenta Point",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 11,
+      "label": "-1.0"
+     },
+     {
+      "from": 12,
+      "to": 120,
+      "label": "-0.9 … -0.1"
+     },
+     {
+      "from": 121,
+      "to": 132,
+      "label": "0"
+     },
+     {
+      "from": 133,
+      "to": 241,
+      "label": "0.1 … 0.9"
+     },
+     {
+      "from": 242,
+      "to": 255,
+      "label": "1.0"
+     }
+    ]
+   },
+   {
+    "key": "hue",
+    "label": "Hue",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "saturation",
+    "label": "Saturation",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "cct-hsi",
+    "label": "CCT <-> HSI",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "gel-r-l",
+    "label": "Gel R/L",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Generic"
+     },
+     {
+      "from": 10,
+      "to": 29,
+      "label": "L"
+     },
+     {
+      "from": 30,
+      "to": 59,
+      "label": "R"
+     },
+     {
+      "from": 60,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "gel-series",
+    "label": "Gel Series",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "R-Col.corr/L-Col.corr"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "R-Cal color/L-Cal.Filter"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "R-Storaro/L-600 Series"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "R-Cinelux/L-Cosmetic"
+     },
+     {
+      "from": 40,
+      "to": 49,
+      "label": "R-Backup/L-700 Series"
+     },
+     {
+      "from": 50,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "gel-model",
+    "label": "Gel Model",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "source",
+    "label": "Source",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 1,
+      "label": "Tungsten Bulb"
+     },
+     {
+      "from": 2,
+      "to": 3,
+      "label": "Incandescent"
+     },
+     {
+      "from": 4,
+      "to": 5,
+      "label": "Halogeen"
+     },
+     {
+      "from": 6,
+      "to": 7,
+      "label": "Antique Bulb"
+     },
+     {
+      "from": 8,
+      "to": 9,
+      "label": "Warm Antique Bulb"
+     },
+     {
+      "from": 10,
+      "to": 11,
+      "label": "Christmas lights"
+     },
+     {
+      "from": 12,
+      "to": 13,
+      "label": "Night Light"
+     },
+     {
+      "from": 14,
+      "to": 15,
+      "label": "Infrared Heat Lamp"
+     },
+     {
+      "from": 16,
+      "to": 17,
+      "label": "Grow Light"
+     },
+     {
+      "from": 18,
+      "to": 19,
+      "label": "CFL Soft White"
+     },
+     {
+      "from": 20,
+      "to": 21,
+      "label": "CFL Bright White"
+     },
+     {
+      "from": 22,
+      "to": 23,
+      "label": "CFL Cool White"
+     },
+     {
+      "from": 24,
+      "to": 25,
+      "label": "CFL Daylight"
+     },
+     {
+      "from": 26,
+      "to": 27,
+      "label": "Cool White 1"
+     },
+     {
+      "from": 28,
+      "to": 29,
+      "label": "Cool White 2"
+     },
+     {
+      "from": 30,
+      "to": 31,
+      "label": "Cool White 3"
+     },
+     {
+      "from": 32,
+      "to": 33,
+      "label": "Warm White"
+     },
+     {
+      "from": 34,
+      "to": 35,
+      "label": "CFL BlackLight"
+     },
+     {
+      "from": 36,
+      "to": 37,
+      "label": "HMI"
+     },
+     {
+      "from": 38,
+      "to": 39,
+      "label": "High Presure Sodium"
+     },
+     {
+      "from": 40,
+      "to": 41,
+      "label": "Low Presure Sodium"
+     },
+     {
+      "from": 42,
+      "to": 43,
+      "label": "Mercury Vapor"
+     },
+     {
+      "from": 44,
+      "to": 45,
+      "label": "Metal Halyde"
+     },
+     {
+      "from": 46,
+      "to": 47,
+      "label": "Ceramic"
+     },
+     {
+      "from": 48,
+      "to": 49,
+      "label": "Carbon Arc"
+     },
+     {
+      "from": 50,
+      "to": 51,
+      "label": "Xenon"
+     },
+     {
+      "from": 52,
+      "to": 53,
+      "label": "Candle"
+     },
+     {
+      "from": 54,
+      "to": 55,
+      "label": "Gas Fire"
+     },
+     {
+      "from": 56,
+      "to": 57,
+      "label": "Sun Direct"
+     },
+     {
+      "from": 58,
+      "to": 59,
+      "label": "Sun Overcast"
+     },
+     {
+      "from": 60,
+      "to": 61,
+      "label": "Sun Blue Hour"
+     },
+     {
+      "from": 62,
+      "to": 63,
+      "label": "Mobile Phone"
+     },
+     {
+      "from": 64,
+      "to": 65,
+      "label": "Computer Monitor"
+     },
+     {
+      "from": 66,
+      "to": 67,
+      "label": "Electroluminescence"
+     },
+     {
+      "from": 68,
+      "to": 69,
+      "label": "Blow Torch"
+     },
+     {
+      "from": 70,
+      "to": 71,
+      "label": "Road Flare"
+     },
+     {
+      "from": 72,
+      "to": 73,
+      "label": "Amber Caution"
+     },
+     {
+      "from": 74,
+      "to": 75,
+      "label": "Green Traffic Light"
+     },
+     {
+      "from": 76,
+      "to": 77,
+      "label": "Yellow Traffic Light"
+     },
+     {
+      "from": 78,
+      "to": 79,
+      "label": "Red Traffic Light"
+     },
+     {
+      "from": 80,
+      "to": 81,
+      "label": "Blue Glow Stick"
+     },
+     {
+      "from": 82,
+      "to": 83,
+      "label": "Green Glow Stick"
+     },
+     {
+      "from": 84,
+      "to": 85,
+      "label": "Red Glow Stick"
+     },
+     {
+      "from": 86,
+      "to": 87,
+      "label": "Yellow Glow Stick"
+     },
+     {
+      "from": 88,
+      "to": 89,
+      "label": "Pink Glow Stick"
+     },
+     {
+      "from": 90,
+      "to": 91,
+      "label": "Violet Glow Stick"
+     },
+     {
+      "from": 92,
+      "to": 255,
+      "label": "Backup"
+     }
+    ]
+   },
+   {
+    "key": "x",
+    "label": "X",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "y",
+    "label": "Y",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "effect",
+    "label": "Effect",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Club Lights"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Paperazzi"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "Lightning"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "TV"
+     },
+     {
+      "from": 40,
+      "to": 49,
+      "label": "Candle"
+     },
+     {
+      "from": 50,
+      "to": 59,
+      "label": "Fire"
+     },
+     {
+      "from": 60,
+      "to": 69,
+      "label": "Strobe"
+     },
+     {
+      "from": 70,
+      "to": 79,
+      "label": "Explosion"
+     },
+     {
+      "from": 80,
+      "to": 89,
+      "label": "Faulty Bulb"
+     },
+     {
+      "from": 90,
+      "to": 99,
+      "label": "Pulsing"
+     },
+     {
+      "from": 100,
+      "to": 109,
+      "label": "Welding"
+     },
+     {
+      "from": 110,
+      "to": 119,
+      "label": "Cop Car"
+     },
+     {
+      "from": 120,
+      "to": 129,
+      "label": "Color Chase"
+     },
+     {
+      "from": 130,
+      "to": 139,
+      "label": "Party Lights"
+     },
+     {
+      "from": 140,
+      "to": 149,
+      "label": "Fireworks"
+     },
+     {
+      "from": 150,
+      "to": 255,
+      "label": "Backup"
+     }
+    ]
+   },
+   {
+    "key": "effect-parameter-1",
+    "label": "Effect Parameter 1",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "effect-parameter-2",
+    "label": "Effect Parameter 2",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "effect-parameter-3",
+    "label": "Effect Parameter 3",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "effect-parameter-4",
+    "label": "Effect Parameter 4",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "effect-parameter-5",
+    "label": "Effect Parameter 5",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "effect-parameter-6",
+    "label": "Effect Parameter 6",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "effect-parameter-7",
+    "label": "Effect Parameter 7",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "effect-parameter-8",
+    "label": "Effect Parameter 8",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "cct-rgb",
+    "name": "CCT&RGB",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct-rgb",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "cct",
+    "name": "CCT",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "cct-hsi",
+    "name": "CCT&HSI",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct-hsi",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "gel",
+    "name": "GEL",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "gel-cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "gel-r-l",
+      "byte": 0
+     },
+     {
+      "channelKey": "gel-series",
+      "byte": 0
+     },
+     {
+      "channelKey": "gel-model",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "hsi",
+    "name": "HSI",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "source",
+    "name": "Source",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "source",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "rgb",
+    "name": "RGB",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "x-y",
+    "name": "X-Y",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "x",
+      "byte": 0
+     },
+     {
+      "channelKey": "y",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "effect",
+    "name": "Effect",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "effect",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "effect-parameter-1",
+      "byte": 0
+     },
+     {
+      "channelKey": "effect-parameter-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "effect-parameter-3",
+      "byte": 0
+     },
+     {
+      "channelKey": "effect-parameter-4",
+      "byte": 0
+     },
+     {
+      "channelKey": "effect-parameter-5",
+      "byte": 0
+     },
+     {
+      "channelKey": "effect-parameter-6",
+      "byte": 0
+     },
+     {
+      "channelKey": "effect-parameter-7",
+      "byte": 0
+     },
+     {
+      "channelKey": "effect-parameter-8",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    562,
+    457,
+    166
+   ],
+   "weightKg": 10.35,
+   "powerW": 300
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "aputure/nova-p300c",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

@@ -1,0 +1,143 @@
+[
+ {
+  "id": "gruft/ventilator",
+  "manufacturer": "Gruft",
+  "model": "Ventilator",
+  "aliases": [
+   "Gruft Ventilator",
+   "Venti",
+   "Ventilator",
+   "gruftventilator",
+   "venti",
+   "ventilator"
+  ],
+  "categories": [
+   "Fan",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "motor-speed",
+    "label": "Motor Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0.5019607843137255,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 3,
+      "label": "Rotation"
+     },
+     {
+      "from": 4,
+      "to": 119,
+      "label": "Rotation"
+     },
+     {
+      "from": 120,
+      "to": 139,
+      "label": "Rotation"
+     },
+     {
+      "from": 140,
+      "to": 255,
+      "label": "Rotation"
+     }
+    ]
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "highlight": 0.9019607843137255,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 29,
+      "label": "Open"
+     },
+     {
+      "from": 30,
+      "to": 244,
+      "label": "Strobe"
+     },
+     {
+      "from": 245,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "5ch",
+    "name": "5-channel",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "motor-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    1000,
+    1000,
+    160
+   ],
+   "weightKg": 10,
+   "powerW": 48
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "gruft/ventilator",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

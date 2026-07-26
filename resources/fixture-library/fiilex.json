@@ -1,0 +1,1327 @@
+[
+ {
+  "id": "fiilex/p3-color",
+  "manufacturer": "Fiilex",
+  "model": "P3 Color",
+  "aliases": [
+   "Fiilex P3 Color",
+   "P3 Color",
+   "fiilexp3color",
+   "p3color"
+  ],
+  "categories": [
+   "Dimmer",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "master-intensity",
+    "label": "Master Intensity",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "cct-base",
+    "label": "CCT Base",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 99,
+      "label": "3200K"
+     },
+     {
+      "from": 100,
+      "to": 255,
+      "label": "6500K"
+     }
+    ]
+   },
+   {
+    "key": "green-magenta-point-8bit",
+    "label": "Green-Magenta Point 8bit",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Neutral"
+     },
+     {
+      "from": 10,
+      "to": 255,
+      "label": "-100%…+100%"
+     }
+    ]
+   },
+   {
+    "key": "green-magenta-point-16bit",
+    "label": "Green-Magenta Point 16bit",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Neutral"
+     },
+     {
+      "from": 10,
+      "to": 255,
+      "label": "-100%…+100%"
+     }
+    ]
+   },
+   {
+    "key": "fan",
+    "label": "Fan",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Fan auto"
+     },
+     {
+      "from": 10,
+      "to": 69,
+      "label": "Rotation"
+     },
+     {
+      "from": 70,
+      "to": 129,
+      "label": "Rotation"
+     },
+     {
+      "from": 130,
+      "to": 189,
+      "label": "Rotation"
+     },
+     {
+      "from": 190,
+      "to": 255,
+      "label": "Rotation"
+     }
+    ]
+   },
+   {
+    "key": "dimming",
+    "label": "Dimming",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Use current setting in fixture"
+     },
+     {
+      "from": 10,
+      "to": 99,
+      "label": "Sharp dimming"
+     },
+     {
+      "from": 100,
+      "to": 255,
+      "label": "Smooth dimming"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Open"
+     },
+     {
+      "from": 10,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "crossfade",
+    "label": "Crossfade",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "hue",
+    "label": "Hue",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "saturation",
+    "label": "Saturation",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "gel-filter",
+    "label": "Gel Filter",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "Bastard Amber",
+      "color": "#ffb783"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "Straw",
+      "color": "#ffc069"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "Light Amber",
+      "color": "#ffba45"
+     },
+     {
+      "from": 40,
+      "to": 49,
+      "label": "Light Flame",
+      "color": "#ff391b"
+     },
+     {
+      "from": 50,
+      "to": 59,
+      "label": "Golden Amber",
+      "color": "#ff8944"
+     },
+     {
+      "from": 60,
+      "to": 69,
+      "label": "Light Red",
+      "color": "#ff3914"
+     },
+     {
+      "from": 70,
+      "to": 79,
+      "label": "No Color Pink",
+      "color": "#ffaaaa"
+     },
+     {
+      "from": 80,
+      "to": 89,
+      "label": "Middle Rose",
+      "color": "#ff9ba1"
+     },
+     {
+      "from": 90,
+      "to": 99,
+      "label": "Light Rose Purple",
+      "color": "#ff95e0"
+     },
+     {
+      "from": 100,
+      "to": 109,
+      "label": "Surprise Pink",
+      "color": "#e5c7ff"
+     },
+     {
+      "from": 110,
+      "to": 119,
+      "label": "No Color Blue",
+      "color": "#00a0ff"
+     },
+     {
+      "from": 120,
+      "to": 129,
+      "label": "Daylight Blue",
+      "color": "#00c2ff"
+     },
+     {
+      "from": 130,
+      "to": 139,
+      "label": "Primary Blue",
+      "color": "#64deff"
+     },
+     {
+      "from": 140,
+      "to": 149,
+      "label": "Moss Green",
+      "color": "#a7ff58"
+     },
+     {
+      "from": 150,
+      "to": 159,
+      "label": "Blue Green",
+      "color": "#ffe5b3"
+     },
+     {
+      "from": 160,
+      "to": 169,
+      "label": "Gel 1"
+     },
+     {
+      "from": 170,
+      "to": 179,
+      "label": "Gel 2"
+     },
+     {
+      "from": 180,
+      "to": 189,
+      "label": "Gel 3"
+     },
+     {
+      "from": 190,
+      "to": 199,
+      "label": "Gel 4"
+     },
+     {
+      "from": 200,
+      "to": 209,
+      "label": "Gel 5"
+     },
+     {
+      "from": 210,
+      "to": 255,
+      "label": "Reserved"
+     }
+    ]
+   },
+   {
+    "key": "reserved-for-future-use",
+    "label": "Reserved for future use",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "m01",
+    "name": "1: CCT 8bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "master-intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimming",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "m02",
+    "name": "2: HSI 8bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "master-intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimming",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "m03",
+    "name": "3: RGBW 8bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "master-intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimming",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "m04",
+    "name": "4: CCT + HSI 8bit",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "master-intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "crossfade",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimming",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "m05",
+    "name": "5: CCT + RGBW 8bit",
+    "footprint": 11,
+    "slots": [
+     {
+      "channelKey": "master-intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "crossfade",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimming",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "m07",
+    "name": "7: GEL 8bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "master-intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "gel-filter",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct-base",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimming",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "m09",
+    "name": "9: CCT 16bit",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "master-intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "master-intensity",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimming",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "m10",
+    "name": "10: HSI 16bit",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "master-intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "master-intensity",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimming",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "m11",
+    "name": "11: RGBW 16bit",
+    "footprint": 14,
+    "slots": [
+     {
+      "channelKey": "master-intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "master-intensity",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimming",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "m12",
+    "name": "12: CCT + HSI 16bit",
+    "footprint": 16,
+    "slots": [
+     {
+      "channelKey": "master-intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "master-intensity",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 1
+     },
+     {
+      "channelKey": "crossfade",
+      "byte": 0
+     },
+     {
+      "channelKey": "crossfade",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimming",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "m13",
+    "name": "13: CCT + RGBW 16bit",
+    "footprint": 20,
+    "slots": [
+     {
+      "channelKey": "master-intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "master-intensity",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 1
+     },
+     {
+      "channelKey": "crossfade",
+      "byte": 0
+     },
+     {
+      "channelKey": "crossfade",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimming",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "m15",
+    "name": "15: GEL 16bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "master-intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "master-intensity",
+      "byte": 1
+     },
+     {
+      "channelKey": "gel-filter",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct-base",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimming",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "reserved-for-future-use",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "m50",
+    "name": "50: EZ CCT 8bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "master-intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "m51",
+    "name": "51: EZ HSI 8bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "master-intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "m42",
+    "name": "52: EZ RGBW 8bit",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "master-intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "m53",
+    "name": "53: EZ CCT + HSI 8bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "master-intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "crossfade",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "m54",
+    "name": "54: EZ CCT + RGBW 8bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "master-intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "crossfade",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "m63",
+    "name": "63: EZ CCT 16bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "master-intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "master-intensity",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "m64",
+    "name": "64: EZ HSI 16bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "master-intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "master-intensity",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "m65",
+    "name": "65: EZ RGBW 16bit",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "master-intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "master-intensity",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "m66",
+    "name": "66: EZ CCT + HSI 16bit",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "master-intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "master-intensity",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 1
+     },
+     {
+      "channelKey": "crossfade",
+      "byte": 0
+     },
+     {
+      "channelKey": "crossfade",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "m67",
+    "name": "67: EZ CCT + RGBW 16bit",
+    "footprint": 16,
+    "slots": [
+     {
+      "channelKey": "master-intensity",
+      "byte": 0
+     },
+     {
+      "channelKey": "master-intensity",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 1
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "green-magenta-point-16bit",
+      "byte": 1
+     },
+     {
+      "channelKey": "crossfade",
+      "byte": 0
+     },
+     {
+      "channelKey": "crossfade",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    119,
+    142,
+    206
+   ],
+   "weightKg": 0.84,
+   "powerW": 90,
+   "lensDegMin": 20,
+   "lensDegMax": 65
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "fiilex/p3-color",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

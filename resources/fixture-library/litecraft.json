@@ -1,0 +1,598 @@
+[
+ {
+  "id": "litecraft/washx-21",
+  "manufacturer": "Litecraft",
+  "model": "WashX.21",
+  "aliases": [
+   "Litecraft WashX.21",
+   "WashX.21",
+   "litecraftwashx21",
+   "washx21"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "master-dimmer",
+    "label": "Master Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "Open"
+     },
+     {
+      "from": 11,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "extended-strobe",
+    "label": "Extended Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 30,
+      "label": "Open"
+     },
+     {
+      "from": 31,
+      "to": 100,
+      "label": "Strobe"
+     },
+     {
+      "from": 101,
+      "to": 130,
+      "label": "Open"
+     },
+     {
+      "from": 131,
+      "to": 200,
+      "label": "Strobe"
+     },
+     {
+      "from": 201,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "color-macro",
+    "label": "Color Macro",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 30,
+      "label": "Red … Yellow"
+     },
+     {
+      "from": 31,
+      "to": 50,
+      "label": "Yellow … Green"
+     },
+     {
+      "from": 51,
+      "to": 70,
+      "label": "Green … Cyan"
+     },
+     {
+      "from": 71,
+      "to": 90,
+      "label": "Cyan … Blue"
+     },
+     {
+      "from": 91,
+      "to": 110,
+      "label": "Blue … Magenta"
+     },
+     {
+      "from": 111,
+      "to": 130,
+      "label": "Magenta … Red"
+     },
+     {
+      "from": 131,
+      "to": 150,
+      "label": "Red … White"
+     },
+     {
+      "from": 151,
+      "to": 170,
+      "label": "White … Blue"
+     },
+     {
+      "from": 171,
+      "to": 200,
+      "label": "Full White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 201,
+      "to": 205,
+      "label": "Color 1"
+     },
+     {
+      "from": 206,
+      "to": 210,
+      "label": "Color 2"
+     },
+     {
+      "from": 211,
+      "to": 215,
+      "label": "Color 3"
+     },
+     {
+      "from": 216,
+      "to": 220,
+      "label": "Color 4"
+     },
+     {
+      "from": 221,
+      "to": 225,
+      "label": "Color 5"
+     },
+     {
+      "from": 226,
+      "to": 230,
+      "label": "Color 6"
+     },
+     {
+      "from": 231,
+      "to": 235,
+      "label": "Color 7"
+     },
+     {
+      "from": 236,
+      "to": 240,
+      "label": "Color 8"
+     },
+     {
+      "from": 241,
+      "to": 245,
+      "label": "Color 9"
+     },
+     {
+      "from": 246,
+      "to": 250,
+      "label": "Color 10"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "Color 11"
+     }
+    ]
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "NoFunction"
+     },
+     {
+      "from": 6,
+      "to": 29,
+      "label": "3000K"
+     },
+     {
+      "from": 30,
+      "to": 53,
+      "label": "4000K"
+     },
+     {
+      "from": 54,
+      "to": 77,
+      "label": "4000K"
+     },
+     {
+      "from": 78,
+      "to": 101,
+      "label": "5000K"
+     },
+     {
+      "from": 102,
+      "to": 125,
+      "label": "5000K"
+     },
+     {
+      "from": 126,
+      "to": 149,
+      "label": "6000K"
+     },
+     {
+      "from": 150,
+      "to": 173,
+      "label": "7000K"
+     },
+     {
+      "from": 174,
+      "to": 197,
+      "label": "8000K"
+     },
+     {
+      "from": 198,
+      "to": 221,
+      "label": "9000K"
+     },
+     {
+      "from": 222,
+      "to": 245,
+      "label": "10000K"
+     },
+     {
+      "from": 246,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "auto-program",
+    "label": "Auto Program",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 60,
+      "label": "Auto Program 1"
+     },
+     {
+      "from": 61,
+      "to": 110,
+      "label": "Auto Program 2"
+     },
+     {
+      "from": 111,
+      "to": 160,
+      "label": "Auto Program 3"
+     },
+     {
+      "from": 161,
+      "to": 210,
+      "label": "Auto Program 4"
+     },
+     {
+      "from": 211,
+      "to": 255,
+      "label": "Auto Program 5 (1-4)"
+     }
+    ]
+   },
+   {
+    "key": "program-speed",
+    "label": "Program Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer-mode",
+    "label": "Dimmer Mode",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 52,
+      "label": "Dimmer mode set on display"
+     },
+     {
+      "from": 53,
+      "to": 101,
+      "label": "Dimmer Mode off"
+     },
+     {
+      "from": 102,
+      "to": 152,
+      "label": "Dimmer Mode fast"
+     },
+     {
+      "from": 153,
+      "to": 202,
+      "label": "Dimmer Mode medium"
+     },
+     {
+      "from": 203,
+      "to": 255,
+      "label": "Dimmer Mode slow"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "4ch",
+    "name": "4-channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "6ch",
+    "name": "6-channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "master-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "11ch",
+    "name": "11-channel",
+    "footprint": 11,
+    "slots": [
+     {
+      "channelKey": "master-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "extended-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macro",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-program",
+      "byte": 0
+     },
+     {
+      "channelKey": "program-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-mode",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    493,
+    320,
+    99
+   ],
+   "weightKg": 8.8,
+   "powerW": 184,
+   "lensDegMin": 40,
+   "lensDegMax": 40
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "litecraft/washx-21",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "litecraft/washx-432-sw",
+  "manufacturer": "Litecraft",
+  "model": "WashX.432 sw",
+  "aliases": [
+   "Litecraft WashX.432 sw",
+   "WashX.432 sw",
+   "litecraftwashx432sw",
+   "washx432sw"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 204,
+      "label": "ColorTemperature"
+     },
+     {
+      "from": 205,
+      "to": 255,
+      "label": "LEDs 100%",
+      "color": "#ffffff"
+     }
+    ]
+   },
+   {
+    "key": "intensity",
+    "label": "Intensity",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "cold-white",
+    "label": "Cold White",
+    "role": "coldWhite",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "warm-white",
+    "label": "Warm White",
+    "role": "warmWhite",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "mc-dim",
+    "name": "2-channel Macro + Dimmer",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "intensity",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "cw-ww",
+    "name": "2-channel Cold White + Warm White",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "cold-white",
+      "byte": 0
+     },
+     {
+      "channelKey": "warm-white",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    370,
+    227,
+    113
+   ],
+   "weightKg": 3.5,
+   "powerW": 120
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "litecraft/washx-432-sw",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

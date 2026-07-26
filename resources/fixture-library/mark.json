@@ -1,0 +1,269 @@
+[
+ {
+  "id": "mark/superbat-led-72",
+  "manufacturer": "Mark",
+  "model": "SUPERBAT LED 72",
+  "aliases": [
+   "Mark SUPERBAT LED 72",
+   "MarkSuperBat72",
+   "SUPERBAT LED 72",
+   "marksuperbat72",
+   "marksuperbatled72",
+   "superbatled72"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "amber",
+    "label": "Amber",
+    "role": "amber",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "uv",
+    "label": "UV",
+    "role": "uv",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "programs",
+    "label": "Programs",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 29,
+      "label": "Color mixing"
+     },
+     {
+      "from": 30,
+      "to": 49,
+      "label": "ColorJump"
+     },
+     {
+      "from": 50,
+      "to": 69,
+      "label": "ColorFade (Gradual)"
+     },
+     {
+      "from": 70,
+      "to": 89,
+      "label": "ColorFade (Mutation)"
+     },
+     {
+      "from": 90,
+      "to": 109,
+      "label": "Strobe (Red)"
+     },
+     {
+      "from": 110,
+      "to": 129,
+      "label": "Strobe (Green)"
+     },
+     {
+      "from": 130,
+      "to": 149,
+      "label": "Strobe (Blue)"
+     },
+     {
+      "from": 150,
+      "to": 169,
+      "label": "Strobe (White)"
+     },
+     {
+      "from": 170,
+      "to": 189,
+      "label": "Strobe (Amber)"
+     },
+     {
+      "from": 190,
+      "to": 209,
+      "label": "Strobe (UV)"
+     },
+     {
+      "from": 210,
+      "to": 229,
+      "label": "Sound 1"
+     },
+     {
+      "from": 230,
+      "to": 249,
+      "label": "Sound 2"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Sound 3"
+     }
+    ]
+   },
+   {
+    "key": "effect-speed",
+    "label": "Effect Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "6ch",
+    "name": "6-channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "10ch",
+    "name": "10-channel",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "amber",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     },
+     {
+      "channelKey": "programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "effect-speed",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    135,
+    135,
+    210
+   ],
+   "weightKg": 2.5,
+   "powerW": 140
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "mark/superbat-led-72",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

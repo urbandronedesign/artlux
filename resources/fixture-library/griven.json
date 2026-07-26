@@ -1,0 +1,159 @@
+[
+ {
+  "id": "griven/kolorado-4000",
+  "manufacturer": "Griven",
+  "model": "Kolorado 4000",
+  "aliases": [
+   "Griven Kolorado 4000",
+   "GrivenKolorado4000",
+   "Kolorado 4000",
+   "grivenkolorado4000",
+   "kolorado4000"
+  ],
+  "categories": [
+   "Color Changer",
+   "Blinder",
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "lamp-on-off",
+    "label": "Lamp On/Off",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 126,
+      "label": "Lamp on"
+     },
+     {
+      "from": 127,
+      "to": 255,
+      "label": "Lamp off"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0.5019607843137255,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "Closed"
+     },
+     {
+      "from": 6,
+      "to": 127,
+      "label": "Intensity"
+     },
+     {
+      "from": 128,
+      "to": 159,
+      "label": "Open"
+     },
+     {
+      "from": 160,
+      "to": 191,
+      "label": "Strobe (Mechanical)"
+     },
+     {
+      "from": 192,
+      "to": 239,
+      "label": "Strobe (Electronic)"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "yellow",
+    "label": "Yellow",
+    "role": "yellow",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "cyan",
+    "label": "Cyan",
+    "role": "cyan",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "magenta",
+    "label": "Magenta",
+    "role": "magenta",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "2ch",
+    "name": "2-channel",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "lamp-on-off",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "5ch",
+    "name": "5-channel",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "lamp-on-off",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "yellow",
+      "byte": 0
+     },
+     {
+      "channelKey": "cyan",
+      "byte": 0
+     },
+     {
+      "channelKey": "magenta",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    620,
+    821,
+    623
+   ],
+   "weightKg": 53,
+   "powerW": 4000
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "griven/kolorado-4000",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

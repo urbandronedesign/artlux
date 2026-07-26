@@ -1,0 +1,86 @@
+[
+ {
+  "id": "soundlight/3204r-h",
+  "manufacturer": "SoundLight",
+  "model": "3204R-H",
+  "aliases": [
+   "3204R-H",
+   "3204rh",
+   "SoundLight 3204R-H",
+   "SoundLight3204R-H",
+   "soundlight3204rh"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "relay-1",
+    "label": "Relay 1",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "relay-2",
+    "label": "Relay 2",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "relay-3",
+    "label": "Relay 3",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "relay-4",
+    "label": "Relay 4",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "relay-control",
+    "name": "Relay control",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "relay-1",
+      "byte": 0
+     },
+     {
+      "channelKey": "relay-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "relay-3",
+      "byte": 0
+     },
+     {
+      "channelKey": "relay-4",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    86,
+    67,
+    90
+   ],
+   "powerW": 3
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "soundlight/3204r-h",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

@@ -1,0 +1,760 @@
+[
+ {
+  "id": "mega-led-lighting/led-par-light-372",
+  "manufacturer": "Mega LED Lighting",
+  "model": "LED PAR Light-372",
+  "aliases": [
+   "LED PAR Light-372",
+   "MJ-3001-72",
+   "Mega LED Lighting LED PAR Light-372",
+   "ledparlight372",
+   "megaledlightingledparlight372",
+   "mj300172"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-change",
+    "label": "Color Change",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 49,
+      "label": "NoFunction"
+     },
+     {
+      "from": 50,
+      "to": 99,
+      "label": "ColorJump"
+     },
+     {
+      "from": 100,
+      "to": 149,
+      "label": "ColorFade"
+     },
+     {
+      "from": 150,
+      "to": 199,
+      "label": "Color pulse"
+     },
+     {
+      "from": 200,
+      "to": 255,
+      "label": "Sound control"
+     }
+    ]
+   },
+   {
+    "key": "effect-speed",
+    "label": "Effect Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "8ch",
+    "name": "A001",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-change",
+      "byte": 0
+     },
+     {
+      "channelKey": "effect-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "4ch",
+    "name": "d001",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    310,
+    250,
+    325
+   ],
+   "weightKg": 3.5,
+   "powerW": 216,
+   "lensDegMin": 25,
+   "lensDegMax": 25
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "mega-led-lighting/led-par-light-372",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "mega-led-lighting/zoom-360",
+  "manufacturer": "Mega LED Lighting",
+  "model": "ZOOM 360",
+  "aliases": [
+   "MJ-1006B",
+   "Mega LED Lighting ZOOM 360",
+   "ZOOM 360",
+   "megaledlightingzoom360",
+   "mj1006b",
+   "zoom360"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "user-colors",
+    "label": "User Colors",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 630,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 270,
+    "unit": "deg"
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan/Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "zoom",
+    "label": "Zoom",
+    "role": "zoom",
+    "resolution": 1,
+    "default": 0,
+    "min": 10,
+    "max": 60,
+    "unit": "deg"
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "effects",
+    "label": "Effects",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 25,
+      "label": "Start controller handspike"
+     },
+     {
+      "from": 26,
+      "to": 50,
+      "label": "Turn off controller handspike"
+     },
+     {
+      "from": 51,
+      "to": 90,
+      "label": "Program color selection switch"
+     },
+     {
+      "from": 91,
+      "to": 130,
+      "label": "Color pulse"
+     },
+     {
+      "from": 131,
+      "to": 170,
+      "label": "ColorJump"
+     },
+     {
+      "from": 171,
+      "to": 210,
+      "label": "ColorFade"
+     },
+     {
+      "from": 211,
+      "to": 250,
+      "label": "Inside mode 1"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "Sound mode"
+     }
+    ]
+   },
+   {
+    "key": "color-macros",
+    "label": "Color Macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "NoFunction"
+     },
+     {
+      "from": 1,
+      "to": 20,
+      "label": "Red … Yellow"
+     },
+     {
+      "from": 21,
+      "to": 40,
+      "label": "Yellow … Green"
+     },
+     {
+      "from": 41,
+      "to": 60,
+      "label": "Green … Cyan"
+     },
+     {
+      "from": 61,
+      "to": 80,
+      "label": "Cyan … Blue"
+     },
+     {
+      "from": 81,
+      "to": 100,
+      "label": "Blue … Magenta"
+     },
+     {
+      "from": 101,
+      "to": 120,
+      "label": "Magenta … Red"
+     },
+     {
+      "from": 121,
+      "to": 140,
+      "label": "Red … White"
+     },
+     {
+      "from": 141,
+      "to": 160,
+      "label": "White … Blue"
+     },
+     {
+      "from": 161,
+      "to": 170,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 171,
+      "to": 200,
+      "label": "Black",
+      "color": "#000000"
+     },
+     {
+      "from": 201,
+      "to": 205,
+      "label": "Color mix 1 (R242 G204 B5 W227)"
+     },
+     {
+      "from": 206,
+      "to": 210,
+      "label": "Color mix 2 (R242 G215 B5 W227)"
+     },
+     {
+      "from": 211,
+      "to": 215,
+      "label": "Color mix 3 (R255 G255 B50 W255)"
+     },
+     {
+      "from": 216,
+      "to": 220,
+      "label": "Color mix 4 (R255 G255 B90 W255)"
+     },
+     {
+      "from": 221,
+      "to": 225,
+      "label": "Color mix 5 (R255 G255 B118 W255)"
+     },
+     {
+      "from": 226,
+      "to": 230,
+      "label": "Color mix 6 (R255 G255 B132 W255)"
+     },
+     {
+      "from": 231,
+      "to": 235,
+      "label": "Color mix 7 (R2 55 G255 B151 W255)"
+     },
+     {
+      "from": 236,
+      "to": 240,
+      "label": "Color mix 8 (R255 G255 B171 W255)"
+     },
+     {
+      "from": 241,
+      "to": 245,
+      "label": "Color mix 9 (R255 G255 B185 W255)"
+     },
+     {
+      "from": 246,
+      "to": 250,
+      "label": "Color mix 10 (R255 G255 B197 W255)"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "Color mix 11 (R255 G255 B234 W255)"
+     }
+    ]
+   },
+   {
+    "key": "id-code",
+    "label": "ID Code",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "NoFunction"
+     },
+     {
+      "from": 10,
+      "to": 19,
+      "label": "ID 1"
+     },
+     {
+      "from": 20,
+      "to": 29,
+      "label": "ID 2"
+     },
+     {
+      "from": 30,
+      "to": 39,
+      "label": "ID 3"
+     },
+     {
+      "from": 40,
+      "to": 49,
+      "label": "ID 4"
+     },
+     {
+      "from": 50,
+      "to": 59,
+      "label": "ID 5"
+     },
+     {
+      "from": 60,
+      "to": 69,
+      "label": "ID 6"
+     },
+     {
+      "from": 70,
+      "to": 79,
+      "label": "ID 7"
+     },
+     {
+      "from": 80,
+      "to": 89,
+      "label": "ID 8"
+     },
+     {
+      "from": 90,
+      "to": 99,
+      "label": "ID 9"
+     },
+     {
+      "from": 100,
+      "to": 109,
+      "label": "ID 10"
+     },
+     {
+      "from": 110,
+      "to": 119,
+      "label": "ID 11"
+     },
+     {
+      "from": 120,
+      "to": 129,
+      "label": "ID 12"
+     },
+     {
+      "from": 130,
+      "to": 139,
+      "label": "ID 13"
+     },
+     {
+      "from": 140,
+      "to": 149,
+      "label": "ID 14"
+     },
+     {
+      "from": 150,
+      "to": 159,
+      "label": "ID 15"
+     },
+     {
+      "from": 160,
+      "to": 169,
+      "label": "ID 16"
+     },
+     {
+      "from": 170,
+      "to": 179,
+      "label": "ID 17"
+     },
+     {
+      "from": 180,
+      "to": 189,
+      "label": "ID 18"
+     },
+     {
+      "from": 190,
+      "to": 199,
+      "label": "ID 19"
+     },
+     {
+      "from": 200,
+      "to": 209,
+      "label": "ID 20"
+     },
+     {
+      "from": 210,
+      "to": 219,
+      "label": "ID 21"
+     },
+     {
+      "from": 220,
+      "to": 229,
+      "label": "ID 22"
+     },
+     {
+      "from": 230,
+      "to": 239,
+      "label": "ID 23"
+     },
+     {
+      "from": 240,
+      "to": 249,
+      "label": "ID 24"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "ID 25"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "16ch",
+    "name": "16-channel",
+    "footprint": 16,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "user-colors",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "effects",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "id-code",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "12ch",
+    "name": "12-channel",
+    "footprint": 12,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "user-colors",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    350,
+    460,
+    220
+   ],
+   "weightKg": 10,
+   "powerW": 420,
+   "lensDegMin": 10,
+   "lensDegMax": 60
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "mega-led-lighting/zoom-360",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

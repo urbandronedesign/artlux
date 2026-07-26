@@ -1,8 +1,11 @@
 
+import type { OutputProtocol } from '../types';
+
 // A lightweight event bus to decouple the Render Loop from React Components.
 export interface DmxDestination {
+    /** Network address, or — for 'enttec' — the USB serial port path. */
     ip: string;
-    protocol: 'artnet' | 'sacn';
+    protocol: OutputProtocol;
     broadcast: boolean;
     sparse: boolean;
     priority?: number;

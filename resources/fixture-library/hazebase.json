@@ -1,0 +1,64 @@
+[
+ {
+  "id": "hazebase/base-hazer-pro",
+  "manufacturer": "Hazebase",
+  "model": "base*hazer*pro",
+  "aliases": [
+   "Hazebase base*hazer*pro",
+   "base*hazer*pro",
+   "basehazerpro",
+   "hazebasebasehazerpro"
+  ],
+  "categories": [
+   "Hazer"
+  ],
+  "channels": [
+   {
+    "key": "haze",
+    "label": "Haze",
+    "role": "fog",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "fan",
+    "label": "Fan",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "2ch",
+    "name": "2-channel",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "haze",
+      "byte": 0
+     },
+     {
+      "channelKey": "fan",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    594,
+    185,
+    540
+   ],
+   "weightKg": 18,
+   "powerW": 1500
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "hazebase/base-hazer-pro",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

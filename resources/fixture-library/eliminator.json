@@ -1,0 +1,1027 @@
+[
+ {
+  "id": "eliminator/stealth-beam",
+  "manufacturer": "Eliminator Lighting",
+  "model": "Stealth Beam",
+  "aliases": [
+   "Eliminator Lighting Stealth Beam",
+   "Stealth Beam",
+   "eliminatorlightingstealthbeam",
+   "stealthbeam"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 270,
+    "unit": "deg"
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "master-dimmer",
+    "label": "Master Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-macro",
+    "label": "Color Macro",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "NoFunction"
+     },
+     {
+      "from": 8,
+      "to": 17,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 18,
+      "to": 27,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 28,
+      "to": 37,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 38,
+      "to": 47,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 48,
+      "to": 57,
+      "label": "Red/Green",
+      "color": "#ffff00"
+     },
+     {
+      "from": 58,
+      "to": 67,
+      "label": "Green/Blue",
+      "color": "#00ffff"
+     },
+     {
+      "from": 68,
+      "to": 77,
+      "label": "Blue/White",
+      "color": "#8080ff"
+     },
+     {
+      "from": 78,
+      "to": 87,
+      "label": "Red/White",
+      "color": "#ff8080"
+     },
+     {
+      "from": 88,
+      "to": 97,
+      "label": "Red/Green/Blue",
+      "color": "#ffffff"
+     },
+     {
+      "from": 98,
+      "to": 107,
+      "label": "Green/Blue/White",
+      "color": "#80ffff"
+     },
+     {
+      "from": 108,
+      "to": 117,
+      "label": "Red/Blue/White",
+      "color": "#ff80ff"
+     },
+     {
+      "from": 118,
+      "to": 127,
+      "label": "Red/Green/White",
+      "color": "#ffff80"
+     },
+     {
+      "from": 128,
+      "to": 137,
+      "label": "Red/Green/Blue/White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 138,
+      "to": 188,
+      "label": "ColorJump"
+     },
+     {
+      "from": 189,
+      "to": 239,
+      "label": "ColorFade"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "ColorJump"
+     }
+    ]
+   },
+   {
+    "key": "shutter-strobe",
+    "label": "Shutter / Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 4,
+      "label": "Closed"
+     },
+     {
+      "from": 5,
+      "to": 250,
+      "label": "Strobe"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "pan-continuous-movement",
+    "label": "Pan Continuous Movement",
+    "role": "pan",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "NoFunction"
+     },
+     {
+      "from": 8,
+      "to": 127,
+      "label": "PanContinuous"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "PanContinuous"
+     }
+    ]
+   },
+   {
+    "key": "pan-movement-speed",
+    "label": "Pan Movement Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "tilt-movement-macro",
+    "label": "Tilt Movement Macro",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "NoFunction"
+     },
+     {
+      "from": 8,
+      "to": 255,
+      "label": "Tilt movement forth and back"
+     }
+    ]
+   },
+   {
+    "key": "color-change-fade-speed",
+    "label": "Color Change / Fade Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "pan-tilt-programs",
+    "label": "Pan/Tilt Programs",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "NoFunction"
+     },
+     {
+      "from": 8,
+      "to": 32,
+      "label": "Program 1"
+     },
+     {
+      "from": 33,
+      "to": 58,
+      "label": "Program 1"
+     },
+     {
+      "from": 59,
+      "to": 84,
+      "label": "Program 2"
+     },
+     {
+      "from": 85,
+      "to": 110,
+      "label": "Program 3"
+     },
+     {
+      "from": 111,
+      "to": 136,
+      "label": "Program 4"
+     },
+     {
+      "from": 137,
+      "to": 162,
+      "label": "Program 5"
+     },
+     {
+      "from": 163,
+      "to": 188,
+      "label": "Program 6"
+     },
+     {
+      "from": 189,
+      "to": 214,
+      "label": "Program 7"
+     },
+     {
+      "from": 215,
+      "to": 240,
+      "label": "Program 8"
+     },
+     {
+      "from": 241,
+      "to": 255,
+      "label": "Sound Active"
+     }
+    ]
+   },
+   {
+    "key": "pan-tilt-program-speed",
+    "label": "Pan/Tilt Program Speed",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 50,
+      "label": "NoFunction"
+     },
+     {
+      "from": 51,
+      "to": 100,
+      "label": "Set High Speed Mode"
+     },
+     {
+      "from": 101,
+      "to": 150,
+      "label": "NoFunction"
+     },
+     {
+      "from": 151,
+      "to": 200,
+      "label": "Set Low Speed Mode"
+     },
+     {
+      "from": 201,
+      "to": 250,
+      "label": "NoFunction"
+     },
+     {
+      "from": 251,
+      "to": 255,
+      "label": "Reset"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "5ch",
+    "name": "5-channel",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macro",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-change-fade-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-programs",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "17ch",
+    "name": "17-channel",
+    "footprint": 17,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macro",
+      "byte": 0
+     },
+     {
+      "channelKey": "master-dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-continuous-movement",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-movement-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt-movement-macro",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-change-fade-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-program-speed",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    239,
+    285,
+    146
+   ],
+   "weightKg": 3.8,
+   "powerW": 75,
+   "lensDegMin": 11,
+   "lensDegMax": 11
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eliminator/stealth-beam",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "eliminator/stealth-wash-zoom",
+  "manufacturer": "Eliminator Lighting",
+  "model": "Stealth Wash Zoom",
+  "aliases": [
+   "Eliminator Lighting Stealth Wash Zoom",
+   "Stealth Wash Zoom",
+   "eliminatorlightingstealthwashzoom",
+   "stealthwashzoom"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 270,
+    "unit": "deg"
+   },
+   {
+    "key": "color-macros",
+    "label": "Color Macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "NoFunction"
+     },
+     {
+      "from": 6,
+      "to": 10,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 11,
+      "to": 15,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 16,
+      "to": 20,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 21,
+      "to": 25,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 26,
+      "to": 30,
+      "label": "Red + Green aka Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 31,
+      "to": 35,
+      "label": "Green + Blue aka Cyan",
+      "color": "#00ffff"
+     },
+     {
+      "from": 36,
+      "to": 40,
+      "label": "Blue + White",
+      "color": "#8080ff"
+     },
+     {
+      "from": 41,
+      "to": 45,
+      "label": "Red + Blue aka Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 46,
+      "to": 50,
+      "label": "Green + White",
+      "color": "#80ff80"
+     },
+     {
+      "from": 51,
+      "to": 55,
+      "label": "Red + White",
+      "color": "#ff8080"
+     },
+     {
+      "from": 56,
+      "to": 60,
+      "label": "Red + Green + Blue aka White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 61,
+      "to": 65,
+      "label": "Red + Green + White",
+      "color": "#ffff55"
+     },
+     {
+      "from": 66,
+      "to": 70,
+      "label": "Green + Blue + White",
+      "color": "#80ffff"
+     },
+     {
+      "from": 71,
+      "to": 75,
+      "label": "Red + Green + Blue + White aka brighter White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 76,
+      "to": 127,
+      "label": "ColorJump"
+     },
+     {
+      "from": 128,
+      "to": 133,
+      "label": "NoFunction"
+     },
+     {
+      "from": 134,
+      "to": 255,
+      "label": "ColorFade"
+     }
+    ]
+   },
+   {
+    "key": "internal-programs",
+    "label": "Internal Programs",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 20,
+      "label": "NoFunction"
+     },
+     {
+      "from": 21,
+      "to": 40,
+      "label": "Program 1"
+     },
+     {
+      "from": 41,
+      "to": 60,
+      "label": "Program 2"
+     },
+     {
+      "from": 61,
+      "to": 80,
+      "label": "Program 3"
+     },
+     {
+      "from": 81,
+      "to": 100,
+      "label": "Program 4"
+     },
+     {
+      "from": 101,
+      "to": 120,
+      "label": "Program 5"
+     },
+     {
+      "from": 121,
+      "to": 140,
+      "label": "Program 6"
+     },
+     {
+      "from": 141,
+      "to": 160,
+      "label": "Program 7"
+     },
+     {
+      "from": 161,
+      "to": 180,
+      "label": "Program 8"
+     },
+     {
+      "from": 181,
+      "to": 200,
+      "label": "NoFunction"
+     },
+     {
+      "from": 201,
+      "to": 225,
+      "label": "Reset"
+     },
+     {
+      "from": 226,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "zoom",
+    "label": "Zoom",
+    "role": "zoom",
+    "resolution": 1,
+    "default": 0,
+    "min": 4,
+    "max": 45,
+    "unit": "deg"
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "shutter-strobe",
+    "label": "Shutter / Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Closed"
+     },
+     {
+      "from": 10,
+      "to": 245,
+      "label": "Strobe"
+     },
+     {
+      "from": 246,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "color-macros-2",
+    "label": "Color Macros 2",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 20,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 21,
+      "to": 30,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 31,
+      "to": 40,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 41,
+      "to": 50,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 51,
+      "to": 60,
+      "label": "Red + Green aka Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 61,
+      "to": 70,
+      "label": "Green + Blue aka Cyan",
+      "color": "#00ffff"
+     },
+     {
+      "from": 71,
+      "to": 80,
+      "label": "Blue + White",
+      "color": "#8080ff"
+     },
+     {
+      "from": 81,
+      "to": 90,
+      "label": "Red + Blue aka Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 91,
+      "to": 100,
+      "label": "Green + White",
+      "color": "#80ff80"
+     },
+     {
+      "from": 101,
+      "to": 110,
+      "label": "Red + White",
+      "color": "#ff8080"
+     },
+     {
+      "from": 111,
+      "to": 120,
+      "label": "Red + Green + Blue aka White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 121,
+      "to": 130,
+      "label": "Red + Green + White",
+      "color": "#ffff55"
+     },
+     {
+      "from": 131,
+      "to": 140,
+      "label": "Green + Blue + White",
+      "color": "#55ffff"
+     },
+     {
+      "from": 141,
+      "to": 150,
+      "label": "Red + Green + Blue + White aka brighter White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 151,
+      "to": 255,
+      "label": "ColorJump"
+     }
+    ]
+   },
+   {
+    "key": "color-temperature",
+    "label": "Color Temperature",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-fade",
+    "label": "Color Fade",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 255,
+      "label": "ColorFade"
+     }
+    ]
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan/Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "5ch",
+    "name": "5-channel",
+    "footprint": 5,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "internal-programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "16ch",
+    "name": "16-channel",
+    "footprint": 16,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "zoom",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-macros-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-fade",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "internal-programs",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    234,
+    321,
+    158
+   ],
+   "weightKg": 4.5,
+   "powerW": 95,
+   "lensDegMin": 4,
+   "lensDegMax": 45
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "eliminator/stealth-wash-zoom",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

@@ -1,0 +1,937 @@
+[
+ {
+  "id": "tomshine/3-led-par-light-rgbuv",
+  "manufacturer": "Tomshine",
+  "model": "3 LED Par Light RGBUV",
+  "aliases": [
+   "3 LED Par Light RGBUV",
+   "3ledparlightrgbuv",
+   "TomShine3LEDParRGBUV",
+   "Tomshine 3 LED Par Light RGBUV",
+   "tomshine3ledparlightrgbuv",
+   "tomshine3ledparrgbuv"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "no-function",
+    "label": "No Function",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "special-functions",
+    "label": "Special Functions",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 50,
+      "label": "Static Color"
+     },
+     {
+      "from": 51,
+      "to": 100,
+      "label": "ColorJump"
+     },
+     {
+      "from": 101,
+      "to": 150,
+      "label": "ColorFade"
+     },
+     {
+      "from": 151,
+      "to": 200,
+      "label": "ColorJump"
+     },
+     {
+      "from": 201,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "color-presets",
+    "label": "Color Presets",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 39,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 40,
+      "to": 49,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 50,
+      "to": 59,
+      "label": "Green",
+      "color": "#008000"
+     },
+     {
+      "from": 60,
+      "to": 69,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 70,
+      "to": 79,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 80,
+      "to": 89,
+      "label": "Cyan",
+      "color": "#00ffff"
+     },
+     {
+      "from": 90,
+      "to": 99,
+      "label": "Purple",
+      "color": "#800080"
+     },
+     {
+      "from": 100,
+      "to": 109,
+      "label": "Pink",
+      "color": "#ffc0cb"
+     },
+     {
+      "from": 110,
+      "to": 119,
+      "label": "Red + Green",
+      "color": "#ff0000"
+     },
+     {
+      "from": 120,
+      "to": 129,
+      "label": "Red + Blue",
+      "color": "#ff0000"
+     },
+     {
+      "from": 130,
+      "to": 139,
+      "label": "Red + UV",
+      "color": "#ff0000"
+     },
+     {
+      "from": 140,
+      "to": 149,
+      "label": "Green + Blue",
+      "color": "#008000"
+     },
+     {
+      "from": 150,
+      "to": 159,
+      "label": "Green + UV",
+      "color": "#008000"
+     },
+     {
+      "from": 160,
+      "to": 169,
+      "label": "Blue + UV",
+      "color": "#0000ff"
+     },
+     {
+      "from": 170,
+      "to": 179,
+      "label": "Red + Green + UV",
+      "color": "#ff0000"
+     },
+     {
+      "from": 180,
+      "to": 189,
+      "label": "Red + Blue + UV",
+      "color": "#ff0000"
+     },
+     {
+      "from": 190,
+      "to": 199,
+      "label": "Green + Blue + UV",
+      "color": "#008000"
+     },
+     {
+      "from": 200,
+      "to": 209,
+      "label": "Red + Green + Blue",
+      "color": "#ff0000"
+     },
+     {
+      "from": 210,
+      "to": 255,
+      "label": "Red + Green + Blue + UV",
+      "color": "#ff0000"
+     }
+    ]
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "uv",
+    "label": "UV",
+    "role": "uv",
+    "resolution": 1,
+    "default": 0
+   }
+  ],
+  "modes": [
+   {
+    "key": "8ch",
+    "name": "8-channel",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "special-functions",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-presets",
+      "byte": 0
+     },
+     {
+      "channelKey": "no-function",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "uv",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    140,
+    140,
+    140
+   ],
+   "weightKg": 0.595,
+   "powerW": 15,
+   "lensDegMin": 40,
+   "lensDegMax": 40
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "tomshine/3-led-par-light-rgbuv",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "tomshine/80w-mini-gobo-moving-head",
+  "manufacturer": "Tomshine",
+  "model": "80W Mini Gobo Moving Head",
+  "aliases": [
+   "80W Mini Gobo Moving Head",
+   "80wminigobomovinghead",
+   "Mini Gobo MH",
+   "Tomshine 80W Mini Gobo Moving Head",
+   "minigobomh",
+   "tomshine80wminigobomovinghead"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0,
+    "min": 1,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 230,
+    "unit": "deg"
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan/Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 0,
+      "label": "Open"
+     },
+     {
+      "from": 1,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "color-wheel",
+    "label": "Color Wheel",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Open"
+     },
+     {
+      "from": 8,
+      "to": 15,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 16,
+      "to": 24,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 25,
+      "to": 31,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 32,
+      "to": 39,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 40,
+      "to": 47,
+      "label": "Orange",
+      "color": "#ff8000"
+     },
+     {
+      "from": 48,
+      "to": 55,
+      "label": "Cyan",
+      "color": "#00fff0"
+     },
+     {
+      "from": 56,
+      "to": 63,
+      "label": "Pink",
+      "color": "#ff00aa"
+     },
+     {
+      "from": 64,
+      "to": 71,
+      "label": "Open"
+     },
+     {
+      "from": 72,
+      "to": 79,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 80,
+      "to": 87,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 88,
+      "to": 95,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 96,
+      "to": 103,
+      "label": "Yellow",
+      "color": "#ffff00"
+     },
+     {
+      "from": 104,
+      "to": 111,
+      "label": "Orange",
+      "color": "#ff8000"
+     },
+     {
+      "from": 112,
+      "to": 119,
+      "label": "Cyan",
+      "color": "#00fff0"
+     },
+     {
+      "from": 120,
+      "to": 127,
+      "label": "Pink",
+      "color": "#ff00aa"
+     },
+     {
+      "from": 128,
+      "to": 191,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "gobo-wheel",
+    "label": "Gobo Wheel",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Open"
+     },
+     {
+      "from": 8,
+      "to": 15,
+      "label": "Gobo",
+      "goboKey": "double-lines-star"
+     },
+     {
+      "from": 16,
+      "to": 23,
+      "label": "Gobo",
+      "goboKey": "square-arrows"
+     },
+     {
+      "from": 24,
+      "to": 31,
+      "label": "Gobo",
+      "goboKey": "circular-drops"
+     },
+     {
+      "from": 32,
+      "to": 39,
+      "label": "Gobo",
+      "goboKey": "5-pointed-star"
+     },
+     {
+      "from": 40,
+      "to": 47,
+      "label": "Gobo",
+      "goboKey": "stones"
+     },
+     {
+      "from": 48,
+      "to": 55,
+      "label": "Gobo",
+      "goboKey": "crescent"
+     },
+     {
+      "from": 56,
+      "to": 63,
+      "label": "Gobo",
+      "goboKey": "caro-flower"
+     },
+     {
+      "from": 64,
+      "to": 71,
+      "label": "Open"
+     },
+     {
+      "from": 72,
+      "to": 79,
+      "label": "Gobo",
+      "goboKey": "double-lines-star"
+     },
+     {
+      "from": 80,
+      "to": 87,
+      "label": "Gobo",
+      "goboKey": "square-arrows"
+     },
+     {
+      "from": 88,
+      "to": 95,
+      "label": "Gobo",
+      "goboKey": "circular-drops"
+     },
+     {
+      "from": 96,
+      "to": 103,
+      "label": "Gobo",
+      "goboKey": "5-pointed-star"
+     },
+     {
+      "from": 104,
+      "to": 111,
+      "label": "Gobo",
+      "goboKey": "stones"
+     },
+     {
+      "from": 112,
+      "to": 119,
+      "label": "Gobo",
+      "goboKey": "crescent"
+     },
+     {
+      "from": 120,
+      "to": 127,
+      "label": "Gobo",
+      "goboKey": "caro-flower"
+     },
+     {
+      "from": 128,
+      "to": 191,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "sound-mode",
+    "label": "Sound Mode",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "NoFunction"
+     },
+     {
+      "from": 128,
+      "to": 255,
+      "label": "Random moving with colors and gobos"
+     }
+    ]
+   },
+   {
+    "key": "reset",
+    "label": "Reset",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 254,
+      "label": "NoFunction"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Reset"
+     }
+    ]
+   },
+   {
+    "key": "function",
+    "label": "Function",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 69,
+      "label": "NoFunction"
+     },
+     {
+      "from": 70,
+      "to": 79,
+      "label": "Blackout during Pan/Tilt movement"
+     },
+     {
+      "from": 80,
+      "to": 89,
+      "label": "NoFunction"
+     },
+     {
+      "from": 90,
+      "to": 99,
+      "label": "Blackout during Color Wheel movement"
+     },
+     {
+      "from": 100,
+      "to": 109,
+      "label": "NoFunction"
+     },
+     {
+      "from": 110,
+      "to": 119,
+      "label": "Blackout during Gobo Wheel movement"
+     },
+     {
+      "from": 120,
+      "to": 199,
+      "label": "NoFunction"
+     },
+     {
+      "from": 200,
+      "to": 209,
+      "label": "Reset"
+     },
+     {
+      "from": 210,
+      "to": 249,
+      "label": "NoFunction"
+     },
+     {
+      "from": 250,
+      "to": 255,
+      "label": "Voice control function"
+     }
+    ]
+   },
+   {
+    "key": "dimmer-curve",
+    "label": "Dimmer Curve",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 20,
+      "label": "Standard"
+     },
+     {
+      "from": 21,
+      "to": 40,
+      "label": "Stage"
+     },
+     {
+      "from": 41,
+      "to": 60,
+      "label": "TV"
+     },
+     {
+      "from": 61,
+      "to": 80,
+      "label": "Architectural"
+     },
+     {
+      "from": 81,
+      "to": 100,
+      "label": "Theater"
+     },
+     {
+      "from": 101,
+      "to": 255,
+      "label": "Default"
+     }
+    ]
+   },
+   {
+    "key": "strobe-2022",
+    "label": "Strobe (2022)",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Closed"
+     },
+     {
+      "from": 8,
+      "to": 15,
+      "label": "Open"
+     },
+     {
+      "from": 16,
+      "to": 131,
+      "label": "Strobe"
+     },
+     {
+      "from": 132,
+      "to": 139,
+      "label": "Open"
+     },
+     {
+      "from": 140,
+      "to": 181,
+      "label": "RampUp"
+     },
+     {
+      "from": 182,
+      "to": 189,
+      "label": "Open"
+     },
+     {
+      "from": 190,
+      "to": 231,
+      "label": "RampDown"
+     },
+     {
+      "from": 232,
+      "to": 239,
+      "label": "Open"
+     },
+     {
+      "from": 240,
+      "to": 247,
+      "label": "Strobe"
+     },
+     {
+      "from": 248,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "11ch",
+    "name": "11-channel",
+    "footprint": 11,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "sound-mode",
+      "byte": 0
+     },
+     {
+      "channelKey": "reset",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "9ch-2022",
+    "name": "9-channel (2022)",
+    "footprint": 9,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe-2022",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "function",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-curve",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "11ch-2022",
+    "name": "11-channel (2022)",
+    "footprint": 11,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "color-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe-2022",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "function",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-curve",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    200,
+    260,
+    147
+   ],
+   "weightKg": 3.1,
+   "powerW": 80
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "tomshine/80w-mini-gobo-moving-head",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

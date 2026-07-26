@@ -1,0 +1,3867 @@
+[
+ {
+  "id": "lupo/actionpanel-dual-color",
+  "manufacturer": "Lupo",
+  "model": "Actionpanel Dual Color",
+  "aliases": [
+   "Actionpanel Dual Color",
+   "Lupo Actionpanel Dual Color",
+   "actionpaneldualcolor",
+   "lupoactionpaneldualcolor"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "cct",
+    "label": "CCT",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "NoFunction"
+     },
+     {
+      "from": 6,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "strobe-16bit",
+    "label": "Strobe 16bit",
+    "role": "shutter",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 255,
+      "label": "NoFunction"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "cct-8bit",
+    "name": "CCT 8bit",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "cct-strobe-8bit",
+    "name": "CCT + Strobe 8bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "cct-16bit",
+    "name": "CCT 16bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "cct-strobe-16bit",
+    "name": "CCT + Strobe 16bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 1
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 1
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    205,
+    205,
+    105
+   ],
+   "weightKg": 2,
+   "powerW": 60
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "lupo/actionpanel-dual-color",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "lupo/actionpanel-full-color",
+  "manufacturer": "Lupo",
+  "model": "Actionpanel Full Color",
+  "aliases": [
+   "Actionpanel Full Color",
+   "Lupo Actionpanel Full Color",
+   "actionpanelfullcolor",
+   "lupoactionpanelfullcolor"
+  ],
+  "categories": [
+   "Dimmer",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "cct",
+    "label": "CCT",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "g-m-point-8bit",
+    "label": "G/M Point 8bit",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "Neutral"
+     },
+     {
+      "from": 6,
+      "to": 255,
+      "label": "-100%…+100%"
+     }
+    ]
+   },
+   {
+    "key": "g-m-point-16bit",
+    "label": "G/M Point 16bit",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 255,
+      "label": "Neutral"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "-100%…+100%"
+     }
+    ]
+   },
+   {
+    "key": "hue",
+    "label": "Hue",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "saturation",
+    "label": "Saturation",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "NoFunction"
+     },
+     {
+      "from": 6,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "strobe-16bit",
+    "label": "Strobe 16bit",
+    "role": "shutter",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 255,
+      "label": "NoFunction"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "cct-8bit",
+    "name": "CCT 8bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "cct-strobe-8bit",
+    "name": "CCT + Strobe 8bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "cct-16bit",
+    "name": "CCT 16bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 1
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "cct-strobe-16bit",
+    "name": "CCT + Strobe 16bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 1
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 1
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "hsi-8bit",
+    "name": "HSI 8bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "hsi-strobe-8bit",
+    "name": "HSI + Strobe 8bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "hsi-16bit",
+    "name": "HSI 16bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "hsi-strobe-16bit",
+    "name": "HSI + Strobe 16bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "rgbw-8bit",
+    "name": "RGBW 8bit",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-8bit",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "rgbw-strobe-8bit",
+    "name": "RGBW + Strobe 8bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "rgbw-16bit",
+    "name": "RGBW 16bit",
+    "footprint": 14,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 1
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "rgbw-strobe-16bit",
+    "name": "RGBW + Strobe 16bit",
+    "footprint": 16,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 1
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 1
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 1
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    205,
+    205,
+    105
+   ],
+   "weightKg": 2,
+   "powerW": 60
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "lupo/actionpanel-full-color",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "lupo/superpanel-dual-color-60",
+  "manufacturer": "Lupo",
+  "model": "Superpanel Dual Color 60",
+  "aliases": [
+   "Lupo Superpanel Dual Color 60",
+   "Superpanel Dual Color 60",
+   "luposuperpaneldualcolor60",
+   "superpaneldualcolor60"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "cct",
+    "label": "CCT",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "NoFunction"
+     },
+     {
+      "from": 6,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "strobe-16bit",
+    "label": "Strobe 16bit",
+    "role": "shutter",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 255,
+      "label": "NoFunction"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "cct-8bit",
+    "name": "CCT 8bit",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "cct-strobe-8bit",
+    "name": "CCT + Strobe 8bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "cct-16bit",
+    "name": "CCT 16bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "cct-strobe-16bit",
+    "name": "CCT + Strobe 16bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 1
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 1
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    650,
+    340,
+    110
+   ],
+   "weightKg": 9,
+   "powerW": 400
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "lupo/superpanel-dual-color-60",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "lupo/superpanel-full-color-60",
+  "manufacturer": "Lupo",
+  "model": "Superpanel Full Color 60",
+  "aliases": [
+   "Lupo Superpanel Full Color 60",
+   "Superpanel Full Color 60",
+   "luposuperpanelfullcolor60",
+   "superpanelfullcolor60"
+  ],
+  "categories": [
+   "Dimmer",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "cct",
+    "label": "CCT",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "g-m-point-8bit",
+    "label": "G/M Point 8bit",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "Neutral"
+     },
+     {
+      "from": 6,
+      "to": 255,
+      "label": "-100%…+100%"
+     }
+    ]
+   },
+   {
+    "key": "g-m-point-16bit",
+    "label": "G/M Point 16bit",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 255,
+      "label": "Neutral"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "-100%…+100%"
+     }
+    ]
+   },
+   {
+    "key": "hue",
+    "label": "Hue",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "saturation",
+    "label": "Saturation",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "NoFunction"
+     },
+     {
+      "from": 6,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "strobe-16bit",
+    "label": "Strobe 16bit",
+    "role": "shutter",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 255,
+      "label": "NoFunction"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "cct-8bit",
+    "name": "CCT 8bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "cct-strobe-8bit",
+    "name": "CCT + Strobe 8bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "cct-16bit",
+    "name": "CCT 16bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 1
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "cct-strobe-16bit",
+    "name": "CCT + Strobe 16bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 1
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 1
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "hsi-8bit",
+    "name": "HSI 8bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "hsi-strobe-8bit",
+    "name": "HSI + Strobe 8bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "hsi-16bit",
+    "name": "HSI 16bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "hsi-strobe-16bit",
+    "name": "HSI + Strobe 16bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "rgbw-8bit",
+    "name": "RGBW 8bit",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-8bit",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "rgbw-strobe-8bit",
+    "name": "RGBW + Strobe 8bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "rgbw-16bit",
+    "name": "RGBW 16bit",
+    "footprint": 14,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 1
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "rgbw-strobe-16bit",
+    "name": "RGBW + Strobe 16bit",
+    "footprint": 16,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 1
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 1
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 1
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    650,
+    340,
+    110
+   ],
+   "weightKg": 9,
+   "powerW": 400
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "lupo/superpanel-full-color-60",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "lupo/superpanelpro-dual-color-30",
+  "manufacturer": "Lupo",
+  "model": "SuperpanelPRO Dual Color 30",
+  "aliases": [
+   "Lupo SuperpanelPRO Dual Color 30",
+   "SuperpanelPRO Dual Color 30",
+   "luposuperpanelprodualcolor30",
+   "superpanelprodualcolor30"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "cct",
+    "label": "CCT",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "NoFunction"
+     },
+     {
+      "from": 6,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "strobe-16bit",
+    "label": "Strobe 16bit",
+    "role": "shutter",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 255,
+      "label": "NoFunction"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "cct-8bit",
+    "name": "CCT 8bit",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "cct-strobe-8bit",
+    "name": "CCT + Strobe 8bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "cct-16bit",
+    "name": "CCT 16bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "cct-strobe-16bit",
+    "name": "CCT + Strobe 16bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 1
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 1
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    350,
+    353,
+    117
+   ],
+   "weightKg": 4.9,
+   "powerW": 220
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "lupo/superpanelpro-dual-color-30",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "lupo/superpanelpro-full-color-30",
+  "manufacturer": "Lupo",
+  "model": "SuperpanelPRO Full Color 30",
+  "aliases": [
+   "Lupo SuperpanelPRO Full Color 30",
+   "SuperpanelPRO Full Color 30",
+   "luposuperpanelprofullcolor30",
+   "superpanelprofullcolor30"
+  ],
+  "categories": [
+   "Dimmer",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "cct",
+    "label": "CCT",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "g-m-point-8bit",
+    "label": "G/M Point 8bit",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "Neutral"
+     },
+     {
+      "from": 6,
+      "to": 255,
+      "label": "-100%…+100%"
+     }
+    ]
+   },
+   {
+    "key": "g-m-point-16bit",
+    "label": "G/M Point 16bit",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 255,
+      "label": "Neutral"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "-100%…+100%"
+     }
+    ]
+   },
+   {
+    "key": "hue",
+    "label": "Hue",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "saturation",
+    "label": "Saturation",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "NoFunction"
+     },
+     {
+      "from": 6,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "strobe-16bit",
+    "label": "Strobe 16bit",
+    "role": "shutter",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 255,
+      "label": "NoFunction"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "cct-8bit",
+    "name": "CCT 8bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "cct-strobe-8bit",
+    "name": "CCT + Strobe 8bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "cct-16bit",
+    "name": "CCT 16bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 1
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "cct-strobe-16bit",
+    "name": "CCT + Strobe 16bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 1
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 1
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "hsi-8bit",
+    "name": "HSI 8bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "hsi-strobe-8bit",
+    "name": "HSI + Strobe 8bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "hsi-16bit",
+    "name": "HSI 16bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "hsi-strobe-16bit",
+    "name": "HSI + Strobe 16bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "rgbw-8bit",
+    "name": "RGBW 8bit",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-8bit",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "rgbw-strobe-8bit",
+    "name": "RGBW + Strobe 8bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "rgbw-16bit",
+    "name": "RGBW 16bit",
+    "footprint": 14,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 1
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "rgbw-strobe-16bit",
+    "name": "RGBW + Strobe 16bit",
+    "footprint": 16,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 1
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 1
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 1
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    350,
+    353,
+    117
+   ],
+   "weightKg": 4.9,
+   "powerW": 220
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "lupo/superpanelpro-full-color-30",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "lupo/ultrapanel-dual-color-60",
+  "manufacturer": "Lupo",
+  "model": "Ultrapanel Dual Color 60",
+  "aliases": [
+   "Lupo Ultrapanel Dual Color 60",
+   "Ultrapanel Dual Color 60",
+   "lupoultrapaneldualcolor60",
+   "ultrapaneldualcolor60"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "cct",
+    "label": "CCT",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "NoFunction"
+     },
+     {
+      "from": 6,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "strobe-16bit",
+    "label": "Strobe 16bit",
+    "role": "shutter",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 255,
+      "label": "NoFunction"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "cct-8bit",
+    "name": "CCT 8bit",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "cct-strobe-8bit",
+    "name": "CCT + Strobe 8bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "cct-16bit",
+    "name": "CCT 16bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "cct-strobe-16bit",
+    "name": "CCT + Strobe 16bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 1
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 1
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    650,
+    340,
+    110
+   ],
+   "weightKg": 9,
+   "powerW": 400
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "lupo/ultrapanel-dual-color-60",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "lupo/ultrapanel-full-color-60",
+  "manufacturer": "Lupo",
+  "model": "Ultrapanel Full Color 60",
+  "aliases": [
+   "Lupo Ultrapanel Full Color 60",
+   "Ultrapanel Full Color 60",
+   "lupoultrapanelfullcolor60",
+   "ultrapanelfullcolor60"
+  ],
+  "categories": [
+   "Dimmer",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "cct",
+    "label": "CCT",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "g-m-point-8bit",
+    "label": "G/M Point 8bit",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "Neutral"
+     },
+     {
+      "from": 6,
+      "to": 255,
+      "label": "-100%…+100%"
+     }
+    ]
+   },
+   {
+    "key": "g-m-point-16bit",
+    "label": "G/M Point 16bit",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 255,
+      "label": "Neutral"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "-100%…+100%"
+     }
+    ]
+   },
+   {
+    "key": "hue",
+    "label": "Hue",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "saturation",
+    "label": "Saturation",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "NoFunction"
+     },
+     {
+      "from": 6,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "strobe-16bit",
+    "label": "Strobe 16bit",
+    "role": "shutter",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 255,
+      "label": "NoFunction"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "cct-8bit",
+    "name": "CCT 8bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "cct-strobe-8bit",
+    "name": "CCT + Strobe 8bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "cct-16bit",
+    "name": "CCT 16bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 1
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "cct-strobe-16bit",
+    "name": "CCT + Strobe 16bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 1
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 1
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "hsi-8bit",
+    "name": "HSI 8bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "hsi-strobe-8bit",
+    "name": "HSI + Strobe 8bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "hsi-16bit",
+    "name": "HSI 16bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "hsi-strobe-16bit",
+    "name": "HSI + Strobe 16bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "rgbw-8bit",
+    "name": "RGBW 8bit",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-8bit",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "rgbw-strobe-8bit",
+    "name": "RGBW + Strobe 8bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "rgbw-16bit",
+    "name": "RGBW 16bit",
+    "footprint": 14,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 1
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "rgbw-strobe-16bit",
+    "name": "RGBW + Strobe 16bit",
+    "footprint": 16,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 1
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 1
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 1
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    650,
+    340,
+    110
+   ],
+   "weightKg": 9,
+   "powerW": 400
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "lupo/ultrapanel-full-color-60",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "lupo/ultrapanelpro-dual-color-30",
+  "manufacturer": "Lupo",
+  "model": "UltrapanelPRO Dual Color 30",
+  "aliases": [
+   "Lupo UltrapanelPRO Dual Color 30",
+   "UltrapanelPRO Dual Color 30",
+   "lupoultrapanelprodualcolor30",
+   "ultrapanelprodualcolor30"
+  ],
+  "categories": [
+   "Dimmer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "cct",
+    "label": "CCT",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "NoFunction"
+     },
+     {
+      "from": 6,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "strobe-16bit",
+    "label": "Strobe 16bit",
+    "role": "shutter",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 255,
+      "label": "NoFunction"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "cct-8bit",
+    "name": "CCT 8bit",
+    "footprint": 2,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "cct-strobe-8bit",
+    "name": "CCT + Strobe 8bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "cct-16bit",
+    "name": "CCT 16bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "cct-strobe-16bit",
+    "name": "CCT + Strobe 16bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 1
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 1
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    350,
+    353,
+    117
+   ],
+   "weightKg": 4.9,
+   "powerW": 220
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "lupo/ultrapanelpro-dual-color-30",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "lupo/ultrapanelpro-full-color-30",
+  "manufacturer": "Lupo",
+  "model": "UltrapanelPRO Full Color 30",
+  "aliases": [
+   "Lupo UltrapanelPRO Full Color 30",
+   "UltrapanelPRO Full Color 30",
+   "lupoultrapanelprofullcolor30",
+   "ultrapanelprofullcolor30"
+  ],
+  "categories": [
+   "Dimmer",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 2,
+    "default": 0,
+    "highlight": 1
+   },
+   {
+    "key": "cct",
+    "label": "CCT",
+    "role": "colorTemp",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "g-m-point-8bit",
+    "label": "G/M Point 8bit",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "Neutral"
+     },
+     {
+      "from": 6,
+      "to": 255,
+      "label": "-100%…+100%"
+     }
+    ]
+   },
+   {
+    "key": "g-m-point-16bit",
+    "label": "G/M Point 16bit",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 255,
+      "label": "Neutral"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "-100%…+100%"
+     }
+    ]
+   },
+   {
+    "key": "hue",
+    "label": "Hue",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "saturation",
+    "label": "Saturation",
+    "role": "unknown",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 2,
+    "default": 0
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 5,
+      "label": "NoFunction"
+     },
+     {
+      "from": 6,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "strobe-16bit",
+    "label": "Strobe 16bit",
+    "role": "shutter",
+    "resolution": 2,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 255,
+      "label": "NoFunction"
+     },
+     {
+      "from": 255,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "cct-8bit",
+    "name": "CCT 8bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "cct-strobe-8bit",
+    "name": "CCT + Strobe 8bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "cct-16bit",
+    "name": "CCT 16bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 1
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "cct-strobe-16bit",
+    "name": "CCT + Strobe 16bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 1
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 1
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "hsi-8bit",
+    "name": "HSI 8bit",
+    "footprint": 3,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "hsi-strobe-8bit",
+    "name": "HSI + Strobe 8bit",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "hsi-16bit",
+    "name": "HSI 16bit",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "hsi-strobe-16bit",
+    "name": "HSI + Strobe 16bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "hue",
+      "byte": 0
+     },
+     {
+      "channelKey": "hue",
+      "byte": 1
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 0
+     },
+     {
+      "channelKey": "saturation",
+      "byte": 1
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "rgbw-8bit",
+    "name": "RGBW 8bit",
+    "footprint": 7,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-8bit",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "rgbw-strobe-8bit",
+    "name": "RGBW + Strobe 8bit",
+    "footprint": 8,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-8bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "rgbw-16bit",
+    "name": "RGBW 16bit",
+    "footprint": 14,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 1
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 1
+     }
+    ]
+   },
+   {
+    "key": "rgbw-strobe-16bit",
+    "name": "RGBW + Strobe 16bit",
+    "footprint": 16,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 1
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 1
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 1
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 1
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 1
+     },
+     {
+      "channelKey": "cct",
+      "byte": 0
+     },
+     {
+      "channelKey": "cct",
+      "byte": 1
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "g-m-point-16bit",
+      "byte": 1
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe-16bit",
+      "byte": 1
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    350,
+    353,
+    117
+   ],
+   "weightKg": 4.9,
+   "powerW": 220
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "lupo/ultrapanelpro-full-color-30",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]

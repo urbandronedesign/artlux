@@ -30,8 +30,10 @@ in the usual way: each look is a built-in GPU **effect** (no video or image file
 
 In ArtLux: **File ▸ Open…** (`Ctrl+O`) → pick a `.artlux` file. These are single-file projects — use
 **Open…**, not *Open Project Folder…*. Then pick the **Audio** context from the left rail (in the *show*
-cluster) — its viewport **is** the mixer — and the **Timeline** context (in the *build* cluster) when a chapter
-sends you to the lanes. (**View ▸ Audio Bed…** still works and now just switches you to the Audio context.)
+cluster) — its viewport **is** the mixer — and pull the **timeline drawer** up (**Ctrl+T**) when a chapter
+sends you to the lanes. The drawer opens *under* whichever workbench you are in, so in Audio you get the
+mixer, the media library and the lanes at once. (**View ▸ Audio Bed…** still works and now just switches
+you to the Audio context.)
 
 ![The Audio workspace context — the mixer as its viewport](tuto/images/audio-context.png)
 <!-- TODO screenshot: Audio context selected in the left rail, mixer viewport showing tracks + master strip -->

@@ -1,3 +1,8 @@
+# The generated fixture library must stay LF. `npm run build:fixtures` writes LF, so if git
+# normalised these to CRLF in the working copy every re-run would show a whole-file diff and the
+# build would stop being verifiably idempotent (run twice ⇒ empty `git diff`).
+resources/fixture-library/** -text eol=lf
+
 graphify-out/graph.json filter=lfs diff=lfs merge=lfs -text
 graphify-out/graph.html filter=lfs diff=lfs merge=lfs -text
 graphify-plugins/graph.json filter=lfs diff=lfs merge=lfs -text

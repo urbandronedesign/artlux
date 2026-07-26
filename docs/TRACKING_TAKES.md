@@ -74,7 +74,7 @@ stop (copy-in policy — see [ASSETS.md](ASSETS.md)). They are loaded lazily and
 
 ## Usage
 
-1. **Record.** Open the **Timeline** dock tab. In the **Takes** strip under the toolbar press
+1. **Record.** Pull the timeline drawer up (**Ctrl+T**). In the **Takes** strip under the toolbar press
    **● Record** — it captures the live blob feed (independent of Play/Pause). Press **■** to stop; a
    take chip appears and a **Tracking** lane is created if absent. Recording is blocked while a take
    is already playing under the playhead (so you never record replayed data).

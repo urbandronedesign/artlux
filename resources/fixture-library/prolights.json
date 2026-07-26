@@ -1,0 +1,1316 @@
+[
+ {
+  "id": "prolights/smartbat",
+  "manufacturer": "Prolights",
+  "model": "SMARTBAT",
+  "aliases": [
+   "Prolights SMARTBAT",
+   "SMARTBAT",
+   "prolightssmartbat",
+   "smartbat"
+  ],
+  "categories": [
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "red",
+    "label": "Red",
+    "role": "red",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "green",
+    "label": "Green",
+    "role": "green",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "blue",
+    "label": "Blue",
+    "role": "blue",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "white",
+    "label": "White",
+    "role": "white",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "color-presets-temperature",
+    "label": "Color Presets / Temperature",
+    "role": "colorTemp",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 30,
+      "label": "Red … Yellow"
+     },
+     {
+      "from": 31,
+      "to": 50,
+      "label": "Yellow … Green"
+     },
+     {
+      "from": 51,
+      "to": 70,
+      "label": "Green … Cyan"
+     },
+     {
+      "from": 71,
+      "to": 90,
+      "label": "Cyan … Blue"
+     },
+     {
+      "from": 91,
+      "to": 110,
+      "label": "Blue … Magenta"
+     },
+     {
+      "from": 111,
+      "to": 130,
+      "label": "Magenta … Red"
+     },
+     {
+      "from": 131,
+      "to": 150,
+      "label": "Red … White"
+     },
+     {
+      "from": 151,
+      "to": 170,
+      "label": "White … Blue"
+     },
+     {
+      "from": 171,
+      "to": 200,
+      "label": "White",
+      "color": "#ffffff"
+     },
+     {
+      "from": 201,
+      "to": 255,
+      "label": "ColorTemperature"
+     }
+    ]
+   },
+   {
+    "key": "strobe",
+    "label": "Strobe",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 255,
+      "label": "Strobe"
+     }
+    ]
+   },
+   {
+    "key": "auto-sound-programs",
+    "label": "Auto/Sound Programs",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 10,
+      "label": "NoFunction"
+     },
+     {
+      "from": 11,
+      "to": 60,
+      "label": "Auto Program 1"
+     },
+     {
+      "from": 61,
+      "to": 120,
+      "label": "Auto Program 2"
+     },
+     {
+      "from": 121,
+      "to": 180,
+      "label": "Auto Program 3"
+     },
+     {
+      "from": 181,
+      "to": 240,
+      "label": "Auto Program 4"
+     },
+     {
+      "from": 241,
+      "to": 255,
+      "label": "Sound Show"
+     }
+    ]
+   },
+   {
+    "key": "auto-speed",
+    "label": "Auto Speed",
+    "role": "speed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer-speed",
+    "label": "Dimmer Speed",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 51,
+      "label": "Use device setting"
+     },
+     {
+      "from": 52,
+      "to": 101,
+      "label": "Dimmer speed"
+     },
+     {
+      "from": 102,
+      "to": 152,
+      "label": "Dimmer speed"
+     },
+     {
+      "from": 153,
+      "to": 203,
+      "label": "Dimmer speed"
+     },
+     {
+      "from": 204,
+      "to": 255,
+      "label": "Dimmer speed"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "4ch",
+    "name": "4-Channel",
+    "footprint": 4,
+    "slots": [
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "6ch",
+    "name": "6-Channel",
+    "footprint": 6,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "10ch",
+    "name": "10-Channel",
+    "footprint": 10,
+    "slots": [
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "red",
+      "byte": 0
+     },
+     {
+      "channelKey": "green",
+      "byte": 0
+     },
+     {
+      "channelKey": "blue",
+      "byte": 0
+     },
+     {
+      "channelKey": "white",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-presets-temperature",
+      "byte": 0
+     },
+     {
+      "channelKey": "strobe",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-sound-programs",
+      "byte": 0
+     },
+     {
+      "channelKey": "auto-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-speed",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    137.8,
+    184,
+    145
+   ],
+   "weightKg": 3.4,
+   "powerW": 30,
+   "lensDegMin": 15,
+   "lensDegMax": 15
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "prolights/smartbat",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ },
+ {
+  "id": "prolights/v700spot",
+  "manufacturer": "Prolights",
+  "model": "V700SPOT",
+  "aliases": [
+   "Prolights V700SPOT",
+   "V700SPOT",
+   "prolightsv700spot",
+   "v700spot"
+  ],
+  "categories": [
+   "Moving Head",
+   "Color Changer"
+  ],
+  "channels": [
+   {
+    "key": "pan",
+    "label": "Pan",
+    "role": "pan",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 540,
+    "unit": "deg"
+   },
+   {
+    "key": "tilt",
+    "label": "Tilt",
+    "role": "tilt",
+    "resolution": 2,
+    "default": 0,
+    "min": 0,
+    "max": 270,
+    "unit": "deg"
+   },
+   {
+    "key": "pan-tilt-speed",
+    "label": "Pan/Tilt Speed",
+    "role": "panTiltSpeed",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "dimmer",
+    "label": "Dimmer",
+    "role": "dimmer",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "shutter-gobo-shake",
+    "label": "Shutter / Gobo Shake",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 1,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "Closed"
+     },
+     {
+      "from": 8,
+      "to": 15,
+      "label": "Open"
+     },
+     {
+      "from": 16,
+      "to": 131,
+      "label": "Strobe"
+     },
+     {
+      "from": 132,
+      "to": 185,
+      "label": "WheelShake"
+     },
+     {
+      "from": 186,
+      "to": 239,
+      "label": "WheelShake"
+     },
+     {
+      "from": 240,
+      "to": 247,
+      "label": "Strobe"
+     },
+     {
+      "from": 248,
+      "to": 255,
+      "label": "Open"
+     }
+    ]
+   },
+   {
+    "key": "color-wheel-1",
+    "label": "Color Wheel 1",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Open"
+     },
+     {
+      "from": 10,
+      "to": 18,
+      "label": "Light Blue",
+      "color": "#add8e6"
+     },
+     {
+      "from": 19,
+      "to": 27,
+      "label": "Pink",
+      "color": "#ffc0cb"
+     },
+     {
+      "from": 28,
+      "to": 36,
+      "label": "UV Purple",
+      "color": "#e005fa"
+     },
+     {
+      "from": 37,
+      "to": 45,
+      "label": "Light Green",
+      "color": "#90ee90"
+     },
+     {
+      "from": 46,
+      "to": 54,
+      "label": "3200K",
+      "color": "#ffc076"
+     },
+     {
+      "from": 55,
+      "to": 63,
+      "label": "5600K",
+      "color": "#ffefe1"
+     },
+     {
+      "from": 64,
+      "to": 127,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 128,
+      "to": 191,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "color-wheel-2",
+    "label": "Color Wheel 2",
+    "role": "colorWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 9,
+      "label": "Open"
+     },
+     {
+      "from": 10,
+      "to": 18,
+      "label": "Green",
+      "color": "#00ff00"
+     },
+     {
+      "from": 19,
+      "to": 27,
+      "label": "Blue",
+      "color": "#0000ff"
+     },
+     {
+      "from": 28,
+      "to": 36,
+      "label": "Orange",
+      "color": "#ffa500"
+     },
+     {
+      "from": 37,
+      "to": 45,
+      "label": "Magenta",
+      "color": "#ff00ff"
+     },
+     {
+      "from": 46,
+      "to": 54,
+      "label": "Light Yellow",
+      "color": "#ffffe0"
+     },
+     {
+      "from": 55,
+      "to": 63,
+      "label": "Red",
+      "color": "#ff0000"
+     },
+     {
+      "from": 64,
+      "to": 127,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 128,
+      "to": 167,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 168,
+      "to": 207,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 208,
+      "to": 215,
+      "label": "Macro 1"
+     },
+     {
+      "from": 216,
+      "to": 223,
+      "label": "Macro 2"
+     },
+     {
+      "from": 224,
+      "to": 231,
+      "label": "Macro 3"
+     },
+     {
+      "from": 232,
+      "to": 239,
+      "label": "Macro 4"
+     },
+     {
+      "from": 240,
+      "to": 247,
+      "label": "Macro 5"
+     },
+     {
+      "from": 248,
+      "to": 255,
+      "label": "Macro 6"
+     }
+    ]
+   },
+   {
+    "key": "gobo-wheel-1",
+    "label": "Gobo Wheel 1",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 21,
+      "label": "Open"
+     },
+     {
+      "from": 22,
+      "to": 42,
+      "label": "Gobo"
+     },
+     {
+      "from": 43,
+      "to": 63,
+      "label": "Gobo"
+     },
+     {
+      "from": 64,
+      "to": 84,
+      "label": "Gobo"
+     },
+     {
+      "from": 85,
+      "to": 105,
+      "label": "Gobo"
+     },
+     {
+      "from": 106,
+      "to": 127,
+      "label": "Gobo"
+     },
+     {
+      "from": 128,
+      "to": 191,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "gobo-wheel-1-rotation",
+    "label": "Gobo Wheel 1 Rotation",
+    "role": "goboRotation",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 128,
+      "to": 191,
+      "label": "WheelSlotRotation"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "WheelSlotRotation"
+     }
+    ]
+   },
+   {
+    "key": "gobo-wheel-2",
+    "label": "Gobo Wheel 2",
+    "role": "goboWheel",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 21,
+      "label": "Open"
+     },
+     {
+      "from": 22,
+      "to": 42,
+      "label": "Gobo"
+     },
+     {
+      "from": 43,
+      "to": 63,
+      "label": "Gobo"
+     },
+     {
+      "from": 64,
+      "to": 84,
+      "label": "Gobo"
+     },
+     {
+      "from": 85,
+      "to": 105,
+      "label": "Gobo"
+     },
+     {
+      "from": 106,
+      "to": 127,
+      "label": "Gobo"
+     },
+     {
+      "from": 128,
+      "to": 191,
+      "label": "WheelRotation"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "WheelRotation"
+     }
+    ]
+   },
+   {
+    "key": "no-function",
+    "label": "No Function",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "prism",
+    "label": "Prism",
+    "role": "prism",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "NoFunction"
+     },
+     {
+      "from": 8,
+      "to": 15,
+      "label": "Prism"
+     },
+     {
+      "from": 16,
+      "to": 39,
+      "label": "Macro 1"
+     },
+     {
+      "from": 40,
+      "to": 63,
+      "label": "Macro 2"
+     },
+     {
+      "from": 64,
+      "to": 87,
+      "label": "Macro 3"
+     },
+     {
+      "from": 88,
+      "to": 111,
+      "label": "Macro 4"
+     },
+     {
+      "from": 112,
+      "to": 135,
+      "label": "Macro 5"
+     },
+     {
+      "from": 136,
+      "to": 159,
+      "label": "Macro 6"
+     },
+     {
+      "from": 160,
+      "to": 183,
+      "label": "Macro 7"
+     },
+     {
+      "from": 184,
+      "to": 207,
+      "label": "Macro 8"
+     },
+     {
+      "from": 208,
+      "to": 231,
+      "label": "Macro 9"
+     },
+     {
+      "from": 232,
+      "to": 255,
+      "label": "Macro 10"
+     }
+    ]
+   },
+   {
+    "key": "prism-rotation",
+    "label": "Prism Rotation",
+    "role": "prismRotation",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 127,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 128,
+      "to": 191,
+      "label": "PrismRotation"
+     },
+     {
+      "from": 192,
+      "to": 255,
+      "label": "PrismRotation"
+     }
+    ]
+   },
+   {
+    "key": "focus",
+    "label": "Focus",
+    "role": "focus",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "iris",
+    "label": "Iris",
+    "role": "iris",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "reset-lamp-control",
+    "label": "Reset / Lamp Control",
+    "role": "maintenance",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 69,
+      "label": "NoFunction"
+     },
+     {
+      "from": 70,
+      "to": 79,
+      "label": "Enable Blackout during Pan/Tilt Move"
+     },
+     {
+      "from": 80,
+      "to": 89,
+      "label": "Disable Blackout during Pan/Tilt Move"
+     },
+     {
+      "from": 90,
+      "to": 99,
+      "label": "Enable Blackout during Color 1 / Color 2 Change"
+     },
+     {
+      "from": 100,
+      "to": 109,
+      "label": "Disable Blackout during Color 1 / Color 2 Change"
+     },
+     {
+      "from": 110,
+      "to": 119,
+      "label": "Enable Blackout during Gobo 1 / Gobo 2 Change"
+     },
+     {
+      "from": 120,
+      "to": 129,
+      "label": "Disable Blackout during Gobo 1 / Gobo 2 Change"
+     },
+     {
+      "from": 130,
+      "to": 139,
+      "label": "Lamp On"
+     },
+     {
+      "from": 140,
+      "to": 199,
+      "label": "NoFunction"
+     },
+     {
+      "from": 200,
+      "to": 209,
+      "label": "DMX Reset"
+     },
+     {
+      "from": 210,
+      "to": 229,
+      "label": "NoFunction"
+     },
+     {
+      "from": 230,
+      "to": 239,
+      "label": "Lamp Off"
+     },
+     {
+      "from": 240,
+      "to": 255,
+      "label": "NoFunction"
+     }
+    ]
+   },
+   {
+    "key": "pan-tilt-macros",
+    "label": "Pan/Tilt Macros",
+    "role": "macro",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "NoFunction"
+     },
+     {
+      "from": 8,
+      "to": 15,
+      "label": "Macro 1"
+     },
+     {
+      "from": 16,
+      "to": 23,
+      "label": "Macro 2"
+     },
+     {
+      "from": 24,
+      "to": 31,
+      "label": "Macro 3"
+     },
+     {
+      "from": 32,
+      "to": 39,
+      "label": "Macro 4"
+     },
+     {
+      "from": 40,
+      "to": 47,
+      "label": "Macro 5"
+     },
+     {
+      "from": 48,
+      "to": 55,
+      "label": "Macro 6"
+     },
+     {
+      "from": 56,
+      "to": 63,
+      "label": "Macro 7"
+     },
+     {
+      "from": 64,
+      "to": 71,
+      "label": "Macro 8"
+     },
+     {
+      "from": 72,
+      "to": 79,
+      "label": "Macro 9"
+     },
+     {
+      "from": 80,
+      "to": 87,
+      "label": "Macro 10"
+     },
+     {
+      "from": 88,
+      "to": 95,
+      "label": "Macro 11"
+     },
+     {
+      "from": 96,
+      "to": 103,
+      "label": "Macro 12"
+     },
+     {
+      "from": 104,
+      "to": 111,
+      "label": "Macro 13"
+     },
+     {
+      "from": 112,
+      "to": 119,
+      "label": "Macro 14"
+     },
+     {
+      "from": 120,
+      "to": 127,
+      "label": "Macro 15"
+     },
+     {
+      "from": 128,
+      "to": 135,
+      "label": "Macro 16"
+     },
+     {
+      "from": 136,
+      "to": 143,
+      "label": "Macro 17"
+     },
+     {
+      "from": 144,
+      "to": 151,
+      "label": "Macro 18"
+     },
+     {
+      "from": 152,
+      "to": 159,
+      "label": "Macro 19"
+     },
+     {
+      "from": 160,
+      "to": 167,
+      "label": "Macro 20"
+     },
+     {
+      "from": 168,
+      "to": 175,
+      "label": "Macro 21"
+     },
+     {
+      "from": 176,
+      "to": 183,
+      "label": "Macro 22"
+     },
+     {
+      "from": 184,
+      "to": 191,
+      "label": "Macro 23"
+     },
+     {
+      "from": 192,
+      "to": 199,
+      "label": "Macro 24"
+     },
+     {
+      "from": 200,
+      "to": 207,
+      "label": "Macro 25"
+     },
+     {
+      "from": 208,
+      "to": 215,
+      "label": "Macro 26"
+     },
+     {
+      "from": 216,
+      "to": 223,
+      "label": "Macro 27"
+     },
+     {
+      "from": 224,
+      "to": 231,
+      "label": "Macro 28"
+     },
+     {
+      "from": 232,
+      "to": 239,
+      "label": "Macro 29"
+     },
+     {
+      "from": 240,
+      "to": 247,
+      "label": "Macro 30"
+     },
+     {
+      "from": 248,
+      "to": 255,
+      "label": "Macro 31"
+     }
+    ]
+   },
+   {
+    "key": "pan-tilt-movement-size",
+    "label": "Pan/Tilt Movement Size",
+    "role": "unknown",
+    "resolution": 1,
+    "default": 0
+   },
+   {
+    "key": "iris-effect",
+    "label": "Iris Effect",
+    "role": "iris",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "NoFunction"
+     },
+     {
+      "from": 8,
+      "to": 90,
+      "label": "RampDown"
+     },
+     {
+      "from": 91,
+      "to": 172,
+      "label": "RampUp"
+     },
+     {
+      "from": 173,
+      "to": 255,
+      "label": "Pulse"
+     }
+    ]
+   },
+   {
+    "key": "dimmer-effect",
+    "label": "Dimmer Effect",
+    "role": "shutter",
+    "resolution": 1,
+    "default": 0,
+    "ranges": [
+     {
+      "from": 0,
+      "to": 7,
+      "label": "NoFunction"
+     },
+     {
+      "from": 8,
+      "to": 131,
+      "label": "RampDown"
+     },
+     {
+      "from": 132,
+      "to": 255,
+      "label": "RampUp"
+     }
+    ]
+   }
+  ],
+  "modes": [
+   {
+    "key": "22ch",
+    "name": "22-channel",
+    "footprint": 22,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-gobo-shake",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel-1",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel-1",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel-1-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "no-function",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "iris",
+      "byte": 0
+     },
+     {
+      "channelKey": "reset-lamp-control",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan",
+      "byte": 1
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 1
+     },
+     {
+      "channelKey": "pan-tilt-macros",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-movement-size",
+      "byte": 0
+     },
+     {
+      "channelKey": "iris-effect",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer-effect",
+      "byte": 0
+     }
+    ]
+   },
+   {
+    "key": "16ch",
+    "name": "16-channel",
+    "footprint": 16,
+    "slots": [
+     {
+      "channelKey": "pan",
+      "byte": 0
+     },
+     {
+      "channelKey": "tilt",
+      "byte": 0
+     },
+     {
+      "channelKey": "pan-tilt-speed",
+      "byte": 0
+     },
+     {
+      "channelKey": "dimmer",
+      "byte": 0
+     },
+     {
+      "channelKey": "shutter-gobo-shake",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel-1",
+      "byte": 0
+     },
+     {
+      "channelKey": "color-wheel-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel-1",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel-1-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "gobo-wheel-2",
+      "byte": 0
+     },
+     {
+      "channelKey": "no-function",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism",
+      "byte": 0
+     },
+     {
+      "channelKey": "prism-rotation",
+      "byte": 0
+     },
+     {
+      "channelKey": "focus",
+      "byte": 0
+     },
+     {
+      "channelKey": "iris",
+      "byte": 0
+     },
+     {
+      "channelKey": "reset-lamp-control",
+      "byte": 0
+     }
+    ]
+   }
+  ],
+  "physical": {
+   "dimsMm": [
+    465,
+    685,
+    465
+   ],
+   "weightKg": 32.6,
+   "powerW": 850,
+   "lensDegMin": 15,
+   "lensDegMax": 15
+  },
+  "source": {
+   "origin": "ofl",
+   "ref": "prolights/v700spot",
+   "rev": "e911c7fceb44185e87808ccc32a2b1c576de034e"
+  },
+  "verified": true
+ }
+]
