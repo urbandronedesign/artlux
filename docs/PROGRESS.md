@@ -589,6 +589,18 @@ incident here was GPU/decode/IO and never React. Canonical plan, WP tracker and 
   file mid-session): the native output engine receives **61 Hz over 1 universe** before *and* after, with
   the renderer at 60 fps — exercising the whole publish path (tick → `dmxSignal` → App → `encodeFrame` →
   IPC → the Rust send thread). New guard: `engine/` never imports React.
+- **WP-1.2 — output stops being a property of the view** (`4a95626`). The engine starts its **own** rAF
+  when its module loads (the `services/timeline` idiom) and **both DOM gates are deleted**. Those gates
+  were the entire coupling, and they were two lines: the loop bailed out if the container ref was empty,
+  and again if the canvas ref was empty — the second one *even on the WebGPU path, where sampling never
+  touches the visible canvas*. That is what "Stage must never unmount" was protecting, and why the
+  workspace had to be built around a viewport that could not move. The composite is inverted to match:
+  the engine composites into its own canvas and the visible one is a **blit** — previously, on the WebGL
+  fallback, the sampling source *was* the Stage's visible canvas, so LED output was reading pixels out of
+  a component's DOM node. **Verified by deleting the Stage's canvas and container out of the running
+  app**: the native output engine held **61 Hz / 1 universe** throughout. WebGL fallback re-checked
+  (61 Hz, blit lands). New guard: the engine drives the rAF, `Stage.tsx` drives none, no `domReady`
+  returns, and the engine never early-returns on a missing preview canvas.
 
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
