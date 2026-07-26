@@ -284,6 +284,47 @@ check(
   },
 );
 
+// ── Stage: a geometry drag is local until it is released ──────────────────────────────────────
+check(
+  'stage drags commit on release, not per pointer move',
+  'App owns all state, so pushing the fixtures/surfaces array up on every pointermove re-renders the ' +
+  'WHOLE editor at pointer rate — every useEditor() panel, all five persistent viewports, and a full ' +
+  "rebuild of Simulator3D's LED InstancedMesh (its layout signature includes x/y/w/h/rotation, so " +
+  'computeLedPositions runs over every fixture, per mouse move). The move handlers keep the refs and ' +
+  'the GPU mapping live — output still follows the drag — and commit to App once, on mouse-up. Same ' +
+  'rule the timeline already follows for clip drags.',
+  () => {
+    const src = stripComments(read('src/renderer/components/Stage.tsx'));
+    const problems = [];
+    const pairs = [
+      ['handleWindowMouseMove', 'handleWindowMouseUp', 'onUpdateFixtures'],
+      ['onSurfaceMove', 'onSurfaceUp', 'onUpdateSurfaces'],
+    ];
+    for (const [moveFn, upFn, commit] of pairs) {
+      const move = fnBody(src, moveFn);
+      const up = fnBody(src, upFn);
+      if (!move) { problems.push(`${moveFn} not found — this guard has gone blind`); continue; }
+      if (!up) { problems.push(`${upFn} not found — this guard has gone blind`); continue; }
+      // Assert the CALL, not the identifier: a prop merely named in a dependency array is not a commit.
+      if (new RegExp(`${commit}\\(`).test(move)) {
+        problems.push(`${moveFn} calls ${commit}( — that is the per-pointer-move whole-editor re-render`);
+      }
+      if (!new RegExp(`${commit}\\(`).test(up)) {
+        problems.push(`${upFn} must call ${commit}( — otherwise a drag is never committed and is lost`);
+      }
+      // The frame loop reads the refs, so they MUST still be written live or output freezes mid-drag.
+      if (!/(fixturesRef|surfacesRef)\.current\s*=/.test(move)) {
+        problems.push(`${moveFn} must keep its ref live — the frame loop samples geometry from it`);
+      }
+      // The committed-props effect can no longer fire mid-drag, so the mapping call has to be direct.
+      if (!/updateMapping\?\.\(|updateMapping\(/.test(move)) {
+        problems.push(`${moveFn} must call updateMapping — else the LEDs sample the old footprint until mouse-up`);
+      }
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Instrumentation must not be able to break the thing it measures ───────────────────────────
 check(
   'the UI profiler cannot be switched on at runtime',

@@ -199,6 +199,30 @@ export const Stage: React.FC<StageProps> = ({
   useEffect(() => { gridRef.current = { show: showGrid, divisions: gridDivisions }; }, [showGrid, gridDivisions]);
   const [activeSnapLines, setActiveSnapLines] = useState<{ x: number[], y: number[] }>({ x: [], y: [] });
 
+  // ── Local-during-drag, commit-on-release ──────────────────────────────────────────────────────
+  // A geometry drag used to push the whole fixtures/surfaces array up to App on EVERY pointermove.
+  // App owns all state, so that re-rendered the entire editor at pointer rate: every panel reading
+  // useEditor(), all five persistent viewports, and — because Simulator3D's LED layout signature
+  // includes x/y/w/h/rotation — a full rebuild of the 3D InstancedMesh geometry (computeLedPositions
+  // over EVERY fixture, plus a fresh Float32Array) for each mouse move. On a large rig that is the
+  // most expensive thing the editor does, sixty times a second, to draw a rectangle moving.
+  //
+  // So the gesture is now local: the draft array below drives this component's own render while the
+  // drag is live, and App is told once, on release. This is the same rule the timeline already
+  // follows for clip drags (Timeline.tsx "Invariant 7"), and the same shape as livePreview's
+  // render-free brightness channel.
+  //
+  // The two things that must NOT wait for the release are handled explicitly in the move handlers:
+  //   • `fixturesRef`/`surfacesRef` are updated in place, so the frame loop composites and samples
+  //     the new geometry on the very next frame — Art-Net keeps following the drag live.
+  //   • `mapper.updateMapping(...)` is called directly. It used to be reached through a React effect
+  //     keyed on the committed props, which no longer change mid-drag; without this call the LEDs
+  //     would sample the fixture's OLD footprint until the mouse came up.
+  // What does now wait for the release is the 3D scene, which follows committed state — a deliberate
+  // trade: it is exactly the geometry rebuild described above.
+  const [fixtureDraft, setFixtureDraft] = useState<Fixture[] | null>(null);
+  const [surfaceDraft, setSurfaceDraft] = useState<Surface[] | null>(null);
+
   // Pool of 512-channel arrays keyed by `${destKey}#${universe}` (reused across frames).
   const universeBuffers = useRef<Record<string, number[]>>({});
 
@@ -621,14 +645,20 @@ export const Stage: React.FC<StageProps> = ({
       const cy = rect.top + (init.y + init.h / 2) * rect.height;
       next.rotation = Math.atan2(e.clientY - cy, e.clientX - cx) * 180 / Math.PI + 90;
     }
-    const arr = [...cur]; arr[idx] = next; surfacesRef.current = arr; onUpdateSurfaces(arr);
-  }, [onUpdateSurfaces, onRecordHistory]);
+    const arr = [...cur]; arr[idx] = next; surfacesRef.current = arr;
+    // Same rule as the fixture drag above: local while the gesture runs, committed on release.
+    setSurfaceDraft(arr);
+    mapper.current?.updateMapping?.(fixturesRef.current, arr);
+  }, [onRecordHistory]);
 
   const onSurfaceUp = useCallback(() => {
+    const moved = surfaceDrag.current.moved;
     surfaceDrag.current = { mode: null, id: null, sx: 0, sy: 0, init: null, moved: false };
+    setSurfaceDraft(null);
+    if (moved) onUpdateSurfaces(surfacesRef.current);
     window.removeEventListener('mousemove', onSurfaceMove);
     window.removeEventListener('mouseup', onSurfaceUp);
-  }, [onSurfaceMove]);
+  }, [onSurfaceMove, onUpdateSurfaces]);
 
   const startSurfaceDrag = (e: React.MouseEvent, mode: 'move' | 'resize' | 'rotate', id: string) => {
     e.stopPropagation();
@@ -827,20 +857,31 @@ export const Stage: React.FC<StageProps> = ({
     setActiveSnapLines({ x: currentSnapsX, y: currentSnapsY });
     const nextFixtures = [...fixtures];
     nextFixtures[fixtureIndex] = target;
-    fixturesRef.current = nextFixtures; 
-    onUpdateFixtures(nextFixtures);
+    fixturesRef.current = nextFixtures;
+    // Local for the duration of the gesture — App hears about it once, on mouse-up. See the note at
+    // fixtureDraft. The mapping call is what the committed-props effect used to do for us.
+    setFixtureDraft(nextFixtures);
+    mapper.current?.updateMapping?.(nextFixtures, surfacesRef.current);
 
-  }, [snapEnabled, onUpdateFixtures, onRecordHistory]);
+  }, [snapEnabled, onRecordHistory]);
 
   const handleWindowMouseUp = useCallback(() => {
+    // Commit the gesture exactly once, and only if it actually moved: a plain click selects, and
+    // must not push an identical array into App (that would re-render the editor for nothing).
+    const moved = dragState.current.hasMoved && dragState.current.mode !== 'pan';
     dragState.current.isDragging = false;
     dragState.current.mode = null;
     dragState.current.targetId = null;
     dragState.current.hasMoved = false;
     setActiveSnapLines({ x: [], y: [] });
+    // Clearing the draft and committing in the same handler puts both in one React batch, so the
+    // draft is never dropped a render before the committed props arrive (which would flash the
+    // fixture back to where the drag started).
+    setFixtureDraft(null);
+    if (moved) onUpdateFixtures(fixturesRef.current);
     window.removeEventListener('mousemove', handleWindowMouseMove);
     window.removeEventListener('mouseup', handleWindowMouseUp);
-  }, [handleWindowMouseMove]);
+  }, [handleWindowMouseMove, onUpdateFixtures]);
 
   const startDrag = (e: React.MouseEvent, mode: 'move' | 'pan' | 'rotate' | 'resize-x' | 'resize-y' | 'resize-xy', fixtureId?: string) => {
       e.stopPropagation();
@@ -958,6 +999,12 @@ export const Stage: React.FC<StageProps> = ({
   // Stage container size from the content aspect (base 512 on the longer axis).
   const stageW = contentAspect >= 1 ? 512 : 512 * contentAspect;
   const stageH = contentAspect >= 1 ? 512 / contentAspect : 512;
+
+  // The overlays draw from the live draft while a drag is in flight, and from committed props the
+  // rest of the time. Without this the rectangles would render from props that deliberately stop
+  // updating mid-gesture, and the object being dragged would sit still under the cursor.
+  const renderFixturesList = fixtureDraft ?? fixtures;
+  const renderSurfacesList = surfaceDraft ?? surfaces;
 
   return (
     <div className="flex flex-col w-full h-full bg-surface-0 select-none">
@@ -1130,7 +1177,7 @@ export const Stage: React.FC<StageProps> = ({
             {/* Surfaces (cyan) — behind fixtures. Container ignores pointer events so empty
                 areas fall through to the viewport; each surface re-enables them. */}
             <div className="absolute top-0 left-0 w-full h-full z-[5] pointer-events-none">
-            {surfaces.map((s) => {
+            {renderSurfacesList.map((s) => {
                 const sel = s.id === selectedSurfaceId;
                 return (
                     <div
@@ -1168,7 +1215,7 @@ export const Stage: React.FC<StageProps> = ({
             </div>
 
             <div className="absolute top-0 left-0 w-full h-full z-10 overflow-hidden pointer-events-none">
-            {fixtures.map((fixture) => {
+            {renderFixturesList.map((fixture) => {
                 const isPrimary = selectedFixtureId === fixture.id;
                 const isSel = isPrimary || selectedFixtureIds.includes(fixture.id);
                 return (
