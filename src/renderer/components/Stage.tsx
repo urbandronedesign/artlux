@@ -1,20 +1,10 @@
-import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
-import { Fixture, Surface, Controller, ColorOrder, FixtureProfile, type OutputProtocol } from '../types';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
+import { Fixture, Surface, Controller, FixtureProfile, type OutputProtocol } from '../types';
 import { AlertCircle, Magnet, Grid3X3, ZoomIn, Maximize2 } from 'lucide-react';
 import { GPUMapper } from '../services/GPUMapper';
 import { WebGPUMapper } from '../gpu/WebGPUMapper';
 import { IPixelMapper } from '../services/PixelMapper';
-import { dmxSignal } from '../services/dmxSignal';
-import { livePreview } from '../services/livePreview';
-import * as surfaceMedia from '../services/surfaceMedia';
-import * as contentSource from '../services/contentSource';
-import * as transitions from '../services/transitions';
-import * as automationOverlay from '../services/automationOverlay';
-import { resolveDest, destKey, fixtureFootprint } from '../services/addressing';
-import * as profilePack from '../services/profilePack';
-import * as fixtureSignal from '../services/fixtureSignal';
-import * as lightingOverlay from '../services/lightingOverlay';
-import { perfMonitor } from '../services/perfMonitor';
+import { frameEngine, EMPTY_PROFILES } from '../engine/frameEngine';
 import { Tooltip } from './ui/Tooltip';
 import { help } from '../services/helpBus';
 
@@ -55,27 +45,10 @@ interface StageProps {
   showPreview?: boolean;
 }
 
-// Hoisted so the composite z-sort doesn't allocate a fresh comparator every frame.
-const byZIndex = (a: Surface, b: Surface) => a.zIndex - b.zIndex;
-
-// One shared empty map, so a rig with no profiled fixtures allocates nothing per render.
-const EMPTY_PROFILES: ReadonlyMap<string, FixtureProfile> = new Map();
-
-// Refresh cap for the operator's preview composite, used ONLY when the mapper samples per-surface
-// (so the composite feeds the preview and nothing else — see the gate in tick()). 30 Hz reads as
-// smooth for monitoring while halving the rescale work on a 60 Hz display. The LED/output path is
-// never throttled by this.
-const PREVIEW_MS = 1000 / 30;
-
-// Output channel source-index order per ColorOrder ([R=0,G=1,B=2]).
-const COLOR_ORDER: Record<ColorOrder, [number, number, number]> = {
-  [ColorOrder.RGB]: [0, 1, 2],
-  [ColorOrder.RBG]: [0, 2, 1],
-  [ColorOrder.GRB]: [1, 0, 2],
-  [ColorOrder.GBR]: [1, 2, 0],
-  [ColorOrder.BRG]: [2, 0, 1],
-  [ColorOrder.BGR]: [2, 1, 0],
-};
+// The composite / sample / pack / publish pipeline that used to live in this file is now
+// engine/frameEngine.ts. What remains here is the VIEW: the viewport, the overlays you drag, and the
+// preview canvas the engine paints into. Stage still owns the rAF and hands the engine its mapper —
+// both move out next (see plans/engine-decoupling.md, WP-1.2 / WP-1.3).
 
 export const Stage: React.FC<StageProps> = ({
   surfaces,
@@ -107,48 +80,30 @@ export const Stage: React.FC<StageProps> = ({
   const requestRef = useRef<number>(0);
 
   const fixtureRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  const fixturesRef = useRef(fixtures);
-  useEffect(() => { fixturesRef.current = fixtures; }, [fixtures]);
 
-  // Loopback DMX-in listens on the universes our patched fixtures touch (∪ the legacy 0-7), so a back
-  // rig on sACN universe 8+ is mirrored. The span comes from addressing.ts's fixtureFootprint (the one
-  // owner of that formula, so a profiled fixture's mode footprint is honoured here too); the setter
-  // re-fires configureInput only when the derived set actually changes (and only while a DMX-in
-  // surface is active).
+  // ── The engine's inputs ───────────────────────────────────────────────────────────────────────
+  // This one push replaces the dozen ref-mirroring effects that used to sit here. The engine diffs
+  // internally, so it decides what a change invalidates: moving a fixture rebuilds the GPU LED
+  // buffers, changing its intensity only re-uploads params, a new surface list re-syncs the media
+  // service, a new profile map recomputes the DMX-in universes. None of that is the view's business.
+  //
+  // The frame loop reads the engine's copy, NOT these props — which is what lets a drag keep the
+  // output live while deliberately not committing to App until release (see the drag handlers below).
   useEffect(() => {
-    const touched = new Set<number>();
-    for (const f of fixtures) {
-      const startAbs = f.universe * 512 + (f.startAddress - 1);
-      const endAbs = startAbs + Math.max(0, fixtureFootprint(f, fixtureProfiles) - 1);
-      for (let u = Math.floor(startAbs / 512); u <= Math.floor(endAbs / 512); u++) touched.add(u);
-    }
-    contentSource.setDmxInputUniverses([...touched]);
-  }, [fixtures, fixtureProfiles]);
+    frameEngine.setInputs({
+      surfaces, fixtures, controllers,
+      fixtureProfiles: fixtureProfiles ?? EMPTY_PROFILES,
+      gamma, brightness: globalBrightness, targetIp, broadcast, protocol,
+      engineRunning: isEngineRunning, videoPlaying: isVideoPlaying, showPreview,
+    });
+  }, [surfaces, fixtures, controllers, fixtureProfiles, gamma, globalBrightness, targetIp,
+      broadcast, protocol, isEngineRunning, isVideoPlaying, showPreview]);
 
-  // Surfaces composited each frame; the media service owns element lifecycle.
-  const surfacesRef = useRef(surfaces);
-  useEffect(() => { surfacesRef.current = surfaces; }, [surfaces]);
-  // Per-surface key of the content we've already aspect-fitted, so we fit once per source.
-  const fittedAspect = useRef<Map<string, string>>(new Map());
-  useEffect(() => { surfaceMedia.syncSurfaces(surfaces, isVideoPlaying); }, [surfaces, isVideoPlaying]);
-
-  const controllersRef = useRef(controllers);
-  useEffect(() => { controllersRef.current = controllers; }, [controllers]);
-  // Controller lookup rebuilt once per controller-list change, so the per-frame packing loop does an
-  // O(1) map.get() per fixture instead of an O(controllers) Array.find() (which ran per fixture).
-  const controllerMapRef = useRef<Map<string, Controller>>(new Map());
-  useEffect(() => { controllerMapRef.current = new Map(controllers.map(c => [c.id, c])); }, [controllers]);
-
-  // Same treatment for the DMX fixture profiles: the frame loop needs an O(1) lookup, and reading it
-  // through a ref keeps the packer off the React render path entirely.
-  const profilesRef = useRef<ReadonlyMap<string, FixtureProfile>>(EMPTY_PROFILES);
-  useEffect(() => { profilesRef.current = fixtureProfiles ?? EMPTY_PROFILES; }, [fixtureProfiles]);
-
-  // Reused per-frame scratch: the composite z-order array and the 2D canvas context. Avoids a
-  // `[...surfaces]` spread + a getContext() call every frame in the hot loop.
-  const orderedSurfacesRef = useRef<Surface[]>([]);
-  const canvasCtxRef = useRef<CanvasRenderingContext2D | null>(null);
-  const lastPreviewCompositeRef = useRef(-1e9); // last preview-only composite (ms) — see PREVIEW_HZ
+  // The engine hands surface auto-fits back to the document. This used to be a setState called from
+  // inside the frame loop.
+  useEffect(() => {
+    frameEngine.setHost({ onSurfacesAutoFitted: onUpdateSurfaces });
+  }, [onUpdateSurfaces]);
 
   const mapper = useRef<IPixelMapper | null>(null);
   const [webglError, setWebglError] = useState(false);
@@ -159,27 +114,7 @@ export const Stage: React.FC<StageProps> = ({
   const [reducedMode, setReducedMode] = useState(false);
   const [reducedDismissed, setReducedDismissed] = useState(false);
   const recordBackend = (b: 'webgpu' | 'webgl') => { try { localStorage.setItem('artlux.activeBackend', b); } catch { /* ignore */ } };
-  const brightnessRef = useRef(globalBrightness);
-  useEffect(() => { brightnessRef.current = globalBrightness; }, [globalBrightness]);
-  const lastPreviewBrightness = useRef(-1); // so the CSS var is written only when it actually moves
 
-  // Output gamma LUT (applied during universe packing). Identity when gamma=1.
-  const gammaLut = useMemo(() => {
-    const lut = new Uint8Array(256);
-    const g = gamma && gamma > 0 ? gamma : 1;
-    for (let i = 0; i < 256; i++) lut[i] = Math.round(Math.pow(i / 255, g) * 255);
-    return lut;
-  }, [gamma]);
-  const gammaLutRef = useRef(gammaLut);
-  useEffect(() => { gammaLutRef.current = gammaLut; }, [gammaLut]);
-
-  const targetIpRef = useRef(targetIp);
-  useEffect(() => { targetIpRef.current = targetIp; }, [targetIp]);
-  const broadcastRef = useRef(broadcast);
-  useEffect(() => { broadcastRef.current = broadcast; }, [broadcast]);
-  const protocolRef = useRef(protocol);
-  useEffect(() => { protocolRef.current = protocol; }, [protocol]);
-  
   const [viewState, setViewState] = useState({ x: 0, y: 0, scale: 0.8 });
   const viewStateRef = useRef(viewState);
   useEffect(() => { viewStateRef.current = viewState; }, [viewState]);
@@ -212,12 +147,9 @@ export const Stage: React.FC<StageProps> = ({
   // follows for clip drags (Timeline.tsx "Invariant 7"), and the same shape as livePreview's
   // render-free brightness channel.
   //
-  // The two things that must NOT wait for the release are handled explicitly in the move handlers:
-  //   • `fixturesRef`/`surfacesRef` are updated in place, so the frame loop composites and samples
-  //     the new geometry on the very next frame — Art-Net keeps following the drag live.
-  //   • `mapper.updateMapping(...)` is called directly. It used to be reached through a React effect
-  //     keyed on the committed props, which no longer change mid-drag; without this call the LEDs
-  //     would sample the fixture's OLD footprint until the mouse came up.
+  // What must NOT wait for the release is the ENGINE: each move pushes the new geometry straight into
+  // frameEngine, which composites and samples it on the very next frame and works out for itself that
+  // the GPU LED buffers need rebuilding. So Art-Net follows the drag live while React does not move.
   // What does now wait for the release is the 3D scene, which follows committed state — a deliberate
   // trade: it is exactly the geometry rebuild described above.
   const [fixtureDraft, setFixtureDraft] = useState<Fixture[] | null>(null);
@@ -260,349 +192,40 @@ export const Stage: React.FC<StageProps> = ({
         }
         if (cancelled) { m.dispose(); return; }
         mapper.current = m;
-        // Apply current state captured after the async init.
-        m.updateMapping(fixturesRef.current, surfacesRef.current);
-        m.updateParams?.(fixturesRef.current);
-        m.setBrightness(brightnessRef.current);
+        // Hand it over. The engine applies whatever state it already holds — the mapper is built
+        // asynchronously and normally arrives after the first inputs have landed.
+        frameEngine.setMapper(m);
     })();
     return () => {
         cancelled = true;
         if (mapper.current) {
+            frameEngine.setMapper(null);
             mapper.current.dispose();
             mapper.current = null;
         }
     };
   }, []);
 
-  const fixtureLayoutSignature = useMemo(() => {
-     return JSON.stringify(fixtures.map(f => ({
-         id: f.id, x: f.x, y: f.y, w: f.width, h: f.height, r: f.rotation, c: f.ledCount,
-         rev: f.reverse, sh: f.shape, mw: f.matrixWidth, mh: f.matrixHeight, sp: f.serpentine,
-         lm: f.ledMap ? f.ledMap.length : 0, surf: f.surfaceId ?? '',
-         seg: f.segments ? f.segments.map(s => `${s.start}-${s.stop}`).join(',') : ''
-     })));
-  }, [fixtures]);
-
-  // Surface geometry/linkage affects per-LED surface-local UVs and pass order.
-  const surfaceLayoutSignature = useMemo(() => {
-     return JSON.stringify(surfaces.map(s => ({ id: s.id, x: s.x, y: s.y, w: s.width, h: s.height, r: s.rotation, z: s.zIndex })));
-  }, [surfaces]);
-
-  useEffect(() => {
-    if (mapper.current) {
-        mapper.current.updateMapping(fixturesRef.current, surfacesRef.current);
-    }
-  }, [fixtureLayoutSignature, surfaceLayoutSignature]);
-
-  // Cheap per-fixture effect/palette param updates (sliders/dropdowns) — no realloc.
-  const fixtureParamSignature = useMemo(() => {
-     return JSON.stringify(fixtures.map(f => ({
-         s: f.source, e: f.effectId, p: f.paletteId, sp: f.speed, it: f.intensity, rw: f.rgbwMode,
-         // s.off drives the segment's GPU mode (-2 off / -1 media) — must be in the param signature
-         // so toggling Off re-uploads segParams via the cheap updateParams path (no full remap).
-         segp: f.segments ? f.segments.map(s => `${s.off ? 1 : 0},${s.source},${s.effectId},${s.paletteId},${s.speed},${s.intensity}`).join('|') : ''
-     })));
-  }, [fixtures]);
-
-  useEffect(() => {
-    mapper.current?.updateParams?.(fixtures);
-  }, [fixtureParamSignature]);
-
-  // Mirror committed brightness into the imperative live channel (CSS var + mapper feed),
-  // so scene recall / project load stay in sync. Live drags write here directly.
-  useEffect(() => { livePreview.setBrightness(globalBrightness); }, [globalBrightness]);
-
+  // The frame. Stage still owns the requestAnimationFrame loop and the DOM gate below; the work
+  // itself is engine/frameEngine.ts. WP-1.2 moves the loop into the engine and deletes the gate —
+  // at which point output stops depending on this component being mounted at all.
   const tick = useCallback(() => {
-    // Record the inter-frame interval (unconditional; two performance.now() reads). endFrame() below
-    // closes the work measurement once this frame's compute/pack/publish is done.
-    perfMonitor.beginFrame();
-    if (!containerRef.current || !mapper.current) {
-      requestRef.current = requestAnimationFrame(tick);
-      return;
-    }
-
-    // Fit each surface's rect to its content's aspect ratio once the media is loaded
-    // (once per source). Keeps width + top-left, derives height (canvas is square, so a
-    // normalized w/h ratio equals the displayed pixel ratio). User scale stays uniform.
-    {
-      let fitUpdate: Surface[] | null = null;
-      for (const s of surfacesRef.current) {
-        const aspect = surfaceMedia.getContentAspect(s);
-        if (!aspect) continue;
-        // The aspect is PART OF THE KEY, not just the url. A LAYER surface's identity string never
-        // changes (it's the layer id — the clips under it come and go), so a url-only key would fit
-        // once on the first clip and never again. Keying on the measured aspect re-fits exactly when
-        // the shape of the content actually changes, and still leaves a manual resize alone while
-        // the content is unchanged — which is the behaviour the one-shot fit was written for.
-        const key = `${s.content.type}:${s.content.url ?? s.content.layerId ?? s.content.spoutName ?? ''}:${aspect.toFixed(3)}`;
-        if (fittedAspect.current.get(s.id) === key) continue;
-        fittedAspect.current.set(s.id, key);
-        if (Math.abs(s.width / s.height - aspect) > 0.01) {
-          if (!fitUpdate) fitUpdate = [...surfacesRef.current];
-          const i = fitUpdate.findIndex(x => x.id === s.id);
-          fitUpdate[i] = { ...s, height: Math.max(0.01, s.width / aspect) };
-        }
-      }
-      if (fitUpdate) { surfacesRef.current = fitUpdate; onUpdateSurfaces(fitUpdate); }
-    }
-
-    // Render-free overrides, laid over the committed state each frame so they animate at display rate
-    // without a React re-render (idle ⇒ pass-through). ORDER MATTERS:
-    //   ① automation — a keyframe lane owns its path outright, so it is the BASE.
-    //   ② the scene/cue fade — it runs ON TOP, and for an automated path it re-reads its destination
-    //      from ① (transitions.toDynamic), so a recall glides onto the curve instead of snapping to a
-    //      stale value. Get this order backwards and every automated param jumps the instant a scene
-    //      is recalled. See the precedence note in transitions.ts.
-    let effSurfaces = surfacesRef.current;
-    let effFixtures = fixturesRef.current;
-    let effBrightness = livePreview.brightness;
-    // Read the dirty flags BEFORE the isActive() check, not inside it: releasing the last lane empties
-    // the overlay, so isActive() is already false on the frame the authored value must be re-uploaded.
-    // Guarding the read on it would leave the GPU holding the last automated value for good.
-    let geomDirty = automationOverlay.geometryAnimating();
-    let paramsDirty = automationOverlay.paramsAnimating();
-    automationOverlay.consumeDirty();
-    if (automationOverlay.isActive()) {
-        const v = automationOverlay.apply({ surfaces: effSurfaces, fixtures: effFixtures, globalBrightness: effBrightness });
-        effSurfaces = v.surfaces; effFixtures = v.fixtures; effBrightness = v.globalBrightness;
-    }
-    const fade = transitions.sample(performance.now());
-    if (fade) {
-        const v = fade.apply({ surfaces: effSurfaces, fixtures: effFixtures, globalBrightness: effBrightness });
-        effSurfaces = v.surfaces; effFixtures = v.fixtures; effBrightness = v.globalBrightness;
-        if (fade.geometryAnimating) geomDirty = true;
-    }
-    // Geometry moves change the LED↔surface UV mapping → rebuild the GPU LED buffers this frame.
-    if (geomDirty) mapper.current.updateMapping?.(effFixtures, effSurfaces);
-    // Non-geometry fixture params (intensity/speed) otherwise reach the GPU only through a React effect
-    // keyed on committed state — which a render-free override never touches. Without this, an automated
-    // intensity would animate everywhere EXCEPT the LEDs.
-    else if (paramsDirty) mapper.current.updateParams?.(effFixtures);
-
-    // Composite every surface's content into the 512² canvas (z-order). Fixtures
-    // sample this composite (S1); strict per-surface sampling arrives in S3.
-    //
-    // Skip it entirely when the preview is hidden (broadcast/headless) AND the mapper samples
-    // per-surface (WebGPU) — there the composite feeds nothing (renderSurfaces uploads each surface's
-    // own drawable; rawBytes comes from the compute readback). The WebGL fallback still needs it
-    // (updateSource samples this canvas), so keep it whenever the mapper isn't per-surface.
-    const perSurface = !!(mapper.current.perSurface && mapper.current.renderSurfaces);
-    let needComposite = showPreview || !perSurface;
-    // When the mapper samples per-surface, this composite is PREVIEW ONLY — nothing downstream reads
-    // it, so it does not need the display's refresh rate. Every source gets rescaled into it (a 1080p
-    // or 4K frame → 512²) once per pass, per surface, and with several video surfaces that is the
-    // single biggest cost in the editor's frame that the audience never sees. Cap it.
-    //
-    // ⚠ Only throttle in the per-surface case. On the WebGL fallback this canvas IS the sampling
-    // source (updateSource below reads it), so throttling it would throttle the actual LED output.
-    if (needComposite && perSurface) {
-        const nowMs = performance.now();
-        if (nowMs - lastPreviewCompositeRef.current < PREVIEW_MS) needComposite = false;
-        else lastPreviewCompositeRef.current = nowMs;
-    }
-    if (canvasRef.current && needComposite) {
-        // Cache the 2D context across frames (getContext on the same canvas returns the same object,
-        // but caching keeps the hot path allocation-free and obvious). Re-fetch if the canvas element
-        // itself was ever replaced, so the cache can't go stale.
-        if (canvasCtxRef.current?.canvas !== canvasRef.current) canvasCtxRef.current = canvasRef.current.getContext('2d');
-        const ctx = canvasCtxRef.current;
-        if (ctx) {
-            const cw = canvasRef.current.width;
-            const ch = canvasRef.current.height;
-            ctx.imageSmoothingEnabled = true;
-            ctx.clearRect(0, 0, cw, ch);
-            // Sort into a reused scratch array (no per-frame spread allocation).
-            const ordered = orderedSurfacesRef.current;
-            ordered.length = 0;
-            for (let i = 0; i < effSurfaces.length; i++) ordered.push(effSurfaces[i]);
-            ordered.sort(byZIndex);
-            for (const s of ordered) {
-                const d = surfaceMedia.getDrawable(s);
-                if (!d) continue;
-                ctx.globalAlpha = s.content.opacity ?? 1; // per-surface opacity (z-order alpha blend)
-                const x = s.x * cw, y = s.y * ch, w = s.width * cw, h = s.height * ch;
-                if (s.rotation) {
-                    ctx.save();
-                    ctx.translate(x + w / 2, y + h / 2);
-                    ctx.rotate((s.rotation * Math.PI) / 180);
-                    ctx.drawImage(d, -w / 2, -h / 2, w, h);
-                    ctx.restore();
-                } else {
-                    ctx.drawImage(d, x, y, w, h);
-                }
-            }
-            ctx.globalAlpha = 1;
-        }
-    }
-
-    if (canvasRef.current && isEngineRunning && mapper.current) {
-        // Pull brightness from the live channel each frame so slider drags affect output
-        // immediately without committing React state (which would re-render the whole app).
-        mapper.current.setBrightness(effBrightness);
-        // The preview canvas dims through a CSS var that livePreview owns — and a render-free override
-        // never goes through livePreview. Without this the LEDs would dim while the preview stayed bright,
-        // so the preview would lie about what is actually leaving the machine.
-        if (effBrightness !== lastPreviewBrightness.current) {
-          lastPreviewBrightness.current = effBrightness;
-          document.documentElement.style.setProperty('--preview-brightness', String(effBrightness));
-        }
-        // WebGPU samples each fixture strictly from its linked surface; the WebGL
-        // fallback samples the composite preview canvas.
-        if (mapper.current.perSurface && mapper.current.renderSurfaces) {
-            mapper.current.renderSurfaces((id) => {
-                const s = effSurfaces.find((x) => x.id === id);
-                return s ? surfaceMedia.getDrawable(s) : null;
-            }, (id) => effSurfaces.find((x) => x.id === id)?.content.opacity ?? 1);
-        } else {
-            mapper.current.updateSource(canvasRef.current);
-        }
-        const rawBytes = mapper.current.read();
-
-        if (rawBytes) {
-            let offset = 0;
-            const pool = universeBuffers.current;
-
-            // Zero all pooled arrays (prevents ghosting when config changes).
-            for (const k in pool) pool[k].fill(0);
-
-            const defaultIp = targetIpRef.current;
-            const defaultBroadcast = broadcastRef.current;
-            const defaultProtocol = protocolRef.current;
-            const currentFixtures = effFixtures;
-
-            // Resolved role values for every profiled fixture this frame (pan/tilt in degrees,
-            // colour, intensity) — published after the loop for the 3D scene and the beams.
-            const fixtureStates = new Map<string, fixtureSignal.FixtureState>();
-
-            // THE PRECEDENCE STACK, ENFORCED IN ONE PLACE:
-            //   profile default < authored dmx < LIGHTING CLIP < automation lane < live override
-            //
-            // Automation has already been folded into `effFixtures` above (automationOverlay lays it
-            // over the StateView before we get here), so a lane's value is sitting in `f.dmx` by
-            // now. Asking the overlay whether it OWNS the path is therefore the whole rule: if a
-            // lane owns it, the authored value already IS the lane's and the clip must not speak;
-            // if not, the clip's role value wins over what the operator parked there by hand.
-            const roleOverride: profilePack.RoleOverride | undefined = lightingOverlay.isActive()
-                ? (fixtureId, channel) => {
-                    if (automationOverlay.owns(`fixtures.${fixtureId}.dmx.${channel.key}`)) return undefined;
-                    return lightingOverlay.get(fixtureId, channel.role);
-                  }
-                : undefined;
-
-            // Per-destination universe maps, keyed by `${protocol}|${ip}|${broadcast}`.
-            const destinations: Record<string, {
-                ip: string; protocol: OutputProtocol; broadcast: boolean; sparse: boolean;
-                priority?: number; universes: Record<number, number[]>;
-            }> = {};
-
-            for (let fIdx = 0; fIdx < currentFixtures.length; fIdx++) {
-                const f = currentFixtures[fIdx];
-
-                // Destination resolves from the per-fixture output override → controller (S5) →
-                // global settings (back-compat). Shared with the Routing collision detector via
-                // resolveDest/destKey so the UI's overlap check and this real output never drift.
-                const ctrl = f.controllerId ? controllerMapRef.current.get(f.controllerId) : undefined;
-                const wire = resolveDest(f, ctrl, { protocol: defaultProtocol, ip: defaultIp, broadcast: defaultBroadcast });
-                const proto = wire.protocol;
-                // For a USB widget the COM path IS the address — it travels in the same `ip` slot
-                // the network protocols use, so the frame codec and the Rust engine needed no new
-                // field. See shared/frameCodec.ts and native/output-engine/src/serial.rs.
-                const ip = wire.protocol === 'enttec' ? (wire.port ?? '') : wire.ip;
-                const bcast = wire.broadcast;
-                const priority = f.output?.priority ?? ctrl?.priority;
-                const sparse = f.output?.sparse ?? false;
-                const dk = destKey(wire);
-                let dest = destinations[dk];
-                if (!dest) {
-                    dest = { ip, protocol: proto, broadcast: bcast, sparse: false, priority, universes: {} };
-                    destinations[dk] = dest;
-                }
-                dest.sparse = dest.sparse || sparse;
-
-                // Fetch (or lazily create) a pooled 512-array for a universe in this dest.
-                const getArr = (u: number): number[] => {
-                    const pk = `${dk}#${u}`;
-                    let arr = pool[pk];
-                    if (!arr) { arr = new Array(512).fill(0); pool[pk] = arr; }
-                    if (!dest!.universes[u]) dest!.universes[u] = arr;
-                    return arr;
-                };
-
-                let currentUniverse = f.universe;
-                let currentChannel = f.startAddress - 1; // 0-based
-
-                const order = COLOR_ORDER[f.colorOrder ?? ColorOrder.RGB];
-                const o0 = order[0], o1 = order[1], o2 = order[2];
-                const cpp = f.channelsPerPixel ?? 4;
-                const lut = gammaLutRef.current;
-
-                // Fetch the destination universe array lazily and re-fetch only when a write spills
-                // past channel 512 — instead of the old per-channel getArr() (which rebuilt a template
-                // string key on every DMX channel) and per-LED `rgb`/`channels` array allocations. The
-                // lazy fetch preserves the original registration semantics exactly: a universe appears
-                // in `dest.universes` only if a channel is actually written into it (no trailing/empty
-                // universe when a fixture ends on a 512 boundary, none for a 0-LED fixture).
-                let arr: number[] | null = null;
-                const writeCh = (val: number) => {
-                    if (currentChannel >= 512) { currentUniverse++; currentChannel = 0; arr = null; }
-                    if (!arr) arr = getArr(currentUniverse);
-                    arr[currentChannel] = val;
-                    currentChannel++;
-                };
-
-                // ── PROFILED FIXTURE (a moving head / wash / beam) ────────────────────────────
-                // Its channels are named parameters at fixed offsets in the mode, not colour
-                // components, so it packs from its authored values rather than from sampled pixels
-                // — and NOT through the gamma LUT, which would move the head to the wrong angle.
-                // See services/profilePack.ts.
-                //
-                // It still consumes ONE pixel of the canonical buffer (ledCount is pinned to 1 for a
-                // profiled fixture), so `offset` stays in step with the monitor and the 3D scene,
-                // both of which index that buffer by cumulative ledCount.
-                if (f.profileId) {
-                    const profile = profilesRef.current.get(f.profileId);
-                    const mode = profile ? profilePack.modeOf(profile, f.profileMode) : undefined;
-                    // An UNRESOLVED profile writes nothing at all. That matches fixtureFootprint()
-                    // returning 0 for the same case, so the patch and the wire still agree — a
-                    // fixture we cannot describe occupies no channels and disturbs no neighbour.
-                    if (profile && mode) {
-                        profilePack.packProfiled(f, profile, mode, writeCh, roleOverride);
-                        // Publish what this fixture is DOING, in roles and degrees, for the 3D scene
-                        // and the beams. Resolved here rather than in the scene so there is exactly
-                        // one interpretation of "intensity"/"pan" in the app — see fixtureSignal.
-                        fixtureStates.set(f.id, fixtureSignal.resolveFixture(f, profile, roleOverride));
-                    }
-                    offset += f.ledCount;
-                    continue;
-                }
-
-                for (let i = 0; i < f.ledCount; i++) {
-                    const idx = offset * 4;
-                    if (idx + 3 >= rawBytes.length) break;
-
-                    // rawBytes is linear RGBW; remap RGB to the fixture's color order + gamma-correct.
-                    const r = rawBytes[idx], g = rawBytes[idx + 1], b = rawBytes[idx + 2];
-                    writeCh(lut[o0 === 0 ? r : o0 === 1 ? g : b]);
-                    writeCh(lut[o1 === 0 ? r : o1 === 1 ? g : b]);
-                    writeCh(lut[o2 === 0 ? r : o2 === 1 ? g : b]);
-                    if (cpp === 4) writeCh(lut[rawBytes[idx + 3]]);
-
-                    offset++;
-                }
-            }
-
-            // Broadcast canonical pixels (monitor/3D) + routing destinations (output).
-            dmxSignal.publish(rawBytes, destinations);
-            // …and the profiled fixtures' resolved roles. Always published, even when empty, so a
-            // consumer sees a fixture DISAPPEAR (profile cleared, fixture deleted) rather than
-            // holding its last pose forever.
-            fixtureSignal.publish(fixtureStates);
-        }
-    }
-
-    perfMonitor.endFrame();
+    frameEngine.tick();
     requestRef.current = requestAnimationFrame(tick);
-  }, [isEngineRunning]);
+  }, []);
+
+  // The last DOM gate on output: the engine refuses to run a frame until the view says it is laid
+  // out, because that is what the containerRef check used to do at the top of the loop.
+  useEffect(() => {
+    frameEngine.setDomReady(true);
+    return () => frameEngine.setDomReady(false);
+  }, []);
+
+  // The engine paints the operator 512-square composite into this canvas. It does not own it.
+  useEffect(() => {
+    frameEngine.setPreviewCanvas(canvasRef.current);
+    return () => frameEngine.setPreviewCanvas(null);
+  }, []);
 
   useEffect(() => {
     requestRef.current = requestAnimationFrame(tick);
@@ -623,7 +246,7 @@ export const Stage: React.FC<StageProps> = ({
     const rect = containerRef.current.getBoundingClientRect();
     const dx = (e.clientX - st.sx) / rect.width;
     const dy = (e.clientY - st.sy) / rect.height;
-    const cur = surfacesRef.current;
+    const cur = frameEngine.getSurfaces();
     const idx = cur.findIndex(s => s.id === st.id);
     if (idx === -1) return;
     // First real move of this gesture → one undo entry for the whole drag.
@@ -645,17 +268,18 @@ export const Stage: React.FC<StageProps> = ({
       const cy = rect.top + (init.y + init.h / 2) * rect.height;
       next.rotation = Math.atan2(e.clientY - cy, e.clientX - cx) * 180 / Math.PI + 90;
     }
-    const arr = [...cur]; arr[idx] = next; surfacesRef.current = arr;
-    // Same rule as the fixture drag above: local while the gesture runs, committed on release.
+    const arr = [...cur]; arr[idx] = next;
+    // Same rule as the fixture drag above: local while the gesture runs, committed on release. The
+    // engine gets it immediately, so output follows the drag; App does not, so nothing re-renders.
+    frameEngine.setInputs({ surfaces: arr });
     setSurfaceDraft(arr);
-    mapper.current?.updateMapping?.(fixturesRef.current, arr);
   }, [onRecordHistory]);
 
   const onSurfaceUp = useCallback(() => {
     const moved = surfaceDrag.current.moved;
     surfaceDrag.current = { mode: null, id: null, sx: 0, sy: 0, init: null, moved: false };
     setSurfaceDraft(null);
-    if (moved) onUpdateSurfaces(surfacesRef.current);
+    if (moved) onUpdateSurfaces(frameEngine.getSurfaces());
     window.removeEventListener('mousemove', onSurfaceMove);
     window.removeEventListener('mouseup', onSurfaceUp);
   }, [onSurfaceMove, onUpdateSurfaces]);
@@ -664,7 +288,7 @@ export const Stage: React.FC<StageProps> = ({
     e.stopPropagation();
     e.preventDefault();
     onSelectSurface(id);
-    const s = surfacesRef.current.find(x => x.id === id);
+    const s = frameEngine.getSurfaces().find(x => x.id === id);
     if (!s) return;
     surfaceDrag.current = { mode, id, sx: e.clientX, sy: e.clientY, init: { x: s.x, y: s.y, w: s.width, h: s.height, r: s.rotation }, moved: false };
     window.addEventListener('mousemove', onSurfaceMove);
@@ -693,7 +317,7 @@ export const Stage: React.FC<StageProps> = ({
         onRecordHistory(); 
     }
 
-    const fixtures = fixturesRef.current;
+    const fixtures = frameEngine.getFixtures();
     const fixtureIndex = fixtures.findIndex(f => f.id === state.targetId);
     if (fixtureIndex === -1) return;
 
@@ -857,11 +481,11 @@ export const Stage: React.FC<StageProps> = ({
     setActiveSnapLines({ x: currentSnapsX, y: currentSnapsY });
     const nextFixtures = [...fixtures];
     nextFixtures[fixtureIndex] = target;
-    fixturesRef.current = nextFixtures;
-    // Local for the duration of the gesture — App hears about it once, on mouse-up. See the note at
-    // fixtureDraft. The mapping call is what the committed-props effect used to do for us.
+    // The engine gets the geometry immediately — it composites and samples it on the next frame and
+    // works out for itself that the GPU LED buffers need rebuilding, so output follows the drag.
+    // React does not: the draft is local, and App hears about it once, on mouse-up.
+    frameEngine.setInputs({ fixtures: nextFixtures });
     setFixtureDraft(nextFixtures);
-    mapper.current?.updateMapping?.(nextFixtures, surfacesRef.current);
 
   }, [snapEnabled, onRecordHistory]);
 
@@ -878,7 +502,7 @@ export const Stage: React.FC<StageProps> = ({
     // draft is never dropped a render before the committed props arrive (which would flash the
     // fixture back to where the drag started).
     setFixtureDraft(null);
-    if (moved) onUpdateFixtures(fixturesRef.current);
+    if (moved) onUpdateFixtures(frameEngine.getFixtures());
     window.removeEventListener('mousemove', handleWindowMouseMove);
     window.removeEventListener('mouseup', handleWindowMouseUp);
   }, [handleWindowMouseMove, onUpdateFixtures]);
@@ -896,7 +520,7 @@ export const Stage: React.FC<StageProps> = ({
       if (fixtureId) {
           onSelectFixture(fixtureId, e.ctrlKey || e.metaKey || e.shiftKey);
           dragState.current.targetId = fixtureId;
-          const f = fixturesRef.current.find(fx => fx.id === fixtureId);
+          const f = frameEngine.getFixtures().find(fx => fx.id === fixtureId);
           if (f) {
               dragState.current.initialFixture = { 
                   x: f.x, y: f.y, w: f.width, h: f.height, r: f.rotation || 0 

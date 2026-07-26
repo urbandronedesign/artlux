@@ -284,6 +284,20 @@ check(
   },
 );
 
+// ── The engine is not part of the view ────────────────────────────────────────────────────────
+check(
+  'the frame engine never imports React',
+  'The whole point of engine/ is that the render/output pipeline outlives any component: it is what ' +
+  'lets the Stage be an ordinary view instead of a thing that may never unmount because Art-Net ' +
+  'depends on it. A single hook or React type dragged in here re-couples the loop to a render tree ' +
+  'and the coupling comes back by the back door. Same discipline as services/ and gpu/, neither of ' +
+  'which imports React either.',
+  () => {
+    const offenders = walk('src/renderer/engine').filter((f) => /(^|\n)\s*import[^;]*['"]react['"]/.test(read(f)));
+    return offenders.length ? `engine files importing React: ${offenders.join(', ')}` : null;
+  },
+);
+
 // ── App holds no clock of its own ─────────────────────────────────────────────────────────────
 check(
   'per-second telemetry never lives in App state',
@@ -340,13 +354,11 @@ check(
       if (!new RegExp(`${commit}\\(`).test(up)) {
         problems.push(`${upFn} must call ${commit}( — otherwise a drag is never committed and is lost`);
       }
-      // The frame loop reads the refs, so they MUST still be written live or output freezes mid-drag.
-      if (!/(fixturesRef|surfacesRef)\.current\s*=/.test(move)) {
-        problems.push(`${moveFn} must keep its ref live — the frame loop samples geometry from it`);
-      }
-      // The committed-props effect can no longer fire mid-drag, so the mapping call has to be direct.
-      if (!/updateMapping\?\.\(|updateMapping\(/.test(move)) {
-        problems.push(`${moveFn} must call updateMapping — else the LEDs sample the old footprint until mouse-up`);
+      // Output must still follow the gesture. The engine holds the geometry the frame loop samples,
+      // so the move handler has to push into it every move — otherwise the LEDs keep sampling the
+      // object's old footprint until the mouse comes up, and only the rectangle moves.
+      if (!/frameEngine\.setInputs\(/.test(move)) {
+        problems.push(`${moveFn} must push into frameEngine.setInputs( — else output freezes at the pre-drag geometry`);
       }
     }
     return problems.length ? problems.join('; ') : null;
