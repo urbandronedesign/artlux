@@ -601,6 +601,18 @@ incident here was GPU/decode/IO and never React. Canonical plan, WP tracker and 
   app**: the native output engine held **61 Hz / 1 universe** throughout. WebGL fallback re-checked
   (61 Hz, blit lands). New guard: the engine drives the rAF, `Stage.tsx` drives none, no `domReady`
   returns, and the engine never early-returns on a missing preview canvas.
+- **WP-1.3 — the engine owns the mapper and the wire; a show mounts no view** (`52136f3`). Three
+  leftovers of the same shape. The **GPU mapper** was built and torn down by a component effect, so the
+  app's ability to sample pixels was created and destroyed by a React lifecycle — the engine builds it
+  now and publishes *which backend came up* as status, which the Stage subscribes to purely in order to
+  keep showing the reduced-mode banner. **Sending Art-Net** was a `dmxSignal` subscriber inside App,
+  which made putting frames on the wire something the document opted into (and re-subscribed on every
+  settings change); it is the last step of a frame instead. And **headless rendered a hidden 1×1 Stage**
+  — a venue machine mounting a React viewport in an invisible one-pixel box so that DMX would come out;
+  the show branch now returns `null`. That forced the useful part: engine inputs are pushed from **App**,
+  which owns the document, so **`Stage` lost ten props** and what remains is what a viewport actually
+  needs. **Verified:** headless with a purpose-built project and no Stage anywhere → 61 Hz / 1 universe
+  at 60 fps renderer; the editor still survives its Stage DOM being deleted; drags unchanged.
 
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
