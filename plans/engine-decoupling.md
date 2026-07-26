@@ -16,7 +16,7 @@ user-verified at a checkpoint; a session must never tick those itself.
 | WP | Scope | Status | Commit | Notes / deviations |
 |---|---|---|---|---|
 | 0.0 | Bootstrap: this file + tracker + docking appendix | ☑ done | `d279655` | Indexed in `plans/README.md`; summary in `docs/PROGRESS.md`. `verify` green (40 checks). |
-| 0.1 | React-side instrumentation (longtask + Profiler → 1 Hz stats) | ☐ | | |
+| 0.1 | React-side instrumentation (longtask + Profiler → 1 Hz stats) | ☑ done | `59d89d7` | CDP-verified in the running app: 400 ms synthetic stall → baseline 0 → peak **320 ms / 4 tasks** on `artlux_ui_blocked_ms`; commit time 0 with the profiler off, non-zero after a reload with `?uiperf=1`. **First baseline** (idle-ish editor, profiler on): `viewport:scenes` 2× 21.8 ms · `viewport:timeline` 3× 18.1 ms · `viewport:outputs` 2× 3.0 ms · `viewport:stage2d` 2× 2.4 ms per second — the number WP-0.3 has to move. Guard `the UI profiler cannot be switched on at runtime` (3 break tests; its **first version passed a break** because a leftover import matched the identifier — now asserts the branch). |
 | 0.2 | Fixture-drag commit-on-release (`Stage.tsx`) | ☐ | | |
 | 0.3 | Memoize the five persistent viewports (`App.tsx`) | ☐ | | |
 | 1.1 | `engine/frameEngine.ts` skeleton + input struct (Stage still drives) | ☐ | | |

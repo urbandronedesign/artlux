@@ -539,6 +539,20 @@ MessagePort to main — keeping React panels so the plugin SDK is untouched. A n
 incident here was GPU/decode/IO and never React. Canonical plan, WP tracker and session protocol:
 [plans/engine-decoupling.md](../plans/engine-decoupling.md).
 
+- **WP-0.1 — the UI's cost is now measurable** (`59d89d7`). `services/uiPerfMonitor` adds the two signals
+  `perfMonitor` structurally cannot see: **long tasks** (`PerformanceObserver`, always on — the browser
+  reports only the rare offenders) and **React commit time per named region** (opt-in behind `?uiperf=1`,
+  because `<Profiler>` is not free), surfaced in the Performance dock tab and as
+  `artlux_ui_blocked_ms` / `artlux_ui_long_tasks` / `artlux_ui_commit_ms`. Reads are **non-mutating**
+  (100 ms buckets over a 1 s sliding window) because two independent 1 Hz readers poll it and a
+  drain-on-read accumulator would give each of them half the events. The opt-in flag is read **once at
+  module load with no runtime toggle** — `UiProfiler` branches on it, and React keys a child by position
+  *and element type*, so a flag that could flip mid-session would remount `Stage` (which publishes
+  `dmx:frame`), `Simulator3D` and the single `TimelinePanel`. Invariant-guarded, and the guard's first
+  version **passed a deliberate break** because a leftover import still matched the identifier — the trap
+  this repo already documents — so it now asserts the branch. CDP-verified end to end: a 400 ms synthetic
+  stall travelled observer → IPC → main → Prometheus (baseline 0 → peak 320 ms / 4 tasks).
+
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
 - Deferred effects: stateful **fire2012**, **multi-segment** subdivision per fixture.
