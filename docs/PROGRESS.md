@@ -682,6 +682,19 @@ incident here was GPU/decode/IO and never React. Canonical plan, WP tracker and 
   3**: it needs a drawable-contract change across the SDK, the mapper, `surfaceMedia` and the projector
   pump while the 2D composite still needs a `CanvasImageSource` — and the thing actually blocking the
   worker was the DOM canvas, which is gone.
+- **WP-2.4 — HAP decompresses into an `OffscreenCanvas`** (`ea68908`), the last DOM canvas on the media
+  path. `hapGL` draws BC blocks to a canvas that is **never displayed** — a decompression target that
+  gets sampled. Two ways back, because HAP is the codec real shows here are built on: an **automatic**
+  fallback when `OffscreenCanvas` *or a WebGL2 context on it* is unavailable (API-present ≠ API-works),
+  and a per-machine `localStorage['artlux.hapDomCanvas']` revert for a venue that needs the old path
+  without a rebuild. **Tested against a real 1080p60 Hap1 file on the wire**: 2239/2250 frames lit, peak
+  253, 724 distinct channel-sums, renderer **flat at 59.9 fps across 12 samples** — no dip, which is the
+  shape the 61→22→61 HAP startup regression would have taken. **The revert was exercised**, not merely
+  written: flag set, app restarted, HAP still playing on the DOM path (1201/1201 lit).
+- **Phase 2 is code-complete; C2 (media soak) is open.** Verified on the wire against real media:
+  MP4/WebCodecs, images, DMX-in, HAP. **Unexercised for want of a source on this machine: Spout** (no
+  sender), **NDI** (no source), and **camera pixels** (no working camera). Those three are what C2 is
+  for. See [plans/engine-decoupling.md](../plans/engine-decoupling.md) → tracker.
 
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
