@@ -577,6 +577,18 @@ incident here was GPU/decode/IO and never React. Canonical plan, WP tracker and 
   element, arrays rebuilt by `filter`/`map`, a dozen inline arrows), so a shallow compare can never bail
   out — it would have cost a compare per render, bought nothing, and read as protection. Stabilizing App's
   handler identities (the `ActionsCtx` facade already does this for panels) is tracked as its own pass.
+- **WP-1.1 — the frame loop leaves the component** (`0e34015`). Composite, GPU sampling, universe
+  packing and publish now live in **`renderer/engine/frameEngine.ts`**; `Stage.tsx` sheds ~450 lines and
+  becomes a viewport, some draggable overlays and a canvas the engine paints into. None of that work was
+  ever React work — every service it calls was already framework-free, and the component was reaching all
+  of it through a dozen refs mirrored out of props. Those refs *were* the input contract; it is now one
+  `setInputs()` struct, and the three `JSON.stringify` signature memos + their effects collapsed into
+  plain change detection inside it. **Not moved yet, deliberately:** Stage still owns the rAF and builds
+  the mapper, and the engine still refuses a frame until `domReady` — the last DOM gate on output, kept
+  under that name so WP-1.2 deletes it rather than discovers it. **A/B verified live** (hot-swapping the
+  file mid-session): the native output engine receives **61 Hz over 1 universe** before *and* after, with
+  the renderer at 60 fps — exercising the whole publish path (tick → `dmxSignal` → App → `encodeFrame` →
+  IPC → the Rust send thread). New guard: `engine/` never imports React.
 
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
