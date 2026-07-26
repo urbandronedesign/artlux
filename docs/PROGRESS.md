@@ -667,6 +667,21 @@ incident here was GPU/decode/IO and never React. Canonical plan, WP tracker and 
   machine has no working camera (5 video inputs enumerated, none deliver frames), confirmed as the
   machine and not the change by an A/B against HEAD, which is equally black. The `<video>` path remains
   an automatic fallback where the processor is unavailable.
+- **WP-2.3 — the byte-sources leave the DOM, and stop repainting nothing** (`832eb11`). DMX-in, Spout and
+  NDI all receive raw bytes over IPC and assemble a picture for the sampler. That canvas is **never
+  displayed** — it exists only to be sampled — so a DOM element was wrong twice: it cannot live in a
+  worker, and it tied a background data path to the document. All three now use an **`OffscreenCanvas`**.
+  The half that costs something *today*: each is asked for a picture once per consuming surface **and**
+  again inside the GPU sampler's per-surface closure, so unchanged bytes were re-packed into `ImageData`
+  and re-uploaded several times per frame — and on **every** frame while a sender sat idle. They now
+  count arrivals and skip. **Verified end to end on DMX-in** (the only one drivable here): a `DMX_IN`
+  surface fed a moving pattern at 30 Hz into the app's Art-Net input → **1035/1043 output frames lit,
+  peak 255, 393 distinct channel-sums**, i.e. the picture arrives *and* keeps moving, which is what rules
+  out the skip sticking on a stale frame. ⚠ Spout and NDI share the code shape but have no sender on this
+  machine and are **unexercised**. The planned `queue.writeTexture` was **deliberately deferred to Phase
+  3**: it needs a drawable-contract change across the SDK, the mapper, `surfaceMedia` and the projector
+  pump while the 2D composite still needs a `CanvasImageSource` — and the thing actually blocking the
+  worker was the DOM canvas, which is gone.
 
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
