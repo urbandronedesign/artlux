@@ -709,6 +709,25 @@ incident here was GPU/decode/IO and never React. Canonical plan, WP tracker and 
   (539 bytes at a 44 Hz cap) and a guard prevents the "optimisation" back to transfer, which would
   silently kill the show. **Verified on the wire:** 834 ArtDmx packets, 274 distinct channel-sums, native
   63 Hz, renderer 61 fps.
+- **Phase 3 (the Worker) is PAUSED at a measured fork.** WP-3.2 assumed media production was already
+  `VideoFrame`-based; it is not. `contentSource` still creates `<video>` elements for anything the codecs
+  decline (and calls `window.artlux`, absent in a worker), and `services/timeline` keeps a per-layer
+  `<video>` pool *and* is the show engine. The platform is fine — probed: a Worker here has
+  `navigator.gpu` **with an acquirable device**, `OffscreenCanvas`, `VideoFrame`, `VideoDecoder`, WebGL2,
+  and takes a transferred `MessagePort`. So the question became *what would the worker buy?*, and it was
+  measured on the real project:
+  **the wire is already immune to a frozen renderer** — through a deliberate **900 ms main-thread
+  freeze**, 172 packets went out over 967 ms (178/s vs 226/s idle), worst gap **45 ms**, because the
+  native Rust pacer re-sends the last frame. Ordinary UI stress (three full context tours + forced
+  reflow) produced **0 wire gaps over 100 ms**. What degrades is *frame timing* — render p99 **54 → 155
+  ms**, long frames **18 → 40**. **So a worker buys smoother content under heavy UI load, not show
+  survival**, and Phase 3 waits for evidence that is worth the rewrite.
+  ⚠ **The measurement also caught a flaw in our own instrument:** `artlux_ui_blocked_ms` reported
+  **101 ms for a 900 ms freeze**, and only 1.4 s later. It under-reports and lags — read `0 ms/s` as *no
+  evidence of blocking*, never as *no blocking*.
+- **`scripts/test-engine-output.cjs`** (`967648d`) — a committed harness that proves on the wire what
+  `verify` can only assert about source: output survives the Stage's canvas *and container* being
+  deleted out of the live DOM, a full context tour, and `--headless` with no view mounted at all.
 
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
