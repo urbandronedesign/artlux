@@ -1,5 +1,8 @@
 import { Fixture, Surface, Controller, ColorOrder, FixtureProfile, type OutputProtocol } from '../types';
 import { IPixelMapper } from '../services/PixelMapper';
+import { GPUMapper } from '../services/GPUMapper';
+import { WebGPUMapper } from '../gpu/WebGPUMapper';
+import { sendArtNetFrame } from '../services/mockSocketService';
 import { dmxSignal } from '../services/dmxSignal';
 import { livePreview } from '../services/livePreview';
 import * as surfaceMedia from '../services/surfaceMedia';
@@ -61,6 +64,9 @@ export interface FrameInputs {
   protocol: OutputProtocol;
   engineRunning: boolean;
   videoPlaying: boolean;
+  /** Whether packed frames are actually sent to the transport. The operator's output switch. */
+  outputEnabled: boolean;
+  artNetPort: number;
   /**
    * Whether the 512² composite is actually on screen. Broadcast/headless run with no visible preview,
    * where compositing is dead work on the WebGPU path (fixtures sample per-surface, not the composite).
@@ -75,6 +81,17 @@ export interface FrameHost {
    * to change — it used to be a setState called from inside the frame loop.
    */
   onSurfacesAutoFitted?: (surfaces: Surface[]) => void;
+}
+
+/**
+ * Which GPU path came up, and whether it came up at all. The UI reports this honestly rather than
+ * degrading in silence: the WebGL fallback does NOT do strict per-surface sampling, so a back-linked
+ * fixture can pick up an overlapping front surface, and an operator is entitled to know.
+ */
+export interface EngineStatus {
+  backend: 'webgpu' | 'webgl' | null;
+  /** No GPU path at all — nothing will be sampled, and the UI says so in full. */
+  failed: boolean;
 }
 
 // Hoisted so the composite z-sort doesn't allocate a fresh comparator every frame.
@@ -101,7 +118,8 @@ const COLOR_ORDER: Record<ColorOrder, [number, number, number]> = {
 const DEFAULT_INPUTS: FrameInputs = {
   surfaces: [], fixtures: [], controllers: [], fixtureProfiles: EMPTY_PROFILES,
   gamma: 1, brightness: 1, targetIp: '', broadcast: false, protocol: 'artnet',
-  engineRunning: false, videoPlaying: false, showPreview: true,
+  engineRunning: false, videoPlaying: false, outputEnabled: false, artNetPort: 6454,
+  showPreview: true,
 };
 
 class FrameEngine {
@@ -141,6 +159,8 @@ class FrameEngine {
 
   /** The loop's own handle. Started on construction, stopped by nothing. */
   private raf = 0;
+  private status: EngineStatus = { backend: null, failed: false };
+  private statusSubs = new Set<() => void>();
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────────────────────────
 
@@ -152,8 +172,49 @@ class FrameEngine {
    */
   constructor() {
     if (typeof requestAnimationFrame === 'undefined') return; // no rAF (a test harness) — stay idle
+    void this.initMapper();
     const loop = () => { this.raf = requestAnimationFrame(loop); this.tick(); };
     this.raf = requestAnimationFrame(loop);
+  }
+
+  /**
+   * Bring up a GPU path: WebGPU compute first, the WebGL sampler as a fallback, and an honest failure
+   * if neither works. This used to be an effect inside the Stage, which meant the app's ability to
+   * sample pixels was created and destroyed by a component's lifecycle.
+   */
+  private async initMapper(): Promise<void> {
+    let m: IPixelMapper | null = null;
+    try {
+      m = await WebGPUMapper.create();
+      if (m) { console.log('[engine] using the WebGPU compute mapper'); this.setStatus({ backend: 'webgpu', failed: false }); }
+    } catch {
+      m = null;
+    }
+    if (!m) {
+      try {
+        m = new GPUMapper(512, 512);
+        console.log('[engine] using the WebGL mapper (fallback)');
+        this.setStatus({ backend: 'webgl', failed: false });
+      } catch (e) {
+        console.error('[engine] no GPU mapper could be initialized:', e);
+        this.setStatus({ backend: null, failed: true });
+        return;
+      }
+    }
+    this.setMapper(m);
+  }
+
+  // ── Status ────────────────────────────────────────────────────────────────────────────────────
+
+  getStatus = (): EngineStatus => this.status;
+  subscribeStatus = (cb: () => void): (() => void) => { this.statusSubs.add(cb); return () => { this.statusSubs.delete(cb); }; };
+
+  private setStatus(next: EngineStatus): void {
+    if (next.backend === this.status.backend && next.failed === this.status.failed) return;
+    this.status = next;
+    // Recorded per machine so Settings ▸ GPU rendering can report which path is live.
+    if (next.backend) { try { localStorage.setItem('artlux.activeBackend', next.backend); } catch { /* ignore */ } }
+    for (const cb of this.statusSubs) cb();
   }
 
   // ── Inputs ────────────────────────────────────────────────────────────────────────────────────
@@ -565,6 +626,11 @@ class FrameEngine {
 
     // Broadcast canonical pixels (monitor/3D) + routing destinations (output).
     dmxSignal.publish(rawBytes, destinations);
+    // …and put them on the wire. This was a dmxSignal SUBSCRIBER living in App — which made sending
+    // Art-Net something a React component opted into, and re-subscribed on every settings change. It
+    // is not a side effect of the document; it is the last step of the frame. sendArtNetFrame gates on
+    // its own ~44 Hz throttle before building any target list, so a throttled-away frame costs nothing.
+    if (this.inputs.outputEnabled) sendArtNetFrame(destinations, this.inputs.artNetPort);
     // …and the profiled fixtures' resolved roles. Always published, even when empty, so a consumer
     // sees a fixture DISAPPEAR (profile cleared, fixture deleted) rather than holding its last pose
     // forever.

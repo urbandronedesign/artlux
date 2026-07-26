@@ -32,11 +32,11 @@ import {
   VIEWPORT_OUTPUTS, VIEWPORT_MACHINE,
 } from './contexts';
 import { contextLayoutOf, goToContext } from './contexts/nav';
-import { sendArtNetFrame, configureOutput, addStatusListener } from './services/mockSocketService';
-import { dmxSignal } from './services/dmxSignal';
+import { configureOutput, addStatusListener } from './services/mockSocketService';
 import { perfMonitor } from './services/perfMonitor';
 import { uiPerfMonitor } from './services/uiPerfMonitor';
 import { telemetry } from './services/telemetry';
+import { frameEngine, EMPTY_PROFILES as ENGINE_EMPTY_PROFILES } from './engine/frameEngine';
 import { UiProfiler } from './components/UiProfiler';
 import { getDrawable, getDrawableGeneration, resolveSource } from './services/surfaceMedia';
 import { timeline as timelineEngine, GLOBAL_POOL } from './services/timeline';
@@ -466,16 +466,34 @@ const App: React.FC = () => {
   // (Live input lifecycle — camera/Spout/DMX-in — is owned by services/surfaceMedia,
   // driven by surface content in the Stage.)
 
-  // Subscribe to DMX Signal for ArtNet Output (per-fixture routing).
+  // ── Feeding the render/output engine ──────────────────────────────────────────────────────────
+  // App owns the document, so App tells the engine what the document says. This used to be a dozen
+  // ref-mirroring effects inside the Stage, which meant the engine's inputs arrived through a
+  // component — and in headless we mounted a hidden 1×1 Stage purely to keep that pipe open.
+  //
+  // The engine diffs internally, so pushing everything on every change is the intended usage: it works
+  // out for itself that moving a fixture rebuilds GPU buffers while changing its intensity does not.
   useEffect(() => {
-      const unsubscribe = dmxSignal.subscribe((data) => {
-          if (!settings.outputEnabled) return;
-          // Pass destinations straight through; sendArtNetFrame gates on its ~44 FPS throttle before
-          // building any target list, so throttled-away frames allocate nothing.
-          sendArtNetFrame(data.destinations, settings.artNetPort);
-      });
-      return () => unsubscribe();
-  }, [settings]);
+    frameEngine.setInputs({
+      surfaces, fixtures, controllers,
+      fixtureProfiles: fixtureProfiles ?? ENGINE_EMPTY_PROFILES,
+      gamma: settings.gamma,
+      brightness: globalBrightness,
+      targetIp: settings.artNetIp,
+      broadcast: settings.broadcast,
+      protocol: settings.protocol,
+      outputEnabled: settings.outputEnabled,
+      artNetPort: settings.artNetPort,
+      engineRunning: true,
+      videoPlaying: isVideoPlaying,
+      // Broadcast/headless have no visible composite, and compositing is dead work there on the
+      // WebGPU path (fixtures sample per-surface, not the composite).
+      showPreview: !SHOW_ENGINE,
+    });
+  }, [surfaces, fixtures, controllers, fixtureProfiles, settings, globalBrightness, isVideoPlaying]);
+
+  // The one thing the engine hands back: a surface auto-fitted to its content's aspect ratio.
+  useEffect(() => { frameEngine.setHost({ onSurfacesAutoFitted: setSurfaces }); }, []);
 
   useEffect(() => {
     // No operator in broadcast/headless — the global undo/redo/select keybindings have no place there,
@@ -3324,37 +3342,18 @@ const App: React.FC = () => {
     menuAction: (a) => dispatchMenuRef.current(a),
   };
 
-  // Broadcast/headless (show) modes: no editor chrome — render only the offscreen Stage engine.
-  // All the output effects above still run, so Art-Net flows; broadcast additionally opens the saved
-  // projector outputs while headless suppresses them (reconcilers gated on HEADLESS above).
-  // isVideoPlaying defaults true, so media-source fixtures play (not black) in both.
+  // Broadcast/headless (show) modes: no editor chrome, and now no Stage either.
+  //
+  // This used to render a hidden 1×1 Stage, not because anything was being shown, but because the
+  // frame loop lived inside that component — a venue machine was mounting a React viewport in an
+  // invisible one-pixel box so that Art-Net would come out. The engine runs on its own now, fed by the
+  // effect above, so the show mode renders literally nothing and the pipeline does not care.
+  //
+  // All the output effects above still run; broadcast additionally opens the saved projector outputs
+  // while headless suppresses them (reconcilers gated on HEADLESS above). isVideoPlaying defaults
+  // true, so media-source fixtures play (not black) in both.
   if (SHOW_ENGINE) {
-    return (
-      <div style={{ position: 'fixed', width: 1, height: 1, overflow: 'hidden', opacity: 0, pointerEvents: 'none' }}>
-        <Stage
-          surfaces={surfaces}
-          onUpdateSurfaces={setSurfaces}
-          selectedSurfaceId={null}
-          onSelectSurface={() => { /* no-op */ }}
-          controllers={controllers}
-          fixtureProfiles={fixtureProfiles}
-          fixtures={fixtures}
-          onUpdateFixtures={setFixtures}
-          selectedFixtureId={null}
-          selectedFixtureIds={[]}
-          onSelectFixture={() => { /* no-op */ }}
-          isEngineRunning={true}
-          isVideoPlaying={isVideoPlaying}
-          globalBrightness={globalBrightness}
-          gamma={settings.gamma}
-          targetIp={settings.artNetIp}
-          broadcast={settings.broadcast}
-          protocol={settings.protocol}
-          onRecordHistory={() => { /* no-op */ }}
-          showPreview={false}
-        />
-      </div>
-    );
+    return null;
   }
 
   return (
@@ -3436,20 +3435,11 @@ const App: React.FC = () => {
                         onDropAsset={handleDropAssetOnSurface}
                         selectedSurfaceId={selectedSurfaceId}
                         onSelectSurface={handleSelectSurface}
-                        controllers={controllers}
-                        fixtureProfiles={fixtureProfiles}
                         fixtures={fixtures}
                         onUpdateFixtures={setFixtures}
                         selectedFixtureId={selectedFixtureId}
                         selectedFixtureIds={selectedFixtureIds}
                         onSelectFixture={handleSelectFixture}
-                        isEngineRunning={true}
-                        isVideoPlaying={isVideoPlaying}
-                        globalBrightness={globalBrightness}
-                        gamma={settings.gamma}
-                        targetIp={settings.artNetIp}
-                        broadcast={settings.broadcast}
-                        protocol={settings.protocol}
                         onRecordHistory={recordHistory}
                         extraControls={
                             <>

@@ -318,6 +318,39 @@ check(
 );
 
 check(
+  'the engine owns the GPU mapper and the wire, and the show modes mount no view',
+  'Three things that all had the same shape: the pixel mapper was built and destroyed by a component ' +
+  "effect, sending Art-Net was a dmxSignal SUBSCRIBER inside App (so putting frames on the wire was " +
+  'something the document opted into, re-subscribing on every settings change), and headless mounted ' +
+  'a hidden 1x1 Stage — a venue machine rendering a React viewport in an invisible one-pixel box so ' +
+  'that DMX would come out. All three made output a consequence of the UI existing.',
+  () => {
+    const eng = stripComments(read('src/renderer/engine/frameEngine.ts'));
+    const stage = stripComments(read('src/renderer/components/Stage.tsx'));
+    const app = stripComments(read('src/renderer/App.tsx'));
+    const problems = [];
+    // Assert the CALLS: the engine constructs the mapper and puts frames on the wire.
+    if (!/WebGPUMapper\.create\(/.test(eng) || !/new GPUMapper\(/.test(eng)) {
+      problems.push('frameEngine.ts must construct the GPU mappers itself');
+    }
+    if (!/sendArtNetFrame\(/.test(eng)) problems.push('frameEngine.ts must be the one that calls sendArtNetFrame(');
+    if (/WebGPUMapper\.create\(|new GPUMapper\(/.test(stage)) {
+      problems.push('Stage.tsx builds a GPU mapper again — the engine owns it');
+    }
+    if (/sendArtNetFrame\(/.test(app)) {
+      problems.push('App.tsx sends Art-Net again — that is the last step of a frame, not a document side effect');
+    }
+    // The hidden 1x1 Stage: the show branch must render nothing.
+    const showBranch = /if\s*\(SHOW_ENGINE\)\s*\{\s*return([\s\S]{0,400}?)\n\s*\}/.exec(app);
+    if (!showBranch) problems.push('could not find the SHOW_ENGINE branch — this guard has gone blind');
+    else if (/<Stage[\s/>]/.test(showBranch[1])) {
+      problems.push('headless/broadcast mounts a Stage again — the engine runs without a view');
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+check(
   'the frame engine never imports React',
   'The whole point of engine/ is that the render/output pipeline outlives any component: it is what ' +
   'lets the Stage be an ordinary view instead of a thing that may never unmount because Art-Net ' +

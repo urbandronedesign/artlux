@@ -1,54 +1,36 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Fixture, Surface, Controller, FixtureProfile, type OutputProtocol } from '../types';
+import React, { useRef, useEffect, useState, useCallback, useSyncExternalStore } from 'react';
+import { Fixture, Surface } from '../types';
 import { AlertCircle, Magnet, Grid3X3, ZoomIn, Maximize2 } from 'lucide-react';
-import { GPUMapper } from '../services/GPUMapper';
-import { WebGPUMapper } from '../gpu/WebGPUMapper';
-import { IPixelMapper } from '../services/PixelMapper';
-import { frameEngine, EMPTY_PROFILES } from '../engine/frameEngine';
+import { frameEngine } from '../engine/frameEngine';
 import { Tooltip } from './ui/Tooltip';
 import { help } from '../services/helpBus';
 
+// THE 2D STAGE — a view, and nothing else.
+//
+// The composite / sample / pack / publish pipeline that used to live in this file is now
+// engine/frameEngine.ts, which owns its own loop and its own GPU mapper. What is left here is the
+// viewport, the overlays you drag, and a canvas the engine paints into.
+//
+// The prop list is the evidence. Everything the FRAME needed — controllers, profiles, gamma, target
+// IP, protocol, brightness — used to arrive through this component and get mirrored into refs, purely
+// because the loop happened to live inside it. App feeds the engine directly now, so those props are
+// gone and what remains is what a viewport actually needs: what to draw, what is selected, and who to
+// tell when the operator moves something.
 interface StageProps {
   surfaces: Surface[];
   onUpdateSurfaces: (surfaces: Surface[]) => void;
   onDropAsset?: (surfaceId: string, asset: { id: string; type: string; path: string }) => void;
   selectedSurfaceId: string | null;
   onSelectSurface: (id: string) => void;
-  controllers: Controller[];
-  /**
-   * Resolved DMX fixture profiles, by id — the profiles the loaded rig actually references (project
-   * embedded → user → bundled, resolved in App). A profiled fixture's DMX footprint and channel
-   * bytes both come from here, so the SAME map must reach fixtureFootprint() and the packer or the
-   * patch and the wire disagree. Empty until a profiled fixture exists, which is the normal case.
-   */
-  fixtureProfiles?: ReadonlyMap<string, FixtureProfile>;
   fixtures: Fixture[];
   onUpdateFixtures: (fixtures: Fixture[]) => void;
   selectedFixtureId: string | null;
   selectedFixtureIds?: string[];
   onSelectFixture: (id: string, additive?: boolean) => void;
-  isEngineRunning: boolean;
-  isVideoPlaying: boolean;
-  globalBrightness: number;
-  gamma: number;
-  targetIp: string;
-  broadcast: boolean;
-  protocol: OutputProtocol;
   onRecordHistory: () => void;
   /** Extra buttons rendered at the end of the stage's top-right toolbar (e.g. the 3D split toggle). */
   extraControls?: React.ReactNode;
-  /**
-   * Whether the on-screen 512² composite preview is actually visible. Editor: true. Broadcast /
-   * headless render the Stage in a hidden 1×1 host, so the composite is dead work there on the
-   * WebGPU path (fixtures sample per-surface, not the composite) — set false to skip it.
-   */
-  showPreview?: boolean;
 }
-
-// The composite / sample / pack / publish pipeline that used to live in this file is now
-// engine/frameEngine.ts. What remains here is the VIEW: the viewport, the overlays you drag, and the
-// preview canvas the engine paints into. Stage still owns the rAF and hands the engine its mapper —
-// both move out next (see plans/engine-decoupling.md, WP-1.2 / WP-1.3).
 
 export const Stage: React.FC<StageProps> = ({
   surfaces,
@@ -56,23 +38,13 @@ export const Stage: React.FC<StageProps> = ({
   onDropAsset,
   selectedSurfaceId,
   onSelectSurface,
-  controllers,
-  fixtureProfiles,
   fixtures,
   onUpdateFixtures,
   selectedFixtureId,
   selectedFixtureIds = [],
   onSelectFixture,
-  isEngineRunning,
-  isVideoPlaying,
-  globalBrightness,
-  gamma,
-  targetIp,
-  broadcast,
-  protocol,
   onRecordHistory,
   extraControls,
-  showPreview = true,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -80,39 +52,14 @@ export const Stage: React.FC<StageProps> = ({
 
   const fixtureRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
-  // ── The engine's inputs ───────────────────────────────────────────────────────────────────────
-  // This one push replaces the dozen ref-mirroring effects that used to sit here. The engine diffs
-  // internally, so it decides what a change invalidates: moving a fixture rebuilds the GPU LED
-  // buffers, changing its intensity only re-uploads params, a new surface list re-syncs the media
-  // service, a new profile map recomputes the DMX-in universes. None of that is the view's business.
-  //
-  // The frame loop reads the engine's copy, NOT these props — which is what lets a drag keep the
-  // output live while deliberately not committing to App until release (see the drag handlers below).
-  useEffect(() => {
-    frameEngine.setInputs({
-      surfaces, fixtures, controllers,
-      fixtureProfiles: fixtureProfiles ?? EMPTY_PROFILES,
-      gamma, brightness: globalBrightness, targetIp, broadcast, protocol,
-      engineRunning: isEngineRunning, videoPlaying: isVideoPlaying, showPreview,
-    });
-  }, [surfaces, fixtures, controllers, fixtureProfiles, gamma, globalBrightness, targetIp,
-      broadcast, protocol, isEngineRunning, isVideoPlaying, showPreview]);
-
-  // The engine hands surface auto-fits back to the document. This used to be a setState called from
-  // inside the frame loop.
-  useEffect(() => {
-    frameEngine.setHost({ onSurfacesAutoFitted: onUpdateSurfaces });
-  }, [onUpdateSurfaces]);
-
-  const mapper = useRef<IPixelMapper | null>(null);
-  const [webglError, setWebglError] = useState(false);
-  // Reduced rendering mode: WebGPU compute unavailable → the WebGL fallback ran, which does NOT do
-  // strict per-surface sampling (a back-linked fixture can pick up an overlapping front surface). We
-  // surface this honestly (banner below) instead of silently degrading. Records the active backend to
-  // localStorage so Settings ▸ GPU rendering can show it.
-  const [reducedMode, setReducedMode] = useState(false);
+  // Which GPU path came up — reported BY the engine, which now owns the mapper. The Stage's job here
+  // is only to say so out loud: the WebGL fallback does not do strict per-surface sampling, so a
+  // back-linked fixture can pick up an overlapping front surface, and an operator is entitled to know
+  // rather than have the app degrade in silence.
+  const engineStatus = useSyncExternalStore(frameEngine.subscribeStatus, frameEngine.getStatus);
+  const webglError = engineStatus.failed;
+  const reducedMode = engineStatus.backend === 'webgl';
   const [reducedDismissed, setReducedDismissed] = useState(false);
-  const recordBackend = (b: 'webgpu' | 'webgl') => { try { localStorage.setItem('artlux.activeBackend', b); } catch { /* ignore */ } };
 
   const [viewState, setViewState] = useState({ x: 0, y: 0, scale: 0.8 });
   const viewStateRef = useRef(viewState);
@@ -154,9 +101,6 @@ export const Stage: React.FC<StageProps> = ({
   const [fixtureDraft, setFixtureDraft] = useState<Fixture[] | null>(null);
   const [surfaceDraft, setSurfaceDraft] = useState<Surface[] | null>(null);
 
-  // Pool of 512-channel arrays keyed by `${destKey}#${universe}` (reused across frames).
-  const universeBuffers = useRef<Record<string, number[]>>({});
-
   const dragState = useRef({
       isDragging: false,
       mode: null as 'move' | 'pan' | 'rotate' | 'resize-x' | 'resize-y' | 'resize-xy' | null,
@@ -167,43 +111,6 @@ export const Stage: React.FC<StageProps> = ({
       initialView: { x: 0, y: 0 },
       hasMoved: false
   });
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-        let m: IPixelMapper | null = null;
-        try {
-            m = await WebGPUMapper.create();
-            if (m) { console.log('[Stage] Using WebGPU compute mapper'); setReducedMode(false); recordBackend('webgpu'); }
-        } catch (e) {
-            m = null;
-        }
-        if (!m) {
-            try {
-                m = new GPUMapper(512, 512);
-                console.log('[Stage] Using WebGL mapper (fallback)');
-                setReducedMode(true); recordBackend('webgl');
-            } catch (e) {
-                console.error('Failed to initialize GPU Mapper:', e);
-                setWebglError(true);
-                return;
-            }
-        }
-        if (cancelled) { m.dispose(); return; }
-        mapper.current = m;
-        // Hand it over. The engine applies whatever state it already holds — the mapper is built
-        // asynchronously and normally arrives after the first inputs have landed.
-        frameEngine.setMapper(m);
-    })();
-    return () => {
-        cancelled = true;
-        if (mapper.current) {
-            frameEngine.setMapper(null);
-            mapper.current.dispose();
-            mapper.current = null;
-        }
-    };
-  }, []);
 
   // Lend the engine somewhere to show its composite. That is the entire relationship this component
   // now has with the frame loop: the engine runs on its own rAF, started when its module loaded, and
