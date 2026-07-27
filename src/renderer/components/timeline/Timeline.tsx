@@ -22,7 +22,7 @@ import { StateLane } from './StateLane';
 import { AutomationLane, AUTO_LANE_H } from './AutomationLane';
 import { AutomationTargetPicker } from './AutomationTargetPicker';
 import { automationTargetRegistry } from '../../host/registries';
-import type { AutomationLane as AutoLane, FixtureGroup, LightingClip, Marker } from '../../types';
+import type { AutomationLane as AutoLane, Fixture, FixtureGroup, LightingClip, Marker } from '../../types';
 
 // A lane as the PANEL sees it. `origin` is where the lane LIVES (and therefore which clock it rides);
 // `shadowed` means a scene lane owns the same targetPath, so this global one is not applying right now.
@@ -87,6 +87,8 @@ interface Props {
    * because the group's ORDER is the axis a phase spread runs along — see docs/LIGHTING-SHOW.md.
    */
   fixtureGroups?: FixtureGroup[];
+  /** The rig — the lighting clip inspector derives a group's KIND from it. */
+  rigFixtures?: Fixture[];
   /**
    * The fixtures currently selected, IN SELECTION ORDER — what a recorded take captures, and the
    * order its parts (and therefore any later phase spread) run along.
@@ -126,7 +128,7 @@ export interface AuthorContext {
 // (top-bar play) drives the engine — the playback clock. Edits commit to project state via
 // onChange; the live playhead/time are read from the engine render-free. Layout is a single
 // vertical scroller with a sticky track-header gutter and a sticky timecode ruler.
-export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, onStateMachineChange, playing, onTogglePlay, maximized = false, onToggleMax, projectPath, onRegisterAsset, scenes = [], cues = [], fixtureGroups = [], selectedFixtureIds = [], author, audio: audioProp, baseAutomation = [] }) => {
+export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, onStateMachineChange, playing, onTogglePlay, maximized = false, onToggleMax, projectPath, onRegisterAsset, scenes = [], cues = [], fixtureGroups = [], rigFixtures = [], selectedFixtureIds = [], author, audio: audioProp, baseAutomation = [] }) => {
   const [pxPerSec, setPxPerSec] = useState(40);
   const [pillOpen, setPillOpen] = useState(false); // scene/state selector dropdown
   const [selected, setSelected] = useState<string | null>(null);
@@ -1741,6 +1743,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
         <LightingClipInspector
           clip={selectedClip}
           groups={fixtureGroups}
+          fixtures={rigFixtures}
           takes={timeline.lightingTakes ?? []}
           onChange={(patch) => patchLighting(selectedClip.id, patch)}
           onClose={() => setSelected(null)}

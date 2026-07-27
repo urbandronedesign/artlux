@@ -1,7 +1,8 @@
 import type { ChannelRole, Keyframe, LightingTake, LightingTakePart } from '../types';
 import * as fixtureSignal from './fixtureSignal';
 import * as lightingOverlay from './lightingOverlay';
-import { reduceCurve, reductionEpsilon } from './lightingTake';
+import { reductionEpsilon } from './lightingTake';
+import { fitCurve } from './curveFit';
 
 // Recording a light show: capture what the operator is doing to the selected fixtures, live, and
 // turn it into a reusable take.
@@ -123,7 +124,11 @@ export function stop(name: string): LightingTake | null {
       // anything the reducer would flatten to a straight line is not a movement.
       const min = Math.min(...raw.v), max = Math.max(...raw.v);
       if (max - min <= epsilon) continue;
-      channels[role] = reduceCurve(raw, epsilon);
+      // FIT eased segments rather than reducing to a polyline. Same tolerance, in the same unit —
+      // what changes is that the result is something an operator can grab and move, instead of a few
+      // hundred points that can only be re-recorded. fitCurve falls back to the RDP reduction on any
+      // span it cannot improve, so this is never worse than what it replaced.
+      channels[role] = fitCurve(raw.t, raw.v, epsilon);
     }
     parts.push({ channels });
   }

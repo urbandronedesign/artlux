@@ -1,8 +1,9 @@
 import React from 'react';
 import { X } from 'lucide-react';
 import type {
-  ChannelRole, FixtureGroup, LightingClip, LightingForm, LightingPhaseMode, LightingTake, VideoClip,
+  ChannelRole, Fixture, FixtureGroup, LightingClip, LightingForm, LightingPhaseMode, LightingTake, VideoClip,
 } from '../../types';
+import { groupKind } from '../../services/fixtureKind';
 
 // The inspector for a LIGHTING clip — where a movement becomes a look.
 //
@@ -34,6 +35,8 @@ const isAngle = (role: ChannelRole) => role === 'pan' || role === 'tilt' || role
 interface Props {
   clip: VideoClip;
   groups: FixtureGroup[];
+  /** The rig, so a group's KIND can be derived — a lighting clip drives lights only. */
+  fixtures: Fixture[];
   takes: LightingTake[];
   onChange: (patch: Partial<LightingClip>) => void;
   onClose: () => void;
@@ -49,11 +52,17 @@ const Row: React.FC<{ label: string; children: React.ReactNode }> = ({ label, ch
 const sel = 'flex-1 min-w-0 bg-surface-0 border border-line-1 rounded-sm px-1 py-0.5 text-fg-1 focus:border-accent focus:outline-none';
 const num = 'w-16 bg-surface-0 border border-line-1 rounded-sm px-1 py-0.5 text-right text-fg-1 num focus:border-accent focus:outline-none';
 
-export const LightingClipInspector: React.FC<Props> = ({ clip, groups, takes, onChange, onClose }) => {
+export const LightingClipInspector: React.FC<Props> = ({ clip, groups, fixtures, takes, onChange, onClose }) => {
   const l = clip.lighting ?? {};
   const usingTake = !!l.takeId;
   const role = l.effect?.role ?? 'pan';
   const group = groups.find((g) => g.id === l.groupId);
+  const kind = group ? groupKind(group, fixtures) : null;
+  const groupWarning =
+    kind === 'mixed' ? 'This group mixes LED and light fixtures — only the lights will be driven.'
+    : kind === 'pixel' ? 'This group holds no light fixtures — a lighting clip drives nothing here.'
+    : kind === 'empty' ? 'This group is empty.'
+    : null;
 
   return (
     <div className="absolute top-2 right-2 z-30 w-64 bg-surface-1/95 backdrop-blur-sm border border-line-1 rounded-md p-2.5 shadow-e2 space-y-2"
@@ -132,6 +141,10 @@ export const LightingClipInspector: React.FC<Props> = ({ clip, groups, takes, on
         // will not move.
         <div className="text-micro text-warn">Pick a group — a clip with no group drives nothing.</div>
       )}
+      {/* A lighting clip is authored in ROLE space (pan in degrees, dimmer 0..1), and a role value
+          has nowhere to land on LED tape — so a mixed group is driven only in part, silently. Said
+          here rather than refused: the fix is the operator's (split the group, or accept it). */}
+      {groupWarning && <div className="text-micro text-warn">{groupWarning}</div>}
       {group && group.fixtureIds.length < 2 && (
         <div className="text-micro text-fg-3">One fixture: phase and mirror have nothing to spread across.</div>
       )}

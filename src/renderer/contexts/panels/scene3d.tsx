@@ -7,6 +7,7 @@ import { Tooltip } from '../../components/ui/Tooltip';
 import { help } from '../../services/helpBus';
 import { Button, NumberField } from '../../components/ui';
 import * as layout from '../../services/fixtureLayout';
+import { isLight } from '../../services/fixtureKind';
 
 // The 3D venue workbench, as panels — Objects and Fixtures in the browser column, the selected
 // model's transform and the scene lighting in the parameter column.
@@ -168,7 +169,11 @@ export const Scene3DFixturesPanel: React.FC = () => {
           onClick={(e) => onClick(f.id, e)}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); anchor.current = f.id; a.selectFixture(f.id, false); } }}
         >
-          <Lightbulb size={12} className="shrink-0" />
+          {/* By KIND, like the Mapping list. This panel predates the split and showed a lightbulb
+              for LED tape too, which reads as "everything here is a light". */}
+          {isLight(f)
+            ? <Lightbulb size={12} className="shrink-0" />
+            : <Box size={12} className="shrink-0" />}
           <span className="flex-1 truncate">{f.name}</span>
         </div>
       ))}
