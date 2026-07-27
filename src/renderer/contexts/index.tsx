@@ -20,7 +20,7 @@ import {
   GroupsPanel, GroupsHeaderActions, GlobalParamsPanel,
 } from './panels/browser';
 import {
-  SurfaceContentPanel, SurfaceTransformPanel, FixtureMappingPanel, FixtureSegmentsPanel,
+  SurfaceContentPanel, SurfaceTransformPanel, FixturePatchPanel, FixtureMappingPanel, FixtureSegmentsPanel,
   FixtureOutputPanel, FixtureRoutingPanel, FixtureLayout3DPanel,
   FixtureProfilePanel, FixtureChannelsPanel,
 } from './panels/inspector';
@@ -80,12 +80,21 @@ export function registerCoreWorkspace(): void {
   // The DMX profile comes FIRST in the fixture column: it decides what kind of light this is, and
   // therefore whether the pixel-oriented sections below it are even meaningful.
   panelRegistry.register({ id: 'core.inspector.fixture.profile', mount: 'inspector', title: 'DMX Profile', icon: <Lightbulb size={12} />, appliesTo: ['fixture'], Component: FixtureProfilePanel });
-  panelRegistry.register({ id: 'core.inspector.fixture.channels', mount: 'inspector', title: 'Channels', icon: <SlidersHorizontal size={12} />, appliesTo: ['fixture'], Component: FixtureChannelsPanel });
-  panelRegistry.register({ id: 'core.inspector.fixture.mapping', mount: 'inspector', title: 'Mapping', icon: <Grid3x3 size={12} />, appliesTo: ['fixture'], Component: FixtureMappingPanel });
-  panelRegistry.register({ id: 'core.inspector.fixture.segments', mount: 'inspector', title: 'Segments', icon: <Cable size={12} />, appliesTo: ['fixture'], Component: FixtureSegmentsPanel });
-  panelRegistry.register({ id: 'core.inspector.fixture.output', mount: 'inspector', title: '2D / Output', icon: <Grid3x3 size={12} />, appliesTo: ['fixture'], Component: FixtureOutputPanel });
+  // ── EVERY FIXTURE SECTION DECLARES ITS KIND ───────────────────────────────────────────────
+  // An LED strip and a moving head are two different devices, and this is where the shell is told
+  // so. Before this, exactly ONE of these gated on kind, so selecting a moving head offered you
+  // Serpentine, colour order, a ledmap upload, LED spacing — and an editable LED Count that
+  // silently shifted every fixture patched after it in the canonical pixel buffer.
+  //
+  // `fixture` (both kinds): profile — it is how you CHANGE the kind; patch/routing — every fixture
+  // is on a wire; arrange — rig-building is kind-agnostic. Everything else names one kind.
+  panelRegistry.register({ id: 'core.inspector.fixture.channels', mount: 'inspector', title: 'Channels', icon: <SlidersHorizontal size={12} />, appliesTo: ['fixture.light'], Component: FixtureChannelsPanel });
+  panelRegistry.register({ id: 'core.inspector.fixture.patch', mount: 'inspector', title: 'Patch', icon: <Hash size={12} />, appliesTo: ['fixture'], Component: FixturePatchPanel });
+  panelRegistry.register({ id: 'core.inspector.fixture.mapping', mount: 'inspector', title: 'Mapping', icon: <Grid3x3 size={12} />, appliesTo: ['fixture.pixel'], Component: FixtureMappingPanel });
+  panelRegistry.register({ id: 'core.inspector.fixture.segments', mount: 'inspector', title: 'Segments', icon: <Cable size={12} />, appliesTo: ['fixture.pixel'], Component: FixtureSegmentsPanel });
+  panelRegistry.register({ id: 'core.inspector.fixture.output', mount: 'inspector', title: '2D / Output', icon: <Grid3x3 size={12} />, appliesTo: ['fixture.pixel'], Component: FixtureOutputPanel });
   panelRegistry.register({ id: 'core.inspector.fixture.routing', mount: 'inspector', title: 'Routing', icon: <Network size={12} />, appliesTo: ['fixture'], Component: FixtureRoutingPanel });
-  panelRegistry.register({ id: 'core.inspector.fixture.layout3d', mount: 'inspector', title: '3D Layout', icon: <Box size={12} />, appliesTo: ['fixture'], Component: FixtureLayout3DPanel });
+  panelRegistry.register({ id: 'core.inspector.fixture.layout3d', mount: 'inspector', title: '3D Layout', icon: <Box size={12} />, appliesTo: ['fixture.pixel'], Component: FixtureLayout3DPanel });
   panelRegistry.register({ id: 'core.inspector.model.transform', mount: 'inspector', title: 'Model', icon: <Box size={12} />, appliesTo: ['model'], Component: ModelTransformPanel });
   // Rig-building for a multi-selection. Lives in the fixture column so it sits beside the 3D layout
   // it rearranges.
@@ -139,13 +148,16 @@ export function registerCoreWorkspace(): void {
       // Surface sections first: the surface is the thing you place, the fixture samples it.
       'core.inspector.surface.content', 'core.inspector.surface.transform',
       'core.inspector.fixture.profile', 'core.inspector.fixture.channels',
+      'core.inspector.fixture.patch',
       'core.inspector.fixture.mapping', 'core.inspector.fixture.segments',
       'core.inspector.fixture.output', 'core.inspector.fixture.routing',
       'core.inspector.fixture.layout3d', 'core.inspector.fixture.arrange',
     ],
     dock: ['core.dock.fixtureEditor', 'core.dock.media', 'core.dock.programPreview', 'core.dock.routing', 'core.dock.monitor', 'core.dock.perf'],
     layout: { showLeft: true, showRight: true, dockOpen: true, splitView: false, bottomOpen: false },
-    layoutRev: 3,
+    // 4: the fixture column gained `patch` (split out of Mapping) and every section now declares a
+    // kind — a banked slice from before that would never show the new section.
+    layoutRev: 4,
     hint: {
       en: 'Place surfaces, map content onto them, then patch fixtures. Ctrl+T pulls the timeline up.',
       fr: 'Placez les surfaces, mappez le contenu dessus, puis patchez les fixtures. Ctrl+T ouvre la timeline.',

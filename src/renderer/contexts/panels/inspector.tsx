@@ -251,6 +251,43 @@ export const SurfaceTransformPanel: React.FC = () => {
 };
 
 // ── Fixture ▸ Mapping ───────────────────────────────────────────────────────────────────────
+// ── Fixture ▸ Patch ─────────────────────────────────────────────────────────────────────────
+// WHERE ON THE WIRE — the half of the old Mapping panel that means something for BOTH kinds.
+//
+// The channel count is read through fixtureFootprint() rather than recomputed, so the number an
+// operator reads here is the number the patch actually reserves: a light's mode footprint, a pixel
+// fixture's ledCount x channelsPerPixel, and 0 for a light whose profile did not resolve.
+export const FixturePatchPanel: React.FC = () => {
+  const { fixtureProfiles } = useEditor();
+  const a = useEditorActions();
+  const f = useSelectedFixture();
+  if (!f) return null;
+  const span = fixtureFootprint(f, fixtureProfiles);
+  return (
+    <>
+      <NumberInput label="Universe" value={f.universe} step={1} onChange={(v) => a.updateFixture(f.id, { universe: Math.max(0, v) })} />
+      <NumberInput label="Start Addr" value={f.startAddress} step={1} onChange={(v) => a.updateFixture(f.id, { startAddress: Math.max(1, v) })} />
+      <div className="flex items-center justify-between text-mini text-fg-3 pt-1">
+        <span>Channels</span>
+        <span className="num text-fg-2">{span}</span>
+      </div>
+      {/* PAST WHAT THE DEVICE CAN SEND — a USB DMX widget drives ONE universe, so a fixture
+          auto-patched beyond it has nowhere to go. Badged, because the alternative is a fixture
+          that simply never lights and gives no reason why. */}
+      {f.patchOverflow && (
+        <div className="flex items-center gap-1.5 text-mini text-warn">
+          <AlertTriangle size={11} className="shrink-0" />
+          <span>Past this controller's last universe</span>
+        </div>
+      )}
+    </>
+  );
+};
+
+// ── Fixture ▸ Mapping (LED FIXTURES ONLY) ───────────────────────────────────────────────────
+// WHAT IT SAMPLES. A light fixture samples nothing — frameEngine returns before any sampling for
+// it — so a Surface dropdown, an LED count and a wiring direction are all meaningless on one. The
+// panel is registered `appliesTo: ['fixture.pixel']`, which is why there is no guard in the body.
 export const FixtureMappingPanel: React.FC = () => {
   const { surfaces } = useEditor();
   const a = useEditorActions();
@@ -273,8 +310,6 @@ export const FixtureMappingPanel: React.FC = () => {
         </Tooltip>
       </div>
       <NumberInput label="LED Count" value={f.ledCount} step={1} onChange={(v) => a.updateFixture(f.id, { ledCount: Math.max(1, v) })} />
-      <NumberInput label="Universe" value={f.universe} step={1} onChange={(v) => a.updateFixture(f.id, { universe: Math.max(0, v) })} />
-      <NumberInput label="Start Addr" value={f.startAddress} step={1} onChange={(v) => a.updateFixture(f.id, { startAddress: Math.max(1, v) })} />
       <div className="flex items-center justify-between mt-2 pt-2 border-t border-line-1">
         <Tooltip id="general.fixture-reverse">
           <span className="text-xs text-fg-2" {...help('general.fixture-reverse')}>Reverse Direction</span>

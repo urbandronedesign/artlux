@@ -1527,6 +1527,65 @@ check(
   },
 );
 
+// ── Fixtures: a LIGHT is one emitter — ledCount stays pinned to 1 ─────────────────────────────
+check(
+  'a light fixture\'s ledCount is pinned on the update funnel',
+  'types.ts has said "ledCount is pinned to 1 for a profiled fixture" since profiles landed, and ' +
+  'NOTHING enforced it — while both the Mapping inspector and the Routing grid exposed an editable ' +
+  '"LED Count" for every fixture, moving heads included. Raising it was silent corruption of an ' +
+  'evil shape: the head\'s own DMX is unaffected (its footprint comes from its MODE), so nothing ' +
+  'looks wrong at the fixture — but frameEngine walks the canonical pixel buffer with ' +
+  '`offset += f.ledCount`, so EVERY fixture patched after it shifts in that buffer. The DMX monitor ' +
+  'and the 3D LED colours misalign for the whole rest of the rig while correct Art-Net keeps ' +
+  'flowing. Hiding the controls is ergonomics; the clamp on the one funnel every fixture mutation ' +
+  'passes through is the cure, and it is what stops a future panel, plugin, OSC path or paste from ' +
+  'reopening it.',
+  () => {
+    const APP = 'src/renderer/App.tsx';
+    const src = read(APP);
+    if (!/const pinLedCount\s*=/.test(src)) return `${APP} no longer defines pinLedCount`;
+    if (!/isLight\(f\)\s*&&\s*f\.ledCount\s*!==\s*1/.test(src))
+      return 'pinLedCount no longer clamps a light fixture\'s ledCount to 1';
+    if (!/handleUpdateFixture[\s\S]{0,400}?pinLedCount\(/.test(src))
+      return 'handleUpdateFixture no longer routes its result through pinLedCount()';
+    return null;
+  },
+);
+
+// ── Shell: every fixture inspector section says which KIND it is for ──────────────────────────
+check(
+  'every fixture inspector section declares a kind',
+  'An LED strip and a moving head are two different devices. Of the eight fixture sections, exactly ' +
+  'ONE used to gate on kind — so selecting a moving head offered Serpentine, colour order, a ledmap ' +
+  'upload, LED spacing, and an editable LED Count that shifted the whole rig in the pixel buffer. ' +
+  'Gating belongs in the REGISTRATION (`appliesTo`), not in each panel body, because the shell ' +
+  'already filters on it and a body guard is invisible from the context manifest. Only four sections ' +
+  'legitimately apply to both kinds: `profile` (it is how you CHANGE the kind), `patch` and `routing` ' +
+  '(every fixture is on a wire) and `arrange` (rig-building is kind-agnostic). Anything else must ' +
+  'name fixture.pixel or fixture.light — this check is what stops the next panel silently ' +
+  'reintroducing the LED Count hole.',
+  () => {
+    const F = 'src/renderer/contexts/index.tsx';
+    const src = read(F);
+    const BOTH = new Set(['profile', 'patch', 'routing', 'arrange']);
+    const problems = [];
+    const re = /id:\s*'core\.inspector\.fixture\.(\w+)'[^\n]*?appliesTo:\s*\[([^\]]*)\]/g;
+    const seen = new Set();
+    let m;
+    while ((m = re.exec(src))) {
+      const [, name, kinds] = m;
+      seen.add(name);
+      const narrow = /'fixture\.(pixel|light)'/.test(kinds);
+      if (!narrow && !BOTH.has(name))
+        problems.push(`core.inspector.fixture.${name} applies to any fixture — name fixture.pixel or fixture.light`);
+    }
+    if (!seen.size) return `${F} registers no fixture inspector sections (the appliesTo shape changed?)`;
+    for (const need of ['mapping', 'channels', 'patch'])
+      if (!seen.has(need)) return `${F} no longer registers core.inspector.fixture.${need}`;
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);

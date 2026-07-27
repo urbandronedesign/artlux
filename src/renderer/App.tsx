@@ -975,11 +975,26 @@ const App: React.FC = () => {
     if (selectedFixtureId === id) setSelectedFixtureId(null);
   };
 
+  // ── A LIGHT FIXTURE IS ONE EMITTER — ledCount IS PINNED TO 1 ────────────────────────────────
+  //
+  // types.ts has said so since profiles landed, but nothing ENFORCED it, and the Mapping inspector
+  // and the Routing grid both exposed an editable "LED Count" for every fixture including a moving
+  // head. Raising it was silent corruption of a peculiarly evil kind: the head's own DMX is
+  // unaffected (its footprint comes from the mode), so nothing looks wrong at the fixture — but
+  // frameEngine walks the canonical pixel buffer with `offset += f.ledCount`, so EVERY fixture
+  // patched after it shifts in that buffer. The DMX monitor's pixel strip and the 3D LED colours
+  // misalign for the whole rest of the rig while correct Art-Net keeps flowing.
+  //
+  // Hiding the controls is ergonomics; THIS is the cure. It sits on the one funnel every fixture
+  // mutation passes through, so a future panel, a plugin, an OSC path or a paste cannot reopen it.
+  const pinLedCount = (f: Fixture): Fixture =>
+    isLight(f) && f.ledCount !== 1 ? { ...f, ledCount: 1 } : f;
+
   // Auto re-patch when something that affects addressing changes.
   const REPATCH_KEYS = ['ledCount', 'channelsPerPixel', 'controllerId', 'patchLocked'] as const;
   const handleUpdateFixture = (id: string, updates: Partial<Fixture>) => {
     recordHistory();
-    const mapped = fixtures.map(f => f.id === id ? { ...f, ...updates } : f);
+    const mapped = fixtures.map(f => f.id === id ? pinLedCount({ ...f, ...updates }) : f);
     const repatch = REPATCH_KEYS.some(k => k in updates);
     const next = repatch ? autoPatch(mapped, controllers, patchPolicy, undefined, fixtureProfiles) : mapped;
     dropTakenOverLegs({ surfaces, fixtures, globalBrightness }, { surfaces, fixtures: next, globalBrightness });

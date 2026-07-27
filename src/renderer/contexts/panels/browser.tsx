@@ -1,9 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Plus, Trash2, Folder, Box, Users, Copy, Layers, Hash, ChevronUp, ChevronDown } from 'lucide-react';
+import { Plus, Trash2, Folder, Box, Users, Copy, Layers, Hash, ChevronUp, ChevronDown, Lightbulb, AlertTriangle } from 'lucide-react';
+import type { Fixture } from '../../types';
 import { Slider } from '../../components/ui';
 import { Tooltip } from '../../components/ui/Tooltip';
 import { help } from '../../services/helpBus';
 import { livePreview } from '../../services/livePreview';
+import { fixtureFootprint, resolveMode } from '../../services/addressing';
+import {
+  fixtureKind, lightState, profileOf, KIND_LABEL, KIND_LABEL_PLURAL, type FixtureKind,
+} from '../../services/fixtureKind';
 import { useEditor, useEditorActions } from '../../state/EditorStore';
 import { useRovingTabindex } from '../../hooks/useRovingTabindex';
 
@@ -122,15 +127,33 @@ export const SurfacesHeaderActions: React.FC = () => {
 };
 
 // ── Fixtures ────────────────────────────────────────────────────────────────────────────────
+// ── THE LIST TELLS YOU WHICH KIND, WITHOUT A CLICK ──────────────────────────────────────────
+// This was one flat list where a 5-channel moving head and a 144-LED strip rendered identically:
+// same <Box> icon, same green dot, one count. Two devices on two different wires, and the only way
+// to tell them apart was to select one and read the inspector.
+//
+// The dot is gone too. It was `bg-ok` on EVERY row with the title "Patched", which is not a status —
+// it is decoration that reads as one. The two states worth a marker are the two that are otherwise
+// invisible and both mean "this fixture will not light": an unresolved profile (reserving zero
+// channels) and a patch overflow (addressed past what its controller can send).
+const KIND_ORDER = ['pixel', 'light'] as const;
+
 export const FixturesPanel: React.FC = () => {
-  const { fixtures, selectedFixtureId, selectedFixtureIds } = useEditor();
+  const { fixtures, fixtureProfiles, selectedFixtureId, selectedFixtureIds } = useEditor();
   const a = useEditorActions();
   const rename = useRename(a.renameFixture);
+  const [filter, setFilter] = useState<'all' | FixtureKind>('all');
 
-  // Plain click = single, ctrl/cmd = toggle, shift = range from the primary selection.
+  const shown = filter === 'all' ? fixtures : fixtures.filter((f) => fixtureKind(f) === filter);
+  const counts = { pixel: 0, light: 0 };
+  for (const f of fixtures) counts[fixtureKind(f)]++;
+
+  // Shift-range walks the DISPLAYED order. Using the unfiltered array here would silently select a
+  // span the operator cannot see — the rows between two visible ones are not the rows between them
+  // in `fixtures` once the list is filtered and grouped.
   const onClick = (e: React.MouseEvent, id: string) => {
     if (e.shiftKey && selectedFixtureId) {
-      const order = fixtures.map((f) => f.id);
+      const order = KIND_ORDER.flatMap((k) => shown.filter((f) => fixtureKind(f) === k)).map((f) => f.id);
       const from = order.indexOf(selectedFixtureId);
       const to = order.indexOf(id);
       if (from !== -1 && to !== -1) {
@@ -142,10 +165,79 @@ export const FixturesPanel: React.FC = () => {
     a.selectFixture(id, e.ctrlKey || e.metaKey);
   };
 
-  const roving = useRovingTabindex(fixtures.length);
+  const roving = useRovingTabindex(shown.length);
+  let rovingIdx = 0;
+
+  const row = (f: Fixture, idx: number) => {
+    const sel = selectedFixtureIds.includes(f.id);
+    const state = lightState(f, fixtureProfiles);
+    const light = state !== 'pixel';
+    const profile = profileOf(f, fixtureProfiles);
+    const mode = profile ? resolveMode(profile, f.profileMode) : undefined;
+    // What this fixture IS, in one glance: a light reads as its model + mode + footprint, a strip as
+    // its pixel count + the channels those pixels occupy. Both numbers come from the footprint owner.
+    const detail = light
+      ? (profile ? `${mode?.name ?? mode?.key ?? ''} · ${fixtureFootprint(f, fixtureProfiles)}ch`.replace(/^ · /, '') : 'no profile')
+      : `${f.ledCount}px · ${fixtureFootprint(f, fixtureProfiles)}ch`;
+    const warn = state === 'light-unresolved'
+      ? 'Profile not found — this fixture reserves no channels and will not light'
+      : f.patchOverflow
+        ? "Past this controller's last universe — it will not light"
+        : null;
+    return (
+      <div
+        key={f.id}
+        role="button"
+        aria-pressed={sel}
+        aria-label={`${KIND_LABEL[fixtureKind(f)]} ${f.name}`}
+        {...roving.getItemProps(idx)}
+        onClick={(e) => onClick(e, f.id)}
+        onDoubleClick={() => rename.start(f.id, f.name)}
+        onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); a.selectFixture(f.id, false); } }}
+        className={`pressable flex items-center group px-2 py-1.5 rounded cursor-pointer transition-colors ${sel ? 'bg-accent/20 text-white' : 'text-fg-2 hover:bg-surface-3'}`}
+      >
+        {light
+          ? <Lightbulb size={12} className={`mr-2 shrink-0 ${sel ? 'text-accent' : 'text-fg-3'}`} />
+          : <Box size={12} className={`mr-2 shrink-0 ${sel ? 'text-accent' : 'text-fg-3'}`} />}
+        {rename.editingId === f.id
+          ? rename.input('border-accent')
+          : <span className="flex-1 truncate select-none" title="Double-click to rename">{f.name}</span>}
+        <span className="ml-2 text-micro text-fg-3 num shrink-0 truncate max-w-[9rem] group-hover:hidden" title={detail}>{detail}</span>
+        <div className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 flex gap-1">
+          <button
+            className="p-0.5 hover:text-danger text-fg-3 focus-visible:opacity-100"
+            onClick={(e) => { e.stopPropagation(); a.removeFixture(f.id); }}
+            title="Remove Fixture"
+            aria-label={`Remove fixture ${f.name}`}
+          ><Trash2 size={10} /></button>
+        </div>
+        {warn && (
+          <span className="ml-2 shrink-0 text-warn" title={warn} role="img" aria-label={warn}>
+            <AlertTriangle size={11} />
+          </span>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="p-1">
+      {/* The filter is a PREFERENCE, not project data — it lives in component state on purpose. */}
+      {counts.pixel > 0 && counts.light > 0 && (
+        <div className="flex gap-0.5 mb-1.5 px-1">
+          {(['all', 'pixel', 'light'] as const).map((k) => (
+            <button
+              key={k}
+              onClick={() => setFilter(k)}
+              aria-pressed={filter === k}
+              className={`flex-1 flex items-center justify-center gap-1 text-micro py-0.5 rounded-sm border transition-colors ${filter === k ? 'bg-accent/10 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3'}`}
+            >
+              <span>{k === 'all' ? 'All' : k === 'pixel' ? 'LED' : 'Light'}</span>
+              <span className="num opacity-60">{k === 'all' ? fixtures.length : counts[k]}</span>
+            </button>
+          ))}
+        </div>
+      )}
       <div className="mb-1">
         <Tooltip id="general.select-all-fixtures">
           <div
@@ -163,36 +255,20 @@ export const FixturesPanel: React.FC = () => {
           </div>
         </Tooltip>
         <div className="pl-4 border-l border-line-1 ml-2.5 mt-1 space-y-0.5" ref={roving.containerRef} onKeyDown={roving.onKeyDown}>
-          {fixtures.map((f, idx) => {
-            const sel = selectedFixtureIds.includes(f.id);
+          {KIND_ORDER.map((kind) => {
+            const rows = shown.filter((f) => fixtureKind(f) === kind);
+            if (!rows.length) return null;
             return (
-              <div
-                key={f.id}
-                role="button"
-                aria-pressed={sel}
-                aria-label={`Fixture ${f.name}`}
-                {...roving.getItemProps(idx)}
-                onClick={(e) => onClick(e, f.id)}
-                onDoubleClick={() => rename.start(f.id, f.name)}
-                onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); a.selectFixture(f.id, false); } }}
-                className={`pressable flex items-center group px-2 py-1.5 rounded cursor-pointer transition-colors ${sel ? 'bg-accent/20 text-white' : 'text-fg-2 hover:bg-surface-3'}`}
-              >
-                <Box size={12} className={`mr-2 ${sel ? 'text-accent' : 'text-fg-3'}`} />
-                {rename.editingId === f.id
-                  ? rename.input('border-accent')
-                  : <span className="flex-1 truncate select-none" title="Double-click to rename">{f.name}</span>}
-                <div className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 flex gap-1">
-                  <button
-                    className="p-0.5 hover:text-danger text-fg-3 focus-visible:opacity-100"
-                    onClick={(e) => { e.stopPropagation(); a.removeFixture(f.id); }}
-                    title="Remove Fixture"
-                    aria-label={`Remove fixture ${f.name}`}
-                  ><Trash2 size={10} /></button>
-                </div>
-                {/* Presence indicator — the same for every fixture, so it's decorative, not a status
-                    an operator must decode by colour. Hidden from AT (a bare green dot conveys nothing
-                    a screen-reader user could act on). */}
-                <div className="w-1 h-1 rounded-full bg-ok ml-2 shadow-[0_0_4px_rgba(63,185,80,0.5)]" title="Patched" aria-hidden="true" />
+              <div key={kind} className="space-y-0.5">
+                {/* The heading only earns its line when there is something to disambiguate. */}
+                {counts.pixel > 0 && counts.light > 0 && filter === 'all' && (
+                  <div className="flex items-center gap-1.5 px-2 pt-1.5 pb-0.5 text-micro uppercase tracking-wider text-fg-3 select-none">
+                    {kind === 'light' ? <Lightbulb size={10} /> : <Box size={10} />}
+                    <span>{KIND_LABEL_PLURAL[kind]}</span>
+                    <span className="ml-auto num">{rows.length}</span>
+                  </div>
+                )}
+                {rows.map((f) => row(f, rovingIdx++))}
               </div>
             );
           })}
