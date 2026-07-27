@@ -36,6 +36,7 @@ import { configureOutput, addStatusListener } from './services/mockSocketService
 import { perfMonitor } from './services/perfMonitor';
 import { uiPerfMonitor } from './services/uiPerfMonitor';
 import { telemetry } from './services/telemetry';
+import { useStableHandlers } from './hooks/useStableHandlers';
 import { frameEngine, EMPTY_PROFILES as ENGINE_EMPTY_PROFILES } from './engine/frameEngine';
 import { UiProfiler } from './components/UiProfiler';
 import { getDrawable, getDrawableGeneration, resolveSource } from './services/surfaceMedia';
@@ -495,6 +496,7 @@ const App: React.FC = () => {
   // The one thing the engine hands back: a surface auto-fitted to its content's aspect ratio.
   useEffect(() => { frameEngine.setHost({ onSurfacesAutoFitted: setSurfaces }); }, []);
 
+
   useEffect(() => {
     // No operator in broadcast/headless — the global undo/redo/select keybindings have no place there,
     // and undo()/redo() are no-ops in that mode anyway (see the SHOW_ENGINE gate above).
@@ -607,6 +609,7 @@ const App: React.FC = () => {
     if (is3DMaximized) { setSplitRatio(prevSplitRatio.current > 0.2 ? prevSplitRatio.current : 0.5); }
     else { prevSplitRatio.current = splitRatio; if (!splitView) setSplitView(true); setSplitRatio(MAX_3D_RATIO); }
   };
+
   // Single-target selection with optional additive (ctrl/cmd) toggle. Clicking an
   // already-selected member without a modifier keeps the multi-selection (so it stays
   // draggable) and just moves the primary; clicking elsewhere selects only that fixture.
@@ -3284,6 +3287,42 @@ const App: React.FC = () => {
     settings, patchPolicy, globalBrightness, projectorBrightness, isVideoPlaying,
   ]);
 
+  // ── Stable props for the 2D stage ─────────────────────────────────────────────────────────────
+  // Stage is memoized, and a memo is only worth anything if the props it compares actually hold still.
+  // These handlers get permanent identities that forward to today's closures (useStableHandlers), and
+  // the toolbar is rebuilt only when the two flags it draws change — so switching workspace context,
+  // or any other App render that has nothing to do with the stage, no longer reconciles it.
+  const stageHandlers = useStableHandlers({
+    onDropAsset: handleDropAssetOnSurface,
+    onSelectSurface: handleSelectSurface,
+    onSelectFixture: handleSelectFixture,
+    onRecordHistory: recordHistory,
+    onToggle3DMax: handleToggle3DMax,
+  });
+  const stageExtraControls = useMemo(() => (
+    <>
+      <button
+        onClick={() => setSplitView(v => !v)}
+        title={splitView ? 'Hide 3D scene' : 'Show 3D scene (split view)'}
+        aria-label="Toggle 3D split view"
+        aria-pressed={splitView}
+        className={`p-1.5 rounded-sm border transition-colors ${splitView ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
+      >
+        <Columns2 size={14} />
+      </button>
+      <button
+        onClick={stageHandlers.onToggle3DMax}
+        title={is3DMaximized ? 'Restore split' : 'Maximize 3D scene'}
+        aria-label="Maximize 3D scene"
+        aria-pressed={is3DMaximized}
+        className={`p-1.5 rounded-sm border transition-colors ${is3DMaximized ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
+      >
+        {is3DMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+      </button>
+    </>
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ), [splitView, is3DMaximized]);
+
   const editorActions: EditorActions = {
     selectSurface: handleSelectSurface,
     addSurface: handleAddSurface,
@@ -3431,40 +3470,23 @@ const App: React.FC = () => {
           [VIEWPORT_STAGE_2D]: (
               <UiProfiler id="viewport:stage2d">
                 <div className="w-full h-full relative">
+                    {/* Every prop here is referentially stable unless it genuinely changed — the
+                        handlers through useStableHandlers, the toolbar through useMemo, the rest are
+                        state values and useState setters. That is what lets Stage's React.memo
+                        actually bail out instead of paying for a compare that always fails. */}
                     <Stage
                         surfaces={surfaces}
                         onUpdateSurfaces={setSurfaces}
-                        onDropAsset={handleDropAssetOnSurface}
+                        onDropAsset={stageHandlers.onDropAsset}
                         selectedSurfaceId={selectedSurfaceId}
-                        onSelectSurface={handleSelectSurface}
+                        onSelectSurface={stageHandlers.onSelectSurface}
                         fixtures={fixtures}
                         onUpdateFixtures={setFixtures}
                         selectedFixtureId={selectedFixtureId}
                         selectedFixtureIds={selectedFixtureIds}
-                        onSelectFixture={handleSelectFixture}
-                        onRecordHistory={recordHistory}
-                        extraControls={
-                            <>
-                                <button
-                                    onClick={() => setSplitView(v => !v)}
-                                    title={splitView ? 'Hide 3D scene' : 'Show 3D scene (split view)'}
-                                    aria-label="Toggle 3D split view"
-                                    aria-pressed={splitView}
-                                    className={`p-1.5 rounded-sm border transition-colors ${splitView ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
-                                >
-                                    <Columns2 size={14} />
-                                </button>
-                                <button
-                                    onClick={handleToggle3DMax}
-                                    title={is3DMaximized ? 'Restore split' : 'Maximize 3D scene'}
-                                    aria-label="Maximize 3D scene"
-                                    aria-pressed={is3DMaximized}
-                                    className={`p-1.5 rounded-sm border transition-colors ${is3DMaximized ? 'bg-accent/15 border-accent text-accent' : 'bg-surface-2 border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1'}`}
-                                >
-                                    {is3DMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-                                </button>
-                            </>
-                        }
+                        onSelectFixture={stageHandlers.onSelectFixture}
+                        onRecordHistory={stageHandlers.onRecordHistory}
+                        extraControls={stageExtraControls}
                     />
                 </div>
               </UiProfiler>

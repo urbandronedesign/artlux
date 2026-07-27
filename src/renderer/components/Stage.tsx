@@ -32,7 +32,7 @@ interface StageProps {
   extraControls?: React.ReactNode;
 }
 
-export const Stage: React.FC<StageProps> = ({
+const StageView: React.FC<StageProps> = ({
   surfaces,
   onUpdateSurfaces,
   onDropAsset,
@@ -803,3 +803,12 @@ export const Stage: React.FC<StageProps> = ({
     </div>
   );
 };
+
+// MEMOIZED, and that is only meaningful because App hands it stable props.
+//
+// This is the heaviest always-mounted element in the app, and it used to reconcile on every App
+// render — including ones that had nothing to do with it, like switching workspace context. A
+// shallow compare cannot bail out while the parent builds fresh callbacks and inline JSX per render,
+// so App wraps the handlers with useStableHandlers and memoizes extraControls. Remove either and
+// this memo silently becomes a wasted comparison rather than a saving.
+export const Stage = React.memo(StageView);
