@@ -1665,6 +1665,35 @@ check(
   },
 );
 
+// ── Lighting: a pose sequence is COMPILED, never filtered per frame ───────────────────────────
+check(
+  'pose sequences are compiled on edit, not resolved in the frame loop',
+  'A LightingSequence is stored the way an operator thinks — a list of moments, each holding a POSE ' +
+  'per slot. The engine wants the opposite: for one fixture and one role, a curve. The rule that ' +
+  'converts between them ("the nearest keys before and after that CARRY this role") is a scan over ' +
+  'every key — and evaluated live it would run per fixture, per role, PER FRAME, which is allocation ' +
+  'and search on the exact path lightingOverlay is a plain nested map to avoid. So it is applied ' +
+  'once, on edit and on load, and the frame loop only ever calls sampleLane on a plain Keyframe[]. ' +
+  'The cache is a WeakMap on the sequence OBJECT: state is immutable here, so an edited sequence ' +
+  'misses by construction and there is no revision counter to forget to bump.',
+  () => {
+    const C = 'src/renderer/services/lightingSequence.ts';
+    const P = 'src/renderer/services/lightingPlayback.ts';
+    if (!exists(C)) return `${C} is missing (the sequence compiler)`;
+    const comp = read(C);
+    if (!/new WeakMap</.test(comp))
+      return `${C} no longer caches compilations in a WeakMap — every frame would recompile`;
+    if (!/export function compile\(/.test(comp)) return `${C} no longer exports compile()`;
+    const play = read(P);
+    if (!/compileSequence\(/.test(play))
+      return `${P} no longer compiles the sequence — it would be resolving pose keys in the frame loop`;
+    // The frame loop must not walk a sequence's keys itself.
+    if (/\.keys\b[^\n]*\b(find|filter|map|forEach|reduce)\b/.test(play))
+      return `${P} iterates a sequence's keys in the frame loop — that work belongs in compile()`;
+    return null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);

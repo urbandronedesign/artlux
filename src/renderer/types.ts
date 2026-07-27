@@ -563,6 +563,8 @@ export interface Timeline {
   // when a project folder moves, no extra IPC. Revisit if takes ever get long enough to bloat the
   // project file; the format below is already reduced on capture.
   lightingTakes?: LightingTake[];
+  /** Authored pose sequences (see LightingSequence). Inlined for the same reasons takes are. */
+  lightingSequences?: LightingSequence[];
   automation?: AutomationLane[];     // keyframe curves over the playhead (P4)
   // A timeline's OWN audio — audio that plays with THIS timeline's picture and restarts when it does.
   //
@@ -772,6 +774,39 @@ const normalizeLightingTakes = (lt: unknown): LightingTake[] => {
   });
 };
 
+// Pose sequences. Same doctrine as takes: coerce, drop only what cannot be interpreted, and enforce
+// the ascending-`t` invariant the cursor sampler assumes.
+const normalizePose = (p: unknown): LightingPose => {
+  if (!p || typeof p !== 'object' || Array.isArray(p)) return {};
+  const out: LightingPose = {};
+  for (const [role, v] of Object.entries(p)) {
+    if (typeof v === 'number' && Number.isFinite(v)) out[role as ChannelRole] = v;
+  }
+  return out;
+};
+
+const normalizeLightingSequences = (ls: unknown): LightingSequence[] => {
+  if (!Array.isArray(ls)) return [];
+  return (ls as Partial<LightingSequence>[]).flatMap((s) => {
+    if (!s || typeof s !== 'object' || Array.isArray(s)) return [];
+    if (typeof s.id !== 'string' || !Number.isFinite(s.duration)) return [];
+    const keys = (Array.isArray(s.keys) ? s.keys : [])
+      .filter((k): k is LightingKey => !!k && typeof k === 'object' && Number.isFinite(k.t))
+      .map((k) => ({
+        ...k,
+        // A key with NO slots drives nothing but is not junk — it is a moment with an empty pose,
+        // which the compiler skips. Coerced to an array so the compiler's `.length` is safe.
+        slots: (Array.isArray(k.slots) ? k.slots : []).map(normalizePose),
+        curve: k.curve ?? 'linear' as CurveKind,
+      }))
+      .sort((a, b) => a.t - b.t);
+    return [{
+      version: 1 as const, id: s.id, name: typeof s.name === 'string' ? s.name : 'Sequence',
+      duration: s.duration as number, keys,
+    }];
+  });
+};
+
 // Sanitise a clip's numeric fields so junk (NaN, a string, Infinity) can never escape
 // normalizeTimeline. Coerce, do not drop: a clip with a bad number is recoverable user data (the
 // user can see and fix a zero-duration clip); silently deleting it is not. `start`/`duration`
@@ -975,6 +1010,7 @@ export const normalizeTimeline = (t: Partial<Timeline> | null | undefined): Time
     // ⚠ AFTER the spread for the same reason as `audio` below: this is where a legacy `{t,v}` curve
     // becomes `Keyframe[]`, and `...rest` would otherwise hand the old shape straight to the sampler.
     lightingTakes: normalizeLightingTakes(t.lightingTakes),
+    lightingSequences: normalizeLightingSequences(t.lightingSequences),
     markers: normalizeMarkers(t.markers),
     // ⚠ AFTER the spread, like every other array: `...rest` above would otherwise pass a hand-edited
     // `"audio": 5` or `{"clips": null}` straight into the lane renderer and the audio driver, both of
@@ -1408,6 +1444,51 @@ export interface LightingTake {
   parts: LightingTakePart[];  // ordered
 }
 
+// ── POSE KEYFRAMES — authoring a look, rather than recording or generating one ────────────────
+//
+// A take is a RECORDING and an effect is a GENERATOR. Neither can express the most ordinary thing in
+// lighting: "at 0 s the group looks like THIS, at 4 s like THAT, ease between". That gap is why a
+// show could be busked or phased but never authored.
+
+/** What one slot of the group is doing. SPARSE — an absent role is not driven by this key. */
+export type LightingPose = Partial<Record<ChannelRole, number>>;
+
+export interface LightingKey {
+  t: number;                        // seconds, sequence-local
+  /**
+   * One pose per SLOT of the target group, on the same index-wraps axis a take's `parts` uses.
+   * ONE slot ⇒ the whole group takes the same pose — the common case, and the reason a forty-head
+   * look costs one entry rather than forty.
+   */
+  slots: LightingPose[];
+  curve?: CurveKind;                // shapes the segment STARTING here; default 'linear'
+  cx1?: number; cy1?: number; cx2?: number; cy2?: number;
+  /** Per-role override, so a dimmer can snap while the pan eases through the same key. */
+  roleCurves?: Partial<Record<ChannelRole, CurveKind>>;
+  name?: string;                    // "verse", "blackout" — this is a cue label, and it belongs here
+}
+
+/**
+ * An ordered list of pose keys. The THIRD thing a lighting clip can play, beside a take and an
+ * effect.
+ *
+ * ⚠ THE SAMPLING RULE IS PER-ROLE AND SPARSE, and every consequence of it is deliberate: to sample
+ * role R at time t, use the nearest keys before and after that CARRY R. A role in exactly one key is
+ * constant; a role in no key is not driven at all. So "fade the dimmer up over 4 s while the pan
+ * holds" is two keys and no filler, a movement-only sequence still leaves colour alone (preserving
+ * the layering that `sampleRole` returning undefined exists to protect), and a take is simply the
+ * degenerate case where every role's keys happen to be dense.
+ *
+ * See services/lightingSequence.ts — the rule is COMPILED on edit, never filtered per frame.
+ */
+export interface LightingSequence {
+  version: 1;
+  id: string;
+  name: string;
+  duration: number;                 // seconds
+  keys: LightingKey[];              // INVARIANT: ascending t (the normalizer enforces it)
+}
+
 /** The shape of a generated (procedural) movement — a console "phaser", with no recording behind it. */
 export type LightingForm = 'sine' | 'triangle' | 'ramp' | 'square' | 'random';
 
@@ -1423,10 +1504,16 @@ export interface LightingEffect {
 export type LightingPhaseMode = 'spread' | 'wing' | 'block' | 'random';
 
 export interface LightingClip {
-  /** The recorded take. Mutually exclusive with `effect`. */
+  /** The recorded take. Mutually exclusive with `effect` and `sequenceId`. */
   takeId?: string;
-  /** A generated movement instead of a recording. Mutually exclusive with `takeId`. */
+  /** A generated movement instead of a recording. Mutually exclusive with the other two. */
   effect?: LightingEffect;
+  /**
+   * AUTHORED pose keys — the third source, and the one you can edit. Mutually exclusive with the
+   * other two; resolution order where a file carries more than one is sequence → take → effect,
+   * because the authored thing is the one the operator most recently meant.
+   */
+  sequenceId?: string;
   /**
    * The ORDERED group this clip drives. Order is the spread axis, exactly as a console's selection
    * order is — which is why groups are never sorted on the way in.

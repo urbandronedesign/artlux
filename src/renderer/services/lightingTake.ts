@@ -2,6 +2,7 @@ import type {
   ChannelRole, Keyframe, LightingClip, LightingEffect, LightingTake, LightingTakePart,
 } from '../types';
 import { sampleLane, type Cursor } from './automation';
+import { curveFor, type CompiledSequence } from './lightingSequence';
 
 // Sampling a light show: turning a take (or a generated effect) plus a clip's spread into "what is
 // fixture N doing at time T".
@@ -92,12 +93,18 @@ export function phaseOffset(clip: LightingClip, index: number, total: number): n
 }
 
 /** Every role a take (or effect) can drive, honouring the clip's mask. */
-export function rolesOf(clip: LightingClip, take: LightingTake | undefined): ChannelRole[] {
+export function rolesOf(
+  clip: LightingClip,
+  take: LightingTake | undefined,
+  sequence?: CompiledSequence,
+): ChannelRole[] {
   const all = new Set<ChannelRole>();
   if (clip.effect) all.add(clip.effect.role);
   for (const part of take?.parts ?? []) {
     for (const role of Object.keys(part.channels) as ChannelRole[]) all.add(role);
   }
+  // Collected at compile time, so this does not walk the keys again per frame.
+  for (const role of sequence?.roles ?? []) all.add(role);
   const mask = clip.roleMask;
   return [...all].filter((r) => !mask || mask.includes(r));
 }
@@ -105,6 +112,8 @@ export function rolesOf(clip: LightingClip, take: LightingTake | undefined): Cha
 export interface SampleContext {
   clip: LightingClip;
   take?: LightingTake;
+  /** Authored pose keys, already compiled to per-slot curves (services/lightingSequence). */
+  sequence?: CompiledSequence;
   /** Seconds into the clip's own timeline (already trimmed by inPoint). */
   localTime: number;
   /** Position of this fixture within the target group. */
@@ -120,11 +129,18 @@ export interface SampleContext {
  * layer (movement from one, colour from another) the way a console layers effects.
  */
 export function sampleRole(ctx: SampleContext, role: ChannelRole, cursor?: Cursor): number | undefined {
-  const { clip, take, localTime, index, total } = ctx;
+  const { clip, take, sequence, localTime, index, total } = ctx;
   const time = localTime - phaseOffset(clip, index, total);
 
   let value: number | undefined;
-  if (clip.effect && clip.effect.role === role) {
+  // AUTHORED FIRST. A clip carries one source, but a hand-edited file could name several, and the
+  // authored one is what the operator most recently meant. A sequence WRAPS like a take, for the
+  // same reason: a phase-delayed fixture is sampled past the end and must fold back rather than
+  // freeze on the last pose.
+  if (sequence) {
+    const curve = curveFor(sequence, index, role);
+    if (curve) value = sampleCurve(curve, wrapIntoTake(time, sequence.duration), cursor);
+  } else if (clip.effect && clip.effect.role === role) {
     value = sampleEffect(clip.effect, time);
   } else if (take && take.parts.length) {
     // Part i drives fixture i, wrapping — so a one-part take fans across the whole group and an
@@ -138,7 +154,7 @@ export function sampleRole(ctx: SampleContext, role: ChannelRole, cursor?: Curso
   // Amplitude and bias, about the value's own centre where one is known.
   const scale = clip.scale ?? 1;
   if (scale !== 1) {
-    const centre = clip.effect && clip.effect.role === role ? clip.effect.centre : centreOf(take, role);
+    const centre = clip.effect && clip.effect.role === role ? clip.effect.centre : centreOf(take, role, sequence);
     value = centre + (value - centre) * scale;
   }
   if (clip.offset) value += clip.offset;
@@ -146,7 +162,7 @@ export function sampleRole(ctx: SampleContext, role: ChannelRole, cursor?: Curso
   // MIRROR flips the back half of the group about pan's centre. Only pan: mirroring tilt would aim
   // half the rig at the floor and the other half at the ceiling, which is never what is wanted.
   if (clip.mirror && role === 'pan' && index >= Math.ceil(total / 2)) {
-    const centre = clip.effect?.role === 'pan' ? clip.effect.centre : centreOf(take, 'pan');
+    const centre = clip.effect?.role === 'pan' ? clip.effect.centre : centreOf(take, 'pan', sequence);
     value = centre - (value - centre);
   }
 
@@ -164,13 +180,20 @@ function wrapIntoTake(time: number, duration: number): number {
 }
 
 /** The midpoint of a take's range for one role — the anchor `scale` and `mirror` work about. */
-function centreOf(take: LightingTake | undefined, role: ChannelRole): number {
+function centreOf(
+  take: LightingTake | undefined,
+  role: ChannelRole,
+  sequence?: CompiledSequence,
+): number {
   let min = Infinity, max = -Infinity;
-  for (const part of take?.parts ?? []) {
-    const c = part.channels[role];
-    if (!c) continue;
-    for (const k of c) { if (k.v < min) min = k.v; if (k.v > max) max = k.v; }
-  }
+  const scan = (kfs: Keyframe[] | undefined) => {
+    if (!kfs) return;
+    for (const k of kfs) { if (k.v < min) min = k.v; if (k.v > max) max = k.v; }
+  };
+  for (const part of take?.parts ?? []) scan(part.channels[role]);
+  // A SEQUENCE NEEDS THIS TOO. `scale` and `mirror` work about the value's own centre, and without
+  // it a mirrored pan would flip about 0° — aiming half the rig at the back wall.
+  for (const slot of sequence?.slots ?? []) scan(slot.get(role));
   return Number.isFinite(min) ? (min + max) / 2 : 0;
 }
 

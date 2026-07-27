@@ -2,6 +2,7 @@ import type { Fixture, FixtureGroup, Timeline, VideoClip } from '../types';
 import { timeline as engine } from './timeline';
 import * as overlay from './lightingOverlay';
 import { rolesOf, sampleRole } from './lightingTake';
+import { compile as compileSequence } from './lightingSequence';
 
 // Replays LIGHTING clips during timeline playback: for every clip under the playhead, work out what
 // each fixture of its target group should be doing and publish it to the lighting overlay.
@@ -90,19 +91,26 @@ function tick(playhead: number): void {
   for (const clip of clips) {
     const lighting = clip.lighting!;
     const take = lighting.takeId ? data?.lightingTakes?.find((t) => t.id === lighting.takeId) : undefined;
-    if (!take && !lighting.effect) continue;
+    const seq = lighting.sequenceId
+      ? data?.lightingSequences?.find((s) => s.id === lighting.sequenceId) : undefined;
+    // Compiled behind a WeakMap on the sequence object, so this is a lookup after the first frame
+    // and a recompile only when an edit produced a new object. See services/lightingSequence.
+    const sequence = seq ? compileSequence(seq) : undefined;
+    // An unresolved id drives NOTHING — never a fallback to another source. A clip whose sequence is
+    // missing (a project opened without it) must go quiet, not silently play the take beside it.
+    if (!sequence && !take && !lighting.effect) continue;
 
     const targets = targetsOf(clip);
     if (!targets.length) continue;
 
-    const roles = rolesOf(lighting, take);
+    const roles = rolesOf(lighting, take, sequence);
     if (!roles.length) continue;
 
     // Time within the clip, honouring its trim — so sliding a clip moves the look with it.
     const localTime = playhead - clip.start + (clip.inPoint ?? 0);
 
     for (let i = 0; i < targets.length; i++) {
-      const ctx = { clip: lighting, take, localTime, index: i, total: targets.length };
+      const ctx = { clip: lighting, take, sequence, localTime, index: i, total: targets.length };
       for (const role of roles) {
         const v = sampleRole(ctx, role, cursorFor(clip.id, targets[i].id, role));
         if (v !== undefined) overlay.set(targets[i].id, role, v);
