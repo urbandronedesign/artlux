@@ -728,6 +728,17 @@ incident here was GPU/decode/IO and never React. Canonical plan, WP tracker and 
 - **`scripts/test-engine-output.cjs`** (`967648d`) — a committed harness that proves on the wire what
   `verify` can only assert about source: output survives the Stage's canvas *and container* being
   deleted out of the live DOM, a full context tour, and `--headless` with no view mounted at all.
+- **WP-0.4 — the Stage is memoized, and the real UI cost turns out to be elsewhere** (`eced6ea`).
+  `hooks/useStableHandlers` extracts the `EditorStore` Proxy trick (permanent identities forwarding to
+  today's closures) so App can apply it to callbacks passed as **props**; with that plus a memoized
+  toolbar, every Stage prop is referentially stable and `viewport:stage2d` commit time during a context
+  tour drops **1.2 ms → 0.0 ms**. **The measurement matters more than the change:** the same run shows
+  **`viewport:timeline` at 224 ms/s across 10 commits** (~22 ms each) — on the panel open in eight of
+  nine contexts — versus scenes 13.7 ms, outputs 2.5 ms, stage 1.2 ms. **That is the source of the
+  p99 54 → 155 ms hitching**, so the next UI-cost work belongs in `TimelinePanel`, not in another
+  memoization sweep. ⚠ Commit *counts* would have hidden this entirely: the Profiler measures its whole
+  subtree and App rebuilds each viewport's wrapper `<div>` every render, so the count read 1 → 1 while
+  the **time** read 1.2 → 0.
 
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
