@@ -771,6 +771,16 @@ incident here was GPU/decode/IO and never React. Canonical plan, WP tracker and 
   toolbar are memoized, and handed props that hold still`. **What remains is ~10 ms per render of
   Timeline's own body**, which no memo reaches — making the drag render-free is the next idea.
 
+- **WP-0.M — the closing measurement: what the Phase-0 UI work actually bought** (`_pending_`). Re-ran
+  WP-3.M's stress on the same project with the profiler off. **Idle frame p99 54 → 21 ms and long frames
+  18 → 0 / 240** — the tail is gone, which is WP-0.5's 177 ms/s seen from the frame-timing end instead of
+  the React end. **Under heavy UI load the p99 is unchanged (155 → 168).** That is the finding rather than
+  a failure: the load-case hitching was never React commit cost — it is the context switch itself (~70–105
+  ms) plus forced layout, and no memoization reaches either. Output dipped 61.9 → 54.7 Hz through the load
+  (worst second 50 Hz, 141 packets/s throughout) and never stopped, as 3.M found. So 3.M's conclusion
+  stands for a better reason: a worker would buy smoother content under load, and that load is now
+  demonstrably all that is left to buy.
+
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
 - Deferred effects: stateful **fire2012**, **multi-segment** subdivision per fixture.
