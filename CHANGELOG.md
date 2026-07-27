@@ -1,6 +1,22 @@
 # Changelog
 
-## Unreleased
+## v0.25.0
+
+### The workspace is yours to arrange, and the engine no longer depends on it
+
+Two things landed together, and the order matters: the second is only cheap because of the first.
+
+**The rendering engine stopped depending on the UI.** The frame loop used to live in a `Stage` effect and bailed out if a DOM node was missing, so unmounting one component stopped Art-Net mid-show. It now lives in `renderer/engine/frameEngine.ts`: it starts itself when its module loads, reads no DOM at all, and reaches the native output engine over its own MessagePort. Proven by deleting the Stage's canvas *and* its container out of a running app while the native engine held 61 Hz — and re-provable any time with `node scripts/test-engine-output.cjs`.
+
+That deleted the invariant every previous workspace design had to be built around.
+
+**So the workbench became rearrangeable.** In any of the nine contexts you can drag a panel by its tab into another group, drop it on an edge to split, reorder, collapse, close it, add any panel from a menu, and reset the workbench to what it ships as. Per context, remembered, surviving a restart. It is on by default; *Preferences › Appearance › Dockable workspace* turns it off and restores the fixed layout exactly.
+
+**It cost the plugin SDK nothing.** The arrangement is *compiled* from the flat manifest a context already declares, so contexts and plugins keep declaring what they always did — and because the absence of a saved arrangement is what triggers the build, upgrading changes nothing you can see: your column widths, dock height and dock tab come across.
+
+**The editor also got quieter.** The timeline panel was re-rendering itself ten times a second for ever, in eight of nine contexts, to move a few characters of text — a clock sampled into React state. Removing it, and taking the ruler and toolbar out of a clip drag, took the idle editor from **177 ms/s of React work to 0.0**, and the frame-time tail with it: **p99 54 ms → 21 ms, long frames 18 → 0**.
+
+*Full reasoning: [plans/engine-decoupling.md](plans/engine-decoupling.md) and [plans/dockable-workspace.md](plans/dockable-workspace.md), each carrying its own work-package tracker with what was measured and what was deviated from.*
 
 ### The timeline is a drawer now, and there are two fewer workbenches
 
@@ -40,7 +56,7 @@ touched, both of which are silent by nature — a menu entry or a plugin's dock 
 context that no longer exists, and a context whose declared layout omits a banked flag (which made the
 drawer's per-workbench memory behave like a global one on first run).
 
-## v0.25.0
+### Also in v0.25.0
 
 > **The first release since v0.21.0.** v0.22.0, v0.23.0 and v0.24.0 were each prepared — version bumped,
 > changelog written — and never tagged, so no build was distributed. This release therefore carries all
