@@ -5,6 +5,7 @@ import { Field, NumberField, Select, Toggle, Segmented, Button, useToast } from 
 import { Tooltip } from './ui/Tooltip';
 import { help } from '../services/helpBus';
 import { fixtureFootprint } from '../services/addressing';
+import { isLight } from '../services/fixtureKind';
 import { FixtureProfilePicker } from './FixtureProfilePicker';
 
 interface Props {
@@ -162,7 +163,7 @@ export const FixtureEditor: React.FC<Props> = ({
           <Segmented
             value={libraryTab}
             onChange={(v) => setLibraryTab(v as 'profiles' | 'templates')}
-            options={[{ value: 'profiles', label: 'DMX Fixtures' }, { value: 'templates', label: 'My Templates' }]}
+            options={[{ value: 'profiles', label: 'Light Fixtures' }, { value: 'templates', label: 'LED Templates' }]}
           />
 
           {libraryTab === 'profiles' && (
@@ -171,14 +172,19 @@ export const FixtureEditor: React.FC<Props> = ({
             </div>
           )}
 
+          {/* A template is an LED-fixture SHAPE (ledCount, matrix, serpentine, colour order), so it
+              describes nothing about a moving head and would rebuild one as a 1-LED strip. A light's
+              reusable form already exists and is better: its PROFILE plus a mode. */}
           {libraryTab === 'templates' && <>
           <Tooltip id="fixtures.save-template">
             <button
               onClick={onSaveTemplate}
-              disabled={!fixture}
+              disabled={!fixture || isLight(fixture)}
               {...help('fixtures.save-template')}
               className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-sm bg-surface-2 border border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1 text-xs disabled:opacity-40 disabled:cursor-not-allowed"
-              title="Save the selected fixture as a template"
+              title={fixture && isLight(fixture)
+                ? 'Templates are for LED fixtures — a light is reused through its DMX profile and mode'
+                : 'Save the selected LED fixture as a template'}
             >
               <Save size={13} /> Save selected
             </button>

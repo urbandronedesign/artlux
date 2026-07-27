@@ -1653,9 +1653,19 @@ const App: React.FC = () => {
     setTemplates(next);
     window.artlux?.setPrefs?.({ fixtureTemplates: next });
   };
+  // A TEMPLATE IS AN LED-FIXTURE SHAPE. Every field it carries — ledCount, matrix, serpentine,
+  // colour order, channels/pixel — describes a pixel run, so saving one from a moving head produced
+  // a template that said nothing about the head and rebuilt it as a 1-LED strip. A light's reusable
+  // form already exists and is better: its PROFILE plus a mode. (If "my house PAR, pre-aimed" is
+  // ever wanted, that is a preset of `dmx` values — a different, small feature that should be named
+  // as one rather than smuggled in here.)
   const handleSaveTemplate = () => {
     if (!selectedFixture) return;
     const f = selectedFixture;
+    if (isLight(f)) {
+      toast.error('Templates are for LED fixtures', 'A light fixture is reused through its DMX profile and mode, which already carry everything a template would.');
+      return;
+    }
     const t: FixtureTemplate = {
       id: generateId(), name: f.name || nextNumberedName('Template', templates),
       ledCount: f.ledCount, shape: f.shape, matrixWidth: f.matrixWidth, matrixHeight: f.matrixHeight,

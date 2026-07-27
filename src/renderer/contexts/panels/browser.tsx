@@ -7,7 +7,7 @@ import { help } from '../../services/helpBus';
 import { livePreview } from '../../services/livePreview';
 import { fixtureFootprint, resolveMode } from '../../services/addressing';
 import {
-  fixtureKind, lightState, profileOf, KIND_LABEL, KIND_LABEL_PLURAL, type FixtureKind,
+  fixtureKind, groupKind, lightState, profileOf, KIND_LABEL, KIND_LABEL_PLURAL, type FixtureKind,
 } from '../../services/fixtureKind';
 import { useEditor, useEditorActions } from '../../state/EditorStore';
 import { useRovingTabindex } from '../../hooks/useRovingTabindex';
@@ -299,16 +299,27 @@ export const FixturesHeaderActions: React.FC = () => {
 
 // ── Groups ──────────────────────────────────────────────────────────────────────────────────
 export const GroupsPanel: React.FC = () => {
-  const { groups } = useEditor();
+  const { groups, fixtures } = useEditor();
   const a = useEditorActions();
   return (
     <div className="p-1 space-y-0.5 max-h-28 overflow-y-auto">
-      {groups.map((g) => (
+      {groups.map((g) => {
+        // WHAT KIND OF GROUP IS THIS? Derived from the members, never stored — they are the truth.
+        // `mixed` is the one worth surfacing: a lighting take is authored in ROLE space (pan in
+        // degrees, dimmer 0..1), and a role value has nowhere to land on a pixel strip, so a clip
+        // aimed at a mixed group silently drives only part of it.
+        const kind = groupKind(g, fixtures);
+        return (
         <div key={g.id} className="flex items-center group px-2 py-1 rounded hover:bg-surface-3 text-fg-2">
-          <Users size={12} className="mr-2 text-fg-3" />
+          {kind === 'light' ? <Lightbulb size={12} className="mr-2 text-fg-3" /> : <Users size={12} className="mr-2 text-fg-3" />}
           <button className="flex-1 text-left truncate" onClick={() => a.selectGroup(g)}>
             {g.name} <span className="text-fg-3">({g.fixtureIds.length})</span>
           </button>
+          {kind === 'mixed' && (
+            <span className="mr-1 shrink-0 text-warn" title="Mixed LED and light fixtures — a lighting take drives only the lights in this group">
+              <AlertTriangle size={10} />
+            </span>
+          )}
           <div className="opacity-0 group-hover:opacity-100 flex gap-1.5">
             <Tooltip id="general.group-add-selected">
               <button title="Add selected fixture" onClick={() => a.addSelectedToGroup(g.id)} className="hover:text-accent text-fg-3" {...help('general.group-add-selected')}><Plus size={11} /></button>
@@ -319,7 +330,8 @@ export const GroupsPanel: React.FC = () => {
             <button title="Delete group" onClick={() => a.removeGroup(g.id)} className="hover:text-danger text-fg-3"><Trash2 size={10} /></button>
           </div>
         </div>
-      ))}
+        );
+      })}
       {groups.length === 0 && <div className="text-fg-3 italic px-2 py-1">No groups</div>}
     </div>
   );

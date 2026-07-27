@@ -120,6 +120,35 @@ controller as usual.
 You never type a COM port. A port saved in a project but not currently attached stays selected and
 is marked *not connected*, so carrying a show to another machine does not silently clear it.
 
+### What a controller drives — keeping LED and light traffic apart
+
+A rig with an **Art-Net LED node** and a **USB-DMX widget** is two wires carrying two kinds of
+fixture, and until now nothing connected them. `autoPatch`'s `defaultControllerId` is `undefined` at
+every call site, so an unassigned fixture fell to **`controllers[0]`** — the first controller in the
+array, whatever it happened to be. Every new moving head landed on the Art-Net node; with the widget
+created first it went the other way, and 180-channel LED strips were addressed onto a device that
+transmits **one** universe.
+
+**Routing → the `Drives` column.** Set a controller to **LED**, **Light**, or **Any**. Auto-patch
+then sends an unassigned fixture to a box that claims its kind, and the header gains one-click
+**All Light → \<widget\>** / **All LED → \<node\>** (assigning forty heads used to be forty dropdown
+clicks). A new controller defaults by protocol — USB DMX ⇒ Light, Art-Net/sACN ⇒ LED — and switching
+an existing controller's protocol re-defaults it *unless* you set it by hand.
+
+> **Absent means "any", and that is exactly the old behaviour.** The fallback chain is: a controller
+> that declares this kind → an unclassified one → `controllers[0]`. With nobody declaring anything,
+> rung 3 wins and patching is **byte-identical to before**, which is why this shipped without
+> re-addressing saved rigs. That last rung is invariant-guarded; deleting it would make an
+> unclassified rig silently re-patch on load.
+
+**A report, never a rule.** Running movers over Art-Net is an ordinary rig, so a fixture on a
+controller that claims the other kind is *badged*, not refused — with one click to move it to the
+matching device. Setting `drives` **does** re-patch, so "my addresses moved" is an expected outcome
+of changing what a box drives.
+
+A `enttec` row also shows its fixture count beside its real capacity (`4fx · 1u`), so an overflow is
+predictable before auto-patch rather than badged after it.
+
 ### One widget, one universe
 
 A DMX USB Pro transmits a single universe (the Mk2's second port is not addressed yet). `autoPatch`
@@ -163,6 +192,15 @@ delivered, the network head still outputting correctly, and one log line —
   real Pro before a show, and see ENTTEC's API spec v1.44 if the Mk2's second port is ever needed.
 
 ## For developers / architecture
+
+### Data model — `Controller.drives`
+`drives?: 'pixel' | 'light'` on `Controller` ([types.ts](../src/renderer/types.ts)). Additive and
+optional with the default at the read site, so no `ProjectData.version` bump and no migration. ⚠ A
+project saved with it set is read by an **older build** as unclassified, which reverts that rig to
+`controllers[0]` — worth a CHANGELOG line at release.
+
+`crossKindPatches(fixtures, controllers)` in
+[addressing.ts](../src/renderer/services/addressing.ts) is the pure report behind the badge.
 
 ### Data model (`shared/protocol.ts`)
 - `ProjectorOutput { surfaceId, enabled, displayId, displayLabel?, cornerPin, warp?, softEdge?,

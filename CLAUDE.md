@@ -218,6 +218,25 @@ DXV was considered and **dropped** (2026-07-03) — see ROADMAP.
 
 ## Conventions
 
+**Two kinds of fixture (guarded; canonical: [docs/FIXTURE-LIBRARY.md](docs/FIXTURE-LIBRARY.md)):**
+An **LED fixture** (pixel tape, sampled off a surface, Art-Net to an LED node) and a **light fixture**
+(a moving head, driven by authored role values, typically USB-DMX) are two devices, not one type with
+optional fields.
+- **`services/fixtureKind.ts` is the ONLY place that decides which** — the same doctrine as
+  `fixtureFootprint`. Never write `f.profileId ?` to ask; use `isLight`/`isPixel`/`lightState`
+  (three-way: a `profileId` we cannot resolve is a *light we cannot describe*, not a pixel) or
+  `profileOf`. The kind is **derived, never persisted**, so there is no migration.
+- **A light's `ledCount` is pinned to 1** on the update funnel. Raising it leaves the head's own DMX
+  correct while shifting every fixture patched after it in the canonical pixel buffer.
+- **Every fixture inspector section declares `appliesTo: ['fixture.pixel' | 'fixture.light']`** in its
+  *registration*, not with a guard in its body — the shell filters on it, and **both** render paths
+  must ask `appliesToSelection` (the dock renderer once did not, which made the filter dead).
+- **A light is never drawn on the 2D canvas.** `effectivePosObj` derives 3D from the 2D rect when a
+  fixture has no `position3D`, so a stray rect there silently teleports a head. Lights are placed and
+  positioned in the 3D scene.
+- **`Controller.drives` steers auto-patch**, and its fallback chain must keep ending on
+  `controllers[0]` — that rung is what makes an unclassified rig patch byte-identically to before.
+
 **Shell + 3D rules (each is enforced by `npm run verify:invariants` — see WORKSPACE.md for the why):**
 - **The frame loop is NOT in the UI.** Compositing, GPU sampling, universe packing and putting frames on
   the wire live in `renderer/engine/frameEngine.ts` — a singleton that starts its own rAF when it loads,

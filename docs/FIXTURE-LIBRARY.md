@@ -2,9 +2,37 @@
 
 How ArtLux knows what a **moving head** is, where that knowledge comes from, and how to regenerate it.
 
+## Two kinds of fixture — the vocabulary
+
+ArtLux has **two physically different things** called "Fixture", on two different wires:
+
+| | **LED fixture** (`'pixel'`) | **Light fixture** (`'light'`) |
+|---|---|---|
+| What it is | tape, panel, pixel bar — an array of RGB/W cells | moving head, wash, beam, PAR |
+| Driven by | **sampling** the surface it is mapped onto, on the GPU | **authored role values** (pan/tilt in degrees) |
+| Footprint | `ledCount × channelsPerPixel` | its **mode's** footprint |
+| Typical wire | Art-Net / sACN → an LED controller | a USB-DMX interface |
+| Lives on | the 2D stage *and* the 3D scene | **the 3D scene only** |
+| Reused as | a `FixtureTemplate` (a pixel shape) | a **profile + mode** — templates do not apply |
+
+**The kind is DERIVED, never stored**: a fixture is a *light* iff it carries a `profileId`. That field
+is already the truth, and a second stored copy could drift from it — so there is no migration, and
+every `.artlux` on disk already carries the answer.
+
+[services/fixtureKind.ts](../src/renderer/services/fixtureKind.ts) is the **only** place that decides,
+the way [addressing.ts](../src/renderer/services/addressing.ts) is the only place that computes a
+footprint, and for the same reason: the packer, the patch, the inspector and the 3D scene must not
+drift. It also carries the three-way `lightState()` — `pixel` / `light` / **`light-unresolved`** (a
+`profileId` we have no profile for) — because the renderers genuinely need that third answer, and the
+two predicates that predated it disagreed about exactly that case. `verify:invariants` enforces the
+single owner.
+
+The UI words are **LED Fixture** and **Light Fixture**, from `KIND_LABEL`, so a browser row, a section
+header and a routing badge cannot disagree.
+
 ## The problem this solves
 
-A `Fixture` ([types.ts](../src/renderer/types.ts)) has always been a **pixel array**: `ledCount` cells
+A `Fixture` ([types.ts](../src/renderer/types.ts)) began as a **pixel array**: `ledCount` cells
 of RGB/W occupying `ledCount × channelsPerPixel` channels from `startAddress`. That describes LED tape
 and panels and nothing else. A wash, a beam, a moving head has *named* channels — Pan, Tilt, Gobo,
 Shutter — some of them 16-bit pairs, some of them discrete slot lists, arranged differently in each of
@@ -24,6 +52,13 @@ A **`FixtureProfile`** ([shared/protocol.ts](../shared/protocol.ts)) is that des
 
 Three fields on `Fixture` opt into it, all optional so **every existing project loads unchanged**:
 `profileId`, `profileMode`, `dmx` (authored channel values, keyed by channel key, normalised 0..1).
+
+Setting `profileId` is therefore what turns an LED fixture into a light, and it changes five things:
+its footprint becomes its mode's; it is driven by named channels instead of sampled pixels;
+`ledCount` is **pinned to 1** (a head is one emitter — and the pin is enforced on the fixture-update
+funnel, because raising it shifts every fixture patched after it in the canonical pixel buffer while
+the head's own DMX looks fine); its `surfaceId` is dropped (a light samples nothing); and it gets an
+explicit `position3D`, because it now lives in the 3D scene rather than on the 2D stage.
 
 ### Two decisions worth knowing
 
