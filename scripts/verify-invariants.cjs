@@ -596,6 +596,18 @@ check(
     if (!/flexGrow: 0, flexShrink: 1, flexBasis: `min\(\$\{s\.px\}px, 45%\)`/.test(dock)) {
       problems.push('the px pane is no longer shrink-and-capped — it will overflow the workspace in a short window, or starve the pane beside it');
     }
+    // The panes' flex is asserted imperatively after every render, and must not go back to being a
+    // `style` prop. React writes a style property only when its own props change — and an fr pane's
+    // computed style is identical before and after a splitter drag, so React sees nothing to do and the
+    // drag's pixel values stay on the element for good. Every pane then has grow 0, and new space goes
+    // to nobody: a black strip down the edge of the workspace. "The value did not change" is exactly the
+    // case that needs repairing, which is why this cannot be declarative.
+    if (!/useLayoutEffect/.test(dock) || !/el\.style\.flexGrow = /.test(dock)) {
+      problems.push('the dock panes no longer assert their flex after every render — a splitter drag will leave pixel sizes pinned on them and new space will be distributed to nobody');
+    }
+    if (/data-dock-pane[^>]*style=\{/.test(dock)) {
+      problems.push('a dock pane styles its flex declaratively again — a drag writes the same properties and React will not correct it');
+    }
     if (!/\/ frSum/.test(dock)) {
       problems.push('fr sizes are no longer normalized per split — grow factors summing under 1 leave a black band of undistributed space');
     }

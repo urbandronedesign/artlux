@@ -365,12 +365,41 @@ const GroupBody: React.FC<{ node: Extract<DockNode, { kind: 'group' }>; ctx: Ctx
 
 const Node: React.FC<{ node: DockNode; ctx: Ctx }> = ({ node, ctx }) => {
   const hostRef = React.useRef<HTMLDivElement>(null);
+  const paneRefs = React.useRef<Array<HTMLDivElement | null>>([]);
+  // The split's own fr total - see sizeToFlex for why this has to be normalized rather than used raw.
+  const frSum = node.kind === 'split'
+    ? node.children.reduce((a, _c, i) => { const sz = node.sizes[i]; return a + (sz && 'fr' in sz ? sz.fr : 0); }, 0)
+    : 0;
+
+  // ⚠ THE PANES' FLEX IS ASSERTED HERE, AFTER EVERY RENDER — IT IS NOT A `style` PROP, AND THAT IS THE
+  // WHOLE POINT.
+  //
+  // The splitter drags by writing pixel sizes straight onto these two elements, which is what keeps a
+  // resize off the React path. The trap is that React only writes a style property when its own PROPS
+  // change: an `fr` pane's computed style is `grow: <share>, basis: 0%` before a drag AND after it, so
+  // React sees nothing to do and the drag's `0 0 1056px` stays on the element FOREVER. Every pane in
+  // the split then has grow 0, so widening the window distributes the new space to nobody — a black
+  // strip down the right edge of the workspace and another under the dock, exactly as reported.
+  //
+  // A layout effect with no dependency array runs after every render, so whatever a drag left behind is
+  // overwritten by the arrangement the tree actually describes. Declarative styling cannot do this,
+  // because "the value did not change" is precisely the case that has to be repaired.
+  React.useLayoutEffect(() => {
+    if (node.kind !== 'split') return;
+    node.children.forEach((child, i) => {
+      const el = paneRefs.current[i];
+      if (!el) return;
+      const s = child.kind === 'group' && child.collapsed
+        ? { flexGrow: 0, flexShrink: 0, flexBasis: 'auto' }
+        : sizeToFlex(node.sizes[i], frSum);
+      el.style.flex = '';                       // drop any shorthand a drag left behind
+      el.style.flexGrow = String(s.flexGrow);
+      el.style.flexShrink = String(s.flexShrink);
+      el.style.flexBasis = String(s.flexBasis);
+    });
+  });
+
   if (node.kind === 'group') return <GroupBody node={node} ctx={ctx} />;
-  // The split own fr total - see sizeToFlex for why this has to be normalized rather than used raw.
-  const frSum = node.children.reduce((a, _c, i) => {
-    const sz = node.sizes[i];
-    return a + (sz && 'fr' in sz ? sz.fr : 0);
-  }, 0);
   return (
     // overflow-hidden on the SPLIT too, not just on each pane: a pane that cannot shrink far enough
     // would otherwise paint outside the workspace entirely - which is exactly how a short window ended
@@ -392,8 +421,8 @@ const Node: React.FC<{ node: DockNode; ctx: Ctx }> = ({ node, ctx }) => {
               has no flex parent to size against, the split collapses to content height, and every
               slot inside it measures 0 in one axis — the viewport is then invisible while the DOM
               says it is right there. Found by probing rects, not by looking at the screen. */}
-          <div data-dock-pane="1" className="min-h-0 min-w-0 relative overflow-hidden flex"
-            style={child.kind === 'group' && child.collapsed ? { flex: '0 0 auto' } : sizeToFlex(node.sizes[i], frSum)}>
+          <div data-dock-pane="1" ref={(el) => { paneRefs.current[i] = el; }}
+            className="min-h-0 min-w-0 relative overflow-hidden flex">
             <Node node={child} ctx={ctx} />
           </div>
         </React.Fragment>
