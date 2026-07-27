@@ -44,9 +44,15 @@ import { ShortcutsEditor } from '../shortcuts/ShortcutsEditor';
 
 export const SCENE_3D_VIEWPORT = 'core.viewport.scene3d';
 
-/** Per-machine dev switch for the dockable workspace, so both render paths can be compared. */
-const DOCKING_DEV_FLAG: boolean = (() => {
-  try { return localStorage.getItem('artlux.docking') === '1'; } catch { return false; }
+/**
+ * Per-machine kill switch for the dockable workspace, read once at module load.
+ *
+ * The workspace is dockable by DEFAULT now (WP-5.6). This is the machine-level way back to the
+ * hand-built shell without touching a project or a preference — for a venue PC mid-run, or for
+ * comparing the two paths. The operator-level switch is `layout.dockingOff`, in Preferences.
+ */
+const DOCKING_FORCED_OFF: boolean = (() => {
+  try { return localStorage.getItem('artlux.docking') === '0'; } catch { return false; }
 })();
 
 // Height of the bottom drawer's title strip — its height when closed. Matches the Dock's collapsed
@@ -152,15 +158,10 @@ export const WorkspaceShell: React.FC<Props> = ({ viewports, selection, drawers 
   const startSide = (h: (e: React.PointerEvent) => void) => (e: React.PointerEvent) => { setResizingSide(true); h(e); };
   const sideTransition = resizingSide ? '' : 'transition-all duration-med';
 
-  // ── The dockable workspace (plans/dockable-workspace.md) ────────────────────────────────────
-  // Two render paths ship side by side until WP-5.6 flips the default. `docking` is layout state
-  // rather than a module constant BECAUSE it must be flippable to compare the two — and it is safe to
-  // be: the persistent viewports live in PersistentLayer either way, so switching paths moves slots
-  // around and never remounts Stage, the 3D scene or the timeline.
-  // `artlux.docking` is the per-machine dev switch that lets the two paths be compared without editing
-  // prefs by hand; `layout.docking` is the real setting WP-5.6 will flip. Read once at module load like
-  // the layer's own flag, for the same reason — see PERSISTENT_LAYER_ENABLED.
-  const docking = (!!layout.docking || DOCKING_DEV_FLAG) && PERSISTENT_LAYER_ENABLED;
+  // Dockable unless someone turned it off: the operator in Preferences (`dockingOff`), or this
+  // machine (`localStorage['artlux.docking'] = '0'`). Both paths ship for one release, so a
+  // regression found in a venue is one toggle away from the shell that was there before.
+  const docking = !layout.dockingOff && !DOCKING_FORCED_OFF && PERSISTENT_LAYER_ENABLED;
   const dockTree = React.useMemo(() => {
     if (!docking || !context) return null;
     // ensureTree is the single door: sanitize what was saved, else compile the shipped arrangement from

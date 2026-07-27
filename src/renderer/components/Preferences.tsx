@@ -6,6 +6,8 @@ import { Section, Field, NumberField, Toggle, Select, Slider, Button, useConfirm
 import { Tooltip } from './ui/Tooltip';
 import { help } from '../services/helpBus';
 import { settingsSectionRegistry } from '../host/registries';
+import { layoutStore } from '../services/layoutStore';
+import { useLayout } from '../hooks/useLayout';
 
 interface Props {
   settings: AppSettings;
@@ -178,6 +180,7 @@ const GpuSection: React.FC = () => {
 // Preferences — the `settings` context's viewport (it was a draggable modal until it grew past
 // output+engine into appearance, watchdog, GPU and every plugin's own SettingsSection).
 export const Preferences: React.FC<Props> = ({ settings, onChange }) => {
+  const layout = useLayout();
   const confirm = useConfirm();
   const [scanning, setScanning] = useState(false);
   const [scanned, setScanned] = useState(false);
@@ -242,6 +245,13 @@ export const Preferences: React.FC<Props> = ({ settings, onChange }) => {
             setShowSplash(v);
             window.artlux?.setPrefs?.({ showSplash: v });
           }} title="Show the credits + plugin/native load report at launch" />
+          {/* The way back to the fixed shell, without editing prefs by hand. Deliberately a PREFERENCE
+              rather than a view option: the two paths are different renderers, so switching remounts the
+              panels. Output is unaffected either way — the frame loop has not lived in the UI since
+              Phase 1, which is the whole reason this feature could be built at all. */}
+          <Toggle label="Dockable workspace" checked={!layout.dockingOff}
+            onChange={(v) => layoutStore.set({ dockingOff: !v })}
+            title="Drag panels into tabs and splits, per workbench. Off restores the fixed browser / viewport / dock / parameters layout." />
         </Section></Tile>
 
         <Tile><Section title="DMX Output" icon={<Cpu size={12} />}>

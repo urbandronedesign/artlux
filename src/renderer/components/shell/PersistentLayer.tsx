@@ -37,10 +37,12 @@ import * as slots from '../../services/viewportSlots';
  */
 export const PERSISTENT_LAYER_ENABLED: boolean = (() => {
   try {
-    if (new URLSearchParams(window.location.search).get('slots') === '1') return true;
-    return localStorage.getItem('artlux.persistentLayer') === '1';
+    // ON by default since WP-5.6. The escape hatch is per-machine and explicit: a venue PC that
+    // needs the old shell can be reverted without editing prefs or shipping a build.
+    if (new URLSearchParams(window.location.search).get('slots') === '0') return false;
+    return localStorage.getItem('artlux.persistentLayer') !== '0';
   } catch {
-    return false;
+    return true;
   }
 })();
 

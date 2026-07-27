@@ -56,8 +56,15 @@ export interface WorkspaceLayout {
   // one tree per workbench. Absent id ⇒ no saved tree ⇒ ensureTree() compiles the shipped one, which
   // is the migration trigger and needs no layoutRev bump.
   dockTrees?: Record<string, unknown>;
-  /** Master switch for the dockable workspace. Off until WP-5.6. */
-  docking?: boolean;
+  /**
+   * The operator turned the dockable workspace OFF. Absent means ON, and the polarity is the whole
+   * point: this shipped as `docking?: boolean` defaulting to false, so every install that saved a
+   * layout while it was opt-in has `docking: false` sitting in its prefs. Flipping that default
+   * would have reached nobody who had already used the app — the same failure mode `layoutRev`
+   * exists for. Renaming the key makes the absence of a value mean the new default, so the flip
+   * lands everywhere and only a deliberate opt-out persists.
+   */
+  dockingOff?: boolean;
 }
 
 // The subset of the layout a context remembers on its own. Deliberately only the ERGONOMIC keys:
@@ -99,7 +106,6 @@ export const DEFAULT_LAYOUT: WorkspaceLayout = {
   activeContext: 'mapping',
   contexts: {},
   dockTrees: {},
-  docking: false,
 };
 
 // The ergonomic keys banked per context — one list, used by both directions of a context switch.
