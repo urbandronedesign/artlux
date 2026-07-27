@@ -1,7 +1,7 @@
 import type {
-  Fixture, Controller, OutputProtocol, PatchPolicy, FixtureProfile, ProfileMode,
+  Fixture, Controller, FixtureKind, OutputProtocol, PatchPolicy, FixtureProfile, ProfileMode,
 } from '../types';
-import { isLight } from './fixtureKind';
+import { fixtureKind, isLight } from './fixtureKind';
 
 // Automatic DMX patch (S5). Packs each fixture's channels sequentially per
 // controller: starting at the controller's startUniverse + channel 1, consuming
@@ -140,6 +140,50 @@ export function findCollisions(spans: Span[]): Array<[string, string]> {
   return out;
 }
 
+/**
+ * Which controller an UNASSIGNED fixture of this kind belongs to.
+ *
+ * This used to be a bare `controllers[0]` — the first controller in the array, whatever it happened
+ * to be. `defaultControllerId` is undefined at every call site, so that was the real rule, and on a
+ * rig with an Art-Net LED node and a USB-DMX widget it put every new moving head on the Art-Net node
+ * (or, with the widget created first, every 180-channel LED strip on a device that transmits ONE
+ * universe). Nothing connected "this is a light" to "it belongs on the lighting interface".
+ *
+ * The last rung is the OLD BEHAVIOUR, deliberately: with no controller declaring `drives`, rung 1
+ * finds nothing, rung 2 finds `controllers[0]` (it is unclassified), and the result is byte-identical
+ * to before. That is the property that lets this ship without re-addressing anyone's saved rig.
+ */
+function fallbackFor(controllers: Controller[], kind: FixtureKind): string | undefined {
+  return controllers.find((c) => c.drives === kind)?.id      // a box that says it drives this kind
+    ?? controllers.find((c) => !c.drives)?.id                // an unclassified box (every old project)
+    ?? controllers[0]?.id;                                   // today's behaviour, last
+}
+
+/**
+ * Fixtures patched onto a controller that says it drives the OTHER kind.
+ *
+ * A REPORT, not a rule. Movers over Art-Net is a perfectly ordinary rig, and LED tape on a DMX
+ * widget is a small one — neither is refused. What was missing is that the operator could not SEE
+ * the divergence: an unclassified controller says nothing, and a wrong one says nothing either.
+ *
+ * A controller with no `drives` is never reported (it has made no claim to contradict), and neither
+ * is a fixture with no resolved controller.
+ */
+export interface CrossKindPatch { fixtureId: string; controllerId: string; fixture: FixtureKind; drives: FixtureKind }
+
+export function crossKindPatches(fixtures: Fixture[], controllers: Controller[]): CrossKindPatch[] {
+  const ctrlById = new Map(controllers.map((c) => [c.id, c]));
+  const out: CrossKindPatch[] = [];
+  for (const f of fixtures) {
+    if (!f.controllerId) continue;
+    const ctrl = ctrlById.get(f.controllerId);
+    if (!ctrl?.drives) continue;
+    const kind = fixtureKind(f);
+    if (ctrl.drives !== kind) out.push({ fixtureId: f.id, controllerId: ctrl.id, fixture: kind, drives: ctrl.drives });
+  }
+  return out;
+}
+
 export function autoPatch(
   fixtures: Fixture[],
   controllers: Controller[],
@@ -149,16 +193,18 @@ export function autoPatch(
 ): Fixture[] {
   const ctrlById = new Map(controllers.map((c) => [c.id, c]));
   const reserve = policy.reserveLockedRanges;
+  // ONE resolver for both passes below. The reserve pass (which harvests locked fixtures' ranges)
+  // and the assign pass MUST agree about which bucket a fixture lands in — they already carried a
+  // comment saying so, as two hand-copied expressions. Now they cannot drift.
+  const bucketOf = (f: Fixture): string | undefined =>
+    (f.controllerId && ctrlById.has(f.controllerId) ? f.controllerId : undefined)
+    ?? (defaultControllerId && ctrlById.has(defaultControllerId) ? defaultControllerId : undefined)
+    ?? fallbackFor(controllers, fixtureKind(f));
 
   // The packing bucket a fixture belongs to — the SAME rule for locked and auto fixtures, so a
   // locked fixture's reserved range lands in the exact bucket the auto fixtures on its controller
   // pack into.
-  const bucketFor = (f: Fixture): string => {
-    const real = f.controllerId && ctrlById.has(f.controllerId) ? f.controllerId
-      : (defaultControllerId && ctrlById.has(defaultControllerId)) ? defaultControllerId
-      : (controllers[0]?.id);
-    return real ?? GLOBAL;
-  };
+  const bucketFor = (f: Fixture): string => bucketOf(f) ?? GLOBAL;
 
   // Phase B: reserved absolute intervals per bucket, harvested from locked fixtures, sorted ascending.
   const reserved = new Map<string, Array<[number, number]>>();
@@ -183,9 +229,7 @@ export function autoPatch(
 
   return fixtures.map((f) => {
     if (f.patchLocked) return f;
-    const real = f.controllerId && ctrlById.has(f.controllerId) ? f.controllerId
-      : (defaultControllerId && ctrlById.has(defaultControllerId)) ? defaultControllerId
-      : (controllers[0]?.id);
+    const real = bucketOf(f);
     const key = real ?? GLOBAL;
     const cur = cursorFor(key);
     const need = fixtureFootprint(f, profiles);

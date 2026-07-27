@@ -171,6 +171,15 @@ export const defaultLayout3D = (): Layout3D => ({
 // both of which the patch has to respect. See docs/OUTPUTS.md → USB DMX.
 export type OutputProtocol = 'artnet' | 'sacn' | 'enttec';
 
+/**
+ * The two kinds of fixture — an LED (pixel) fixture and a LIGHT fixture.
+ *
+ * The TYPE lives here because `Controller.drives` PERSISTS it (house doctrine: persisted project
+ * types stay in types.ts / shared/protocol.ts). The PREDICATES that decide a fixture's kind live in
+ * services/fixtureKind.ts, which owns that question and re-exports this name.
+ */
+export type FixtureKind = 'pixel' | 'light';
+
 // S5 — a physical output device. Fixtures are assigned to one (controllerId) and
 // auto-patched into its universes; Stage resolves each fixture's destination here.
 export interface Controller {
@@ -186,6 +195,24 @@ export interface Controller {
   broadcast: boolean;
   priority?: number;     // sACN priority
   startUniverse?: number; // first universe this controller fills (default 0)
+  /**
+   * WHAT THIS DEVICE DRIVES — an LED node, or a lighting interface.
+   *
+   * Optional, and absent means "anything", which is EXACTLY today's behaviour: auto-patch's fallback
+   * chain ends on `controllers[0]` as it always did, so every saved project loads and patches
+   * identically until an operator sets this. That matters more than it looks — a project that
+   * silently re-addressed itself on load would be a worse bug than the one this fixes.
+   *
+   * Why it exists: `defaultControllerId` is undefined at every autoPatch call site, so an unassigned
+   * fixture fell to `controllers[0]` — the first controller in the array, regardless of what it is.
+   * On a rig with one Art-Net LED node and one USB-DMX widget, every new moving head landed on the
+   * Art-Net node (and, with the widget created first, every 180-channel LED strip landed on a device
+   * that transmits ONE universe).
+   *
+   * A REPORT, never a rule: patching lights over Art-Net is legitimate and stays possible. A
+   * mismatch is surfaced by `crossKindPatches()`, not refused.
+   */
+  drives?: FixtureKind;
 }
 
 export interface OutputTarget {

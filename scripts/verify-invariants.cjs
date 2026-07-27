@@ -1607,6 +1607,32 @@ check(
   },
 );
 
+// ── Patch: the kind-aware fallback keeps its back-compat rung, and both passes share it ───────
+check(
+  'autoPatch resolves a fixture\'s bucket in ONE place, ending on the old behaviour',
+  'Two things here are load-bearing. FIRST, autoPatch resolves a fixture\'s controller TWICE — once ' +
+  'to harvest locked fixtures\' reserved ranges, once to assign — and the two must agree, or the ' +
+  'collision detector reserves space in one bucket while the packer writes into another. They were ' +
+  'two hand-copied expressions carrying a comment saying they must not drift; they are now one ' +
+  '`bucketOf`. SECOND, the fallback chain MUST end on `controllers[0]`: that last rung is what makes ' +
+  'a project with no controller declaring `drives` patch byte-identically to before, which is the ' +
+  'only reason this could ship without re-addressing every saved rig. Delete it and an unclassified ' +
+  'rig silently re-patches on load.',
+  () => {
+    const F = 'src/renderer/services/addressing.ts';
+    const src = read(F);
+    if (!/function fallbackFor\(/.test(src)) return `${F} no longer defines fallbackFor`;
+    if (!/controllers\[0\]\?\.id/.test(src))
+      return 'the fallback chain no longer ends on controllers[0] — an unclassified rig would re-patch on load';
+    if (!/const bucketOf\s*=/.test(src)) return `${F} no longer defines the single bucketOf resolver`;
+    // Neither pass may re-derive the bucket inline again.
+    const inline = src.match(/defaultControllerId && ctrlById\.has\(defaultControllerId\)/g) ?? [];
+    if (inline.length > 1)
+      return `${F} resolves a fixture's bucket in ${inline.length} places — the reserve and assign passes must share bucketOf()`;
+    return null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);

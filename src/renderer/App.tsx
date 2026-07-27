@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, useSyncExternalStore } from 'react';
-import { Fixture, Surface, SurfaceContent, SourceType, AppSettings, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, normalizeCueBanks, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, timelineAudioTracks, sceneAudioEntries, cueEntries, isAddressableEntry, type AudioClip, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType, type PatchPolicy, readPatchPolicy, type FixtureProfile } from './types';
+import { Fixture, Surface, SurfaceContent, SourceType, AppSettings, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, normalizeCueBanks, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, timelineAudioTracks, sceneAudioEntries, cueEntries, isAddressableEntry, type AudioClip, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType, type PatchPolicy, readPatchPolicy, type FixtureProfile, type FixtureKind, type OutputProtocol } from './types';
 import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge, WINDOWED_DISPLAY } from '../../shared/protocol';
 import type { ProjectorCalibration } from '../../shared/protocol';
 import { calibCapture as cam, measureGamma, calibWorkspace } from '@artlux/plugin-calibration/renderer';
@@ -1028,16 +1028,39 @@ const App: React.FC = () => {
   const handleAutoPatch = () => setFixtures(autoPatch(fixtures, controllers, patchPolicy, undefined, fixtureProfiles));
 
   // --- Controllers (output devices) ---
+  // WHAT A NEW CONTROLLER DRIVES, by its protocol — a USB-DMX widget is a lighting interface, a
+  // network node feeds LED tape. Only a DEFAULT: the operator can say otherwise, and an existing
+  // controller has no `drives` at all (which patches exactly as it always did).
+  const drivesFor = (protocol: OutputProtocol): FixtureKind => (protocol === 'enttec' ? 'light' : 'pixel');
+
   const handleAddController = () => {
     setControllers([...controllers, {
       id: generateId(), name: nextNumberedName('Controller', controllers),
       protocol: settings.protocol, ip: settings.artNetIp, broadcast: settings.broadcast,
+      drives: drivesFor(settings.protocol),
     }]);
   };
   const handleUpdateController = (id: string, patch: Partial<Controller>) => {
-    const next = controllers.map(c => c.id === id ? { ...c, ...patch } : c);
+    const next = controllers.map(c => {
+      if (c.id !== id) return c;
+      const merged = { ...c, ...patch };
+      // SWITCHING THE PROTOCOL RE-DEFAULTS WHAT IT DRIVES — but only if the operator never said.
+      // Routing lets an existing controller flip Art-Net ↔ USB DMX, and a widget still advertising
+      // `drives: 'pixel'` would send every light past it to the next candidate: the same
+      // silent-wrong-bucket failure this wave exists to remove, reintroduced through the one field
+      // an operator is most likely to edit. A hand-set value is left alone.
+      if ('protocol' in patch && !('drives' in patch) && c.drives === drivesFor(c.protocol)) {
+        merged.drives = drivesFor(merged.protocol);
+      }
+      return merged;
+    });
     setControllers(next);
-    if ('startUniverse' in patch) setFixtures(autoPatch(fixtures, next, patchPolicy, undefined, fixtureProfiles));
+    // `drives` changes which controller an unassigned fixture falls to, so it re-patches for the
+    // same reason startUniverse does. This is the one place in the wave that can MOVE addresses,
+    // and it only fires when the operator deliberately changed what a box drives.
+    if ('startUniverse' in patch || 'drives' in patch || 'protocol' in patch) {
+      setFixtures(autoPatch(fixtures, next, patchPolicy, undefined, fixtureProfiles));
+    }
   };
   const handleRemoveController = async (id: string) => {
     const ctrl = controllers.find(c => c.id === id);

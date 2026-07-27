@@ -4,7 +4,8 @@ import { Fixture, Surface, Controller, AppSettings, PatchPolicy, FixtureProfile 
 import { Button } from './ui';
 import { Tooltip } from './ui/Tooltip';
 import { help } from '../services/helpBus';
-import { fixtureSpans, findCollisions, fixtureFootprint } from '../services/addressing';
+import { fixtureSpans, findCollisions, fixtureFootprint, crossKindPatches } from '../services/addressing';
+import { fixtureKind, isLight, KIND_LABEL_PLURAL, type FixtureKind } from '../services/fixtureKind';
 
 interface Props {
   fixtures: Fixture[];
@@ -68,6 +69,33 @@ export const RoutingModal: React.FC<Props> = ({
     return { count: pairs.length, partners };
   }, [fixtures, controllers, fixtureProfiles, settings]);
 
+  // A controller that says what it drives can disagree with what is patched to it. NEVER refused —
+  // movers over Art-Net is an ordinary rig — but it was previously invisible: an unclassified box
+  // says nothing, and a wrong one said nothing either.
+  const crossed = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const x of crossKindPatches(fixtures, controllers)) {
+      m.set(x.fixtureId, `Patched to a controller that drives ${KIND_LABEL_PLURAL[x.drives].toLowerCase()}`);
+    }
+    return m;
+  }, [fixtures, controllers]);
+
+  // How many fixtures sit on each controller, and how many universes it can actually emit. A USB
+  // widget sends ONE, so showing the two together makes an overflow predictable BEFORE auto-patch
+  // rather than badged after it.
+  const load = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const f of fixtures) if (f.controllerId) m.set(f.controllerId, (m.get(f.controllerId) ?? 0) + 1);
+    return m;
+  }, [fixtures]);
+
+  /** Move every fixture of one kind onto one controller — the bulk op the per-fixture grid lacked. */
+  const patchAllOfKind = (kind: FixtureKind, controllerId: string) => {
+    for (const f of fixtures) if (fixtureKind(f) === kind && f.controllerId !== controllerId) {
+      onUpdateFixture(f.id, { controllerId });
+    }
+  };
+
   const span = (f: Fixture) => {
     // addressing.ts owns the footprint formula — a profiled fixture's is its mode's, not the pixel
     // product, and this readout must agree with the collision detector shown beside it.
@@ -105,22 +133,62 @@ export const RoutingModal: React.FC<Props> = ({
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-mini font-semibold text-fg-2 uppercase tracking-wider">Controllers</span>
-              <Button variant="tonal" size="sm" onClick={onAddController} {...help('routing.add-controller')}><Plus size={13} /> Controller</Button>
+              <div className="flex items-center gap-1.5">
+                {/* THE BULK OP THE GRID LACKED. Assigning forty heads to a widget was forty
+                    dropdown clicks in the per-fixture table below. */}
+                {(['pixel', 'light'] as const).map((kind) => {
+                  const target = controllers.find((c) => c.drives === kind);
+                  const n = fixtures.filter((f) => fixtureKind(f) === kind).length;
+                  if (!target || !n) return null;
+                  return (
+                    <Button
+                      key={kind} variant="ghost" size="sm"
+                      onClick={() => patchAllOfKind(kind, target.id)}
+                      title={`Move all ${n} ${KIND_LABEL_PLURAL[kind].toLowerCase()} onto ${target.name}`}
+                    >
+                      All {kind === 'pixel' ? 'LED' : 'Light'} → {target.name}
+                    </Button>
+                  );
+                })}
+                <Button variant="tonal" size="sm" onClick={onAddController} {...help('routing.add-controller')}><Plus size={13} /> Controller</Button>
+              </div>
             </div>
             <div className="border border-line-1 rounded-md divide-y divide-line-1">
-              <div className="grid grid-cols-[1.2fr_0.8fr_1.2fr_64px_72px_64px_32px] gap-1 px-2 py-1 text-micro uppercase tracking-wider text-fg-3">
-                <span>Name</span><span>Protocol</span><span>IP</span><span>Bcast</span><span>Start U</span><span>Prio</span><span></span>
+              <div className="grid grid-cols-[1.2fr_0.8fr_0.7fr_1.2fr_64px_72px_64px_32px] gap-1 px-2 py-1 text-micro uppercase tracking-wider text-fg-3">
+                <span>Name</span><span>Protocol</span><span>Drives</span><span>IP</span><span>Bcast</span><span>Start U</span><span>Prio</span><span></span>
               </div>
               {controllers.length === 0 && <div className="px-2 py-2 text-mini text-fg-3 italic">No controllers — fixtures use the global Preferences target.</div>}
               {controllers.map((c) => (
-                <div key={c.id} className="grid grid-cols-[1.2fr_0.8fr_1.2fr_64px_72px_64px_32px] gap-1 px-2 py-1 items-center">
-                  <input className={cell} value={c.name} onChange={(e) => onUpdateController(c.id, { name: e.target.value })} />
+                <div key={c.id} className="grid grid-cols-[1.2fr_0.8fr_0.7fr_1.2fr_64px_72px_64px_32px] gap-1 px-2 py-1 items-center">
+                  <div className="flex items-center gap-1 min-w-0">
+                    <input className={cell} value={c.name} onChange={(e) => onUpdateController(c.id, { name: e.target.value })} />
+                    {/* A USB widget transmits ONE universe. Saying so beside its fixture count makes
+                        an overflow predictable rather than something you discover afterwards. */}
+                    {c.protocol === 'enttec' && (
+                      <span className="shrink-0 text-micro text-fg-3 num" title="This interface transmits one universe">
+                        {load.get(c.id) ?? 0}fx · 1u
+                      </span>
+                    )}
+                  </div>
                   <Tooltip id="routing.controller-protocol">
                     <select className={cell} value={c.protocol} onChange={(e) => onUpdateController(c.id, { protocol: e.target.value as Controller['protocol'] })} {...help('routing.controller-protocol')}>
                       <option value="artnet">Art-Net</option><option value="sacn">sACN</option>
                       <option value="enttec">USB DMX</option>
                     </select>
                   </Tooltip>
+                  {/* WHAT THIS BOX DRIVES. Absent = "any", which is exactly the old behaviour: an
+                      unassigned fixture still falls to controllers[0]. Setting it is what stops a new
+                      moving head landing on the LED node (and a 180-channel strip on a DMX widget). */}
+                  <select
+                    className={cell}
+                    value={c.drives ?? ''}
+                    title="Which kind of fixture auto-patch sends here. 'Any' keeps the previous behaviour."
+                    onChange={(e) => onUpdateController(c.id, { drives: (e.target.value || undefined) as FixtureKind | undefined })}
+                  >
+                    <option value="">Any</option>
+                    <option value="pixel">LED</option>
+                    <option value="light">Light</option>
+                  </select>
                   {c.protocol === 'enttec' ? (
                     // A USB widget has no address — it has a PORT, and the operator must never have
                     // to type "COM3". The list comes from the OS's own USB descriptors, so the row
@@ -183,6 +251,8 @@ export const RoutingModal: React.FC<Props> = ({
               {fixtures.map((f) => {
                 const locked = !!f.patchLocked;
                 const clash = collisions.partners.get(f.id);
+                const light = isLight(f);
+                const cross = crossed.get(f.id);
                 return (
                   <div key={f.id} className={`grid ${COLS} gap-1 px-2 py-1 items-center`}>
                     <input className={cell} value={f.name} onChange={(e) => onUpdateFixture(f.id, { name: e.target.value })} />
@@ -193,10 +263,24 @@ export const RoutingModal: React.FC<Props> = ({
                       </select>
                     </Tooltip>
                     <Tooltip id="routing.fixture-controller">
-                      <select className={cell} value={f.controllerId ?? ''} onChange={(e) => onUpdateFixture(f.id, { controllerId: e.target.value || undefined })} {...help('routing.fixture-controller')}>
-                        <option value="">Global</option>
-                        {controllers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                      </select>
+                      <div className="flex items-center gap-1 min-w-0">
+                        <select className={`${cell} min-w-0 ${cross ? 'border-warn' : ''}`} value={f.controllerId ?? ''} onChange={(e) => onUpdateFixture(f.id, { controllerId: e.target.value || undefined })} {...help('routing.fixture-controller')}>
+                          <option value="">Global</option>
+                          {controllers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                        {/* A REPORT, not a block — running movers over Art-Net is legitimate. One
+                            click moves it to the box that claims this kind, if there is one. */}
+                        {cross && (
+                          <button
+                            className="shrink-0 text-warn hover:text-fg-1"
+                            title={`${cross} — click to move it to the matching controller`}
+                            onClick={() => {
+                              const t = controllers.find((c) => c.drives === fixtureKind(f));
+                              if (t) onUpdateFixture(f.id, { controllerId: t.id });
+                            }}
+                          ><AlertTriangle size={11} /></button>
+                        )}
+                      </div>
                     </Tooltip>
                     <Tooltip id="routing.fixture-universe">
                       <input type="number" disabled={!locked} className={`${cell} num text-right`} value={f.universe} onChange={(e) => onUpdateFixture(f.id, { universe: Math.max(0, Math.round(+e.target.value)) })} {...help('routing.fixture-universe')} />
@@ -204,13 +288,17 @@ export const RoutingModal: React.FC<Props> = ({
                     <Tooltip id="routing.fixture-start-address">
                       <input type="number" disabled={!locked} className={`${cell} num text-right`} value={f.startAddress} onChange={(e) => onUpdateFixture(f.id, { startAddress: Math.max(1, Math.min(512, Math.round(+e.target.value))) })} {...help('routing.fixture-start-address')} />
                     </Tooltip>
+                    {/* PIXEL-ONLY COLUMNS. A light's footprint comes from its MODE, so these two
+                        did nothing for one — and this grid is where bulk patching happens, so an
+                        input that silently no-ops is worse here than anywhere else. (The clamp in
+                        handleUpdateFixture is the actual guard; this is the honesty.) */}
                     <Tooltip id="routing.fixture-channels">
-                      <select className={cell} value={f.channelsPerPixel ?? 4} onChange={(e) => onUpdateFixture(f.id, { channelsPerPixel: (parseInt(e.target.value) as 3 | 4) })} {...help('routing.fixture-channels')}>
+                      <select className={cell} disabled={light} title={light ? 'Set by the DMX profile mode' : undefined} value={f.channelsPerPixel ?? 4} onChange={(e) => onUpdateFixture(f.id, { channelsPerPixel: (parseInt(e.target.value) as 3 | 4) })} {...help('routing.fixture-channels')}>
                         <option value={3}>RGB (3)</option><option value={4}>RGBW (4)</option>
                       </select>
                     </Tooltip>
                     <Tooltip id="routing.fixture-leds">
-                      <input type="number" className={`${cell} num text-right`} value={f.ledCount} onChange={(e) => onUpdateFixture(f.id, { ledCount: Math.max(1, Math.round(+e.target.value)) })} {...help('routing.fixture-leds')} />
+                      <input type="number" className={`${cell} num text-right`} disabled={light} title={light ? 'A light fixture is one emitter' : undefined} value={f.ledCount} onChange={(e) => onUpdateFixture(f.id, { ledCount: Math.max(1, Math.round(+e.target.value)) })} {...help('routing.fixture-leds')} />
                     </Tooltip>
                     <span className={`num text-micro truncate ${clash ? 'text-danger font-semibold' : 'text-fg-3'}`} title={clash ? `Overlaps ${[...clash].join(', ')}` : undefined}>{span(f)}</span>
                     {/* PAST WHAT THE DEVICE CAN SEND. A USB widget drives one universe, so a fixture

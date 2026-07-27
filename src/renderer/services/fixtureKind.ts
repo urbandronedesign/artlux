@@ -1,4 +1,4 @@
-import type { Fixture, FixtureGroup, FixtureProfile } from '../types';
+import type { Fixture, FixtureGroup, FixtureKind, FixtureProfile } from '../types';
 
 // ── WHAT KIND OF FIXTURE IS THIS? — THE ONE PLACE THAT ANSWERS IT ────────────────────────────
 //
@@ -27,8 +27,9 @@ import type { Fixture, FixtureGroup, FixtureProfile } from '../types';
 // with it. Deriving also means ZERO project migration: every `.artlux` on disk already carries the
 // answer.
 
-/** The two kinds of fixture. `'light'` iff the fixture carries a DMX profile. */
-export type FixtureKind = 'pixel' | 'light';
+// The TYPE is declared in types.ts because `Controller.drives` persists it (house doctrine); the
+// PREDICATES are here. Re-exported so callers have one import for the whole concept.
+export type { FixtureKind };
 
 /**
  * What kind of fixture this is. Cheap, and deliberately profile-map-free, so it can be called from
