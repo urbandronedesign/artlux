@@ -11,6 +11,7 @@ import { outputToNvwarp } from './projector/nvwarpApply';
 import { OutputsPanel } from './components/OutputsPanel';
 import { UpdateNotice } from './components/UpdateNotice';
 import { autoPatch } from './services/addressing';
+import { isLight } from './services/fixtureKind';
 import { TopBar } from './components/TopBar';
 import { About } from './components/About';
 import { AudioEngineMissing } from './components/AudioEngineMissing';
@@ -26,7 +27,7 @@ import { HelpPanel } from './components/HelpPanel';
 import { DocsBrowser } from './components/DocsBrowser';
 import { StatusBar } from './components/StatusBar';
 import { WorkspaceShell } from './components/shell/WorkspaceShell';
-import { EditorStore, buildSelection, type EditorData, type EditorActions } from './state/EditorStore';
+import { EditorStore, buildSelection, type EditorData, type EditorActions, type SelectedKinds } from './state/EditorStore';
 import {
   registerCoreWorkspace, VIEWPORT_STAGE_2D, VIEWPORT_SCENE_3D, VIEWPORT_TIMELINE, VIEWPORT_SCENES,
   VIEWPORT_OUTPUTS, VIEWPORT_MACHINE,
@@ -205,7 +206,7 @@ const App: React.FC = () => {
   // Pull in whatever the current rig references. Cheap and idempotent: already-resolved ids and
   // in-flight manufacturers cost nothing, so running it on every fixture change is fine.
   useEffect(() => {
-    const ids = fixtures.filter(f => f.profileId).map(f => f.profileId as string);
+    const ids = fixtures.filter(isLight).map(f => f.profileId as string);
     if (ids.length) void profiles.ensureLoaded(ids);
   }, [fixtures]);
   const fixtureProfilesRef = useRef(fixtureProfiles);
@@ -1687,7 +1688,7 @@ const App: React.FC = () => {
             colorData: [],
             surfaceId: f.surfaceId ?? surf[0]?.id,
             segments: Array.isArray(f.segments) ? f.segments : undefined,
-            ...(f.profileId && (!f.dmx || typeof f.dmx !== 'object') ? { dmx: {} } : {}),
+            ...(isLight(f) && (!f.dmx || typeof f.dmx !== 'object') ? { dmx: {} } : {}),
           })));
       }
       // ── A PROJECT DOES NOT RECONFIGURE THE BUILDING ────────────────────────────────────────────────
@@ -3258,9 +3259,26 @@ const App: React.FC = () => {
   // App stays the sole owner of state and of every mutation; this only distributes it. `data` is a
   // fresh object per render on purpose (it mirrors the props it replaces), while `actions` is handed
   // to a facade in <EditorStore> that makes each function's identity permanent — see EditorStore.tsx.
+  // TWO memos on purpose. The inner one depends on `fixtures` (it has to — a fixture's kind can
+  // change under a live selection, by assigning or clearing a DMX profile) but collapses to a tiny
+  // STRING, so the outer one — whose identity every panel is subscribed to — only rebuilds when the
+  // selected kinds actually change, not on every fixture edit. See buildSelection's SelectedKinds.
+  const selectedFixtureKinds = useMemo<SelectedKinds>(() => {
+    const ids = selectedFixtureIds.length ? selectedFixtureIds : selectedFixtureId ? [selectedFixtureId] : [];
+    if (!ids.length) return '';
+    let pixel = false, light = false;
+    for (const id of ids) {
+      const f = fixtures.find(x => x.id === id);
+      if (!f) continue;
+      if (isLight(f)) light = true; else pixel = true;
+      if (pixel && light) break;
+    }
+    return `${pixel ? 'p' : ''}${light ? 'l' : ''}` as SelectedKinds;
+  }, [fixtures, selectedFixtureId, selectedFixtureIds]);
+
   const editorSelection = useMemo(
-    () => buildSelection(selectedSurfaceId, selectedFixtureId, selectedFixtureIds, selectedModelId),
-    [selectedSurfaceId, selectedFixtureId, selectedFixtureIds, selectedModelId]);
+    () => buildSelection(selectedSurfaceId, selectedFixtureId, selectedFixtureIds, selectedModelId, selectedFixtureKinds),
+    [selectedSurfaceId, selectedFixtureId, selectedFixtureIds, selectedModelId, selectedFixtureKinds]);
 
   // MEMOIZED ON ITS FIELDS, NOT REBUILT PER RENDER — this is load-bearing, not tidiness.
   //

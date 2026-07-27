@@ -7,6 +7,7 @@ import { Fixture, Vec3, Euler3, FixtureProfile } from '../../types';
 
 // One shared empty map, so a scene with no profiled fixtures allocates nothing per render.
 const EMPTY_PROFILES: ReadonlyMap<string, FixtureProfile> = new Map();
+import { lightState, profileOf } from '../../services/fixtureKind';
 import { Scene3D, SceneModel, defaultScene3D, ProjectorCalibration } from '../../../../shared/protocol';
 import { ProjectorFrustum } from './ProjectorFrustum';
 import { InstancedLeds } from './InstancedLeds';
@@ -117,7 +118,12 @@ const Simulator3D: React.FC<Props> = ({
   // ⚠ InstancedLeds and FixtureLights still receive the FULL list: they index the canonical pixel
   // buffer by cumulative ledCount, so handing them a filtered array would silently misalign every
   // fixture after the first profiled one. Only the BODY is split.
-  const pixelFixtures = useMemo(() => fixtures.filter(f => !(f.profileId && fixtureProfiles.has(f.profileId))), [fixtures, fixtureProfiles]);
+  // ⚠ This deliberately keeps 'light-unresolved' OUT of the mover renderers AND out of here, so a
+  // light we cannot describe is drawn by neither path rather than as a stray LED sphere — the two
+  // predicates used to disagree about exactly that case. (Its buffer slot is untouched — see above.)
+  const pixelFixtures = useMemo(
+    () => fixtures.filter(f => lightState(f, fixtureProfiles) === 'pixel'),
+    [fixtures, fixtureProfiles]);
   // Fixtures whose GDTF meshes turned out to be unusable. Held here rather than inside GdtfFixture so
   // the fallback is decided ONCE per fixture and the procedural body takes over cleanly.
   const [meshFailed, setMeshFailed] = useState<Set<string>>(() => new Set());
@@ -128,7 +134,7 @@ const Simulator3D: React.FC<Props> = ({
   // procedural base/yoke/head otherwise — which stays the permanent fallback, because a rig always
   // contains a fixture nobody has a GDTF for.
   const gdtfFixtures = useMemo(() => fixtures.filter((f) => {
-    const p = f.profileId ? fixtureProfiles.get(f.profileId) : undefined;
+    const p = profileOf(f, fixtureProfiles);
     return !!p?.geometry?.nodes.length && !meshFailed.has(f.id);
   }), [fixtures, fixtureProfiles, meshFailed]);
   const proceduralFixtures = useMemo(

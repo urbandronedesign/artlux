@@ -306,8 +306,15 @@ export interface SettingsSectionRegistry<S = unknown> {
 // the host's editor store, a plugin via its own state or `ctx.host.*`), so the SDK never has to carry
 // the domain model. More than one kind can be live at once — selecting a surface does NOT clear the
 // selected fixture — which is why `kinds`/`ids` are plural and `primary` records the last click.
+// `fixture.pixel` / `fixture.light` are NARROWINGS of `fixture`, not alternatives to it: a live
+// fixture selection publishes `fixture` AND the kind(s) it contains, so a panel says which kind of
+// fixture it applies to declaratively (`appliesTo: ['fixture.light']`) instead of opening with an
+// `if (f.profileId) return null`. An LED strip and a moving head are two different devices — a
+// serpentine toggle is meaningless on a head, a pan channel strip meaningless on tape — and before
+// this existed the inspector offered every control for both. A mixed multi-selection publishes both,
+// which is correct: `appliesTo` is a FILTER, not an XOR (see below).
 export type SelectionKind =
-  | 'surface' | 'fixture' | 'group' | 'output' | 'model'
+  | 'surface' | 'fixture' | 'fixture.pixel' | 'fixture.light' | 'group' | 'output' | 'model'
   | 'clip' | 'trackingSource' | 'audioChannel';
 
 export interface SelectionSnapshot {

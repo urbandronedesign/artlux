@@ -5,6 +5,7 @@ import { WebGPUMapper } from '../gpu/WebGPUMapper';
 import { sendArtNetFrame } from '../services/mockSocketService';
 import { dmxSignal } from '../services/dmxSignal';
 import { livePreview } from '../services/livePreview';
+import { isLight } from '../services/fixtureKind';
 import * as surfaceMedia from '../services/surfaceMedia';
 import * as contentSource from '../services/contentSource';
 import * as transitions from '../services/transitions';
@@ -592,8 +593,8 @@ class FrameEngine {
       // It still consumes ONE pixel of the canonical buffer (ledCount is pinned to 1 for a profiled
       // fixture), so `offset` stays in step with the monitor and the 3D scene, both of which index
       // that buffer by cumulative ledCount.
-      if (f.profileId) {
-        const profile = this.inputs.fixtureProfiles.get(f.profileId);
+      if (isLight(f)) {
+        const profile = this.inputs.fixtureProfiles.get(f.profileId!);
         const mode = profile ? profilePack.modeOf(profile, f.profileMode) : undefined;
         // An UNRESOLVED profile writes nothing at all. That matches fixtureFootprint() returning 0 for
         // the same case, so the patch and the wire still agree — a fixture we cannot describe occupies

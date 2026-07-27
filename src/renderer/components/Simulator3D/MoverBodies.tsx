@@ -6,6 +6,7 @@ import { Fixture, FixtureProfile } from '../../types';
 import { effectivePos, effectiveRot } from '../../services/led3dLayout';
 import * as fixtureSignal from '../../services/fixtureSignal';
 import { rigMetrics } from '../../services/profileRig';
+import { isResolvedLight } from '../../services/fixtureKind';
 import { LED_PICK } from './pickPriority';
 
 // PROFILED fixtures in 3D — a base, a yoke and a head, articulated by the fixture's live Pan/Tilt.
@@ -64,9 +65,9 @@ function dims(profile: FixtureProfile | undefined) {
 }
 
 export const MoverBodies: React.FC<Props> = ({ fixtures, profiles, selectedIds, onSelectFixture }) => {
-  // Only profiled fixtures; everything else is still a bar in FixtureBodies.
+  // Only LIGHT fixtures whose profile resolved; everything else is still a bar in FixtureBodies.
   const movers = useMemo(
-    () => fixtures.filter((f) => f.profileId && profiles.has(f.profileId)),
+    () => fixtures.filter((f) => isResolvedLight(f, profiles)),
     [fixtures, profiles],
   );
   const count = movers.length;

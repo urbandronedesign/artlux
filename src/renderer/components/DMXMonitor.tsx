@@ -2,6 +2,7 @@ import React, { useMemo, useRef, useEffect } from 'react';
 import { Fixture, FixtureProfile } from '../types';
 import { dmxSignal } from '../services/dmxSignal';
 import { fixtureFootprint, resolveMode } from '../services/addressing';
+import { profileOf } from '../services/fixtureKind';
 
 interface DMXMonitorProps {
   fixtures: Fixture[];
@@ -190,7 +191,7 @@ export const DMXMonitor: React.FC<DMXMonitorProps> = ({ fixtures, fixtureProfile
             const startU = Math.floor(startAbs / 512);
             const endU = Math.floor(endAbs / 512);
             const uDisplay = startU === endU ? `${startU}` : `${startU}-${endU}`;
-            const profile = fixture.profileId ? fixtureProfiles?.get(fixture.profileId) : undefined;
+            const profile = profileOf(fixture, fixtureProfiles);
             return (
               <div key={fixture.id} className="bg-surface-1 border border-line-1 rounded-md p-2.5 flex flex-col gap-2">
                 <div className="flex items-center justify-between gap-2 min-w-0">

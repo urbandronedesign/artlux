@@ -6,6 +6,7 @@
 import type { AutomationTargetDef, AutomationTargetProvider } from '@artlux/sdk/renderer';
 import type { StateView } from './paramPath';
 import { getByPath, globalParams, surfaceParams, fixtureParams } from './paramPath';
+import { profileOf } from './fixtureKind';
 import * as overlay from './automationOverlay';
 
 // The provider reads the live committed state through a getter the host keeps fresh, rather than holding
@@ -60,7 +61,7 @@ function profileChannelRange(
   const parts = path.split('.');                       // fixtures.<id>.dmx.<key>
   if (parts[0] !== 'fixtures' || parts[2] !== 'dmx' || !parts[3]) return null;
   const fixture = view.fixtures.find((f) => f.id === parts[1]);
-  const profile = fixture?.profileId ? view.profiles?.get(fixture.profileId) : undefined;
+  const profile = fixture ? profileOf(fixture, view.profiles) : undefined;
   const channel = profile?.channels.find((c) => c.key === parts[3]);
   if (!channel) return null;
   const step = channel.ranges?.length ? 1 / 255 : 1 / (256 ** channel.resolution - 1);
@@ -85,7 +86,7 @@ export const coreAutomationProvider: AutomationTargetProvider = {
     for (const p of globalParams()) push(p.path, p.label, 'Global');
     for (const s of view.surfaces) for (const p of surfaceParams(s)) push(p.path, p.label, `Surface ▸ ${s.name ?? s.id}`);
     for (const f of view.fixtures) {
-      const profile = f.profileId ? view.profiles?.get(f.profileId) : undefined;
+      const profile = profileOf(f, view.profiles);
       for (const p of fixtureParams(f, profile)) push(p.path, p.label, `Fixture ▸ ${f.name ?? f.id}`);
     }
     return out;

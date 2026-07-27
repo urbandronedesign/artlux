@@ -1462,6 +1462,46 @@ check(
   },
 );
 
+// ── Fixtures: ONE owner of "what KIND of fixture is this?" ────────────────────────────────────
+check(
+  'fixture kind is decided only by fixtureKind.ts',
+  'An LED fixture (pixel tape, sampled off a surface, ledCount x channelsPerPixel) and a LIGHT ' +
+  'fixture (a moving head, driven by authored role values, occupying its MODE\'s footprint) are two ' +
+  'different devices on two different wires. The test was open-coded in ten files, in TWO forms that ' +
+  'quietly disagree: `f.profileId` in the packer and the footprint owner, `f.profileId && ' +
+  'profiles.has(...)` in the 3D scene. A fixture whose profile does not RESOLVE fell between them — ' +
+  'a light to the packer (which writes nothing for it) and a pixel to the 3D scene (which drew it as ' +
+  'a stray LED sphere), with nothing naming the state so nothing could report it. fixtureKind.ts owns ' +
+  'the question the way addressing.ts owns the footprint, and for the same reason: one definition, so ' +
+  'the packer, the patch, the inspector and the 3D scene cannot drift.',
+  () => {
+    const OWNER = 'src/renderer/services/fixtureKind.ts';
+    if (!exists(OWNER)) return `${OWNER} is missing (the single owner of the fixture-kind predicate)`;
+    const owner = read(OWNER);
+    for (const sym of ['fixtureKind', 'isLight', 'isPixel', 'lightState']) {
+      if (!new RegExp(`export (const|function|type) ${sym}\\b`).test(owner))
+        return `${OWNER} no longer exports ${sym}`;
+    }
+    // Only the KIND TEST is banned, never profile RESOLUTION. Reading `f.profileId` to look a profile
+    // up, to pass it as an argument, or to destructure it away is fine and unavoidable — the field is
+    // the storage. What must not be re-derived is the BRANCH: profileId used as a boolean.
+    // `.get(...)`/`.has(...)` arguments never match (the capture needs a boolean operator after it).
+    const KIND_TEST = /[!(]\s*\w+\.profileId\s*(\?|&&|\|\||\))|\w+\.profileId\s*(\?[^.]|&&)/;
+    const ALLOW = new Set([
+      OWNER,
+      // Resolves ids to profiles for the whole app; reads the raw field by definition.
+      'src/renderer/services/fixtureProfiles.ts',
+    ]);
+    const problems = [];
+    for (const f of [...walk('src/renderer'), ...walk('src/main'), ...walk('plugins'), ...walk('shared')]) {
+      if (ALLOW.has(f)) continue;
+      const m = read(f).match(KIND_TEST);
+      if (m) problems.push(`${f} decides a fixture's KIND itself (${m[0].trim()}) — call isLight()/isPixel()/lightState()`);
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);

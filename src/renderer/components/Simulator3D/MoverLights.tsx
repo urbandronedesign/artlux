@@ -5,6 +5,7 @@ import { Fixture, FixtureProfile } from '../../types';
 import { effectivePos, effectiveRot } from '../../services/led3dLayout';
 import * as fixtureSignal from '../../services/fixtureSignal';
 import { rigMetrics, halfAngle } from '../../services/profileRig';
+import { isResolvedLight } from '../../services/fixtureKind';
 
 // TIER 2 of the beam budget: a handful of REAL spotlights, so a beam actually lights the floor and
 // the geometry it falls on instead of only being a glowing cone in mid-air.
@@ -31,7 +32,7 @@ interface Props {
 
 export const MoverLights: React.FC<Props> = ({ fixtures, profiles, gain = 1 }) => {
   const movers = useMemo(
-    () => fixtures.filter((f) => f.profileId && profiles.has(f.profileId)),
+    () => fixtures.filter((f) => isResolvedLight(f, profiles)),
     [fixtures, profiles],
   );
 

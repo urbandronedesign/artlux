@@ -224,11 +224,23 @@ export function useEditorActions(): EditorActions {
 // (handleSelectSurface / handleSelectFixture), so at most one of the three is live in practice —
 // but the shape stays plural so the inspector can show sections for several kinds at once once that
 // mutual exclusion is relaxed.
+/**
+ * Which fixture KINDS are in the selection — `'p'`, `'l'`, `'pl'`, or `''`.
+ *
+ * A tiny derived string rather than the fixtures array, because `buildSelection`'s result is
+ * memoized and its IDENTITY STABILITY IS LOAD-BEARING: panels read it through a React context, so a
+ * new object re-renders every panel, and a repaint under an open native `<select>` closes the popup
+ * mid-interaction. Taking the whole `fixtures` array would rebuild the snapshot on every fixture
+ * edit; this only changes when the selected kinds actually change.
+ */
+export type SelectedKinds = '' | 'p' | 'l' | 'pl';
+
 export function buildSelection(
   selectedSurfaceId: string | null,
   selectedFixtureId: string | null,
   selectedFixtureIds: string[],
   selectedModelId: string | null,
+  fixtureKinds: SelectedKinds = '',
 ): SelectionSnapshot {
   const ids: SelectionSnapshot['ids'] = {};
   if (selectedSurfaceId) ids.surface = [selectedSurfaceId];
@@ -240,5 +252,14 @@ export function buildSelection(
     : selectedFixtureId ? { kind: 'fixture', id: selectedFixtureId }
     : selectedModelId ? { kind: 'model', id: selectedModelId }
     : null;
-  return { kinds: Object.keys(ids) as SelectionSnapshot['kinds'], ids, primary };
+  // The narrow fixture kinds ride ALONGSIDE 'fixture', never instead of it — a panel that applies to
+  // any fixture (patch, routing, arrange) keeps working untouched, while one that applies to a single
+  // kind names it. They carry no `ids` entry of their own: the ids are the same fixtures, and a
+  // second copy under a second key would be one more thing to keep in step.
+  const kinds = Object.keys(ids) as SelectionSnapshot['kinds'];
+  if (ids.fixture?.length) {
+    if (fixtureKinds.includes('p')) kinds.push('fixture.pixel');
+    if (fixtureKinds.includes('l')) kinds.push('fixture.light');
+  }
+  return { kinds, ids, primary };
 }

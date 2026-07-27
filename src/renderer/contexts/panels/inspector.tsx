@@ -9,6 +9,7 @@ import { Button, Field, Select, Slider } from '../../components/ui';
 import { Tooltip } from '../../components/ui/Tooltip';
 import { help } from '../../services/helpBus';
 import { fixtureFootprint, resolveMode } from '../../services/addressing';
+import { isLight, isPixel, profileOf, KIND_LABEL } from '../../services/fixtureKind';
 import { channelValue, physicalValue, selectedRange, valueForRange } from '../../services/profilePack';
 import { effectivePosObj, effectiveRotObj, effectiveLayout } from '../../services/led3dDefaults';
 import { useEditor, useEditorActions } from '../../state/EditorStore';
@@ -56,16 +57,16 @@ export const FixtureProfilePanel: React.FC = () => {
   const [picking, setPicking] = useState(false);
   if (!f) return null;
 
-  const profile = f.profileId ? fixtureProfiles.get(f.profileId) : undefined;
+  const profile = profileOf(f, fixtureProfiles);
   const mode = profile ? resolveMode(profile, f.profileMode) : undefined;
 
   return (
     <>
-      {!f.profileId && (
+      {isPixel(f) && (
         <>
           <div className="text-mini text-fg-3">
-            Pixel fixture — {f.ledCount} × {f.channelsPerPixel ?? 4}ch. Give it a DMX profile to drive
-            a moving head, wash or beam by named channels instead.
+            {KIND_LABEL.pixel} — {f.ledCount} × {f.channelsPerPixel ?? 4}ch. Give it a DMX profile to
+            drive a moving head, wash or beam by named channels instead.
           </div>
           {!picking && (
             <Button size="sm" variant="ghost" className="w-full mt-1" onClick={() => setPicking(true)}>
@@ -75,7 +76,7 @@ export const FixtureProfilePanel: React.FC = () => {
         </>
       )}
 
-      {f.profileId && (
+      {isLight(f) && (
         <>
           <div className="flex items-start justify-between gap-2 text-xs">
             <div className="min-w-0">
@@ -154,8 +155,8 @@ export const FixtureChannelsPanel: React.FC = () => {
   const { fixtureProfiles } = useEditor();
   const a = useEditorActions();
   const f = useSelectedFixture();
-  if (!f?.profileId) return null;
-  const profile = fixtureProfiles.get(f.profileId);
+  if (!f || isPixel(f)) return null;
+  const profile = fixtureProfiles.get(f.profileId!);
   const mode = profile ? resolveMode(profile, f.profileMode) : undefined;
   if (!profile || !mode) return null;
 

@@ -1,6 +1,7 @@
 import type {
   Fixture, Controller, OutputProtocol, PatchPolicy, FixtureProfile, ProfileMode,
 } from '../types';
+import { isLight } from './fixtureKind';
 
 // Automatic DMX patch (S5). Packs each fixture's channels sequentially per
 // controller: starting at the controller's startUniverse + channel 1, consuming
@@ -46,8 +47,8 @@ export function resolveMode(profile: FixtureProfile, key?: string): ProfileMode 
  * venue — see the resolution order in docs/FIXTURE-LIBRARY.md.
  */
 export function fixtureFootprint(f: Fixture, profiles?: ProfileMap): number {
-  if (f.profileId) {
-    const profile = profiles?.get(f.profileId);
+  if (isLight(f)) {
+    const profile = profiles?.get(f.profileId!);
     if (!profile) return 0;
     const mode = resolveMode(profile, f.profileMode);
     return mode ? Math.max(0, mode.footprint) : 0;
