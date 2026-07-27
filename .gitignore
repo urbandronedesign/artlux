@@ -84,3 +84,4 @@ graphify-plugins/*
 # stray graphify cache dumped under plugins/ by a scoped run — regenerable, never commit
 plugins/graphify-out/
 .graphify_*
+.tmp-docktree/

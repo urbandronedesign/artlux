@@ -35,7 +35,8 @@
     "gen:brand": "node scripts/gen-wordmark.cjs && node scripts/gen-icon.cjs",
     "gen:icon": "node scripts/gen-icon.cjs",
     "docs:capture": "node scripts/capture-docs.cjs",
-    "docs:html": "node scripts/build-docs-html.cjs"
+    "docs:html": "node scripts/build-docs-html.cjs",
+    "test:docktree": "tsc scripts/test-docktree.ts --outDir .tmp-docktree --target es2022 --module commonjs --moduleResolution node --skipLibCheck && node .tmp-docktree/scripts/test-docktree.js"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.3.0",

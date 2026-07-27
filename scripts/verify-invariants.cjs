@@ -497,6 +497,36 @@ check(
   },
 );
 
+// ── The dock tree stays pure, and every read of a saved one goes through the same door ────────
+check(
+  'the dock tree imports nothing, and no saved tree is trusted without sanitizing',
+  'services/dockTree.ts is the docking model: the tree, the ops, the compiler that derives one from a ' +
+  "context's flat manifest. It imports NOTHING — not React, not the registries, not even the SDK's " +
+  'WorkspaceContext type (it takes a structural view instead). That is not tidiness: it is what lets ' +
+  '`npm run test:docktree` verify 40+ behavioural rules in a second with no Electron and no app, ' +
+  'instead of someone dragging panels around by hand and hoping. One import of a registry or a React ' +
+  'hook ends that, permanently. The second half is the door: a tree read off disk is operator data ' +
+  'that has survived version changes, disabled plugins and hand edits, so it reaches the renderer only ' +
+  'through `ensureTree` (sanitize, else re-derive) — a raw `layout.contexts[x].dockTree` handed ' +
+  'straight to a renderer is how a corrupt slice becomes a white screen.',
+  () => {
+    const src = read('src/renderer/services/dockTree.ts');
+    const problems = [];
+    const imports = [...src.matchAll(/(^|\n)\s*import\s[^;]*from\s*['"]([^'"]+)['"]/g)].map((m) => m[2]);
+    if (imports.length) problems.push(`dockTree.ts imports ${imports.join(', ')} — it must stay dependency-free`);
+    if (!/export function ensureTree\(/.test(src)) problems.push('dockTree.ts lost ensureTree, the single door onto a saved tree');
+    if (!/export function sanitizeDockTree\(/.test(src)) problems.push('dockTree.ts lost sanitizeDockTree');
+    // Nothing outside this module may reach for a saved tree directly.
+    for (const f of walk('src/renderer').concat(walk('plugins'))) {
+      if (/services[\\/]dockTree\.ts$/.test(f)) continue;
+      if (/\.dockTree\b/.test(read(f)) && !/ensureTree\(/.test(read(f))) {
+        problems.push(`${f} reads a saved dockTree without going through ensureTree()`);
+      }
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Stage: a geometry drag is local until it is released ──────────────────────────────────────
 check(
   'stage drags commit on release, not per pointer move',
