@@ -64,7 +64,7 @@ block with decisions a human must make before building.
 
 ## Active plans
 
-> **[Fixture Editor — two categories, and the duplication behind them](fixture-editor-split.md)** — Draft 2026-07-27, 🟢 Low. The inspector was split by kind in Wave B; the **Fixture Editor dock was not**, and four of its seven cards are pixel-only with nothing saying so. Also records the duplication audit: **no enum has a duplicate**, but  exists three times identically, the captured-role list is duplicated under two names beside a third divergent one, and  is a dead flag ().
+> **[Fixture Editor — two categories, and the duplication behind them](fixture-editor-split.md)** — Draft 2026-07-27, 🟢 Low. The inspector was split by kind in Wave B; the **Fixture Editor dock was not**, and four of its seven cards are pixel-only with nothing saying so. Also records the duplication audit: **no enum has a duplicate** — but `roleValue()` exists three times identically, the captured-role list is duplicated under two names beside a third divergent one, and `allRoles` is a dead flag (`x ? A : A`).
 
 | Plan | Lifts (tutorial set) | Placement | Risk | Status |
 |------|----------------------|-----------|------|--------|
