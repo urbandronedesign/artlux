@@ -1633,6 +1633,38 @@ check(
   },
 );
 
+// ── Lighting: ONE curve format, and the legacy shape stays a read-only door ───────────────────
+check(
+  'a lighting take stores Keyframe[], and LightingCurve is read-only legacy',
+  'The app had TWO curve formats. Automation lanes used `Keyframe` — sparse, with hold/linear/bezier ' +
+  'segments, an O(1) cursor sampler and a drawn editor. Lighting takes used `LightingCurve` — dense ' +
+  'parallel arrays, linear-only, its own binary search, and NO editor anywhere in the tree, so a ' +
+  'recorded show could never be tuned, only re-recorded. The worse format owned the light show. ' +
+  'They are now one: a take stores Keyframe[] and is sampled by automation.ts. `LightingCurve` ' +
+  'survives ONLY so normalizeLightingTakes can read a project saved before the change — if anything ' +
+  'starts writing or sampling it again, the two formats are back.',
+  () => {
+    const T = 'src/renderer/types.ts';
+    const K = 'src/renderer/services/lightingTake.ts';
+    const types = read(T);
+    if (!/channels:\s*Partial<Record<ChannelRole,\s*Keyframe\[\]>>/.test(types))
+      return 'LightingTakePart.channels is no longer Keyframe[] — the two curve formats are back';
+    if (!/const normalizeLightingTakes\s*=/.test(types))
+      return `${T} no longer normalizes lighting takes — a legacy {t,v} curve would reach the sampler`;
+    if (!/lightingTakes:\s*normalizeLightingTakes\(/.test(types))
+      return 'normalizeTimeline no longer runs normalizeLightingTakes (it would ride the ...rest spread)';
+    if (!/sampleLane\(/.test(read(K)))
+      return `${K} no longer samples through automation.ts — the second sampler is back`;
+    // The legacy interface may be named only where it is read FROM.
+    const problems = [];
+    for (const f of [...walk('src/renderer'), ...walk('src/main'), ...walk('plugins'), ...walk('shared')]) {
+      if (f === T) continue;
+      if (/\bLightingCurve\b/.test(read(f))) problems.push(`${f} still references LightingCurve`);
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);

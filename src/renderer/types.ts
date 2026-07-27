@@ -720,6 +720,58 @@ const normalizeTrackingTakes = (tt: unknown): TrackingTakeRef[] => {
   });
 };
 
+// ── LIGHTING TAKES: read the legacy curve shape, write only Keyframe[] ───────────────────────
+//
+// A take saved before the one-curve-format change stores each role as `{t:[…], v:[…]}` — parallel
+// sampled arrays, linear-only. The conversion is TOTAL and LOSSLESS: each (t,v) pair becomes a
+// linear keyframe, which samples identically, so an old show replays on the wire exactly as it did.
+//
+// This runs in normalizeTimeline beside trackingTakes; `lightingTakes` previously rode the `...rest`
+// spread unchecked, so a hand-edited or half-written file reached the sampler as-is.
+const normalizeKeyframes = (c: unknown): Keyframe[] => {
+  // Legacy: {t:[], v:[]} → keyframes. Zipped to the SHORTER array, so a truncated save cannot
+  // produce a keyframe with an undefined value that becomes NaN in an interpolation.
+  if (c && typeof c === 'object' && !Array.isArray(c)
+      && Array.isArray((c as LightingCurve).t) && Array.isArray((c as LightingCurve).v)) {
+    const { t, v } = c as LightingCurve;
+    const n = Math.min(t.length, v.length);
+    const out: Keyframe[] = [];
+    for (let i = 0; i < n; i++) {
+      if (Number.isFinite(t[i]) && Number.isFinite(v[i])) out.push({ t: t[i], v: v[i], curve: 'linear' });
+    }
+    return out;
+  }
+  if (!Array.isArray(c)) return [];
+  return (c as Partial<Keyframe>[])
+    .filter((k): k is Keyframe => !!k && typeof k === 'object' && Number.isFinite(k.t) && Number.isFinite(k.v))
+    .map(k => ({ ...k, curve: k.curve ?? 'linear' }))
+    // The sampler's cursor assumes ascending `t` — the same invariant normalizeAutomation enforces.
+    .sort((a, b) => a.t - b.t);
+};
+
+const normalizeLightingTakes = (lt: unknown): LightingTake[] => {
+  if (!Array.isArray(lt)) return [];
+  return (lt as Partial<LightingTake>[]).flatMap((x) => {
+    if (!x || typeof x !== 'object' || Array.isArray(x)) return [];
+    if (typeof x.id !== 'string' || !Number.isFinite(x.duration)) return [];
+    const parts = (Array.isArray(x.parts) ? x.parts : []).map((p) => {
+      const channels: Partial<Record<ChannelRole, Keyframe[]>> = {};
+      const src = (p && typeof p === 'object' ? (p as LightingTakePart).channels : null) ?? {};
+      for (const [role, curve] of Object.entries(src)) {
+        const kfs = normalizeKeyframes(curve);
+        // A role with fewer than two keys cannot describe a movement, and playback would pin it —
+        // the same "a role that never moved is dropped" rule capture already applies.
+        if (kfs.length >= 2) channels[role as ChannelRole] = kfs;
+      }
+      return { channels };
+    });
+    return [{
+      version: 1 as const, id: x.id, name: typeof x.name === 'string' ? x.name : 'Take',
+      duration: x.duration as number, fps: Number.isFinite(x.fps) ? x.fps : undefined, parts,
+    }];
+  });
+};
+
 // Sanitise a clip's numeric fields so junk (NaN, a string, Infinity) can never escape
 // normalizeTimeline. Coerce, do not drop: a clip with a bad number is recoverable user data (the
 // user can see and fix a zero-duration clip); silently deleting it is not. `start`/`duration`
@@ -920,6 +972,9 @@ export const normalizeTimeline = (t: Partial<Timeline> | null | undefined): Time
     layers: Array.isArray(t.layers) ? t.layers.map(l => ({ enabled: true, ...l })) : [],
     clips,
     trackingTakes: normalizeTrackingTakes(t.trackingTakes),
+    // ⚠ AFTER the spread for the same reason as `audio` below: this is where a legacy `{t,v}` curve
+    // becomes `Keyframe[]`, and `...rest` would otherwise hand the old shape straight to the sampler.
+    lightingTakes: normalizeLightingTakes(t.lightingTakes),
     markers: normalizeMarkers(t.markers),
     // ⚠ AFTER the spread, like every other array: `...rest` above would otherwise pass a hand-edited
     // `"audio": 5` or `{"clips": null}` straight into the lane renderer and the audio driver, both of
@@ -1310,7 +1365,18 @@ export interface FixtureGroup {
 // group at all, and it is also why swapping the rig does not destroy the show: a movement recorded
 // on a 540° head replays as the same ANGLE on a 630° head. Consoles call that head morphing.
 
-/** One sampled curve: times in seconds (ascending), values in the role's own unit. */
+/**
+ * LEGACY READ SHAPE — parallel sampled arrays, linear-only. Superseded by `Keyframe[]`.
+ *
+ * A take used to store each role as `{t:[…], v:[…]}`: dense, uneditable, and sampled by its own
+ * binary search, while the app ALREADY had a proper keyframe with hold/linear/bezier segments, a
+ * cursor sampler and a drawn editor — built for audio automation. Two curve formats, and the worse
+ * one owned the light show.
+ *
+ * Kept only so `normalizeLightingTakes` can read a project saved before the change. Nothing writes
+ * it; nothing samples it. The conversion is lossless (a linear-only keyframe list IS this curve),
+ * which is what makes the switch verifiable byte-for-byte on the wire.
+ */
 export interface LightingCurve {
   t: number[];
   v: number[];
@@ -1324,7 +1390,13 @@ export interface LightingCurve {
  * target group, wrapping if the group is longer.
  */
 export interface LightingTakePart {
-  channels: Partial<Record<ChannelRole, LightingCurve>>;
+  /**
+   * ONE CURVE FORMAT IN THE APP: the same `Keyframe` an automation lane uses — so a take is sampled
+   * by the same O(1) cursor sampler, can carry hold/bezier segments, and can be drawn by the same
+   * editor. Values stay in the ROLE's own unit (degrees for pan/tilt, 0..1 otherwise); `Keyframe.v`
+   * is documented as "the target's native units", which is exactly that.
+   */
+  channels: Partial<Record<ChannelRole, Keyframe[]>>;
 }
 
 export interface LightingTake {

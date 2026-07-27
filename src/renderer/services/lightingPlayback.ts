@@ -20,6 +20,29 @@ let groups: FixtureGroup[] = [];
 let started = false;
 let hadOutput = false;
 
+// ── THE CURSOR POOL ──────────────────────────────────────────────────────────────────────────
+//
+// `sampleLane` carries a cursor so steady playback costs ~0 steps instead of a binary search per
+// fixture per role per frame (forty heads × six roles × 60 fps ≈ 14k searches/second).
+//
+// KEYED PER (CLIP, FIXTURE, ROLE) — NOT per slot. A take's parts WRAP, so two fixtures can share
+// one part while sampling it at DIFFERENT times, because each carries its own `phaseOffset`. A
+// cursor shared between them would ping-pong between two positions every frame: still correct
+// (seekIdx falls back to a binary search) but silently O(log n) again, which is the kind of
+// regression nothing visible would report.
+//
+// Held across frames deliberately — that is the whole point — and cleared when the clip set changes
+// or the transport jumps, since a stale cursor for a different curve is just a cold one.
+const cursors = new Map<string, { i: number }>();
+let cursorKeys = '';
+
+function cursorFor(clipId: string, fixtureId: string, role: string): { i: number } {
+  const key = `${clipId}|${fixtureId}|${role}`;
+  let c = cursors.get(key);
+  if (!c) { c = { i: -1 }; cursors.set(key, c); }
+  return c;
+}
+
 export function setData(t: Timeline | null): void { data = t; }
 export function setRig(f: Fixture[], g: FixtureGroup[]): void { fixtures = f; groups = g; }
 
@@ -54,8 +77,14 @@ function tick(playhead: number): void {
   // latched on the overlay forever — the same "stranded value" trap automationOverlay documents.
   if (!clips.length) {
     if (hadOutput) { overlay.begin(); overlay.commit(); hadOutput = false; }
+    if (cursors.size) { cursors.clear(); cursorKeys = ''; }
     return;
   }
+
+  // The active clip set changing means the curves behind those cursors changed. Dropping them costs
+  // one binary search each; keeping them risks a cursor pointing into a different curve's array.
+  const keys = clips.map((c) => c.id).join(',');
+  if (keys !== cursorKeys) { cursors.clear(); cursorKeys = keys; }
 
   overlay.begin();
   for (const clip of clips) {
@@ -75,7 +104,7 @@ function tick(playhead: number): void {
     for (let i = 0; i < targets.length; i++) {
       const ctx = { clip: lighting, take, localTime, index: i, total: targets.length };
       for (const role of roles) {
-        const v = sampleRole(ctx, role);
+        const v = sampleRole(ctx, role, cursorFor(clip.id, targets[i].id, role));
         if (v !== undefined) overlay.set(targets[i].id, role, v);
       }
     }
@@ -94,4 +123,6 @@ export function start(): void {
 export function stop(): void {
   overlay.clear();
   hadOutput = false;
+  cursors.clear();
+  cursorKeys = '';
 }

@@ -1,6 +1,7 @@
 import type {
-  ChannelRole, LightingClip, LightingCurve, LightingEffect, LightingTake, LightingTakePart,
+  ChannelRole, Keyframe, LightingClip, LightingEffect, LightingTake, LightingTakePart,
 } from '../types';
+import { sampleLane, type Cursor } from './automation';
 
 // Sampling a light show: turning a take (or a generated effect) plus a clip's spread into "what is
 // fixture N doing at time T".
@@ -9,24 +10,20 @@ import type {
 // only way to be sure of it is to check it against hand-computed values (see the throwaway script in
 // docs/DEVELOPMENT.md → Testing). Nothing here touches state, the transport, or the DOM.
 
-/** Linear interpolation into a sampled curve. Curves are ascending in `t` by construction. */
-export function sampleCurve(curve: LightingCurve, time: number): number | undefined {
-  const { t, v } = curve;
-  const n = t.length;
-  if (!n || v.length !== n) return undefined;
-  if (time <= t[0]) return v[0];
-  if (time >= t[n - 1]) return v[n - 1];
-
-  // Binary search: a reduced curve can still be hundreds of points, and this runs per fixture per
-  // role per frame.
-  let lo = 0, hi = n - 1;
-  while (hi - lo > 1) {
-    const mid = (lo + hi) >> 1;
-    if (t[mid] <= time) lo = mid; else hi = mid;
-  }
-  const span = t[hi] - t[lo];
-  if (span <= 0) return v[lo];
-  return v[lo] + ((v[hi] - v[lo]) * (time - t[lo])) / span;
+// ── SAMPLING A CURVE — one format, one sampler ───────────────────────────────────────────────
+//
+// This was a local binary search over `{t:[], v:[]}`. It is now `automation.sampleLane` over
+// `Keyframe[]`: the SAME sampler an automation lane uses, so hold/linear/bezier segments come free
+// and the search is a carried cursor rather than O(log n) per fixture per role per frame.
+//
+// `log` is ALWAYS false here. Log-space interpolation exists for audio targets whose axis is
+// logarithmic (a filter cutoff sweeping 20 Hz → 20 kHz); a role is degrees or 0..1, both linear.
+//
+// Honest about the win: O(1) WITHIN a take cycle. `wrapIntoTake` jumps time backwards once per
+// repeat, and the cursor re-seeks there — one binary search per fixture per wrap, not per frame.
+export function sampleCurve(kfs: Keyframe[], time: number, cursor?: Cursor): number | undefined {
+  if (!kfs.length) return undefined;
+  return sampleLane(kfs, time, cursor ?? { i: -1 }, false);
 }
 
 /** A generated movement, evaluated analytically — no samples, no file. */
@@ -122,7 +119,7 @@ export interface SampleContext {
  * carries movement must leave colour alone rather than forcing it to zero, so that two clips can
  * layer (movement from one, colour from another) the way a console layers effects.
  */
-export function sampleRole(ctx: SampleContext, role: ChannelRole): number | undefined {
+export function sampleRole(ctx: SampleContext, role: ChannelRole, cursor?: Cursor): number | undefined {
   const { clip, take, localTime, index, total } = ctx;
   const time = localTime - phaseOffset(clip, index, total);
 
@@ -134,7 +131,7 @@ export function sampleRole(ctx: SampleContext, role: ChannelRole): number | unde
     // eight-part recording of an eight-head chase stays intact.
     const part: LightingTakePart = take.parts[index % take.parts.length];
     const curve = part.channels[role];
-    if (curve) value = sampleCurve(curve, wrapIntoTake(time, take.duration));
+    if (curve) value = sampleCurve(curve, wrapIntoTake(time, take.duration), cursor);
   }
   if (value === undefined) return undefined;
 
@@ -172,7 +169,7 @@ function centreOf(take: LightingTake | undefined, role: ChannelRole): number {
   for (const part of take?.parts ?? []) {
     const c = part.channels[role];
     if (!c) continue;
-    for (const value of c.v) { if (value < min) min = value; if (value > max) max = value; }
+    for (const k of c) { if (k.v < min) min = k.v; if (k.v > max) max = k.v; }
   }
   return Number.isFinite(min) ? (min + max) / 2 : 0;
 }
@@ -186,9 +183,11 @@ function centreOf(take: LightingTake | undefined, role: ChannelRole): number {
  * on a straight line between their neighbours. `epsilon` is in the role's own unit, so half a degree
  * of pan is a sensible tolerance and 0.004 is about one step of an 8-bit channel.
  */
-export function reduceCurve(curve: LightingCurve, epsilon: number): LightingCurve {
+export function reduceCurve(curve: { t: number[]; v: number[] }, epsilon: number): Keyframe[] {
   const n = curve.t.length;
-  if (n < 3) return curve;
+  const asKeys = (t: number[], v: number[]): Keyframe[] =>
+    t.map((tt, i) => ({ t: tt, v: v[i], curve: 'linear' as const }));
+  if (n < 3) return asKeys(curve.t, curve.v);
   const keep = new Uint8Array(n);
   keep[0] = 1; keep[n - 1] = 1;
 
@@ -213,9 +212,12 @@ export function reduceCurve(curve: LightingCurve, epsilon: number): LightingCurv
     }
   }
 
-  const t: number[] = [], v: number[] = [];
-  for (let i = 0; i < n; i++) if (keep[i]) { t.push(curve.t[i]); v.push(curve.v[i]); }
-  return { t, v };
+  // Emitted as LINEAR keyframes: RDP measures distance to a straight chord, so a straight chord is
+  // exactly what it promises between the points it kept. (Fitting eased segments instead is E4 —
+  // a different reducer, and a real accuracy claim that has to be measured, not assumed.)
+  const out: Keyframe[] = [];
+  for (let i = 0; i < n; i++) if (keep[i]) out.push({ t: curve.t[i], v: curve.v[i], curve: 'linear' });
+  return out;
 }
 
 /**

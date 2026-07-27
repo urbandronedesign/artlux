@@ -1,4 +1,4 @@
-import type { ChannelRole, LightingCurve, LightingTake, LightingTakePart } from '../types';
+import type { ChannelRole, Keyframe, LightingTake, LightingTakePart } from '../types';
 import * as fixtureSignal from './fixtureSignal';
 import * as lightingOverlay from './lightingOverlay';
 import { reduceCurve, reductionEpsilon } from './lightingTake';
@@ -115,7 +115,7 @@ export function stop(name: string): LightingTake | null {
   const parts: LightingTakePart[] = [];
 
   for (const track of captured) {
-    const channels: Partial<Record<ChannelRole, LightingCurve>> = {};
+    const channels: Partial<Record<ChannelRole, Keyframe[]>> = {};
     for (const [role, raw] of track.curves) {
       if (raw.t.length < 2) continue;
       const epsilon = reductionEpsilon(role);
