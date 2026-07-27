@@ -149,7 +149,10 @@ const NumField: React.FC<{
 };
 const NUM_INPUT = 'bg-surface-0 border border-line-1 rounded px-1.5 py-0.5 text-right num text-mini focus:border-accent focus:outline-none';
 
-export const TimelineToolbar: React.FC<Props> = ({ playing, onTogglePlay, onStop, timeRef, bedTimeRef, overrun, docKey, duration, onChangeDuration, fps, onChangeFps, tool, onSetTool, snapEnabled, onToggleSnap, onAddMarker, onSetIn, onSetOut, hasRegion, onZoom, onZoomFit, onAddTrack, loop, onToggleLoop, holdAtEnd, onToggleHold, onEndStateHere, smEnabled, onToggleSm, onEditLogic, maximized, onToggleMax }) => (
+// Memoized for the same reason as the ruler: none of what it draws changes while a clip is being dragged,
+// yet it was re-rendering on every pointer move at ~61 ms/s of the gesture. Its callbacks come from
+// Timeline.tsx as one stable bag (useStableHandlers), because thirty inline arrows would defeat this.
+const TimelineToolbarBase: React.FC<Props> = ({ playing, onTogglePlay, onStop, timeRef, bedTimeRef, overrun, docKey, duration, onChangeDuration, fps, onChangeFps, tool, onSetTool, snapEnabled, onToggleSnap, onAddMarker, onSetIn, onSetOut, hasRegion, onZoom, onZoomFit, onAddTrack, loop, onToggleLoop, holdAtEnd, onToggleHold, onEndStateHere, smEnabled, onToggleSm, onEditLogic, maximized, onToggleMax }) => (
   <div className="shrink-0 flex items-center gap-2 px-3 h-9 border-b border-line-1 bg-surface-1">
     {/* ── transport: what is PLAYING ── */}
     <TBtn active={playing} title="Play / Pause (Space)" helpId="timeline.play" onClick={onTogglePlay}>
@@ -226,3 +229,4 @@ export const TimelineToolbar: React.FC<Props> = ({ playing, onTogglePlay, onStop
     </div>
   </div>
 );
+export const TimelineToolbar = React.memo(TimelineToolbarBase);

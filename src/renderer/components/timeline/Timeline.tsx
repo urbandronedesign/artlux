@@ -22,7 +22,7 @@ import { StateLane } from './StateLane';
 import { AutomationLane, AUTO_LANE_H } from './AutomationLane';
 import { AutomationTargetPicker } from './AutomationTargetPicker';
 import { automationTargetRegistry } from '../../host/registries';
-import type { AutomationLane as AutoLane, FixtureGroup, LightingClip } from '../../types';
+import type { AutomationLane as AutoLane, FixtureGroup, LightingClip, Marker } from '../../types';
 
 // A lane as the PANEL sees it. `origin` is where the lane LIVES (and therefore which clock it rides);
 // `shadowed` means a scene lane owns the same targetPath, so this global one is not applying right now.
@@ -35,10 +35,16 @@ import { ensureBlobUrl, mimeForPath } from '../../services/mediaCache';
 import { DragMode } from './ClipBlock';
 import { ClipAudioInspector } from './ClipAudioInspector';
 import { useTimelineKeys } from './hooks/useTimelineKeys';
+import { useStableHandlers } from '../../hooks/useStableHandlers';
 
 // Fallback length for an audio file the browser cannot decode (some .aiff): place a trimmable clip rather
 // than refuse the drop. A decodable file gets its real length from probeAudioDuration.
 const DEFAULT_AUDIO_DURATION = 10;
+
+// One shared empty array for the markers a document does not have. `timeline.markers ?? []` looks free
+// and is not: it mints a NEW array on every render of the common case, which is the one thing that stops
+// the (memoized, tick-heavy) ruler from ever bailing out of a re-render.
+const EMPTY_MARKERS: Marker[] = [];
 
 // Everything automatable right now, resolved from whichever provider owns each path head. Module-level
 // because it captures nothing — the registry is a module singleton — which lets it seed useState lazily.
@@ -1351,6 +1357,57 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
 
   const laneHeightOf = (l: VideoLayer) => (resizeDraft && resizeDraft.id === l.id ? resizeDraft.height : laneHeight(l));
 
+  // ── WHAT MAKES THE RULER AND TOOLBAR MEMOS ACTUALLY BAIL OUT ────────────────────────────────────
+  //
+  // Dragging a clip setStates `draft` on every pointer move, so this component re-renders at pointer
+  // rate — that part is correct and unavoidable, the dragged clip has to follow the cursor. What was
+  // NOT correct is that the ruler and the toolbar were rebuilt with it: measured over a real drag,
+  // `tl:ruler` cost **170 ms** and `tl:toolbar` **61 ms** of the panel's 341 ms, and nothing either of
+  // them draws changes while a clip moves. (The lanes, by contrast, cost 9.5 ms — which is why this is
+  // here and not there. The instinct was to memoize the lanes; the measurement said otherwise.)
+  //
+  // Both are React.memo now, and a memo is only worth the compare if the props hold still:
+  //   • the handlers become ONE bag of permanent identities forwarding to today's closures — the same
+  //     trick EditorStore uses for panel actions (hooks/useStableHandlers). Thirty inline arrows would
+  //     make every compare fail and buy nothing.
+  //   • `markers` must not be `timeline.markers ?? []`: that literal is a NEW array on every render of
+  //     a document that has no markers, which is most of them.
+  //   • `overrun` is an object literal, so it is memoized on the two numbers it actually carries.
+  // Two of the callbacks below are built by another function (`startRegionDrag(edge)` returns the
+  // handler) or read this render's values, so they get the same live-ref treatment the drag handlers
+  // above already use.
+  const startRegionDragRef = useRef(startRegionDrag); startRegionDragRef.current = startRegionDrag;
+  const fixLengthRef = useRef(fixLength); fixLengthRef.current = fixLength;
+  const fixLengthStable = useCallback(() => fixLengthRef.current(), []);
+  const markers = timeline.markers ?? EMPTY_MARKERS;
+  const rulerHandlers = useStableHandlers({
+    onSeekDown: startSeekDrag,
+    onMarkerSeek: (t: number) => engine.seek(t),
+    // Resolved against the BOUND document at call time (timelineRef/onChangeRef), not against the arrays
+    // of the render that created the handler — which is what a permanent identity requires anyway.
+    onMarkerDelete: (id: string) => onChangeRef.current({ ...timelineRef.current, markers: (timelineRef.current.markers ?? []).filter(m => m.id !== id) }),
+    onMarkerNote: (id: string, note: string) => onChangeRef.current({ ...timelineRef.current, markers: (timelineRef.current.markers ?? []).map(m => (m.id === id ? { ...m, note } : m)) }),
+    onMoveInDown: (e: React.PointerEvent) => startRegionDragRef.current('in')(e),
+    onMoveOutDown: (e: React.PointerEvent) => startRegionDragRef.current('out')(e),
+  });
+  const toolbarOverrun = useMemo(
+    () => (overrunAt != null ? { at: overrunAt, length: lengthEnd, onFix: fixLengthStable } : undefined),
+    [overrunAt, lengthEnd, fixLengthStable],
+  );
+  const toolbarHandlers = useStableHandlers({
+    onTogglePlay, onStop: stop,
+    onChangeDuration: (d: number) => onChangeRef.current({ ...timelineRef.current, duration: d }),
+    onChangeFps: (f: number) => onChangeRef.current({ ...timelineRef.current, fps: f }),
+    onSetTool: setTool,
+    onToggleSnap: () => setSnapEnabled(v => !v),
+    onAddMarker: addMarker, onSetIn: setIn, onSetOut: setOut,
+    onZoom, onZoomFit, onAddTrack: addLayer,
+    onToggleLoop: toggleLoop, onToggleHold: toggleHold, onEndStateHere: endStateHere,
+    onToggleSm: toggleSm,
+    onEditLogic: () => goToContext('machine'),
+    onToggleMax: () => onToggleMax?.(),
+  });
+
   const authoring = !!author?.activeSceneId;
   // "Empty" means nothing on the canvas at all — no tracks, no clips, no automation lanes AND no audio
   // lanes. Counting clips alone left the hint card sitting over a timeline full of audio curves.
@@ -1435,28 +1492,27 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
         </div>
       )}
       <TimelineToolbar
-        playing={playing} onTogglePlay={onTogglePlay} onStop={stop} timeRef={timeRef}
+        playing={playing} timeRef={timeRef}
         // The bed's readout is only shown when its lanes are NOT drawn — i.e. while a scene is bound and
         // the show clock has diverged from this ruler.
         bedTimeRef={authoring ? bedTimeRef : undefined}
-        overrun={overrunAt != null ? { at: overrunAt, length: lengthEnd, onFix: fixLength } : undefined}
+        overrun={toolbarOverrun}
         // Which document the number fields are editing. It must change on EVERY rebind — including one
         // where the incoming scene's Length/fps happen to EQUAL the outgoing doc's, which is the normal
         // case (Capture Scene clones the timeline, and fps is 30 nearly everywhere). See NumField.
         docKey={docKey}
-        duration={dur} onChangeDuration={(d) => onChange({ ...timeline, duration: d })}
-        fps={fps} onChangeFps={(f) => onChange({ ...timeline, fps: f })}
-        tool={tool} onSetTool={setTool}
-        snapEnabled={snapEnabled} onToggleSnap={() => setSnapEnabled(v => !v)}
-        onAddMarker={addMarker} onSetIn={setIn} onSetOut={setOut}
+        duration={dur}
+        fps={fps}
+        tool={tool}
+        snapEnabled={snapEnabled}
         // EITHER point alone is a region — the engine honours it. Requiring both made the Loop tooltip
         // lie ("loops the whole timeline") when only an in-point was set.
         hasRegion={hasTimelineRegion(timeline)}
-        onZoom={onZoom} onZoomFit={onZoomFit} onAddTrack={addLayer}
-        loop={!!timeline.loop} onToggleLoop={toggleLoop}
-        holdAtEnd={!!timeline.holdAtEnd} onToggleHold={toggleHold} onEndStateHere={endStateHere}
-        smEnabled={sm.enabled} onToggleSm={toggleSm} onEditLogic={() => goToContext('machine')}
-        maximized={maximized} onToggleMax={() => onToggleMax?.()}
+        loop={!!timeline.loop}
+        holdAtEnd={!!timeline.holdAtEnd}
+        smEnabled={sm.enabled}
+        maximized={maximized}
+        {...toolbarHandlers}
       />
 
       <TakesBin
@@ -1476,18 +1532,13 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
             <div className="sticky left-0 z-40 shrink-0 bg-surface-1 border-b border-r border-line-1 flex items-center px-2 text-micro text-fg-3" style={{ width: GUTTER, height: RULER_H }}>Tracks</div>
             <TimelineRuler
               pxPerSec={pxPerSec} width={Math.max(width, 100)} height={RULER_H} fps={fps}
-              markers={timeline.markers ?? []} inPoint={regionInPoint} outPoint={regionOutPoint}
+              markers={markers} inPoint={regionInPoint} outPoint={regionOutPoint}
               bandStart={bandOn ? timelineStart(draftTimeline) : null}
               bandEnd={bandOn ? timelineEnd(draftTimeline) : null}
               overrunFrom={overrunAt != null ? lengthEnd : null} overrunTo={overrunAt}
               // Loop wins in the engine, so the ruler must not advertise a hold that will never happen.
               holdAtEnd={!!timeline.holdAtEnd && !timeline.loop}
-              onSeekDown={startSeekDrag}
-              onMarkerSeek={(t) => engine.seek(t)}
-              onMarkerDelete={(id) => onChange({ ...timeline, markers: (timeline.markers ?? []).filter(m => m.id !== id) })}
-              onMarkerNote={(id, note) => onChange({ ...timeline, markers: (timeline.markers ?? []).map(m => m.id === id ? { ...m, note } : m) })}
-              onMoveInDown={startRegionDrag('in')}
-              onMoveOutDown={startRegionDrag('out')}
+              {...rulerHandlers}
             />
           </div>
 

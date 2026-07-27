@@ -464,6 +464,39 @@ check(
   },
 );
 
+check(
+  'the timeline ruler and toolbar are memoized, and handed props that hold still',
+  'Dragging a clip setStates a draft on every pointer move, so the panel re-renders at pointer rate — ' +
+  'that part is correct, the clip has to follow the cursor. Rebuilding the RULER with it is not: it ' +
+  'renders one tick element across the full width, and the timeline is unbounded, so that width grows ' +
+  'as the show runs (measured live at 32,957 px — some 800 ticks). Attribution over a real drag put it ' +
+  'at 170 ms of the panel\'s 341, with the toolbar at 61 and the lanes at 9.5 — which is why these two ' +
+  'are memoized and the lanes are not. A memo is only worth its compare if the props hold still, and ' +
+  'each of these three is a way to make it silently inert: an inline arrow handler, or a ' +
+  '`timeline.markers ?? []` that mints a fresh array on every render of the common case.',
+  () => {
+    const ruler = read('src/renderer/components/timeline/TimelineRuler.tsx');
+    const toolbar = read('src/renderer/components/timeline/TimelineToolbar.tsx');
+    const tl = read('src/renderer/components/timeline/Timeline.tsx');
+    const problems = [];
+    if (!/React\.memo\(TimelineRulerBase\)/.test(ruler)) problems.push('TimelineRuler is no longer memoized');
+    if (!/React\.memo\(TimelineToolbarBase\)/.test(toolbar)) problems.push('TimelineToolbar is no longer memoized');
+    // The handlers must arrive as the stable bags, not as fresh closures per render.
+    if (!/\{\.\.\.rulerHandlers\}/.test(tl) || !/useStableHandlers\(/.test(tl)) {
+      problems.push('Timeline.tsx no longer hands the ruler one stable bag of handlers — every compare will fail');
+    }
+    if (!/\{\.\.\.toolbarHandlers\}/.test(tl)) {
+      problems.push('Timeline.tsx no longer hands the toolbar one stable bag of handlers — every compare will fail');
+    }
+    // ...and the array that a document without markers would otherwise re-mint forever.
+    if (/markers=\{timeline\.markers\s*\?\?\s*\[\]\}/.test(tl)) {
+      problems.push('Timeline.tsx passes `timeline.markers ?? []` again — a new array per render defeats the ruler memo');
+    }
+    if (!/const EMPTY_MARKERS/.test(tl)) problems.push('Timeline.tsx lost EMPTY_MARKERS, the shared empty array the ruler memo depends on');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Stage: a geometry drag is local until it is released ──────────────────────────────────────
 check(
   'stage drags commit on release, not per pointer move',
