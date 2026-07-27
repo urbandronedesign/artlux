@@ -103,6 +103,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: artlux-launcher
+          retention-days: 7
           path: |
             launcher/src-tauri/target/release/bundle/nsis/*-setup.exe
             launcher/src-tauri/target/release/bundle/nsis/launcher-latest.yml
