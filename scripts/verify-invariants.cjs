@@ -585,6 +585,21 @@ check(
       }
     }
     const dock = read('src/renderer/components/shell/DockRenderer.tsx');
+    // ── The two ways a pane's flex can paint the workspace black, both reported from a real window ──
+    // A px pane that cannot shrink overflows the workspace in a short window and paints over the
+    // timeline drawer; and `fr` factors that sum to under 1 leave the REST of the free space
+    // undistributed, which is a black band across the middle. Both are one-property mistakes that look
+    // completely reasonable in the source.
+    // Each assertion names the EXACT expression, not a token that survives the mistake: there are two
+    //  in the file and three mentions of frSum, so the loose versions of these checks
+    // both passed a deliberately broken build.
+    if (!/flexGrow: 0, flexShrink: 1, flexBasis: `min\(\$\{s\.px\}px, 45%\)`/.test(dock)) {
+      problems.push('the px pane is no longer shrink-and-capped — it will overflow the workspace in a short window, or starve the pane beside it');
+    }
+    if (!/\/ frSum/.test(dock)) {
+      problems.push('fr sizes are no longer normalized per split — grow factors summing under 1 leave a black band of undistributed space');
+    }
+    if (!/flexShrink: 1, flexBasis: '0%'/.test(dock)) problems.push('the fr pane can no longer shrink');
     if (!/defaultTreeOf\(/.test(dock)) problems.push('DockRenderer no longer resets through defaultTreeOf');
     if (!/mount !== 'modal'/.test(dock)) problems.push('DockRenderer offers modal panels in the Add menu — they render outside EditorStore and would throw');
     // The tree's own splitters must not write the layout store per pointer move (the cost WP-5.2 measured).

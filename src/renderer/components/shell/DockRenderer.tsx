@@ -48,8 +48,42 @@ interface Ctx {
   splitWith?: { id: string; ratio: number; onRatio: (r: number) => void };
 }
 
-const sizeToFlex = (s: DockSize | undefined): React.CSSProperties =>
-  s && 'px' in s ? { flex: `0 0 ${s.px}px` } : { flex: `${s && 'fr' in s ? s.fr : 1} 1 0%` };
+/**
+ * A pane's flex, and the shrink factor is the whole story.
+ *
+ * ⚠ A px PANE MUST BE ALLOWED TO SHRINK. `flex: 0 0 280px` reads like "this column is 280 wide", and in
+ * a window with room it is. In a SHORT window it means "280px whatever happens": on a 541px-tall screen
+ * the workspace gets ~200px, the dock keeps its 280+, and the difference has to go somewhere — it went
+ * *outside* the workspace box, painting the dock over the timeline drawer and leaving the bottom of the
+ * window black, permanently, because nothing about it is a repaint artefact. (Reported from a real
+ * 1264x541 window; every automated check until then ran at 908 or 1700 tall and never saw it.)
+ *
+ * `0 1 Npx` keeps the requested size when it fits and gives way when it does not, which is what every
+ * fixed column in the hand-built shell already does through its own clamp.
+ */
+const sizeToFlex = (s: DockSize | undefined, frSum = 1): React.CSSProperties =>
+  s && 'px' in s
+    // ...and the cap is the second half. Shrinking stops the OVERFLOW; it does not stop a 280px dock
+    // from taking every pixel of a 200px workspace and leaving the stage at zero height — which is what
+    // the hand-built shell also does at this size, and is no better for being long-standing. `min()`
+    // clamps declaratively, with no measuring: at any comfortable window it is inert (45% of a 1216px
+    // row is 547, far past a 288px column), and it only bites when the pane would otherwise swallow the
+    // one beside it.
+    ? { flexGrow: 0, flexShrink: 1, flexBasis: `min(${s.px}px, 45%)` }
+    // ⚠ THE GROW FACTORS OF A SPLIT MUST SUM TO AT LEAST 1, WHICH IS WHY `fr` IS NORMALIZED HERE
+    // RATHER THAN USED RAW.
+    //
+    // Flexbox has a rule that is easy to walk straight into: when the flex-grow factors on a line sum
+    // to LESS than 1, only that fraction of the free space is distributed and the remainder is simply
+    // left empty. A split holding a viewport at `fr: 0.43` and a dock at a fixed px therefore fills 43%
+    // of the leftover and paints page background over the other 57% — a black band across the middle of
+    // the workspace, in a perfectly ordinary window. (Reported live. The 0.43 came from this file's own
+    // splitter commit, which stores an fr relative to the two panes it touched.)
+    //
+    // Normalizing by the split's own fr total keeps every relative proportion exactly as authored and
+    // makes the sum 1 by construction, so no stored tree — including one saved before this fix — can
+    // reproduce it.
+    : { flexGrow: frSum > 0 ? (s && 'fr' in s ? s.fr : 1) / frSum : 1, flexShrink: 1, flexBasis: '0%' };
 
 /**
  * A splitter that is LOCAL DURING THE DRAG and commits once on release.
@@ -332,8 +366,17 @@ const GroupBody: React.FC<{ node: Extract<DockNode, { kind: 'group' }>; ctx: Ctx
 const Node: React.FC<{ node: DockNode; ctx: Ctx }> = ({ node, ctx }) => {
   const hostRef = React.useRef<HTMLDivElement>(null);
   if (node.kind === 'group') return <GroupBody node={node} ctx={ctx} />;
+  // The split own fr total - see sizeToFlex for why this has to be normalized rather than used raw.
+  const frSum = node.children.reduce((a, _c, i) => {
+    const sz = node.sizes[i];
+    return a + (sz && 'fr' in sz ? sz.fr : 0);
+  }, 0);
   return (
-    <div ref={hostRef} className={`flex min-h-0 min-w-0 flex-1 ${node.dir === 'row' ? 'flex-row' : 'flex-col'}`}>
+    // overflow-hidden on the SPLIT too, not just on each pane: a pane that cannot shrink far enough
+    // would otherwise paint outside the workspace entirely - which is exactly how a short window ended
+    // up with a permanently black lower half. Clipping makes the worst case a cramped pane rather than
+    // content drawn over the drawer and the status bar.
+    <div ref={hostRef} className={`flex min-h-0 min-w-0 flex-1 overflow-hidden ${node.dir === 'row' ? 'flex-row' : 'flex-col'}`}>
       {node.children.map((child, i) => (
         <React.Fragment key={child.id}>
           {i > 0 && (
@@ -350,7 +393,7 @@ const Node: React.FC<{ node: DockNode; ctx: Ctx }> = ({ node, ctx }) => {
               slot inside it measures 0 in one axis — the viewport is then invisible while the DOM
               says it is right there. Found by probing rects, not by looking at the screen. */}
           <div data-dock-pane="1" className="min-h-0 min-w-0 relative overflow-hidden flex"
-            style={child.kind === 'group' && child.collapsed ? { flex: '0 0 auto' } : sizeToFlex(node.sizes[i])}>
+            style={child.kind === 'group' && child.collapsed ? { flex: '0 0 auto' } : sizeToFlex(node.sizes[i], frSum)}>
             <Node node={child} ctx={ctx} />
           </div>
         </React.Fragment>
