@@ -14,6 +14,8 @@ import { ContextRail } from './ContextRail';
 import { ActionBar } from './ActionBar';
 import { CommandPalette } from './CommandPalette';
 import { PersistentLayer, ViewportSlot, PERSISTENT_LAYER_ENABLED } from './PersistentLayer';
+import { DockRenderer } from './DockRenderer';
+import { ensureTree, type DockManifest } from '../../services/dockTree';
 import { HelpBrowser } from '../help/HelpBrowser';
 import { ShortcutsEditor } from '../shortcuts/ShortcutsEditor';
 
@@ -41,6 +43,11 @@ import { ShortcutsEditor } from '../shortcuts/ShortcutsEditor';
 // plain 2D context are all the same tree with different widths, and nothing ever remounts.
 
 export const SCENE_3D_VIEWPORT = 'core.viewport.scene3d';
+
+/** Per-machine dev switch for the dockable workspace, so both render paths can be compared. */
+const DOCKING_DEV_FLAG: boolean = (() => {
+  try { return localStorage.getItem('artlux.docking') === '1'; } catch { return false; }
+})();
 
 // Height of the bottom drawer's title strip — its height when closed. Matches the Dock's collapsed
 // bar closely enough to read as the same kind of thing.
@@ -145,6 +152,26 @@ export const WorkspaceShell: React.FC<Props> = ({ viewports, selection, drawers 
   const startSide = (h: (e: React.PointerEvent) => void) => (e: React.PointerEvent) => { setResizingSide(true); h(e); };
   const sideTransition = resizingSide ? '' : 'transition-all duration-med';
 
+  // ── The dockable workspace (plans/dockable-workspace.md) ────────────────────────────────────
+  // Two render paths ship side by side until WP-5.6 flips the default. `docking` is layout state
+  // rather than a module constant BECAUSE it must be flippable to compare the two — and it is safe to
+  // be: the persistent viewports live in PersistentLayer either way, so switching paths moves slots
+  // around and never remounts Stage, the 3D scene or the timeline.
+  // `artlux.docking` is the per-machine dev switch that lets the two paths be compared without editing
+  // prefs by hand; `layout.docking` is the real setting WP-5.6 will flip. Read once at module load like
+  // the layer's own flag, for the same reason — see PERSISTENT_LAYER_ENABLED.
+  const docking = (!!layout.docking || DOCKING_DEV_FLAG) && PERSISTENT_LAYER_ENABLED;
+  const dockTree = React.useMemo(() => {
+    if (!docking || !context) return null;
+    // ensureTree is the single door: sanitize what was saved, else compile the shipped arrangement from
+    // the context's own flat manifest, inheriting the ergonomics the operator already banked.
+    return ensureTree(layout.dockTrees?.[context.id], context as unknown as DockManifest, {
+      leftWidth: layout.leftWidth, rightWidth: layout.rightWidth,
+      dockHeight: layout.dockHeight, dockPanel: layout.contexts[context.id]?.dockPanel,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [docking, context?.id, layout.dockTrees, contextRegistry.all().length]);
+
   if (!context) return null; // registry empty — nothing to render (never happens once core registers)
 
   const resolve = (ids: string[] | undefined): PanelContribution[] =>
@@ -209,6 +236,30 @@ export const WorkspaceShell: React.FC<Props> = ({ viewports, selection, drawers 
       <div className="flex-1 min-w-0 flex flex-col">
         <ActionBar context={context} selection={selection} />
 
+        {/* THE DOCK TREE. One renderer draws the shipped arrangement and whatever the operator drags it
+            into, so there is no "default layout" special case to keep in sync. The bottom drawer is
+            deliberately NOT inside it (see §5 of the plan): its fixed, never-remounting position is the
+            fix that killed the lost-zoom bug, and it is rendered below either path. */}
+        {docking && dockTree ? (
+          <div role="main" aria-label="Workspace" className="flex flex-1 min-h-0">
+            <DockRenderer
+              tree={dockTree}
+              ctx={{
+                contextId: context.id,
+                selection,
+                persistentIds,
+                renderPanel: (p) => <PanelSection panel={p} contextId={context.id} selection={selection} />,
+                onTree: (next) => layoutStore.setDockTree(context.id, next),
+                // Same rule the hand-built shell applies: the 3D venue scene pairs with the context's
+                // own viewport while split view is on, and a 3D context is already showing it.
+                splitWith: showRightPane && !activeIsScene3d
+                  ? { id: SCENE_3D_VIEWPORT, ratio: layout.splitRatio, onRatio: (r) => layoutStore.set({ splitRatio: r }) }
+                  : undefined,
+              }}
+            />
+            {drawers}
+          </div>
+        ) : (
         <div className="flex flex-1 min-h-0">
           {/* Browser */}
           {browserPanels.length > 0 && (
@@ -331,6 +382,7 @@ export const WorkspaceShell: React.FC<Props> = ({ viewports, selection, drawers 
 
           {drawers}
         </div>
+        )}
 
         {/* FULL-WIDTH BOTTOM DRAWER — spans under the browser and the parameter column, unlike the
             dock. Drag its top edge to resize; the height is remembered per context.

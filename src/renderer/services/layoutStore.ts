@@ -41,6 +41,23 @@ export interface WorkspaceLayout {
   // restores the incoming one's, so the operator's dock height in LED survives a trip through Audio.
   activeContext: string;
   contexts: Record<string, ContextLayout>;
+  // ── The dockable workspace's per-context arrangement (plans/dockable-workspace.md) ───────────
+  //
+  // ⚠ A SIBLING OF `contexts`, NOT A FIELD INSIDE IT — and that is a deliberate departure from the
+  // plan, which said "slice-only, never mirrored to a top level key".
+  //
+  // The plan's reasoning was to dodge the CONTEXT_KEYS partial-spread bug class. But reading
+  // setContext() shows the slice is the wrong hiding place for exactly that reason: it does
+  // `state = { ...state, ...incoming }`, so EVERY key of a context's slice is spread onto the top
+  // level anyway. Putting the tree there would mirror it to the root on every context switch — the
+  // precise thing the rule exists to prevent, arrived at by following the rule.
+  //
+  // A map keyed by context id is never spread by setContext, never banked by CONTEXT_KEYS, and still
+  // one tree per workbench. Absent id ⇒ no saved tree ⇒ ensureTree() compiles the shipped one, which
+  // is the migration trigger and needs no layoutRev bump.
+  dockTrees?: Record<string, unknown>;
+  /** Master switch for the dockable workspace. Off until WP-5.6. */
+  docking?: boolean;
 }
 
 // The subset of the layout a context remembers on its own. Deliberately only the ERGONOMIC keys:
@@ -81,6 +98,8 @@ export const DEFAULT_LAYOUT: WorkspaceLayout = {
   activePreset: 'edit',
   activeContext: 'mapping',
   contexts: {},
+  dockTrees: {},
+  docking: false,
 };
 
 // The ergonomic keys banked per context — one list, used by both directions of a context switch.
@@ -126,6 +145,14 @@ export const layoutStore = {
       activeContext: id,
       contexts: { ...state.contexts, [state.activeContext]: banked, [id]: incoming },
     };
+    subs.forEach((f) => f());
+    persistSoon();
+  },
+  // Write one context's arrangement. Deliberately NOT routed through set(): rearranging panels is the
+  // operator editing their workbench, not "abandoning a preset", and it must not be able to disturb the
+  // ergonomic keys that setContext banks.
+  setDockTree(contextId: string, tree: unknown): void {
+    state = { ...state, dockTrees: { ...(state.dockTrees ?? {}), [contextId]: tree } };
     subs.forEach((f) => f());
     persistSoon();
   },
