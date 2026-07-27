@@ -1,8 +1,42 @@
 # Fixture Editor — two categories, and the duplication behind them
 
-> **Status:** Draft — 2026-07-27. Not started. **Core**. Risk 🟢 Low.
+> **Status:** Draft — 2026-07-27. **BLOCKED ON A DECISION (below). Not started.** **Core**. Risk 🟢 Low.
 > Follow-on to [fixture-kinds.md](fixture-kinds.md) / [lighting-rework-status.md](lighting-rework-status.md).
 > Two independent problems in one plan because the second is what the first keeps tripping over.
+
+---
+
+## ⛔ DECIDE THIS FIRST — is the Fixture Editor dock still worth having?
+
+**Undecided as of 2026-07-27, deliberately.** Part 1 below assumes the dock stays and gets split by
+kind. That assumption may be wrong, and building it before answering would be building the expensive
+version of a thing that might be deleted.
+
+Since Wave B, **almost everything in the dock exists somewhere else**:
+
+| Dock card | Also lives in |
+|---|---|
+| Create | the Mapping action bar (*Add Surface / Add Fixture / Auto-patch*) |
+| Patch | `core.inspector.fixture.patch` — both kinds, already kind-aware |
+| Pixel Type · Geometry · Wiring | `core.inspector.fixture.output` / `.mapping` / `.segments` — pixel-gated |
+| — | `core.inspector.fixture.profile` / `.channels` / `.position` (lights) |
+| **Library** | **nowhere else** — the DMX profile picker + the operator's LED templates |
+| **Ledmap** | **nowhere else** — import/export, serpentine bake |
+
+So the three live options:
+
+- **A · Split it by kind** (Part 1 as written). Keeps a familiar surface; accepts that most of it is a
+  second rendering of the inspector, and pays the drift risk forever.
+- **B · Shrink it to what is unique** — a *Library* dock (profiles + templates) and a *Ledmap* dock.
+  Everything else is already in the parameter column, kind-gated and guarded. Smallest surface, least
+  duplication; costs the "one place to build a fixture" feel.
+- **C · Leave it alone for now.** The pixel cards are noisy on a light but no longer dangerous —
+  `pinLedCount` closed the field that corrupted the rig, and `fixtureFootprint` ignores the rest.
+  Nothing here is a bug; it is all clarity.
+
+**Part 2 (the duplication) is independent of this decision and can proceed on its own.** It is a
+real correctness item — three copies of `roleValue()` and a dead flag — and it does not care what
+happens to the dock.
 
 ---
 

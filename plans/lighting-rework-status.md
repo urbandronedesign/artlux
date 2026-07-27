@@ -98,6 +98,22 @@ the measured one in the E4 commit message.
 
 ---
 
+## Undecided, and parked on purpose
+
+**Is the Fixture Editor dock still the right home?** Raised 2026-07-27, deliberately left open — the
+user will decide later. Since Wave B, everything in that dock except the **Library** and the
+**Ledmap** is a second rendering of the kind-gated inspector. Three options are written up in
+[fixture-editor-split.md](fixture-editor-split.md): split it by kind, shrink it to what is unique, or
+leave it alone. **Do not build Part 1 of that plan until this is answered** — Part 2 (the duplication)
+is independent and can go ahead.
+
+**Should lighting be a plugin?** Asked and answered *no*, 2026-07-27, with the reasoning recorded in
+the conversation and worth re-deriving if it comes up: the SDK has no fixture-kind / DMX-packing
+contribution seam, the packing lives in the frame loop, and every shipped plugin wraps a native addon
+or an optional input and graceful-degrades — lighting does neither. The plugin-shaped thing hiding in
+that question is a **fixture-kind contribution**, worth designing only when a *second* implementation
+(a laser, a media-server head) justifies it. GDTF import is the one genuinely separable piece.
+
 ## Open items, in the order they matter
 
 1. **The degrees display transform is NOT built** (lighting-keyframes §L6) — the only planned item
