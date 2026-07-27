@@ -87,7 +87,7 @@ user-verified at a checkpoint; a session must never tick those itself.
 | 3.5 | Watchdog heartbeat, stall test, flip the default | ⏸ **deferred with 3.2** | | |
 | **C3** | **Checkpoint — packaged headless/broadcast + watchdog drill + show soak (user)** | ☐ | | |
 | 4.x | *Conditional* — virtualize fixture list; canvas timeline lanes | ☐ | | gated on WP-0.1 metrics |
-| 5 | Dockable workspace (fresh planning session; appendix §8) | ☐ | | |
+| 5 | Dockable workspace | ▶ **planned — moved to its own file** | | The fresh planning session happened on 2026-07-27: **[plans/dockable-workspace.md](dockable-workspace.md)** is now canonical for it, with its own WP tracker (5.1–5.6). The appendix in §8 below is the seed it was written from; where they disagree, that file wins. Headline from the re-plan: this got **much cheaper** because WP-1.4 deleted *Stage must never unmount* — only `Simulator3D` (one WebGL context) and `TimelinePanel` (one keyboard hook) remain single-instance. |
 
 ## 1. Context — why
 
