@@ -4,6 +4,7 @@ import { AlertCircle, Magnet, Grid3X3, ZoomIn, Maximize2 } from 'lucide-react';
 import { frameEngine } from '../engine/frameEngine';
 import { Tooltip } from './ui/Tooltip';
 import { help } from '../services/helpBus';
+import { isPixel } from '../services/fixtureKind';
 
 // THE 2D STAGE — a view, and nothing else.
 //
@@ -516,7 +517,14 @@ const StageView: React.FC<StageProps> = ({
   // The overlays draw from the live draft while a drag is in flight, and from committed props the
   // rest of the time. Without this the rectangles would render from props that deliberately stop
   // updating mid-gesture, and the object being dragged would sit still under the cursor.
-  const renderFixturesList = fixtureDraft ?? fixtures;
+  // ── LIGHT FIXTURES DO NOT LIVE ON THE 2D CANVAS ─────────────────────────────────────────────
+  // A moving head is a point in a room, not a rectangle on a stage: its 2D rect meant nothing, yet
+  // it was drawn, hit-tested and DRAGGABLE here. Worse, `effectivePosObj` derives a fixture's 3D
+  // position FROM that rect whenever it has no explicit `position3D` — so on an older project,
+  // dragging a phantom rect silently teleports a head that is nowhere near where you dropped it.
+  // Lights are placed, positioned and driven in the 3D scene; they stay in the fixture LIST (the
+  // patch is a Mapping job) but have no geometry here. Guarded by verify:invariants.
+  const renderFixturesList = (fixtureDraft ?? fixtures).filter(isPixel);
   const renderSurfacesList = surfaceDraft ?? surfaces;
 
   return (

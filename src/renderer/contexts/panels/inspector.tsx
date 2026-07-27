@@ -583,6 +583,34 @@ export const FixtureRoutingPanel: React.FC = () => {
   );
 };
 
+// ── Fixture ▸ Position (LIGHT FIXTURES ONLY) ────────────────────────────────────────────────
+// WHERE IT HANGS. A light has no LED run, so `3D Layout` (spacing, arc sweep, matrix) is pixel-only
+// — but that left a light with NO numeric position at all, reachable only by dragging the gizmo.
+// A rigger works in numbers ("3 m up, 2 m stage left"), and a click-to-place is a first draft you
+// then nudge exactly. So the position/rotation half of 3D Layout lives here too, for the kind that
+// has no layout to go with it.
+export const FixturePositionPanel: React.FC = () => {
+  const a = useEditorActions();
+  const f = useSelectedFixture();
+  if (!f) return null;
+  const p = effectivePosObj(f);
+  const rot = effectiveRotObj(f);
+  const setPos = (k: 'x' | 'y' | 'z', v: number) => a.updateFixture(f.id, { position3D: { ...p, [k]: v } });
+  const setRot = (k: 'pitch' | 'yaw' | 'roll', v: number) => a.updateFixture(f.id, { rotation3D: { ...rot, [k]: v } });
+  return (
+    <>
+      <div className="text-micro text-fg-3 uppercase tracking-wider">Position (m)</div>
+      <NumberInput label="X" value={+p.x.toFixed(3)} step={0.05} onChange={(v) => setPos('x', v)} />
+      <NumberInput label="Y" value={+p.y.toFixed(3)} step={0.05} onChange={(v) => setPos('y', v)} />
+      <NumberInput label="Z" value={+p.z.toFixed(3)} step={0.05} onChange={(v) => setPos('z', v)} />
+      <div className="text-micro text-fg-3 uppercase tracking-wider pt-1">Rotation (°)</div>
+      <NumberInput label="Pitch" value={+rot.pitch.toFixed(1)} step={1} onChange={(v) => setRot('pitch', v)} />
+      <NumberInput label="Yaw" value={+rot.yaw.toFixed(1)} step={1} onChange={(v) => setRot('yaw', v)} />
+      <NumberInput label="Roll" value={+rot.roll.toFixed(1)} step={1} onChange={(v) => setRot('roll', v)} />
+    </>
+  );
+};
+
 // ── Fixture ▸ 3D Layout ─────────────────────────────────────────────────────────────────────
 export const FixtureLayout3DPanel: React.FC = () => {
   const a = useEditorActions();

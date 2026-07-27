@@ -1586,6 +1586,27 @@ check(
   },
 );
 
+// ── Stage: the 2D canvas draws LED fixtures only ──────────────────────────────────────────────
+check(
+  'the 2D stage renders no light fixture',
+  'A moving head is a point in a room, not a rectangle on a stage — but the 2D canvas drew, ' +
+  'hit-tested and let you DRAG one. That is not merely useless: led3dDefaults.effectivePosObj ' +
+  'derives a fixture\'s 3D position FROM its 2D rect whenever it has no explicit position3D, which ' +
+  'is every fixture in every project authored before lights left the canvas. So dropping this ' +
+  'filter puts phantom rects back, and dragging one silently teleports a head that is nowhere near ' +
+  'where you dropped it — a 3D rig quietly rearranged by a gesture in a different view. Lights are ' +
+  'placed and positioned in the 3D scene; they stay in the fixture LIST (the patch is a Mapping ' +
+  'job) and have no geometry here.',
+  () => {
+    const F = 'src/renderer/components/Stage.tsx';
+    const src = read(F);
+    if (!/renderFixturesList\s*=/.test(src)) return `${F} no longer builds renderFixturesList`;
+    if (!/renderFixturesList\s*=[^\n]*\.filter\(isPixel\)/.test(src))
+      return `${F} renders fixtures without .filter(isPixel) — light fixtures would be draggable on the 2D canvas again`;
+    return null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);

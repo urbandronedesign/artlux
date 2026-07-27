@@ -10,7 +10,7 @@
 
 import React from 'react';
 import {
-  Layers, Box, Users, SlidersHorizontal, Image as ImageIcon, Film, Lightbulb, MonitorPlay, Crosshair, Clapperboard, Music, Radar, Radio, Activity, Gauge, Hash, Plus, RefreshCw, Workflow, Timer, Network, Settings, FolderOpen, Save, Trash2, Copy, Grid3x3, Cable, Play,
+  Layers, Box, Users, SlidersHorizontal, Image as ImageIcon, Film, Lightbulb, MonitorPlay, Crosshair, Clapperboard, Music, Radar, Radio, Activity, Gauge, Hash, Plus, RefreshCw, Workflow, Timer, Network, Settings, FolderOpen, Save, Trash2, Copy, Grid3x3, Cable, Play, Move3d,
 } from 'lucide-react';
 import { panelRegistry, contextRegistry } from '../host/registries';
 import { SCENE_3D_VIEWPORT } from '../components/shell/WorkspaceShell';
@@ -22,7 +22,7 @@ import {
 import {
   SurfaceContentPanel, SurfaceTransformPanel, FixturePatchPanel, FixtureMappingPanel, FixtureSegmentsPanel,
   FixtureOutputPanel, FixtureRoutingPanel, FixtureLayout3DPanel,
-  FixtureProfilePanel, FixtureChannelsPanel,
+  FixtureProfilePanel, FixtureChannelsPanel, FixturePositionPanel,
 } from './panels/inspector';
 import { MediaBrowserPanel, FixtureEditorDock, MonitorDock, PerfDock, RoutingDock, StateMachineViewport } from './panels/adapters';
 import { ProgramPreviewPanel, ProgramMonitorViewport, OutputsPreviewPanel } from './panels/preview';
@@ -94,7 +94,11 @@ export function registerCoreWorkspace(): void {
   panelRegistry.register({ id: 'core.inspector.fixture.segments', mount: 'inspector', title: 'Segments', icon: <Cable size={12} />, appliesTo: ['fixture.pixel'], Component: FixtureSegmentsPanel });
   panelRegistry.register({ id: 'core.inspector.fixture.output', mount: 'inspector', title: '2D / Output', icon: <Grid3x3 size={12} />, appliesTo: ['fixture.pixel'], Component: FixtureOutputPanel });
   panelRegistry.register({ id: 'core.inspector.fixture.routing', mount: 'inspector', title: 'Routing', icon: <Network size={12} />, appliesTo: ['fixture'], Component: FixtureRoutingPanel });
+  // Pixel-only: it authors LED spacing and arc sweep for a RUN of LEDs, which a one-emitter head
+  // does not have. A light gets `position` instead — the same numbers without the layout half, so it
+  // is not left reachable only by dragging the gizmo.
   panelRegistry.register({ id: 'core.inspector.fixture.layout3d', mount: 'inspector', title: '3D Layout', icon: <Box size={12} />, appliesTo: ['fixture.pixel'], Component: FixtureLayout3DPanel });
+  panelRegistry.register({ id: 'core.inspector.fixture.position', mount: 'inspector', title: 'Position', icon: <Move3d size={12} />, appliesTo: ['fixture.light'], Component: FixturePositionPanel });
   panelRegistry.register({ id: 'core.inspector.model.transform', mount: 'inspector', title: 'Model', icon: <Box size={12} />, appliesTo: ['model'], Component: ModelTransformPanel });
   // Rig-building for a multi-selection. Lives in the fixture column so it sits beside the 3D layout
   // it rearranges.
@@ -151,6 +155,7 @@ export function registerCoreWorkspace(): void {
       'core.inspector.fixture.patch',
       'core.inspector.fixture.mapping', 'core.inspector.fixture.segments',
       'core.inspector.fixture.output', 'core.inspector.fixture.routing',
+      'core.inspector.fixture.position',
       'core.inspector.fixture.layout3d', 'core.inspector.fixture.arrange',
     ],
     dock: ['core.dock.fixtureEditor', 'core.dock.media', 'core.dock.programPreview', 'core.dock.routing', 'core.dock.monitor', 'core.dock.perf'],
@@ -201,18 +206,22 @@ export function registerCoreWorkspace(): void {
     companion: VIEWPORT_STAGE_2D,
     bottom: VIEWPORT_TIMELINE,
     browser: ['core.browser.models', 'core.browser.scene3dFixtures'],
-    // Profile and Channels come with the movers: this is where you aim a head and drive its channels,
-    // so the DMX channel strip belongs beside the rig rather than a context switch away.
+    // The WHOLE light-fixture loop lives here now: place it, position it, patch it, drive its
+    // channels — with the timeline a Ctrl+T away to store what you just set. Patch, Routing and
+    // Position joined the column so that loop needs no context switch.
     inspector: [
       'core.inspector.model.transform',
       'core.inspector.fixture.profile', 'core.inspector.fixture.channels',
+      'core.inspector.fixture.patch', 'core.inspector.fixture.routing',
+      'core.inspector.fixture.position',
       'core.inspector.fixture.layout3d', 'core.inspector.fixture.arrange',
       'core.inspector.scene.lighting', 'core.inspector.scene.tracking',
     ],
     // The tracking plugins (lidar-tracking, mediapipe, augmenta) append their monitors after these.
     dock: ['core.dock.monitor', 'core.dock.perf'],
     layout: { showLeft: true, showRight: true, dockOpen: false, splitView: false, bottomOpen: false },
-    layoutRev: 2,
+    // 3: gained patch + routing + position, so the light loop is one workbench.
+    layoutRev: 3,
     hint: {
       en: 'The venue and the rig in 3D — place fixtures, aim them, track live blobs, record lighting takes (Ctrl+T for the timeline).',
       fr: 'Le lieu et le kit en 3D — placez les fixtures, visez, suivez les blobs, enregistrez des takes (Ctrl+T pour la timeline).',

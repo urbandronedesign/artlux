@@ -1,4 +1,4 @@
-import React, { Suspense, useState, useMemo, useCallback } from 'react';
+import React, { Suspense, useState, useMemo, useCallback, useEffect } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import { OrbitControls, GizmoHelper, GizmoViewport, Html } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
@@ -8,6 +8,8 @@ import { Fixture, Vec3, Euler3, FixtureProfile } from '../../types';
 // One shared empty map, so a scene with no profiled fixtures allocates nothing per render.
 const EMPTY_PROFILES: ReadonlyMap<string, FixtureProfile> = new Map();
 import { lightState, profileOf } from '../../services/fixtureKind';
+import * as placement from '../../services/fixturePlacement';
+import { PlacementPlane } from './PlacementPlane';
 import { Scene3D, SceneModel, defaultScene3D, ProjectorCalibration } from '../../../../shared/protocol';
 import { ProjectorFrustum } from './ProjectorFrustum';
 import { InstancedLeds } from './InstancedLeds';
@@ -105,6 +107,25 @@ const Simulator3D: React.FC<Props> = ({
   paused = false,
 }) => {
   const [mode, setMode] = useState<Mode>('translate');
+  // ── CLICK-TO-PLACE ────────────────────────────────────────────────────────────────────────
+  // Armed from outside (adding a light from the library), consumed by one click on the pick plane.
+  // Subscribed rather than read as a prop so arming does not re-render App and the whole 3D tree.
+  const [placing, setPlacing] = useState(placement.get());
+  useEffect(() => placement.subscribe(setPlacing), []);
+  // Escape cancels — the same key that closes every other transient mode in the app. Bound only
+  // while armed, so it never competes with anything else for the key.
+  useEffect(() => {
+    if (!placing) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') placement.disarm(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [placing]);
+  const place = useCallback((p: Vec3) => {
+    const req = placement.consume();
+    if (!req) return;
+    onRecordHistory();
+    onCommitFixture3D([{ id: req.fixtureId, position3D: p }]);
+  }, [onCommitFixture3D, onRecordHistory]);
   // The live marquee rectangle, in CSS pixels relative to the canvas. Drawn as a DOM overlay rather
   // than in the scene: it is screen-space chrome, and painting it in 3D would put it behind geometry.
   const [marquee, setMarquee] = useState<MarqueeRect | null>(null);
@@ -159,6 +180,17 @@ const Simulator3D: React.FC<Props> = ({
         {selectionCount > 1 && (
           <span className="ml-2 text-mini text-fg-3 tabular-nums">{selectionCount} selected</span>
         )}
+        {/* AN ARMED MODE WITH NO INDICATOR IS A TRAP: the next click would do something the operator
+            has forgotten they asked for. Says what is being placed and how to get out. */}
+        {placing && (
+          <div className="ml-auto flex items-center gap-2 text-mini">
+            <span className="text-accent">Click the floor to place <strong>{placing.label}</strong></span>
+            <button
+              onClick={() => placement.disarm()}
+              className="px-1.5 py-0.5 rounded-sm border border-line-1 bg-surface-2 text-fg-2 hover:text-fg-1"
+            >Esc to cancel</button>
+          </div>
+        )}
       </div>
 
       {/* Canvas region — fills the pane below the header. The inspector overlays only this area. */}
@@ -179,6 +211,9 @@ const Simulator3D: React.FC<Props> = ({
         <Lighting env={scene3D.environment} />
         {scene3D.reflectiveFloor && <ReflectiveFloor />}
         {scene3D.gridVisible !== false && <GroundGrid />}
+        {/* Mounted ONLY while armed: an always-present pick plane would sit in front of the venue and
+            swallow clicks meant for the models behind it. While armed, swallowing IS the job. */}
+        {placing && <PlacementPlane onPlace={place} />}
         {/* Plugin-contributed 3D overlays (e.g. LiDAR blob viz). Each plugin registers a scene-viz
             component + an `enabled` gate; the host stays agnostic of what they draw. */}
         {sceneVizRegistry.all().map((v) => (v.enabled?.(scene3D) ?? true) ? <v.Component key={v.id} scene3D={scene3D} /> : null)}

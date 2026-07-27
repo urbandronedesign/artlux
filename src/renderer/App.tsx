@@ -12,6 +12,8 @@ import { OutputsPanel } from './components/OutputsPanel';
 import { UpdateNotice } from './components/UpdateNotice';
 import { autoPatch } from './services/addressing';
 import { isLight } from './services/fixtureKind';
+import { spawnPosition3D } from './services/led3dDefaults';
+import * as placement from './services/fixturePlacement';
 import { TopBar } from './components/TopBar';
 import { About } from './components/About';
 import { AudioEngineMissing } from './components/AudioEngineMissing';
@@ -920,6 +922,19 @@ const App: React.FC = () => {
     // A profiled fixture is ONE emitter, not a pixel run. Leaving ledCount at 30 would draw thirty
     // LED spheres inside one housing in the 3D scene and consume thirty pixels of the sample buffer.
     ledCount: 1,
+    // A LIGHT SAMPLES NOTHING. frameEngine returns before any sampling for it, so this link was
+    // already inert — but not harmless: the WebGPU mapper has no kind branch, so it kept computing
+    // UVs and sampling a surface for every light, every frame, and threw the result away. It also
+    // made the fixture LOOK bound to a surface it is not driven by. Dropping it is a one-way loss
+    // (converting back leaves it unlinked), which is the same trade the reverse conversion already
+    // makes with profileId/profileMode/dmx: a stale field is worse than an absent one.
+    surfaceId: undefined,
+    // ITS PLACE IN THE ROOM IS ITS OWN, from here on. `effectivePosObj` derives a 3D position from
+    // the 2D rect when this is absent — and both creation paths hardcode x:0.4/y:0.4, which maps to
+    // the world ORIGIN, so every head added piled up in one spot. The fallback is deliberately kept
+    // for EXISTING projects (where the 2D rect is a true record of where the operator put it); only
+    // new lights get an explicit position, and they get spread instead of stacked.
+    position3D: f.position3D ?? spawnPosition3D(fixtures.filter(isLight).length),
     dmx: { ...profiles.seedValues(profile), ...(f.dmx ?? {}) },
   });
 
@@ -966,10 +981,19 @@ const App: React.FC = () => {
     };
     setFixtures(autoPatch([...fixtures, applyProfile(base, profile, modeKey)], controllers, patchPolicy, undefined, fixtureProfiles));
     handleSelectFixture(newId);
+    // A LIGHT LIVES IN THE ROOM, so offer to put it there. The fixture already exists, is patched and
+    // is selected — this only arms a click to MOVE it, so never clicking costs nothing (it stays on
+    // the spread row spawnPosition3D gave it). Going to the 3D workbench is part of the offer: an
+    // armed placement with no scene on screen would be a mode with nowhere to click.
+    placement.arm({ fixtureId: newId, label: profile.model });
+    goToContext('3d');
   };
 
   const handleRemoveFixture = (id: string) => {
     recordHistory();
+    // An armed placement must not outlive its target: the hint would name a fixture that no longer
+    // exists, and the next click would silently do nothing.
+    if (placement.get()?.fixtureId === id) placement.disarm();
     setFixtures(autoPatch(fixtures.filter(f => f.id !== id), controllers, patchPolicy, undefined, fixtureProfiles));
     setSelectedFixtureIds(prev => prev.filter(x => x !== id));
     if (selectedFixtureId === id) setSelectedFixtureId(null);
@@ -1680,6 +1704,8 @@ const App: React.FC = () => {
       // one. Without this, one Ctrl+Z after File→Open would restore the PREVIOUS project's whole document
       // over the just-opened one (plans/timeline-undo.md §5.3). reset() replaces the old record()-here.
       resetHistory();
+      // …and so does an armed click-to-place: its target belongs to the outgoing document.
+      placement.disarm();
       // Surfaces: use the saved ones, or fall back to a default full-stage surface
       // (back-compat with pre-surfaces projects).
       const surf = Array.isArray(data?.surfaces) && data.surfaces.length ? data.surfaces as Surface[] : defaultSurfaces();
