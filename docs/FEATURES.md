@@ -3,20 +3,49 @@
 How to use ArtLux end-to-end. For the engine internals see
 [ARCHITECTURE.md](ARCHITECTURE.md); for the build log see [PROGRESS.md](PROGRESS.md).
 
-## Workspace layout (MadMapper logic)
-- **Title bar** (single frameless strip): ArtLux logo · **File/Edit/View/Window/Help** menus ·
-  action icons (3D Scene · Outputs · Routing · DMX Monitor · Preferences · **Help**) · window
-  minimize/maximize/close. Transport (play/pause) lives in the Timeline dock + **Space**.
-- **Left panel**: browser (**Surfaces** tree + Fixtures tree + groups + scenes) on top, **inspector**
-  below — the inspector shows surface properties or fixture properties depending on the selection.
-- **Center**: the persistent 2D **Stage** (Media/Map/Fixtures) or the **3D simulator** (3D module).
-  On the stage, **surfaces are cyan**, **fixtures are red**.
-- **Bottom dock**: **DMX Monitor** (live per-fixture pixel output) and **Fixture Editor**
-  (pixel structure).
-- **Status bar**: contextual help (hover any control) · render FPS · LIVE/target · native engine stats.
-- **Help panel** (right, dockable, resizable — **F1** / **?** / Help menu): contextual help for the
-  hovered control + browsable topic guides, with a remembered **EN/FR** language toggle. Bilingual
-  help content; the rest of the UI is English.
+## Workspace layout
+
+The editor is organised as **workbenches**, not one fixed screen. A rail down the left switches
+between nine of them, grouped by what you are doing:
+
+| Cluster | Workbenches |
+|---|---|
+| **BUILD** | **Map** (place surfaces, map content, patch fixtures) · **3D** (the venue scene) |
+| **ALIGN** | **Proj** (projector outputs) · **Calib** (projector calibration) |
+| **SHOW** | **Cues** · **Machine** (the state graph) · **Audio** · **Show** (show control) |
+| **APP** | **Prefs** |
+
+Each workbench decides what surrounds the viewport — which browser lists on the left, which
+parameters on the right, which panels in the dock — and **remembers its own sizes**, so the dock
+height you set while patching survives a trip through Audio.
+
+- **Title bar**: ArtLux logo · **File/Edit/Context/View/Window/Help** menus · action icons · window
+  controls. Transport (play/pause) lives in the timeline and on **Space**.
+- **Action bar**: the active workbench and the actions that belong to it (Add Surface, Auto-patch,
+  Routing, Collect Assets, …).
+- **The timeline is a DRAWER, not a workbench.** Eight of the nine pull it up with **Ctrl+T**, over
+  the full width of the window, and each remembers whether you left it open. It is a tool you want
+  *while* working in a viewport — cutting against the 2D stage, recording a lighting take against
+  the 3D rig — not a place you travel to.
+- **Status bar**: contextual help (hover any control) · render FPS · LIVE/target · engine stats.
+- **Help panel** (**F1** / **?** / Help menu): contextual help for the hovered control plus browsable
+  topic guides, with a remembered **EN/FR** toggle. Help content is bilingual; the rest is English.
+
+### Arrange it yourself (dockable workspace)
+
+Any workbench can be rearranged and it stays that way:
+
+- **drag a panel by its tab** onto another group to join it, or onto an **edge** to split;
+- **right-click a tab** for the same moves from the keyboard, plus Close;
+- **+** on a tab strip adds any panel, including ones this workbench does not normally show;
+- **drag the dividers** to resize; **the chevron** collapses a group;
+- **Reset this workbench** (in the **+** menu) puts it back to how it ships.
+
+Arrangements are **per workbench**, saved with your preferences, and survive a restart. If you would
+rather have the fixed layout back, turn off **Preferences › Appearance › Dockable workspace**.
+
+> Rearranging the editor never touches the show. The rendering engine does not live in the UI —
+> output keeps running while you drag panels around, and it keeps running even if a panel crashes.
 
 ## The core workflow (Surfaces model)
 See [SURFACES.md](SURFACES.md) for the full design.

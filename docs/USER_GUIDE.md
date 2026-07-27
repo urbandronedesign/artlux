@@ -59,28 +59,47 @@ fixture linked → nothing goes out; fixture linked but content is *None* → it
 
 ## 2. The interface
 
-- **Title bar (top)** — a single dark strip with the ArtLux logo, the **File / Edit / View / Window /
-  Help** menus (app-styled dropdowns), the action icons (**3D Scene**, **Outputs**, **Routing**,
-  **DMX Monitor**, **Preferences**, **Help**), and the window minimize / maximize / close controls.
-  Drag the empty middle to move the window; double-click it to maximize. (Video/timeline play-pause
-  lives in the Timeline dock and **Space**, not here.)
-- **Left panel** — two tabs: **Scene** (the **Surfaces** and **Fixtures** lists — add with **+**,
-  double-click to rename, hover to delete) and **Media** (the project's [media library](#14-projects-media-library--broadcast-mode):
-  import, preview and drag media onto the Stage or Timeline).
-- **Stage (center)** — the 2D canvas where you place and arrange surfaces and fixtures. Top-right of
-  the stage has a **grid toggle**, a **snap (magnet)** toggle, and a **reset view** button.
-- **Right panel (Inspector)** — properties for whatever is selected: a surface's content & transform,
-  or a fixture's mapping, effect, geometry and 3D layout. Also hosts **Groups** and **Scenes**.
-- **Bottom dock** — tabs for **Fixture Editor**, **Timeline**, and **DMX Monitor**. Drag its top edge
-  to resize; click the chevron to collapse.
+ArtLux is organised as **workbenches**. The rail down the left switches between nine of them, and
+each one decides what surrounds the viewport — the lists on the left, the parameters on the right,
+the panels in the dock. Each remembers its own sizes.
 
-- **Help panel (right)** — open it with **F1**, the **?** icon in the title bar, or **Help ▸ Help
-  Panel**. It shows contextual help for whatever control you hover or focus, plus a browsable set of
-  topic guides (Getting Started, Surfaces, Outputs, OSC/LiDAR Tracking, Timeline, Shortcuts). A small
-  **EN / FR** toggle switches the help language and is remembered between sessions. Drag its left edge
-  to resize.
+| | |
+|---|---|
+| **BUILD** | **Map** — place surfaces, map content onto them, patch fixtures · **3D** — the venue scene |
+| **ALIGN** | **Proj** — projector outputs · **Calib** — projector calibration |
+| **SHOW** | **Cues** · **Machine** — the state graph · **Audio** · **Show** — show control |
+| **APP** | **Prefs** |
 
-You can hide the left/right panels from the toggles at the ends of the **status bar** (bottom).
+- **Title bar** — logo, the **File / Edit / Context / View / Window / Help** menus, action icons
+  (3D Scene, Outputs, Routing, DMX Monitor, Preferences, Help), window controls. Drag the middle to
+  move the window, double-click to maximize. Play/pause is **Space**, not here.
+- **Action bar** — the active workbench and its own actions.
+- **Browser column (left)** — the lists this workbench works from: Surfaces and Fixtures in Map,
+  scenes in Cues, and so on. Add with **+**, double-click to rename.
+- **Viewport (centre)** — the 2D stage, the 3D scene, the outputs table — whatever the workbench is
+  for. On the stage, **surfaces are cyan** and **fixtures are red**.
+- **Parameters (right)** — properties of whatever is selected. A surface and a fixture can both
+  contribute sections at once.
+- **Dock (under the viewport)** — Fixture Editor, Media Library, Program, Routing, DMX Monitor.
+- **Timeline (bottom)** — a full-width **drawer**, not a workbench. **Ctrl+T** pulls it up in any
+  workbench that offers it, and each remembers whether you left it open.
+- **Help panel (right)** — **F1**, the **?** icon, or **Help › Help Panel**. Contextual help for
+  whatever you hover, plus topic guides, with an **EN / FR** toggle that is remembered.
+- **Status bar (bottom)** — a hint for the current workbench, FPS, output state, and the toggles
+  that hide the side columns.
+
+### Making it yours
+
+Drag a panel by its **tab** into another group, or onto an **edge** to split the space. Right-click a
+tab for the same moves without a mouse drag, plus **Close**. The **+** on a tab strip adds any panel,
+including ones the workbench does not normally show, and carries **Reset this workbench** for when
+you want the shipped arrangement back. Drag the dividers to resize; the chevron collapses a group.
+
+It is remembered per workbench and survives a restart. **Preferences › Appearance › Dockable
+workspace** turns it off and restores the fixed layout.
+
+> None of this touches the show. The rendering engine does not live in the interface: output keeps
+> running while you rearrange, and keeps running even if a panel crashes.
 
 ---
 
