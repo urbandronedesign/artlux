@@ -44,6 +44,8 @@ import { frameEngine, EMPTY_PROFILES as ENGINE_EMPTY_PROFILES } from './engine/f
 import { UiProfiler } from './components/UiProfiler';
 import { getDrawable, getDrawableGeneration, resolveSource } from './services/surfaceMedia';
 import { timeline as timelineEngine, GLOBAL_POOL } from './services/timeline';
+import * as fixtureSignal from './services/fixtureSignal';
+import { planStoreKey, upsertKey } from './services/lightingStoreKey';
 import { usageForPath, normPath, libraryItems, type ProjectRefs } from './services/assetLibrary';
 import { setCoreStateView } from './services/automationTargets.core';
 import * as profiles from './services/fixtureProfiles';
@@ -1458,6 +1460,52 @@ const App: React.FC = () => {
       console.warn('[app] cannot record: select fixtures first, and stop any lighting clip driving them');
     }
   };
+  // ── STORE KEY — the last step of the light-fixture authoring loop ────────────────────────────
+  //
+  // Select a light, place it in 3D, position it, set its channels, then put THAT look on the
+  // timeline at the playhead. planStoreKey() decides (it is pure and covers the three cases plus the
+  // one refusal); everything here is the mutation, as ONE state change so it is one undo step.
+  const handleStoreLightingKey = () => {
+    const plan = planStoreKey({
+      playhead: timelineEngine.getPlayhead(),
+      clips: activeTimeline.clips,
+      layers: activeTimeline.layers,
+      groups, fixtures,
+      states: fixtureSignal.snapshot(),
+      selectedFixtureIds: selectedFixtureIds.length ? selectedFixtureIds : selectedFixtureId ? [selectedFixtureId] : [],
+    });
+
+    if (plan.kind === 'refused') { toast.error(plan.reason, plan.detail); return; }
+    if (plan.warning) toast.info('Key stored', plan.warning);
+
+    recordHistory();
+    if (plan.kind === 'write') {
+      handleTimelineChange({
+        ...activeTimeline,
+        lightingSequences: (activeTimeline.lightingSequences ?? []).map(
+          (s) => (s.id === plan.sequenceId ? upsertKey(s, plan.key) : s)),
+      });
+      return;
+    }
+
+    // 'create': a new group and/or lane and/or clip, plus the sequence — committed together.
+    if (plan.newGroup) setGroups([...groups, plan.newGroup]);
+    const layerId = plan.layerId ?? generateId();
+    const layers = plan.layerId
+      ? activeTimeline.layers
+      : [...activeTimeline.layers, { id: layerId, name: 'Lighting', kind: 'lighting' as const, enabled: true }];
+    handleTimelineChange({
+      ...activeTimeline,
+      layers,
+      lightingSequences: [...(activeTimeline.lightingSequences ?? []), plan.sequence],
+      clips: [...activeTimeline.clips, {
+        id: generateId(), layerId, name: plan.sequence.name, path: '', kind: 'lighting' as const,
+        start: plan.clipStart, duration: Math.max(4, plan.sequence.duration), inPoint: 0,
+        lighting: { groupId: plan.groupId, sequenceId: plan.sequence.id },
+      }],
+    });
+  };
+
   // ── THE PLUGIN WRITE PATH INTO `Timeline.audio` (host.audio.patchTimelineClip) ────────────────────
   //
   // The mixer is a PLUGIN, and it has to be able to shape a clip that lives in a SCENE — its gain, mute,
@@ -2425,6 +2473,7 @@ const App: React.FC = () => {
           // The timeline drawer, from either menu. Same target as Ctrl+T (global.toggleBottom).
           case 'toggle-timeline': layoutStore.set({ bottomOpen: !layoutStore.get().bottomOpen }); break;
           case 'record-lighting-take': handleToggleLightingRecord(); break;
+          case 'store-lighting-key': handleStoreLightingKey(); break;
           // Context action-bar targets. These functions already existed as panel buttons; routing them
           // through the same dispatcher is what lets a WorkspaceContext name them by id (see
           // contexts/index.tsx) instead of every action needing a callback threaded to the shell.

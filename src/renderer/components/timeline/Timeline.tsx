@@ -1322,6 +1322,21 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
 
   // Badge clips that contend for a single-instance live receiver (Spout/NDI) with a different sender
   // while overlapping in time — the last one under the playhead wins (see contentSource reconcilers).
+  // clip id → its sequence's key times, for the lighting clip's diamonds. Built once per change
+  // here rather than looked up inside the memoized ClipBlock, which must not read a store.
+  const sequenceKeys = useMemo(() => {
+    const m = new Map<string, ReadonlyArray<{ t: number; name?: string }>>();
+    const seqs = timeline.lightingSequences;
+    if (!seqs?.length) return m;
+    for (const c of timeline.clips) {
+      const id = c.lighting?.sequenceId;
+      if (!id) continue;
+      const s = seqs.find((x) => x.id === id);
+      if (s) m.set(c.id, s.keys.map((k) => ({ t: k.t, name: k.name })));
+    }
+    return m;
+  }, [timeline.clips, timeline.lightingSequences]);
+
   const conflictIds = useMemo(() => {
     const ids = new Set<string>();
     const live = timeline.clips.filter(c => c.content && (c.content.type === SourceType.SPOUT || c.content.type === SourceType.NDI));
@@ -1563,7 +1578,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
                 </div>
                 <Lane
                   layer={l} clips={laneClips} selectedId={selected} tool={tool} pxPerSec={pxPerSec}
-                  width={Math.max(width, 100)} laneH={h} conflictIds={conflictIds}
+                  width={Math.max(width, 100)} laneH={h} conflictIds={conflictIds} sequenceKeys={sequenceKeys}
                   onSeek={seekTo} onDropFile={onDropFile} onAddContent={openContentMenu} onStartDrag={onStartDrag} onBlade={onBlade} onRemoveClip={onRemoveClip}
                 />
               </div>

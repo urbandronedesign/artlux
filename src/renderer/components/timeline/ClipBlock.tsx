@@ -32,6 +32,9 @@ interface Props {
   pxPerSec: number;
   laneH: number;
   conflict?: boolean; // a live receiver (Spout/NDI) is contested by another overlapping clip
+  /** A lighting clip's authored pose keys, for the diamonds. Passed in rather than looked up here:
+   *  this component is memoized on its props and must not read a store. */
+  sequenceKeys?: ReadonlyArray<{ t: number; name?: string }>;
   onStartDrag: (e: React.PointerEvent, clip: VideoClip, mode: DragMode) => void;
   onBlade: (clip: VideoClip, clientX: number) => void;
   onRemove: (clipId: string) => void;
@@ -39,7 +42,7 @@ interface Props {
 
 // A single clip on a lane. Memoized so an unrelated state change in the App tree doesn't repaint
 // every clip — only clips whose inputs actually change re-render (key for perf in this no-memo app).
-const ClipBlockBase: React.FC<Props> = ({ clip, selected, locked, tool, pxPerSec, laneH, conflict, onStartDrag, onBlade, onRemove }) => {
+const ClipBlockBase: React.FC<Props> = ({ clip, selected, locked, tool, pxPerSec, laneH, conflict, sequenceKeys, onStartDrag, onBlade, onRemove }) => {
   const widthPx = Math.max(6, clip.duration * pxPerSec);
   const blade = tool === 'blade' && !locked;
 
@@ -61,9 +64,28 @@ const ClipBlockBase: React.FC<Props> = ({ clip, selected, locked, tool, pxPerSec
         : clip.kind === 'lighting'
         // A lighting clip has no picture and no waveform — what identifies it is the MOVEMENT it
         // carries, so say that instead of leaving an anonymous block.
-        ? <div className="absolute inset-0 flex items-center gap-1 px-1.5 text-micro uppercase tracking-wider text-fg-2 bg-accent/10 pointer-events-none">
-            <span className="truncate">{clip.lighting?.effect ? clip.lighting.effect.form : 'take'}</span>
-            {clip.lighting?.phase ? <span className="text-fg-3">· ϕ{clip.lighting.phase}s</span> : null}
+        ? <div className="absolute inset-0 bg-accent/10 pointer-events-none">
+            <div className="flex items-center gap-1 px-1.5 text-micro uppercase tracking-wider text-fg-2">
+              <span className="truncate">
+                {clip.lighting?.sequenceId ? 'keys' : clip.lighting?.effect ? clip.lighting.effect.form : 'take'}
+              </span>
+              {clip.lighting?.phase ? <span className="text-fg-3">· ϕ{clip.lighting.phase}s</span> : null}
+            </div>
+            {/* KEY DIAMONDS. A clip whose keys you cannot see is not authorable — you would be
+                storing into an invisible list and guessing where the previous one landed. Drawn from
+                the clip's own trim, so sliding or trimming the clip moves them with the look. */}
+            {sequenceKeys?.map((k) => {
+              const x = (k.t - (clip.inPoint ?? 0)) * pxPerSec;
+              if (x < 0 || x > widthPx) return null;
+              return (
+                <div
+                  key={k.t}
+                  className="absolute bottom-1 w-1.5 h-1.5 rotate-45 bg-accent border border-black/40"
+                  style={{ left: x - 3 }}
+                  title={k.name ? `${k.name} — ${k.t.toFixed(2)}s` : `key @ ${k.t.toFixed(2)}s`}
+                />
+              );
+            })}
           </div>
         : isContentClip(clip)
           ? (clip.content!.type === SourceType.IMAGE && (clip.content!.url || clip.path)

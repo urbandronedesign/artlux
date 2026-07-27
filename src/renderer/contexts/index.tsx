@@ -10,7 +10,7 @@
 
 import React from 'react';
 import {
-  Layers, Box, Users, SlidersHorizontal, Image as ImageIcon, Film, Lightbulb, MonitorPlay, Crosshair, Clapperboard, Music, Radar, Radio, Activity, Gauge, Hash, Plus, RefreshCw, Workflow, Timer, Network, Settings, FolderOpen, Save, Trash2, Copy, Grid3x3, Cable, Play, Move3d,
+  Layers, Box, Users, SlidersHorizontal, Image as ImageIcon, Film, Lightbulb, MonitorPlay, Crosshair, Clapperboard, Music, Radar, Radio, Activity, Gauge, Hash, Plus, RefreshCw, Workflow, Timer, Network, Settings, FolderOpen, Save, Trash2, Copy, Grid3x3, Cable, Play, Move3d, Diamond,
 } from 'lucide-react';
 import { panelRegistry, contextRegistry } from '../host/registries';
 import { SCENE_3D_VIEWPORT } from '../components/shell/WorkspaceShell';
@@ -230,6 +230,13 @@ export function registerCoreWorkspace(): void {
       { id: 'save', label: 'Save Project', icon: <Save size={13} />, menuAction: 'save' },
       // Arm the lighting recorder without hunting for the Takes bin: busk a look on the selected heads
       // and it lands in the bin, ready to place on a lighting lane. See services/lightingRecorder.
+      // The two capture verbs, side by side, because they are the same gesture at two time scales:
+      // Store key is ONE INSTANT of the rig, Record is a stream of them. Having them together is
+      // what makes the drawer-not-a-context decision pay off — the rig, the channel strip and the
+      // lanes are on screen at once, so Ctrl+T, position, store, scrub, store is one loop with no
+      // context switch.
+      { id: 'store-key', label: 'Store Key', icon: <Diamond size={13} />, menuAction: 'store-lighting-key', group: 'lighting',
+        enabled: (s) => (s.ids.fixture?.length ?? 0) > 0 },
       { id: 'record-take', label: 'Record Lighting Take', icon: <Radio size={13} />, menuAction: 'record-lighting-take', group: 'lighting',
         enabled: (s) => (s.ids.fixture?.length ?? 0) > 0 },
       // Followed the tracking context here — a modal step-by-step flow, so it stays an action.
