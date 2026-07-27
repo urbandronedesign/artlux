@@ -1,7 +1,14 @@
 # Lighting keyframes — an authorable, group-addressed encoding for a light show
 
-> **Status:** Draft — 2026-07-27. Not started. **Core**. Risk 🟡 Med.
+> **Status: E1–E6 BUILT — 2026-07-27, on `main`, NOT PUSHED.** Rework expected before release; see
+> **[lighting-rework-status.md](lighting-rework-status.md)** for what is verified, what is open, and
+> where to resume. **Core**. Risk 🟡 Med.
 > Companion to [fixture-kinds.md](fixture-kinds.md) (it supplies the typed *light* group this addresses).
+>
+> Every phase is implemented and verified — E1 and E2 against the hardware-recorded numbers in
+> docs/LIGHTING-SHOW.md, E6 by watching the wire change. **One item was NOT built: the degrees
+> display transform (§L6).** Two of the §10 open questions were answered by building, and one of the
+> answers contradicts the recommendation written here — see the status doc.
 
 ## Context — the one-sentence problem
 

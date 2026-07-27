@@ -1,6 +1,12 @@
 # Fixture kinds — dissociating **LED fixtures** from **Light fixtures**
 
-> **Status:** Draft — 2026-07-27. Not started. **Core** (no plugin). Risk 🟡 Med.
+> **Status: ALL WAVES BUILT — 2026-07-27, on `main`, NOT PUSHED.** Rework expected before release; see
+> **[lighting-rework-status.md](lighting-rework-status.md)** for what is verified, what is open, and
+> where to resume. **Core** (no plugin). Risk 🟡 Med.
+>
+> Waves A, B, B′, C and D are implemented and verified in the running app. The §10 open questions
+> below are answered in the status doc, including two where building revised the plan's own
+> recommendation.
 
 ## Context — why this, and the decided route
 
