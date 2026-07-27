@@ -739,7 +739,7 @@ incident here was GPU/decode/IO and never React. Canonical plan, WP tracker and 
   memoization sweep. ⚠ Commit *counts* would have hidden this entirely: the Profiler measures its whole
   subtree and App rebuilds each viewport's wrapper `<div>` every render, so the count read 1 → 1 while
   the **time** read 1.2 → 0.
-- **WP-0.5 — the timeline stops re-rendering itself on a clock** (`_pending_`). The 224 ms/s above was
+- **WP-0.5 — the timeline stops re-rendering itself on a clock** (`34904d9`). The 224 ms/s above was
   not the cost of touring contexts; it was a `setInterval(…, 100)` **inside `Timeline.tsx`** sampling the
   playhead and the show clock into React state so the automation lanes could print a live value. Ten full
   renders of the panel a second — toolbar, ruler, every track header, every clip, every lane — **for
