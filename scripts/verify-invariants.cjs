@@ -562,6 +562,37 @@ check(
   },
 );
 
+check(
+  'docking drags on pointer events, resets by recompiling, and cannot dock a modal panel',
+  'Three rules the docking UI has to keep. (1) PANEL DRAGS USE POINTER EVENTS, never HTML5 ' +
+  'drag-and-drop: that channel already carries application/artlux-asset and application/artlux-take ' +
+  'between the media library, the lanes and the stage, so sharing it would light every lane up as a ' +
+  'drop target while you rearrange — and it carries Chromium\'s documented footgun where a file ' +
+  'dropped somewhere unhandled NAVIGATES THE WINDOW, which in a venue means the editor is gone. ' +
+  '(2) RESET RECOMPILES through defaultTreeOf, so the way back is always exactly what the context ' +
+  'ships, including whatever a plugin has contributed since; a hand-built "default" tree would drift ' +
+  'from the manifest the moment either changed. (3) A `mount: "modal"` panel is NOT offerable: those ' +
+  'render outside <EditorStore>, so a useEditor() call inside one throws the instant it is docked.',
+  () => {
+    const files = walk('src/renderer/components/shell');
+    const problems = [];
+    for (const f of files) {
+      const src = read(f);
+      // A BARE `draggable` attribute counts too — the first version of this check only matched
+      // `draggable=`, so the shortest way to reintroduce HTML5 dragging would have walked straight past.
+      if (/onDragStart=|onDragOver=|onDrop=|dataTransfer|\sdraggable[=\s/>]/.test(src)) {
+        problems.push(`${f} uses HTML5 drag-and-drop — panel drags are pointer events`);
+      }
+    }
+    const dock = read('src/renderer/components/shell/DockRenderer.tsx');
+    if (!/defaultTreeOf\(/.test(dock)) problems.push('DockRenderer no longer resets through defaultTreeOf');
+    if (!/mount !== 'modal'/.test(dock)) problems.push('DockRenderer offers modal panels in the Add menu — they render outside EditorStore and would throw');
+    // The tree's own splitters must not write the layout store per pointer move (the cost WP-5.2 measured).
+    if (/layoutStore/.test(dock)) problems.push('DockRenderer touches layoutStore directly — tree edits go through onTree, and splitters commit on release');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Stage: a geometry drag is local until it is released ──────────────────────────────────────
 check(
   'stage drags commit on release, not per pointer move',

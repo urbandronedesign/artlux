@@ -250,6 +250,13 @@ export const WorkspaceShell: React.FC<Props> = ({ viewports, selection, drawers 
                 persistentIds,
                 renderPanel: (p) => <PanelSection panel={p} contextId={context.id} selection={selection} />,
                 onTree: (next) => layoutStore.setDockTree(context.id, next),
+                // Reset recompiles from the live manifest, so it picks up anything a plugin has
+                // contributed since — and lands on the ergonomics the operator already banked.
+                manifest: context as unknown as DockManifest,
+                defaults: {
+                  leftWidth: layout.leftWidth, rightWidth: layout.rightWidth,
+                  dockHeight: layout.dockHeight, dockPanel: layout.contexts[context.id]?.dockPanel,
+                },
                 // Same rule the hand-built shell applies: the 3D venue scene pairs with the context's
                 // own viewport while split view is on, and a 3D context is already showing it.
                 splitWith: showRightPane && !activeIsScene3d
