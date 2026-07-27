@@ -1502,6 +1502,31 @@ check(
   },
 );
 
+// ── Shell: BOTH render paths honour appliesTo ─────────────────────────────────────────────────
+check(
+  'appliesTo is applied by the dock renderer as well as the hand-built column',
+  'The shell has TWO paths that draw parameter sections: the hand-built inspector column and ' +
+  'DockRenderer, which draws from the dock tree. Only the first filtered on `appliesTo` — and the ' +
+  'dockable workspace is ON BY DEFAULT, so the filter was effectively dead. It stayed invisible ' +
+  'because every fixture section applied to `fixture` and every surface section to `surface`, so the ' +
+  'only symptom was an inspector column longer than it should be (a selected fixture also showing ' +
+  'the surface\'s Content and Transform). Splitting fixtures into LED and LIGHT kinds turns that ' +
+  'into a correctness bug — a moving head would keep offering Serpentine, a ledmap upload and an ' +
+  'editable LED Count. One exported rule, asked by both paths.',
+  () => {
+    const R = 'src/renderer/host/registries.ts';
+    const S = 'src/renderer/components/shell/WorkspaceShell.tsx';
+    const D = 'src/renderer/components/shell/DockRenderer.tsx';
+    if (!/export const appliesToSelection/.test(read(R)))
+      return `${R} no longer exports appliesToSelection (the one selection-filter rule)`;
+    const problems = [];
+    if (!/appliesToSelection\(/.test(read(S))) problems.push(`${S} no longer calls appliesToSelection()`);
+    if (!/appliesToSelection\(/.test(read(D)))
+      problems.push(`${D} no longer calls appliesToSelection() — docked parameter sections would ignore the selection again`);
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);

@@ -1,6 +1,6 @@
 import React from 'react';
 import type { PanelContribution, SelectionSnapshot } from '@artlux/sdk/renderer';
-import { panelRegistry } from '../../host/registries';
+import { panelRegistry, appliesToSelection } from '../../host/registries';
 import type { DockNode, DockSize, DockTree } from '../../services/dockTree';
 import { addPanel, closePanel, defaultTreeOf, moveTab, panelIds, setActive, setSplitSizes, toggleCollapsed,
   type DockManifest, type DropZone } from '../../services/dockTree';
@@ -269,7 +269,12 @@ const GroupBody: React.FC<{ node: Extract<DockNode, { kind: 'group' }>; ctx: Ctx
   // disabled plugin must not cost the operator the placement they chose.
   const resolved = node.panelIds
     .map((id) => ({ id, panel: ctx.persistentIds.includes(id) ? null : panelRegistry.get(id) }))
-    .filter((p) => p.panel || ctx.persistentIds.includes(p.id));
+    .filter((p) => p.panel || ctx.persistentIds.includes(p.id))
+    // A parameter section that does not apply to the current selection is not drawn — the same rule
+    // the hand-built column has always applied, which this path was missing entirely. It is a RENDER
+    // filter only: the panel stays in the tree, so the operator's placement survives a selection
+    // change and comes back when they select that kind again.
+    .filter((p) => !p.panel || appliesToSelection(p.panel, ctx.selection));
 
   if (node.render === 'stack') {
     return (

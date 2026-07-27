@@ -21,6 +21,7 @@ import type {
   VideoCodecContribution, VideoCodecRegistry,
   AutomationTargetProvider, AutomationTargetRegistry,
   WorkspaceContext, ContextRegistry,
+  SelectionSnapshot,
 } from '@artlux/sdk/renderer';
 import type { SurfaceContent, Surface, VideoClip, AppSettings } from '../types';
 import type { WorkspaceLayout } from '../services/layoutStore';
@@ -156,3 +157,23 @@ export const contextRegistry: ContextRegistry<WorkspaceLayout> = {
     else pendingExtends.set(id, [...(pendingExtends.get(id) ?? []), patch]);
   },
 };
+
+// ── DOES THIS PANEL APPLY TO WHAT IS SELECTED? — ONE RULE, BOTH RENDER PATHS ──────────────────
+//
+// A parameter section shows when it applies to something currently selected. `appliesTo` omitted
+// means "always", and this is a FILTER over the live kinds, not a surface-XOR-fixture rule — a
+// surface and a fixture can both contribute sections at once.
+//
+// IT LIVES HERE, BESIDE THE REGISTRY, BECAUSE THE FILTER EXISTED ON ONLY ONE OF THE TWO RENDER
+// PATHS. The hand-built inspector column applied it; `DockRenderer` draws from the dock tree and did
+// not — and docking is ON BY DEFAULT, so `appliesTo` was effectively dead: selecting a fixture still
+// showed the surface's Content and Transform sections, and vice versa. It was invisible because
+// every fixture section applied to `fixture` and every surface section to `surface`, so the only
+// symptom was a column longer than it should be. Splitting fixtures into LED and LIGHT kinds turned
+// that into a correctness problem — a moving head would keep offering Serpentine, a ledmap upload
+// and an LED count — which is how it was found.
+//
+// registries.ts rather than WorkspaceShell.tsx because WorkspaceShell imports DockRenderer, so an
+// export there would be a cycle. Both already import this module.
+export const appliesToSelection = (p: PanelContribution, selection: SelectionSnapshot): boolean =>
+  !p.appliesTo || p.appliesTo.some((k) => selection.kinds.includes(k));

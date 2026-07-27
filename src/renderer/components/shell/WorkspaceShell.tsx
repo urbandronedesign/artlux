@@ -1,7 +1,7 @@
 import React from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import type { PanelContribution, SelectionSnapshot } from '@artlux/sdk/renderer';
-import { contextRegistry, panelRegistry } from '../../host/registries';
+import { contextRegistry, panelRegistry, appliesToSelection } from '../../host/registries';
 import { layoutStore, DEFAULT_LAYOUT } from '../../services/layoutStore';
 import { keymap } from '../../shortcuts/keymapStore';
 import { formatChord } from '../../shortcuts/chord';
@@ -180,11 +180,7 @@ export const WorkspaceShell: React.FC<Props> = ({ viewports, selection, drawers 
 
   const browserPanels = resolve(context.browser);
   const dockPanels = resolve(context.dock);
-  // A parameter section shows when it applies to something currently selected. `appliesTo` omitted
-  // means "always" — and this is a FILTER over the live kinds, not the old surface-XOR-fixture rule,
-  // so a surface and a fixture can both contribute sections at once.
-  const inspectorPanels = resolve(context.inspector).filter(
-    (p) => !p.appliesTo || p.appliesTo.some((k) => selection.kinds.includes(k)));
+  const inspectorPanels = resolve(context.inspector).filter((p) => appliesToSelection(p, selection));
 
   const activeViewport = context.viewport;
   const activeIsScene3d = activeViewport === SCENE_3D_VIEWPORT;
