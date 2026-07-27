@@ -527,6 +527,41 @@ check(
   },
 );
 
+check(
+  'the persistent viewports are positioned, never reparented, and never followed through React state',
+  'Stage, Simulator3D and TimelinePanel are elements App owns, and a dock tree may place a panel ' +
+  'anywhere — so the tree renders empty slots and PersistentLayer draws the real element over the ' +
+  'winning one. Three things about how it does that are load-bearing. It POSITIONS rather than ' +
+  'reparents: createPortal would move the DOM node on every layout change, which loses a canvas\'s ' +
+  'contents and can drop a WebGL context outright, and would re-run the very effects whose single ' +
+  'registration the timeline depends on. It writes STYLES rather than state: following a rect is a ' +
+  'per-frame job, and doing it in React would re-render the shell at pointer rate — measured, the loop ' +
+  'adds 0 ms/s on top of the splitter\'s own cost, and that is the number to keep. And its flag is read ' +
+  'ONCE at module load: flipping it at runtime changes the element type at those positions and remounts ' +
+  'all three, so a debug toggle would cost a WebGL context and double a keyboard hook.',
+  () => {
+    const layer = read('src/renderer/components/shell/PersistentLayer.tsx');
+    const problems = [];
+    if (/useState\s*[(<]/.test(layer)) {
+      problems.push('PersistentLayer.tsx uses useState — the follow loop must write styles, not re-render');
+    }
+    // The DYNAMIC write specifically. A first version of this check asked only for `.style.transform =`
+    // and passed a build with the positioning line deleted, because the PARKED branch also writes a
+    // (static) transform — a guard that matches the wrong line is worse than no guard.
+    if (!/style\.transform = `translate\(\$\{/.test(layer)) {
+      problems.push('PersistentLayer.tsx no longer positions by writing a computed style.transform');
+    }
+    if (!/if\s*\(!PERSISTENT_LAYER_ENABLED\)|PERSISTENT_LAYER_ENABLED\s*$|const PERSISTENT_LAYER_ENABLED: boolean = \(\(\) =>/m.test(layer)) {
+      problems.push('PERSISTENT_LAYER_ENABLED is no longer a module constant computed once');
+    }
+    // Reparenting a persistent viewport is the rejected design; keep it rejected.
+    for (const f of walk('src/renderer/components/shell')) {
+      if (/createPortal/.test(read(f))) problems.push(`${f} uses createPortal — persistent viewports are positioned, not reparented`);
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Stage: a geometry drag is local until it is released ──────────────────────────────────────
 check(
   'stage drags commit on release, not per pointer move',

@@ -13,6 +13,7 @@ import { Dock } from '../Dock';
 import { ContextRail } from './ContextRail';
 import { ActionBar } from './ActionBar';
 import { CommandPalette } from './CommandPalette';
+import { PersistentLayer, ViewportSlot, PERSISTENT_LAYER_ENABLED } from './PersistentLayer';
 import { HelpBrowser } from '../help/HelpBrowser';
 import { ShortcutsEditor } from '../shortcuts/ShortcutsEditor';
 
@@ -196,7 +197,10 @@ export const WorkspaceShell: React.FC<Props> = ({ viewports, selection, drawers 
     ? panelRegistry.get(leftViewport) : null;
 
   return (
-    <div className="flex flex-1 min-h-0">
+    // `relative` is what the persistent layer measures against — every slot rect is expressed relative
+    // to this box, so the layer is unaffected by page scroll or by where the shell sits in the window.
+    <div className="flex flex-1 min-h-0 relative">
+      {PERSISTENT_LAYER_ENABLED && <PersistentLayer viewports={viewports} />}
       <CommandPalette selection={selection} />
       <HelpBrowser />
       <ShortcutsEditor />
@@ -241,10 +245,17 @@ export const WorkspaceShell: React.FC<Props> = ({ viewports, selection, drawers 
                 style={{ width: `${leftFrac * 100}%` }}
                 aria-hidden={leftFrac === 0}
               >
+                {/* WP-5.2: with the layer on, these become empty SLOTS and the real elements are drawn
+                    over them by PersistentLayer. The condition is a module constant, never state, so the
+                    element type at this position cannot change mid-session and remount a viewport. */}
                 {persistentIds.filter((id) => id !== SCENE_3D_VIEWPORT && id !== bottomId).map((id) => (
-                  <div key={id} className="absolute inset-0" style={{ display: id === leftViewport ? undefined : 'none' }}>
-                    {viewports[id]}
-                  </div>
+                  PERSISTENT_LAYER_ENABLED
+                    ? <ViewportSlot key={id} id={id} visible={id === leftViewport} />
+                    : (
+                      <div key={id} className="absolute inset-0" style={{ display: id === leftViewport ? undefined : 'none' }}>
+                        {viewports[id]}
+                      </div>
+                    )
                 ))}
                 {registryViewport && (
                   <div className="absolute inset-0 overflow-auto">
@@ -262,7 +273,12 @@ export const WorkspaceShell: React.FC<Props> = ({ viewports, selection, drawers 
               {/* RIGHT pane — the 3D scene, permanently. Kept mounted (width 0) once it has ever been
                   shown, so switching away from a 3D context doesn't tear down the r3f canvas. */}
               <div className="min-h-0 relative overflow-hidden" style={{ flex: showRightPane ? '1 1 0%' : '0 0 0px' }} aria-hidden={!showRightPane}>
-                {viewports[SCENE_3D_VIEWPORT]}
+                {PERSISTENT_LAYER_ENABLED
+                  // `visible` gates on the pane having real width: a slot measuring 0px would hand the
+                  // 3D scene a 0x0 box, and r3f caches its raycaster against that and then picks nothing
+                  // for the rest of the session. Parked is safe; zero-sized is not.
+                  ? <ViewportSlot id={SCENE_3D_VIEWPORT} visible={showRightPane} />
+                  : viewports[SCENE_3D_VIEWPORT]}
               </div>
             </div>
 
@@ -355,7 +371,12 @@ export const WorkspaceShell: React.FC<Props> = ({ viewports, selection, drawers 
                 ? <ErrorBoundary variant="panel" label={bottomPanel.title ?? bottomPanel.id}>
                     <bottomPanel.Component contextId={context.id} selection={selection} />
                   </ErrorBoundary>
-                : viewports[bottomId!]}
+                : PERSISTENT_LAYER_ENABLED
+                  // The drawer's slot for the timeline. It stays VISIBLE while closed: the box is zero
+                  // height then, and the element must keep measuring rather than be parked — parking it
+                  // is what used to throw away its zoom and scroll.
+                  ? <ViewportSlot id={bottomId!} />
+                  : viewports[bottomId!]}
             </div>
           </div>
         )}
