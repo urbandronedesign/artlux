@@ -10,7 +10,7 @@
 
 import React from 'react';
 import {
-  Layers, Box, Users, SlidersHorizontal, Image as ImageIcon, Film, Lightbulb, MonitorPlay, Crosshair, Clapperboard, Music, Radar, Radio, Activity, Gauge, Hash, Plus, RefreshCw, Workflow, Timer, Network, Settings, FolderOpen, Save, Trash2, Copy, Grid3x3, Cable, Play, Move3d, Diamond,
+  Layers, Box, Users, SlidersHorizontal, Image as ImageIcon, Film, Lightbulb, MonitorPlay, Crosshair, Clapperboard, Music, Radar, Radio, Activity, Gauge, Hash, Plus, RefreshCw, Workflow, Timer, Network, Settings, FolderOpen, Save, Trash2, Copy, Grid3x3, Cable, Play, Move3d, Diamond, Bookmark,
 } from 'lucide-react';
 import { panelRegistry, contextRegistry } from '../host/registries';
 import { SCENE_3D_VIEWPORT } from '../components/shell/WorkspaceShell';
@@ -236,6 +236,9 @@ export function registerCoreWorkspace(): void {
       // lanes are on screen at once, so Ctrl+T, position, store, scrub, store is one loop with no
       // context switch.
       { id: 'store-key', label: 'Store Key', icon: <Diamond size={13} />, menuAction: 'store-lighting-key', group: 'lighting',
+        enabled: (s) => (s.ids.fixture?.length ?? 0) > 0 },
+      // The same capture, stored under a NAME instead of at a time — the library pose cues fire from.
+      { id: 'save-pose', label: 'Save Pose', icon: <Bookmark size={13} />, menuAction: 'save-lighting-pose', group: 'lighting',
         enabled: (s) => (s.ids.fixture?.length ?? 0) > 0 },
       { id: 'record-take', label: 'Record Lighting Take', icon: <Radio size={13} />, menuAction: 'record-lighting-take', group: 'lighting',
         enabled: (s) => (s.ids.fixture?.length ?? 0) > 0 },

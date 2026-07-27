@@ -785,6 +785,18 @@ const normalizePose = (p: unknown): LightingPose => {
   return out;
 };
 
+/** The project-level pose library. Same doctrine: coerce, and drop only what cannot be interpreted. */
+export const normalizeNamedPoses = (np: unknown): NamedPose[] => {
+  if (!Array.isArray(np)) return [];
+  return (np as Partial<NamedPose>[]).flatMap((p) => {
+    if (!p || typeof p !== 'object' || Array.isArray(p) || typeof p.id !== 'string') return [];
+    const slots = (Array.isArray(p.slots) ? p.slots : []).map(normalizePose).filter((s) => Object.keys(s).length);
+    // A pose with no usable slot drives nothing and would only be a dead row in the picker.
+    if (!slots.length) return [];
+    return [{ id: p.id, name: typeof p.name === 'string' ? p.name : 'Pose', slots }];
+  });
+};
+
 const normalizeLightingSequences = (ls: unknown): LightingSequence[] => {
   if (!Array.isArray(ls)) return [];
   return (ls as Partial<LightingSequence>[]).flatMap((s) => {
@@ -1461,6 +1473,12 @@ export interface LightingKey {
    * look costs one entry rather than forty.
    */
   slots: LightingPose[];
+  /**
+   * Use a library pose (ProjectData.lightingPoses) instead of the inline slots. INLINE WINS when
+   * both are present, and an unresolved ref drives NOTHING — never a fallback to a plausible other
+   * look, the same rule fixtureFootprint follows by returning 0 for an unresolved profile.
+   */
+  poseRef?: string;
   curve?: CurveKind;                // shapes the segment STARTING here; default 'linear'
   cx1?: number; cy1?: number; cx2?: number; cy2?: number;
   /** Per-role override, so a dimmer can snap while the pan eases through the same key. */
@@ -1487,6 +1505,31 @@ export interface LightingSequence {
   name: string;
   duration: number;                 // seconds
   keys: LightingKey[];              // INVARIANT: ascending t (the normalizer enforces it)
+}
+
+/**
+ * A NAMED, REUSABLE POSE — the one atom keyframes and cues share.
+ *
+ * A `LightingKey` can reference one instead of carrying slots inline, and a `Cue` can fire one at a
+ * group. That sharing is the whole reason cues and keyframes fit in one design rather than competing:
+ * keyframes are the STORAGE (scrubbable, seekable, spreadable) and cues are the INVOCATION.
+ *
+ * Lives on `ProjectData`, not on a Timeline: a cue fired from the tablet or a state's entry action
+ * belongs to no timeline at all, so a per-timeline library could not hold its content. It also means
+ * a look used in five scenes is stored once.
+ */
+export interface NamedPose {
+  id: string;
+  name: string;
+  slots: LightingPose[];
+}
+
+/** A cue entry that fires a POSE at a GROUP — the console verb, in role space. */
+export interface LightingCueEntry {
+  poseId: string;
+  groupId: string;
+  fadeSec?: number;
+  transition?: CueTransition;
 }
 
 /** The shape of a generated (procedural) movement — a console "phaser", with no recording behind it. */
@@ -1613,6 +1656,11 @@ export interface Cue {
   fadeSec: number;                    // default transition time for entries
   transition: CueTransition;          // default transition type for entries
   color?: string;                     // optional cell tint
+  /**
+   * POSE CUES — fire a stored look at a group, with no timeline involved. Additive and optional, so
+   * an older build ignores this arm and still fires the cue's ordinary entries.
+   */
+  lighting?: LightingCueEntry[];
   restartMedia?: boolean;             // re-seek media surfaces to 0 when fired
 }
 export interface CueBank {

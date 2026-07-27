@@ -1,4 +1,4 @@
-import type { Fixture, FixtureGroup, Timeline, VideoClip } from '../types';
+import type { Fixture, FixtureGroup, NamedPose, Timeline, VideoClip } from '../types';
 import { timeline as engine } from './timeline';
 import * as overlay from './lightingOverlay';
 import { rolesOf, sampleRole } from './lightingTake';
@@ -18,6 +18,8 @@ import { compile as compileSequence } from './lightingSequence';
 let data: Timeline | null = null;
 let fixtures: Fixture[] = [];
 let groups: FixtureGroup[] = [];
+// The project-level pose library, for keys that reference one instead of inlining slots.
+let poses: NamedPose[] = [];
 let started = false;
 let hadOutput = false;
 
@@ -45,7 +47,7 @@ function cursorFor(clipId: string, fixtureId: string, role: string): { i: number
 }
 
 export function setData(t: Timeline | null): void { data = t; }
-export function setRig(f: Fixture[], g: FixtureGroup[]): void { fixtures = f; groups = g; }
+export function setRig(f: Fixture[], g: FixtureGroup[], p: NamedPose[] = poses): void { fixtures = f; groups = g; poses = p; }
 
 /** Every lighting clip covering time `t`. Unlike video, clips LAYER — later ones win per role. */
 function activeClips(t: number): VideoClip[] {
@@ -95,7 +97,7 @@ function tick(playhead: number): void {
       ? data?.lightingSequences?.find((s) => s.id === lighting.sequenceId) : undefined;
     // Compiled behind a WeakMap on the sequence object, so this is a lookup after the first frame
     // and a recompile only when an edit produced a new object. See services/lightingSequence.
-    const sequence = seq ? compileSequence(seq) : undefined;
+    const sequence = seq ? compileSequence(seq, poses) : undefined;
     // An unresolved id drives NOTHING — never a fallback to another source. A clip whose sequence is
     // missing (a project opened without it) must go quiet, not silently play the take beside it.
     if (!sequence && !take && !lighting.effect) continue;

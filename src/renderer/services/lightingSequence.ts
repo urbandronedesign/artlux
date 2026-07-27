@@ -1,4 +1,4 @@
-import type { ChannelRole, Keyframe, LightingSequence } from '../types';
+import type { ChannelRole, Keyframe, LightingPose, LightingSequence, NamedPose } from '../types';
 
 // COMPILING POSE KEYS INTO CURVES.
 //
@@ -27,26 +27,39 @@ export interface CompiledSequence {
   roles: ChannelRole[];
 }
 
-const cache = new WeakMap<LightingSequence, CompiledSequence>();
+// The compilation is cached against the sequence AND the pose library it resolved `poseRef`s from —
+// editing a library pose must not leave a key that references it frozen on the old look. Both are
+// immutable state, so identity comparison is the whole check.
+const cache = new WeakMap<LightingSequence, { out: CompiledSequence; poses?: readonly NamedPose[] }>();
 
-export function compile(seq: LightingSequence): CompiledSequence {
+export function compile(seq: LightingSequence, poses?: readonly NamedPose[]): CompiledSequence {
   const hit = cache.get(seq);
-  if (hit) return hit;
+  if (hit && hit.poses === poses) return hit.out;
+
+  // A key may REFERENCE a library pose instead of inlining its slots. Inline wins where both exist,
+  // and an unresolved ref contributes NOTHING — never a fallback to a plausible other look, the same
+  // rule fixtureFootprint follows by returning 0 for an unresolved profile.
+  const slotsOf = (k: LightingSequence['keys'][number]): LightingPose[] => {
+    if (k.slots.length) return k.slots;
+    if (!k.poseRef) return [];
+    return poses?.find((p) => p.id === k.poseRef)?.slots ?? [];
+  };
 
   // Keys are sorted by the normalizer; sorting again here would hide a violation rather than fix it.
   const keys = seq.keys;
   // The widest key decides the slot count. Compiling to that width and wrapping each key's OWN array
   // gives exactly the same answer as wrapping per key at sample time — a 1-slot key contributes its
   // single pose to every compiled slot, which is what "one slot ⇒ the whole group" means.
-  const width = keys.reduce((n, k) => Math.max(n, k.slots.length), 0);
+  const width = keys.reduce((n, k) => Math.max(n, slotsOf(k).length), 0);
   const slots: Array<Map<ChannelRole, Keyframe[]>> = [];
   const roles = new Set<ChannelRole>();
 
   for (let s = 0; s < width; s++) {
     const byRole = new Map<ChannelRole, Keyframe[]>();
     for (const key of keys) {
-      if (!key.slots.length) continue;
-      const pose = key.slots[s % key.slots.length];
+      const keySlots = slotsOf(key);
+      if (!keySlots.length) continue;
+      const pose = keySlots[s % keySlots.length];
       if (!pose) continue;
       for (const [role, value] of Object.entries(pose) as Array<[ChannelRole, number]>) {
         if (!Number.isFinite(value)) continue;
@@ -68,7 +81,7 @@ export function compile(seq: LightingSequence): CompiledSequence {
   }
 
   const out: CompiledSequence = { duration: seq.duration, slots, roles: [...roles] };
-  cache.set(seq, out);
+  cache.set(seq, { out, poses });
   return out;
 }
 

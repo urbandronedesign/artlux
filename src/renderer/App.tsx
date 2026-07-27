@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, useSyncExternalStore } from 'react';
-import { Fixture, Surface, SurfaceContent, SourceType, AppSettings, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, normalizeCueBanks, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, timelineAudioTracks, sceneAudioEntries, cueEntries, isAddressableEntry, type AudioClip, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType, type PatchPolicy, readPatchPolicy, type FixtureProfile, type FixtureKind, type OutputProtocol } from './types';
+import { Fixture, Surface, SurfaceContent, SourceType, AppSettings, FixtureGroup, Scene, Cue, CueBank, defaultCueBank, normalizeCueBanks, FixtureTemplate, Controller, Timeline, defaultTimeline, normalizeTimeline, StateMachine, SmState, defaultStateMachine, normalizeStateMachine, AudioMix, defaultAudioMix, normalizeAudioMix, timelineAudioClips, timelineAudioTracks, sceneAudioEntries, cueEntries, isAddressableEntry, type AudioClip, type CueEntry, type CueTransition, type TimelineAudio, type AssetEntry, type AssetType, type PatchPolicy, readPatchPolicy, type FixtureProfile, type FixtureKind, type OutputProtocol, type NamedPose, normalizeNamedPoses } from './types';
 import { defaultScene3D, defaultProjectorOutput, defaultCornerPin, defaultSoftEdge, WINDOWED_DISPLAY } from '../../shared/protocol';
 import type { ProjectorCalibration } from '../../shared/protocol';
 import { calibCapture as cam, measureGamma, calibWorkspace } from '@artlux/plugin-calibration/renderer';
@@ -45,7 +45,8 @@ import { UiProfiler } from './components/UiProfiler';
 import { getDrawable, getDrawableGeneration, resolveSource } from './services/surfaceMedia';
 import { timeline as timelineEngine, GLOBAL_POOL } from './services/timeline';
 import * as fixtureSignal from './services/fixtureSignal';
-import { planStoreKey, upsertKey } from './services/lightingStoreKey';
+import { planStoreKey, poseForGroup, upsertKey } from './services/lightingStoreKey';
+import * as lightingCue from './services/lightingCue';
 import { usageForPath, normPath, libraryItems, type ProjectRefs } from './services/assetLibrary';
 import { setCoreStateView } from './services/automationTargets.core';
 import * as profiles from './services/fixtureProfiles';
@@ -226,6 +227,10 @@ const App: React.FC = () => {
   const [isVideoPlaying, setIsVideoPlaying] = useState(true);
   const [globalBrightness, setGlobalBrightness] = useState(1.0);
   const [groups, setGroups] = useState<FixtureGroup[]>([]);
+  // THE POSE LIBRARY — project-level, not per-Timeline, because a cue fired from the tablet or a
+  // state's entry action belongs to no timeline at all. It also means a look used in five scenes is
+  // stored once. Shared by pose CUES and by keyframes that carry a `poseRef`.
+  const [lightingPoses, setLightingPoses] = useState<NamedPose[]>([]);
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [cueBanks, setCueBanks] = useState<CueBank[]>([]);
   // In-project wall-clock schedule (show-control plugin owns the entry shape; opaque here). Persisted
@@ -1506,6 +1511,28 @@ const App: React.FC = () => {
     });
   };
 
+  // SAVE POSE TO LIBRARY — the companion to Store Key, and what fills the library that pose CUES
+  // fire from. Same capture (the resolved fixture signal for the selected group), stored under a
+  // name instead of at a time: keyframes are the storage of a show, cues are the invocation, and a
+  // pose is the one atom they share.
+  const handleSavePose = () => {
+    const ids = selectedFixtureIds.length ? selectedFixtureIds : selectedFixtureId ? [selectedFixtureId] : [];
+    const members = ids.map((id) => fixtures.find((f) => f.id === id)).filter((f): f is Fixture => !!f && isLight(f));
+    if (!members.length) {
+      toast.error('Select the lights first', 'A pose is what a group of light fixtures is doing — select some, then save.');
+      return;
+    }
+    const slots = poseForGroup(members, fixtureSignal.snapshot());
+    if (!slots.some((p) => Object.keys(p).length)) {
+      toast.error('Those lights are not reporting anything yet', 'Give them a profile and set some channels first.');
+      return;
+    }
+    recordHistory();
+    setLightingPoses([...lightingPoses, {
+      id: generateId(), name: nextNumberedName('Pose', lightingPoses), slots,
+    }]);
+  };
+
   // ── THE PLUGIN WRITE PATH INTO `Timeline.audio` (host.audio.patchTimelineClip) ────────────────────
   //
   // The mixer is a PLUGIN, and it has to be able to shape a clip that lives in a SCENE — its gain, mute,
@@ -1630,6 +1657,16 @@ const App: React.FC = () => {
     if (!cues.length) return;
     // Operator GO records; a cue fired by the show (default 'show') does not. See §5.2.
     if (origin === 'operator') recordHistory();
+    // POSE CUES — the lighting arm, fired before the dot-path entries because it touches neither
+    // `next` nor the fade legs: it writes role values into its own overlay layer (between the
+    // lighting clip and the automation lane), which the packer samples per frame. That separation is
+    // why a look can be fired from the cue grid, the tablet, OSC or a state's entry action with no
+    // per-surface wiring at all — they all end up here.
+    const lightingEntries = cues.flatMap((c) => (Array.isArray(c.lighting) ? c.lighting : []));
+    if (lightingEntries.length) {
+      lightingCue.fire(lightingEntries, lightingPoses, groups, fixtures, performance.now());
+    }
+
     const fromView: StateView = { surfaces, fixtures, globalBrightness };
     let next: StateView = { surfaces, fixtures, globalBrightness };
     const legs: transitions.FadeLeg[] = [];
@@ -1765,6 +1802,7 @@ const App: React.FC = () => {
       reserveLockedRanges: patchPolicy.reserveLockedRanges,
       globalBrightness,
       groups,
+      lightingPoses,
       scenes,
       cueBanks,
       scene3D,
@@ -1826,6 +1864,11 @@ const App: React.FC = () => {
       if (typeof data?.globalBrightness === 'number') setGlobalBrightness(data.globalBrightness);
       setControllers(Array.isArray(data?.controllers) ? data.controllers : []);
       setGroups(Array.isArray(data?.groups) ? data.groups : []);
+      // The pose library, and the cue layer that fires from it. RELEASED on load for the same reason
+      // the undo stack is reset: a held cue belongs to the outgoing document, and leaving it latched
+      // would drive the incoming rig from a look it never had.
+      setLightingPoses(normalizeNamedPoses(data?.lightingPoses));
+      lightingCue.clear();
       // Scenes: normalize any per-scene timeline and assign a stable accent to scenes missing one
       // (older projects / scenes captured before accents). The current edit target is bound below.
       const rawScenes: Scene[] = Array.isArray(data?.scenes) ? data.scenes : [];
@@ -2474,6 +2517,7 @@ const App: React.FC = () => {
           case 'toggle-timeline': layoutStore.set({ bottomOpen: !layoutStore.get().bottomOpen }); break;
           case 'record-lighting-take': handleToggleLightingRecord(); break;
           case 'store-lighting-key': handleStoreLightingKey(); break;
+          case 'save-lighting-pose': handleSavePose(); break;
           // Context action-bar targets. These functions already existed as panel buttons; routing them
           // through the same dispatcher is what lets a WorkspaceContext name them by id (see
           // contexts/index.tsx) instead of every action needing a callback threaded to the shell.
@@ -2568,7 +2612,7 @@ const App: React.FC = () => {
   useEffect(() => { lightingPlayback.start(); }, []);
   // The rig a lighting clip resolves its group against. Kept fresh rather than captured, because a
   // clip names a GROUP and the group's membership (and order) is edited while the show is running.
-  useEffect(() => { lightingPlayback.setRig(fixtures, groups); }, [fixtures, groups]);
+  useEffect(() => { lightingPlayback.setRig(fixtures, groups, lightingPoses); }, [fixtures, groups, lightingPoses]);
   // ⚠ DECLARATION ORDER IS LOAD-BEARING: THIS EFFECT MUST STAY *AFTER* THE `setData` EFFECT ABOVE.
   // Effects flush in declaration order. The engine's setData guard needs the engine's `playing` to be
   // still true when the new document lands, so setData has to run first in the flush. Hoisting this one

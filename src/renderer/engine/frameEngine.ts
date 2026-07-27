@@ -14,6 +14,7 @@ import { resolveDest, destKey, fixtureFootprint } from '../services/addressing';
 import * as profilePack from '../services/profilePack';
 import * as fixtureSignal from '../services/fixtureSignal';
 import * as lightingOverlay from '../services/lightingOverlay';
+import * as lightingCue from '../services/lightingCue';
 import { perfMonitor } from '../services/perfMonitor';
 
 // THE RENDER/OUTPUT ENGINE — composite, sample, pack, publish.
@@ -513,17 +514,25 @@ class FrameEngine {
     const fixtureStates = new Map<string, fixtureSignal.FixtureState>();
 
     // THE PRECEDENCE STACK, ENFORCED IN ONE PLACE:
-    //   profile default < authored dmx < LIGHTING CLIP < automation lane < live override
+    //   profile default < authored dmx < LIGHTING CLIP < POSE CUE < automation lane < live override
     //
     // Automation has already been folded into `currentFixtures` by the caller (automationOverlay lays
     // it over the StateView), so a lane's value is sitting in `f.dmx` by now. Asking the overlay
     // whether it OWNS the path is therefore the whole rule: if a lane owns it, the authored value
-    // already IS the lane's and the clip must not speak; if not, the clip's role value wins over what
-    // the operator parked there by hand.
-    const roleOverride: profilePack.RoleOverride | undefined = lightingOverlay.isActive()
+    // already IS the lane's and neither the cue nor the clip must speak; if not, a FIRED POSE CUE
+    // wins over a clip that happens to be running, and the clip wins over what the operator parked
+    // there by hand.
+    //
+    // The cue sits BELOW the lane, not at the top, on purpose — see services/lightingCue. Putting it
+    // above would break "a lane always wins", and the top layer is livePreview: a fader drag right
+    // now, which a cue fired by the scheduler at 3 a.m. is not.
+    lightingCue.tick(performance.now());
+    const cueLive = lightingCue.isActive();
+    const roleOverride: profilePack.RoleOverride | undefined = (lightingOverlay.isActive() || cueLive)
       ? (fixtureId, channel) => {
           if (automationOverlay.owns(`fixtures.${fixtureId}.dmx.${channel.key}`)) return undefined;
-          return lightingOverlay.get(fixtureId, channel.role);
+          const cued = cueLive ? lightingCue.get(fixtureId, channel.role) : undefined;
+          return cued ?? lightingOverlay.get(fixtureId, channel.role);
         }
       : undefined;
 

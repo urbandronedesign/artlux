@@ -1694,6 +1694,36 @@ check(
   },
 );
 
+// ── Lighting: the precedence stack, in the one closure that enforces it ───────────────────────
+check(
+  'a pose cue sits between the lighting clip and the automation lane',
+  'The stack is: profile default < authored dmx < lighting clip < POSE CUE < automation lane < live ' +
+  'override, and it is enforced in ONE closure in the packer. Two orderings are load-bearing. The ' +
+  'lane must be asked FIRST and win — "a lane always wins" is the single precedence story this app ' +
+  'keeps across audio, surfaces and fixtures, and automation has already been folded into the ' +
+  'fixture by then, so failing to ask means the clip or the cue overwrites it. And the cue must be ' +
+  'asked BEFORE the clip, or firing a look would do nothing while a clip happened to be running. ' +
+  'Putting the cue at the TOP instead is the tempting error: that layer is livePreview, a fader drag ' +
+  'right now, which a cue fired by the scheduler at 3 a.m. is not. Getting any of it backwards is ' +
+  'invisible until a show.',
+  () => {
+    const F = 'src/renderer/engine/frameEngine.ts';
+    const src = read(F);
+    const m = /const roleOverride[\s\S]{0,700}?\n      : undefined;/.exec(src);
+    if (!m) return `${F} no longer builds roleOverride in one closure — the precedence stack has moved`;
+    const body = m[0];
+    const lane = body.indexOf('automationOverlay.owns');
+    const cue = body.indexOf('lightingCue.get');
+    const clip = body.indexOf('lightingOverlay.get');
+    if (lane < 0) return 'the packer no longer asks automationOverlay.owns() — a drawn lane would lose';
+    if (cue < 0) return 'the packer no longer consults lightingCue — a fired pose cue would be inert';
+    if (clip < 0) return 'the packer no longer consults lightingOverlay — lighting clips would be inert';
+    if (!(lane < cue && cue < clip))
+      return `precedence is out of order (lane ${lane}, cue ${cue}, clip ${clip}) — must be lane, then cue, then clip`;
+    return null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
