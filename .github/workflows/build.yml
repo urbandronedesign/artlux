@@ -47,12 +47,19 @@ jobs:
       # juce_events reference. CMake (3.31) and GCC are already on the ubuntu image; Windows
       # (CMake + MSVC v143) and macOS (CMake + Apple Clang) images need nothing extra.
       # Not needed: libcurl (JUCE_USE_CURL=0) or webkit (JUCE_WEB_BROWSER=0) — see CMakeLists.txt.
+      # ...and `libudev-dev`, which is NOT for JUCE: the output engine gained a `serialport` dependency
+      # with USB-DMX (ENTTEC) support, and on Linux that pulls `libudev-sys`, whose build script shells
+      # out to pkg-config for `libudev.pc` and panics without it. Missing it fails `cargo build` outright
+      # (exit 101) rather than degrading, so the Linux package job cannot even start. This broke the
+      # moment USB-DMX landed and stayed invisible until the next tag, because nothing between those two
+      # commits was released.
       - name: Install JUCE Linux dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libasound2-dev libx11-dev libxext-dev \
-            libxrandr-dev libxinerama-dev libxcursor-dev libfreetype-dev libfontconfig1-dev
+            libxrandr-dev libxinerama-dev libxcursor-dev libfreetype-dev libfontconfig1-dev \
+            libudev-dev pkg-config
 
       - name: Install dependencies
         run: npm ci
