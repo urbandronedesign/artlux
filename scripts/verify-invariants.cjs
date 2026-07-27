@@ -420,6 +420,50 @@ check(
   },
 );
 
+// ── ...and neither does the timeline ──────────────────────────────────────────────────────────
+check(
+  'the timeline never puts a clock in React state',
+  'The timeline panel is open in eight of the nine workspace contexts and one render of it costs ' +
+  '~22 ms — toolbar, ruler, every track header, every clip, every lane. It used to sample the ' +
+  'playhead AND the show clock into React state on a 100 ms setInterval, purely so the automation ' +
+  'lanes could print a live value in their gutter: ten full renders a second, for ever, whether or ' +
+  'not the transport was moving and whether or not a single automation lane existed. Measured at ' +
+  '177-224 ms/s of React commit time on a real project while COMPLETELY IDLE, and it is where the ' +
+  'p99 render time went from 54 ms to 155 ms under load. A clock is not state: the lanes read it ' +
+  'themselves and write their own text straight to the DOM, exactly as the 60 Hz playhead and ' +
+  'timecode have always been drawn. The 1 Hz target re-enumeration that remains must be able to say ' +
+  '"nothing changed" and cost nothing, or it is the same bug at a tenth of the rate.',
+  () => {
+    const tl = read('src/renderer/components/timeline/Timeline.tsx');
+    const lane = read('src/renderer/components/timeline/AutomationLane.tsx');
+    const problems = [];
+    // A timer that samples the clock is the defect itself — whatever it then does with the value.
+    for (const m of tl.matchAll(/setInterval\s*\(([\s\S]{0,300}?)\},?\s*\d+\s*\)/g)) {
+      if (/get(Playhead|ShowTime)\s*\(/.test(m[1])) {
+        problems.push('Timeline.tsx samples the engine clock inside a setInterval again — that is a whole-panel render per tick');
+        break;
+      }
+    }
+    // The surviving 1 Hz poll must be idempotent. Returning `prev` hands React the same object, which
+    // is the only reason a poll that finds nothing new costs nothing.
+    if (!/setDefs\(\s*prev\s*=>\s*\(?\s*prev\.sig\s*===\s*sig\s*\?\s*prev/.test(tl)) {
+      problems.push('Timeline.tsx no longer bails out of the 1 Hz target poll when the enumeration is unchanged — it re-renders the panel once a second regardless');
+    }
+    // The lane is told WHICH clock, and reads it; it is never handed a sample of one.
+    if (/playhead\s*:\s*number/.test(lane)) {
+      problems.push('AutomationLane takes a playhead NUMBER again — someone has to sample a clock into state to feed it');
+    }
+    if (!/clock\s*:\s*'playhead'\s*\|\s*'show'/.test(lane)) {
+      problems.push('AutomationLane must take the NAME of its clock (clock: \'playhead\' | \'show\'), not a value');
+    }
+    // ...and the readout it draws with it must stay render-free.
+    if (!/engine\.subscribe\(/.test(lane) || !/liveRef\.current/.test(lane)) {
+      problems.push('AutomationLane no longer writes its live readout to the DOM via engine.subscribe — it is going through a render again');
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── Stage: a geometry drag is local until it is released ──────────────────────────────────────
 check(
   'stage drags commit on release, not per pointer move',

@@ -40,6 +40,30 @@ import { useTimelineKeys } from './hooks/useTimelineKeys';
 // than refuse the drop. A decodable file gets its real length from probeAudioDuration.
 const DEFAULT_AUDIO_DURATION = 10;
 
+// Everything automatable right now, resolved from whichever provider owns each path head. Module-level
+// because it captures nothing — the registry is a module singleton — which lets it seed useState lazily.
+function enumerateAutomationDefs(): Map<string, AutomationTargetDef> {
+  const defs = new Map<string, AutomationTargetDef>();
+  for (const p of automationTargetRegistry.all()) {
+    try { for (const d of p.enumerate()) defs.set(d.path, d); } catch { /* a provider in a bad state must not break the timeline */ }
+  }
+  return defs;
+}
+// "Has the set of automatable targets actually changed?" — the question the 1 Hz poll below has to answer
+// before it is allowed to re-render this panel.
+//
+// The poll exists to notice that a lane's target VANISHED (delete the bed clip or the effect it drives and
+// the lane must go to "target missing" within the second). It used to answer by bumping a counter, which
+// is to say it answered "yes" every time and re-rendered the whole timeline once a second, for ever, in
+// every project — including the overwhelming majority where nothing had changed since the app started.
+// Comparing is cheap; a render of this panel is 22 ms. Every field a lane DRAWS is in the signature (the
+// axis, the label, the step, the unit), because a provider relabelling a target must still reach the screen.
+function defsSignature(m: Map<string, AutomationTargetDef>): string {
+  const rows: string[] = [];
+  for (const d of m.values()) rows.push(`${d.path}|${d.label}|${d.group}|${d.min}|${d.max}|${d.def}|${d.step ?? ''}|${d.unit ?? ''}|${d.log ? 1 : 0}`);
+  return rows.sort().join('');
+}
+
 interface Props {
   timeline: TL;
   onChange: (t: TL) => void;
@@ -105,9 +129,9 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   // see deleteSelected, which is a live bug without it.
   const [selectedSource, setSelectedSource] = useState<'video' | 'bed' | 'timeline'>('video');
   const [pickerAt, setPickerAt] = useState<{ x: number; y: number } | null>(null); // automation picker anchor
-  const [defsTick, setDefsTick] = useState(0);           // forces a target re-enumeration (~1 Hz)
-  const [autoPlayhead, setAutoPlayhead] = useState(0);   // ~10 Hz playhead for the lanes' live readouts
-  const [autoShowTime, setAutoShowTime] = useState(0);   // ...and the SHOW clock, which a BASE lane rides
+  // The automatable targets, polled — see refreshDefs. The SIGNATURE rides with the map so a poll that
+  // finds nothing new can return the previous object and React can bail out of the render entirely.
+  const [defs, setDefs] = useState(() => { const map = enumerateAutomationDefs(); return { map, sig: defsSignature(map) }; });
   const [tool, setTool] = useState<'select' | 'blade'>('select');
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [draft, setDraft] = useState<VideoClip | null>(null);
@@ -347,18 +371,17 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     ...lanes.map(lane => ({ lane, origin: 'scene' as const, shadowed: false })),
     ...baseAutomation.map(lane => ({ lane, origin: 'global' as const, shadowed: ownPaths.has(lane.targetPath) })),
   ], [lanes, baseAutomation, ownPaths]);
-  // Resolve each lane's target definition (label / range / units / log axis) from whichever provider
-  // owns its path head. A lane whose target has vanished resolves to undefined and renders as such —
-  // it is never dropped, because that would silently discard the user's work.
-  const laneDefs = useMemo(() => {
-    const defs = new Map<string, AutomationTargetDef>();
-    for (const p of automationTargetRegistry.all()) {
-      try { for (const d of p.enumerate()) defs.set(d.path, d); } catch { /* a provider in a bad state must not break the timeline */ }
-    }
-    return defs;
-    // defsTick, not autoPlayhead: a stopped transport returns an identical playhead, so the memo would
-    // never invalidate and a lane whose target was just deleted would keep rendering as if still bound.
-  }, [timeline, defsTick]);
+  // Each lane's target definition (label / range / units / log axis), from whichever provider owns its
+  // path head. A lane whose target has vanished resolves to undefined and renders as such — it is never
+  // dropped, because that would silently discard the user's work.
+  const laneDefs = defs.map;
+  // Re-enumerate, and re-render ONLY if the answer differs (see defsSignature). Returning `prev` from the
+  // updater hands React the same object, which is how a poll that finds nothing new costs nothing at all.
+  const refreshDefs = useCallback(() => {
+    const map = enumerateAutomationDefs();
+    const sig = defsSignature(map);
+    setDefs(prev => (prev.sig === sig ? prev : { map, sig }));
+  }, []);
 
   // ⚠ EVERY LANE WRITE RESOLVES THE LANE **BY ID, OUT OF THE BOUND DOCUMENT**, AT COMMIT TIME.
   //
@@ -401,17 +424,26 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     });
   };
 
-  // The lanes show a live value readout at the playhead. The 60 Hz playhead above is deliberately
-  // render-free (it writes styles directly), so sample it at ~10 Hz here rather than re-rendering the
-  // whole timeline every frame.
+  // ⚠ THERE WAS A SECOND TIMER HERE, AT 100 ms, AND IT WAS THE MOST EXPENSIVE THING IN THE UI.
+  //
+  // It sampled both clocks into React state so the automation lanes could print a live value. That is
+  // ten renders a second of THIS ENTIRE PANEL — toolbar, ruler, every track header, every clip, every
+  // lane — measured at 224 ms/s on a real project, running in eight of the nine workspace contexts,
+  // whether or not the transport was moving and whether or not a single automation lane existed. It is
+  // where the p99 render time went from 54 ms to 155 ms under load (plans/engine-decoupling.md, WP-3.M).
+  // The lanes now read the clock themselves and write their own text (AutomationLane), the way the
+  // playhead and timecode above have always been drawn. Do not bring a clock back into state here.
+  //
+  // What remains is the 1 Hz target re-enumeration — the bed's clips come and go, so a lane has to be able
+  // to notice that the thing it drives is gone. It only re-renders when the answer actually changed.
   useEffect(() => {
-    // A base lane rides the SHOW clock, not the playhead. Sampling it at the playhead would print a number
-    // that is not the number being applied — the very disease this wave exists to kill. Same interval, no
-    // second timer.
-    const iv = setInterval(() => { setAutoPlayhead(engine.getPlayhead()); setAutoShowTime(engine.getShowTime()); }, 100);
-    const dv = setInterval(() => setDefsTick(t => t + 1), 1000); // re-enumerate targets (the bed can change)
-    return () => { clearInterval(iv); clearInterval(dv); };
-  }, []);
+    const dv = setInterval(refreshDefs, 1000);
+    return () => clearInterval(dv);
+  }, [refreshDefs]);
+  // ...and immediately on a document edit, rather than up to a second later: deleting the clip an existing
+  // lane automates should mark that lane "target missing" as the deletion lands. (The old memo got this by
+  // depending on `timeline`; it is an effect now because the enumeration is polled state, not a derivation.)
+  useEffect(() => { refreshDefs(); }, [timeline, refreshDefs]);
 
   // --- coordinate helpers (stable) ---
   const clientXToTime = useCallback((clientX: number) => {
@@ -1529,9 +1561,10 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
               width={Math.max(width, 100)}
               origin={origin}
               shadowed={shadowed}
-              // A BASE lane rides the SHOW clock. Handing it the playhead would print a number that is not
-              // the number the engine is applying — the exact disease this wave exists to kill.
-              playhead={origin === 'global' ? autoShowTime : autoPlayhead}
+              // A BASE lane rides the SHOW clock. Naming the playhead here would print a number that is not
+              // the number the engine is applying — the exact disease this wave exists to kill. The lane
+              // READS the clock it is told to ride; it is never handed a sample of one (see the prop).
+              clock={origin === 'global' ? 'show' : 'playhead'}
               docKey={docKey}
               onSnap={(t) => snap(t, collectSnapPoints(timelineRef.current, engine.getPlayhead()), 8 / pxRef.current).t}
               onSeek={seekTo}

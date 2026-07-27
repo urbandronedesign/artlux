@@ -7,10 +7,11 @@
 // Editing follows the clip conventions: drag with a local `draft` and commit ONCE on pointerup, never
 // per pointermove (a commit re-enters App → setScenes → timelineEngine.setData → recompile + a full bed
 // re-sync; doing that 60×/s while dragging would be brutal).
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { AutomationLane as Lane, Keyframe } from '../../types';
 import type { AutomationTargetDef } from '@artlux/sdk/renderer';
 import { sampleLane, normValue, denormValue, BEZ_DEFAULT } from '../../services/automation';
+import { timeline as engine } from '../../services/timeline';
 import { GUTTER, clamp } from './geometry';
 import { Trash2, Zap, ZapOff, Diamond, AlertTriangle } from 'lucide-react';
 import { Tooltip } from '../ui/Tooltip';
@@ -24,9 +25,15 @@ interface Props {
   def?: AutomationTargetDef;       // absent ⇒ the target no longer exists (clip deleted, plugin off)
   pxPerSec: number;
   width: number;
-  // WHICH CLOCK THIS LANE'S TIME AXIS IS. A 'scene' lane gets the playhead; a 'global' (BASE) lane gets the
-  // SHOW clock, because that is what the engine samples it on. The caller picks — see Timeline.tsx.
-  playhead: number;
+  // WHICH CLOCK THIS LANE'S TIME AXIS IS — the NAME of it, not a sample of it. A 'scene' lane rides the
+  // playhead; a 'global' (BASE) lane rides the SHOW clock, because that is what the engine samples it on.
+  // The caller picks — see Timeline.tsx.
+  //
+  // ⚠ THIS USED TO BE `playhead: number`, AND THAT NUMBER COST 224 ms/s. Timeline sampled both clocks on a
+  // 100 ms setInterval and re-rendered ITSELF to deliver them — toolbar, ruler, every track header, every
+  // clip, every lane, ten times a second, for ever, in eight of the nine contexts — to move a few
+  // characters of text in this gutter. A clock is not state; it is a thing you read when you need it.
+  clock: 'playhead' | 'show';
   // WHERE THE LANE LIVES. 'global' = a lane of the GLOBAL timeline, drawn here because it is the base layer
   // and it is STILL DRIVING this parameter underneath the bound scene. Without it the panel would be blank
   // while a house fade slid the master with no visible cause.
@@ -44,7 +51,7 @@ interface Props {
   onSeek: (clientX: number) => void;
 }
 
-export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, playhead, origin, shadowed, docKey, onChange, onRemove, onSnap, onSeek }) => {
+export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, clock, origin, shadowed, docKey, onChange, onRemove, onSnap, onSeek }) => {
   const readOnly = !onChange;
   const bodyRef = useRef<HTMLDivElement>(null);
   const [draft, setDraft] = useState<Keyframe[] | null>(null);
@@ -109,6 +116,46 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, pl
     return `M${pts.join(' L')}`;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [def, kfs, width, pxPerSec, log, min, max, h]);
+
+  // ── THE LIVE READOUT IS RENDER-FREE, AND THAT IS THE ENTIRE POINT ────────────────────────────────
+  //
+  // The gutter prints the value this lane is applying right now. It is the ONLY thing the old `playhead`
+  // number was for, and delivering it through React cost the whole panel ten renders a second (see the
+  // prop's note). So the lane reads its own clock and writes its own text straight to the DOM — exactly
+  // how Timeline has always drawn the 60 Hz playhead and timecode (its `engine.subscribe`). Invariant 3:
+  // a clock never enters React state.
+  //
+  // ⚠ THESE HOOKS SIT **ABOVE** THE `!def` BAIL, for the reason spelled out below it: `def` goes
+  // defined → undefined under a mounted lane in ordinary use, and a render that calls fewer hooks than
+  // the last one throws in render — with no ErrorBoundary in this renderer, that is a white screen.
+  const liveRef = useRef<HTMLDivElement>(null);
+  // Refs, not closure captures: the subscription is made once and must see TODAY's keyframes (the DRAFT
+  // while a key is being dragged), today's axis, and today's clock.
+  const kfsRef = useRef(kfs); kfsRef.current = kfs;
+  const defRef = useRef(def); defRef.current = def;
+  const clockRef = useRef(clock); clockRef.current = clock;
+  // The value being applied RIGHT NOW, on THIS lane's own clock. Reading the clock here rather than being
+  // handed a sample of it is also strictly more correct: the prop was up to 100 ms stale, and the "add a
+  // keyframe here" button wrote that stale pair as the new key's t AND v.
+  const liveNow = () => {
+    const d = defRef.current;
+    const t = clockRef.current === 'show' ? engine.getShowTime() : engine.getPlayhead();
+    return kfsRef.current.length ? sampleLane(kfsRef.current, t, { i: -1 }, d?.log ?? false) : (d?.def ?? 0);
+  };
+  const fmtNow = (v: number) => {
+    const d = defRef.current;
+    return `${(d?.step ?? 0) >= 1 ? Math.round(v) : Number(v.toFixed(2))}${d?.unit ? ` ${d.unit}` : ''}`;
+  };
+  const liveNowRef = useRef(liveNow); liveNowRef.current = liveNow;
+  const fmtNowRef = useRef(fmtNow); fmtNowRef.current = fmtNow;
+  // Subscribed once. The engine ticks every frame even when paused, so this needs no timer of its own and
+  // there is nothing to start or stop with the transport; the DOM is touched only when the text changes.
+  useEffect(() => engine.subscribe(() => {
+    const el = liveRef.current;
+    if (!el) return;
+    const txt = fmtNowRef.current(liveNowRef.current());
+    if (el.textContent !== txt) el.textContent = txt;
+  }), []);
 
   // A lane whose target vanished keeps its data (never silently dropped — that would be losing the
   // user's work), but it can't be drawn against an axis it no longer has.
@@ -209,7 +256,9 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, pl
     commit(lane.keyframes.map((x, j) => (j === i ? { ...x, curve: next, ...(next === 'bezier' ? BEZ_DEFAULT : {}) } : x)));
   };
 
-  const live = kfs.length ? sampleLane(kfs, playhead, { i: -1 }, log) : def.def;
+  // The value at MOUNT/RE-RENDER time — the readout's first paint, before the subscription's next tick
+  // takes the element over. Everything live goes through `liveNow()`.
+  const live = liveNow();
   const fmt = (v: number) => `${(def.step ?? 0) >= 1 ? Math.round(v) : Number(v.toFixed(2))}${def.unit ? ` ${def.unit}` : ''}`;
 
   // A GLOBAL lane seen from a scene is dimmed; a SHADOWED one (a scene lane owns the same targetPath, so
@@ -249,7 +298,10 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, pl
           {!readOnly && (
             <>
               <Tooltip id="timeline.automation-add-key">
-                <button onClick={() => commit([...lane.keyframes.filter(k => Math.abs(k.t - playhead) > 0.001), { t: Math.max(0, playhead), v: quant(live), curve: 'linear' }])}
+                {/* Both the time AND the value are read at CLICK time, off this lane's own clock. They used
+                    to come from a prop sampled on a 100 ms interval, so the key landed up to 100 ms — three
+                    frames — behind where the operator clicked, holding the value from back there too. */}
+                <button onClick={() => { const t = clock === 'show' ? engine.getShowTime() : engine.getPlayhead(); commit([...lane.keyframes.filter(k => Math.abs(k.t - t) > 0.001), { t: Math.max(0, t), v: quant(liveNow()), curve: 'linear' }]); }}
                   title="Add a keyframe at the playhead, holding the current value" {...help('timeline.automation-add-key')} className="ml-auto text-fg-3 hover:text-fg-1">
                   <Diamond size={11} />
                 </button>
@@ -261,10 +313,11 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, pl
           )}
         </div>
         <div className="text-micro leading-none text-fg-3 truncate" title={def.group}>{def.group}</div>
-        {/* The readout is sampled at whichever clock the CALLER handed us as `playhead` — the SHOW clock for a
-            global lane, the playhead for a scene lane — so it prints the number the engine is actually
-            applying, not a number computed against the wrong axis. */}
-        <div className="text-micro leading-none text-fg-2 tabular-nums">{fmt(live)}</div>
+        {/* The readout is sampled on whichever clock the caller NAMED — the SHOW clock for a global lane,
+            the playhead for a scene lane — so it prints the number the engine is actually applying, not a
+            number computed against the wrong axis. React writes it once, per render; after that the
+            subscription above owns this element's text and updates it without a render. */}
+        <div ref={liveRef} className="text-micro leading-none text-fg-2 tabular-nums">{fmt(live)}</div>
       </div>
 
       {/* body */}

@@ -739,6 +739,21 @@ incident here was GPU/decode/IO and never React. Canonical plan, WP tracker and 
   memoization sweep. ⚠ Commit *counts* would have hidden this entirely: the Profiler measures its whole
   subtree and App rebuilds each viewport's wrapper `<div>` every render, so the count read 1 → 1 while
   the **time** read 1.2 → 0.
+- **WP-0.5 — the timeline stops re-rendering itself on a clock** (`_pending_`). The 224 ms/s above was
+  not the cost of touring contexts; it was a `setInterval(…, 100)` **inside `Timeline.tsx`** sampling the
+  playhead and the show clock into React state so the automation lanes could print a live value. Ten full
+  renders of the panel a second — toolbar, ruler, every track header, every clip, every lane — **for
+  ever, in eight of nine contexts, whether or not the transport was moving and whether or not a single
+  automation lane existed**. (Ten commits in a one-second window *is* the interval; nothing about the
+  tour.) The lanes now take the **name** of their clock (`clock: 'playhead' | 'show'`), read it
+  themselves, and write the readout straight to the DOM via `engine.subscribe` — the discipline the 60 Hz
+  playhead and timecode always used. The 1 Hz automation-target re-enumeration stays (it is how a lane
+  notices its target was deleted) but compares a signature and returns the same object when nothing
+  changed. **A/B on the operator's real project, idle: `artlux_ui_commit_ms` mean 177 → 0.0 ms/s, peak
+  207 → 0.0.** Functionally proven against a ramp on both clocks — 20 distinct readout values in 20
+  samples, at 0.0 ms/s — with a positive control (context switching still commits, 96 ms/s) so the zero
+  could not be a dead instrument. Also fixed: "add a keyframe here" wrote the stale 100 ms sample as both
+  the key's time and value. Guard: `the timeline never puts a clock in React state`.
 
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
