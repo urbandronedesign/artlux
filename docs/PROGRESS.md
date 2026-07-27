@@ -755,6 +755,22 @@ incident here was GPU/decode/IO and never React. Canonical plan, WP tracker and 
   could not be a dead instrument. Also fixed: "add a keyframe here" wrote the stale 100 ms sample as both
   the key's time and value. Guard: `the timeline never puts a clock in React state`.
 
+- **WP-0.6 — the clip drag stops rebuilding the ruler** (`f55fea6`). WP-0.5 removed the timeline's *idle*
+  cost; this is the interaction one. A clip drag setStates a draft per pointer move — idle 0.0 → **277–493
+  ms/s while dragging** — and attribution with temporary in-panel profilers put **170 ms of the panel's 341
+  in `TimelineRuler`**, 61 in the toolbar, and only 9.5 in the lanes. The instinct was to memoize the lanes;
+  the measurement said the ruler, which renders one tick element across the full width of an unbounded
+  timeline — **32,957 px in a live session, ~800 ticks**, rebuilt on every pointer move. Both are
+  `React.memo` now, handed one `useStableHandlers` bag each, a memoized `overrun`, and a shared
+  `EMPTY_MARKERS` in place of `timeline.markers ?? []` (the fresh-array-per-render that would have made the
+  whole thing inert). Re-probed mid-drag they report **0.1 ms across 35 commits** — they genuinely bail.
+  End-to-end the drag went **493 → 378 ms/s** in one A/B and sat in noise in another, which the finding
+  itself explains: the cost scales with how far the timeline has grown, so it is small on a fresh project
+  and large in a long venue session. Verified live that nothing broke: zoom redraws the ruler, Snap toggles,
+  Add Track adds, Add Marker lands a flag, no `stableHandlers` warning. Guard: `the timeline ruler and
+  toolbar are memoized, and handed props that hold still`. **What remains is ~10 ms per render of
+  Timeline's own body**, which no memo reaches — making the drag render-free is the next idea.
+
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
 - Deferred effects: stateful **fire2012**, **multi-segment** subdivision per fixture.
