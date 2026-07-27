@@ -198,3 +198,14 @@ none of this exists yet; each is a deliberate future step:
   (invariants 3–4). Backward compatible: every existing value/field is unchanged.
 - **`host.settings` added** so a props-less modal panel can read live settings (OSC Monitor's status
   strip) without coupling the generic panel registry to `AppSettings`.
+
+## The dockable workspace changes nothing here
+
+The opt-in dockable workspace ([WORKSPACE.md](WORKSPACE.md), [plans/dockable-workspace.md](../plans/dockable-workspace.md)) lets an operator rearrange a context into split and tabbed groups. **`WorkspaceContext` is untouched, and no contribution shape changed.** The arrangement is *compiled* from the flat manifest a context already declares — `browser[]` / `dock[]` / `inspector[]` / `viewport` — so a plugin keeps declaring what it declares today and lands where it always did.
+
+Two consequences worth knowing when writing a panel:
+
+- **A panel registered late still appears.** `mergePluginPanels` inserts it into the group tagged with its region even if the operator banked their arrangement before your plugin was enabled — and it creates that region's group if the context never declared one.
+- **`mount: 'modal'` panels are not dockable, structurally.** They render outside `<EditorStore>`, so a `useEditor()` call inside one would throw the instant it was docked; the Add-Panel menu does not offer them.
+
+A panel id the registry cannot resolve is **kept in the tree and skipped at render**, never dropped: disabling a plugin must not erase the placement its panel had.

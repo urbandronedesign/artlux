@@ -231,6 +231,14 @@ DXV was considered and **dropped** (2026-07-03) — see ROADMAP.
   selection. (The Stage half used to be show-critical; it no longer is.)
 - **One element, one position.** A persistent viewport named as a context's `bottom` renders there and
   nowhere else; two `TimelinePanel`s double its keyboard hook and engine subscription.
+- **Docking (opt-in) does not break that — it POSITIONS instead of moving.** With the dockable
+  workspace on, the tree renders empty `<ViewportSlot>`s and `PersistentLayer` draws the one
+  real element over whichever slot wins, by direct style writes. Never `createPortal` (it moves the
+  node, losing a canvas's contents), never React state (it would re-render the shell at pointer rate).
+  And the dock panes assert their flex in a `useLayoutEffect`, not a `style` prop — a splitter
+  writes pixels straight onto them, and React rewrites a property only when its own props change, so a
+  declarative style leaves a dragged pane pinned and new space goes to nobody. All guarded; see
+  [plans/dockable-workspace.md](plans/dockable-workspace.md) and [docs/WORKSPACE.md](docs/WORKSPACE.md).
 - **Switch contexts only via `goToContext()`** (`contexts/nav.ts`). Calling `layoutStore.setContext`
   directly drops the `layoutRev`, and a shipped layout change then silently never reaches an operator
   who already opened that context.

@@ -384,6 +384,37 @@ harmless.
   `shared/protocol.ts` and read/write via `getPrefs`/`setPrefs` — keep nested state in one object so the
   shallow merge is safe.
 
+## The dockable workspace (opt-in, `artlux.docking`)
+
+Inside any context the operator can drag a panel by its tab into another group, drop it on an edge to split, reorder, collapse, close, add any registered panel, and reset the workbench to what the context ships. Per context, persisted, surviving a restart. Plan and tracker: [plans/dockable-workspace.md](../plans/dockable-workspace.md).
+
+**It costs the SDK nothing.** The arrangement is a tree *compiled from the flat manifest a context already declares* (`browser[]` / `dock[]` / `inspector[]` / `viewport`), so contexts and plugins keep declaring exactly what they declare today. The **absence** of a saved tree is the migration trigger, and the first build inherits the operator’s banked column widths, dock height and dock tab — an upgrading install sees nothing move.
+
+| Piece | Where | What it is |
+|---|---|---|
+| The model, ops and compiler | `services/dockTree.ts` | Pure logic. Imports **nothing**, which is what lets `npm run test:docktree` check 44 behavioural rules in about a second with no app running. |
+| The renderer | `components/shell/DockRenderer.tsx` | Walks the tree. Knows nothing about “browser columns” — only that a `stack` group stacks and a `tabs` group tabs. |
+| The drag | `components/shell/DockDrag.tsx` | Pointer events with 5-zone drops. **Never HTML5 DnD** — that channel carries `application/artlux-asset`, and a stray file drop navigates the window. |
+| The persistent viewports | `components/shell/PersistentLayer.tsx` | The tree renders empty slots; the real elements are positioned over the winning slot by direct style writes. |
+
+### Why the viewports are positioned, not moved
+
+A React element exists at exactly one position, and `Simulator3D` (one WebGL context) and `TimelinePanel` (one keyboard hook, one engine subscription) must never be mounted twice nor unmounted. So the tree renders `<ViewportSlot>` placeholders, a registry says which slot currently wins for each id, and `PersistentLayer` draws the one real element over it. Nothing remounts; only coordinates change. `createPortal` was rejected: it physically moves the node on every layout change, which loses a canvas’s contents and can drop a WebGL context outright.
+
+The follow loop **writes styles, never state** — following a rect is per-frame work, and doing it in React would re-render the shell at pointer rate. Measured: it adds **0 ms/s** on top of the splitter’s own cost. It is *armed*, not always-on: it wakes on a structural change, a ResizeObserver hit, a pointer drag or a transition, and stops once the rects settle.
+
+### Three layout traps, each of which shipped once
+
+All three were reported by the operator within minutes of real use, and all three were invisible to automated checks that only ever ran at two window heights. Each is now guarded.
+
+1. **A fixed pane must be able to shrink.** `flex: 0 0 280px` reads like a width; in a short window it means “280 whatever happens”, and the excess paints *outside* the workspace — over the timeline drawer, leaving the lower half of the window black. Panes shrink now, and a px basis is capped at 45% of its split so it cannot starve its neighbour.
+2. **`fr` factors must sum to at least 1.** Flexbox distributes only that fraction of the free space and leaves the rest empty — a viewport at `fr: 0.43` beside a fixed dock left a black band across the middle of an ordinary window. `fr` is normalized by its split’s own total.
+3. **The panes’ flex is asserted imperatively after every render.** The splitter drags by writing pixels straight onto the elements; React writes a style property only when its own *props* change, and an fr pane computes to the same style before and after a drag — so the drag’s pixels stayed pinned and every pane ended up with grow 0. A `useLayoutEffect` with no dependency array reasserts what the tree says. This cannot be declarative: “the value did not change” is exactly the case that needs repairing.
+
+### What stays out of the tree
+
+The **bottom drawer** (its 28px strip, `Ctrl+T` and never-remounting fixed position are the fix that killed the lost-zoom bug), the context rail, the action bar, the palette, and the help and shortcut editors. **Split view** is still a layout flag rather than a tree node — it is a runtime toggle, so it cannot be compiled into a shipped tree; it becomes redundant once a viewport can simply be dragged into a pane.
+
 ## Regression guards
 
 These rules are load-bearing and invisible: break one and the code still compiles, the app still boots,
@@ -443,8 +474,9 @@ a keyed `BrowserWindow` map + a new `*.html` entry + a typed bridge.
 > genuinely remains single-instance is `Simulator3D` (one WebGL context) and `TimelinePanel` (one
 > keyboard hook, one engine subscription) — two elements, not the whole shell.
 >
-> A docking design that accounts for that is drafted in
-> [plans/engine-decoupling.md](../plans/engine-decoupling.md) §8 (a per-context split/tab tree compiled
-> from the existing flat manifests, with the remaining persistent viewports positioned over placeholders
-> rather than reparented). Nothing is built yet; this note exists so the paragraph above is not read as a
-> live decision when its main premise no longer holds.
+> **And it has now been built.** A per-context split/tab tree, compiled from the existing flat
+> manifests, with the remaining persistent viewports positioned over slots rather than reparented — see
+> [the dockable workspace](#the-dockable-workspace-opt-in-artluxdocking) above and
+> [plans/dockable-workspace.md](../plans/dockable-workspace.md). It is opt-in until the default is
+> flipped. **Tear-off OS windows remain out of scope**; a `float` node kind is reserved in the model
+> so adding them later is not a migration, and the projector subsystem is still the recipe.

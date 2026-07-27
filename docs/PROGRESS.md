@@ -781,6 +781,21 @@ incident here was GPU/decode/IO and never React. Canonical plan, WP tracker and 
   stands for a better reason: a worker would buy smoother content under load, and that load is now
   demonstrably all that is left to buy.
 
+- **The dockable workspace (Phase 5, WP-5.1 to 5.5)** (`cb09097`, `db0956c`, `27ee1c6`, `ab8ec95`, `1f7202c`, `f5d35de`). Panels drag between
+  groups, drop on an edge to split, add, close, collapse, and reset — per context, persisted.
+  Opt-in behind `artlux.docking` until a default flip. **It costs the SDK nothing:** the
+  arrangement is compiled from the flat manifest a context already declares, and the ABSENCE of a
+  saved tree is the migration trigger, so an upgrading install sees nothing move. The elements that
+  cannot be moved or duplicated (`Simulator3D`, `TimelinePanel`) are POSITIONED over slots
+  by direct style writes rather than reparented. **What made this affordable was Phase 1:** deleting
+  “Stage must never unmount” removed the constraint every previous docking design had to be
+  built around. **Three layout bugs were then found by the operator within minutes of real use**, all
+  invisible to checks that only ever ran at two window heights: a fixed pane that could not shrink
+  (painting the lower half of a short window black), `fr` factors summing under 1 (flexbox then
+  distributes only that fraction of the free space — a black band across the middle), and a
+  splitter drag whose pixel values stayed pinned, because React rewrites a style property only when
+  its own props change. All three are guarded; the reasoning is in docs/WORKSPACE.md.
+
 ## Open items
 - **ui-ux-pro-max skill** not yet vendored: the `uipro-cli` global install was blocked by the sandbox. Plan: copy `src/ui-ux-pro-max/` from the named GitHub repo into `.claude/skills/` (needs approval). Skill is already usable in-session meanwhile.
 - Deferred effects: stateful **fire2012**, **multi-segment** subdivision per fixture.
