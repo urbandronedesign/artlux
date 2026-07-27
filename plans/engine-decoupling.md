@@ -8,7 +8,33 @@
 > none to the `.artlux` schema, prefs, or the plugin SDK through Phase 3; **two invariants are deleted and
 > replaced** (`Stage must never unmount`, and its DOM-gate corollaries)
 
-## 0. Tracker — status of every work package
+## 0. Where to resume (read this first)
+
+**Phases 0 and 1 are complete. Phase 2 is code-complete. Phase 3 is PARKED at a measured fork.**
+`npm run verify` is green at 52 checks; nothing has been pushed. As of 2026-07-27.
+
+**What the programme achieved:** output no longer depends on the UI. The frame loop lives in
+`renderer/engine/frameEngine.ts`, starts itself at module load, reads no DOM, and reaches main over its
+own MessagePort. Proven by deleting the Stage's canvas *and* container out of a running app while the
+native engine held 61 Hz — and re-provable any time with `node scripts/test-engine-output.cjs`.
+
+**The three things that need a human, in priority order:**
+1. **C1 — the rig.** Real fixtures on the wire, a broadcast/projector run, a longer soak. Never done.
+2. **C2 — three media sources this machine has none of:** a Spout sender, an NDI source, a working
+   camera (camera *pixels* are unverified; the code path is confirmed live but never carried an image).
+3. A packaged run against the operator's **real** project — packaged was only exercised with a
+   synthetic one.
+
+**The best next code task**, with a number attached: **`TimelinePanel` costs 224 ms/s** during a context
+tour (10 commits, ~22 ms each) on the panel open in eight of nine contexts. That is the measured source
+of the p99 54 → 155 ms hitching. The technique is already in `hooks/useStableHandlers.ts`; WP-0.4's row
+explains why measuring commit *counts* will mislead you and commit *time* will not.
+
+**Do not resume Phase 3 without re-reading WP-3.2 and 3.M.** The worker was blocked by a real code
+fact, and 3.M measured that it would buy smoother content under load — **not** show survival, because
+the native Rust pacer already keeps the wire alive through a frozen renderer.
+
+## 0b. Tracker — status of every work package
 
 Tick a row **only** when its acceptance criteria are met and `npm run verify` is green. "Rig" rows are
 user-verified at a checkpoint; a session must never tick those itself.
