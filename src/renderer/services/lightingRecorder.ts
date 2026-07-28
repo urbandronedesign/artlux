@@ -15,9 +15,6 @@ import { fitCurve } from './curveFit';
 // take comes out in the same role space it will be replayed in: pan/tilt in degrees, everything else
 // 0..1. That is what lets the recording be assigned to other fixtures later — see docs/LIGHTING-SHOW.md.
 
-/** Roles worth recording. Deliberately narrow: a take is movement and look, not maintenance. */
-const CAPTURED: readonly ChannelRole[] = ['pan', 'tilt', 'dimmer', 'red', 'green', 'blue', 'white', 'zoom'];
-
 interface Track {
   fixtureId: string;
   /** role → the raw per-frame samples, reduced only at stop. */
@@ -63,8 +60,8 @@ export function start(fixtureIds: string[]): boolean {
     for (const track of tracks) {
       const st = states.get(track.fixtureId);
       if (!st) continue;
-      for (const role of CAPTURED) {
-        const value = roleValue(st, role);
+      for (const role of fixtureSignal.ROLES_CAPTURED) {
+        const value = fixtureSignal.roleValue(st, role);
         if (value === undefined) continue;
         let curve = track.curves.get(role);
         if (!curve) { curve = { t: [], v: [] }; track.curves.set(role, curve); }
@@ -78,18 +75,6 @@ export function start(fixtureIds: string[]): boolean {
   return true;
 }
 
-function roleValue(st: fixtureSignal.FixtureState, role: ChannelRole): number | undefined {
-  switch (role) {
-    case 'pan': return st.pan;
-    case 'tilt': return st.tilt;
-    case 'dimmer': return st.intensity;
-    case 'red': return st.r;
-    case 'green': return st.g;
-    case 'blue': return st.b;
-    case 'zoom': return st.zoomDeg;
-    default: return undefined;
-  }
-}
 
 /**
  * Stop and build the take. Returns null if nothing usable was captured.

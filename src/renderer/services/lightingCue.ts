@@ -103,7 +103,7 @@ export function fire(
       for (const [role, to] of Object.entries(slot) as Array<[ChannelRole, number]>) {
         if (!Number.isFinite(to)) continue;
         const held = get(f.id, role);
-        const from = held ?? roleValue(st, role) ?? to;
+        const from = held ?? fixtureSignal.roleValue(st, role) ?? to;
         legs = legs.filter((l) => !(l.fixtureId === f.id && l.role === role));
         legs.push({ fixtureId: f.id, role, from, to, startMs: nowMs, durMs, ease });
       }
@@ -112,19 +112,6 @@ export function fire(
   active = legs.length > 0;
 }
 
-function roleValue(st: fixtureSignal.FixtureState | undefined, role: ChannelRole): number | undefined {
-  if (!st) return undefined;
-  switch (role) {
-    case 'pan': return st.pan;
-    case 'tilt': return st.tilt;
-    case 'dimmer': return st.intensity;
-    case 'red': return st.r;
-    case 'green': return st.g;
-    case 'blue': return st.b;
-    case 'zoom': return st.zoomDeg;
-    default: return undefined;
-  }
-}
 
 /**
  * Advance every running fade. Called once per frame by the engine.

@@ -1813,6 +1813,40 @@ check(
   },
 );
 
+// ── Lighting: ONE reader of a role out of a resolved fixture ──────────────────────────────────
+check(
+  'roleValue and the captured-role list live only in fixtureSignal.ts',
+  'The switch that reads a role out of a FixtureState existed THREE times, character-for-character: ' +
+  'in the take recorder, in Store Key, and in the pose-cue engine. One question, three answers free ' +
+  'to drift — the same shape fixtureKind and fixtureFootprint exist to prevent. It had ALREADY ' +
+  'drifted from its own list: both copies of the captured-role list named `white`, and no copy of ' +
+  'the switch had a `case \'white\'`, because a white emitter is folded into r/g/b and never reaches ' +
+  'FixtureState as its own field — so every consumer silently dropped a role the list promised. The ' +
+  'list and the resolver are now adjacent in fixtureSignal.ts precisely so they cannot disagree ' +
+  'again, and the effect-driveable list (a DIFFERENT question) is named ROLES_GENERATABLE beside ' +
+  'sampleEffect rather than looking like the same list drifting.',
+  () => {
+    const OWNER = 'src/renderer/services/fixtureSignal.ts';
+    const owner = read(OWNER);
+    if (!/export function roleValue/.test(owner)) return `${OWNER} no longer exports roleValue`;
+    if (!/export const ROLES_CAPTURED/.test(owner)) return `${OWNER} no longer exports ROLES_CAPTURED`;
+    // The list must be exactly what the resolver can answer — the drift this check exists for.
+    const listed = (/ROLES_CAPTURED[^=]*=\s*\n?\s*\[([^\]]*)\]/.exec(owner) || [, ''])[1]
+      .match(/'([a-zA-Z]+)'/g)?.map((s) => s.slice(1, -1)) ?? [];
+    const cased = (/export function roleValue[\s\S]*?\n}/.exec(owner) || [''])[0]
+      .match(/case '([a-zA-Z]+)'/g)?.map((s) => s.slice(6, -1)) ?? [];
+    const promisedNotResolved = listed.filter((r) => !cased.includes(r));
+    if (promisedNotResolved.length)
+      return `ROLES_CAPTURED promises ${promisedNotResolved.join(', ')} but roleValue cannot resolve it — every consumer would silently drop it`;
+    const problems = [];
+    for (const f of walk('src/renderer')) {
+      if (f === OWNER) continue;
+      if (/function roleValue\s*\(/.test(read(f))) problems.push(`${f} re-implements roleValue()`);
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);

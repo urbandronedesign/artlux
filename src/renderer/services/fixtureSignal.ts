@@ -32,6 +32,44 @@ export interface FixtureState {
   blackout: boolean;
 }
 
+// ── READING A ROLE OUT OF A RESOLVED FIXTURE — one owner, beside the state it reads ──────────
+//
+// This switch existed THREE times, character-for-character: in the take recorder, in Store Key, and
+// in the pose-cue engine. One question, three answers free to drift — the same shape `fixtureKind`
+// and `fixtureFootprint` exist to prevent. Add an eighth role and two of the three would have gone
+// on silently ignoring it.
+//
+// ⚠ `ROLES_CAPTURED` MUST STAY THE ROLES THIS FUNCTION CAN RESOLVE, which is why they are adjacent.
+// They had already drifted: both former copies of the list included `'white'`, and no copy of the
+// switch had a `case 'white'` — because a white EMITTER is folded into r/g/b by the table above and
+// never reaches `FixtureState` as its own field. So the list promised a role that could not be
+// captured, and every consumer silently dropped it. Removing it changes no behaviour; it removes a
+// false promise.
+export function roleValue(st: FixtureState | undefined, role: ChannelRole): number | undefined {
+  if (!st) return undefined;
+  switch (role) {
+    case 'pan': return st.pan;
+    case 'tilt': return st.tilt;
+    case 'dimmer': return st.intensity;
+    case 'red': return st.r;
+    case 'green': return st.g;
+    case 'blue': return st.b;
+    case 'zoom': return st.zoomDeg;
+    default: return undefined;
+  }
+}
+
+/**
+ * The roles a busk RECORDS and a pose key STORES — deliberately narrow: a take is movement and
+ * look, not maintenance. Exactly the set `roleValue` above can resolve, and it must stay that way.
+ *
+ * Not to be confused with the roles a generated EFFECT can drive (`ROLES_GENERATABLE` in
+ * services/lightingTake.ts) — that is a different question with a different answer, and the overlap
+ * between them is what made two lists look like one list drifting.
+ */
+export const ROLES_CAPTURED: readonly ChannelRole[] =
+  ['pan', 'tilt', 'dimmer', 'red', 'green', 'blue', 'zoom'];
+
 type Listener = (states: ReadonlyMap<string, FixtureState>) => void;
 const listeners = new Set<Listener>();
 let latest: ReadonlyMap<string, FixtureState> = new Map();

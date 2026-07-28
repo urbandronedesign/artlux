@@ -1,8 +1,8 @@
 # Fixture Editor — two categories, and the duplication behind them
 
-> **Status: DECIDED (B) AND BUILT — 2026-07-27, on `main`, NOT PUSHED.** Part 1 shipped as **option
-> B**: the seven-card dock became two — `Library` and `Wiring & Ledmap`. **Part 2 (the duplication)
-> is still open and independent.** **Core**. Risk 🟢 Low.
+> **Status: BOTH PARTS BUILT — 2026-07-27, on `main`, NOT PUSHED.** Part 1 shipped as **option B**:
+> the seven-card dock became two — `Library` and `Wiring & Ledmap`. **Part 2 shipped too**, and it
+> found a latent bug: the role list and the role resolver had already drifted. **Core**. Risk 🟢 Low.
 >
 > ⚠ **The audit found B's premise was slightly wrong.** The plan said two things were unique; there
 > were **three**. See *What the audit changed* below.
@@ -74,9 +74,22 @@ So the three live options:
   `pinLedCount` closed the field that corrupted the rig, and `fixtureFootprint` ignores the rest.
   Nothing here is a bug; it is all clarity.
 
-**Part 2 (the duplication) is independent of this decision and can proceed on its own.** It is a
-real correctness item — three copies of `roleValue()` and a dead flag — and it does not care what
-happens to the dock.
+**Part 2 SHIPPED (below).** It was independent of the dock decision, and it turned out to be more
+than tidying: the role list and the role resolver had ALREADY drifted.
+
+### What Part 2 found
+
+`roleValue()` now lives once, in `services/fixtureSignal.ts`, **adjacent to `ROLES_CAPTURED`** —
+because the list must be exactly the roles the resolver can answer, and they had stopped being that:
+both copies of the list named `white`, and no copy of the switch had a `case 'white'`. A white
+emitter is folded into r/g/b by `EMITTERS` and never reaches `FixtureState` as its own field, so
+**every consumer silently dropped a role the list promised.** Removing it changes no behaviour and
+removes a false promise.
+
+The invariant asserts the two agree, and was proved by re-introducing `white` and watching it fail
+with exactly that message. The effect-driveable list is now `ROLES_GENERATABLE`, beside
+`sampleEffect` — a different question, named so the overlap stops reading as drift. `allRoles` is
+deleted: `x ? A : A` promised a modifier nothing implemented.
 
 ---
 

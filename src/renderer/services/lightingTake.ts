@@ -27,6 +27,18 @@ export function sampleCurve(kfs: Keyframe[], time: number, cursor?: Cursor): num
   return sampleLane(kfs, time, cursor ?? { i: -1 }, false);
 }
 
+/**
+ * The roles a GENERATED effect can drive — beside `sampleEffect`, which is what generates them.
+ *
+ * NOT the same question as `fixtureSignal.ROLES_CAPTURED` (what a busk records and a key stores),
+ * and the difference is real: an effect can sweep a gobo wheel or an iris, which a capture has no
+ * resolved value for; a capture reads r/g/b, which an effect has no single knob for. They overlap on
+ * pan/tilt/dimmer/zoom, and that overlap is exactly what made two deliberate lists look like one
+ * list drifting — so each now lives beside the code that constrains it, named for its own reason.
+ */
+export const ROLES_GENERATABLE: readonly ChannelRole[] =
+  ['pan', 'tilt', 'dimmer', 'zoom', 'focus', 'iris', 'colorWheel', 'goboWheel'];
+
 /** A generated movement, evaluated analytically — no samples, no file. */
 export function sampleEffect(effect: LightingEffect, time: number): number {
   const period = effect.periodSec > 0 ? effect.periodSec : 1;

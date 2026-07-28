@@ -4,6 +4,7 @@ import type {
   ChannelRole, Fixture, FixtureGroup, LightingClip, LightingForm, LightingPhaseMode, LightingTake, VideoClip,
 } from '../../types';
 import { groupKind } from '../../services/fixtureKind';
+import { ROLES_GENERATABLE } from '../../services/lightingTake';
 
 // The inspector for a LIGHTING clip — where a movement becomes a look.
 //
@@ -17,7 +18,6 @@ import { groupKind } from '../../services/fixtureKind';
 // unison, which is one look; with them the same clip is a chase, a wave, a fan or a symmetric
 // split — which is most of what a light show is made of.
 
-const ROLES: ChannelRole[] = ['pan', 'tilt', 'dimmer', 'zoom', 'focus', 'iris', 'colorWheel', 'goboWheel'];
 const FORMS: LightingForm[] = ['sine', 'triangle', 'ramp', 'square', 'random'];
 const MODES: LightingPhaseMode[] = ['spread', 'wing', 'block', 'random'];
 
@@ -109,7 +109,7 @@ export const LightingClipInspector: React.FC<Props> = ({ clip, groups, fixtures,
                 // for pan and "far past full" for a dimmer.
                 onChange({ effect: { ...l.effect!, role: r, centre: d.centre, amplitude: d.amplitude } });
               }}>
-              {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+              {ROLES_GENERATABLE.map((r) => <option key={r} value={r}>{r}</option>)}
             </select>
           </Row>
           <Row label={isAngle(role) ? 'Centre °' : 'Centre'}>

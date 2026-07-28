@@ -1,7 +1,7 @@
 import type {
   ChannelRole, Fixture, FixtureGroup, LightingKey, LightingPose, LightingSequence, VideoClip, VideoLayer,
 } from '../types';
-import type { FixtureState } from './fixtureSignal';
+import { ROLES_CAPTURED, roleValue, type FixtureState } from './fixtureSignal';
 import { isLight } from './fixtureKind';
 
 // STORE KEY — the verb that closes the authoring loop.
@@ -13,9 +13,6 @@ import { isLight } from './fixtureKind';
 //
 // Pure on purpose: it decides, and the caller mutates. That makes the three-case table below
 // checkable without a timeline, a rig, or a running transport.
-
-/** Roles a key stores. The same narrow set the recorder captures — a look, not maintenance. */
-export const STORABLE: readonly ChannelRole[] = ['pan', 'tilt', 'dimmer', 'red', 'green', 'blue', 'white', 'zoom'];
 
 export interface StoreKeyInput {
   playhead: number;
@@ -30,8 +27,6 @@ export interface StoreKeyInput {
   selectedFixtureIds: string[];
   /** A group selected outright, if any — it wins over a raw fixture selection. */
   selectedGroupId?: string;
-  /** Store every role the profile resolves, not just the moved ones. */
-  allRoles?: boolean;
 }
 
 export type StoreKeyPlan =
@@ -54,18 +49,6 @@ export type StoreKeyPlan =
 /** Two keys within this many seconds are the same moment — a click cannot mean two of them. */
 const SAME_KEY_EPS = 1 / 30;
 
-function roleValue(st: FixtureState, role: ChannelRole): number | undefined {
-  switch (role) {
-    case 'pan': return st.pan;
-    case 'tilt': return st.tilt;
-    case 'dimmer': return st.intensity;
-    case 'red': return st.r;
-    case 'green': return st.g;
-    case 'blue': return st.b;
-    case 'zoom': return st.zoomDeg;
-    default: return undefined;
-  }
-}
 
 /**
  * What the group looks like now, as one pose per slot — COLLAPSED TO ONE when every fixture agrees.
@@ -77,7 +60,7 @@ function roleValue(st: FixtureState, role: ChannelRole): number | undefined {
 export function poseForGroup(
   members: Fixture[],
   states: ReadonlyMap<string, FixtureState>,
-  roles: readonly ChannelRole[] = STORABLE,
+  roles: readonly ChannelRole[] = ROLES_CAPTURED,
 ): LightingPose[] {
   const slots: LightingPose[] = members.map((f) => {
     const st = states.get(f.id);
@@ -112,7 +95,7 @@ export function poseForGroup(
 export function planStoreKey(input: StoreKeyInput): StoreKeyPlan {
   const {
     playhead, clips, layers, groups, fixtures, states,
-    selectedFixtureIds, selectedGroupId, allRoles,
+    selectedFixtureIds, selectedGroupId,
   } = input;
 
   const byId = new Map(fixtures.map((f) => [f.id, f]));
@@ -152,8 +135,7 @@ export function planStoreKey(input: StoreKeyInput): StoreKeyPlan {
     };
   }
 
-  const roles = allRoles ? STORABLE : STORABLE;
-  const slots = poseForGroup(members, states, roles);
+  const slots = poseForGroup(members, states);
   if (!slots.some((p) => Object.keys(p).length)) {
     return {
       kind: 'refused',
