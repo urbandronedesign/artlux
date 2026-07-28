@@ -1,9 +1,9 @@
 import React from 'react';
 import { X } from 'lucide-react';
 import type {
-  ChannelRole, Fixture, FixtureGroup, LightingClip, LightingForm, LightingPhaseMode, LightingTake, VideoClip,
+  ChannelRole, Fixture, FixtureGroup, FixtureProfile, LightingClip, LightingForm, LightingPhaseMode, LightingTake, VideoClip,
 } from '../../types';
-import { groupKind } from '../../services/fixtureKind';
+import { groupKind, profileOf } from '../../services/fixtureKind';
 import { ROLES_GENERATABLE } from '../../services/lightingTake';
 
 // The inspector for a LIGHTING clip — where a movement becomes a look.
@@ -37,6 +37,10 @@ interface Props {
   groups: FixtureGroup[];
   /** The rig, so a group's KIND can be derived — a lighting clip drives lights only. */
   fixtures: Fixture[];
+  /** Resolved profiles, to turn a role into the channel key a lane would name. */
+  fixtureProfiles?: ReadonlyMap<string, FixtureProfile>;
+  /** targetPaths of the ENABLED automation lanes — a lane outranks this clip, so it is worth saying. */
+  lanePaths?: ReadonlySet<string>;
   takes: LightingTake[];
   onChange: (patch: Partial<LightingClip>) => void;
   onClose: () => void;
@@ -52,12 +56,32 @@ const Row: React.FC<{ label: string; children: React.ReactNode }> = ({ label, ch
 const sel = 'flex-1 min-w-0 bg-surface-0 border border-line-1 rounded-sm px-1 py-0.5 text-fg-1 focus:border-accent focus:outline-none';
 const num = 'w-16 bg-surface-0 border border-line-1 rounded-sm px-1 py-0.5 text-right text-fg-1 num focus:border-accent focus:outline-none';
 
-export const LightingClipInspector: React.FC<Props> = ({ clip, groups, fixtures, takes, onChange, onClose }) => {
+export const LightingClipInspector: React.FC<Props> = ({ clip, groups, fixtures, fixtureProfiles, lanePaths, takes, onChange, onClose }) => {
   const l = clip.lighting ?? {};
   const usingTake = !!l.takeId;
   const role = l.effect?.role ?? 'pan';
   const group = groups.find((g) => g.id === l.groupId);
   const kind = group ? groupKind(group, fixtures) : null;
+
+  // ── WHICH ROLES IS A LANE ALREADY WINNING? ─────────────────────────────────────────────────
+  // A lighting clip ranks BELOW an automation lane (profile default < authored dmx < clip < pose cue
+  // < lane < live override), so a lane drawn on `fixtures.<id>.dmx.pan` silently beats this clip's
+  // pan for that fixture. Nothing said so, and the symptom is the worst kind: the clip is configured
+  // correctly, the rig does something else, and the reason is on a different lane in a different
+  // panel. Said here, where the clip is authored.
+  const shadowed = React.useMemo(() => {
+    if (!group || !lanePaths?.size) return [];
+    const roles = new Set<ChannelRole>();
+    for (const id of group.fixtureIds) {
+      const f = fixtures.find((x) => x.id === id);
+      const profile = f ? profileOf(f, fixtureProfiles) : undefined;
+      if (!profile) continue;
+      for (const ch of profile.channels) {
+        if (ch.role && lanePaths.has(`fixtures.${id}.dmx.${ch.key}`)) roles.add(ch.role);
+      }
+    }
+    return [...roles];
+  }, [group, fixtures, fixtureProfiles, lanePaths]);
   const groupWarning =
     kind === 'mixed' ? 'This group mixes LED and light fixtures — only the lights will be driven.'
     : kind === 'pixel' ? 'This group holds no light fixtures — a lighting clip drives nothing here.'
@@ -145,6 +169,12 @@ export const LightingClipInspector: React.FC<Props> = ({ clip, groups, fixtures,
           has nowhere to land on LED tape — so a mixed group is driven only in part, silently. Said
           here rather than refused: the fix is the operator's (split the group, or accept it). */}
       {groupWarning && <div className="text-micro text-warn">{groupWarning}</div>}
+      {shadowed.length > 0 && (
+        <div className="text-micro text-warn">
+          Overridden by an automation lane: {shadowed.join(", ")} — a lane always wins, so this clip's
+          {shadowed.length === 1 ? " value" : " values"} for {shadowed.length === 1 ? "it" : "them"} will not reach the rig.
+        </div>
+      )}
       {group && group.fixtureIds.length < 2 && (
         <div className="text-micro text-fg-3">One fixture: phase and mirror have nothing to spread across.</div>
       )}

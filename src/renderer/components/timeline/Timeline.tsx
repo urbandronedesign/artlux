@@ -22,7 +22,7 @@ import { StateLane } from './StateLane';
 import { AutomationLane, AUTO_LANE_H } from './AutomationLane';
 import { AutomationTargetPicker } from './AutomationTargetPicker';
 import { automationTargetRegistry } from '../../host/registries';
-import type { AutomationLane as AutoLane, Fixture, FixtureGroup, LightingClip, Marker } from '../../types';
+import type { AutomationLane as AutoLane, Fixture, FixtureGroup, FixtureProfile, LightingClip, Marker } from '../../types';
 
 // A lane as the PANEL sees it. `origin` is where the lane LIVES (and therefore which clock it rides);
 // `shadowed` means a scene lane owns the same targetPath, so this global one is not applying right now.
@@ -89,6 +89,8 @@ interface Props {
   fixtureGroups?: FixtureGroup[];
   /** The rig — the lighting clip inspector derives a group's KIND from it. */
   rigFixtures?: Fixture[];
+  /** Resolved DMX profiles — the lighting clip inspector maps a role to the channel a lane names. */
+  rigProfiles?: ReadonlyMap<string, FixtureProfile>;
   /**
    * The fixtures currently selected, IN SELECTION ORDER — what a recorded take captures, and the
    * order its parts (and therefore any later phase spread) run along.
@@ -128,7 +130,7 @@ export interface AuthorContext {
 // (top-bar play) drives the engine — the playback clock. Edits commit to project state via
 // onChange; the live playhead/time are read from the engine render-free. Layout is a single
 // vertical scroller with a sticky track-header gutter and a sticky timecode ruler.
-export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, onStateMachineChange, playing, onTogglePlay, maximized = false, onToggleMax, projectPath, onRegisterAsset, scenes = [], cues = [], fixtureGroups = [], rigFixtures = [], selectedFixtureIds = [], author, audio: audioProp, baseAutomation = [] }) => {
+export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, onStateMachineChange, playing, onTogglePlay, maximized = false, onToggleMax, projectPath, onRegisterAsset, scenes = [], cues = [], fixtureGroups = [], rigFixtures = [], rigProfiles, selectedFixtureIds = [], author, audio: audioProp, baseAutomation = [] }) => {
   const [pxPerSec, setPxPerSec] = useState(40);
   const [pillOpen, setPillOpen] = useState(false); // scene/state selector dropdown
   const [selected, setSelected] = useState<string | null>(null);
@@ -1339,6 +1341,16 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     return m;
   }, [timeline.clips, timeline.lightingSequences]);
 
+  // The ENABLED lanes, by target path. A lane outranks a lighting clip, so the clip inspector says
+  // when one is already winning a role — see its `shadowed` memo. Both documents count: a base (global)
+  // lane still drives underneath the bound scene unless a scene lane shadows it by the same path.
+  const enabledLanePaths = useMemo(() => {
+    const s = new Set<string>();
+    for (const l of baseAutomation) if (l.enabled !== false) s.add(l.targetPath);
+    for (const l of timeline.automation ?? []) if (l.enabled !== false) s.add(l.targetPath);
+    return s;
+  }, [baseAutomation, timeline.automation]);
+
   const conflictIds = useMemo(() => {
     const ids = new Set<string>();
     const live = timeline.clips.filter(c => c.content && (c.content.type === SourceType.SPOUT || c.content.type === SourceType.NDI));
@@ -1744,6 +1756,8 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
           clip={selectedClip}
           groups={fixtureGroups}
           fixtures={rigFixtures}
+          fixtureProfiles={rigProfiles}
+          lanePaths={enabledLanePaths}
           takes={timeline.lightingTakes ?? []}
           onChange={(patch) => patchLighting(selectedClip.id, patch)}
           onClose={() => setSelected(null)}
