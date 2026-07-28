@@ -28,8 +28,9 @@ height you set while patching survives a trip through Audio.
   *while* working in a viewport — cutting against the 2D stage, recording a lighting take against
   the 3D rig — not a place you travel to.
 - **Status bar**: contextual help (hover any control) · render FPS · LIVE/target · engine stats.
-- **Help panel** (**F1** / **?** / Help menu): contextual help for the hovered control plus browsable
-  topic guides, with a remembered **EN/FR** toggle. Help content is bilingual; the rest is English.
+- **Help** (**F1** / **?** / Help menu): one searchable modal over the topic guides and every
+  function's help entry, with a remembered **EN/FR** toggle for the guides. Contextual hover help
+  lives in the status bar.
 
 ### Arrange it yourself (dockable workspace)
 

@@ -1,5 +1,5 @@
-// Lightweight contextual-help bus: components broadcast a hint on hover/focus, the StatusBar and
-// the Help panel show the latest one (falling back to idle content). Hints are bilingual: a plain
+// Lightweight contextual-help bus: components broadcast a hint on hover/focus, the StatusBar shows
+// the latest one (falling back to idle content). Hints are bilingual: a plain
 // { en, fr } object is the seed of "help i18n" without pulling in a framework. Consumers render
 // the field for the active help language (AppSettings.helpLang).
 export type HelpLang = 'en' | 'fr';
@@ -31,7 +31,7 @@ export const helpProps = (hint: HelpText) => ({
 });
 
 // Spread onto a control to opt it into the rich help system by REGISTRY ID. It does two things:
-//   1. re-emits the entry's one-liner to helpBus (so the StatusBar + HelpPanel "Context" line keep
+//   1. re-emits the entry's one-liner to helpBus (so the StatusBar's context line keeps
 //      working — fr mirrors en until French content is authored), and
 //   2. tags the element with `data-help-id`, which the Tooltip / IconButton reads to render the "?"
 //      Learn-more link that deep-links into the Help Page.

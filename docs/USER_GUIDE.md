@@ -91,8 +91,9 @@ put them. See [Making it yours](#making-it-yours).
   workbench (see *Making it yours*).
 - **Timeline (bottom)** — a full-width **drawer**, not a workbench. **Ctrl+T** pulls it up in any
   workbench that offers it, and each remembers whether you left it open.
-- **Help panel (right)** — **F1**, the **?** icon, or **Help › Help Panel**. Contextual help for
-  whatever you hover, plus topic guides, with an **EN / FR** toggle that is remembered.
+- **Help (modal)** — **F1**, a tooltip's **?** link, or **Help › Help…**. One searchable page over
+  the topic guides and every function's help, with an **EN / FR** toggle that is remembered.
+  Contextual help for whatever you hover stays live in the status bar.
 - **Status bar (bottom)** — a hint for the current workbench, FPS, output state, and the toggles
   that hide the side columns.
 
@@ -606,7 +607,7 @@ Text-field typing suppresses these shortcuts.
 | Ctrl/Cmd+Shift+S | Save As |
 | Ctrl/Cmd+, | Preferences |
 | Ctrl/Cmd+Shift+M | OSC Monitor (LiDAR feed sniffer) |
-| F1 | Toggle the Help panel |
+| F1 | Toggle the searchable Help modal |
 | Ctrl/Cmd+Shift+Q | Quit (also quits broadcast mode) |
 | Ctrl/Cmd+R | Reload |
 | Esc | Close the open dialog |

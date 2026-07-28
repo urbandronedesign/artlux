@@ -54,7 +54,7 @@ interface Props {
 }
 
 // `helpId`, when given, opts the button into the rich help system: it gains a hoverable tooltip with a
-// "? Learn more" deep-link (Tooltip) and feeds the StatusBar/HelpPanel context line (help(id)). The
+// "? Learn more" deep-link (Tooltip) and feeds the StatusBar context line (help(id)). The
 // native `title` stays as the accessible name and the fallback for buttons without an entry.
 const TBtn: React.FC<{ active?: boolean; disabled?: boolean; title: string; helpId?: string; onClick: () => void; children: React.ReactNode }> = ({ active, disabled, title, helpId, onClick, children }) => {
   // `disabled` still renders the button (and keeps its tooltip — which is where the WHY lives, e.g.

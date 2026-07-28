@@ -2,7 +2,7 @@
 //
 // Anything that wants to open the editor (a Preferences button, a menu item) calls openShortcuts();
 // the ShortcutsEditor overlay subscribes and self-owns its open state, exactly the way HelpBrowser
-// self-owns its Shift+F1 overlay. App needs no new state, and there is no IPC.
+// self-owns its F1 overlay. App needs no new state, and there is no IPC.
 type Cb = () => void;
 
 const listeners = new Set<Cb>();

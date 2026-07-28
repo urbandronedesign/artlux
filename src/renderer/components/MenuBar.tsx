@@ -119,8 +119,9 @@ function buildMenus(recents: string[]): Menu[] {
       items: [
         { label: 'Command Palette…', accel: 'Ctrl+K', action: 'command-palette' },
         { sep: true },
-        { label: 'Help Panel', accel: 'F1', action: 'help-panel' },
-        { label: 'Search Help…', accel: 'Shift+F1', action: 'help-search' },
+        // One searchable help modal (guides + every function). The accel here is DISPLAY-ONLY —
+        // F1 is renderer-owned by HelpBrowser's keydown, like CommandPalette's Ctrl+K.
+        { label: 'Help…', accel: 'F1', action: 'help' },
         { label: 'Keyboard Shortcuts…', action: 'shortcuts' },
         { label: 'Docs & Tutorials', action: 'docs-browser' },
         { sep: true },

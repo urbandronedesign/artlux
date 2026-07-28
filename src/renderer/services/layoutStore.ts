@@ -9,7 +9,6 @@ import { DockTab, type MediaView } from '../types';
 export interface WorkspaceLayout {
   // sizes
   dockHeight: number;    // px, clamped 120..(innerHeight-120)
-  helpWidth: number;     // px, clamped 240..560
   splitRatio: number;    // 0.2..0.85 — the 2D stage's fraction of the split host
   bottomHeight: number;  // px — the full-width bottom drawer (WorkspaceContext.bottom), when open
   leftWidth: number;     // px — the browser column (clamped in the shell)
@@ -17,7 +16,9 @@ export interface WorkspaceLayout {
   // visibility
   showLeft: boolean;
   showRight: boolean;
-  showHelp: boolean;
+  // (showHelp/helpWidth used to sit here for the right-side Help drawer; it merged into the
+  // HelpBrowser modal. Stale keys in a persisted layoutState are inert — the store spreads over
+  // DEFAULT_LAYOUT and nothing reads them — so there is no migration.)
   dockOpen: boolean;
   splitView: boolean;
   // Is the full-width bottom drawer (the timeline, in every context that names it) pulled up? Banked
@@ -82,7 +83,6 @@ export type ContextLayout = Partial<Pick<WorkspaceLayout,
 
 export const DEFAULT_LAYOUT: WorkspaceLayout = {
   dockHeight: 280,
-  helpWidth: 320,
   splitRatio: 0.5,
   bottomHeight: 340,
   // The old hard-coded Tailwind widths of the two columns (w-72 / w-80) — so an install that has
@@ -91,7 +91,6 @@ export const DEFAULT_LAYOUT: WorkspaceLayout = {
   rightWidth: 320,
   showLeft: true,
   showRight: true,
-  showHelp: false,
   dockOpen: true,
   splitView: false,
   // Closed by default everywhere: the drawer is 340px of the window, and a workbench you opened to

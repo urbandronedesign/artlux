@@ -1,4 +1,4 @@
-// The per-function help registry — the fine-grained layer under the HelpPanel's coarse HELP_TOPICS.
+// The per-function help registry — the fine-grained tier beside the coarse HELP_TOPICS guides.
 //
 // Every entry is keyed by a STABLE dotted id ("timeline.blade", "outputs.corner-pin"). That id is the
 // one thing three surfaces agree on: the tooltip's "?" link (services/helpBus.ts `help(id)`), the
@@ -6,7 +6,7 @@
 // `openHelp(id)`) all resolve the SAME content by it. So a control moving in the tree keeps its help.
 //
 // Content is English-only for now (authored as plain strings). The bridge in helpBus.ts mirrors `short`
-// into the bilingual {en,fr} the StatusBar/HelpPanel expect (fr = en until French content is written),
+// into the bilingual {en,fr} the StatusBar expects (fr = en until French content is written),
 // so nothing downstream has to change when FR lands — the field is already there in the consumer.
 //
 // A missing id is a graceful no-op everywhere: `help('not.added.yet')` still renders the control (with

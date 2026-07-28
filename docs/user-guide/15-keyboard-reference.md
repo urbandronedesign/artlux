@@ -16,7 +16,7 @@ Typing in a text field suppresses these shortcuts. On macOS, **Ctrl** = **Cmd**.
 | Ctrl/Cmd+Shift+S | Save As |
 | Ctrl/Cmd+, | Preferences |
 | Ctrl/Cmd+Shift+M | OSC Monitor (LiDAR feed sniffer) |
-| F1 | Toggle the Help panel |
+| F1 | Toggle the searchable Help modal |
 | Ctrl/Cmd+Shift+Q | Quit (also quits broadcast mode) |
 | Ctrl/Cmd+R | Reload |
 | Esc | Close the open dialog |

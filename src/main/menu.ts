@@ -116,7 +116,10 @@ function template(): MenuItemConstructorOptions[] {
     {
       label: 'Help',
       submenu: [
-        { label: 'Help Panel', accelerator: 'F1', click: () => send('help-panel') },
+        // NO accelerator: F1 must toggle, and a toggle needs one owner. HelpBrowser's own keydown
+        // is that owner (the Ctrl+K pattern) — a native accelerator here would either swallow F1
+        // before the renderer sees it (close silently dead) or double-fire alongside it.
+        { label: 'Help…', click: () => send('help') },
         { label: 'Keyboard Shortcuts…', click: () => send('shortcuts') },
         { label: 'Docs & Tutorials', click: () => send('docs-browser') },
         { type: 'separator' },

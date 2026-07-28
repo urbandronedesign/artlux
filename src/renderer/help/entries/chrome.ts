@@ -38,11 +38,11 @@ export const chromeHelp: HelpEntry[] = [
   },
   {
     id: 'general.help',
-    title: 'Help panel',
-    short: 'Toggle the Help panel — contextual help and topic guides.',
-    body: 'Opens the Help panel with contextual hints for whatever you hover plus the searchable topic guides. Press F1 to toggle it any time.',
+    title: 'Help',
+    short: 'Search all help — topic guides and every function, in one modal.',
+    body: 'One searchable help surface: the coarse topic guides (EN/FR) and the per-function entries behind every tooltip’s "? Learn more" link. Press F1 to toggle it any time; type to search, Esc to close. Contextual hover hints stay live in the status bar.',
     group: 'General',
-    keywords: ['help', 'guide', 'docs', 'contextual', 'f1'],
+    keywords: ['help', 'guide', 'docs', 'search', 'f1'],
     shortcut: 'F1',
   },
 

@@ -25,7 +25,6 @@ import { useModelUrls } from './components/Simulator3D/useModelUrls';
 import type { ModelTransform } from './components/Simulator3D/ModelObject';
 import { Timeline as TimelinePanel } from './components/timeline/Timeline';
 import { MenuBar } from './components/MenuBar';
-import { HelpPanel } from './components/HelpPanel';
 import { DocsBrowser } from './components/DocsBrowser';
 import { StatusBar } from './components/StatusBar';
 import { WorkspaceShell } from './components/shell/WorkspaceShell';
@@ -245,7 +244,7 @@ const App: React.FC = () => {
   // the old local names + setter shims that preserve the useState API (a value OR an updater fn), so
   // every existing call site below is unchanged. Split view is included; the calibration wizard turns it on.
   const L = useLayout();
-  const { dockOpen, splitView, splitRatio, timelineMax, showHelp, helpWidth, showLeft: showLeftPanel, showRight: showRightPanel } = L;
+  const { dockOpen, splitView, splitRatio, timelineMax, showLeft: showLeftPanel, showRight: showRightPanel } = L;
   const setLayoutField = <K extends keyof WorkspaceLayout>(k: K) =>
     (v: WorkspaceLayout[K] | ((p: WorkspaceLayout[K]) => WorkspaceLayout[K])) =>
       layoutStore.set({ [k]: typeof v === 'function' ? (v as (p: WorkspaceLayout[K]) => WorkspaceLayout[K])(layoutStore.get()[k]) : v } as Partial<WorkspaceLayout>);
@@ -272,8 +271,6 @@ const App: React.FC = () => {
   // Maximize / restore the timeline. Restoring MUST also open the drawer: the drawer is where the
   // timeline docks, so F-then-F into a closed drawer would look like the timeline vanished.
   const setTimelineMax = (v: boolean) => layoutStore.set(v ? { timelineMax: true } : { timelineMax: false, bottomOpen: true });
-  const setShowHelp = setLayoutField('showHelp');
-  const setHelpWidth = setLayoutField('helpWidth');
   // Docs Browser panel (local UI state — not persisted in the layout yet).
   const [docsOpen, setDocsOpen] = useState(false);
   const [docsWidth, setDocsWidth] = useState(480);
@@ -2573,8 +2570,10 @@ const App: React.FC = () => {
           case 'remove-fixture': if (selectedFixtureId) handleRemoveFixture(selectedFixtureId); break;
           case 'about': setAboutOpen(true); break;
           case 'command-palette': window.dispatchEvent(new Event('artlux:toggle-command-palette')); break;
-          case 'help-panel': setShowHelp((v) => !v); break;
-          case 'help-search': openHelp(); break;
+          // ONE help surface. The menu path is open-only (you can't click a menu under the
+          // focus-trapped overlay); F1's toggle lives in HelpBrowser's own keydown, renderer-owned
+          // like Ctrl+K — see the header comment there for why two owners is the bug.
+          case 'help': openHelp(); break;
           case 'shortcuts': openShortcuts(); break;
           case 'docs-browser': setDocsOpen((v) => !v); break;
           case 'check-updates': setUpdateUserInitiated(true); window.artlux?.checkForUpdates?.(); break;
@@ -3661,41 +3660,25 @@ const App: React.FC = () => {
       <WorkspaceShell
         selection={editorSelection}
         drawers={
-          <>
-            {/* Docs & Tutorials + bilingual Help — GLOBAL drawers, owned by no context (like the
-                Preferences/About modals below). They stay pinned to the far right on every context. */}
-            <div
-              className={`h-full border-l border-line-1 bg-surface-1 ${docsOpen ? '' : 'w-0 overflow-hidden border-none'}`}
-              style={{ width: docsOpen ? docsWidth : 0 }}
-            >
-              {docsOpen && (
-                <div className="h-full" style={{ width: docsWidth }}>
-                  <DocsBrowser
-                    onClose={() => setDocsOpen(false)}
-                    width={docsWidth}
-                    onResize={setDocsWidth}
-                    onOpenExample={(p) => { handleOpenRecent(p); setDocsOpen(false); }}
-                  />
-                </div>
-              )}
-            </div>
-            <div
-              className={`h-full border-l border-line-1 bg-surface-1 ${showHelp ? '' : 'w-0 overflow-hidden border-none'}`}
-              style={{ width: showHelp ? helpWidth : 0 }}
-            >
-              {showHelp && (
-                <div className="h-full" style={{ width: helpWidth }}>
-                  <HelpPanel
-                    lang={settings.helpLang}
-                    onLang={(l) => updateSettings({ helpLang: l })}
-                    onClose={() => setShowHelp(false)}
-                    width={helpWidth}
-                    onResize={setHelpWidth}
-                  />
-                </div>
-              )}
-            </div>
-          </>
+          /* Docs & Tutorials — a GLOBAL drawer, owned by no context (like the Preferences/About
+             modals below). It stays pinned to the far right on every context. The bilingual Help
+             drawer that used to sit beside it merged into the HelpBrowser modal (F1) — long-form
+             docs are a drawer you read WHILE working; help is a lookup you visit and leave. */
+          <div
+            className={`h-full border-l border-line-1 bg-surface-1 ${docsOpen ? '' : 'w-0 overflow-hidden border-none'}`}
+            style={{ width: docsOpen ? docsWidth : 0 }}
+          >
+            {docsOpen && (
+              <div className="h-full" style={{ width: docsWidth }}>
+                <DocsBrowser
+                  onClose={() => setDocsOpen(false)}
+                  width={docsWidth}
+                  onResize={setDocsWidth}
+                  onOpenExample={(p) => { handleOpenRecent(p); setDocsOpen(false); }}
+                />
+              </div>
+            )}
+          </div>
         }
         viewports={{
           // The 2D mapping stage — ALWAYS MOUNTED. This element owns the per-frame GPU sampling that

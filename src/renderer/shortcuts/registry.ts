@@ -10,8 +10,9 @@ import type { ShortcutDef, ShortcutScope } from './types';
 //    individual actions worth a row. (Ctrl+Tab / Ctrl+Shift+Tab cycling IS here.)
 //  - Pure modal Escape-to-close (HelpBrowser, About, AudioEngineMissing, Tooltip, CommandPalette,
 //    MenuBar) — closing a dialog with Esc is not a user-tunable action.
-//  - Native File-menu accelerators (Ctrl+N/O/S, Ctrl+comma, F1) — those live in the main-process menu and
-//    are out of scope for v1 (renderer-only).
+//  - Native File-menu accelerators (Ctrl+N/O/S, Ctrl+comma) — those live in the main-process menu and
+//    are out of scope for v1 (renderer-only). (F1 left this list when help merged into one modal:
+//    HelpBrowser owns it in its own keydown, the Ctrl+K pattern, so it could toggle.)
 
 export const SHORTCUT_DEFS: ShortcutDef[] = [
   // ── Timeline (active only when the timeline panel is hovered/focused) ──────────────────────────────

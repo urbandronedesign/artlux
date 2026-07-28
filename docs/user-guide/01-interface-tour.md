@@ -61,7 +61,7 @@ The menus, in brief:
 | **Context** | jump to any of the nine workbenches |
 | **View** | Reload, Developer Tools, **Timeline** (the drawer), **OSC Monitor**, zoom, full screen |
 | **Window** | Minimize, Close |
-| **Help** | Help Panel (F1), Check for Updates, Documentation, GitHub, **About ArtLux** |
+| **Help** | Help… (F1), Check for Updates, Documentation, GitHub, **About ArtLux** |
 
 ---
 
@@ -149,15 +149,13 @@ live **FPS** + a **LIVE** output indicator on the right.
 
 ---
 
-## Help panel
+## Help
 
-Open it with **F1**, the **?** icon in the title bar, or **Help ▸ Help Panel**. It shows contextual
-help for whatever control you hover, plus browsable topic guides — and an **EN / FR** toggle that is
-remembered between sessions. Drag its left edge to resize. It is pinned to the far right on every
-workbench and is not part of the dockable area.
-
-![The Help panel](images/16-help-panel.png)
-*The Help panel: contextual help on top, topic guides below, EN/FR toggle top‑right.*
+Open it with **F1**, a tooltip's **? Learn more** link, or **Help ▸ Help…**. One searchable modal
+over two tiers of content: the coarse **topic guides** (with an **EN / FR** toggle that is
+remembered between sessions) and a **per-function entry** for every control that carries a tooltip.
+Type to search both at once; **Esc** closes. Contextual help for whatever you hover stays live in
+the status bar.
 
 ---
 

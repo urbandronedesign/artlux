@@ -1,8 +1,9 @@
 import type { HelpText } from '../services/helpBus';
 
-// Bilingual (EN/FR) help topics shown in the Help panel when no control is hovered. Content is
-// adapted/condensed from docs/USER_GUIDE.md, docs/OSC.md and docs/TIMELINE.md. Keep entries short
-// and task-oriented; the panel renders the field for the active help language.
+// Bilingual (EN/FR) help topics — the coarse "Guides" tier of the Help modal (HelpBrowser adapts
+// them into its search index beside the per-function registry). Content is adapted/condensed from
+// docs/USER_GUIDE.md, docs/OSC.md and docs/TIMELINE.md. Keep entries short and task-oriented; the
+// modal renders the field for the active help language.
 
 export interface HelpTopic {
   id: string;

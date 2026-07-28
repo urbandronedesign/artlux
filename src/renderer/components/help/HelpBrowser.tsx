@@ -1,18 +1,28 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Search, HelpCircle } from 'lucide-react';
 import { allHelpEntries, type HelpEntry } from '../../help/registry';
+import { HELP_TOPICS } from '../../help/helpContent';
 import { helpNav } from '../../services/helpNav';
+import type { HelpLang } from '../../services/helpBus';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { useEditor, useEditorActions } from '../../state/EditorStore';
+import { Segmented } from '../ui';
 
-// The searchable Help Page — a Ctrl+K-style centered overlay over the per-function help registry.
+// THE help surface — a Ctrl+K-style centered overlay, and the only one. It merged two surfaces that
+// split one job (plans/help-merge-and-topbar-removal.md): the old right-drawer HelpPanel (F1, the
+// coarse bilingual HELP_TOPICS guides + a live-hover line) and this search page (Shift+F1, the
+// per-function registry). Both content stores survive unchanged; they meet here as two tiers of one
+// fuzzy-searched list — "Guides" first, functions after. The drawer's live-hover line did NOT move
+// in: you cannot hover the UI under a modal, and the StatusBar already renders the same helpBus hint
+// permanently. F1 toggles; Shift+F1 stays as a silent alias for muscle memory. It subscribes to
+// helpNav so a tooltip's "? Learn more" link (openHelp(id)) opens it focused on that entry, and the
+// registry IS the index (same trick as CommandPalette), so there is no IPC and nothing registered
+// twice.
 //
-// It is the "search every function" surface: a fuzzy-searched list on the left, the selected entry's
-// explanation on the right. It self-owns its open state exactly like CommandPalette — Shift+F1 toggles
-// it, and it subscribes to helpNav so a tooltip's "? Learn more" link (openHelp(id)) opens it focused
-// on that entry. App needs no new state for this.
-//
-// The registry IS the index (same trick that makes CommandPalette nearly free), so there is no IPC and
-// nothing is registered twice: an entry authored for a tooltip appears here automatically.
+// F1 is RENDERER-OWNED, like CommandPalette's Ctrl+K: the native menu item has no accelerator, the
+// accel text in the custom MenuBar is display-only, and the keydown below is the single owner. Two
+// owners is the bug — if the native accelerator consumed the key, toggle-to-close would silently
+// die (a menu click can only open); if it didn't, one press would fire both and open-then-close.
 
 // Subsequence fuzzy match, mirrored from CommandPalette.score(): exact prefix > substring > scattered.
 // -1 means no match; higher is better.
@@ -30,21 +40,32 @@ function score(needle: string, hay: string): number {
   return i === n.length ? 100 - Math.min(99, gaps) : -1;
 }
 
+// The Guides tier: each coarse HELP_TOPICS entry adapted into a registry-shaped entry for the
+// language in effect. `topic.` cannot collide with the dotted area ids, so one list serves both
+// tiers, and searching in French finds a guide by its French title. The adapter lives here — at the
+// edge — deliberately: when FR is authored for the registry, the right move is to unify the two
+// stores on the bilingual shape and delete this, not to grow it.
+const topicEntries = (lang: HelpLang): HelpEntry[] =>
+  HELP_TOPICS.map((t) => ({
+    id: `topic.${t.id}`,
+    title: t.title[lang],
+    short: t.body[lang],
+    body: t.body[lang],
+    group: 'Guides',
+    keywords: [t.title.en, t.title.fr],
+  }));
+
 export const HelpBrowser: React.FC = () => {
   const [open, setOpen] = useState(false);
-  const trapRef = useFocusTrap(open);
   const [q, setQ] = useState('');
   const [selId, setSelId] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
 
-  const entries = useMemo(() => allHelpEntries(), []);
-
-  // Shift+F1 toggles (F1 alone is the contextual HelpPanel — this is "search all help"). Not suppressed
-  // while typing: the whole point is to reach a function's help without leaving the keyboard.
+  // F1 toggles, shift or not (Shift+F1 was the old binding for this overlay — zero-cost alias). Not
+  // suppressed while typing: the whole point is to reach a function's help without leaving the
+  // keyboard.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'F1' && e.shiftKey) {
+      if (e.key === 'F1') {
         e.preventDefault();
         setOpen((v) => !v);
         setQ('');
@@ -54,28 +75,63 @@ export const HelpBrowser: React.FC = () => {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // A tooltip link (openHelp) opens us focused on its entry; openHelp() with no id opens at the top.
+  // A tooltip link (openHelp) opens us focused on its entry; openHelp() with no id — also the
+  // Help ▸ Help… menu item — opens at the top. Open-only is correct for those doors: you cannot
+  // click a menu under this focus-trapped overlay, so only the key needs toggle semantics.
   useEffect(() => helpNav.subscribe((id) => {
     setOpen(true);
     setQ('');
     setSelId(id);
   }), []);
 
+  // The store-reading body mounts only while open. This split is load-bearing: the renderer
+  // repaints per-frame during playback, and a useEditor() in THIS component would re-render at
+  // frame rate to return null.
+  if (!open) return null;
+  return (
+    <HelpBrowserBody
+      q={q} setQ={setQ} selId={selId} setSelId={setSelId}
+      onClose={() => setOpen(false)}
+    />
+  );
+};
+
+const HelpBrowserBody: React.FC<{
+  q: string;
+  setQ: (q: string) => void;
+  selId: string | null;
+  setSelId: (id: string | null) => void;
+  onClose: () => void;
+}> = ({ q, setQ, selId, setSelId, onClose }) => {
+  const trapRef = useFocusTrap(true);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  // EN/FR writes through to AppSettings.helpLang (persisted) — the same field the old drawer's
+  // toggle wrote, so an operator's language survives the merge and the restart.
+  const { settings } = useEditor();
+  const { updateSettings } = useEditorActions();
+  const lang = settings.helpLang;
+
+  const entries = useMemo(() => [...topicEntries(lang), ...allHelpEntries()], [lang]);
+
   // ESC closes from ANYWHERE in the overlay, not just the search input: clicking a result moves focus
   // to that button, so an input-only handler leaves ESC dead the moment you pick something. A global
-  // keydown while open is the reliable close (matches the overlay's click-outside-to-close).
+  // keydown while mounted is the reliable close (matches the overlay's click-outside-to-close).
   useEffect(() => {
-    if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setOpen(false); }
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onClose(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open]);
+  }, [onClose]);
 
-  useEffect(() => { if (open) inputRef.current?.focus(); }, [open]);
+  useEffect(() => { inputRef.current?.focus(); }, []);
 
   const results = useMemo(() => {
+    // Empty query = declaration order: Guides first, then the per-area authoring order — a table of
+    // contents, not an alphabetized word heap (localeCompare on ~300 titles reads as noise).
+    if (!q) return entries;
     const scored = entries
       .map((e) => ({
         e,
@@ -96,33 +152,34 @@ export const HelpBrowser: React.FC = () => {
 
   // When a deep-link lands, bring the selected row into view.
   useEffect(() => {
-    if (!open || !selId) return;
+    if (!selId) return;
     const el = listRef.current?.querySelector(`[data-entry="${CSS.escape(selId)}"]`) as HTMLElement | undefined;
     el?.scrollIntoView({ block: 'nearest' });
-  }, [open, selId, results]);
-
-  if (!open) return null;
-
-  const close = () => setOpen(false);
+  }, [selId, results]);
 
   return (
-    <div className="fixed inset-0 z-modal bg-black/50 flex items-start justify-center pt-[10vh]" onClick={close}>
+    <div className="fixed inset-0 z-modal bg-black/50 flex items-start justify-center pt-[10vh]" onClick={onClose}>
       <div
         ref={trapRef}
-        role="dialog" aria-modal="true" aria-label="Search help"
+        role="dialog" aria-modal="true" aria-label="Help"
         className="w-[760px] max-w-[94vw] h-[64vh] bg-surface-1 border border-line-2 rounded-lg shadow-e3 overflow-hidden animate-modal-in flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Search input */}
+        {/* Search input + language */}
         <div className="flex items-center gap-2 px-3 h-11 shrink-0 border-b border-line-1 bg-surface-2">
           <Search size={14} className="text-fg-3 shrink-0" />
           <input
             ref={inputRef}
             value={q}
             onChange={(e) => { setQ(e.target.value); setSelId(null); }}
-            onKeyDown={(e) => { if (e.key === 'Escape') close(); }}
-            placeholder="Search every function…"
+            onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+            placeholder={lang === 'fr' ? 'Rechercher dans l’aide…' : 'Search every function…'}
             className="flex-1 bg-transparent outline-none text-sm text-fg-1 placeholder:text-fg-3"
+          />
+          <Segmented<HelpLang>
+            options={[{ value: 'en', label: 'EN' }, { value: 'fr', label: 'FR' }]}
+            value={lang}
+            onChange={(l) => updateSettings({ helpLang: l })}
           />
           <kbd className="text-micro text-fg-3 border border-line-2 rounded px-1">Esc</kbd>
         </div>

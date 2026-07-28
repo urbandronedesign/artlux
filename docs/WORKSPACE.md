@@ -71,8 +71,8 @@ useResizable({ axis: 'x'|'y', min, max: number|(()=>number), invert?, mode?: 'de
 - `mode:'delta'` (default) adds pointer movement to `value` (px); `invert` grows the panel as the pointer
   moves toward it. `mode:'ratio'` computes a 0–1 fraction from `containerRef`'s box.
 - Callers: the split divider (`WorkspaceShell.tsx`, `ratio` + `splitHostRef`), the dock top edge
-  (`Dock.tsx`, `invert`, dynamic `max: () => innerHeight-120`), the help left edge (`HelpPanel.tsx`,
-  `invert`), the bottom drawer's top edge, and the **two side columns** (below).
+  (`Dock.tsx`, `invert`, dynamic `max: () => innerHeight-120`), the bottom drawer's top edge, and
+  the **two side columns** (below).
 
 ### The two side columns
 
