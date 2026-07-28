@@ -83,6 +83,33 @@ funnel, because raising it shifts every fixture patched after it in the canonica
 the head's own DMX looks fine); its `surfaceId` is dropped (a light samples nothing); and it gets an
 explicit `position3D`, because it now lives in the 3D scene rather than on the 2D stage.
 
+### The kind is chosen at CREATION — there is no in-place conversion in the UI
+
+Because that list is what "setting `profileId`" costs, it is not something an operator should be able
+to trigger from an inspector section describing the fixture they just selected. It used to be:
+`core.inspector.fixture.profile` applied to **both** kinds — it was the one section that legitimately
+did, on the grounds that it was how you *changed* the kind — so selecting an LED fixture opened its
+column with **"Choose a DMX profile…"**. That button reads like an explanation of what a DMX profile
+is. Clicking it silently pinned `ledCount` to 1, unbound the fixture from its surface (losing the
+mapping), and **repatched the whole rig**, because a 14-channel head where a 120-channel strip used to
+be leaves a hole every fixture after it slides into. Its mirror, **"Clear"** on a light, was the same
+trap in reverse: an aimed head became a one-pixel strip bound to nothing.
+
+So (2026-07-28) the section is `appliesTo: ['fixture.light']` and **"Clear" is gone**. The kind is
+decided where the fixture is *created*, where there is nothing yet to destroy:
+
+| To add | Do |
+|---|---|
+| a **light fixture** | Library dock ▸ **Light Fixtures** ▸ pick a profile |
+| an **LED fixture** | **Add Fixture** on the Mapping action bar, or Library ▸ **LED Templates** |
+
+Picking the wrong one now costs a delete and a re-add instead of a silent repatch. What the section
+still offers a light is **Change…** — swap this head for another profile/mode — which is also the way
+out of an *unresolved* profile: re-point it at one this machine actually has. `handleSetFixtureProfile`
+keeps its `null` branch (the reverse conversion is still a legal state transition); nothing in the UI
+calls it. Guarded by *every fixture inspector section declares a kind*, whose allow-list of both-kinds
+sections is now three: `patch`, `routing`, `arrange`.
+
 ### Two decisions worth knowing
 
 **`ProfileMode.slots` is a flat array, not a map.** Index = offset from `startAddress`, so emitting a

@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+### An LED fixture is no longer offered a DMX profile
+
+Selecting an LED fixture used to open its parameters column with **"Choose a DMX profile…"**. It read
+like an explanation of what a DMX profile is. It was in fact a conversion: it pinned the fixture's LED
+count to 1, **unbound it from its surface** — losing the mapping — seeded a full channel block, and
+**repatched the entire rig**, because a 14-channel head where a 120-channel strip used to be leaves a
+hole that every fixture patched after it slides into. Nothing about the button said any of that.
+
+The *DMX Profile* section is now shown for **light fixtures only**, and **Clear** is gone from it — that
+was the same trap mirrored, turning an aimed moving head into a one-pixel strip bound to nothing.
+
+**The kind is decided where the fixture is created**, where there is nothing yet to destroy: *Add
+Fixture* (or Library ▸ **LED Templates**) gives you a strip, Library ▸ **Light Fixtures** gives you a
+head. Added the wrong one? Delete it and add the other — a cost you can see, instead of a repatch you
+cannot. A light still gets **Change…**, which swaps it to another profile or mode, and remains the way
+out of a profile this machine's library does not have.
+
 ## v0.25.0
 
 ### The workspace is yours to arrange, and the engine no longer depends on it

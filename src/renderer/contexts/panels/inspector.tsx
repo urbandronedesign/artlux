@@ -9,7 +9,7 @@ import { Button, Field, Select, Slider } from '../../components/ui';
 import { Tooltip } from '../../components/ui/Tooltip';
 import { help } from '../../services/helpBus';
 import { fixtureFootprint, resolveMode } from '../../services/addressing';
-import { isLight, isPixel, profileOf, KIND_LABEL } from '../../services/fixtureKind';
+import { isPixel, profileOf } from '../../services/fixtureKind';
 import { channelValue, physicalValue, selectedRange, valueForRange } from '../../services/profilePack';
 import { effectivePosObj, effectiveRotObj, effectiveLayout } from '../../services/led3dDefaults';
 import { useEditor, useEditorActions } from '../../state/EditorStore';
@@ -46,93 +46,90 @@ function useSelectedFixture() {
   return fixtures.find((f) => f.id === selectedFixtureId) ?? null;
 }
 
-// ── Fixture ▸ DMX Profile ───────────────────────────────────────────────────────────────────
-// What KIND of light this fixture is. Without a profile it is a pixel run (LED tape, a panel) and
-// the Mapping/Geometry sections describe it; with one it is a real DMX fixture whose channels come
-// from the library and whose footprint is its mode's.
+// ── Fixture ▸ DMX Profile (LIGHT FIXTURES ONLY) ─────────────────────────────────────────────
+// WHICH HEAD IS THIS, AND IN WHICH MODE. The profile names the fixture's channels and its footprint
+// is its mode's, so this section is the light's identity — not a control an LED strip has.
+//
+// IT USED TO BE OFFERED ON BOTH KINDS, as the door that CHANGED the kind: selecting an LED fixture
+// showed "Choose a DMX profile…", and picking one converted the strip into a moving head in place.
+// That door was a trap in both directions. Converting is not a small edit — it pins `ledCount` to 1,
+// DROPS the surface link (a light samples nothing), seeds a whole `dmx` block and REPATCHES the rig,
+// because a 14-channel head where a 120-channel strip used to be leaves a hole every fixture after
+// it slides into. An operator who clicked it to *find out what a DMX profile is* — the reading the
+// button invites, sitting at the top of the column of the thing they just selected — silently lost
+// their mapping and moved everybody's addresses. The reverse button ("Clear") was the same trap
+// mirrored: it turned an aimed head into a one-pixel strip bound to no surface.
+//
+// So the kind is now decided ONCE, where a fixture is CREATED: Library ▸ Light Fixtures adds a head
+// from a profile, Add Fixture / LED Templates add a strip. Neither is destructive, because there is
+// nothing yet to destroy. Getting it wrong costs a delete and a re-add instead of a silent repatch.
+//
+// `appliesTo: ['fixture.light']` — the body guard is only for a MIXED multi-selection, where the
+// kind is live but the primary fixture is a pixel (same idiom as the Channels section).
 export const FixtureProfilePanel: React.FC = () => {
   const { fixtureProfiles } = useEditor();
   const a = useEditorActions();
   const f = useSelectedFixture();
   const [picking, setPicking] = useState(false);
-  if (!f) return null;
+  if (!f || isPixel(f)) return null;
 
   const profile = profileOf(f, fixtureProfiles);
   const mode = profile ? resolveMode(profile, f.profileMode) : undefined;
 
   return (
     <>
-      {isPixel(f) && (
-        <>
-          <div className="text-mini text-fg-3">
-            {KIND_LABEL.pixel} — {f.ledCount} × {f.channelsPerPixel ?? 4}ch. Give it a DMX profile to
-            drive a moving head, wash or beam by named channels instead.
-          </div>
-          {!picking && (
-            <Button size="sm" variant="ghost" className="w-full mt-1" onClick={() => setPicking(true)}>
-              Choose a DMX profile…
-            </Button>
-          )}
-        </>
-      )}
-
-      {isLight(f) && (
-        <>
-          <div className="flex items-start justify-between gap-2 text-xs">
-            <div className="min-w-0">
-              {/* An UNRESOLVED profile is a real state, not an impossible one: the project may have
-                  travelled to a machine whose library lacks it. Say so plainly — the fixture is
-                  reserving no channels at all, which is exactly what would otherwise look like a
-                  patch that "just stopped working". */}
-              {profile ? (
-                <>
-                  <div className="text-fg-3 truncate">{profile.manufacturer}</div>
-                  <div className="text-fg-1 truncate">{profile.model}</div>
-                </>
-              ) : (
-                <div className="flex items-center gap-1.5 text-danger">
-                  <AlertTriangle size={12} className="shrink-0" />
-                  <span className="truncate" title={f.profileId}>Profile not found — occupies no channels</span>
-                </div>
-              )}
+      <div className="flex items-start justify-between gap-2 text-xs">
+        <div className="min-w-0">
+          {/* An UNRESOLVED profile is a real state, not an impossible one: the project may have
+              travelled to a machine whose library lacks it. Say so plainly — the fixture is
+              reserving no channels at all, which is exactly what would otherwise look like a
+              patch that "just stopped working". "Change…" is the way out: re-point it at a profile
+              this machine actually has. */}
+          {profile ? (
+            <>
+              <div className="text-fg-3 truncate">{profile.manufacturer}</div>
+              <div className="text-fg-1 truncate">{profile.model}</div>
+            </>
+          ) : (
+            <div className="flex items-center gap-1.5 text-danger">
+              <AlertTriangle size={12} className="shrink-0" />
+              <span className="truncate" title={f.profileId}>Profile not found — occupies no channels</span>
             </div>
-            {profile?.verified === false && (
-              <span className="shrink-0 flex items-center gap-1 text-mini text-warn" title="This profile has not been checked against the manufacturer's manual">
-                <AlertTriangle size={11} /> Unverified
-              </span>
-            )}
-          </div>
-
-          {profile && profile.modes.length > 0 && (
-            <Field label="Mode">
-              <Select
-                value={mode?.key ?? ''}
-                onChange={(e) => a.setFixtureProfile(f.id, f.profileId!, e.target.value)}
-              >
-                {profile.modes.map((m) => (
-                  <option key={m.key} value={m.key}>{m.name} — {m.footprint}ch</option>
-                ))}
-              </Select>
-            </Field>
           )}
+        </div>
+        {profile?.verified === false && (
+          <span className="shrink-0 flex items-center gap-1 text-mini text-warn" title="This profile has not been checked against the manufacturer's manual">
+            <AlertTriangle size={11} /> Unverified
+          </span>
+        )}
+      </div>
 
-          <div className="flex items-center justify-between text-mini text-fg-3">
-            <span>Footprint</span>
-            <span className="tabular-nums text-fg-2">
-              {fixtureFootprint(f, fixtureProfiles)}ch · U{f.universe} @ {f.startAddress}
-            </span>
-          </div>
-
-          <div className="flex gap-1 mt-1">
-            <Button size="sm" variant="ghost" className="flex-1" onClick={() => setPicking((p) => !p)}>
-              {picking ? 'Cancel' : 'Change…'}
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => { setPicking(false); a.setFixtureProfile(f.id, null); }}>
-              Clear
-            </Button>
-          </div>
-        </>
+      {profile && profile.modes.length > 0 && (
+        <Field label="Mode">
+          <Select
+            value={mode?.key ?? ''}
+            onChange={(e) => a.setFixtureProfile(f.id, f.profileId!, e.target.value)}
+          >
+            {profile.modes.map((m) => (
+              <option key={m.key} value={m.key}>{m.name} — {m.footprint}ch</option>
+            ))}
+          </Select>
+        </Field>
       )}
+
+      <div className="flex items-center justify-between text-mini text-fg-3">
+        <span>Footprint</span>
+        <span className="tabular-nums text-fg-2">
+          {fixtureFootprint(f, fixtureProfiles)}ch · U{f.universe} @ {f.startAddress}
+        </span>
+      </div>
+
+      {/* Swap this head for another head. No "Clear": turning a light back into a pixel fixture is
+          the same in-place kind change in reverse, and with the pixel-side door closed it would be
+          one-way — delete the fixture instead, which is what it means. */}
+      <Button size="sm" variant="ghost" className="w-full mt-1" onClick={() => setPicking((p) => !p)}>
+        {picking ? 'Cancel' : 'Change…'}
+      </Button>
 
       {picking && (
         <div className="mt-1 pt-1 border-t border-line-1">

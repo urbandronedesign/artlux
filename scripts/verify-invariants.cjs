@@ -1596,15 +1596,18 @@ check(
   'ONE used to gate on kind — so selecting a moving head offered Serpentine, colour order, a ledmap ' +
   'upload, LED spacing, and an editable LED Count that shifted the whole rig in the pixel buffer. ' +
   'Gating belongs in the REGISTRATION (`appliesTo`), not in each panel body, because the shell ' +
-  'already filters on it and a body guard is invisible from the context manifest. Only four sections ' +
-  'legitimately apply to both kinds: `profile` (it is how you CHANGE the kind), `patch` and `routing` ' +
-  '(every fixture is on a wire) and `arrange` (rig-building is kind-agnostic). Anything else must ' +
-  'name fixture.pixel or fixture.light — this check is what stops the next panel silently ' +
-  'reintroducing the LED Count hole.',
+  'already filters on it and a body guard is invisible from the context manifest. Only THREE sections ' +
+  'legitimately apply to both kinds: `patch` and `routing` (every fixture is on a wire) and `arrange` ' +
+  '(rig-building is kind-agnostic). Anything else must name fixture.pixel or fixture.light — this ' +
+  'check is what stops the next panel silently reintroducing the LED Count hole. `profile` was the ' +
+  'fourth until it was narrowed to fixture.light: it applied to both because it was the door that ' +
+  'CHANGED the kind, which meant an LED fixture opened its column with "Choose a DMX profile…" — a ' +
+  'button that reads like an explanation and in fact pins ledCount to 1, drops the surface link and ' +
+  'repatches the rig. Do not widen it back; the kind is chosen where the fixture is created.',
   () => {
     const F = 'src/renderer/contexts/index.tsx';
     const src = read(F);
-    const BOTH = new Set(['profile', 'patch', 'routing', 'arrange']);
+    const BOTH = new Set(['patch', 'routing', 'arrange']);
     const problems = [];
     const re = /id:\s*'core\.inspector\.fixture\.(\w+)'[^\n]*?appliesTo:\s*\[([^\]]*)\]/g;
     const seen = new Set();
@@ -1617,7 +1620,7 @@ check(
         problems.push(`core.inspector.fixture.${name} applies to any fixture — name fixture.pixel or fixture.light`);
     }
     if (!seen.size) return `${F} registers no fixture inspector sections (the appliesTo shape changed?)`;
-    for (const need of ['mapping', 'channels', 'patch'])
+    for (const need of ['mapping', 'channels', 'patch', 'profile'])
       if (!seen.has(need)) return `${F} no longer registers core.inspector.fixture.${need}`;
     return problems.length ? problems.join('; ') : null;
   },

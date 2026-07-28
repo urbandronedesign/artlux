@@ -77,17 +77,24 @@ export function registerCoreWorkspace(): void {
   // ── Parameter panels ───────────────────────────────────────────────────────────────────────
   panelRegistry.register({ id: 'core.inspector.surface.content', mount: 'inspector', title: 'Content', icon: <Layers size={12} />, appliesTo: ['surface'], Component: SurfaceContentPanel });
   panelRegistry.register({ id: 'core.inspector.surface.transform', mount: 'inspector', title: 'Transform', icon: <Box size={12} />, appliesTo: ['surface'], Component: SurfaceTransformPanel });
-  // The DMX profile comes FIRST in the fixture column: it decides what kind of light this is, and
-  // therefore whether the pixel-oriented sections below it are even meaningful.
-  panelRegistry.register({ id: 'core.inspector.fixture.profile', mount: 'inspector', title: 'DMX Profile', icon: <Lightbulb size={12} />, appliesTo: ['fixture'], Component: FixtureProfilePanel });
+  // The DMX profile comes FIRST in the fixture column: it is the light's identity, and it decides
+  // what every section below it means.
+  //
+  // LIGHT-ONLY, and that is a CHANGE. It used to apply to `fixture` — the one section that legitimately
+  // spanned both kinds, because it was the door that CHANGED the kind. But an LED fixture's column then
+  // opened with "Choose a DMX profile…", which reads as "tell me about DMX" and actually converts the
+  // strip in place: ledCount pinned to 1, the surface link dropped, the whole rig repatched around the
+  // new footprint. A section that destroys the thing it is describing is not a section. The kind is now
+  // chosen where the fixture is CREATED (Library ▸ Light Fixtures vs Add Fixture / LED Templates).
+  panelRegistry.register({ id: 'core.inspector.fixture.profile', mount: 'inspector', title: 'DMX Profile', icon: <Lightbulb size={12} />, appliesTo: ['fixture.light'], Component: FixtureProfilePanel });
   // ── EVERY FIXTURE SECTION DECLARES ITS KIND ───────────────────────────────────────────────
   // An LED strip and a moving head are two different devices, and this is where the shell is told
   // so. Before this, exactly ONE of these gated on kind, so selecting a moving head offered you
   // Serpentine, colour order, a ledmap upload, LED spacing — and an editable LED Count that
   // silently shifted every fixture patched after it in the canonical pixel buffer.
   //
-  // `fixture` (both kinds): profile — it is how you CHANGE the kind; patch/routing — every fixture
-  // is on a wire; arrange — rig-building is kind-agnostic. Everything else names one kind.
+  // `fixture` (both kinds) is now only: patch/routing — every fixture is on a wire; arrange —
+  // rig-building is kind-agnostic. Everything else names one kind, `profile` included.
   panelRegistry.register({ id: 'core.inspector.fixture.channels', mount: 'inspector', title: 'Channels', icon: <SlidersHorizontal size={12} />, appliesTo: ['fixture.light'], Component: FixtureChannelsPanel });
   panelRegistry.register({ id: 'core.inspector.fixture.patch', mount: 'inspector', title: 'Patch', icon: <Hash size={12} />, appliesTo: ['fixture'], Component: FixturePatchPanel });
   panelRegistry.register({ id: 'core.inspector.fixture.mapping', mount: 'inspector', title: 'Mapping', icon: <Grid3x3 size={12} />, appliesTo: ['fixture.pixel'], Component: FixtureMappingPanel });

@@ -10,7 +10,11 @@ optional fields:
   and never offers pixel controls. See [3D scene](09-3d-scene.md) and
   [LIGHTING-SHOW.md](../LIGHTING-SHOW.md).
 
-You do not pick the kind: giving a fixture a **DMX profile** from the Library makes it a light.
+**You choose the kind when you ADD the fixture, and it does not change afterwards.** *Add Fixture* (or
+an LED template) gives you a strip; **Library ▸ Light Fixtures ▸ a DMX profile** gives you a head. An
+LED fixture's parameters column therefore has no *DMX Profile* section — it used to, and picking a
+profile there rewrote the fixture in place: LED count forced to 1, the surface link dropped, and every
+fixture patched after it pushed to a new address. Added the wrong kind? Delete it and add the other.
 
 Most of what a fixture *is* lives in the **parameters column** on the right and changes with what is
 selected. Two things are not in the column and ship as dock tabs in **Map**:
