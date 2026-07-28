@@ -16,7 +16,7 @@ written on it.
 
 | | **Scene** | **Cue** |
 |---|---|---|
-| Stores | The **whole look** (all surfaces, fixtures, LED brightness, groups, 3D scene, projector outputs) | An **arbitrary subset** of parameters (you pick which) |
+| Stores | The **whole look** (all surfaces, every fixture's look, LED brightness, 3D scene, projector outputs) — *the look, not the rig* | An **arbitrary subset** of parameters (you pick which) |
 | On fire | **Replaces** the look — exactly what you saw when you stored it | **Patches** only its parameters; everything else stays |
 | Composition | All-or-nothing (one Scene = the full picture) | **Composable** — fire several and they layer |
 | Grid home | **Row 0** ("SC") | **Rows 1+** |
@@ -67,15 +67,38 @@ rig wiring:
 | Captured | Not captured |
 |----------|--------------|
 | `surfaces` (placement + content) | `assets` (media library) |
-| `fixtures` (patch, effects, segments — live `colorData` stripped) | `controllers` (output devices) |
+| `fixtures` — **the LOOK half only, see below** (live `colorData` stripped) | `controllers` (output devices) |
 | `globalBrightness` | `settings` (Art-Net/OSC/output config) |
-| `groups` | |
-| `scene3D` | |
-| `projectorOutputs` (corner-pin / warp / soft-edge) | |
+| `scene3D` | `groups` (**rig structure — see below**) |
+| `projectorOutputs` (corner-pin / warp / soft-edge) | `trackingZones` (the room, not the look) |
 | `timeline` **(REQUIRED — a per-scene decoupled NLE)** | |
 
 Every field beyond `fixtures` / `globalBrightness` / `timeline` is optional, so projects saved with the
 older minimal Scene shape still load and recall (fixtures + brightness).
+
+### ⚠ A recall restores a fixture's LOOK, never the RIG
+
+The snapshot holds whole `Fixture` objects, but **a GO writes back only the look fields** — the mapping
+rect (`x/y/width/height/rotation`), `surfaceId`, the standalone-effect params (`source`, `effectId`,
+`paletteId`, `speed`, `intensity`, `segments`) and the authored `dmx` values. The split is owned by
+`services/sceneLook.ts` and it is an **allow-list**: a new `Fixture` field is rig until someone says
+otherwise.
+
+Everything else is the rig and **survives the recall**: identity, `profileId`, the patch
+(`universe`/`startAddress`/`controllerId`), the wiring (`ledCount`, colour order, ledmap) and the 3D
+placement. **Membership survives too** — a fixture patched since the scene was stored is left alone
+rather than deleted, and one deleted since is not resurrected.
+
+Restoring the array wholesale is what this replaces, and it was not theoretical: because the state
+machine recalls a scene on entering **every** state — including its initial one, on load — opening a
+project could delete a head that was patched after the scenes were stored and revert the survivors to
+the old addresses, within seconds, silently. Same lesson as `trackingZones`: project-scope data must not
+ride a look snapshot.
+
+`groups` is the same story with no look content at all — a `FixtureGroup` is `{id, name, fixtureIds}`.
+It is no longer captured and is ignored on recall, so a group made after a capture is not deleted by the
+next GO. That one bites hardest with lighting clips, which target a group **by id**: the clip stays on
+the timeline, reads as correctly configured, and drives nothing.
 
 > ### ⚠ `timeline` is REQUIRED. It was optional, and that shape was **deleted**.
 > A Scene could once have **no** `timeline` and "fall back to the shared global one". That state was the

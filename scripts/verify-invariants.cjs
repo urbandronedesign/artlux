@@ -1915,6 +1915,38 @@ check(
   },
 );
 
+// ── A scene recall restores the LOOK, never the RIG ──────────────────────────────────────────
+check(
+  'a scene recall never replaces the rig',
+  'A Scene snapshots whole Fixture objects, so assigning scene.fixtures made a GO replace the live ' +
+  'rig with the rig as it stood when the scene was stored — a head patched since simply vanished ' +
+  'and the survivors reverted to the old universe/address/controller. The FSM recalls on entering ' +
+  'EVERY state, including its initial one on load, so opening a project did it within seconds, ' +
+  'silently. Same class as trackingZones riding the snapshot. sceneLook.ts owns the split, and it ' +
+  'is an ALLOW-LIST so a new Fixture field defaults to rig — the safe side.',
+  () => {
+    const A = 'src/renderer/App.tsx';
+    const S = 'src/renderer/services/sceneLook.ts';
+    if (!exists(S)) return `${S} is gone — nothing owns the look/rig split`;
+    const a = read(A);
+    if (!/const nextFixtures = mergeFixtureLook\(fixtures, scene\.fixtures\)/.test(a))
+      return `${A}'s recall no longer folds the scene through mergeFixtureLook`;
+    // The two whole-array assignments this exists to prevent.
+    if (/setFixtures\(scene\.fixtures/.test(a))
+      return `${A} assigns scene.fixtures wholesale again — the rig is being replaced by a look`;
+    if (/setGroups\(scene\.groups/.test(a))
+      return `${A} restores scene.groups — a group made after the capture would be deleted by the next GO`;
+    // Rig fields must never enter the allow-list. Each of these was observed reverting.
+    const list = (read(S).match(/const FIXTURE_LOOK_KEYS = \[[\s\S]*?\] as const/) ?? [''])[0];
+    if (!list) return `${S} no longer declares FIXTURE_LOOK_KEYS as one literal list`;
+    const banned = ['universe', 'startAddress', 'controllerId', 'profileId', 'profileMode',
+      'ledCount', 'position3D', 'rotation3D', 'colorOrder', 'channelsPerPixel', 'ledMap'];
+    const leaked = banned.filter((k) => new RegExp(`'${k}'`).test(list));
+    if (leaked.length) return `${S} lists rig fields as look: ${leaked.join(', ')}`;
+    return null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);

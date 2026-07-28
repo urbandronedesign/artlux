@@ -35,7 +35,7 @@ ffe3bd3  docs(plans): the app has one Fixture type for two devices on two wires 
 ```
 
 Each builds and typechecks on its own — the waves were split hunk-by-hunk and re-verified at every
-stage, not committed as one lump and sliced afterwards. `npm run verify` went 57 → **72** checks
+stage, not committed as one lump and sliced afterwards. `npm run verify` went 57 → **73** checks
 across all of it.
 
 ---
@@ -61,6 +61,8 @@ listener.
 | A pose cue beats a running clip | On the wire: `[71,71]` → fire → `[184,184]` |
 | The cue layer's semantics | 18 hand-computed checks (slot wrap, fade-from-held, re-target, unresolved drives nothing, clear-as-release) |
 | The fitter is faithful | Round-trip through the real sampler; ascending keys; no NaN in any field |
+| A stored pose key is editable per slot | CDP: clicking the t=5 diamond selects it; slot 2's pan 240 → **123** with slot 1 untouched at **300**; removing slot 1's tilt leaves slot 2's |
+| A scene recall no longer replaces the rig | CDP, before: Head 2 **gone** in 9 s and Head 1 at address **100**; FSM-disabled control keeps both. After: both heads, address **1**, and the look still travels (`x` 0.10 → 0.60) |
 
 ### The harnesses (rebuild these first if you resume)
 
@@ -140,7 +142,7 @@ that question is a **fixture-kind contribution**, worth designing only when a *s
 
 ## Open items, in the order they matter
 
-> The list below is what remains. Items 1 and 2 are DONE — kept, struck through, because the
+> The list below is what remains. Items 1-3 are DONE — kept, struck through, because the
 > reasoning in each is still a live constraint.
 
 1. ~~The degrees display transform~~ — **BUILT 2026-07-27**, with the lane-shadow badge that pairs
@@ -170,9 +172,26 @@ that question is a **fixture-kind contribution**, worth designing only when a *s
    intact. **The bug it found is the reason for the new invariant** — every prop on that four-file
    chain is optional, so `Lane` drew the diamonds while `Timeline` never passed `onSelectKey`, and
    the typecheck was green over a diamond that did nothing.
-3. **`--project=` can be overridden by FSM autostart.** A project whose state machine recalls a scene
-   on load replaces the rig with that scene's `fixtures[]` snapshot. Arguably correct per feature; the
-   *interaction* is untested and it wasted a debugging session. Untouched.
+3. ~~`--project=` can be overridden by FSM autostart~~ — **REPRODUCED AND FIXED 2026-07-28, and it was
+   not a harness quirk.** It is a SHOW bug: a Scene snapshots whole `Fixture` objects, so a recall
+   assigned the rig as it stood when the scene was stored. Since the FSM recalls on entering **every**
+   state — including its initial one, on load — a project holding two heads whose opening scene was
+   captured when there was one **lost Head 2 within nine seconds of opening, and Head 1's start
+   address reverted 1 → 100**. Measured over CDP, with the FSM disabled as the control (both heads
+   survive). The rule was: add a fixture, re-patch, or move a head, and the next GO undoes it.
+
+   Fixed by splitting look from rig in `services/sceneLook.ts`: a recall folds only the **look** fields
+   onto the LIVE rig (mapping rect, `surfaceId`, standalone-effect params, authored `dmx`), keyed by
+   id, so **membership survives** — a fixture patched since is left alone, one deleted since is not
+   resurrected. The list is derived from `FIXTURE_FADEABLE` (what the fade engine already treats as
+   look) and is an **allow-list**, so a new `Fixture` field defaults to rig, the safe side.
+
+   `groups` no longer travels at all: a `FixtureGroup` is `{id, name, fixtureIds}`, pure rig structure,
+   and restoring it deleted any group made since the capture. **That one bites this feature set
+   hardest** — a lighting clip targets its group by id, so the clip stayed on the timeline, read as
+   correctly configured, and drove nothing. Stripped at capture and ignored on recall, exactly like
+   `trackingZones`. Verified after the fix: both heads survive, the address stays 1, and the look still
+   travels (the scene's `x` 0.10 → 0.60 landed).
 4. **The 180 s sine only reaches 1.7× in the fitter** because part of it falls back to RDP at the
    depth cap. Correct (the fallback guarantees it is never worse than RDP) but not finished.
 5. **`npm run package` still does not build the Rust addons** — pre-existing, noted in
@@ -201,6 +220,7 @@ The invariants are the durable part — each encodes a bug that shipped or nearl
 - `pose sequences are compiled on edit, not resolved in the frame loop`
 - `a pose cue sits between the lighting clip and the automation lane`
 - `a pose key drawn on a clip can be selected and edited`
+- `a scene recall never replaces the rig`
 
 Prose lives in `CLAUDE.md` → *Two kinds of fixture*, `docs/FIXTURE-LIBRARY.md` → *Two kinds of
 fixture*, `docs/OUTPUTS.md` → *What a controller drives*, and `docs/LEDMAP.md`'s header.

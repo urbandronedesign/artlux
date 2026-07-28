@@ -12,6 +12,7 @@ import { OutputsPanel } from './components/OutputsPanel';
 import { UpdateNotice } from './components/UpdateNotice';
 import { autoPatch } from './services/addressing';
 import { isLight } from './services/fixtureKind';
+import { mergeFixtureLook } from './services/sceneLook';
 import { spawnPosition3D } from './services/led3dDefaults';
 import * as placement from './services/fixturePlacement';
 import { TopBar } from './components/TopBar';
@@ -1236,7 +1237,12 @@ const App: React.FC = () => {
     surfaces,
     fixtures: fixtures.map(f => ({ ...f, colorData: [] })),
     globalBrightness,
-    groups,
+    // `groups` IS STRIPPED, for the reason the whole block below gives about trackingZones: a group is
+    // {id, name, fixtureIds} — rig structure with no look in it. It rode this snapshot and a recall
+    // assigned it, so a group created after a scene was stored was DELETED by the next GO onto that
+    // scene, and every lighting clip aimed at it went silent while still reading as correct.
+    // handleRecallScene ignores the field, so an old file that carries one is harmless.
+    groups: undefined,
     // ⚠ `trackingZones` IS STRIPPED, AND FOR THE SAME CLASS OF REASON `timeline` IS OMITTED ABOVE.
     //
     // A TRIGGER ZONE IS THE ROOM, NOT THE LOOK. It is a rectangle taped to a real floor: it does not
@@ -1303,11 +1309,23 @@ const App: React.FC = () => {
     if (origin === 'operator') recordHistory();
     // Capture the pre-recall view for the fade's "from" before committing the target.
     const fromView = { surfaces, fixtures, globalBrightness };
-    const toView = { surfaces: scene.surfaces ?? surfaces, fixtures: scene.fixtures, globalBrightness: scene.globalBrightness };
+    // THE RIG SURVIVES THE RECALL — only the LOOK part of each fixture travels. `scene.fixtures` is a
+    // whole-array snapshot, so assigning it replaced the live rig with the rig as it stood when the
+    // scene was stored: a fixture patched since simply vanished, and every surviving one reverted to
+    // the snapshot's universe/address/controller/profile/3D position. Since the FSM recalls on
+    // entering EVERY state (including its initial one, on load), that made "add a head" or "re-patch"
+    // undo itself the moment the show started. Reproduced in the running app; see sceneLook.ts, which
+    // owns the look/rig split, and the trackingZones note in buildSceneSnapshot for the same lesson.
+    const nextFixtures = mergeFixtureLook(fixtures, scene.fixtures);
+    const toView = { surfaces: scene.surfaces ?? surfaces, fixtures: nextFixtures, globalBrightness: scene.globalBrightness };
     if (scene.surfaces) setSurfaces(scene.surfaces);
-    setFixtures(scene.fixtures.map(f => ({ ...f, colorData: [] })));
+    setFixtures(nextFixtures);
     setGlobalBrightness(scene.globalBrightness);
-    if (scene.groups) setGroups(scene.groups);
+    // GROUPS DO NOT TRAVEL AT ALL. A FixtureGroup is {id, name, fixtureIds} — pure rig structure with
+    // no look content whatsoever, so a scene has nothing to say about it. Restoring the list deleted
+    // any group made since the capture, and a lighting clip targets its group BY ID: the clip stays
+    // on the timeline, configured correctly, driving nothing. Old files still carry `groups`; it is
+    // ignored here (and no longer captured) exactly as trackingZones is.
     // THE ROOM SURVIVES THE RECALL. `trackingZones` is project-scope geometry and is stripped from the
     // snapshot (see buildSceneSnapshot) — but an OLD scene, captured before that rule existed, still
     // carries its own copy in the file, so this must not simply assign `scene.scene3D`. Keeping the live
