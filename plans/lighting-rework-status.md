@@ -1,8 +1,10 @@
 # LED / light fixtures + the lighting encoding — where this stands
 
-> **Status: BUILT AND UNPUSHED — 2026-07-27.** On local `main`, ahead of `origin/main`.
-> **Deliberately not pushed: this feature set is expected to be reworked.** Treat every decision below
-> as revisable; treat the *findings* as facts about the codebase that will still be true afterwards.
+> **Status: BUILT — 2026-07-27. Pushed to `origin/main` since (verified 2026-07-28).**
+> This doc said "BUILT AND UNPUSHED" and held it back deliberately; that is no longer where it
+> stands, and the header is corrected rather than deleted because the *reason* still holds:
+> **this feature set is expected to be reworked.** Treat every decision below as revisable; treat the
+> *findings* as facts about the codebase that will still be true afterwards.
 >
 > ⚠ `main` also carries commits from **other sessions** (calibration, build fixes), so it is no longer
 > only this work. Use `git log --grep` on the subjects below rather than assuming a contiguous range.

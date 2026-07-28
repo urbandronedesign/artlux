@@ -38,14 +38,18 @@ tracking takes in one place.
 - **Place** — **drag a tile** onto a Stage surface (sets its video/image content) or onto a Timeline
   lane (creates a clip). Or select a tile and click **Use** to assign it to the selected surface.
 
-### Asset Manager
+### Inspecting an asset
 
-Click the **expand** icon (⤢, *Open full Asset Manager*) for the full manager.
+> ⚠ The separate **Asset Manager** window is **gone**. Everything it did that was not already in the
+> Media Library — the per‑asset inspector — is now the **bottom section of the library itself**, so
+> there is one place to look instead of two. *Consolidate* is an action‑bar item. The screenshot below
+> is outdated; re‑capture with `node scripts/capture-docs.cjs`.
 
-![The Asset Manager](images/09-asset-manager.png)
-*The Asset Manager: filter by Video / Image / Model / Take, search, inspect an asset, and **Consolidate** external media into the project folder.*
+![The retired Asset Manager](images/09-asset-manager.png)
+*Outdated — the standalone Asset Manager, since folded into the Media Library.*
 
-From here you can see an asset's **usage** (click a surface usage to jump to it), **Relink** a
+Select an asset and the inspector shows its size, duration, dimensions, path, and whether it is
+missing on disk. From here you can also see its **usage** (click a surface usage to jump to it), **Relink** a
 moved/missing file (every reference updates), **Reveal in folder**, **Remove**, and **Consolidate**
 (copy any still‑external media into the folder and relativize paths — the successor to *Collect
 Assets*). See [ASSETS.md](../ASSETS.md).

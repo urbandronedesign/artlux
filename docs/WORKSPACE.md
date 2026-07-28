@@ -2,9 +2,15 @@
 
 How the editor is organised into **contexts**, how its panel layout persists, and how the UI scales for
 4K/high-DPI. This is **workspace ergonomics** — all of it lives in app **Prefs**
-(`userData/artlux-prefs.json`), never in the portable `.artlux` project. Scope note: contexts +
-persisted sizes + a reusable resizer, **not** a free-form docking engine — see
-[Out of scope](#out-of-scope).
+(`userData/artlux-prefs.json`), never in the portable `.artlux` project.
+
+> **Read [the dockable workspace](#the-dockable-workspace-the-default-shell) first — it is what
+> actually renders.** Since v0.25.0 the workspace is **dockable by default**: a context's flat
+> manifest is *compiled* into a per-context split/tab tree the operator can rearrange. The
+> hand-built browser/viewport/dock/parameters shell described in the middle of this document is
+> still in the tree and still correct, but it is now the **fallback path**, reached only by turning
+> *Preferences › Appearance › Dockable workspace* off. Where the two disagree about what an
+> operator sees, the dock tree wins.
 
 ## UI scaling (high-DPI / 4K)
 
@@ -37,8 +43,10 @@ Layout lives in a module-singleton pub/sub store (the `cueBus`/`helpBus` idiom):
 
 - **`WorkspaceLayout`** — one serializable object: panel **sizes** (`dockHeight`, `helpWidth`,
   `splitRatio`, `bottomHeight`, `leftWidth`, `rightWidth`), **visibility** (`showLeft/Right/Help`,
-  `dockOpen`, `splitView`, `bottomOpen`, `timelineMax`), **selections** (`leftTab`, `dockTab`), and
-  `activePreset`.
+  `dockOpen`, `splitView`, `bottomOpen`, `timelineMax`), **selections** (`leftTab`, `dockTab`),
+  `activePreset`, plus the two docking fields: **`dockTrees`** (one arrangement per context id) and
+  **`dockingOff`** (the operator opted out of docking — *absence means on*, see
+  [the flip](#two-ways-back-and-why-the-key-is-named-dockingoff)).
 - **Persistence:** debounced (~300ms) write of the whole object to **one top-level `Prefs.layoutState`**
   key. It's one object on purpose — `setPrefs` is a one-level shallow merge, so a single top-level field
   is safe to patch (same rule as `modalPositions`; see [SDK.md](SDK.md) → `useDraggable`).
@@ -67,6 +75,11 @@ useResizable({ axis: 'x'|'y', min, max: number|(()=>number), invert?, mode?: 'de
   `invert`), the bottom drawer's top edge, and the **two side columns** (below).
 
 ### The two side columns
+
+> **Fallback-shell detail.** With docking on — the default — the browser and parameter columns are
+> panes of the dock tree and are sized by *its* splitters, which commit **once on release** rather
+> than calling `layoutStore.set()` per pointer move. Everything below describes the columns as the
+> hand-built shell draws them; the clamp reasoning still applies to both.
 
 The browser column and the parameter column are dragged from their inner edges — a 2px handle
 overlapping the viewport, the same idiom as the bottom drawer — and **double-click resets** either to
@@ -187,7 +200,8 @@ item or a floating window:
 |---|---|
 | Surfaces / Fixtures outliner, the old left panel | **Mapping** — browser column |
 | The properties panel (surface + fixture params) | **Mapping** — parameter column, filtered by what is selected |
-| Fixture Editor, Routing | **Mapping** — dock tabs |
+| Fixture Editor | **split by what is unique to it** (2026-07-27, `mapping` `layoutRev` 5). `core.dock.fixtureEditor` is **retired**; five of its seven cards were a second rendering of the kind-gated inspector. What survived is two dock tabs — **Library** (`core.dock.fixtureLibrary`: create, templates, groups) and **Wiring & Ledmap** (`core.dock.fixtureWiring`: the physical-index preview + the ledmap, `appliesTo: ['fixture.pixel']`). Everything else is the parameter column |
+| Routing | **Mapping** — dock tab |
 | The timeline (was its own rail entry) | **the bottom drawer** — `Ctrl+T`, View ▸ Timeline, or click the collapsed strip. Available in every context except Calib and Prefs |
 | Media library, Asset Manager | **Mapping** — dock tab (`Media Library`); also **Audio** — browser column. The Asset Manager was deleted; its per-asset inspector (size, dimensions, path, and the resolved **Usage** list) is the bottom section of the library |
 | The program monitor (was the Timeline context's viewport) | **Mapping** / **Proj** / **Show** — the `Program` dock tab, same full-bleed component |
@@ -308,17 +322,23 @@ declares it and either toggles it (modal) or switches to the owning context and 
 > it a canvas to draw the preview into and nothing more. Deleting the Stage's canvas *and* container out
 > of a running app leaves output at 61 Hz, unbothered. Everything below about fixed tree positions is
 > therefore now about **preserving viewport state** (zoom, scroll, selection) and about the timeline's
-> single-instance rule — not about keeping the show alive. **This is what makes free-form docking
-> tractable**, and it is why [the out-of-scope note](#out-of-scope) is being revisited: see
+> single-instance rule — not about keeping the show alive. **This is what made free-form docking
+> tractable**, and it is why the out-of-scope note below now describes something that shipped: see
 > [plans/engine-decoupling.md](../plans/engine-decoupling.md).
 
 `Stage` and `TimelinePanel` are mounted by App as **persistent viewport elements** and passed to
 the shell, which places each one at a **fixed position** in its tree and only changes CSS width/visibility.
-A React element can exist at one position only, so viewports never "move" between panes — `scene3d` is
-permanently the RIGHT pane, everything else the LEFT pane, and contexts only change the two widths. Split
-view, a maximized 3D context and a plain 2D context are the same tree at different widths.
+A React element can exist at one position only, so viewports never "move" between panes — in the
+fallback shell `scene3d` is permanently the RIGHT pane, everything else the LEFT pane, and contexts
+only change the two widths. Split view, a maximized 3D context and a plain 2D context are the same
+tree at different widths.
 The 3D canvas takes `paused` (→ r3f `frameloop='never'`) while hidden: it stays mounted, but a hidden
 canvas must not keep a render loop running on a zero-width pane.
+
+**Under docking the rule is the same but the mechanism differs**: the tree renders `<ViewportSlot>`
+placeholders anywhere, and `PersistentLayer` positions the one real element over whichever slot
+wins. Still one element at one tree position; only its coordinates change. That is why a viewport
+*appears* to be draggable into any pane without ever being reparented.
 
 ### Per-context ergonomics
 
@@ -384,11 +404,52 @@ harmless.
   `shared/protocol.ts` and read/write via `getPrefs`/`setPrefs` — keep nested state in one object so the
   shallow merge is safe.
 
-## The dockable workspace (opt-in, `artlux.docking`)
+## The dockable workspace (the default shell)
 
-Inside any context the operator can drag a panel by its tab into another group, drop it on an edge to split, reorder, collapse, close, add any registered panel, and reset the workbench to what the context ships. Per context, persisted, surviving a restart. Plan and tracker: [plans/dockable-workspace.md](../plans/dockable-workspace.md).
+**This is what the app renders.** Inside any context the operator can drag a panel by its tab into another group, drop it on an edge to split, reorder, collapse, close, add any registered panel, and reset the workbench to what the context ships. Per context, persisted, surviving a restart. Plan and tracker: [plans/dockable-workspace.md](../plans/dockable-workspace.md).
 
 **It costs the SDK nothing.** The arrangement is a tree *compiled from the flat manifest a context already declares* (`browser[]` / `dock[]` / `inspector[]` / `viewport`), so contexts and plugins keep declaring exactly what they declare today. The **absence** of a saved tree is the migration trigger, and the first build inherits the operator’s banked column widths, dock height and dock tab — an upgrading install sees nothing move.
+
+`WorkspaceShell` picks its renderer from one line:
+
+```ts
+const docking = !layout.dockingOff && !DOCKING_FORCED_OFF && PERSISTENT_LAYER_ENABLED;
+```
+
+…and then `ensureTree(layout.dockTrees?.[context.id], context, banked)` is **the single door**: it
+sanitizes whatever was saved, and compiles the shipped arrangement when there is nothing to sanitize.
+No component reads `layout.dockTrees[...]` raw — that is guarded.
+
+### Two ways back, and why the key is named `dockingOff`
+
+Both paths ship for one release, so a regression found in a venue is one toggle away from the shell
+that was there before:
+
+| Way back | Where | For |
+|---|---|---|
+| **Preferences › Appearance › Dockable workspace** | `layout.dockingOff` | the operator, at the machine, mid-show |
+| `localStorage['artlux.docking'] = '0'` | read **once at module load** | one machine, without touching a project or a preference |
+
+The flip to on-by-default was a **rename, not a value change**, and the reason is the same failure
+mode `layoutRev` exists for. It shipped as `docking?: boolean` defaulting to `false`, so every
+install that saved a layout while it was opt-in has `docking: false` sitting in its prefs — flipping
+that default would have reached **nobody who had already used the app**. With the key named
+`dockingOff`, *absence* means the new default, so the flip lands everywhere and only a deliberate
+opt-out persists. If you ever flip a persisted boolean's default, do this instead of changing the
+fallback.
+
+Note the toggle is a **preference, not a view option**: the two paths are different renderers, so
+switching remounts the panels. Output is unaffected either way — the frame loop has not lived in the
+UI since Phase 1, which is the whole reason this feature could be built at all.
+
+### Where the tree is stored, and why not in the context slice
+
+`WorkspaceLayout.dockTrees` is a **map keyed by context id**, at the top level — *not* inside
+`ContextLayout`. The plan said slice-only, to avoid mirroring a key to the root; following that
+literally would have produced exactly what the rule prevents, because `setContext` does
+`state = { ...state, ...incoming }` and therefore spreads **every** slice key onto the top level on
+each switch. A map keyed by context id is never spread by `setContext`, never banked by
+`CONTEXT_KEYS`, and is still one tree per workbench.
 
 | Piece | Where | What it is |
 |---|---|---|
@@ -396,6 +457,45 @@ Inside any context the operator can drag a panel by its tab into another group, 
 | The renderer | `components/shell/DockRenderer.tsx` | Walks the tree. Knows nothing about “browser columns” — only that a `stack` group stacks and a `tabs` group tabs. |
 | The drag | `components/shell/DockDrag.tsx` | Pointer events with 5-zone drops. **Never HTML5 DnD** — that channel carries `application/artlux-asset`, and a stray file drop navigates the window. |
 | The persistent viewports | `components/shell/PersistentLayer.tsx` | The tree renders empty slots; the real elements are positioned over the winning slot by direct style writes. |
+
+### The model, and the rules its ops enforce
+
+```ts
+const DOCK_TREE_VERSION = 1;
+type DockSize = { px: number } | { fr: number };
+interface DockGroupNode { kind:'group'; id:string; render:'stack'|'tabs'; panelIds:string[];
+  activeId?:string; collapsed?:boolean; region?:'browser'|'dock'|'inspector'|'viewport'; }
+interface DockSplitNode { kind:'split'; id:string; dir:'row'|'col'; children:DockNode[]; sizes:DockSize[]; }
+interface DockTree { v:number; root:DockNode; removed:string[]; meta:{ viewport:string; companion?:string }; }
+```
+
+Each rule is earned, and every one of them is a way a naive tree renderer breaks something the shell
+already did:
+
+- **`render:'stack'` vs `'tabs'`.** The browser and inspector columns stack `CollapsibleSection`s with
+  all of them visible; the dock is tabbed. Without the distinction there is no default-tree parity,
+  and the inspector's `appliesTo` co-display — a surface *and* a fixture contributing sections at
+  once — breaks.
+- **A panel id appears at most once per tree.** Duplicates double window-level keyboard listeners.
+- **Unknown panel ids are kept and skipped at render, never dropped.** Disabling a plugin must not
+  erase its panel's placement for ever; re-enabling restores it. Same precedent as orphaned context
+  slices, which are also never pruned.
+- **`removed[]` is honoured on merge**, so a panel the operator closed does not come back next launch.
+- **`normalize()` ends every op**: dedupe, drop empty groups, hoist single-child splits, merge
+  same-direction splits, repair `sizes`/`activeId`, cap depth ≤ 8 and nodes ≤ 64. That same-direction
+  merge is what stops every drag from nesting the tree forever.
+- **`sanitizeDockTree` is idempotent**; a version mismatch or garbage returns `null`, which re-derives
+  from the manifest rather than rendering something half-trusted.
+- **`mergePluginPanels`** inserts panels registered *after* a tree was banked into the group tagged
+  with their region — creating that region's group if the context never declared one — and swaps
+  `meta.viewport` when a plugin claims a context's viewport via `contextRegistry.extend()`.
+- **Reset** goes through `defaultTreeOf`, never a hand-written tree.
+- **`mount:'modal'` panels are structurally not dockable.** They render outside `<EditorStore>`, so a
+  `useEditor()` inside one would throw the instant it was docked; the Add-Panel menu does not offer
+  them.
+
+Because `dockTree.ts` imports nothing — no React, no DOM, no registries, not even the SDK —
+`npm run test:docktree` checks 44 behavioural rules in about a second with no Electron and no app.
 
 ### Why the viewports are positioned, not moved
 
@@ -459,24 +559,26 @@ Two things learned writing them, worth keeping if you add more:
 **Verify the guard itself fails.** Break the invariant on purpose, confirm the check fires, then restore.
 A guard that cannot fail is worse than none — it reads as coverage.
 
-## Out of scope — and what changed underneath it
+## Out of scope — and the half of it that expired
 
-Full free-form docking (drag-to-rearrange, split trees, tabbed groups) and tear-off panel windows were
-**deliberately not built** — high cost/maintenance and a poor fit for the per-frame GPU repaint loop +
-reparenting the WebGPU/WebGL panels. See [ROADMAP.md](ROADMAP.md). If tear-off is ever wanted, the
-projector subsystem (`src/main/projector.ts` + the preload MessagePort forwarding) is the proven recipe:
-a keyed `BrowserWindow` map + a new `*.html` entry + a typed bridge.
+**Tear-off OS windows are still out of scope.** A `float` node kind is reserved in the dock model so
+adding them later is not a migration, and nothing renders it. If tear-off is ever wanted, the
+projector subsystem (`src/main/projector.ts` + the preload MessagePort forwarding) is the proven
+recipe: a keyed `BrowserWindow` map + a new `*.html` entry + a typed bridge.
 
-> **Half of that reasoning has expired.** "A poor fit for the per-frame GPU repaint loop" was really a
-> statement about the *Stage*: the loop lived inside it, so the viewport could not be moved, unmounted or
-> duplicated without stopping Art-Net, and every layout idea had to be built around that one element.
-> The loop is now in `engine/frameEngine.ts` and reads no DOM, so the 2D stage is an ordinary view. What
-> genuinely remains single-instance is `Simulator3D` (one WebGL context) and `TimelinePanel` (one
-> keyboard hook, one engine subscription) — two elements, not the whole shell.
->
-> **And it has now been built.** A per-context split/tab tree, compiled from the existing flat
-> manifests, with the remaining persistent viewports positioned over slots rather than reparented — see
-> [the dockable workspace](#the-dockable-workspace-opt-in-artluxdocking) above and
-> [plans/dockable-workspace.md](../plans/dockable-workspace.md). It is opt-in until the default is
-> flipped. **Tear-off OS windows remain out of scope**; a `float` node kind is reserved in the model
-> so adding them later is not a migration, and the projector subsystem is still the recipe.
+**Free-form docking is no longer out of scope — it is the default shell.** This section used to say
+drag-to-rearrange, split trees and tabbed groups had been deliberately not built, for two reasons.
+Keeping the record of why that was wrong, because it is the more useful half:
+
+> "A poor fit for the per-frame GPU repaint loop" was really a statement about the *Stage*: the loop
+> lived inside it, so the viewport could not be moved, unmounted or duplicated without stopping
+> Art-Net, and every layout idea had to be built around that one element. The loop moved to
+> `engine/frameEngine.ts` and reads no DOM, so the 2D stage became an ordinary view. What genuinely
+> remains single-instance is `Simulator3D` (one WebGL context) and `TimelinePanel` (one keyboard
+> hook, one engine subscription) — two elements, not the whole shell. Once that was true the cost
+> estimate was measuring a constraint that no longer existed.
+
+The reasoning is worth re-reading before writing off any other feature as "a poor fit for the frame
+loop": check whether the frame loop is still where you think it is. Built out as
+[the dockable workspace](#the-dockable-workspace-the-default-shell) above, tracked in
+[plans/dockable-workspace.md](../plans/dockable-workspace.md).

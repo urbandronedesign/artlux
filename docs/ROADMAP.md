@@ -67,8 +67,8 @@ collided either — so the `forPath` first-match dispatch stays unambiguous and 
   via `WebCodecs VideoDecoder` (`hardwareAcceleration:'prefer-hardware'`) + `mp4box` demux, registered as
   a `VideoCodec`. **Design:** demux once → keep only the tiny *encoded* samples (decode order); decode **on
   demand** around the playhead from the nearest keyframe; return the `VideoFrame` **directly** so the
-  compositor uploads it zero-copy as a texture (no 2D-canvas round-trip). **Opt-in** via the `mp4WebCodecs`
-  setting (off → `.mp4` keeps the default `<video>`). **Rig-tested on 4K/RTX A6000: plays smooth, loops
+  compositor uploads it zero-copy as a texture (no 2D-canvas round-trip). **On by default** (`mp4WebCodecs`
+  absent ⇒ true); turning it off in Preferences › Video sends `.mp4` back to the default `<video>` path. **Rig-tested on 4K/RTX A6000: plays smooth, loops
   clean.** Key correctness/perf lessons baked in:
   - **Feed in DECODE order, never presentation order** — sorting samples by `cts` feeds B-frames before
     their references → corruption. Drive seek/look-ahead off `cts` but keep the feed in decode order.

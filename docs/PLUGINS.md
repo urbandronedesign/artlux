@@ -16,7 +16,7 @@ into the host instead of the host reaching into it — VS-Code style. **Ten plug
 `plugins/lidar-tracking` (fully inverted — content source, clip-kind, projector data + GPU render,
 3D scene-viz), `plugins/ndi`, `plugins/calibration` (fully inverted through Stage 3 — engine,
 host-services, back-channel, wizards *are* the calib-context viewport, pose orchestration), `plugins/spout`,
-`plugins/hap` (the first `VideoCodec` contribution), `plugins/mp4` (GPU WebCodecs, opt-in via `mp4WebCodecs`),
+`plugins/hap` (the first `VideoCodec` contribution), `plugins/mp4` (GPU WebCodecs, **on by default** — `mp4WebCodecs` absent ⇒ true — turn it off in Preferences › Video),
 `plugins/mediapipe` (camera BlazePose pose tracking — a renderer-only tracking source, WASM in-renderer;
 see [MEDIAPIPE.md](MEDIAPIPE.md)), `plugins/augmenta` (Augmenta OSC-v2 optical tracking, sharing the host
 OSC listener; see [AUGMENTA.md](AUGMENTA.md)), `plugins/audio` (the JUCE sound engine — an

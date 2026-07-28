@@ -137,10 +137,12 @@ feed and the [state machine](14-show-state-machine.md).
 scene and state. You draw the entrance / stage / doorway **once**; changing the show's look never
 recreates or loses them.
 
-<!-- TODO screenshot: Tracking workbench with the Trigger Zones dock tab open — a tracking map with 2-3 drawn zones (Entrance, Stage), raw live blobs, the per-zone list with People-needed and the eye toggle, and the venue-wide Zone enter/exit dwell fields — capture via scripts/capture-docs.cjs -->
+<!-- TODO screenshot: the 3D (Venue & Rig) workbench with the Trigger Zones dock tab open — a tracking map with 2-3 drawn zones (Entrance, Stage), raw live blobs, the per-zone list with People-needed and the eye toggle, and the venue-wide Zone enter/exit dwell fields — capture via scripts/capture-docs.cjs -->
 *The Trigger Zones panel: draw zones on the tracking map, set People needed per zone, and toggle the per‑scene eye. Live blobs are drawn **raw** (not merged) so the two‑blobs‑per‑person is visible.*
 
-**Author them** in the **Tracking** workbench → **Trigger Zones** dock tab:
+**Author them** in the **3D** (Venue & Rig) workbench → **Trigger Zones** dock tab. (There used to
+be a separate *Tracking* workbench; it merged into 3D — being *in* the 3D scene, where the live
+blobs are drawn, is the better version of what it offered.)
 
 - **drag on empty space** to draw a zone; **click** to select, **drag the body** to move, **drag a
   corner** to resize.

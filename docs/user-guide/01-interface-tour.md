@@ -3,8 +3,38 @@
 This page names every part of the editor so the rest of the guide can refer to them. If you only
 read one page first, read this one.
 
+> ⚠ **The screenshots on this page and throughout this guide predate the workspace rewrite** and
+> show the old fixed shell (a Scene/Media tab column, a Stage/3D split, a four-tab dock). The *text*
+> below describes the app as it is now. Re-capture with `node scripts/capture-docs.cjs`.
+
 ![The main editor with its regions](images/00-main-editor.png)
 *The whole editor at a glance.*
+
+---
+
+## The one idea: workbenches, and nothing is nailed down
+
+The editor is not one layout. It is **nine workbenches**, one active at a time, chosen from the
+**rail down the far left**. Each declares the whole screen around its main view: which lists appear,
+which parameters, which panels in the dock, and which actions sit on the action bar.
+
+**And the arrangement each one ships with is a starting point, not a fixture.** Every panel can be
+dragged into another group, split off into its own pane, closed, or added where it does not normally
+appear — per workbench, remembered, surviving a restart. See [Making it yours](#making-it-yours).
+
+So when this guide says "the browser column" or "the dock", it means *where a thing ships*, so you
+can find it the first time. After that, it is wherever you put it.
+
+| Cluster | Workbenches |
+|---|---|
+| **BUILD** | **Map** — surfaces, content, fixtures, patch · **3D** (Venue & Rig) — the venue scene, the lighting rig, tracking |
+| **ALIGN** | **Proj** — projector outputs · **Calib** — projector calibration |
+| **SHOW** | **Cues** — scenes & the cue grid · **Machine** — the show graph · **Audio** · **Show** — running it |
+| **APP** | **Prefs** |
+
+Switch with the rail, **Ctrl+1..9**, the **Context** menu, or **Ctrl+K** — the command palette, which
+searches every workbench *and* every action any of them offers, and switches for you before running
+one.
 
 ---
 
@@ -13,14 +43,14 @@ read one page first, read this one.
 A single dark strip carrying everything that frames the app:
 
 - **The ArtLux mark** on the far left.
-- **File / Edit / View / Window / Help** menus — app‑styled dropdowns (the native menu is also
-  registered, so every keyboard accelerator keeps working).
+- **File / Edit / Context / View / Window / Help** menus — app‑styled dropdowns (the native menu is
+  also registered, so every keyboard accelerator keeps working).
 - A draggable empty middle — drag it to move the window, double‑click to maximize.
-- **Action icons** (right side): **Outputs**, **Routing**, **DMX Monitor**, **Preferences**, and
-  **Help (F1)**. Hover any icon for a tooltip.
+- **Action icons** (right side): **3D Scene**, **Outputs**, **Routing**, **DMX Monitor**,
+  **Preferences**, and **Help (F1)**. Hover any icon for a tooltip.
 - The window **minimize / maximize / close** controls.
 
-> Video/timeline **Play/Pause** does **not** live here — it's in the Timeline dock and on **Space**.
+> Video/timeline **Play/Pause** does **not** live here — it's on **Space**.
 
 The menus, in brief:
 
@@ -28,57 +58,94 @@ The menus, in brief:
 |------|-----------|
 | **File** | New / Open / Open Project Folder, Save / Save As, Collect Assets, Export/Import Rig, Routing, Preferences, **Launch in Broadcast Mode**, Quit |
 | **Edit** | Undo / Redo, Cut / Copy / Paste, Select All |
-| **View** | Reload, Developer Tools, **OSC Monitor**, zoom, full screen |
+| **Context** | jump to any of the nine workbenches |
+| **View** | Reload, Developer Tools, **Timeline** (the drawer), **OSC Monitor**, zoom, full screen |
 | **Window** | Minimize, Close |
 | **Help** | Help Panel (F1), Check for Updates, Documentation, GitHub, **About ArtLux** |
 
 ---
 
-## Left panel — Scene & Media
+## Action bar
 
-Two tabs at the top of the left column:
-
-- **Scene** (shown above) — the **Surfaces** list and the **Fixtures** list (grouped under layers),
-  plus **Groups** and **Global Params** (LED Brightness, Projector Brightness) at the bottom. Add
-  items with **+**, double‑click to rename, hover a row for delete/reorder actions.
-- **Media** — the project's [media library](11-projects-media-broadcast.md): import, preview, and
-  drag video / images / models / takes onto the Stage or Timeline.
-
-Hide the whole panel with the toggle at the **left end of the status bar**.
+Under the title bar: the name of the active workbench and the actions that belong to it — *Add
+Surface*, *Auto-patch*, *Routing* and *Collect Assets* in **Map**; *Store Key*, *Save Pose* and
+*Record Lighting Take* in **3D**. Everything here is also in the **Ctrl+K** palette.
 
 ---
 
-## Stage (center) and 3D Scene (split pane)
+## Browser column (left)
 
-- The **Stage** is the 2D canvas where you place and arrange surfaces and fixtures. Its top‑right
-  toolbar has **zoom**, a **grid** toggle (with grid size), a **snap (magnet)** toggle, a
-  **split‑view** toggle, and **reset view**.
-- The **3D Scene** shares the center as a split pane (drag the divider). It previews your fixtures in
-  real‑world space, lit by live output colors. See [3D scene](09-3d-scene.md).
+The lists the active workbench works from — Surfaces, Fixtures, Groups and Global Params in **Map**;
+Objects and Fixtures in **3D**; the media library in **Audio**. Add with **+**, double‑click to
+rename, hover a row for delete/reorder actions.
 
 ---
 
-## Inspector (right panel)
+## Viewport (centre)
 
-Context‑sensitive properties for whatever is selected — a surface's **Content** and **Transform**, or
-a fixture's **Mapping / Effect / 2D‑Output / Routing / 3D‑Layout**. When nothing is selected it reads
-*"Select a surface or fixture to edit properties."* Hide it with the toggle at the **right end of the
-status bar**.
+Whatever the workbench is *for*: the 2D Stage, the 3D scene, the outputs table, the cue grid, the
+show graph, Preferences. On the Stage, **surfaces are cyan** and **fixtures are red**; its top-right
+toolbar has **zoom**, a **grid** toggle (with grid size), a **snap (magnet)** toggle, a **split‑view**
+toggle, and **reset view**.
+
+**Light fixtures — moving heads, washes, beams — are never drawn on the 2D Stage.** They are placed
+and aimed in the **3D** workbench. See [3D scene](09-3d-scene.md).
 
 ---
 
-## Bottom dock
+## Parameters column (right)
 
-Tabbed panels along the bottom — **DMX Monitor**, **Fixture Editor**, **Timeline**, **Scenes &
-Cues**. Drag the dock's top edge to resize; click the chevron to collapse. Each tab is documented on
-its own page.
+Properties of whatever is selected, and **a surface and a fixture can both contribute sections at
+once**. Sections are filtered by what *kind* of thing is selected, so an LED strip and a moving head
+never see each other's controls: no colour order or serpentine toggle on a head, no pan/tilt on a
+strip.
+
+---
+
+## Dock (under the viewport)
+
+Tabbed panels: **Library** (DMX profiles + your fixture templates), **Wiring & Ledmap**, **Media
+Library**, **Program** (the full-bleed program monitor), **Routing**, **DMX Monitor**,
+**Performance**, plus **Output Preview** in Proj/Show and whatever the enabled plugins add (OSC
+Monitor, Trigger Zones, Schedule, Playlist, Metrics…). Which ones a workbench *ships* with is its
+choice; you can add any of them anywhere.
+
+Drag the group's edge to resize; click the chevron to collapse.
+
+---
+
+## Timeline — a drawer, not a workbench
+
+The timeline spans the **full width** of the window along the bottom, and it is available *inside*
+eight of the nine workbenches (all but Calib and Prefs). Pull it up with **Ctrl+T**, **View ▸
+Timeline**, or by clicking the collapsed strip; each workbench remembers whether you left it open.
+
+That is deliberate: the timeline is a tool you want *while* working in a view — cutting against the
+2D stage, recording a lighting take against the 3D rig, authoring a scene's timeline from the cue
+grid — not a place you travel to. See [Timeline](06-timeline.md).
+
+---
+
+## Making it yours
+
+- **Drag a panel by its tab** onto another group to join it, or onto an **edge** to split the space.
+- **Right‑click a tab** for the same moves without a drag, plus **Close**.
+- **+** on a tab strip adds any panel, including ones the workbench does not normally show, and
+  carries **Reset this workbench** for when you want the shipped arrangement back.
+- **Drag the dividers** to resize; **the chevron** collapses a group.
+
+It is all per workbench, saved with your preferences, and survives a restart. If you would rather
+have the fixed layout back, turn off **Preferences ▸ Appearance ▸ Dockable workspace**.
+
+> None of this touches the show. The rendering engine does not live in the interface: output keeps
+> running while you rearrange, and it keeps running even if a panel crashes.
 
 ---
 
 ## Status bar (bottom)
 
-Panel toggles at each end, a one‑line contextual hint in the middle, and live **FPS** + a **LIVE**
-output indicator on the right.
+Panel toggles at each end, a one‑line contextual hint for the active workbench in the middle, and
+live **FPS** + a **LIVE** output indicator on the right.
 
 ---
 
@@ -86,7 +153,8 @@ output indicator on the right.
 
 Open it with **F1**, the **?** icon in the title bar, or **Help ▸ Help Panel**. It shows contextual
 help for whatever control you hover, plus browsable topic guides — and an **EN / FR** toggle that is
-remembered between sessions. Drag its left edge to resize.
+remembered between sessions. Drag its left edge to resize. It is pinned to the far right on every
+workbench and is not part of the dockable area.
 
 ![The Help panel](images/16-help-panel.png)
 *The Help panel: contextual help on top, topic guides below, EN/FR toggle top‑right.*

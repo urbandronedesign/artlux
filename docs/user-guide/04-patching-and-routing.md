@@ -10,7 +10,7 @@ send each fixture to. ArtLux can assign addresses for you, or you can patch by h
 
 ## Auto‑patch (the quick path)
 
-Click **Auto‑patch** (in the Fixture Editor's *Create*/*Patch* area, or the Routing header). It packs
+Click **Auto‑patch** (the **Map** action bar, or the Routing header). It packs
 fixtures back‑to‑back — each consumes `LEDs × channels` — wrapping to the next universe at the
 512‑channel boundary, per controller. Fixtures you've **locked** keep their manual addresses and are
 skipped.

@@ -116,7 +116,19 @@ you want *while* working in a viewport, not a place you travel to. `Stage` and t
 are **persistent viewport elements** hidden with CSS rather than unmounted — for the timeline that is a
 hard rule (two instances double its keyboard hook and engine subscription); for the Stage it is now only
 about keeping its viewport state, since the frame loop left the component and output no longer depends on
-it being mounted. Canonical: [WORKSPACE.md](WORKSPACE.md).
+it being mounted.
+
+**The shell is DOCKABLE by default.** What renders is not the manifest directly but a per-context
+**split/tab tree compiled from it** (`services/dockTree.ts` — pure logic, imports nothing;
+`shell/DockRenderer.tsx` walks it, `shell/DockDrag.tsx` drags it on pointer events). The operator can
+move a panel into another group, split a pane, add, close, collapse and reset — per context,
+persisted in `WorkspaceLayout.dockTrees`, surviving a restart. **No SDK or context change was needed**:
+the tree is compiled from `browser[]`/`dock[]`/`inspector[]`/`viewport`, and the *absence* of a saved
+tree is the migration trigger. The single-instance viewports (`Simulator3D`, `TimelinePanel`) are not
+reparented — the tree renders empty slots and `PersistentLayer` positions the one real element over
+the winning slot by direct style writes. The pre-docking fixed shell is still there as a fallback
+(*Preferences › Appearance › Dockable workspace*, or `localStorage['artlux.docking']='0'`), and both
+paths ship for one release. Canonical: [WORKSPACE.md](WORKSPACE.md).
 
 ## Show model — timeline · scenes · state machine
 Above the surfaces/output engine sits the **show model**, three layers core persists in `ProjectData`:

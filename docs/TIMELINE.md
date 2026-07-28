@@ -75,8 +75,13 @@ a tiered `services/timelinePreloader.ts` keeps scene swaps hitless.
 ## Data model (`src/renderer/types.ts`)
 
 ```ts
-VideoLayer  { id, name, height?, color?, muted?, solo?, locked?, enabled? }   // flags are UX-only
-VideoClip   { id, layerId, name, path, start, duration, inPoint, sourceDuration?, color? }
+VideoLayer  { id, name, kind?: 'video'|'tracking'|'lighting', height?, color?, muted?, solo?,
+              locked?, enabled? }                                            // flags are UX-only
+VideoClip   { id, layerId, name, path, kind?, start, duration, inPoint, sourceDuration?, color?,
+              content?: SurfaceContent,        // any surface source scheduled on the lane
+              takeId?,                         // tracking clips → timeline.trackingTakes
+              lighting?: LightingClip,         // lighting clips → take / effect / sequence + spread
+              audio?: VideoClipAudio }         // the clip's own soundtrack
 Marker      { id, time, color, note? }
 SmAction    { kind: play|pause|stop|seek|setLoop|jumpMarker, seekTo?, loopOn?, markerId? }
 SmTrigger   { kind: manual|afterDelay|atTime|onMarker|onClipEnd|onTimelineEnd, seconds?, time?, markerId?, layerId? }
@@ -88,9 +93,16 @@ AudioClip   { id, trackId, name, path, start, duration, inPoint, sourceDuration?
               fadeIn?, fadeOut?, spatial?: AudioSpatial, effects? }
 AudioTrack  { id, name, busId?, gain?, mute?, solo?, color? }   // NO height: audio lanes are a constant
 TimelineAudio { tracks: AudioTrack[], clips: AudioClip[] }
-Timeline    { layers, clips, duration, fps?, markers?, inPoint?, outPoint?, loop?, trackingTakes?,
+Timeline    { layers, clips, duration, fps?, markers?, inPoint?, outPoint?, loop?, holdAtEnd?,
+              trackingTakes?, lightingTakes?, lightingSequences?,
               automation?, audio?, boundedDuration?, stateMachine? /* @deprecated → ProjectData */ }
 ```
+
+- **Three lane kinds.** `kind` on a layer and its clips is `'video'` (undefined ⇒ this),
+  `'tracking'` (replays a recorded LiDAR take — [TRACKING_TAKES.md](TRACKING_TAKES.md)) or
+  `'lighting'` (drives a fixture group in role space — [LIGHTING-SHOW.md](LIGHTING-SHOW.md)). A
+  lighting clip's diamonds are its **pose keys**, and each one is a button: clicking it selects the
+  key, seeks the playhead there, and opens the key in the clip inspector.
 
 - The spatial field is **`spatial`**, not `position`. It is also the automation leaf: a clip's fadeable
   paths are `audio.clip.<id>.gain`, `audio.clip.<id>.spatial.{x,y,z}` and `audio.clip.<id>.fx.<id>.<param>`
@@ -158,6 +170,22 @@ Timeline    { layers, clips, duration, fps?, markers?, inPoint?, outPoint?, loop
   clip-creation path goes through `freeStartOn()`, and it is called at the moment of **creation**, not
   of drop — three paths probe the file's duration first, and the length is what decides whether a gap
   fits. Guarded by `npm run verify:invariants`.
+- **An automation lane's axis can READ in one unit and STORE in another.** `AutomationTargetDef`
+  carries an optional `display { unit, min, max }` that maps storage onto the authored axis
+  **linearly** — numbers, not closures, and general enough for an offset range like a zoom's 8..45°
+  that does not pass through the origin. It exists because a Pan lane read `0.50` while a pose key
+  for the same channel read `270°` — two units for one thing.
+
+  **`min`/`max` stay 0..1 and that is not cosmetic.** They are not a drawing hint: `compileAutomation`
+  **clamps** every keyframe to them and hands the result straight to `provider.write()`, which lands
+  in `Fixture.dmx` — a normalised fraction. Publishing a Pan lane as 0..540 would let an operator
+  draw to 540, clamp nothing, and pin the head at its end stop for the whole curve.
+
+  So `display` is read **only** by the lane UI (axis readout, keyframe values, typed entry), never by
+  the clamp and never by the write path. That the engine — timeline, `automationOverlay`,
+  `automation`, `frameEngine` — may not read it at all is invariant-guarded. A profiled channel gets
+  its display map from its own declared physical range, and *only* when it declares one: a gobo wheel
+  or a macro has no honest unit, and inventing one would be a label that lies.
 - **Engine boundary.** Do not read `muted/solo/enabled` in `services/timeline.ts` `syncLayer()` — that
   would change playback and break the scope invariant. They only dim/highlight in the UI. (Making
   `enabled` actually hide a track would be a deliberate engine change.)

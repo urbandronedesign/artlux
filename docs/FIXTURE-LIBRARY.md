@@ -30,6 +30,29 @@ single owner.
 The UI words are **LED Fixture** and **Light Fixture**, from `KIND_LABEL`, so a browser row, a section
 header and a routing badge cannot disagree.
 
+### Where a fixture's controls live (the Fixture Editor shrank)
+
+Once the inspector learned about kinds, the seven-card **Fixture Editor** dock became a second,
+kind-blind rendering of controls that now explain themselves — a moving head was being offered a
+colour order, a serpentine toggle and an LED count. It was cut down (2026-07-27, `mapping`
+`layoutRev` 5) to the two things that exist nowhere else:
+
+| Dock tab | Holds |
+|---|---|
+| **Library** (`core.dock.fixtureLibrary`) | the shipped DMX profiles + the operator's own LED templates |
+| **Wiring & Ledmap** (`core.dock.fixtureWiring`, `appliesTo: ['fixture.pixel']`) | the `MatrixPreview` + physical-index strip, and load / export / clear / generate-serpentine |
+
+Everything else moved: *Create* → the Mapping action bar (Add Fixture · Auto-patch); *Patch* →
+`core.inspector.fixture.patch` (both kinds, showing the real footprint); *Pixel Type* and *Geometry* →
+`core.inspector.fixture.output`; *Reverse* → `core.inspector.fixture.mapping`.
+
+Two things worth keeping from that audit. **The plan undercounted the survivors** — it named two,
+there were three, and a literal reading would have deleted the wiring preview, which nothing else in
+the tree renders. It ships beside the ledmap deliberately: the preview shows the physical pixel order
+and the ledmap remaps it, so they are the same question asked twice. And `FixtureEditor.tsx` keeps its
+name so its history stays greppable, the same reason `RoutingModal.tsx` did. Guarded by *the fixture
+docks hold only what exists nowhere else*.
+
 ## The problem this solves
 
 A `Fixture` ([types.ts](../src/renderer/types.ts)) began as a **pixel array**: `ledCount` cells
@@ -154,6 +177,16 @@ Two traps worth keeping in mind if you touch the converter, both of which bit th
   powers up hard against its end stop, 269° out. 95 channels across 60 fixtures declare a resolution
   that differs from their own, so this is not an edge case — and it is invisible until you look at a
   fixture in degrees rather than at a 0..1 number.
+
+**One reader of a role, and the list it draws from sits next to it.** `roleValue()` — "what is this
+fixture's *pan* right now?" — existed three times identically, and the copies had **already drifted
+from their own list**: both copies of the captured-role list named `white`, and no copy of the switch
+had a case for it, because a white emitter is folded into r/g/b and never reaches `FixtureState` as
+its own field. So every consumer silently dropped a role the list promised — a busk never recorded a
+white channel and a pose key never stored one. The resolver and `ROLES_CAPTURED` now live adjacent in
+[fixtureSignal.ts](../src/renderer/services/fixtureSignal.ts) so they cannot disagree, and the
+effect-driveable list is `ROLES_GENERATABLE`, named for its own question rather than being a second
+alias for the same array. Invariant-guarded.
 
 `unknown` is an honest label, not a failure: ~8.5% of channels land there. Such a channel is still
 addressed, still occupies its slot and is still controllable by hand — it just gets no role-aware

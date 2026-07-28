@@ -60,8 +60,14 @@ fixture linked → nothing goes out; fixture linked but content is *None* → it
 ## 2. The interface
 
 ArtLux is organised as **workbenches**. The rail down the left switches between nine of them, and
-each one decides what surrounds the viewport — the lists on the left, the parameters on the right,
-the panels in the dock. Each remembers its own sizes.
+each one *ships* an arrangement around its viewport — the lists on the left, the parameters on the
+right, the panels in the dock.
+
+**That arrangement is a starting point, not a fixture.** Every panel can be dragged into another
+group, split off into its own pane, closed, or added where it does not normally appear — per
+workbench, remembered, surviving a restart. The names below (browser column, dock, parameters)
+describe where things *ship*, so you can find them the first time; after that, they are wherever you
+put them. See [Making it yours](#making-it-yours).
 
 | | |
 |---|---|
@@ -80,7 +86,9 @@ the panels in the dock. Each remembers its own sizes.
   for. On the stage, **surfaces are cyan** and **fixtures are red**.
 - **Parameters (right)** — properties of whatever is selected. A surface and a fixture can both
   contribute sections at once.
-- **Dock (under the viewport)** — Fixture Editor, Media Library, Program, Routing, DMX Monitor.
+- **Dock (under the viewport)** — Library, Wiring & Ledmap, Media Library, Program, Routing, DMX
+  Monitor, Performance. Which ones a workbench ships is up to it, and you can add any of them to any
+  workbench (see *Making it yours*).
 - **Timeline (bottom)** — a full-width **drawer**, not a workbench. **Ctrl+T** pulls it up in any
   workbench that offers it, and each remembers whether you left it open.
 - **Help panel (right)** — **F1**, the **?** icon, or **Help › Help Panel**. Contextual help for
@@ -110,13 +118,13 @@ workspace** turns it off and restores the fixed layout.
 2. **Give it content.** Select the surface; in the Inspector's *Content* section pick **Video** (or
    **Camera**, **Image**, an **Effect**, etc.) and choose a file/source. If it's video, open the
    **Timeline** dock and press **Space** to play.
-3. **Add a fixture.** Open the **Fixture Editor** dock tab and click **Add fixture** (or build it in
-   the *Geometry* card — e.g. a Matrix). It appears on the stage.
+3. **Add a fixture.** On the **Map** action bar click **Add Fixture**. It appears on the stage; the
+   parameters column on the right is where you shape it (*2D / Output* → Line or Matrix).
 4. **Place & link it.** Drag the fixture over the surface and resize it to cover the area you want.
    With the fixture selected, set the Inspector's *Mapping → Surface* to your surface.
 5. **Send output.** Open **Preferences → DMX Output**, set your protocol (Art-Net/sACN), target IP
-   and enable output. Click **Auto-patch** (Fixture Editor or Routing) to assign addresses. Your LEDs
-   now mirror the content under the fixture.
+   and enable output. Click **Auto-patch** (the Map action bar, or the Routing header) to assign
+   addresses. Your LEDs now mirror the content under the fixture.
 
 Save with **Ctrl/Cmd+S**.
 
@@ -230,20 +238,39 @@ real position directly.
 
 ## 6. Fixtures
 
-A fixture describes one LED product: how many LEDs, how they're wired, and how many channels each
-uses. Build and edit fixtures in the **Fixture Editor** dock tab; fine-tune placement and 3D layout
-in the right Inspector.
+ArtLux has **two kinds of fixture**, and the app treats them as two different devices rather than one
+type with optional fields:
 
-**Create:** Fixture Editor → **Add fixture** (defaults: 30 LEDs, RGBW, RGB order, a Line shape,
-auto-patched). Or add one from a **template** (see below).
+- an **LED fixture** — a pixel strip or panel, which *samples the content under it* off a surface and
+  goes out over Art-Net/sACN to an LED node. This section is about those.
+- a **light fixture** — a moving head, wash or beam, driven by **authored values** from its DMX
+  profile rather than by sampling anything. It is placed and aimed in the **3D scene**, never on the
+  2D stage, and it never offers pixel controls (LED count, colour order, serpentine). See
+  [FIXTURE-LIBRARY.md](FIXTURE-LIBRARY.md) and [LIGHTING-SHOW.md](LIGHTING-SHOW.md).
 
-**Geometry (shape):**
+You do not pick the kind: giving a fixture a **DMX profile** from the library makes it a light.
+
+Most of what a fixture *is* lives in the **parameters column** (right) and changes with what you have
+selected. Two things are not in the column and have their own dock tabs in **Map**:
+
+- **Library** — the shipped DMX profiles plus your own LED templates;
+- **Wiring & Ledmap** — the physical-order preview and the ledmap tools (LED fixtures only).
+
+> Older docs and screenshots mention a seven-card **Fixture Editor** dock. It is gone (2026-07-27):
+> five of its cards were a second, unexplained rendering of controls the parameter column now owns,
+> so *Create* moved to the action bar and *Patch / Pixel Type / Geometry / Reverse* to the inspector.
+
+**Create:** the **Map** action bar → **Add Fixture** (defaults: 30 LEDs, RGBW, RGB order, a Line
+shape, auto-patched). Or add one from a **template**, or from a **DMX profile** in the Library tab —
+which gives you a light, not a strip.
+
+**Geometry (shape)** — parameters column, *2D / Output*:
 - **Line** — a single run of LEDs (a strip).
 - **Matrix** — a 2D panel: set **Cols** and **Rows**, and toggle **Serpentine** if the rows are wired
-  in a zig-zag (row 0 left→right, row 1 right→left, …). The Fixture Editor's **Wiring** card previews
-  the physical LED order.
+  in a zig-zag (row 0 left→right, row 1 right→left, …). The **Wiring & Ledmap** dock tab previews the
+  physical LED order.
 
-**Pixel type:**
+**Pixel type** — same section:
 - **Order** — the physical channel order of each LED (RGB, GRB, BGR, …). WS2812B strips are usually
   **GRB**. If colors look swapped, this is the setting to change.
 - **Channels** — **RGB (3)** or **RGBW (4)**.
@@ -253,12 +280,13 @@ auto-patched). Or add one from a **template** (see below).
 
 **Place on the stage:** drag to move; drag the corner/edge handles to resize (corner = both axes,
 side handles = one axis); drag the top handle to rotate. Hold **Ctrl/Cmd** or **Shift** while
-clicking to multi-select; rotation snaps to 45° steps with snapping on.
+clicking to multi-select; rotation snaps to 45° steps with snapping on. *Light fixtures are not drawn
+here at all* — click to place them in the **3D** workbench instead, where they land at trim height.
 
-**Templates (reusable fixture types):** configure a fixture, select it, and in the Fixture Editor's
-**Library** card click **Save selected**. It stores the *structure only* (LED count, shape, matrix
-size, serpentine, color order, channels) — not its position or address. Click a template later to
-drop a new fixture of that type. Delete templates from the same card.
+**Templates (reusable fixture types):** configure a fixture, select it, and in the **Library** dock
+tab click **Save selected**. It stores the *structure only* (LED count, shape, matrix size,
+serpentine, color order, channels) — not its position or address. Click a template later to drop a
+new fixture of that type. Delete templates from the same tab.
 
 **Link to a surface:** with the fixture selected, set Inspector *Mapping → Surface*. `— none (off) —`
 means the fixture samples nothing. New fixtures auto-link to the first surface.
@@ -269,7 +297,7 @@ means the fixture samples nothing. New fixtures auto-link to the first surface.
 
 Every LED needs a DMX **universe** and **start channel**. ArtLux can assign these for you.
 
-**Auto-patch:** click **Auto-patch** (in the Fixture Editor *Create* card, or the Routing header). It
+**Auto-patch:** click **Auto-patch** (the **Map** action bar, or the Routing header). It
 packs fixtures back-to-back — each consumes `LEDs × channels` — wrapping to the next universe at the
 512-channel boundary. Fixtures you've **locked** keep their manual addresses and are skipped.
 
@@ -298,7 +326,7 @@ pixel in the data stream lights *which* position?" Most rigs don't need one: **R
 backward strips and **Serpentine** handles zig-zag panels. Reach for a ledmap only for irregular or
 hand-wired layouts those two can't express.
 
-In the Fixture Editor's **Ledmap** card:
+In the **Wiring & Ledmap** dock tab:
 - **Load** — import a `.json` map. ArtLux accepts a bare array `[0,1,2,…]` or a WLED-style
   `{ "map": [...] }`, so you can drop in a WLED `ledmap.json` directly.
 - **Export** — save the current map (or an identity template to edit by hand).
@@ -517,10 +545,12 @@ tracking takes in one place.
 - **Place** — **drag a tile** onto a Stage surface (sets its video/image content) or onto a Timeline
   lane (creates a clip). Or select a video/image tile and click **Use** to assign it to the selected
   surface.
-- **Manage** — open the full **Asset Manager** (the ⤢ button) to see an asset's **usage** (click a
+- **Manage** — select an asset and the library's own **inspector** (its bottom section) shows size,
+  duration, dimensions, path, and missing-on-disk, plus the asset's **usage** (click a
   surface usage to jump to it), **Relink** a moved/missing file (every reference updates),
   **Reveal in folder**, **Remove**, and **Consolidate** (copy any still-external media into the folder
-  and relativize paths — the successor to *Collect Assets*).
+  and relativize paths — the successor to *Collect Assets*, now an action-bar item). The separate
+  Asset Manager window was deleted once the library covered everything it did.
 
 See [ASSETS.md](ASSETS.md) for details.
 

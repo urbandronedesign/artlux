@@ -250,10 +250,19 @@ optional fields.
   selection. (The Stage half used to be show-critical; it no longer is.)
 - **One element, one position.** A persistent viewport named as a context's `bottom` renders there and
   nowhere else; two `TimelinePanel`s double its keyboard hook and engine subscription.
-- **Docking (opt-in) does not break that — it POSITIONS instead of moving.** With the dockable
-  workspace on, the tree renders empty `<ViewportSlot>`s and `PersistentLayer` draws the one
-  real element over whichever slot wins, by direct style writes. Never `createPortal` (it moves the
-  node, losing a canvas's contents), never React state (it would re-render the shell at pointer rate).
+- **THE WORKSPACE IS DOCKABLE BY DEFAULT — the dock tree is what actually renders.** A context's flat
+  manifest is *compiled* into a per-context split/tab tree (`services/dockTree.ts` → `DockRenderer`)
+  the operator can rearrange, and `ensureTree()` is the single door to it — never read
+  `layout.dockTrees[id]` raw. The hand-built browser/viewport/dock/parameters shell is still in
+  `WorkspaceShell` as the **fallback path** and both ship for one release; the ways off it are
+  *Preferences › Appearance › Dockable workspace* (`layout.dockingOff` — **absence means ON**, the
+  key is named for the polarity so the default flip reached installs that had already saved a layout)
+  and `localStorage['artlux.docking'] = '0'` per machine. **When you change the shell, check both
+  paths** — `appliesTo` filtering was dead under docking for exactly this reason.
+- **Docking does not break "one element, one position" — it POSITIONS instead of moving.** The tree
+  renders empty `<ViewportSlot>`s and `PersistentLayer` draws the one real element over whichever
+  slot wins, by direct style writes. Never `createPortal` (it moves the node, losing a canvas's
+  contents), never React state (it would re-render the shell at pointer rate).
   And the dock panes assert their flex in a `useLayoutEffect`, not a `style` prop — a splitter
   writes pixels straight onto them, and React rewrites a property only when its own props change, so a
   declarative style leaves a dragged pane pinned and new space goes to nobody. All guarded; see

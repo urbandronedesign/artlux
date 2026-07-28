@@ -12,6 +12,16 @@ page with a screenshot and a walkthrough of what each control does and when you'
 > Screenshots are captured from a small built‑in demo project (two surfaces, a strip + a matrix
 > fixture, a timeline, a 3D scene and an output) so the panels look the way they will in real use.
 
+> ⚠ **The screenshots currently in this guide predate the workspace rewrite** and show the old fixed
+> shell — a Scene/Media tab column, a Stage/3D split, and a four‑tab dock. The **text** on every page
+> describes the app as it is now: nine **workbenches** on a left rail, with every panel draggable into
+> tabs and splits.
+>
+> **The re-capture is deliberately deferred until the app is considered stable**, and it is one pass
+> over the whole guide (`node scripts/capture-docs.cjs`) rather than a page at a time — a guide whose
+> screenshots come from three different shells is worse than one that is uniformly out of date and
+> says so.
+
 ---
 
 ## The mental model — read this first
@@ -33,7 +43,9 @@ Keep that order in mind and everything follows: **no surface → nothing to samp
 fixture linked → nothing goes out; fixture linked but content is *None* → it stays black.**
 
 ![The ArtLux main editor](images/00-main-editor.png)
-*The main editor: left panel (Scene/Media), the 2D Stage, the 3D Scene split pane, the Inspector on the right, and the dock along the bottom.*
+*Outdated — the pre‑workbench shell. Today: the workbench rail on the far left, then the browser
+column, the viewport, the dock under it, the parameters column on the right, and the timeline drawer
+along the bottom — all rearrangeable.*
 
 ---
 
@@ -42,8 +54,8 @@ fixture linked → nothing goes out; fixture linked but content is *None* → it
 1. **Add a surface** — left panel ▸ *Surfaces* ▸ **+**. A cyan rectangle appears on the Stage.
 2. **Give it content** — select the surface and pick a type in the Inspector's *Content* grid
    (Video, Image, Effect, Camera…). See [Surfaces & content](02-surfaces-and-content.md).
-3. **Add a fixture** — open the **Fixture Editor** dock tab ▸ **Add fixture** (or build a Matrix in
-   the *Geometry* card). See [Fixtures](03-fixtures.md).
+3. **Add a fixture** — **Map** action bar ▸ **Add Fixture** (shape it in the parameters column's
+   *2D / Output* section). See [Fixtures](03-fixtures.md).
 4. **Place & link it** — drag the fixture over the surface; set the Inspector's *Mapping ▸ Surface*.
 5. **Send output** — **Preferences ▸ DMX Output**: pick Art‑Net/sACN, set the target IP, enable
    output, then **Auto‑patch**. See [Patching & routing](04-patching-and-routing.md).
@@ -56,17 +68,17 @@ Save with **Ctrl/Cmd+S**.
 
 | # | Page | What it covers |
 |---|------|----------------|
-| 1 | [Interface tour](01-interface-tour.md) | The title bar, panels, dock, status bar, Help & About |
+| 1 | [Interface tour](01-interface-tour.md) | **Workbenches**, the rail, every region, and how to rearrange them |
 | 2 | [Surfaces & content](02-surfaces-and-content.md) | The Stage, surfaces, and every content source |
-| 3 | [Fixtures](03-fixtures.md) | The Fixture Editor: geometry, pixel type, templates, wiring, ledmap |
+| 3 | [Fixtures](03-fixtures.md) | The two kinds of fixture; geometry, pixel type, templates, wiring, ledmap |
 | 4 | [Patching & routing](04-patching-and-routing.md) | Auto‑patch, the Routing sheet, controllers, overrides |
 | 5 | [Color, effects, groups & scenes](05-color-effects-groups-scenes.md) | Inspector params, effects, groups, scenes, cue banks |
 | 6 | [Timeline](06-timeline.md) | Clips, tracks, markers, Takes, the state machine |
 | 7 | [Audio](07-audio.md) | The Audio Bed mixer, the bed vs a scene's own sound, spatial audio, FX, automation |
 | 8 | [Projector outputs](08-projector-outputs.md) | The Outputs panel, corner‑pin, warp, soft‑edge, NDI out |
-| 9 | [3D scene](09-3d-scene.md) | The split‑pane 3D view, outliner, gizmos, models & planes |
+| 9 | [3D scene](09-3d-scene.md) | Venue & Rig: the 3D view, outliner, gizmos, models, and the lighting rig |
 | 10 | [Calibration](10-calibration.md) | The structured‑light & auto‑align projector calibration wizard |
-| 11 | [Projects, media & broadcast](11-projects-media-broadcast.md) | Projects‑as‑folders, the Media library, Asset Manager, show mode |
+| 11 | [Projects, media & broadcast](11-projects-media-broadcast.md) | Projects‑as‑folders, the Media library and its asset inspector, show mode |
 | 12 | [Preferences & monitoring](12-preferences-monitoring.md) | Preferences, the DMX & OSC monitors, Prometheus/Grafana |
 | 13 | [Tracking](13-tracking.md) | LiDAR / camera (MediaPipe) / Augmenta sources, blobs in 3D, trigger zones, takes |
 | 14 | [Show / state machine](14-show-state-machine.md) | The Show graph over scenes: states, transitions, hold, cold‑start, Show context + tablet |

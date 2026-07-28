@@ -72,6 +72,30 @@ spreadsheet (TopBar network icon or File → Routing…) to:
 A fixture with no controller falls back to the global Preferences target. Save the selected fixture
 as a reusable **template** from the browser **Library**.
 
+## Moving lights — profiles, a rig in 3D, and an encoded show
+ArtLux drives **light fixtures** (moving heads, washes, beams) as well as LED tape, and treats them as
+a different device rather than a strip with odd options. Full detail:
+[FIXTURE-LIBRARY.md](FIXTURE-LIBRARY.md) and [LIGHTING-SHOW.md](LIGHTING-SHOW.md).
+
+- **506 shipped DMX profiles** (built offline from the Open Fixture Library) plus **GDTF import** for
+  the manufacturer's own mesh. Give a fixture a profile and it *becomes* a light: pixel controls
+  disappear, its mode's real footprint is patched, and it is placed and aimed in the **3D scene**.
+- **Pan/tilt are stored in physical DEGREES**, so a movement recorded on a 540° head replays as the
+  same *angle* on a 630° one — what consoles call head morphing.
+- **A light show is a movement instanced onto an ordered group by a timeline clip that spreads it in
+  time** (phase / wing / block / random, mirror, scale, offset — the console effects engine as an NLE
+  clip). The movement comes from one of three sources:
+  - **record** it — busk the rig with your hands and press stop; the capture is fitted into keyframes
+    you can edit, and a role that never moved is dropped so clips layer cleanly;
+  - **generate** it — a form, a role, a centre, an amplitude, a period;
+  - **author** it — **Store Key** (3D action bar) stores what the group looks like right now as a
+    pose key. Press it again later and you have a look that eases between two moments. Clicking a key
+    on the clip re-opens it for editing, slot by slot, in degrees.
+- **Pose cues** fire a stored look at a group with **no timeline involved** — from the cue grid, the
+  tablet, an OSC GO, or a state's entry action.
+- **ENTTEC DMX USB Pro** output alongside Art-Net/sACN, on its own writer thread so a stalled widget
+  cannot stop the network pacer.
+
 ## Surface content sources
 Select a surface, then in the inspector **Content** section:
 - **Video / Image / Camera** — load a file or use the webcam (`getUserMedia`); each video/image

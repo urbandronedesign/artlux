@@ -1,6 +1,6 @@
 # Fixture Editor — two categories, and the duplication behind them
 
-> **Status: BOTH PARTS BUILT — 2026-07-27, on `main`, NOT PUSHED.** Part 1 shipped as **option B**:
+> **Status: BOTH PARTS BUILT — 2026-07-27, on `origin/main` (verified 2026-07-28).** Part 1 shipped as **option B**:
 > the seven-card dock became two — `Library` and `Wiring & Ledmap`. **Part 2 shipped too**, and it
 > found a latent bug: the role list and the role resolver had already drifted. **Core**. Risk 🟢 Low.
 >

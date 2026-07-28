@@ -208,6 +208,24 @@ header fires its row-0 scene if present, else every cue in the column (bottom-to
   (Global / a surface / a fixture) and click a parameter to snapshot its current value into the cue.
   Each entry can override the cue's fade/transition.
 
+### Pose cues — the lighting arm
+
+A Cue has a second, optional arm: `lighting?: LightingCueEntry[]`, each
+`{ poseId, groupId, fadeSec?, transition? }`. It fires a **stored look** at a **fixture group**, in
+role space (pan in degrees, dimmer 0..1), with **no timeline involved** — which is the whole point:
+pose keys are the *storage* of a light show and can only be scrubbed on a timeline, so firing a look
+from the cue grid, the tablet, an OSC GO or a state's entry action needed a different verb. Both
+models share one atom — a `NamedPose` on `ProjectData.lightingPoses` — so keys are the storage and
+cues are the invocation.
+
+It sits **between the lighting clip and the automation lane** in precedence: a fired cue beats a clip
+that happens to be running, a drawn lane still beats the cue, your hand on a fader beats everything.
+Clearing a cue is a **release**, not a write of zeros — whatever was underneath shows again. Details
+and the rest of the semantics: [LIGHTING-SHOW.md](LIGHTING-SHOW.md) → *Pose cues*.
+
+The arm is additive and optional, so an older build ignores it and still fires the cue's ordinary
+`entries`.
+
 ### Triggering cues
 - **Manual:** Live-mode click, or a column header.
 - **FSM:** a `fireCue` state-entry action (cue picker in the state-graph editor).
