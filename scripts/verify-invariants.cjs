@@ -1884,6 +1884,37 @@ check(
   },
 );
 
+// ── Lighting: a drawn pose key is a SELECTABLE pose key ──────────────────────────────────────
+check(
+  'a pose key drawn on a clip can be selected and edited',
+  'The diamonds, the selection state, the resolver and the per-slot editor are four files deep, ' +
+  'and every prop between them is OPTIONAL — so omitting one typechecks perfectly and ships an ' +
+  'inert diamond. That shipped: Lane received `sequenceKeys` and drew them, but Timeline never ' +
+  'passed `onSelectKey`, so clicking a key did nothing at all and the inspector never appeared. ' +
+  'Found by clicking one in the running app; a green typecheck said nothing.',
+  () => {
+    const T = 'src/renderer/components/timeline/Timeline.tsx';
+    const L = 'src/renderer/components/timeline/Lane.tsx';
+    const C = 'src/renderer/components/timeline/ClipBlock.tsx';
+    const I = 'src/renderer/components/timeline/LightingClipInspector.tsx';
+    const t = read(T), l = read(L), c = read(C), i = read(I);
+    // The chain, link by link: diamond → Lane → Timeline state → inspector.
+    if (!/onSelectKey\?\.\(clip\.id,\s*k\.t\)/.test(c))
+      return `${C} no longer reports a clicked key — the diamonds are decoration`;
+    if (!/onSelectKey=\{onSelectKey\}/.test(l))
+      return `${L} no longer forwards onSelectKey to ClipBlock`;
+    if (!/onSelectKey=\{selectKey\}/.test(t))
+      return `${T} renders <Lane> without onSelectKey — a drawn key would be unclickable`;
+    if (!/selectedKey=\{selectedKey\}/.test(t))
+      return `${T} no longer tells the lane WHICH key is selected — no highlight, no agreement with the inspector`;
+    if (!/selectedKey=\{selectedKeyObj\}/.test(t) || !/onPatchKeySlot=\{/.test(t))
+      return `${T} no longer hands the selected key (or its patcher) to the clip inspector`;
+    if (!/onPatchKeySlot\?\.\(i,\s*r,\s*undefined\)/.test(i))
+      return `${I} can no longer REMOVE a role from a slot — removing and zeroing are different edits`;
+    return null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);

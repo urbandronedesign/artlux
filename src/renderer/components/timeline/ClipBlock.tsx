@@ -35,6 +35,9 @@ interface Props {
   /** A lighting clip's authored pose keys, for the diamonds. Passed in rather than looked up here:
    *  this component is memoized on its props and must not read a store. */
   sequenceKeys?: ReadonlyArray<{ t: number; name?: string }>;
+  /** The selected key on THIS clip, if any — highlighted so the inspector and the lane agree. */
+  selectedKeyT?: number;
+  onSelectKey?: (clipId: string, t: number) => void;
   onStartDrag: (e: React.PointerEvent, clip: VideoClip, mode: DragMode) => void;
   onBlade: (clip: VideoClip, clientX: number) => void;
   onRemove: (clipId: string) => void;
@@ -42,7 +45,7 @@ interface Props {
 
 // A single clip on a lane. Memoized so an unrelated state change in the App tree doesn't repaint
 // every clip — only clips whose inputs actually change re-render (key for perf in this no-memo app).
-const ClipBlockBase: React.FC<Props> = ({ clip, selected, locked, tool, pxPerSec, laneH, conflict, sequenceKeys, onStartDrag, onBlade, onRemove }) => {
+const ClipBlockBase: React.FC<Props> = ({ clip, selected, locked, tool, pxPerSec, laneH, conflict, sequenceKeys, selectedKeyT, onSelectKey, onStartDrag, onBlade, onRemove }) => {
   const widthPx = Math.max(6, clip.duration * pxPerSec);
   const blade = tool === 'blade' && !locked;
 
@@ -77,11 +80,19 @@ const ClipBlockBase: React.FC<Props> = ({ clip, selected, locked, tool, pxPerSec
             {sequenceKeys?.map((k) => {
               const x = (k.t - (clip.inPoint ?? 0)) * pxPerSec;
               if (x < 0 || x > widthPx) return null;
+              const on = selectedKeyT !== undefined && Math.abs(selectedKeyT - k.t) < 1e-6;
+              // CLICKABLE, so a key can be selected and edited — the container is
+              // `pointer-events-none` so the clip body still drags, and this one element opts back
+              // in. stopPropagation on pointerdown, or selecting a key would start a clip drag.
               return (
                 <div
                   key={k.t}
-                  className="absolute bottom-1 w-1.5 h-1.5 rotate-45 bg-accent border border-black/40"
-                  style={{ left: x - 3 }}
+                  role="button"
+                  aria-label={`Key at ${k.t.toFixed(2)}s`}
+                  onPointerDown={(e) => { e.stopPropagation(); onSelectKey?.(clip.id, k.t); }}
+                  className={`absolute bottom-1 w-2 h-2 rotate-45 border pointer-events-auto cursor-pointer ${
+                    on ? 'bg-white border-white' : 'bg-accent border-black/40 hover:bg-white'}`}
+                  style={{ left: x - 4 }}
                   title={k.name ? `${k.name} — ${k.t.toFixed(2)}s` : `key @ ${k.t.toFixed(2)}s`}
                 />
               );

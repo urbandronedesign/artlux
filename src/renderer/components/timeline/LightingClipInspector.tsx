@@ -1,7 +1,7 @@
 import React from 'react';
 import { X } from 'lucide-react';
 import type {
-  ChannelRole, Fixture, FixtureGroup, FixtureProfile, LightingClip, LightingForm, LightingPhaseMode, LightingTake, VideoClip,
+  ChannelRole, Fixture, FixtureGroup, FixtureProfile, LightingClip, LightingForm, LightingKey, LightingPhaseMode, LightingTake, VideoClip,
 } from '../../types';
 import { groupKind, profileOf } from '../../services/fixtureKind';
 import { ROLES_GENERATABLE } from '../../services/lightingTake';
@@ -41,6 +41,9 @@ interface Props {
   fixtureProfiles?: ReadonlyMap<string, FixtureProfile>;
   /** targetPaths of the ENABLED automation lanes — a lane outranks this clip, so it is worth saying. */
   lanePaths?: ReadonlySet<string>;
+  /** The pose key the operator clicked on the clip, if any — edited slot by slot below. */
+  selectedKey?: LightingKey | null;
+  onPatchKeySlot?: (slot: number, role: ChannelRole, value: number | undefined) => void;
   takes: LightingTake[];
   onChange: (patch: Partial<LightingClip>) => void;
   onClose: () => void;
@@ -56,7 +59,7 @@ const Row: React.FC<{ label: string; children: React.ReactNode }> = ({ label, ch
 const sel = 'flex-1 min-w-0 bg-surface-0 border border-line-1 rounded-sm px-1 py-0.5 text-fg-1 focus:border-accent focus:outline-none';
 const num = 'w-16 bg-surface-0 border border-line-1 rounded-sm px-1 py-0.5 text-right text-fg-1 num focus:border-accent focus:outline-none';
 
-export const LightingClipInspector: React.FC<Props> = ({ clip, groups, fixtures, fixtureProfiles, lanePaths, takes, onChange, onClose }) => {
+export const LightingClipInspector: React.FC<Props> = ({ clip, groups, fixtures, fixtureProfiles, lanePaths, selectedKey, onPatchKeySlot, takes, onChange, onClose }) => {
   const l = clip.lighting ?? {};
   const usingTake = !!l.takeId;
   const role = l.effect?.role ?? 'pan';
@@ -148,6 +151,66 @@ export const LightingClipInspector: React.FC<Props> = ({ clip, groups, fixtures,
             <input type="number" className={num} step={0.25} min={0.05} value={l.effect.periodSec}
               onChange={(e) => onChange({ effect: { ...l.effect!, periodSec: Math.max(0.05, parseFloat(e.target.value) || 1) } })} />
           </Row>
+        </>
+      )}
+
+      {/* 1b. THE SELECTED KEY — the finest grain: one slot, one role, one moment.
+              Values are already in ROLE space (degrees for pan/tilt/zoom, 0..1 otherwise), which is
+              what a pose stores, so there is no conversion here — unlike an automation lane, which
+              stores 0..1 and needs a display map. */}
+      {selectedKey && (
+        <>
+          <div className="pt-1 border-t border-line-1" />
+          <div className="flex items-center justify-between text-micro uppercase tracking-wider text-fg-3">
+            <span>Key @ {selectedKey.t.toFixed(2)}s</span>
+            <span>{selectedKey.slots.length === 1 ? 'whole group' : `${selectedKey.slots.length} slots`}</span>
+          </div>
+          {/* A key may instead REFERENCE a library pose, and inline slots win when both exist — so
+              editing here would silently promote the key off the library look it was sharing. Say
+              that rather than offering an edit whose effect is not what it appears to be. */}
+          {selectedKey.poseRef && selectedKey.slots.length === 0 && (
+            <div className="text-micro text-fg-3">
+              This key plays a library pose — edit the pose, or store a new key over it.
+            </div>
+          )}
+          <div className="max-h-40 overflow-y-auto space-y-1.5 -mx-0.5 px-0.5">
+            {selectedKey.slots.map((pose, i) => {
+              const roles = Object.keys(pose) as ChannelRole[];
+              return (
+                <div key={i} className="space-y-1">
+                  {/* One slot drives the whole group, so naming it "slot 1 of 1" would be noise. */}
+                  {selectedKey.slots.length > 1 && (
+                    <div className="text-micro text-fg-3">
+                      Slot {i + 1}
+                      {group?.fixtureIds[i] && (
+                        <span className="text-fg-2"> · {fixtures.find((f) => f.id === group.fixtureIds[i])?.name ?? ''}</span>
+                      )}
+                    </div>
+                  )}
+                  {roles.length === 0 && <div className="text-micro text-fg-3 italic">drives nothing</div>}
+                  {roles.map((r) => (
+                    <Row key={r} label={isAngle(r) ? `${r} °` : r}>
+                      <input
+                        type="number" className={num} step={isAngle(r) ? 5 : 0.05}
+                        value={Number((pose[r] as number).toFixed(isAngle(r) ? 1 : 3))}
+                        onChange={(e) => {
+                          const v = parseFloat(e.target.value);
+                          if (Number.isFinite(v)) onPatchKeySlot?.(i, r, v);
+                        }}
+                      />
+                      {/* Removing a role is NOT the same as zeroing it: an unmentioned role
+                          interpolates across this key, a zeroed one drags the curve to black. */}
+                      <button
+                        className="shrink-0 text-fg-3 hover:text-danger"
+                        title={`Stop this key driving ${r} — the value interpolates across it instead`}
+                        onClick={() => onPatchKeySlot?.(i, r, undefined)}
+                      ><X size={11} /></button>
+                    </Row>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
         </>
       )}
 

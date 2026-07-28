@@ -13,6 +13,8 @@ interface Props {
   conflictIds?: Set<string>;
   /** clip id → its sequence's key times, for the lighting diamonds. Built once by Timeline. */
   sequenceKeys?: Map<string, ReadonlyArray<{ t: number; name?: string }>>;
+  selectedKey?: { clipId: string; t: number } | null;
+  onSelectKey?: (clipId: string, t: number) => void;
   onSeek: (clientX: number) => void;
   onDropFile: (e: React.DragEvent, layerId: string) => void;
   onAddContent?: (e: React.MouseEvent, layerId: string) => void; // right-click empty lane → source picker
@@ -21,7 +23,7 @@ interface Props {
   onRemoveClip: (clipId: string) => void;
 }
 
-export const Lane: React.FC<Props> = ({ layer, clips, selectedId, tool, pxPerSec, width, laneH, conflictIds, sequenceKeys, onSeek, onDropFile, onAddContent, onStartDrag, onBlade, onRemoveClip }) => {
+export const Lane: React.FC<Props> = ({ layer, clips, selectedId, tool, pxPerSec, width, laneH, conflictIds, sequenceKeys, selectedKey, onSelectKey, onSeek, onDropFile, onAddContent, onStartDrag, onBlade, onRemoveClip }) => {
   const locked = !!layer.locked;
   const dim = layer.enabled === false || layer.muted;
   return (
@@ -44,6 +46,8 @@ export const Lane: React.FC<Props> = ({ layer, clips, selectedId, tool, pxPerSec
           laneH={laneH}
           conflict={conflictIds?.has(c.id)}
           sequenceKeys={sequenceKeys?.get(c.id)}
+          selectedKeyT={selectedKey?.clipId === c.id ? selectedKey.t : undefined}
+          onSelectKey={onSelectKey}
           onStartDrag={onStartDrag}
           onBlade={onBlade}
           onRemove={onRemoveClip}

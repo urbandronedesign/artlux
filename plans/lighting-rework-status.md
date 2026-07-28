@@ -15,9 +15,9 @@ Companion status doc for [fixture-kinds.md](fixture-kinds.md) and
 
 ## The commits
 
-The two plans, in build order. **Four more landed afterwards** and are described further down:
-the Fixture Editor shrink, the role-vocabulary de-duplication, the degrees display transform, and
-the lane-shadow badge.
+The two plans, in build order. **Five more landed afterwards** and are described further down:
+the Fixture Editor shrink, the role-vocabulary de-duplication, the degrees display transform, the
+lane-shadow badge, and per-slot pose-key editing.
 
 ```
 31e7bbf  feat(lighting): recordings land as editable eased keys, not a polyline   E4/E5
@@ -35,7 +35,7 @@ ffe3bd3  docs(plans): the app has one Fixture type for two devices on two wires 
 ```
 
 Each builds and typechecks on its own — the waves were split hunk-by-hunk and re-verified at every
-stage, not committed as one lump and sliced afterwards. `npm run verify` went 57 → **71** checks
+stage, not committed as one lump and sliced afterwards. `npm run verify` went 57 → **72** checks
 across all of it.
 
 ---
@@ -140,8 +140,8 @@ that question is a **fixture-kind contribution**, worth designing only when a *s
 
 ## Open items, in the order they matter
 
-> The list below is what remains. Item 1 is now DONE — kept, struck through, because the reasoning
-> for where the map may and may not be read is still the live constraint.
+> The list below is what remains. Items 1 and 2 are DONE — kept, struck through, because the
+> reasoning in each is still a live constraint.
 
 1. ~~The degrees display transform~~ — **BUILT 2026-07-27**, with the lane-shadow badge that pairs
    with it. `AutomationTargetDef.display { unit, min, max }` maps storage onto the authored axis
@@ -151,9 +151,25 @@ that question is a **fixture-kind contribution**, worth designing only when a *s
    `write()` — publishing degrees there would let an operator draw to 540 and pin the head at its end
    stop. **Guarded:** the engine side (timeline, automationOverlay, automation, frameEngine) may not
    read the map at all. The clip inspector now also names any role a lane is already winning.
-2. **No per-slot editing of an existing pose key.** The data supports it (a pose stores one slot per
-   fixture when they differ) but there is no UI to change slot 3 of a stored key. Today you re-store
-   the whole key, or keep that head in its own group. This is the most likely first request.
+2. ~~No per-slot editing of an existing pose key~~ — **BUILT 2026-07-28.** A diamond on a lighting
+   clip is now a **button**: clicking one selects the key, seeks the playhead to it (the rig is
+   already live-scrubbing, so you see the look on the fixtures), and the clip inspector grows a *Key*
+   section listing each slot — named after the group's fixture at that index — with a number input
+   per role in **role units** (degrees for pan/tilt/zoom; no display map, unlike an automation lane,
+   because a pose already stores degrees). Removing a role is a distinct verb from zeroing it: an
+   unmentioned role **interpolates across** the key, a zeroed one drags the curve to black.
+
+   Two things the shape of the data forced: the selection is keyed by **(clip, time), not index**,
+   because Store Key re-sorts `keys` on every insert and an index would silently point at a different
+   key; and a key that plays a **library pose** (`poseRef`, no inline slots) is not editable here —
+   inline slots win when both exist, so editing would silently promote the key off the look it was
+   sharing. It says so instead.
+
+   Proved in the running app (CDP): 2 diamonds drawn, clicking the t=5 key selects it, slot 2's pan
+   edits 240 → 123 with slot 1 untouched at 300, and removing slot 1's tilt leaves slot 2's tilt
+   intact. **The bug it found is the reason for the new invariant** — every prop on that four-file
+   chain is optional, so `Lane` drew the diamonds while `Timeline` never passed `onSelectKey`, and
+   the typecheck was green over a diamond that did nothing.
 3. **`--project=` can be overridden by FSM autostart.** A project whose state machine recalls a scene
    on load replaces the rig with that scene's `fixtures[]` snapshot. Arguably correct per feature; the
    *interaction* is untested and it wasted a debugging session. Untouched.
@@ -184,6 +200,7 @@ The invariants are the durable part — each encodes a bug that shipped or nearl
 - `a lighting take stores Keyframe[], and LightingCurve is read-only legacy`
 - `pose sequences are compiled on edit, not resolved in the frame loop`
 - `a pose cue sits between the lighting clip and the automation lane`
+- `a pose key drawn on a clip can be selected and edited`
 
 Prose lives in `CLAUDE.md` → *Two kinds of fixture*, `docs/FIXTURE-LIBRARY.md` → *Two kinds of
 fixture*, `docs/OUTPUTS.md` → *What a controller drives*, and `docs/LEDMAP.md`'s header.

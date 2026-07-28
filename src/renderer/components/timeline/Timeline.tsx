@@ -22,7 +22,7 @@ import { StateLane } from './StateLane';
 import { AutomationLane, AUTO_LANE_H } from './AutomationLane';
 import { AutomationTargetPicker } from './AutomationTargetPicker';
 import { automationTargetRegistry } from '../../host/registries';
-import type { AutomationLane as AutoLane, Fixture, FixtureGroup, FixtureProfile, LightingClip, Marker } from '../../types';
+import type { AutomationLane as AutoLane, ChannelRole, Fixture, FixtureGroup, FixtureProfile, LightingClip, Marker } from '../../types';
 
 // A lane as the PANEL sees it. `origin` is where the lane LIVES (and therefore which clock it rides);
 // `shadowed` means a scene lane owns the same targetPath, so this global one is not applying right now.
@@ -1307,6 +1307,37 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
     ...timelineRef.current,
     clips: timelineRef.current.clips.map(c => c.id === id ? { ...c, lighting: { ...(c.lighting ?? {}), ...patch } } : c),
   });
+  /**
+   * Edit ONE slot's ONE role inside a stored pose key.
+   *
+   * The finest grain there is: a key holds one pose per group slot, so this changes what a single
+   * fixture does at a single moment without disturbing the rest of the group or re-storing the whole
+   * look. Until now the data supported it and nothing could reach it — you re-stored the whole key
+   * from the rig, or kept that head in its own group.
+   *
+   * `undefined` REMOVES the role from that slot rather than writing a zero, which is the sparse rule
+   * the sampler depends on: a role the key does not mention interpolates ACROSS it, while a role
+   * pinned to 0 would drag the whole curve to black.
+   */
+  const patchKeySlot = (
+    sequenceId: string, keyT: number, slot: number, role: ChannelRole, value: number | undefined,
+  ) => onChangeRef.current({
+    ...timelineRef.current,
+    lightingSequences: (timelineRef.current.lightingSequences ?? []).map((s) => s.id !== sequenceId ? s : {
+      ...s,
+      keys: s.keys.map((k) => {
+        if (Math.abs(k.t - keyT) > 1e-6) return k;
+        const slots = k.slots.map((p, i) => {
+          if (i !== slot) return p;
+          const next = { ...p };
+          if (value === undefined) delete next[role]; else next[role] = value;
+          return next;
+        });
+        return { ...k, slots };
+      }),
+    }),
+  });
+
   const patchClipContent = (id: string, patch: Partial<SurfaceContent>) => onChangeRef.current({
     ...timelineRef.current,
     clips: timelineRef.current.clips.map(c => c.id === id
@@ -1344,6 +1375,38 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
   // The ENABLED lanes, by target path. A lane outranks a lighting clip, so the clip inspector says
   // when one is already winning a role — see its `shadowed` memo. Both documents count: a base (global)
   // lane still drives underneath the bound scene unless a scene lane shadows it by the same path.
+  // ── THE SELECTED POSE KEY ──────────────────────────────────────────────────────────────────
+  // Ephemeral, like the clip selection beside it — a cursor, never the document. Identified by
+  // (clip, time) rather than an index, because Store Key re-sorts `keys` on every insert and an
+  // index would silently point at a different key the moment one was added before it.
+  const [selectedKey, setSelectedKey] = useState<{ clipId: string; t: number } | null>(null);
+
+  // Selecting a key MOVES THE PLAYHEAD TO IT — the snap-to-key half of the authoring loop. The rig
+  // is already live-scrubbing (lightingPlayback subscribes every frame, even paused), so this is
+  // what makes clicking a diamond show you that look on the actual fixtures.
+  const selectKey = (clipId: string, t: number) => {
+    setSelectedKey({ clipId, t });
+    setSelected(clipId);
+    const clip = timeline.clips.find((c) => c.id === clipId);
+    if (clip) engine.seek(clip.start + (t - (clip.inPoint ?? 0)));
+  };
+  // A key that no longer exists must not stay selected — the inspector would edit a hole.
+  useEffect(() => {
+    if (!selectedKey) return;
+    const clip = timeline.clips.find((c) => c.id === selectedKey.clipId);
+    const seq = timeline.lightingSequences?.find((s) => s.id === clip?.lighting?.sequenceId);
+    if (!seq?.keys.some((k) => Math.abs(k.t - selectedKey.t) < 1e-6)) setSelectedKey(null);
+  }, [timeline.clips, timeline.lightingSequences, selectedKey]);
+
+  // The key itself, resolved for the inspector. Resolved here rather than passed as an id because the
+  // inspector must re-render when the key's SLOTS change, and only the object carries that.
+  const selectedKeyObj = useMemo(() => {
+    if (!selectedKey) return null;
+    const clip = timeline.clips.find((c) => c.id === selectedKey.clipId);
+    const seq = timeline.lightingSequences?.find((s) => s.id === clip?.lighting?.sequenceId);
+    return seq?.keys.find((k) => Math.abs(k.t - selectedKey.t) < 1e-6) ?? null;
+  }, [timeline.clips, timeline.lightingSequences, selectedKey]);
+
   const enabledLanePaths = useMemo(() => {
     const s = new Set<string>();
     for (const l of baseAutomation) if (l.enabled !== false) s.add(l.targetPath);
@@ -1593,6 +1656,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
                 <Lane
                   layer={l} clips={laneClips} selectedId={selected} tool={tool} pxPerSec={pxPerSec}
                   width={Math.max(width, 100)} laneH={h} conflictIds={conflictIds} sequenceKeys={sequenceKeys}
+                  selectedKey={selectedKey} onSelectKey={selectKey}
                   onSeek={seekTo} onDropFile={onDropFile} onAddContent={openContentMenu} onStartDrag={onStartDrag} onBlade={onBlade} onRemoveClip={onRemoveClip}
                 />
               </div>
@@ -1758,6 +1822,11 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
           fixtures={rigFixtures}
           fixtureProfiles={rigProfiles}
           lanePaths={enabledLanePaths}
+          selectedKey={selectedKeyObj}
+          onPatchKeySlot={(slot, role, value) => {
+            const seqId = selectedClip.lighting?.sequenceId;
+            if (seqId && selectedKey) patchKeySlot(seqId, selectedKey.t, slot, role, value);
+          }}
           takes={timeline.lightingTakes ?? []}
           onChange={(patch) => patchLighting(selectedClip.id, patch)}
           onClose={() => setSelected(null)}
