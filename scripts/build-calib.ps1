@@ -38,16 +38,65 @@ $env:PATH = "$LibClang;$binDir;$env:PATH"
 # (stitching). lib.rs needs core + imgproc + calib3d (+ features2d, a calib3d dep), videoio
 # (DirectShow camera capture for the PS3 Eye, which Chromium's getUserMedia can't start), and now
 # objdetect (the ArUco fiducial detector for one-click recalibration — main module since OpenCV 4.7),
-# so move every OTHER module's headers aside before generating. Reversible (.disabled suffix).
-$disable = @('dnn','gapi','highgui','imgcodecs','ml','photo','stitching','video')
-$disabledAny = $false
-foreach ($mod in $disable) {
-  $hpp = Join-Path $inc "opencv2\$mod.hpp"
-  $dir = Join-Path $inc "opencv2\$mod"
-  if (Test-Path $hpp) { Move-Item $hpp "$hpp.disabled" -Force; $disabledAny = $true }
-  if (Test-Path $dir) { Move-Item $dir "$dir.disabled" -Force; $disabledAny = $true }
+# so move every OTHER module's headers aside before generating.
+#
+# THIS MUTATES A SHARED OPENCV INSTALL, SO IT MUST BE UNDONE. This block used to claim "Reversible
+# (.disabled suffix)" and then never reverse anything — the only cleanup was Pop-Location. So one run
+# disabled a module permanently, and when a later revision of this script dropped `objdetect` from
+# $disable it could no longer restore it either: every subsequent build failed with
+# `unresolved import opencv::objdetect` (lib.rs needs it for ArUco) until the file was renamed back by
+# hand. Two halves are needed, and the first is not optional:
+#
+#   1. RECOVER anything a previous run left disabled, before touching anything. `finally` does not run
+#      when the process is hard-killed (Ctrl-C, a closed terminal, a crash), so "restore what I moved"
+#      alone still strands headers. Recovering up front is what makes an interrupted build self-healing
+#      — and it repairs installs already broken by the old script.
+#   2. RESTORE exactly what THIS run moved, in `finally`.
+$inc2 = Join-Path $inc 'opencv2'
+
+# Undo a `<name>.disabled` back to `<name>`. If the live entry somehow exists too, the live one wins
+# and the stale copy is dropped — never clobber a real header with an older aside.
+function Restore-DisabledHeaders {
+  param([string]$Dir)
+  $restored = @()
+  foreach ($item in @(Get-ChildItem $Dir -Filter '*.disabled' -ErrorAction SilentlyContinue)) {
+    $orig = $item.FullName -replace '\.disabled$', ''
+    if (Test-Path $orig) { Remove-Item $item.FullName -Recurse -Force }
+    else { Move-Item $item.FullName $orig -Force; $restored += (Split-Path $orig -Leaf) }
+  }
+  return $restored
 }
-if ($disabledAny) { Write-Host "Disabled unused OpenCV modules: $($disable -join ', ')" }
+
+$disable = @('dnn','gapi','highgui','imgcodecs','ml','photo','stitching','video')
+
+$recovered = Restore-DisabledHeaders -Dir $inc2
+if ($recovered.Count -gt 0) {
+  Write-Host "Recovered OpenCV header(s) left disabled by an earlier run: $($recovered -join ', ')" -ForegroundColor Yellow
+  # Only a module we actually BIND needs a cache purge. Recovering one that is about to be disabled
+  # again (the normal leftover case) changes nothing bindgen can see, and cleaning for that would cost
+  # a multi-minute OpenCV rebuild on every run that tidied up after an interrupted one.
+  # A module contributes TWO entries (the `<mod>` dir and `<mod>.hpp`), so dedupe to module names.
+  $names = $recovered | ForEach-Object { ($_ -replace '\.hpp$', '') } | Select-Object -Unique
+  $needed = @($names | Where-Object { $disable -notcontains $_ })
+  if ($needed.Count -gt 0) {
+    # opencv-rust generates its bindings in a build script whose output cargo CACHES. Restoring a
+    # header does not invalidate that cache, so without this the build keeps failing on the module we
+    # just put back — which is how the objdetect breakage survived several "clean" rebuilds.
+    # ASCII only inside strings here: this file has no BOM, PowerShell 5.1 decodes it as ANSI, and a
+    # UTF-8 em dash arrives as `â€<U+201D>` — PowerShell accepts a smart quote as a string delimiter, so
+    # one em dash in a double-quoted string silently ends it and unbalances every brace that follows.
+    Write-Host "Re-binding recovered module(s) $($needed -join ', ') - clearing the cached opencv bindings..." -ForegroundColor Yellow
+    cargo clean -p opencv --release --manifest-path (Join-Path $root 'native\calib\Cargo.toml')
+  }
+}
+$moved = @()
+foreach ($mod in $disable) {
+  $hpp = Join-Path $inc2 "$mod.hpp"
+  $dir = Join-Path $inc2 $mod
+  if (Test-Path $hpp) { Move-Item $hpp "$hpp.disabled" -Force; $moved += "$hpp.disabled" }
+  if (Test-Path $dir) { Move-Item $dir "$dir.disabled" -Force; $moved += "$dir.disabled" }
+}
+if ($moved.Count -gt 0) { Write-Host "Disabled unused OpenCV modules: $($disable -join ', ')" }
 
 Write-Host "OpenCV include : $inc"
 Write-Host "OpenCV lib     : $libDir  ($linkLib)"
@@ -70,4 +119,12 @@ try {
   Write-Host "`nDone -> native/calib/calib.node (+ $linkLib.dll)" -ForegroundColor Green
 } finally {
   Pop-Location
+  # Put back exactly what this run moved aside — on success AND on failure. Without this the next
+  # build inherits a half-disabled OpenCV install and fails on a module it never touched.
+  $restored = 0
+  foreach ($aside in $moved) {
+    $orig = $aside -replace '\.disabled$', ''
+    if ((Test-Path $aside) -and -not (Test-Path $orig)) { Move-Item $aside $orig -Force; $restored++ }
+  }
+  if ($restored -gt 0) { Write-Host "Restored $restored OpenCV header entry/entries" }
 }
