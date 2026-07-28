@@ -1,8 +1,11 @@
 # LED / light fixtures + the lighting encoding — where this stands
 
-> **Status: BUILT AND UNPUSHED — 2026-07-27.** Twelve commits on local `main`, ahead of `origin/main`.
+> **Status: BUILT AND UNPUSHED — 2026-07-27.** On local `main`, ahead of `origin/main`.
 > **Deliberately not pushed: this feature set is expected to be reworked.** Treat every decision below
 > as revisable; treat the *findings* as facts about the codebase that will still be true afterwards.
+>
+> ⚠ `main` also carries commits from **other sessions** (calibration, build fixes), so it is no longer
+> only this work. Use `git log --grep` on the subjects below rather than assuming a contiguous range.
 
 Companion status doc for [fixture-kinds.md](fixture-kinds.md) and
 [lighting-keyframes.md](lighting-keyframes.md). Those two say what was *planned*; this says what was
@@ -10,7 +13,11 @@ Companion status doc for [fixture-kinds.md](fixture-kinds.md) and
 
 ---
 
-## The twelve commits
+## The commits
+
+The two plans, in build order. **Four more landed afterwards** and are described further down:
+the Fixture Editor shrink, the role-vocabulary de-duplication, the degrees display transform, and
+the lane-shadow badge.
 
 ```
 31e7bbf  feat(lighting): recordings land as editable eased keys, not a polyline   E4/E5
@@ -28,7 +35,8 @@ ffe3bd3  docs(plans): the app has one Fixture type for two devices on two wires 
 ```
 
 Each builds and typechecks on its own — the waves were split hunk-by-hunk and re-verified at every
-stage, not committed as one lump and sliced afterwards. `npm run verify` went 57 → **66** checks.
+stage, not committed as one lump and sliced afterwards. `npm run verify` went 57 → **71** checks
+across all of it.
 
 ---
 
@@ -110,9 +118,18 @@ and a literal reading of B would have deleted it. It shipped alongside the ledma
 preview shows the physical pixel order and the ledmap remaps it. Guarded by *the fixture docks hold
 only what exists nowhere else*.
 
-**Part 2 of [fixture-editor-split.md](fixture-editor-split.md) is still open** — three identical
-copies of `roleValue()`, the duplicated captured-role list, and the dead `allRoles` flag. It is a
-correctness item and independent of anything above.
+**Part 2 of [fixture-editor-split.md](fixture-editor-split.md) — SHIPPED**, and it was more than
+tidying. `roleValue()` existed three times identically, and it had **already drifted from its own
+list**: both copies of the captured-role list named `white`, and no copy of the switch had a case for
+it, because a white emitter is folded into r/g/b and never reaches `FixtureState` as its own field.
+So every consumer silently dropped a role the list promised — a busk never recorded a white channel
+and a pose key never stored one. The resolver and the list now sit adjacent in `fixtureSignal.ts` so
+they cannot disagree, and the guard was proved by re-introducing `white` and watching it fail. The
+effect-driveable list is `ROLES_GENERATABLE`, named for its own question; `allRoles` (`x ? A : A`) is
+deleted.
+
+**The degrees display transform + the lane-shadow badge — SHIPPED.** See the struck-through item
+below; together they close L6.
 
 **Should lighting be a plugin?** Asked and answered *no*, 2026-07-27, with the reasoning recorded in
 the conversation and worth re-deriving if it comes up: the SDK has no fixture-kind / DMX-packing
@@ -123,11 +140,17 @@ that question is a **fixture-kind contribution**, worth designing only when a *s
 
 ## Open items, in the order they matter
 
-1. **The degrees display transform is NOT built** (lighting-keyframes §L6) — the only planned item
-   that did not ship. An automation lane on `fixtures.<id>.dmx.pan` still publishes **0..1, not
-   degrees**, so a hand-drawn Pan lane and a pose key speak different units about the same channel.
-   Needs `AutomationTargetDef.toDisplay/fromDisplay` (an SDK change) plus the lane renderer and the
-   keyframe editor honouring it. **The lane-shadow badge that pairs with it is also unbuilt.**
+> The list below is what remains. Item 1 is now DONE — kept, struck through, because the reasoning
+> for where the map may and may not be read is still the live constraint.
+
+1. ~~The degrees display transform~~ — **BUILT 2026-07-27**, with the lane-shadow badge that pairs
+   with it. `AutomationTargetDef.display { unit, min, max }` maps storage onto the authored axis
+   **linearly** (numbers, not closures — and general enough for an offset range like Zoom's 8..45°,
+   which does not pass through the origin), so a Pan lane reads `270 deg` where it read `0.50`.
+   `min`/`max` stay 0..1 because that is what `compileAutomation` clamps to and what reaches
+   `write()` — publishing degrees there would let an operator draw to 540 and pin the head at its end
+   stop. **Guarded:** the engine side (timeline, automationOverlay, automation, frameEngine) may not
+   read the map at all. The clip inspector now also names any role a lane is already winning.
 2. **No per-slot editing of an existing pose key.** The data supports it (a pose stores one slot per
    fixture when they differ) but there is no UI to change slot 3 of a stored key. Today you re-store
    the whole key, or keep that head in its own group. This is the most likely first request.

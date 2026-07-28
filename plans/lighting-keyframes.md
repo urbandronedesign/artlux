@@ -6,9 +6,10 @@
 > Companion to [fixture-kinds.md](fixture-kinds.md) (it supplies the typed *light* group this addresses).
 >
 > Every phase is implemented and verified — E1 and E2 against the hardware-recorded numbers in
-> docs/LIGHTING-SHOW.md, E6 by watching the wire change. **One item was NOT built: the degrees
-> display transform (§L6).** Two of the §10 open questions were answered by building, and one of the
-> answers contradicts the recommendation written here — see the status doc.
+> docs/LIGHTING-SHOW.md, E6 by watching the wire change. **The degrees display transform (§L6) and
+> its lane-shadow badge shipped afterwards, so L6 is now closed too.** Two of the §10 open questions
+> were answered by building, and one of the answers contradicts the recommendation written here —
+> see the status doc.
 
 ## Context — the one-sentence problem
 
