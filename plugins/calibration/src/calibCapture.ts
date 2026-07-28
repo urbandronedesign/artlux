@@ -38,6 +38,7 @@ export interface StartOpts {
 }
 
 let source: CaptureSource = 'browser';
+let lastOpts: StartOpts | null = null; // what start() was last called with — see current()
 
 // browser-source state
 let stream: MediaStream | null = null;
@@ -62,6 +63,7 @@ export async function enumerate(): Promise<CameraDevice[]> {
 export async function start(opts: StartOpts): Promise<void> {
   stop();
   source = opts.source;
+  lastOpts = opts;
   if (source === 'native') {
     await startNative(opts);
   } else {
@@ -124,9 +126,19 @@ export function stop(): void {
   // native
   if (nativeOpen) { calibNative.calibCameraClose(); nativeOpen = false; }
   nativeDims = { w: 0, h: 0 };
+  lastOpts = null;
 }
 
 export function isNative(): boolean { return source === 'native'; }
+
+// What is open right now — device, mode and resolution. Needed to COMMISSION a camera profile: an
+// unattended run has to reopen the exact instrument the reference was measured with, and a profile
+// typed in by hand would drift from whatever the operator actually tuned in the wizard.
+export function current(): (StartOpts & { w: number; h: number }) | null {
+  if (!lastOpts) return null;
+  const d = dims();
+  return { ...lastOpts, w: d.w, h: d.h };
+}
 
 // Set a camera capture property for decode SNR. `prop` is a source-agnostic name:
 //   'autoexposure' | 'exposure' | 'gain' | 'gamma' | 'brightness'

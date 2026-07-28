@@ -10,7 +10,7 @@
 
 import React from 'react';
 import {
-  Layers, Box, Users, SlidersHorizontal, Image as ImageIcon, Film, Lightbulb, MonitorPlay, Crosshair, Clapperboard, Music, Radar, Radio, Activity, Gauge, Hash, Plus, RefreshCw, Workflow, Timer, Network, Settings, FolderOpen, Save, Trash2, Copy, Grid3x3, Cable, Play, Move3d, Diamond, Bookmark, Library, Route,
+  Layers, Box, Boxes, Users, SlidersHorizontal, Image as ImageIcon, Film, Lightbulb, MonitorPlay, Crosshair, Clapperboard, Music, Radar, Radio, Activity, Gauge, Hash, Plus, RefreshCw, Workflow, Timer, Network, Settings, FolderOpen, Save, Trash2, Copy, Grid3x3, Cable, Play, Move3d, Diamond, Bookmark, Library, Route,
 } from 'lucide-react';
 import { panelRegistry, contextRegistry } from '../host/registries';
 import { SCENE_3D_VIEWPORT } from '../components/shell/WorkspaceShell';
@@ -285,15 +285,25 @@ export function registerCoreWorkspace(): void {
     // pane, which the pose step needs open beside the camera — that pairing is the whole workbench.
     viewport: VIEWPORT_STAGE_2D,
     browser: [],
-    inspector: [],
+    // Declared, not opened. A venue mesh at the wrong SCALE still reprojects with a low RMS and still
+    // lands off the wall — the one error this method cannot detect from its own numbers — so the
+    // transform has to be reachable from here. The default workbench is unchanged (`showRight: false`,
+    // the camera + 3D pairing stays as designed); this only stops the function being locked away.
+    inspector: ['core.inspector.model.transform'],
     layout: { showLeft: false, showRight: false, dockOpen: false, splitView: true, splitRatio: 0.55, bottomOpen: false },
-    layoutRev: 2,
+    // Bumped for the inspector panel above: the compiled tree changed, and a banked slice from an
+    // earlier session would otherwise keep the old one forever (docs/WORKSPACE.md).
+    layoutRev: 3,
     hint: {
       en: 'Start a calibration from Projection Outputs — camera here, 3D venue scene alongside.',
       fr: 'Lancez un calibrage depuis les Sorties — la caméra ici, la scène 3D à côté.',
     },
     actions: [
       { id: 'outputs', label: 'Outputs…', icon: <MonitorPlay size={13} />, menuAction: 'outputs' },
+      // The venue mesh is this context's metric reference, and it was only obtainable from the Scene
+      // workspace — so an operator who got here without one had to leave, losing the session. Also
+      // offered inline on the wizards' failing prerequisite row.
+      { id: 'add-model', label: 'Load Venue Model…', icon: <Boxes size={13} />, menuAction: 'add-model' },
     ],
   });
 

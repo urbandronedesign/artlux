@@ -1,16 +1,18 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X, Camera, Check, AlertTriangle, Loader2, MousePointer, ScanLine, Aperture } from 'lucide-react';
 import type { MainToProjector } from '@/projector/bridge'; // host bridge type — transitional seam (props still App-driven)
-import type { ProjectorCalibration, ProjectorOutput, Scene3D, CamMask, MarkerMap } from '../../../shared/protocol';
+import type { ProjectorCalibration, ProjectorOutput, Scene3D, CamMask, MarkerMap, FiducialMarker } from '../../../shared/protocol';
 import { CameraViewport, type CameraViewportHandle } from './calib/CameraViewport';
 import { CameraParamsPanel } from './calib/CameraParamsPanel';
 import * as cam from './calibCapture';
 import * as calibHost from './calibHost';
 import * as calibWorkspace from './calibWorkspace';
 import * as slCapture from './slCapture';
-import { reproject } from './cvCamera';
+import { computeResiduals } from './residuals';
 import { regionFromCalibration } from './mpcdiData';
 import * as calibNative from './calibNative';
+import * as blendController from './blendController';
+import * as autoRecal from './autoRecal';
 import {
   solveCameraPose, solveGeometry, defaultMarkerlessConfig, camPicksFromAruco,
   type CamPick, type CameraPose, type MarkerlessResult,
@@ -83,6 +85,9 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
   const ARUCO_DICT = 0; // DICT_4X4_50
   const [detIds, setDetIds] = useState<number[]>([]); // last ArUco detection (ids), for registration UI
   const regMarkerRef = useRef<number | null>(null); // id awaiting its 3D model click during registration
+  const regCornerModeRef = useRef(false);           // registering four corners rather than one centre
+  const regCornersRef = useRef<[number, number, number][]>([]);
+  const [regCorners, setRegCorners] = useState(0);  // corners collected so far (UI progress)
   const [picks, setPicks] = useState<CamPick[]>([]);
   const [pose, setPose] = useState<CameraPose | null>(null);
   const [result, setResult] = useState<MarkerlessResult | null>(null);
@@ -139,11 +144,39 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
       // Registration: the pending point is a detected marker's centroid → store id↔3D in the marker map.
       if (regMarkerRef.current != null) {
         const id = regMarkerRef.current;
-        regMarkerRef.current = null; pendingRef.current = null; setPendingCamPx(null);
         const prev = scene3D.markerMap;
-        const markers = [...(prev?.markers ?? []).filter((m) => m.id !== id), { id, world }];
-        onStoreMarkerMap?.({ dict: prev?.dict ?? ARUCO_DICT, markers });
-        addLog(`✓ registered marker ${id} (${markers.length} total) — recalibration is now one-click`);
+        const commit = (m: FiducialMarker) => {
+          regMarkerRef.current = null; regCornersRef.current = []; setRegCorners(0);
+          pendingRef.current = null; setPendingCamPx(null);
+          const markers = [...(prev?.markers ?? []).filter((x) => x.id !== id), m];
+          onStoreMarkerMap?.({ dict: prev?.dict ?? ARUCO_DICT, markers });
+          return markers.length;
+        };
+        // CORNER registration: four clicks, in the detector's own order. Worth the extra three
+        // clicks, once, at commissioning — four distinct 3D points condition the pose solve, whereas
+        // a centre pairs all four image corners with ONE point (four rays through a point, which is
+        // rank-deficient). The unattended path REFUSES a pose built that way; see anchorQuality.
+        if (regCornerModeRef.current) {
+          regCornersRef.current = [...regCornersRef.current, world];
+          setRegCorners(regCornersRef.current.length);
+          const CORNER_NAMES = ['top-left', 'top-right', 'bottom-right', 'bottom-left'];
+          if (regCornersRef.current.length < 4) {
+            addLog(`marker ${id}: ${regCornersRef.current.length}/4 — now click its ${CORNER_NAMES[regCornersRef.current.length]} corner`);
+            return;
+          }
+          const c = regCornersRef.current as [number, number, number][];
+          const centre: [number, number, number] = [
+            (c[0][0] + c[1][0] + c[2][0] + c[3][0]) / 4,
+            (c[0][1] + c[1][1] + c[2][1] + c[3][1]) / 4,
+            (c[0][2] + c[1][2] + c[2][2] + c[3][2]) / 4,
+          ];
+          const n = commit({ id, world: centre, worldCorners: [c[0], c[1], c[2], c[3]] });
+          addLog(`✓ marker ${id} registered with 4 corners (${n} total) — usable as an unattended reference`);
+          return;
+        }
+        const n = commit({ id, world });
+        addLog(`✓ registered marker ${id} centre (${n} total) — one-click re-anchor works; ` +
+          `register corners if this venue recalibrates itself unattended`);
         return;
       }
       const camPx = pendingRef.current;
@@ -262,15 +295,34 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
     return det;
   };
 
-  // Registration: pick a detected marker to pair with the next 3D model click.
-  const registerMarker = async (id: number) => {
+  // Load the venue mesh from HERE. It is a prerequisite of this wizard, and until now the only way to
+  // satisfy it was to leave the calibration context entirely, find the Scene panel, add the model and
+  // navigate back — losing the session on the way. Goes through the host service so the placement and
+  // naming rules stay in one place (see Scene3DService.addModel).
+  const addVenueModel = async () => {
+    setBusy('model');
+    try {
+      const id = await calibHost.addVenueModel();
+      addLog(id ? '✓ venue model added — it appears in the 3D scene alongside' : 'no model chosen');
+    } catch (e) {
+      addLog(`✗ could not load the model: ${(e as Error).message}`);
+    } finally { setBusy(null); }
+  };
+
+  // Registration: pick a detected marker to pair with the next 3D model click(s).
+  const registerMarker = async (id: number, corners = false) => {
     const det = await detectMarkers();
     if (!det) return;
     const i = det.ids.indexOf(id);
     if (i < 0) { addLog(`marker ${id} not currently visible`); return; }
     const c = markerCentroid(det, i);
-    regMarkerRef.current = id; pendingRef.current = c; setPendingCamPx(c);
-    addLog(`marker ${id} selected — click its real-world point on the model`);
+    regMarkerRef.current = id;
+    regCornerModeRef.current = corners;
+    regCornersRef.current = []; setRegCorners(0);
+    pendingRef.current = c; setPendingCamPx(c);
+    addLog(corners
+      ? `marker ${id}: click its four corners on the model — top-left first, then clockwise`
+      : `marker ${id} selected — click its real-world point on the model`);
   };
 
   // One-click re-anchor: detect markers, look them up in the map, solve the camera pose — no manual picks.
@@ -301,6 +353,15 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
       rotation: r.calibration.rotation, translation: r.calibration.translation,
       imageSize: r.calibration.imageSize, intrinsicsRms: r.calibration.intrinsicsRms, poseRms: r.calibration.poseRms,
     });
+    // KEEP THE DENSE MAP. It used to die with this component, which is why the world-space blend could
+    // never be solved: computeBlendMaps needs every projector's map at once, and only one is ever in
+    // memory at a time. Session store + a sidecar beside the project, so a rig solved next week still
+    // has this scan. See blendController.
+    void blendController.captureScan(surfaceId, r.calibration.imageSize, r.denseMap);
+    // Feed the same scan into the unattended path: the camera intrinsics it just used, and a probe
+    // set + baseline for tomorrow's drift check. Without this the recalibration prerequisites can
+    // never be satisfied by any amount of calibrating — there is no other producer of either.
+    void autoRecal.commissionFromScan(surfaceId, r);
     const lens = r.selfCal?.ok ? `self-cal fx ${r.cameraK[0].toFixed(0)} (${r.selfCal.rms.toFixed(2)}px, ${r.selfCal.inliers} inl)`
       : r.selfCal ? `self-cal rejected → nominal fx ${r.cameraK[0].toFixed(0)}` : `nominal fx ${r.cameraK[0].toFixed(0)}`;
     addLog(`✓ ${r.hits}/${r.decoded} rays · cam ${lens} · proj lens ${(r.calibration.intrinsicsRms ?? 0).toFixed(2)}px · proj pose ${(r.calibration.poseRms ?? 0).toFixed(2)}px`);
@@ -362,7 +423,7 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
               className={`flex items-center gap-1 text-micro px-1 ${cur ? 'text-fg-1' : done ? 'text-ok' : 'text-fg-3'}`}>
               <span className={`w-4 h-4 rounded-full grid place-items-center border ${cur ? 'border-accent text-accent' : done ? 'border-ok text-ok' : 'border-line-1'}`}>
                 {done ? <Check size={10} /> : i + 1}
-              </span>{s.label}{i < STEPS.length - 1 && <span className="text-fg-4">›</span>}
+              </span>{s.label}{i < STEPS.length - 1 && <span className="text-fg-2">›</span>}
             </button>
           );
         })}
@@ -374,18 +435,25 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
             <p className="text-fg-3 leading-relaxed">Markerless camera auto-align onto the <b>loaded 3D model</b> — no checkerboard. You'll click a few matching points to anchor the camera, then scan. Needs a <b>camera</b>, a <b>venue model</b>, a <b>darkened room</b>, and a <b>projector output</b>.</p>
             <Row ok={addonOk === true} label="Calibration engine installed" />
             <Row ok={live} label="Projector output live" />
-            <Row ok={hasModel} label="Venue model loaded" />
+            <Row ok={hasModel} label="Venue model loaded"
+              action={{ label: 'Load model…', busy: busy === 'model', onClick: addVenueModel }} />
+            {!hasModel && (
+              <p className="text-fg-2 text-micro leading-snug">
+                The venue mesh is the metric reference this whole method replaces the checkerboard with —
+                a <b className="text-fg-1">.glb</b> of the real surface, at real-world scale.
+              </p>
+            )}
             <div className="pt-1 text-fg-3">Assumed camera horizontal FOV
               <span className="ml-1 text-fg-1 num">{hfov}°</span>
               <input type="range" min={30} max={110} value={hfov} onChange={(e) => setHfov(parseInt(e.target.value, 10))} className="w-full" />
-              <span className="text-fg-4 text-micro">A rough lens guess (board-free); refined later. PS3 Eye ≈ 56–75°.</span>
+              <span className="text-fg-2 text-micro">A rough lens guess (board-free); refined later. PS3 Eye ≈ 56–75°.</span>
             </div>
           </>
         )}
 
         {(step === 'camera' || step === 'pose') && (
           <>
-            <div className="text-fg-4 text-micro flex items-center gap-1.5"><MousePointer size={11} /> The live camera is in the large left view — scroll to zoom, drag to pan, click to place points.</div>
+            <div className="text-fg-2 text-micro flex items-center gap-1.5"><MousePointer size={11} /> The live camera is in the large left view — scroll to zoom, drag to pan, click to place points.</div>
             <div className="flex items-center gap-1 text-micro">
               <span className="text-fg-3">Capture via</span>
               {(['browser', 'native'] as cam.CaptureSource[]).map((s) => (
@@ -423,7 +491,7 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
                 {(scene3D.camMask?.polys.length ?? 0) > 0 && <span className="text-fg-3">{scene3D.camMask!.polys.length} region{scene3D.camMask!.polys.length === 1 ? '' : 's'}</span>}
                 {((scene3D.camMask?.polys.length ?? 0) > 0 || maskDraft.length > 0) && <button onClick={clearMask} className="text-danger hover:text-fg-1 ml-auto">clear</button>}
               </div>
-              {maskMode && <div className="text-fg-4 text-micro leading-snug">Click to outline a reflective hotspot / obstruction; <b>double-click</b> to close the region. Masked pixels are dropped from the scan.</div>}
+              {maskMode && <div className="text-fg-2 text-micro leading-snug">Click to outline a reflective hotspot / obstruction; <b>double-click</b> to close the region. Masked pixels are dropped from the scan.</div>}
             </div>
 
             {step === 'pose' && (
@@ -442,19 +510,32 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
                   )}
                   <div className="flex items-center gap-1.5 text-micro">
                     <button onClick={() => detectMarkers()} disabled={!camOn} className="px-1.5 py-0.5 rounded border bg-surface-1 border-line-1 text-fg-3 hover:bg-surface-2 disabled:opacity-40">Detect markers</button>
-                    <span className="text-fg-4">register: click an id, then its point on the model</span>
+                    <span className="text-fg-2">click an id to register its centre · <b>⌗</b> for four corners</span>
                   </div>
                   {detIds.length > 0 && (
                     <div className="flex flex-wrap gap-1">
                       {detIds.map((id) => {
-                        const known = (scene3D.markerMap?.markers ?? []).some((m) => m.id === id);
+                        const m = (scene3D.markerMap?.markers ?? []).find((x) => x.id === id);
+                        const active = regMarkerRef.current === id;
                         return (
-                          <button key={id} onClick={() => registerMarker(id)}
-                            className={`px-1.5 py-0.5 rounded border text-micro ${regMarkerRef.current === id ? 'bg-warn/20 border-warn text-fg-1' : known ? 'bg-ok/15 border-ok/60 text-fg-2' : 'bg-surface-1 border-line-1 text-fg-3 hover:bg-surface-2'}`}>
-                            {id}{known ? ' ✓' : ''}
-                          </button>
+                          <span key={id} className={`flex items-stretch rounded border overflow-hidden text-micro ${active ? 'border-warn' : m ? 'border-ok/60' : 'border-line-1'}`}>
+                            <button onClick={() => registerMarker(id, false)}
+                              title="Register this marker's CENTRE — enough for one-click re-anchor with an operator present"
+                              className={`px-1.5 py-0.5 ${active ? 'bg-warn/20 text-fg-1' : m ? 'bg-ok/15 text-fg-2' : 'bg-surface-1 text-fg-3 hover:bg-surface-2'}`}>
+                              {id}{m?.worldCorners ? ' ⌗' : m ? ' ✓' : ''}
+                            </button>
+                            <button onClick={() => registerMarker(id, true)}
+                              title="Register FOUR CORNERS — required for unattended recalibration, which refuses a pose built from centre-only markers"
+                              className={`px-1 py-0.5 border-l ${active && regCornerModeRef.current ? 'bg-warn/30 border-warn text-fg-1' : 'bg-surface-1 border-line-1 text-fg-2 hover:bg-surface-2 hover:text-fg-2'}`}>⌗</button>
+                          </span>
                         );
                       })}
+                    </div>
+                  )}
+                  {regMarkerRef.current != null && regCornerModeRef.current && (
+                    <div className="text-warn text-micro">
+                      marker {regMarkerRef.current}: {regCorners}/4 corners — click{' '}
+                      {['top-left', 'top-right', 'bottom-right', 'bottom-left'][regCorners] ?? '…'} on the model
                     </div>
                   )}
                   {(scene3D.markerMap?.markers.length ?? 0) > 0 && <button onClick={() => onStoreMarkerMap?.(null)} className="text-micro text-danger hover:text-fg-1">clear marker map</button>}
@@ -497,7 +578,7 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
             <p className="text-fg-3 leading-relaxed">Project Gray-code onto the venue and decode where each projector pixel lands. <b>Dim the room</b> and keep the camera + projector still. Camera pose is anchored ({picks.length} picks{pose ? `, RMS ${pose.rms.toFixed(2)}px` : ''}).</p>
             <label className="flex items-start gap-1.5 text-fg-3 cursor-pointer">
               <input type="checkbox" checked={selfCalOn} onChange={(e) => setSelfCalOn(e.target.checked)} className="mt-0.5" />
-              <span>Self-calibrate camera lens from the scan <span className="text-fg-4">(board-free focal; falls back to the FOV guess if the estimate is unreliable)</span></span>
+              <span>Self-calibrate camera lens from the scan <span className="text-fg-2">(board-free focal; falls back to the FOV guess if the estimate is unreliable)</span></span>
             </label>
             <button onClick={runScan} disabled={picks.length < 4 || !!busy} className="w-full px-2 py-1.5 rounded bg-accent/20 border border-accent text-fg-1 hover:bg-accent/30 disabled:opacity-40 flex items-center justify-center gap-1.5">
               {busy ? <Loader2 size={13} className="animate-spin" /> : <ScanLine size={13} />} Scan venue
@@ -517,7 +598,7 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
               <span className={(result.calibration.intrinsicsRms ?? 9) < 2 ? 'text-ok' : 'text-warn'}>lens RMS {(result.calibration.intrinsicsRms ?? 0).toFixed(2)}px</span>
               <span className={(result.calibration.poseRms ?? 9) < 3 ? 'text-ok' : 'text-warn'}>pose RMS {(result.calibration.poseRms ?? 0).toFixed(2)}px</span>
             </div>
-            <div className="text-fg-4 text-micro">Camera lens: {result.selfCal?.ok ? `self-calibrated (Sampson ${result.selfCal.rms.toFixed(2)}px, ${result.selfCal.inliers} inliers)` : result.selfCal ? 'self-cal rejected → assumed FOV' : 'assumed FOV'}</div>
+            <div className="text-fg-2 text-micro">Camera lens: {result.selfCal?.ok ? `self-calibrated (Sampson ${result.selfCal.rms.toFixed(2)}px, ${result.selfCal.inliers} inliers)` : result.selfCal ? 'self-cal rejected → assumed FOV' : 'assumed FOV'}</div>
             <div className="flex items-start gap-1.5 text-warn text-micro leading-snug"><AlertTriangle size={12} className="shrink-0 mt-0.5" /> Low RMS ≠ correct scale — confirm the projection lands right on the real surface before trusting it.</div>
             <div className="flex gap-1.5">
               <button onClick={finish} className="flex-1 px-2 py-1.5 rounded bg-ok/20 border border-ok text-fg-1 hover:bg-ok/30">Apply &amp; finish</button>
@@ -566,10 +647,19 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
   );
 };
 
-const Row: React.FC<{ ok: boolean; label: string }> = ({ ok, label }) => (
+// A prerequisite row. An unmet one may carry its own FIX — a checklist that only reports is a dead
+// end, and this one used to send the operator to another workspace to satisfy it (DESIGN-SYSTEM §6:
+// an empty state names the next action, wired to the real action).
+const Row: React.FC<{ ok: boolean; label: string; action?: { label: string; onClick: () => void; busy?: boolean } }> = ({ ok, label, action }) => (
   <div className="flex items-center gap-1.5">
     {ok ? <Check size={13} className="text-ok" /> : <AlertTriangle size={13} className="text-warn" />}
     <span className={ok ? 'text-fg-1' : 'text-fg-2'}>{label}</span>
+    {!ok && action && (
+      <button onClick={action.onClick} disabled={action.busy}
+        className="ml-auto px-1.5 py-0.5 rounded border border-accent bg-accent-dim text-fg-1 text-micro disabled:opacity-40">
+        {action.busy ? <Loader2 size={11} className="animate-spin" /> : action.label}
+      </button>
+    )}
   </div>
 );
 
@@ -577,6 +667,10 @@ const Row: React.FC<{ ok: boolean; label: string }> = ({ ok, label }) => (
 // projector raster — speckle = decode noise (good), spatially-structured = model/scale mismatch.
 const ResidualHeatmap: React.FC<{ result: MarkerlessResult }> = ({ result }) => {
   const ref = useRef<HTMLCanvasElement | null>(null);
+  // The numbers, not just the picture. An operator reading a speckle pattern is guessing; p95 says
+  // how far the worst of it really lands, and it is the same function the unattended recalibration
+  // scores a candidate solve with — so what the wizard shows and what the gate decides cannot drift.
+  const res = React.useMemo(() => computeResiduals(result.denseMap, result.calibration), [result]);
   useEffect(() => {
     const cv = ref.current; if (!cv) return;
     const ctx = cv.getContext('2d'); if (!ctx) return;
@@ -587,20 +681,23 @@ const ResidualHeatmap: React.FC<{ result: MarkerlessResult }> = ({ result }) => 
     ctx.fillStyle = '#0a0a0a'; ctx.fillRect(0, 0, cw, ch);
     const n = denseMap.proj.length / 2;
     for (let i = 0; i < n; i++) {
-      const X: [number, number, number] = [denseMap.world[i * 3], denseMap.world[i * 3 + 1], denseMap.world[i * 3 + 2]];
-      const rp = reproject(c.intrinsics, c.distortion, c.rotation, c.translation as [number, number, number], X);
-      if (!rp) continue;
-      const du = rp[0] - denseMap.proj[i * 2], dv = rp[1] - denseMap.proj[i * 2 + 1];
-      const err = Math.hypot(du, dv);
+      const err = res.perPoint[i];
+      if (!Number.isFinite(err)) continue;
       const t = Math.min(1, err / 4); // 0px green → ≥4px red
       ctx.fillStyle = `rgb(${Math.round(255 * t)},${Math.round(255 * (1 - t))},60)`;
       ctx.fillRect((denseMap.proj[i * 2] / W) * cw, (denseMap.proj[i * 2 + 1] / H) * ch, 2, 2);
     }
-  }, [result]);
+  }, [result, res]);
   return (
     <div>
       <div className="text-fg-3 text-micro mb-1 flex items-center gap-1"><Aperture size={11} /> Residual heatmap (projector raster) — green good, red ≥4px</div>
       <canvas ref={ref} className="w-full rounded border border-line-1 bg-black" />
+      <div className="text-micro text-fg-3 mt-1 num">
+        rms <span className="text-fg-1">{res.stats.rms.toFixed(2)}</span> px ·
+        p95 <span className="text-fg-1">{res.stats.p95.toFixed(2)}</span> px ·
+        max <span className="text-fg-1">{res.stats.max.toFixed(2)}</span> px ·
+        <span className={res.stats.skipped > res.stats.n * 0.05 ? 'text-warn' : ''}> {res.stats.n} pts{res.stats.skipped ? `, ${res.stats.skipped} behind the lens` : ''}</span>
+      </div>
     </div>
   );
 };

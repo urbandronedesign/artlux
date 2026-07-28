@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <cstring>
 #include <cstdlib>
+#include <cstdio>
 
 #ifdef NVWARP_HAVE_NVAPI
 #include "nvapi.h"
@@ -88,7 +89,16 @@ int nvw_set_warping(uint32_t displayId, const float* verts, int numVerts, int sl
     data.vertices = (float*)verts;
     int maxNumVertices = 0;
     int sticky = 0;
-    return NvAPI_GPU_SetScanoutWarping(displayId, &data, &maxNumVertices, &sticky) == NVAPI_OK ? 1 : 0;
+    NvAPI_Status st_ = NvAPI_GPU_SetScanoutWarping(displayId, &data, &maxNumVertices, &sticky);
+    // maxNumVertices is the driver's cap, and it used to be read into this local and thrown away.
+    // We send a dense triangle LIST (24x24 grid = 3456 vertices) where the public reference sends a
+    // 4-vertex TRIANGLESTRIP, so exceeding the cap is a real possibility — and its symptom is the
+    // worst kind: the call fails, the output renders unwarped, and nothing anywhere says why. Say why.
+    if (st_ != NVAPI_OK) {
+        fprintf(stderr, "[nvwarp] SetScanoutWarping failed on display 0x%08X: status=%d, sent %d verts, driver max=%d\n",
+                displayId, (int)st_, numVerts, maxNumVertices);
+    }
+    return st_ == NVAPI_OK ? 1 : 0;
 #else
     (void)displayId; (void)verts; (void)numVerts; (void)sl; (void)st; (void)sw; (void)sh;
     return 0;

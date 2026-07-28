@@ -1,5 +1,5 @@
 import type { Surface, Timeline } from '../types';
-import type { CornerPin, BezierWarp, SoftEdge, ProjectorCalibration, Scene3D } from '../../../shared/protocol';
+import type { CornerPin, BezierWarp, SoftEdge, ProjectorCalibration, ProjectorBlend, Scene3D } from '../../../shared/protocol';
 
 export interface ProjectorRender {
   cornerPin: CornerPin;
@@ -9,6 +9,14 @@ export interface ProjectorRender {
   brightness?: number; // projector-content master brightness (1 = full)
   colorGain?: [number, number, number]; // per-projector white-point/brightness match (1,1,1 = off)
   blackLift?: [number, number, number]; // per-projector additive black floor (0,0,0 = off)
+  // Solved world-space rig blend. Consumed ONLY by the calibrated render path (calibration's
+  // ProjectorScene) — the 2D ProjectorGL path blends from softEdge alone, because a 2D warp has no
+  // notion of where on the venue geometry a pixel lands.
+  blend?: ProjectorBlend | null;
+  // Who applies the blend. 'scanout' means NVAPI already carries it in the display's intensity map,
+  // so the GPU path must NOT apply it again — a doubled blend is alpha-squared, a dark seam that
+  // reads exactly like a mis-set gamma. Mirrors the existing double-WARP guard in App.
+  blendOwner?: 'gpu' | 'scanout';
   fpsCap?: number;   // 0 = uncapped
   ndiSend?: boolean; // also publish this output as an NDI source
   ndiFullRes?: boolean; // Broadcast: capture the NDI send at up to 1080p instead of 720p
@@ -54,7 +62,8 @@ export type MainToProjector =
   | { t: 'calib'; mode: 'idle' | 'pattern' | 'crosshair' | 'render'; crosshair?: [number, number]; calibration?: ProjectorCalibration | null }
   // Set the current structured-light pattern; the projector renders it raw (no warp/gamma) and acks.
   // 'fill' projects a flat RGB field at `rgb` (0..255) — used for camera-based gamma/colour measurement.
-  | { t: 'calibPattern'; kind: 'plane' | 'white' | 'black' | 'off' | 'fill'; index: number; rgb?: [number, number, number] }
+  // 'dots' additionally carries the projector-raster points to light (the drift check's probes).
+  | { t: 'calibPattern'; kind: 'plane' | 'white' | 'black' | 'off' | 'fill' | 'dots'; index: number; rgb?: [number, number, number]; dots?: [number, number][] }
   // The 3D venue scene (models) for render-from-projector mode.
   | { t: 'scene'; scene3D: Scene3D };
 

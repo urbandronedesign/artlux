@@ -513,6 +513,28 @@ export interface ProjectorCalibration {
   calibratedAt?: string;       // ISO timestamp
 }
 
+// A solved world-space blend map for one projector in a multi-projector rig — the SAVED result of
+// plugins/calibration's computeBlendMaps, which turns each projector's dense per-pixel 3D map into an
+// alpha grid whose values sum to 1 at every surface point lit by more than one projector (a partition
+// of unity: no seam, no brightness step). Persisted rather than recomputed because the input — the
+// dense scan — is session data that is thrown away, and an operator must be able to reopen a project
+// a year later and still have their blend without re-scanning the venue.
+//
+// Deliberately a low-res grid of plain numbers: ~80×45 = 3600 values ≈ 20 KB per projector, which
+// keeps the .artlux diffable and hand-inspectable. (The dense map it came from is 10^4–10^5 points and
+// lives in a sidecar under the project folder — see the calibration plugin's artifact store.)
+export interface ProjectorBlend {
+  w: number;
+  h: number;
+  alpha: number[];   // w*h, row-major, 0..1 — this projector's share of the light
+  black?: number[];  // w*h, row-major, 0..1 — spatial black-lift weight; absent when nothing overlaps
+  solvedAt: string;  // ISO timestamp
+  // The outputs solved TOGETHER. A blend is only meaningful for the exact rig it was computed for, so
+  // this is what makes "stale" detectable: recalibrate one projector, or add a third, and every map
+  // whose rigIds no longer match the calibrated set is out of date and says so.
+  rigIds: string[];
+}
+
 // One Surface routed to a physical projector as its own fullscreen output.
 export interface ProjectorOutput {
   surfaceId: string;
@@ -525,6 +547,11 @@ export interface ProjectorOutput {
   gamma?: number;             // per-output output gamma (1 = off)
   ndiSend?: boolean;          // also publish this output as an NDI source
   calibration?: ProjectorCalibration | null; // recovered intrinsics+distortion+pose (render-from-projector)
+  // The calibration this one replaced. The rollback slot: show mode has no undo history and there is
+  // no crash-recovery file, so when an unattended recalibration writes a new solve at 4am this is the
+  // only way back — a human can revert from the tablet without driving to the venue.
+  calibrationPrev?: ProjectorCalibration | null;
+  blend?: ProjectorBlend | null; // solved world-space share of the light in a multi-projector rig
   useCalibration?: boolean;   // when calibrated, render the 3D venue scene from the matched projector
   hwWarp?: boolean;           // apply warp+blend at the GPU scanout via NVAPI (Quadro/RTX-pro) instead
                               // of the GLSL path; ignored unless nvwarpAvailable() and a real display
@@ -603,10 +630,99 @@ export interface CamMask {
 
 // A fiducial (ArUco) marker placed in the venue at a known 3D point, registered once. Used for
 // one-click recalibration: the camera detects the marker → its id → this 3D point → camera pose.
-export interface FiducialMarker { id: number; world: [number, number, number] }
+export interface FiducialMarker {
+  id: number;
+  world: [number, number, number];
+  // The marker's four physical corners in world space, in ArUco detection order (TL, TR, BR, BL).
+  //
+  // WHY THIS EXISTS, and why centre-only is not good enough for an unattended run: a detection gives
+  // four sub-pixel image corners, and with only `world` all four get paired with the SAME 3D point —
+  // four rays through one point, which is rank-deficient. That satisfies solvePnP's "≥4 points" while
+  // conditioning it terribly. Fine for a wizard with a human watching the result; not fine as the
+  // sole absolute reference at 4am when the answer is allowed to overwrite a working calibration.
+  // Optional, so every existing marker map keeps working (see camPicksFromAruco's fallback).
+  worldCorners?: [
+    [number, number, number], [number, number, number],
+    [number, number, number], [number, number, number],
+  ];
+}
 export interface MarkerMap {
   dict: number;                  // ArUco predefined-dictionary id (e.g. 0 = DICT_4X4_50)
   markers: FiducialMarker[];
+}
+
+// ── Unattended recalibration (a permanent installation, running all year) ───────────────────────
+//
+// The calibration camera, remembered. Nothing about it is persisted today: device, resolution and
+// exposure all live in wizard component state, so every session starts from defaults. An unattended
+// run cannot re-pick a camera from a dialog — it has to reopen the exact same instrument, with
+// auto-exposure/white-balance/focus OFF, or the measurement it makes is not comparable to the one
+// the reference was captured with.
+export interface CalibCameraProfile {
+  source: 'browser' | 'native';       // getUserMedia, or the OpenCV/DirectShow path (PS3 Eye et al.)
+  index?: number;                     // native: OpenCV device index (DShow has no stable names)
+  deviceId?: string;                  // browser: MediaDeviceInfo.deviceId
+  width: number; height: number; fps: number;
+  fourcc?: string;
+  props?: Record<string, number>;     // exposure/gain/… re-applied verbatim each run
+  cameraK: number[];                  // trusted intrinsics, row-major 3×3
+  cameraDist: number[];               // [k1,k2,p1,p2,k3]
+  hfovDeg?: number;                   // fallback seed when cameraK is empty
+}
+
+// What a projector's calibration is measured AGAINST later. Deliberately expressed in projector and
+// world coordinates, never camera pixels: the camera is mounted but may be bumped, so nothing about
+// where it happened to be on the day may leak into the reference. Its pose is re-solved from the
+// marker map at the start of every run, before any judgement about a projector is made.
+export interface CalibReference {
+  surfaceId: string;
+  capturedAt: string;
+  // A sparse, well-spread subset of the dense scan: flat projector-pixel pairs + aligned world XYZ.
+  // Projected back as dots and re-measured; ~100–200 points is a 5-second check instead of a
+  // 42-frame Gray-code scan.
+  probes: { proj: number[]; world: number[] };
+  // The drift score of this calibration on the day it was accepted — day zero, so later runs are
+  // compared against how good it actually was, not against an ideal it never reached.
+  baseline: { rmsPx: number; rmsMm: number };
+}
+
+// Thresholds for the "auto-apply only if it validates better" policy. Every default here is
+// deliberately conservative: in an unattended venue a bad automatic solve is far worse than known
+// drift, because nobody is present to see it happen or to undo it.
+export interface AutoRecalConfig {
+  enabled: boolean;
+  /** Solve and report, but never write. Ships FALSE — see docs; flip only after a tuned commissioning run. */
+  autoApply: boolean;
+  /** Hard guard, not merely a schedule: a run refuses outside this wall-clock window. */
+  window?: { start: string; end: string };  // "HH:MM"
+  driftWarnMm: number;      // above this, escalate to a full re-solve
+  driftFailMm: number;      // above this, something is GROSSLY wrong — alert, and do not auto-solve
+  maxPoseJumpM: number;     // projectors are bolted; a big jump means the camera anchor is wrong
+  maxPoseJumpDeg: number;
+  maxFocalChangePct: number;
+  minDecoded: number;       // the wizard's ≥50 floor is far too low to trust unattended
+  minHits: number;
+  /** A candidate must be at least this much better to replace the incumbent (hysteresis). */
+  improveFactor: number;
+  checkLevel: number;       // grey level for the marker-lighting field, 0..255 (courtesy at 4am)
+}
+
+export const defaultAutoRecalConfig = (): AutoRecalConfig => ({
+  enabled: false, autoApply: false,
+  window: { start: '03:30', end: '05:30' },
+  driftWarnMm: 5, driftFailMm: 25,
+  maxPoseJumpM: 0.15, maxPoseJumpDeg: 3,
+  maxFocalChangePct: 10,
+  minDecoded: 1000, minHits: 500,
+  improveFactor: 0.8,
+  checkLevel: 90,
+});
+
+/** Everything the rig needs to recalibrate itself, persisted with the project. */
+export interface CalibRig {
+  camera?: CalibCameraProfile;
+  references?: CalibReference[];
+  autoRecal?: AutoRecalConfig;
 }
 
 // Floor calibration for camera pose tracking (@artlux/plugin-mediapipe): a 4-point homography relating
@@ -691,6 +807,10 @@ export interface Scene3D {
   augmentaViz?: boolean;              // overlay the Augmenta field + tracked-object markers in 3D (@artlux/plugin-augmenta)
   camMask?: CamMask;                  // markerless calibration camera exclusion mask (reflective hotspots)
   markerMap?: MarkerMap;              // registered fiducial markers for one-click recalibration
+  // Unattended recalibration state. Venue-scoped like camMask and markerMap, and for the same reason:
+  // the camera profile, the per-projector reference observations and the thresholds all describe THIS
+  // room. Moving the show to another venue must not carry them along.
+  calibRig?: CalibRig;
   // Legacy single-model fields (pre-multi-model); migrated into `models` on load.
   modelPath?: string;
   modelScale?: number;

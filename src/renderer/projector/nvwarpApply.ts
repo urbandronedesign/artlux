@@ -11,7 +11,7 @@
 // NVAPI scanout warp is a 2D framebuffer resample — geometry for 3D mapping comes from the calibrated
 // 3D render; here NVAPI's job is the final 2D warp (lens distortion / corner-pin) + edge blend.
 
-import type { ProjectorOutput, DisplayInfo } from '../../../shared/protocol';
+import type { ProjectorOutput, DisplayInfo, ProjectorBlend } from '../../../shared/protocol';
 import { defaultCornerPin } from '../../../shared/protocol';
 import type { BlendMap } from '@artlux/plugin-calibration/renderer';
 import { evalBezier } from './warp';
@@ -23,10 +23,26 @@ type P = [number, number];
 // These encode NVAPI conventions that can only be confirmed on a real Quadro/RTX-pro display. Each is
 // isolated here so a first-run fix is a one-line change (the doc flags struct/convention spellings as
 // pending on-hardware validation).
+// ⚠ TWO OF THESE DISAGREE WITH THE ONLY PUBLIC WORKING REFERENCE (errollw/Warp-and-Blend-Quadros,
+// which native/nvwarp/src/shim.cpp is modelled on). Check both FIRST on the Quadro — if the hardware
+// path appears to do nothing at all, it is almost certainly one of them, not the maths:
+//
+//  · WARP_TESS 24 emits a TRIANGLES list of 3456 vertices; the reference uses a 4-vertex
+//    TRIANGLESTRIP with real R/Q. NvAPI_GPU_SetScanoutWarping returns maxNumVertices — and
+//    shim.cpp currently reads it into a local and throws it away. If the driver's cap is under
+//    3456 the call simply fails and every hwWarp output silently renders unwarped. Log that value.
+//  · INTENSITY_W 64 assumes the driver upsamples a low-res blend map to the panel. The reference
+//    passes the map at NATIVE display resolution (1920x1080) and nothing in it suggests upsampling
+//    is supported. If the blend does not appear, try a full-resolution map before anything else.
+//
+// A third difference is a real gap rather than a tunable: the reference reads
+// NvAPI_Mosaic_GetCurrentTopo() to pick the texture-coordinate source and requires zero overlap in
+// Mosaic. We never consult Mosaic and use each display's own scanout rect — right for independent
+// displays, wrong under a Mosaic topology, which is exactly how big multi-projector walls are built.
 const WARP_TESS = 24;        // grid subdivisions per axis (matches GLSL RENDER_TESS in ProjectorApp)
 const NV_FLIP_Y = false;     // flip destination Y? false = top-left origin (matches display space 0..1)
 const NV_FLIP_V = false;     // flip texcoord V? false = top-left (matches GLSL content uv)
-const INTENSITY_W = 64;      // intensity/blend map width in cells (NVAPI upsamples to the raster)
+const INTENSITY_W = 64;      // intensity/blend map width in cells (assumes NVAPI upsamples — see above)
 
 // Normalized [0,1] display-space destination point for a content texcoord (u,v) — the warped position
 // the GLSL renderer would place that texel at. Bézier warp supersedes the corner-pin when present.
@@ -90,6 +106,10 @@ export function warpSrcRect(display: DisplayInfo): [number, number, number, numb
   ];
 }
 
+// CPU replica of softEdgeFeather() in ./blendGlsl.ts. It cannot literally share that source (this
+// runs on the CPU into an NVAPI intensity grid), so the two are kept in step BY HAND: change one,
+// change the other in the same commit. A divergence is a step at the seam that appears only when
+// hwWarp is toggled.
 const featherWeight = (d: number, w: number) => (w <= 0 ? 1 : Math.max(0, Math.min(1, d / w)));
 
 // Even-odd point-in-polygon (normalized content space). Used for the projector exclusion mask.
@@ -111,9 +131,16 @@ function maskWeight(out: ProjectorOutput, u: number, v: number): number {
 }
 
 // Bilinear sample of a low-res w×h grid (row-major) at normalized (u,v) ∈ [0,1].
+//
+// TEXEL-CENTRE convention: cell i covers u ∈ [i/w, (i+1)/w) and its centre is at (i+0.5)/w. That is
+// how computeBlendMaps BINS the samples (floor(u*mapW)) and how the GPU path samples the same grid
+// (a LinearFilter texture). This used to be `u * (w - 1)` — the endpoints convention — which put
+// every cell half a cell off its own centre and stretched the grid over the full 0..1 span, so the
+// scanout blend sat half a cell away from the GLSL one. Two blends that disagree by half a cell are
+// a visible step at the seam when hwWarp is toggled, and nothing else in the app would explain it.
 function sampleGrid(data: Float32Array, w: number, h: number, u: number, v: number): number {
-  const fx = Math.max(0, Math.min(1, u)) * (w - 1);
-  const fy = Math.max(0, Math.min(1, v)) * (h - 1);
+  const fx = Math.max(0, Math.min(w - 1, Math.max(0, Math.min(1, u)) * w - 0.5));
+  const fy = Math.max(0, Math.min(h - 1, Math.max(0, Math.min(1, v)) * h - 0.5));
   const x0 = Math.floor(fx), y0 = Math.floor(fy);
   const x1 = Math.min(w - 1, x0 + 1), y1 = Math.min(h - 1, y0 + 1);
   const tx = fx - x0, ty = fy - y0;
@@ -167,6 +194,22 @@ export function buildIntensity(
     }
   }
   return { w, h, rgb };
+}
+
+// The persisted blend (plain numbers, so the .artlux stays JSON) as the in-memory map the sampler
+// wants. Null in → null out, which is the "no rig blend solved" case and leaves buildIntensity on the
+// analytic soft edge alone.
+export function toBlendMap(blend: ProjectorBlend | null | undefined): BlendMap | null {
+  if (!blend || !blend.w || !blend.h || !blend.alpha?.length) return null;
+  const n = blend.w * blend.h;
+  if (blend.alpha.length < n) return null; // truncated/corrupt map — better no blend than a wrong one
+  return {
+    surfaceId: '',
+    w: blend.w,
+    h: blend.h,
+    data: Float32Array.from(blend.alpha.slice(0, n)),
+    ...(blend.black && blend.black.length >= n ? { black: Float32Array.from(blend.black.slice(0, n)) } : {}),
+  };
 }
 
 export interface NvwarpPayload {

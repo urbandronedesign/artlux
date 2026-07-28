@@ -57,6 +57,30 @@ const outputUp = new Gauge({
     registers: [register],
 });
 
+// ---- A narrow seam for plugin-owned gauges -------------------------------------------------
+// The Registry stays private on purpose — a plugin that could reach it could also clear it, or
+// register a series that collides with a core one. This exposes exactly one verb: set a named gauge.
+// Created lazily on first use, so a plugin that never runs costs nothing on scrape.
+//
+// This is the PRIMARY alerting channel for an unattended installation, and the two rules that matter
+// are not the obvious ones. `artlux_calib_result >= 2` catches a fault; but
+// `time() - artlux_calib_last_run_ts > 26*3600` catches a maintenance task that silently STOPPED
+// HAPPENING, which over a year is far more likely and completely invisible otherwise.
+const pluginGauges = new Map<string, Gauge<string>>();
+
+export function setPluginGauge(
+    name: string, help: string, labels: Record<string, string>, value: number,
+): void {
+    if (!name.startsWith('artlux_')) throw new Error(`[metrics] plugin gauge "${name}" must be artlux_-prefixed`);
+    let g = pluginGauges.get(name);
+    if (!g) {
+        g = new Gauge({ name, help, labelNames: Object.keys(labels), registers: [register] });
+        pluginGauges.set(name, g);
+    }
+    // Non-finite would render as NaN in the exposition format and break the scrape for every series.
+    g.set(labels, Number.isFinite(value) ? value : -1);
+}
+
 export interface EngineStats {
     fps: number;
     pps: number;

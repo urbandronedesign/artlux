@@ -3,6 +3,7 @@ import { MonitorUp, RefreshCw, Frame, Undo2, Settings2, Spline, Gauge, Radio, Ap
 import { Surface, SourceType } from '../types';
 import { ProjectorOutput, OutputSpan, DisplayInfo, SoftEdge, SrcRect, defaultSoftEdge, WINDOWED_DISPLAY } from '../../../shared/protocol';
 import { SpanEditor } from './SpanEditor';
+import { RigBlendStrip } from './RigBlendStrip';
 import { Tooltip } from './ui/Tooltip';
 import { help } from '../services/helpBus';
 
@@ -126,6 +127,9 @@ export const OutputsPanel: React.FC<Props> = ({
             onSetSliceRect={onSetSliceRect}
             onToggleEditMany={onToggleEditMany}
           />
+
+          {/* Rig blend across the calibrated outputs — hides itself below two. */}
+          <RigBlendStrip outputs={outputs} />
 
           <div className="border border-line-2 rounded-md divide-y divide-line-2">
             <div className={`grid ${COLS} gap-2 px-2 py-1 text-micro uppercase tracking-wider text-fg-3`}>

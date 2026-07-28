@@ -74,7 +74,6 @@ export function computeBlendMaps(projectors: ProjectorBlendInput[], opts: BlendO
     for (let i = 0; i < W.length; i += 3) for (let k = 0; k < 3; k++) { const v = W[i + k]; if (v < mn[k]) mn[k] = v; if (v > mx[k]) mx[k] = v; }
   }
   const diag = Math.hypot(mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]) || 1;
-  const voxel = opts.voxel && opts.voxel > 0 ? opts.voxel : diag / 80;
 
   // Per-projector coverage grid: footprint, averaged world point per cell, edge distance.
   const grids: Grid[] = projectors.map((p) => {
@@ -112,37 +111,97 @@ export function computeBlendMaps(projectors: ProjectorBlendInput[], opts: BlendO
     return { mapW, mapH, n, covered: closed, wx, wy, wz, dist: footprintEdgeDistance(closed, mapW, mapH) };
   });
 
+  // ── The association voxel is sized like a CELL, not like the room ──────────────────────────────
+  // The voxel exists to decide "these two projectors light the same spot", so the only scale that
+  // matters is how much world a blend-map cell covers. A voxel fixed to the scene diagonal was right
+  // only by accident at the default resolution: raise mapW and the cells shrink while the voxel does
+  // not, so association starts smearing over several cells and the seam error stops improving — the
+  // residual fell only 1.4x for a 4x resolution increase. Tied to the cell, it falls as it should.
+  // Measured across both regimes in scripts/test-blend.ts.
+  const cellWorld = (): number => {
+    let sum = 0, n = 0;
+    for (const g of grids) {
+      for (let y = 0; y < g.mapH; y++) {
+        for (let x = 1; x < g.mapW; x++) {
+          const c = y * g.mapW + x, p = c - 1;
+          if (!g.covered[c] || !g.covered[p]) continue;
+          sum += Math.hypot(g.wx[c] - g.wx[p], g.wy[c] - g.wy[p], g.wz[c] - g.wz[p]);
+          n++;
+        }
+      }
+    }
+    return n ? sum / n : diag / 80;
+  };
+  // 1.0 cell: the 3×3×3 dilation then reaches exactly one cell in each direction, which is what it
+  // takes to bridge the half-cell offset between two projectors' grids and no more.
+  const voxel = opts.voxel && opts.voxel > 0 ? opts.voxel : Math.max(1e-6, cellWorld());
+
   // Associate covered cells across projectors by world voxel; track each projector's representative
   // (max) edge-distance in the voxel.
   const voxels = new Map<string, Map<number, { dRep: number; cells: number[] }>>();
+  const coords = new Map<string, [number, number, number]>(); // key → integer voxel coords (for dilation)
   grids.forEach((g, pi) => {
     for (let c = 0; c < g.n; c++) {
       if (!g.covered[c]) continue;
-      const key = `${Math.round(g.wx[c] / voxel)}_${Math.round(g.wy[c] / voxel)}_${Math.round(g.wz[c] / voxel)}`;
-      let vm = voxels.get(key); if (!vm) { vm = new Map(); voxels.set(key, vm); }
+      const ix = Math.round(g.wx[c] / voxel), iy = Math.round(g.wy[c] / voxel), iz = Math.round(g.wz[c] / voxel);
+      const key = `${ix}_${iy}_${iz}`;
+      let vm = voxels.get(key); if (!vm) { vm = new Map(); voxels.set(key, vm); coords.set(key, [ix, iy, iz]); }
       let e = vm.get(pi); if (!e) { e = { dRep: 0, cells: [] }; vm.set(pi, e); }
       e.cells.push(c); if (g.dist[c] > e.dRep) e.dRep = g.dist[c];
     }
   });
 
-  // Alpha = this projector's representative distance / sum over projectors in the voxel → Σα = 1.
+  // ── DILATE the association by one voxel before dividing ────────────────────────────────────────
+  // Two projectors do not share a cell grid: at the same physical point their cell centroids sit
+  // roughly half a cell apart, so they routinely land in ADJACENT voxels and — with a hard hash —
+  // never meet. Such a cell then looks single-covered and keeps alpha 1 in the middle of a seam,
+  // which on the wall is a bright band exactly where the blend was supposed to disappear. (Observed:
+  // an otherwise clean ramp with isolated 1.000 cells inside the overlap; scripts/test-blend.ts.)
+  //
+  // So a voxel's DENOMINATOR is taken over its 3×3×3 neighbourhood: if a projector lights anywhere
+  // nearby, it is part of the division here. Two adjacent voxels then see the same neighbours and
+  // agree. This does not let a distant projector steal share — a projector whose footprint merely
+  // touches the neighbourhood has an edge-distance near 0 there, so it contributes ~0 to the sum.
+  // MEAN over the neighbourhood, not max. The edge-distance field is locally linear across a seam, and
+  // the mean of a linear field over a symmetric neighbourhood is its value at the centre — unbiased.
+  // Taking the max instead adds most of a cell to every projector, and because the two projectors are
+  // evaluated in DIFFERENT voxels those inflations do not cancel: it put a uniform +9.6% across the
+  // whole overlap (a bright band, just a smooth one). Measured in scripts/test-blend.ts.
+  const nbr = new Map<string, number[]>(); // key → per-projector representative distance, dilated
+  for (const [key, [ix, iy, iz]] of coords) {
+    const sum = new Array<number>(projectors.length).fill(0);
+    const hits = new Array<number>(projectors.length).fill(0);
+    for (let dz = -1; dz <= 1; dz++) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const vm = voxels.get(`${ix + dx}_${iy + dy}_${iz + dz}`);
+      if (!vm) continue;
+      for (const [pi, e] of vm) { sum[pi] += e.dRep; hits[pi]++; }
+    }
+    nbr.set(key, sum.map((s, pi) => (hits[pi] ? s / hits[pi] : 0)));
+  }
+
+  // Alpha = this projector's representative distance / sum over projectors present nearby → Σα = 1.
   const out = grids.map((g) => new Float32Array(g.n));
-  for (const vm of voxels.values()) {
-    let denom = 0; for (const e of vm.values()) denom += e.dRep;
+  for (const [key, vm] of voxels) {
+    const acc = nbr.get(key)!;
+    let denom = 0; for (const d of acc) denom += d;
     if (denom <= 0) { const k = vm.size; for (const [pi, e] of vm) for (const c of e.cells) out[pi][c] = 1 / k; continue; }
-    for (const [pi, e] of vm) { const a = e.dRep / denom; for (const c of e.cells) out[pi][c] = a; }
+    for (const [pi, e] of vm) { const a = acc[pi] / denom; for (const c of e.cells) out[pi][c] = a; }
   }
 
   // Black-lift weight: per voxel, overlap count = vm.size. A cell covered by this projector needs to
   // fake the black of the (maxOverlap − overlapHere) projectors that don't reach it, normalized so the
   // least-overlapped region = 1 and the deepest overlap = 0. Only meaningful with ≥2 projectors.
+  // Counted over the SAME dilated neighbourhood as the alphas — a hard per-voxel count would say
+  // "one projector here" at exactly the boundary cells the dilation exists to rescue, and then lift
+  // the black floor to full inside an overlap that already has two projectors' worth of black.
+  const overlapAt = (key: string): number => nbr.get(key)!.reduce((n, d) => (d > 0 ? n + 1 : n), 0);
   let maxOverlap = 1;
-  for (const vm of voxels.values()) if (vm.size > maxOverlap) maxOverlap = vm.size;
+  for (const key of voxels.keys()) { const k = overlapAt(key); if (k > maxOverlap) maxOverlap = k; }
   const black = grids.map((g) => new Float32Array(g.n));
   if (maxOverlap > 1) {
     const span = maxOverlap - 1;
-    for (const vm of voxels.values()) {
-      const wgt = (maxOverlap - vm.size) / span; // 0 at deepest overlap, 1 at single coverage
+    for (const [key, vm] of voxels) {
+      const wgt = (maxOverlap - overlapAt(key)) / span; // 0 at deepest overlap, 1 at single coverage
       for (const [pi, e] of vm) for (const c of e.cells) black[pi][c] = wgt;
     }
   }

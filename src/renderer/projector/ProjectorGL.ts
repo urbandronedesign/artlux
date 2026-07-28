@@ -1,5 +1,6 @@
 import type { CornerPin, WarpGrid, SoftEdge } from '../../../shared/protocol';
 import { cornerQs, toClip } from './homography';
+import { SOFT_EDGE_GLSL } from './blendGlsl';
 
 // Renders one surface's content as either a perspective-correct corner-pinned quad or a
 // grid-mesh warp, with per-output soft-edge blending + gamma, into a multisampled WebGL2
@@ -26,29 +27,23 @@ void main() {
   gl_Position = vec4(aPos, 0.0, 1.0);
 }`;
 
+// The soft-edge ramp itself lives in blendGlsl.ts because the calibrated render path (which draws
+// OVER this canvas and so never reaches this shader) has to apply exactly the same one.
 const FRAG = `
 precision mediump float;
 varying vec3 vUVQ;
 uniform sampler2D uTex;
 uniform vec4 uSoft;        // left, right, top, bottom feather widths (0 = hard)
-uniform float uBlendGamma; // THE PROJECTOR'S GAMMA — the ramp below is a^(1/g), not a^g. See below.
+uniform float uBlendGamma; // THE PROJECTOR'S GAMMA — the ramp is share^(1/g), not share^g.
 uniform float uGamma;      // output gamma (1 = off)
 uniform float uBrightness; // projector-content master brightness (1 = full)
 uniform vec3 uColorGain;   // per-channel white-point/brightness match across projectors (1,1,1 = off)
 uniform vec3 uBlackLift;   // per-channel additive black floor to match overlap black (0,0,0 = off)
-float feather(float d, float w) { return w <= 0.0 ? 1.0 : clamp(d / w, 0.0, 1.0); }
+${SOFT_EDGE_GLSL}
 void main() {
   vec2 uv = vUVQ.xy / vUVQ.z;
   vec4 c = texture2D(uTex, uv);
-  float a = feather(uv.x, uSoft.x) * feather(1.0 - uv.x, uSoft.y)
-          * feather(uv.y, uSoft.z) * feather(1.0 - uv.y, uSoft.w);
-  // ⚠ THE EXPONENT IS 1/g, AND IT USED TO BE g — which made every soft edge a BLACK BAND.
-  //
-  // a is the linear share of the picture this projector is responsible for across the overlap; the
-  // neighbour has 1-a. What has to sum to one is LIGHT, and a projector emits signal^g. So the signal
-  // must be a^(1/g): the screen then emits (a^(1/g))^g = a, and a + (1-a) = 1 exactly, everywhere.
-  // With pow(a, g) the middle of a seam emitted 2·0.5^2.2 ≈ 0.07 of full light instead of 1.0.
-  float pa = pow(a, 1.0 / uBlendGamma);
+  float pa = blendSignal(softEdgeShare(uv, uSoft), uBlendGamma);
   // Edge blend × per-projector colour gain, plus the black floor where content is attenuated so an
   // overlap's doubled black matches the single-projector black. Identity at gain=1, lift=0.
   c.rgb = c.rgb * pa * uColorGain + uBlackLift * (1.0 - pa);

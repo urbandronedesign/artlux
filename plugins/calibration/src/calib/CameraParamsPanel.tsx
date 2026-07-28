@@ -205,8 +205,8 @@ export const CameraParamsPanel: React.FC<Props> = ({ camOn, sessionKey, width, h
                 {!fpsOptions.includes(fps) && fps > 0 && <option value={fps}>{fps} (current)</option>}
               </select>
             </div>
-            <div className="flex items-center gap-1 text-fg-4 text-micro"><RotateCcw size={9} /> changing resolution / fps restarts the camera</div>
-            <div className="text-fg-4 text-micro">
+            <div className="flex items-center gap-1 text-fg-2 text-micro"><RotateCcw size={9} /> changing resolution / fps restarts the camera</div>
+            <div className="text-fg-2 text-micro">
               {modes
                 ? `${resolutions.length} mode${resolutions.length === 1 ? '' : 's'} reported by the device`
                 : 'device modes unavailable — showing common presets, which the driver may silently refuse'}

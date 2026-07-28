@@ -95,7 +95,7 @@ export const FixtureProfilePicker: React.FC<Props> = ({ selectedId, onPick, maxH
               key={row.id}
               role="option"
               aria-selected={isSelected}
-              className={`group flex items-center gap-1.5 rounded-sm px-1.5 py-1 text-xs ${isSelected ? 'bg-accent/15 text-fg-0' : 'text-fg-1'}`}
+              className={`group flex items-center gap-1.5 rounded-sm px-1.5 py-1 text-xs ${isSelected ? 'bg-accent/15 text-fg-1' : 'text-fg-2'}`}
             >
               <button
                 className="flex-1 min-w-0 text-left truncate"

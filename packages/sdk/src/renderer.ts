@@ -593,6 +593,15 @@ export interface Scene3DService<S = unknown> {
   get(): S;
   patch(partial: Partial<S>): void;
   subscribe(cb: () => void): () => void; // fires when the 3D scene changes
+  // Open the native file picker and add the chosen GLB to the venue, placed and named exactly as the
+  // Scene panel does it. A service method rather than something a plugin assembles from `patch`,
+  // because the placement and naming rules are the host's and a second copy would drift.
+  //
+  // This exists because the venue model is a PREREQUISITE of calibration but was only reachable from
+  // another workspace: the calibration wizard said "Venue model loaded ✗" and offered no way to load
+  // one, so the operator had to leave the context, find the Scene panel, come back, and start again.
+  // Resolves to the model's id, or null if the picker was cancelled.
+  addModel(): Promise<string | null>;
 }
 
 // Read-only view of the persisted app settings (AppSettings), for feature plugins whose UI has no
@@ -832,7 +841,25 @@ export interface BootService {
   isBooting(): boolean;
 }
 
+// ─── Project service ────────────────────────────────────────────────────────────────────────
+// Where the open document lives on disk. A plugin needs this to write SIDECAR artifacts beside the
+// project — data too large to live inside the .artlux but meaningless away from it (the calibration
+// plugin's dense per-pixel 3D maps are 10^4–10^5 points each, and the world-space blend cannot be
+// re-solved for one projector without the others').
+//
+// `path()` is null for an unsaved project, and that is not a detail to paper over: an unattended
+// process must never trigger a Save dialog, so a caller with no path must degrade, not prompt.
+export interface ProjectService {
+  /** Absolute path of the open .artlux file, or null when it has never been saved. */
+  path(): string | null;
+  // Write the document to its existing path. Returns false — never a dialog — when there is no path:
+  // an unattended process must not be able to block the machine on a modal nobody will ever click.
+  // The write itself is atomic (temp file + rename), so a crash mid-save cannot truncate a project.
+  save(): Promise<boolean>;
+}
+
 export interface RendererHostServices {
+  project: ProjectService;
   projectorOutputs: ProjectorOutputsService;
   surfaces: SurfacesService;
   scene3D: Scene3DService;

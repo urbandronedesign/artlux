@@ -2,8 +2,9 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { useGLTF, TransformControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { ledUnderPointer } from './pickPriority';
-import { SceneModel, modelScaleXYZ } from '../../../../shared/protocol';
+import { SceneModel } from '../../../../shared/protocol';
 import { useLayerTexture } from './useLayerTexture';
+import { recenterClone, applyModelTransform } from './venuePlacement';
 import { registerVenueMesh, unregisterVenueMesh } from '@artlux/plugin-calibration/renderer';
 
 const DEG = Math.PI / 180;
@@ -39,15 +40,10 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
   const group = useMemo(() => new THREE.Group(), []);
   const controls = useRef<any>(null);
 
-  const cloned = useMemo(() => {
-    const c = scene.clone(true);
-    c.traverse((o) => { o.frustumCulled = false; }); // never cull out at odd camera angles
-    // Recenter so the group origin (and thus the gizmo) sits at the mesh's bounding-box
-    // centre rather than the GLB's authored origin.
-    const center = new THREE.Box3().setFromObject(c).getCenter(new THREE.Vector3());
-    c.position.sub(center);
-    return c;
-  }, [scene]);
+  // Recentred so the group origin (and thus the gizmo) sits at the mesh's bounding-box centre rather
+  // than the GLB's authored origin. Shared with the calibration render + raycast paths — see
+  // venuePlacement.ts for why a private copy here would be a silent metric error.
+  const cloned = useMemo(() => recenterClone(scene), [scene]);
 
   // Optional timeline-layer texturing: when model.layerId is set, override every mesh's material
   // with one shared MeshBasicMaterial fed by the layer's live frame (UV-mapped via the GLB's own
@@ -105,12 +101,11 @@ export const ModelObject: React.FC<Props> = ({ model, url, selected, mode, onSel
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scene, model.id]);
 
-  // Keep the group transform synced to the model record (per-axis scale).
+  // Keep the group transform synced to the model record (per-axis scale). In place, not rebuilt:
+  // TransformControls attaches to `group`, so its identity must survive a re-render.
   useEffect(() => {
-    const [sx, sy, sz] = modelScaleXYZ(model);
-    group.position.set(model.position.x, model.position.y, model.position.z);
-    group.rotation.set(model.rotation.x * DEG, model.rotation.y * DEG, model.rotation.z * DEG);
-    group.scale.set(sx, sy, sz);
+    applyModelTransform(group, model);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [group, model.position, model.rotation, model.scale, model.scaleXYZ]);
 
   // Record history on the first real drag movement, commit the new transform on drag end. Scale is

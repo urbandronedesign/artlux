@@ -57,3 +57,31 @@ export const calibCameraGrabColor = () => inv<CameraFrame>('calib:camera-grab-co
 export const calibCameraSetProp = async (prop: string, value: number): Promise<boolean> => !!(await inv<boolean>('calib:camera-set-prop', prop, value));
 export const calibCameraGetProp = (prop: string) => inv<number>('calib:camera-get-prop', prop);
 export const calibCameraClose = (): void => { window.artlux?.pluginSend?.('calib:camera-close'); };
+
+// Dense-map sidecars beside the project file. Shape mirrors calibArtifacts.DenseMapFile; kept as a
+// structural type here so the renderer half never imports the main half (node fs would follow it).
+export interface DenseMapFile {
+  version: 1;
+  surfaceId: string;
+  raster: [number, number];
+  capturedAt: string;
+  proj: number[];
+  world: number[];
+}
+export const calibArtifactWrite = async (projectFile: string, data: DenseMapFile): Promise<boolean> =>
+  !!(await inv<boolean>('calib:artifact-write', projectFile, data));
+export const calibArtifactRead = (projectFile: string, surfaceId: string) =>
+  inv<DenseMapFile>('calib:artifact-read', projectFile, surfaceId);
+export const calibArtifactDelete = (projectFile: string, surfaceId: string) =>
+  inv<boolean>('calib:artifact-delete', projectFile, surfaceId);
+
+// Unattended-recalibration observability. All best-effort: a venue must never lose its show because
+// a log file is read-only or a metrics gauge name collided.
+export const calibAuditAppend = (rec: Record<string, unknown>) => inv<boolean>('calib:audit-append', rec);
+export const calibAuditTail = async (limit = 200) =>
+  (await inv<Record<string, unknown>[]>('calib:audit-tail', limit)) ?? [];
+export const calibRecalMark = (detail: Record<string, unknown>) => inv<boolean>('calib:recal-mark', detail);
+export const calibRecalTakeInterrupted = () => inv<Record<string, unknown>>('calib:recal-take-interrupted');
+export const calibRecalClear = () => inv<boolean>('calib:recal-clear');
+export const calibMetric = (name: string, help: string, labels: Record<string, string>, value: number) =>
+  inv<boolean>('calib:metric', name, help, labels, value);

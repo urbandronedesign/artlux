@@ -85,3 +85,4 @@ graphify-plugins/*
 plugins/graphify-out/
 .graphify_*
 .tmp-docktree/
+.tmp-tests/

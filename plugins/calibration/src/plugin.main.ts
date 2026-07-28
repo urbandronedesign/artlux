@@ -4,6 +4,9 @@
 
 import type { MainPlugin, MainPluginContext } from '@artlux/sdk/main';
 import * as calib from './calibManager';
+import * as artifacts from './calibArtifacts';
+import * as audit from './calibAudit';
+import { setPluginGauge } from '../../../src/main/metrics'; // host metrics seam (main-side, in-process)
 
 const buf = (a: unknown) => Buffer.from(a as ArrayBuffer);
 
@@ -33,6 +36,24 @@ export const plugin: MainPlugin = {
     ipc.handle('calib:camera-set-prop', (prop, value) => calib.cameraSetProp(prop as string, value as number));
     ipc.handle('calib:camera-get-prop', (prop) => calib.cameraGetProp(prop as string));
     ipc.on('calib:camera-close', () => calib.cameraClose());
+    // Dense-map sidecars beside the project (see calibArtifacts) — the world-space blend needs every
+    // projector's map, including ones scanned in an earlier session.
+    ipc.handle('calib:artifact-write', (projectFile, data) => artifacts.writeDenseMap(projectFile as string, data as artifacts.DenseMapFile));
+    ipc.handle('calib:artifact-read', (projectFile, surfaceId) => artifacts.readDenseMap(projectFile as string, surfaceId as string));
+    ipc.handle('calib:artifact-delete', async (projectFile, surfaceId) => { await artifacts.deleteDenseMap(projectFile as string, surfaceId as string); return true; });
+
+    // ── Unattended recalibration: the audit trail and the alerting surface ──
+    ipc.handle('calib:audit-append', (rec) => audit.append(rec as audit.AuditRecord).then(() => true));
+    ipc.handle('calib:audit-tail', (limit) => audit.tail((limit as number) ?? 200));
+    ipc.handle('calib:recal-mark', (detail) => audit.markInFlight(detail as Record<string, unknown>).then(() => true));
+    // Reading the marker CLEARS it — a run interrupted twice must not be reported forever, and the
+    // caller is expected to log what it took. See calibAudit.
+    ipc.handle('calib:recal-take-interrupted', () => audit.takeInterrupted());
+    ipc.handle('calib:recal-clear', () => audit.clearInFlight().then(() => true));
+    ipc.handle('calib:metric', (name, help, labels, value) => {
+      try { setPluginGauge(name as string, help as string, labels as Record<string, string>, value as number); return true; }
+      catch { return false; }
+    });
   },
 
   deactivate(): void { try { calib.cameraClose(); } catch { /* addon absent */ } },

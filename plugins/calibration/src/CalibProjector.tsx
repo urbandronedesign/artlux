@@ -17,7 +17,7 @@ import type { ProjectorPanelContext } from '@artlux/sdk/renderer';
 import type { MainToProjector, ProjectorToMain } from '@/projector/bridge'; // host bridge types — transitional
 import type { Scene3D, ProjectorCalibration } from '../../../shared/protocol';
 import { fillPattern, type CalibPatternKind } from './graycode';
-import { ProjectorScene } from './ProjectorScene';
+import { ProjectorScene, type BlendLook } from './ProjectorScene';
 
 type CalibMode = 'idle' | 'pattern' | 'crosshair' | 'render';
 
@@ -26,7 +26,7 @@ export const CalibProjector: React.FC<{ ctx: ProjectorPanelContext; size: { w: n
 
   const calibModeRef = useRef<CalibMode>('idle');
   const [calibMode, setCalibMode] = useState<CalibMode>('idle');
-  const patternRef = useRef<{ kind: CalibPatternKind; index: number; rgb?: [number, number, number] } | null>(null);
+  const patternRef = useRef<{ kind: CalibPatternKind; index: number; rgb?: [number, number, number]; dots?: [number, number][] } | null>(null);
   const patternCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const crosshairRef = useRef<[number, number]>([0.5, 0.5]);
@@ -35,6 +35,10 @@ export const CalibProjector: React.FC<{ ctx: ProjectorPanelContext; size: { w: n
 
   const [scene3D, setScene3D] = useState<Scene3D | null>(null);
   const [calibration, setCalibration] = useState<ProjectorCalibration | null>(null);
+  // The output's blend look. Read off the SAME `config` message the base window uses — this panel
+  // already sees every main→projector message and simply ignored that one. Without it, render mode
+  // (an opaque overlay above the base canvas) drops the soft edge the operator set. See ProjectorScene.
+  const [look, setLook] = useState<BlendLook>({});
   const [modelUrls, setModelUrls] = useState<Record<string, string>>({});
   const urlCacheRef = useRef<Record<string, string>>({});
 
@@ -48,9 +52,14 @@ export const CalibProjector: React.FC<{ ctx: ProjectorPanelContext; size: { w: n
         if (m.mode !== 'pattern') patternRef.current = null;
         if (m.calibration !== undefined) setCalibration(m.calibration);
       } else if (m.t === 'calibPattern') {
-        patternRef.current = { kind: m.kind, index: m.index, rgb: m.rgb };
+        patternRef.current = { kind: m.kind, index: m.index, rgb: m.rgb, dots: m.dots };
       } else if (m.t === 'scene') {
         setScene3D(m.scene3D);
+      } else if (m.t === 'config') {
+        // New object identity per config push is fine — config arrives on an operator edit, never
+        // per frame, and BlendEffect rebuilds its textures only when this changes.
+        const r = m.render;
+        setLook({ softEdge: r.softEdge, colorGain: r.colorGain, blackLift: r.blackLift, blend: r.blend ?? null });
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -75,7 +84,7 @@ export const CalibProjector: React.FC<{ ctx: ProjectorPanelContext; size: { w: n
       const g = cv.getContext('2d');
       if (!g) return;
       const img = g.createImageData(w, h);
-      fillPattern(img.data, w, h, pat.kind, pat.index, pat.rgb);
+      fillPattern(img.data, w, h, pat.kind, pat.index, pat.rgb, pat.dots);
       g.putImageData(img, 0, 0);
       requestAnimationFrame(() => requestAnimationFrame(() => send({ t: 'patternShown', index: pat.index, projW: w, projH: h })));
     };
@@ -148,7 +157,7 @@ export const CalibProjector: React.FC<{ ctx: ProjectorPanelContext; size: { w: n
       {/* Render-from-projector: the venue 3D scene from the matched virtual projector (true mapping). */}
       {calibMode === 'render' && calibration && scene3D && (
         <div style={{ position: 'absolute', inset: 0 }}>
-          <ProjectorScene scene3D={scene3D} modelUrls={modelUrls} calibration={calibration} />
+          <ProjectorScene scene3D={scene3D} modelUrls={modelUrls} calibration={calibration} look={look} />
         </div>
       )}
 

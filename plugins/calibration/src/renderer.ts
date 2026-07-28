@@ -25,6 +25,17 @@ export { measureGamma } from './gammaController';
 export { reproject, frustumCorners, cameraPose, glProjectionMatrix } from './cvCamera';
 export { fillPattern, type CalibPatternKind } from './graycode';
 export type { BlendMap } from './blendCompute';
+// The rig blend: capture/solve/apply + the staleness rule. Host UI (OutputsPanel) drives this — as
+// always, ONLY through this barrel, or blendStore becomes two singletons and the solve reads an
+// empty one (docs/PLUGINS.md).
+export * as blendController from './blendController';
+export * as blendStore from './blendStore';
+export { BlendInspector } from './BlendInspector';
+// Unattended recalibration: the orchestrator, its policy gate and the pure drift scoring.
+export * as autoRecal from './autoRecal';
+export { validateSolve, type Verdict, type RejectReason } from './validateSolve';
+export { computeResiduals, type ResidualStats } from './residuals';
+export type { DriftScore } from './driftScore';
 export { regionFromCalibration } from './mpcdiData';
 export { registerVenueMesh, unregisterVenueMesh } from './venueRaycast';
 export type { ColorFrame } from './calibCapture';

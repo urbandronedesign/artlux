@@ -38,17 +38,39 @@ export interface CameraPose { rotation: number[]; translation: [number, number, 
 // all 4 image corners pair with the single 3D point (their mean image point ≈ the centre). 4 corners
 // per marker means even one marker meets the ≥4 minimum; RANSAC in solveCameraPose rejects outliers.
 export function camPicksFromAruco(det: ArucoDetection, map: MarkerMap): CamPick[] {
-  const byId = new Map(map.markers.map((m) => [m.id, m.world]));
+  const byId = new Map(map.markers.map((m) => [m.id, m]));
   const picks: CamPick[] = [];
   for (let i = 0; i < det.ids.length; i++) {
-    const world = byId.get(det.ids[i]);
-    if (!world) continue;
+    const m = byId.get(det.ids[i]);
+    if (!m) continue;
     const base = i * 8;
     for (let c = 0; c < 4; c++) {
+      // Per-corner 3D when the marker was registered with it: four genuinely distinct
+      // correspondences, which is what actually conditions the solve. The centre-only fallback pairs
+      // all four image corners with one point — rank-deficient, and only tolerable because a human is
+      // watching the result. An unattended run rejects a pose solved that way (see solveCameraPose).
+      const world = m.worldCorners ? m.worldCorners[c] : m.world;
       picks.push({ camPx: [det.corners[base + c * 2], det.corners[base + c * 2 + 1]], world });
     }
   }
   return picks;
+}
+
+/** Does this detection give a well-conditioned pose — i.e. are the picks geometrically distinct? */
+export function anchorQuality(det: ArucoDetection, map: MarkerMap): {
+  markers: number; withCorners: number; distinctPoints: number;
+} {
+  const byId = new Map(map.markers.map((m) => [m.id, m]));
+  let markers = 0, withCorners = 0;
+  const pts = new Set<string>();
+  for (const id of det.ids) {
+    const m = byId.get(id);
+    if (!m) continue;
+    markers++;
+    if (m.worldCorners) { withCorners++; for (const w of m.worldCorners) pts.add(w.join(',')); }
+    else pts.add(m.world.join(','));
+  }
+  return { markers, withCorners, distinctPoints: pts.size };
 }
 
 // Recover the camera's pose in the venue frame from ≥4 camera-image↔model picks (intrinsics fixed).

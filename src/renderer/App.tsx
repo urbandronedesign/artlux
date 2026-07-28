@@ -7,7 +7,7 @@ import type { AppInfo, UpdateEvent, Scene3D, SceneModel, ProjectorOutput, Output
 import { spanTiles, tileName } from './services/outputSpan';
 import type { ProjectorToMain, MainToProjector } from './projector/bridge';
 import { makeBezierWarp } from './projector/warp';
-import { outputToNvwarp } from './projector/nvwarpApply';
+import { outputToNvwarp, toBlendMap } from './projector/nvwarpApply';
 import { OutputsPanel } from './components/OutputsPanel';
 import { UpdateNotice } from './components/UpdateNotice';
 import { autoPatch } from './services/addressing';
@@ -592,13 +592,18 @@ const App: React.FC = () => {
   // fixtures snapshot before a scene-model change made Ctrl+Z pop an unrelated snapshot AND clear
   // redo, while the model stayed changed. 3D-model edits are simply not on the (fixture-scoped) stack.
   const addSceneModel = (m: SceneModel) => { setScene3D(s => ({ ...s, models: [...(s.models ?? []), m] })); handleSelectModel(m.id); };
-  const handleAddModel = async () => {
+  // Returns the new model's id (null = the picker was cancelled) so a caller that is BLOCKED on having
+  // a venue model — the calibration wizard's Setup prerequisite — can react rather than just hoping.
+  const handleAddModel = async (): Promise<string | null> => {
     const path = await window.artlux?.pickModel?.();
-    if (!path) return;
+    if (!path) return null;
     const name = (path.replace(/\\/g, '/').split('/').pop() || path).replace(/\.(glb|gltf)$/i, '');
     const count = (scene3D.models ?? []).length;
-    addSceneModel({ id: crypto.randomUUID(), name, path, position: { x: count * 2, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: 1, visible: true });
+    const id = crypto.randomUUID();
+    addSceneModel({ id, name, path, position: { x: count * 2, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: 1, visible: true });
+    return id;
   };
+  const addModelRef = useRef(handleAddModel); addModelRef.current = handleAddModel; // live mirror for host.scene3D.addModel
   const handleAddPlane = () => {
     const count = (scene3D.models ?? []).length;
     // The NAME is numbered from what is taken; `count` still places it (the x-cascade so a new plane
@@ -703,6 +708,7 @@ const App: React.FC = () => {
       : [...prev, { ...defaultProjectorOutput(surfaceId), ...patch }]);
   };
   const projectorOutputsRef = useRef(projectorOutputs); projectorOutputsRef.current = projectorOutputs; // live mirror for plugin host services
+  const currentProjectPathRef = useRef(currentProjectPath); currentProjectPathRef.current = currentProjectPath; // ditto — host.project.path()
 
   // --- Spanning one surface across several projectors (grid math: services/outputSpan.ts) ---
   //
@@ -849,8 +855,16 @@ const App: React.FC = () => {
       const res = await measureGamma(surfaceId, (m) => sendToProjector(surfaceId, m));
       if ('error' in res) { setGammaMsg({ id: surfaceId, text: res.error, ok: false }); return; }
       handleSetOutputGamma(surfaceId, +res.gamma.toFixed(3));
-      upsertOutput(surfaceId, { colorGain: res.colorGain });
-      setGammaMsg({ id: surfaceId, ok: true, text: `γ ${res.gamma.toFixed(2)} (R ${res.gammaRGB[0].toFixed(2)} · G ${res.gammaRGB[1].toFixed(2)} · B ${res.gammaRGB[2].toFixed(2)}) · gain ${res.colorGain.map(x => x.toFixed(2)).join('/')} · ${res.footprintPx}px` });
+      // The measured gamma is ALSO the blend gamma. SoftEdge.gamma is what makes two feathered halves
+      // sum to one unit of light (protocol.ts tells the operator to measure it with exactly this
+      // tool) — and until now nothing wrote it, so they had to read the number off this toast and
+      // retype it into the Blend γ field. Same measurement, two fields, one of them silently stale.
+      const cur = projectorOutputsRef.current.find(o => o.surfaceId === surfaceId);
+      upsertOutput(surfaceId, {
+        colorGain: res.colorGain,
+        softEdge: { ...(cur?.softEdge ?? defaultSoftEdge()), gamma: +res.gamma.toFixed(3) },
+      });
+      setGammaMsg({ id: surfaceId, ok: true, text: `γ ${res.gamma.toFixed(2)} (R ${res.gammaRGB[0].toFixed(2)} · G ${res.gammaRGB[1].toFixed(2)} · B ${res.gammaRGB[2].toFixed(2)}) · gain ${res.colorGain.map(x => x.toFixed(2)).join('/')} · ${res.footprintPx}px — blend γ updated too` });
     } catch (e) {
       setGammaMsg({ id: surfaceId, text: (e as Error)?.message ?? 'measurement failed', ok: false });
     } finally {
@@ -2021,6 +2035,10 @@ const App: React.FC = () => {
       if (prefs) setRecentFiles(prefs.recentFiles ?? []);
   };
 
+  // buildProjectData is redefined every render, so the memoized plugin host reaches it through a ref
+  // — otherwise host.project.save() would serialize whatever the document was at activation.
+  const buildProjectDataRef = useRef(buildProjectData); buildProjectDataRef.current = buildProjectData;
+
   // Save to the current file (Save) or prompt for a location (Save As / first save).
   const handleSaveProject = async () => {
       try {
@@ -2541,6 +2559,7 @@ const App: React.FC = () => {
           // contexts/index.tsx) instead of every action needing a callback threaded to the shell.
           case 'outputs': refreshDisplays(); goToContext('project'); break;
           case 'add-surface': handleAddSurface(); break;
+          case 'add-model': void handleAddModel(); break;
           case 'add-fixture': handleAddFixture(); break;
           case 'auto-patch': handleAutoPatch(); break;
           case 'create-group': handleCreateGroup(); break;
@@ -2742,6 +2761,20 @@ const App: React.FC = () => {
   const audioSubs = useRef(new Set<() => void>()); // host `audio` service: the global bed changed
   const projMsgSubs = useRef(new Set<(surfaceId: string, msg: unknown) => void>());
   const pluginHost = useMemo<RendererHostServices>(() => ({
+    // Read through a ref, not the state value: pluginHost is memoized once at activation, so closing
+    // over currentProjectPath would freeze a plugin on whichever document was open at boot.
+    project: {
+      path: () => currentProjectPathRef.current,
+      // NEVER opens a dialog. handleSaveProject falls back to Save-As when there is no path, which is
+      // right for an operator pressing Ctrl+S and catastrophic for a 4am maintenance task: the venue
+      // machine would sit on a modal until someone drives over. No path → refuse and say so.
+      save: async () => {
+        const p = currentProjectPathRef.current;
+        if (!p) return false;
+        try { return !!(await window.artlux?.saveProject?.(buildProjectDataRef.current(), p)); }
+        catch { return false; }
+      },
+    },
     projectorOutputs: {
       get: (id) => projectorOutputsRef.current.find(o => o.surfaceId === id),
       list: () => projectorOutputsRef.current,
@@ -2756,6 +2789,9 @@ const App: React.FC = () => {
     scene3D: {
       get: () => scene3DRef.current,
       patch: (partial) => setScene3D(s => ({ ...s, ...(partial as Partial<Scene3D>) })),
+      // Through a ref for the same reason as project.save: pluginHost is memoized once, and the
+      // handler closes over scene3D for the placement cascade.
+      addModel: () => addModelRef.current(),
       subscribe: (cb) => { sceneSubs.current.add(cb); return () => { sceneSubs.current.delete(cb); }; },
     },
     projectors: {
@@ -3119,6 +3155,11 @@ const App: React.FC = () => {
               // Colour/black match: applied in NVAPI intensity when hardware owns the blend, else in GLSL.
               colorGain: hwGeom ? [1, 1, 1] : (out?.colorGain ?? [1, 1, 1]),
               blackLift: hwGeom ? [0, 0, 0] : (out?.blackLift ?? [0, 0, 0]),
+              // The solved rig blend rides the SAME hwGeom gate as the soft edge — that gate IS the
+              // double-blend guard. When the scanout carries the intensity map, the GPU must be handed
+              // nothing to apply, or the overlap gets alpha twice (a dark seam masquerading as gamma).
+              blend: hwGeom ? null : (out?.blend ?? null),
+              blendOwner: hwGeom ? 'scanout' : 'gpu',
               gamma: out?.gamma ?? 1,
               brightness: projectorBrightness,
               fpsCap: projectorFpsCap,
@@ -3281,7 +3322,10 @@ const App: React.FC = () => {
       for (const o of projectorOutputs) {
           const display = displays.find(d => d.id === o.displayId);
           if (hwOwnsGeometry(o) && display && surfaces.some(s => s.id === o.surfaceId)) {
-              const payload = outputToNvwarp(o, display); // blendMap feed wired with multi-projector capture
+              // The scanout owns this output's blend (hwOwnsGeometry is true here), so it — and only
+              // it — gets the solved rig map. The GPU path is handed `blend: null` for the same
+              // output in pushProjectorState.
+              const payload = outputToNvwarp(o, display, toBlendMap(o.blend));
               window.artlux?.nvwarpSetWarp?.(display.id, payload.verts, payload.src);
               window.artlux?.nvwarpSetIntensity?.(display.id, payload.intensity.w, payload.intensity.h, payload.intensity.rgb);
               desired.set(o.surfaceId, display.id);

@@ -4,6 +4,7 @@
 
 import type { RendererHostServices } from '@artlux/sdk/renderer';
 import type { ShowCommand } from './types';
+import { runExternalCommand } from './commandExt';
 
 export function dispatch(host: RendererHostServices, c: ShowCommand): void {
   const show = host.show;
@@ -15,5 +16,10 @@ export function dispatch(host: RendererHostServices, c: ShowCommand): void {
     case 'triggerTransition': show.triggerTransition(c.id); break;
     case 'enterState': show.enterState(c.id); break;
     case 'setFsmEnabled': show.setFsmEnabled(c.on); break;
+    // Not show actions — owned by whichever plugin registered them (see commandExt.ts).
+    default:
+      if (!runExternalCommand(c)) {
+        console.warn(`[show-control] no handler for command "${(c as { kind: string }).kind}"`);
+      }
   }
 }

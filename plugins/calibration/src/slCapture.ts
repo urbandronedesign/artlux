@@ -36,11 +36,21 @@ export function onPatternShown(a: Ack): void {
   r?.(a);
 }
 
-function showPattern(kind: 'plane' | 'white' | 'black' | 'off' | 'fill', index: number, rgb?: [number, number, number]): Promise<Ack> {
+function showPattern(
+  kind: 'plane' | 'white' | 'black' | 'off' | 'fill' | 'dots', index: number,
+  rgb?: [number, number, number], dots?: [number, number][],
+): Promise<Ack> {
   return new Promise<Ack>((resolve) => {
     ackResolver = resolve;
-    active!.send({ t: 'calibPattern', kind, index, rgb });
+    active!.send({ t: 'calibPattern', kind, index, rgb, dots });
   });
+}
+
+// Light a sparse set of projector pixels and resolve once they are on screen. The drift check's whole
+// economy rests on this: a handful of dot frames instead of a 42-plane Gray-code scan.
+export function projectDots(dots: [number, number][], level = 255): Promise<Ack> {
+  if (!active) return Promise.reject(new Error('measurement session not active'));
+  return showPattern('dots', -1, [level, level, level], dots);
 }
 
 // Project a flat RGB field (0..255 per channel) and resolve once it's on screen. Used by the

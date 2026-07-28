@@ -95,6 +95,19 @@ export const CalibWizard: React.FC<Props> = (props) => {
   const poseSolved = cal?.poseRms != null;
   const poseCount = cal?.posePicks?.length ?? 0;
   const addLog = (s: string) => setLog((l) => [s, ...l].slice(0, 6));
+
+  // Load the venue mesh without leaving the calibration context. The pose step cannot be done without
+  // one, and the only way to get one used to be another workspace — see Scene3DService.addModel.
+  const [addingModel, setAddingModel] = useState(false);
+  const addVenueModel = async () => {
+    setAddingModel(true);
+    try {
+      const id = await calibHost.addVenueModel();
+      addLog(id ? '✓ venue model added' : 'no model chosen');
+    } catch (e) {
+      addLog(`✗ could not load the model: ${(e as Error).message}`);
+    } finally { setAddingModel(false); }
+  };
   const send = (m: MainToProjector) => sendToProjector(surfaceId, m);
   const showWhite = () => send({ t: 'calibPattern', kind: 'white', index: -1 });
 
@@ -292,7 +305,15 @@ export const CalibWizard: React.FC<Props> = (props) => {
               </select>
             </PrereqRow>
             <PrereqRow ok={hasModel} warnOnly label="Venue model loaded (for pose)">
-              {!hasModel && <span className="text-fg-3">Add a GLB in the Scene panel; needed for the Pose step.</span>}
+              {!hasModel && (
+                <div className="flex items-center gap-2">
+                  <span className="text-fg-2">Needed for the Pose step.</span>
+                  <button onClick={addVenueModel} disabled={addingModel}
+                    className="px-1.5 py-0.5 rounded border border-accent bg-accent-dim text-fg-1 text-micro disabled:opacity-40">
+                    {addingModel ? 'Loading…' : 'Load model…'}
+                  </button>
+                </div>
+              )}
             </PrereqRow>
             <div className="text-fg-3 flex items-center gap-1.5 pt-1"><AlertTriangle size={12} className="text-warn" /> Dim the room so the projection dominates.</div>
           </>
@@ -300,7 +321,7 @@ export const CalibWizard: React.FC<Props> = (props) => {
 
         {(step === 'camera' || step === 'intrinsics') && (
           <>
-            <div className="text-fg-4 text-micro flex items-center gap-1.5"><Camera size={11} /> The live camera + board overlay are in the large left view — scroll to zoom, drag to pan.</div>
+            <div className="text-fg-2 text-micro flex items-center gap-1.5"><Camera size={11} /> The live camera + board overlay are in the large left view — scroll to zoom, drag to pan.</div>
             {/* Capture backend: browser getUserMedia (UVC webcams) or OpenCV DirectShow (cameras
                 getUserMedia can't drive — e.g. the PS3 Eye, addressed by index like vvvv). */}
             <div className="flex items-center gap-1 text-micro">
@@ -320,7 +341,7 @@ export const CalibWizard: React.FC<Props> = (props) => {
                   <input type="number" min={0} max={9} value={camIndex}
                     onChange={(e) => setCamIndex(Math.max(0, Math.min(9, parseInt(e.target.value || '0', 10))))}
                     className="w-14 bg-surface-0 border border-line-1 rounded px-1.5 py-1 text-fg-1 num focus:border-accent focus:outline-none" />
-                  <span className="text-fg-4">try 0–5 until you see the Eye</span>
+                  <span className="text-fg-2">try 0–5 until you see the Eye</span>
                 </label>
               ) : (
                 <select value={deviceId} onChange={(e) => setDeviceId(e.target.value)}
@@ -382,7 +403,15 @@ export const CalibWizard: React.FC<Props> = (props) => {
         {step === 'pose' && (
           <>
             <p className="text-fg-3 leading-relaxed">Anchor the projector in the venue. On the <b>projector</b>, drag/arrow the crosshair onto a distinct feature and press <b>Enter</b>; then click the same point on the model in the <b>3D view (right)</b>. Repeat ≥4 well-spread, non-coplanar points.</p>
-            {!hasModel && <div className="text-danger flex items-center gap-1"><AlertTriangle size={12} /> No venue model — add a GLB in the Scene panel.</div>}
+            {!hasModel && (
+              <div className="flex items-center gap-2">
+                <span className="text-danger flex items-center gap-1"><AlertTriangle size={12} /> No venue model — the pose has nothing to anchor to.</span>
+                <button onClick={addVenueModel} disabled={addingModel}
+                  className="px-1.5 py-0.5 rounded border border-accent bg-accent-dim text-fg-1 text-micro disabled:opacity-40">
+                  {addingModel ? 'Loading…' : 'Load model…'}
+                </button>
+              </div>
+            )}
             <div className="border-t border-line-1 pt-2 space-y-1">
               <div className="text-fg-2">Points: <span className="num text-fg-1">{poseCount}</span> <span className="text-fg-3">/ ≥4</span></div>
               <div className="text-fg-2">Pose RMS: {cal?.poseRms != null ? <QualityBadge value={cal.poseRms} band={poseBand(cal.poseRms)} /> : <span className="text-fg-3">—</span>}</div>

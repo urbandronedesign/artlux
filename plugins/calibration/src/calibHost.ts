@@ -8,7 +8,7 @@
 
 import type { RendererHostServices } from '@artlux/sdk/renderer';
 import type { MainToProjector } from '@/projector/bridge';
-import type { ProjectorCalibration, ProjectorOutput, Scene3D, CamMask, MarkerMap } from '../../../shared/protocol';
+import type { ProjectorCalibration, ProjectorOutput, ProjectorBlend, Scene3D, CamMask, MarkerMap, CalibRig } from '../../../shared/protocol';
 
 let host: RendererHostServices | null = null;
 
@@ -34,6 +34,13 @@ export function storeCalibration(surfaceId: string, patch: Partial<ProjectorCali
   host?.projectorOutputs.patch(surfaceId, { calibration: { ...base, ...patch, calibratedAt: new Date().toISOString() } } as Partial<ProjectorOutput>);
 }
 
+// The solved world-space share of the light for one projector in a rig. Written for EVERY member of
+// the rig in one pass (see blendController.solveRig) — a blend is a statement about a set of
+// projectors, so writing one alone would leave the others claiming light this one just gave up.
+export function storeBlend(surfaceId: string, blend: ProjectorBlend | null): void {
+  host?.projectorOutputs.patch(surfaceId, { blend } as Partial<ProjectorOutput>);
+}
+
 export function setUseCalibration(surfaceId: string, on: boolean): void {
   host?.projectorOutputs.patch(surfaceId, { useCalibration: on } as Partial<ProjectorOutput>);
 }
@@ -49,4 +56,28 @@ export function storeCamMask(mask: CamMask | null): void {
 }
 export function storeMarkerMap(map: MarkerMap | null): void {
   host?.scene3D.patch({ markerMap: map ?? undefined } as Partial<Scene3D>);
+}
+
+// Unattended-recalibration state — camera profile, per-projector references, thresholds. On the 3D
+// scene for the same reason camMask and markerMap are: it all describes THIS venue, and a show moved
+// to another room must not bring the old room's reference observations with it.
+export function getRig(): CalibRig {
+  return ((host?.scene3D.get() as Scene3D | undefined)?.calibRig) ?? {};
+}
+export function patchRig(patch: Partial<CalibRig>): void {
+  host?.scene3D.patch({ calibRig: { ...getRig(), ...patch } } as Partial<Scene3D>);
+}
+// Add a venue GLB from inside the calibration workbench. The mesh is this method's whole metric
+// reference, so being unable to load one without leaving the context was a dead end in the middle of
+// the flow. Placement/naming stay host-side — see Scene3DService.addModel.
+export async function addVenueModel(): Promise<string | null> {
+  return (await host?.scene3D.addModel()) ?? null;
+}
+
+export function getScene(): Scene3D {
+  return (host?.scene3D.get() as Scene3D | undefined) ?? ({} as Scene3D);
+}
+/** Save the document to its existing path; false when unsaved (never raises a dialog). */
+export async function saveProject(): Promise<boolean> {
+  return (await host?.project.save()) ?? false;
 }

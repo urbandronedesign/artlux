@@ -36,7 +36,10 @@
     "gen:icon": "node scripts/gen-icon.cjs",
     "docs:capture": "node scripts/capture-docs.cjs",
     "docs:html": "node scripts/build-docs-html.cjs",
-    "test:docktree": "tsc scripts/test-docktree.ts --outDir .tmp-docktree --target es2022 --module commonjs --moduleResolution node --skipLibCheck && node .tmp-docktree/scripts/test-docktree.js"
+    "test:docktree": "tsc scripts/test-docktree.ts --outDir .tmp-docktree --target es2022 --module commonjs --moduleResolution node --skipLibCheck && node .tmp-docktree/scripts/test-docktree.js",
+    "test:logic": "tsc -p scripts/tsconfig.test.json",
+    "test:blend": "npm run test:logic && node .tmp-tests/scripts/test-blend.js",
+    "test:recal": "npm run test:logic && node .tmp-tests/scripts/test-recal.js"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.3.0",

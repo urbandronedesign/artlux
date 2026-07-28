@@ -56,7 +56,14 @@ export function planeBit(layout: GraycodeLayout, p: number, x: number, y: number
 // Special pattern indices on the bridge (outside the coded-plane range): all-white / all-black
 // reference frames for the contrast mask, 'off' to clear the projector to black between poses, and
 // 'fill' for an arbitrary flat RGB field (camera-based gamma/colour measurement — a level ramp).
-export type CalibPatternKind = 'plane' | 'white' | 'black' | 'off' | 'fill';
+// 'dots' draws a sparse set of filled discs at given projector pixels — the nightly drift check.
+// A full Gray-code scan is ~42 frames plus a settle each; projecting the stored probe points and
+// measuring where the camera sees them is ~6 frames and answers the only question a health check
+// asks: has this projector moved? See driftCheck.ts.
+export type CalibPatternKind = 'plane' | 'white' | 'black' | 'off' | 'fill' | 'dots';
+
+/** Disc radius in projector px. Big enough to survive a mid-range camera, small enough to centroid. */
+export const DOT_RADIUS = 6;
 
 // Render coded plane `p` (or a flat white/black/level field) into an RGBA ImageData-sized
 // Uint8ClampedArray for a projW×projH buffer. For 'fill', `rgb` (0..255 per channel) is the flat level.
@@ -65,8 +72,27 @@ export type CalibPatternKind = 'plane' | 'white' | 'black' | 'off' | 'fill';
 // only O(W) or O(H) bit evaluations.
 export function fillPattern(
   out: Uint8ClampedArray, projW: number, projH: number, kind: CalibPatternKind, p: number,
-  rgb?: [number, number, number],
+  rgb?: [number, number, number], dots?: [number, number][],
 ): void {
+  if (kind === 'dots') {
+    out.fill(0);
+    for (let i = 3; i < out.length; i += 4) out[i] = 255;
+    const [r, g, b] = rgb ?? [255, 255, 255];
+    const rad = DOT_RADIUS, r2 = rad * rad;
+    for (const [cx, cy] of dots ?? []) {
+      const x0 = Math.max(0, Math.floor(cx - rad)), x1 = Math.min(projW - 1, Math.ceil(cx + rad));
+      const y0 = Math.max(0, Math.floor(cy - rad)), y1 = Math.min(projH - 1, Math.ceil(cy + rad));
+      for (let y = y0; y <= y1; y++) {
+        for (let x = x0; x <= x1; x++) {
+          const dx = x - cx, dy = y - cy;
+          if (dx * dx + dy * dy > r2) continue;
+          const o = (y * projW + x) * 4;
+          out[o] = r; out[o + 1] = g; out[o + 2] = b; out[o + 3] = 255;
+        }
+      }
+    }
+    return;
+  }
   if (kind === 'fill') {
     const [r, g, b] = rgb ?? [255, 255, 255];
     for (let i = 0; i < out.length; i += 4) { out[i] = r; out[i + 1] = g; out[i + 2] = b; out[i + 3] = 255; }

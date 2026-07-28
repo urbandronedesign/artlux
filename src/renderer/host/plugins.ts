@@ -35,9 +35,12 @@ let activated = false;
 // return empty, patches/sends are dropped, and projector→main onMessage never fires (only the main
 // window owns the bridge ports). The main window (App) injects the real implementations.
 const NOOP_HOST: RendererHostServices = {
+  // A projector window has no document — null is the honest answer, and it makes a sidecar write
+  // degrade to "nowhere to put it" rather than guessing a path.
+  project: { path: () => null, save: async () => false },
   projectorOutputs: { get: () => undefined, list: () => [], patch: () => {}, subscribe: () => () => {} },
   surfaces: { list: () => [], get: () => undefined, subscribe: () => () => {} },
-  scene3D: { get: () => ({}), patch: () => {}, subscribe: () => () => {} },
+  scene3D: { get: () => ({}), patch: () => {}, subscribe: () => () => {}, addModel: async () => null },
   projectors: { send: () => {}, onMessage: () => () => {} },
   settings: { get: () => ({}), subscribe: () => () => {} },
   show: {

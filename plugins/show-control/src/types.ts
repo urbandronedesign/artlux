@@ -11,7 +11,13 @@ export type ShowCommand =
   | { kind: 'transport'; action: 'play' | 'pause' | 'stop' | 'seek' | 'loop'; sec?: number; loopOn?: boolean }
   | { kind: 'triggerTransition'; id: string }            // timeline.triggerSmTransition (manual FSM edge)
   | { kind: 'enterState'; id: string }                   // timeline.enterSmState (jump to a state)
-  | { kind: 'setFsmEnabled'; on: boolean };              // App state: StateMachine.enabled
+  | { kind: 'setFsmEnabled'; on: boolean }               // App state: StateMachine.enabled
+  // ── Maintenance, handled by another plugin (see commandExt.ts) ──
+  // Not a show action, but it belongs in this union so it inherits the scheduler AND the tablet for
+  // free: ScheduleEntry.action is any ShowCommand and POST /command forwards any kind. A nightly
+  // { time: '04:00', action: { kind: 'recalibrate', mode: 'check' } } needs no new plumbing at all.
+  | { kind: 'recalibrate'; surfaceId?: string; mode: 'check' | 'full' }
+  | { kind: 'calibRevert'; surfaceId: string };          // roll back the last applied calibration
 
 // ─── Snapshot: the show model the tablet renders its buttons from ─────────────────────────────
 export interface SnapScene { id: string; name: string; accent?: string }

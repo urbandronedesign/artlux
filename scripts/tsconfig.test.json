@@ -1,0 +1,22 @@
+{
+  // Compile the standalone logic tests (test-blend, test-recal) to plain CommonJS so `node` can run
+  // them with no Electron, no bundler and no app. Extends the root config purely for its `paths`:
+  // the modules under test reach shared/protocol, which imports a TYPE from @artlux/sdk — erased at
+  // runtime, but tsc still has to resolve it.
+  //
+  // Every module reachable from these tests must be import-free of the DOM, three.js and Electron.
+  // That is a constraint on the code, not a limitation of the harness: the pure decision-makers
+  // (blendCompute, driftScore, validateSolve, residuals) are exactly the parts whose wrong answer is
+  // expensive, so keeping them runnable in one second is worth designing for.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "allowImportingTsExtensions": false,
+    "noEmit": false,
+    "rootDir": "..",
+    "outDir": "../.tmp-tests",
+    "types": ["node"]
+  },
+  "include": ["test-blend.ts", "test-recal.ts"]
+}

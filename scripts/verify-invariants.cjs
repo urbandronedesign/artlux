@@ -1012,6 +1012,43 @@ check(
 );
 
 check(
+  'every colour utility names a token that actually exists',
+  'Tailwind SILENTLY DROPS an unknown colour: the class compiles to nothing and the element just ' +
+  'inherits, so the UI looks almost right and nobody sees a failure. It has now happened twice — ' +
+  '`bg-bg-stage` rendered transparent until the `bg` key was added to the config (the splash well had ' +
+  'no background), and `text-fg-4` was used at 22 sites across the calibration wizards for a tier that ' +
+  'has never existed (fg-3 is the dimmest by design). Neither typechecks, lints or crashes.',
+  () => {
+    const tw = read('tailwind.config.js');
+    // The scales this guard covers — the ones written as `<utility>-<family>-<step>`.
+    const families = ['fg', 'surface', 'line', 'accent', 'state', 'sel'];
+    const known = new Set();
+    for (const fam of families) {
+      const block = tw.match(new RegExp(`${fam}:\\s*\\{([^}]*)\\}`));
+      if (!block) continue;
+      for (const m of block[1].matchAll(/['"]?([\w-]+)['"]?\s*:/g)) known.add(`${fam}-${m[1]}`);
+    }
+    if (!known.size) return 'could not read any colour scales out of tailwind.config.js';
+    const UTIL = /\b(?:text|bg|border|ring|fill|stroke|from|to|via|divide|outline|decoration|shadow)-((?:fg|surface|line|accent|state|sel)-[\w]+)/g;
+    const bad = new Map();
+    for (const f of [...walk('src/renderer'), ...walk('plugins')]) {
+      if (!/\.(tsx|ts)$/.test(f)) continue;
+      const src = read(f);
+      for (const m of src.matchAll(UTIL)) {
+        const token = m[1];
+        // `accent` alone (accent-hover/press/dim are keys; bare `accent` is the DEFAULT) and any
+        // token carrying an opacity suffix are resolved elsewhere — only flag a plain unknown step.
+        if (known.has(token)) continue;
+        if (/^accent-(hover|press|dim)$/.test(token)) continue;
+        if (!bad.has(token)) bad.set(token, f);
+      }
+    }
+    if (!bad.size) return null;
+    return [...bad].map(([t, f]) => `"${t}" (${f}) is not in tailwind.config.js — it renders as nothing`).join('; ');
+  },
+);
+
+check(
   'no blocking native dialogs in the renderer',
   'window.confirm / window.alert steal focus, are unthemed (a white box over the OLED console), block the ' +
   'JS thread and expose no aria. Every confirmation/notice must route through the in-app substrate ' +
@@ -1943,6 +1980,103 @@ check(
       'ledCount', 'position3D', 'rotation3D', 'colorOrder', 'channelsPerPixel', 'ledMap'];
     const leaked = banned.filter((k) => new RegExp(`'${k}'`).test(list));
     if (leaked.length) return `${S} lists rig fields as look: ${leaked.join(', ')}`;
+    return null;
+  },
+);
+
+// ── The calibrated render path applies the soft edge, and applies it ONCE ─────────────────────
+check(
+  'a calibrated output still blends, from the one shared soft-edge ramp',
+  'Turning on useCalibration put the projector window in render mode, which mounts calibration\'s ' +
+  'ProjectorScene as an opaque overlay ON TOP of the base GL canvas. ProjectorGL\'s soft-edge shader ' +
+  'therefore never touched the picture: enabling calibration SILENTLY DISABLED BLENDING, including ' +
+  'a soft edge the operator had already set by hand, and two calibrated overlapping projectors ' +
+  'doubled up with a hard border. The ramp now lives in blendGlsl.ts and BOTH GPU paths interpolate ' +
+  'it, so they cannot drift into two different seams — which would be a step at the overlap that ' +
+  'appears only in one render mode.',
+  () => {
+    const G = 'src/renderer/projector/blendGlsl.ts';
+    const P = 'src/renderer/projector/ProjectorGL.ts';
+    const S = 'plugins/calibration/src/ProjectorScene.tsx';
+    if (!exists(G)) return `${G} is gone — nothing owns the soft-edge ramp`;
+    const g = read(G);
+    for (const fn of ['softEdgeFeather', 'softEdgeShare', 'blendSignal']) {
+      if (!new RegExp(`float ${fn}\\(`).test(g)) return `${G} no longer declares ${fn}()`;
+    }
+    // The exponent that made every seam a black band. Guarded as text because it is the one line
+    // whose SIGN is the whole feature.
+    if (!/pow\(max\(share, 0\.0\), 1\.0 \/ max\(g, 0\.1\)\)/.test(g))
+      return `${G}'s blendSignal is no longer share^(1/g) — a seam is a black band again`;
+    const p = read(P);
+    if (!/SOFT_EDGE_GLSL/.test(p)) return `${P} no longer interpolates the shared ramp`;
+    if (/float feather\(float d, float w\)/.test(p))
+      return `${P} declares its own feather() again — two copies of the ramp will drift`;
+    const s = read(S);
+    if (!/SOFT_EDGE_GLSL/.test(s))
+      return `${S} no longer interpolates the shared ramp — a calibrated output has no blend stage`;
+    if (!/softEdgeShare\(suv, uSoft\)/.test(s))
+      return `${S} no longer applies the soft edge in its blend pass`;
+    // The blend map is indexed by PHYSICAL raster pixels, so it must not ride the distortion effect's
+    // remapped uv — see the comment on blendFrag.
+    if (!/gl_FragCoord\.x \/ resolution\.x/.test(s))
+      return `${S} derives its blend uv from the effect's uv again — that is the DISTORTED lookup ` +
+        `coordinate, not the panel pixel the blend map is indexed by`;
+    return null;
+  },
+);
+
+check(
+  'a rig blend is applied by exactly one of the GPU and the scanout',
+  'NVAPI SetScanoutIntensity and the GLSL blend pass can both apply the same map. Applied twice, an ' +
+  'overlap gets alpha squared — a dark band that reads exactly like a mis-set blend gamma, which is ' +
+  'the hardest thing to diagnose on a wall at 2am. hwOwnsGeometry is the single predicate that ' +
+  'decides, and it must neutralise the GPU feed on the same branch that neutralises the warp.',
+  () => {
+    const A = 'src/renderer/App.tsx';
+    const a = read(A);
+    if (!/blend: hwGeom \? null : \(out\?\.blend \?\? null\)/.test(a))
+      return `${A} no longer withholds the blend from the GPU path when the scanout owns it`;
+    if (!/outputToNvwarp\(o, display, toBlendMap\(o\.blend\)\)/.test(a))
+      return `${A} stopped feeding the solved blend to NVAPI (it passed a hardcoded null for a year)`;
+    return null;
+  },
+);
+
+// ── An unattended recalibration can never prompt, and never trusts a low residual ─────────────
+check(
+  'an unattended recalibration cannot open a dialog or apply a wrong-but-tidy solve',
+  'Two ways a 4am maintenance task destroys a permanent installation. (1) It raises a modal — ' +
+  'handleSaveProject falls back to Save-As when there is no path, which is right for Ctrl+S and ' +
+  'catastrophic for a venue machine that will then sit on a dialog until someone drives over. ' +
+  'host.project.save() must REFUSE without a path. (2) It applies a solve whose numbers are ' +
+  'excellent but whose world is wrong: one mis-registered marker gives a projector pose that is ' +
+  'metrically superb about the wrong reference, and low RMS is no defence. The pose-jump gate is ' +
+  'what catches it, so it must reject regardless of score.',
+  () => {
+    const A = 'src/renderer/App.tsx';
+    const V = 'plugins/calibration/src/validateSolve.ts';
+    const R = 'plugins/calibration/src/autoRecal.ts';
+    if (!exists(V)) return `${V} is gone — nothing gates an unattended apply`;
+    const a = read(A);
+    // The save seam must be path-gated, and must not route through the dialog-capable handler.
+    const seam = (a.match(/save: async \(\) => \{[\s\S]*?\n {6}\},/) ?? [''])[0];
+    if (!seam) return `${A} no longer defines host.project.save as a guarded async function`;
+    if (!/if \(!p\) return false;/.test(seam))
+      return `${A}'s host.project.save no longer refuses when the project has no path — it can raise a Save dialog on a venue machine`;
+    if (/handleSaveProject|handleSaveAs/.test(seam))
+      return `${A}'s host.project.save routes through the dialog-capable save handler`;
+    const v = read(V);
+    if (!/maxPoseJumpM/.test(v) || !/implausible-pose-jump/.test(v))
+      return `${V} no longer rejects an implausible pose jump — the classic confident-wrong-answer`;
+    // The improvement gate must be a strict inequality against a factor, not "any improvement".
+    if (!/scores\.candidate\.rmsMm < scores\.incumbent\.rmsMm \* cfg\.improveFactor/.test(v))
+      return `${V} no longer requires a MARGIN of improvement — nightly noise will churn the calibration`;
+    const r = read(R);
+    if (!/cfg\.autoApply/.test(r))
+      return `${R} no longer honours autoApply — a run could write before the thresholds are tuned`;
+    if (!/calibrationPrev: previous/.test(r))
+      return `${R} applies without keeping the previous calibration — show mode has NO undo and no ` +
+        `crash-recovery file, so that slot is the only way back`;
     return null;
   },
 );
