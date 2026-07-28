@@ -434,9 +434,8 @@ async function main() {
         await safeShoot(page, '15-osc-monitor.png', async () => { await menuAction(page, 'View', 'OSC Monitor'); });
         await escClose(page);
 
-        // 16. Help panel (side panel)
-        await safeShoot(page, '16-help-panel.png', async () => { await clickTitle(page, 'Help (F1)'); });
-        await clickTitle(page, 'Help (F1)', { optional: true }); // toggle back off
+        // 16. (retired) The Help side panel died with the TopBar icon group — help is one searchable
+        // modal now (F1). Its shot joins the deferred whole-guide re-capture pass.
 
         // 17. About (Help ▸ About ArtLux)
         await safeShoot(page, '17-about.png', async () => { await menuAction(page, 'Help', 'About ArtLux'); });

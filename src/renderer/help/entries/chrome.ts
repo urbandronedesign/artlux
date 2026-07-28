@@ -1,9 +1,9 @@
 import type { HelpEntry } from '../types';
 
-// App chrome: TopBar, StatusBar, Preferences, the browser/inspector/timing panels (group: "General").
+// App chrome: StatusBar, Preferences, the browser/inspector/timing panels (group: "General").
 // Authored during the controls → help-system migration. Ids are stable "general.<fn>" — never rename.
 export const chromeHelp: HelpEntry[] = [
-  // ── TopBar (the menu-ribbon action icons) ───────────────────────────────────────────────────
+  // ── App-level functions (once the menu-ribbon icon group; now menu / rail / dock entries) ────
   {
     id: 'general.outputs',
     title: 'Outputs',

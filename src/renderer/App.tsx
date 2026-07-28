@@ -15,7 +15,6 @@ import { isLight } from './services/fixtureKind';
 import { mergeFixtureLook } from './services/sceneLook';
 import { spawnPosition3D } from './services/led3dDefaults';
 import * as placement from './services/fixturePlacement';
-import { TopBar } from './components/TopBar';
 import { About } from './components/About';
 import { AudioEngineMissing } from './components/AudioEngineMissing';
 import { RoutingModal } from './components/RoutingModal';
@@ -84,7 +83,7 @@ const generateId = () => Math.random().toString(36).substr(2, 9);
 // very first render instead of after an effect.
 registerCoreWorkspace();
 
-// The DMX monitor's panel id — the TopBar's Monitor button targets it by id now that dock tabs are
+// The DMX monitor's panel id — View ▸ DMX Monitor targets it by id now that dock tabs are
 // panels rather than the core-only DockTab enum.
 const MONITOR_PANEL = 'core.dock.monitor';
 const PERF_PANEL = 'core.dock.perf';
@@ -254,9 +253,6 @@ const App: React.FC = () => {
   const setDockHeight = setLayoutField('dockHeight');
   const setSplitView = setLayoutField('splitView');
   const setSplitRatio = setLayoutField('splitRatio');
-  // Which dock panel the ACTIVE context is showing — read from that context's own remembered slice,
-  // falling back to nothing (the shell then shows the context's first dock panel).
-  const activeDockPanel = L.contexts[L.activeContext]?.dockPanel;
   // Calibration's session state lives in the PLUGIN (calibWorkspace) since the `calib` context took
   // ownership. App only reads it, to feed the embedded 3D its pick props and to let the projector
   // reconciler know which output the wizard is currently driving.
@@ -3656,29 +3652,10 @@ const App: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen w-screen bg-stage text-fg-1 font-sans overflow-hidden">
-      <MenuBar
-          onMenuAction={(a) => dispatchMenuRef.current(a)}
-          actions={
-            <TopBar
-                onOpenPreferences={() => goToContext('settings')}
-                onOpenRouting={() => openDockPanel(ROUTING_PANEL)}
-                onOpenOutputs={() => { refreshDisplays(); goToContext('project'); }}
-                monitorOpen={dockOpen && activeDockPanel === MONITOR_PANEL}
-                // The dock tab is now a PANEL ID scoped to the active context (a plugin's dock panel
-                // can't be named by the core DockTab enum). Toggling from the TopBar therefore writes
-                // into that context's own slice — the same place the shell's tab strip writes.
-                onToggleMonitor={() => {
-                  if (dockOpen && activeDockPanel === MONITOR_PANEL) { setDockOpen(false); return; }
-                  layoutStore.set({
-                    dockOpen: true,
-                    contexts: { ...L.contexts, [L.activeContext]: { ...L.contexts[L.activeContext], dockPanel: MONITOR_PANEL } },
-                  });
-                }}
-                helpOpen={showHelp}
-                onToggleHelp={() => setShowHelp((v) => !v)}
-            />
-          }
-      />
+      {/* No toolbar icon group beside the window controls anymore: every function it carried has a
+          first-class door (menus, the context rail, dock tabs, F1), and rendering them twice was
+          noise — see plans/help-merge-and-topbar-removal.md. */}
+      <MenuBar onMenuAction={(a) => dispatchMenuRef.current(a)} />
 
       <EditorStore data={editorData} actions={editorActions}>
       <WorkspaceShell

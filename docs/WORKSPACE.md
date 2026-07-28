@@ -174,7 +174,7 @@ Seven of these are worth knowing the history of, because the shape was arrived a
   separates it on the rail, last). Preferences started as a 460px dialog over output protocol + engine
   and grew into appearance, unattended watchdog, GPU probing and every plugin's `SettingsSection` — a
   screen you *read and compare*, not one you acknowledge. It is still the single host for plugin
-  settings sections; that did not move. `Ctrl+,`, the TopBar gear and the Context menu all land on it.
+  settings sections; that did not move. `Ctrl+,` and the Context menu both land on it.
 
   Its sections are a **mosaic**, not a column: each `Section` becomes a card and CSS multi-column packs
   them (`columns: 19rem 5`). The count follows the width the shell actually gave the viewport rather

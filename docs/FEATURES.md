@@ -64,7 +64,7 @@ WebGPU path; the WebGL fallback samples the composite (degraded).
 ## Routing & auto-patch
 Universes/addresses are assigned **automatically**: as you add/remove fixtures (or change LED count,
 channels, or controller) the patch re-packs sequentially per controller. Open the **Routing**
-spreadsheet (TopBar network icon or File → Routing…) to:
+spreadsheet (File → Routing…) to:
 - manage **Controllers** (physical output devices: name, protocol, IP, broadcast, start universe,
   sACN priority) — fixtures assigned to a controller are packed into its universes and output to its IP;
 - patch every fixture in a grid (surface link, controller, universe/start, channels, LED count);

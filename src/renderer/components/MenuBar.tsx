@@ -137,11 +137,9 @@ function buildMenus(recents: string[]): Menu[] {
 
 interface Props {
   onMenuAction: (action: string) => void;
-  /** Toolbar action icons rendered inline on the right, before the window controls. */
-  actions?: React.ReactNode;
 }
 
-export const MenuBar: React.FC<Props> = ({ onMenuAction, actions }) => {
+export const MenuBar: React.FC<Props> = ({ onMenuAction }) => {
   const [open, setOpen] = useState<string | null>(null); // open top-level menu label
   const [recents, setRecents] = useState<string[]>([]);
   const [maximized, setMaximized] = useState(false);
@@ -229,10 +227,6 @@ export const MenuBar: React.FC<Props> = ({ onMenuAction, actions }) => {
 
       {/* Draggable spacer */}
       <div className="flex-1" />
-
-      {/* Toolbar action icons (inline, before the window controls) */}
-      {actions && <div className="flex items-center pr-1" style={NODRAG}>{actions}</div>}
-      <div className="self-center mx-1 h-5 w-px bg-line-1" />
 
       {/* Window controls */}
       <div className="flex items-stretch" style={NODRAG}>

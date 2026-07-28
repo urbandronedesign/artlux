@@ -59,8 +59,8 @@ Per-surface render → per-surface sample, reusing the compute shader's normaliz
   (channelsPerPixel-aware, wraps at 512; `patchLocked` keeps manual). Auto-runs on add/remove/
   ledCount/channels/controller changes + a Re-patch button; `Stage` resolves each fixture's
   destination from its controller → per-fixture `output` override → global settings.
-- **S6 — Routing spreadsheet modal (DONE).** `RoutingModal.tsx` (TopBar Network button / File →
-  Routing…): a Controllers sub-panel + a fixtures patch grid (name · surface · controller · universe ·
+- **S6 — Routing spreadsheet modal (DONE).** `RoutingModal.tsx` (File → Routing…): a Controllers
+  sub-panel + a fixtures patch grid (name · surface · controller · universe ·
   start · channels · LEDs · span · lock); inline edit, lock-to-edit-address, Auto-patch.
 
 **Surfaces engine S1–S6 complete.**
