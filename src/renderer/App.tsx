@@ -2549,6 +2549,16 @@ const App: React.FC = () => {
           case 'import-rig': handleImportRig(); break;
           case 'preferences': goToContext('settings'); break;
           case 'routing': openDockPanel(ROUTING_PANEL); break;
+          // The DMX Monitor dock tab, from either View menu. A toggle (close if it is the front
+          // tab) built on openDockPanel, which hops to a context that carries the tab when the
+          // active one doesn't — only 4 of the 9 list it, so from Scenes or Audio a plain slice
+          // write would open the dock onto a tab that isn't there.
+          case 'dmx-monitor': {
+            const now = layoutStore.get();
+            if (now.dockOpen && now.contexts[now.activeContext]?.dockPanel === MONITOR_PANEL) setDockOpen(false);
+            else openDockPanel(MONITOR_PANEL);
+            break;
+          }
           // The timeline drawer, from either menu. Same target as Ctrl+T (global.toggleBottom).
           case 'toggle-timeline': layoutStore.set({ bottomOpen: !layoutStore.get().bottomOpen }); break;
           case 'record-lighting-take': handleToggleLightingRecord(); break;

@@ -96,6 +96,7 @@ function template(): MenuItemConstructorOptions[] {
         { label: 'Timeline', accelerator: 'CmdOrCtrl+T', registerAccelerator: false, click: () => send('toggle-timeline') },
         { type: 'separator' },
         { label: 'OSC Monitor…', accelerator: 'CmdOrCtrl+Shift+M', registerAccelerator: false, click: () => send('osc-monitor') },
+        { label: 'DMX Monitor', click: () => send('dmx-monitor') },
         // These five existed ONLY in the renderer's menu bar until now, so they were unreachable from
         // the native menu that owns real accelerators — and on macOS the native menu is the only menu.
         { label: 'Pose Monitor…', click: () => send('pose-monitor') },
