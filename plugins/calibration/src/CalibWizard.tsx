@@ -331,7 +331,10 @@ export const CalibWizard: React.FC<Props> = (props) => {
               )}
               <button onClick={() => startCam()} className="px-2 py-1 rounded bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3">{camOn ? 'Restart' : 'Start'}</button>
             </div>
-            <CameraParamsPanel camOn={camOn} sessionKey={camSession} width={camMode.w} height={camMode.h} fps={camMode.fps} onReopen={reopenCam} />
+            {/* Only the native source addresses a DirectShow device by index — and only then can the
+                panel enumerate what that device really supports instead of offering presets. */}
+            <CameraParamsPanel camOn={camOn} sessionKey={camSession} width={camMode.w} height={camMode.h} fps={camMode.fps}
+              onReopen={reopenCam} deviceIndex={camSource === 'native' ? camIndex : undefined} />
             {camError && <div className="flex items-start gap-1.5 text-danger text-micro leading-snug"><AlertTriangle size={12} className="shrink-0 mt-0.5" /> {camError}</div>}
             {camBlank && !camError && (
               <div className="flex items-start gap-1.5 text-warn text-micro leading-snug">
@@ -423,7 +426,11 @@ export const CalibWizard: React.FC<Props> = (props) => {
         )}
       </div>
     </div>
-    <div className="flex-1 min-w-0 min-h-0 bg-black">
+    {/* `relative` is load-bearing: CameraViewport's root is `absolute inset-0`, so without a positioned
+        parent it resolves against the nearest positioned ancestor — the workbench slot — and paints
+        black over the 340px rail beside it. The wizard was then present, laid out and clickable, but
+        invisible. Only shows up in the docked shell, whose slot container is the positioned ancestor. */}
+    <div className="relative flex-1 min-w-0 min-h-0 bg-black">
       <CameraViewport
         ref={viewportRef}
         active={camOn}

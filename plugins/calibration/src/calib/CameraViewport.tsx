@@ -212,7 +212,26 @@ export const CameraViewport = forwardRef<CameraViewportHandle, Props>((props, re
   const rafPending = useRef(false);
   const rafId = useRef(0);
   const alive = useRef(true);
-  useEffect(() => () => { alive.current = false; if (rafId.current) cancelAnimationFrame(rafId.current); }, []);
+  // RE-ARM ON MOUNT, don't just disarm on unmount. StrictMode runs mount → unmount → remount, so a
+  // ref that is only ever set false in the cleanup stays false for the rest of the component's life:
+  // every redraw() then schedules a rAF that returns before drawBase(), and the preview is a black
+  // canvas left at its default 300×150 backing store — while paint() still updates the resolution
+  // badge and fit() still computes a correct zoom, so everything ELSE looks right. Same re-arm as
+  // MediaPanel's. (HMR remounts hit this too, which is why it only bites in dev.)
+  useEffect(() => {
+    alive.current = true;
+    // ...and clear the SCHEDULING LATCH. redraw() sets rafPending before requestAnimationFrame and
+    // only the frame callback clears it — so a cancelled frame leaves it stuck true, and from then on
+    // every redraw() returns at its first line. Nothing throws; the preview is simply a canvas left at
+    // its default 300×150 backing store, while paint() still updates the resolution badge and fit()
+    // still computes a correct zoom. Cancelling a frame must therefore also un-schedule it.
+    rafPending.current = false;
+    return () => {
+      alive.current = false;
+      if (rafId.current) cancelAnimationFrame(rafId.current);
+      rafPending.current = false;
+    };
+  }, []);
   const redraw = () => {
     if (rafPending.current) return;
     rafPending.current = true;

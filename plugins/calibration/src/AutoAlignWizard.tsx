@@ -410,7 +410,9 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
             </div>
             {camErr && <div className="flex items-start gap-1.5 text-danger text-micro leading-snug"><AlertTriangle size={12} className="shrink-0 mt-0.5" /> {camErr}</div>}
 
-            <CameraParamsPanel camOn={camOn} sessionKey={camSession} width={camMode.w} height={camMode.h} fps={camMode.fps} onReopen={reopenCam} />
+            {/* Native source only — see the same note in CalibWizard. */}
+            <CameraParamsPanel camOn={camOn} sessionKey={camSession} width={camMode.w} height={camMode.h} fps={camMode.fps}
+              onReopen={reopenCam} deviceIndex={camSource === 'native' ? camIndex : undefined} />
 
             <div className="space-y-1 pt-1 border-t border-line-1">
               <div className="flex items-center gap-1.5 text-micro">
@@ -540,7 +542,9 @@ export const AutoAlignWizard: React.FC<Props> = (props) => {
           : <button onClick={() => idx < STEPS.length - 1 && canNext && setStep(STEPS[idx + 1].id)} disabled={!canNext} title={canNext ? '' : 'complete this step'} className="text-mini px-2 py-1 rounded bg-accent/20 border border-accent text-fg-1 disabled:opacity-30">Next ›</button>}
       </div>
     </div>
-    <div className="flex-1 min-w-0 min-h-0 bg-black">
+    {/* `relative` is load-bearing — see the same note in CalibWizard: CameraViewport is `absolute
+        inset-0`, so a static parent lets it cover the rail beside it. */}
+    <div className="relative flex-1 min-w-0 min-h-0 bg-black">
       <CameraViewport
         ref={viewportRef}
         active={camOn}

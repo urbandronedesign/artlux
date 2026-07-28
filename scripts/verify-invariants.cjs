@@ -1607,6 +1607,59 @@ check(
   },
 );
 
+// ── Calibration: an absolutely-positioned CameraViewport needs a POSITIONED parent ────────────
+check(
+  'the calibration camera pane is positioned, so it cannot cover the wizard rail',
+  'CameraViewport\'s root is `absolute inset-0`, so it resolves against the nearest POSITIONED ' +
+  'ancestor. Both wizards lay it out as `flex-1` beside a 340px rail — and that flex pane was ' +
+  '`position: static`, so the camera\'s layers escaped it and resolved against the workbench slot ' +
+  'instead, painting solid black across the full width. The rail was still laid out at the right ' +
+  'coordinates, still visible, still clickable, and reported its text in innerText — it was simply ' +
+  'UNDERNEATH. So the wizard looked absent while every DOM assertion about it passed, which is why ' +
+  'this survived: only a screenshot or an elementFromPoint hit-test shows it. It reproduced solely ' +
+  'in the docked shell, whose slot container is the positioned ancestor that caught the escape.',
+  () => {
+    const problems = [];
+    for (const F of ['plugins/calibration/src/CalibWizard.tsx', 'plugins/calibration/src/AutoAlignWizard.tsx']) {
+      const src = read(F);
+      if (!/<CameraViewport/.test(src)) { problems.push(`${F} no longer mounts CameraViewport`); continue; }
+      // The wrapper is the element immediately preceding the <CameraViewport mount.
+      const m = src.match(/<div className="([^"]*)"[^>]*>\s*(?:\{\/\*[\s\S]*?\*\/\}\s*)?<CameraViewport/);
+      if (!m) { problems.push(`${F} CameraViewport is not wrapped in a <div className="…"> — cannot verify it is positioned`); continue; }
+      if (!/\brelative\b/.test(m[1]))
+        problems.push(`${F} mounts CameraViewport in a static pane ("${m[1]}") — its absolute layers will cover the wizard rail`);
+    }
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
+// ── Calibration: the camera preview's rAF refs are RE-ARMED on mount, not only disarmed ───────
+check(
+  'CameraViewport re-arms its rAF guards on mount',
+  'Two refs gate the preview\'s redraw: `alive` (set false by the unmount cleanup) and `rafPending` ' +
+  '(set true before requestAnimationFrame, cleared only by the frame callback). Both were written ' +
+  'ONLY in the disarming direction, so React StrictMode\'s mount → unmount → remount left `alive` ' +
+  'false and — because the cleanup cancels the frame without clearing the latch — `rafPending` true. ' +
+  'Every later redraw() then returned at its first line. Nothing threw, no error surfaced, and the ' +
+  'wizard looked healthy: paint() still updated the resolution badge and fit() still computed a ' +
+  'correct zoom %. Only the preview was dead — a canvas left at its default 300×150 backing store. ' +
+  'A ref that a cleanup mutates must be reset by the mount that follows it.',
+  () => {
+    const F = 'plugins/calibration/src/calib/CameraViewport.tsx';
+    const src = read(F);
+    // The mount effect is the one whose cleanup cancels the frame.
+    const m = src.match(/useEffect\(\(\) => \{([\s\S]*?)\}, \[\]\);/);
+    if (!m) return `${F} no longer has a mount effect guarding the rAF`;
+    const bodyBeforeReturn = m[1].split('return')[0];
+    const problems = [];
+    if (!/alive\.current\s*=\s*true/.test(bodyBeforeReturn))
+      problems.push('the mount effect never re-arms `alive` — the preview stays dead after a StrictMode/HMR remount');
+    if (!/rafPending\.current\s*=\s*false/.test(bodyBeforeReturn))
+      problems.push('the mount effect never clears `rafPending` — a cancelled frame latches redraw() off forever');
+    return problems.length ? `${F}: ${problems.join('; ')}` : null;
+  },
+);
+
 // ── Patch: the kind-aware fallback keeps its back-compat rung, and both passes share it ───────
 check(
   'autoPatch resolves a fixture\'s bucket in ONE place, ending on the old behaviour',
