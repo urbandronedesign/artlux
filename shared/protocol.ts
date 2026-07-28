@@ -319,6 +319,19 @@ export interface CameraFrame {
   data: ArrayBuffer; // grayscale, w*h bytes
 }
 
+// One capture mode a camera REALLY advertises, read from DirectShow's IAMStreamConfig by the calib
+// addon (`cameraListModes`). OpenCV's videoio can only be *told* a resolution — a mode the device
+// refuses is applied silently, so a picker built from a hardcoded list lets you choose 1920×1080 on a
+// camera whose only mode is 640×480 and shows no sign that nothing changed.
+export interface CameraMode {
+  width: number;
+  height: number;
+  fps: number;        // the mode's default rate
+  minFps: number;     // drivers advertise a RANGE per resolution, not a single rate
+  maxFps: number;
+  fourcc: string;     // 'MJPG' | 'YUY2' | 'RGB ' | …
+}
+
 // ---- OSC (external control + LiDAR blob tracking) ----------------------------
 // OscConfig / OscMessage now live in the (unstable, internal) plugin SDK because both the host
 // and first-party plugins (the LiDAR tracking transport) speak this vocabulary. Imported for

@@ -23,6 +23,11 @@ use opencv::videoio::{self, VideoCapture, VideoWriter};
 use opencv::{calib3d, imgproc, objdetect};
 use std::cell::RefCell;
 
+// DirectShow capture-mode enumeration — the only way to ASK a device what it supports (videoio can
+// only be told). Windows-only; `camera_list_modes` returns an empty list elsewhere.
+#[cfg(windows)]
+mod dshow;
+
 #[napi(object)]
 pub struct BoardDetectResult {
     pub found: bool,
@@ -54,6 +59,17 @@ pub struct CameraFrame {
     pub w: u32,
     pub h: u32,
     pub data: Buffer, // grayscale (w*h) from camera_grab_gray, or RGBA (w*h*4) from camera_grab_rgba
+}
+
+/// One capture mode a device actually advertises (see `camera_list_modes`).
+#[napi(object)]
+pub struct CameraMode {
+    pub width: u32,
+    pub height: u32,
+    pub fps: f64,     // the mode's default rate
+    pub min_fps: f64, // drivers usually advertise a RANGE per resolution, not one rate
+    pub max_fps: f64,
+    pub fourcc: String, // "MJPG" / "YUY2" / "RGB "
 }
 
 #[napi(object)]
@@ -688,6 +704,45 @@ pub fn camera_open(index: u32, width: u32, height: u32, fps: f64, fourcc: String
         Ok(true)
     })();
     res.map_err(|e| napi::Error::from_reason(format!("camera_open: {e}")))
+}
+
+// List the capture modes the device at `index` REALLY advertises, so the wizard can offer those
+// instead of a hardcoded guess. Enumerated straight from DirectShow (see src/dshow.rs) because
+// videoio has no capability query: `cap.set(CAP_PROP_FRAME_WIDTH, …)` is only a hint and a refused
+// mode is silent — asking a PS3 Eye for 1920×1080 leaves it sending 640×480 with nothing to say so.
+//
+// Does NOT open the camera: it binds the device filter and reads its pin caps, so it is safe to call
+// while a capture is running, and on a device that only tolerates a single opener.
+//
+// An enumeration failure returns an EMPTY list rather than an error — the caller falls back to its
+// static list, which is exactly the old behaviour, so a driver we cannot introspect still works.
+#[napi]
+pub fn camera_list_modes(index: u32) -> napi::Result<Vec<CameraMode>> {
+    #[cfg(windows)]
+    {
+        match dshow::list_modes(index) {
+            Ok(modes) => Ok(modes
+                .into_iter()
+                .map(|m| CameraMode {
+                    width: m.width,
+                    height: m.height,
+                    fps: m.fps,
+                    min_fps: m.min_fps,
+                    max_fps: m.max_fps,
+                    fourcc: m.fourcc,
+                })
+                .collect()),
+            Err(e) => {
+                eprintln!("[calib] camera_list_modes({index}): {e}");
+                Ok(Vec::new())
+            }
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = index;
+        Ok(Vec::new())
+    }
 }
 
 // Set a capture property on the open camera (manual exposure / gain / gamma for decode SNR — VIOSO

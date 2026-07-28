@@ -2,7 +2,7 @@ import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type {
-  BoardDetectResult, ArucoDetection, CornerProjMap, ProjectorIntrinsicsResult, PnpResult, CameraFrame, DenseMap, CameraSelfCal,
+  BoardDetectResult, ArucoDetection, CornerProjMap, ProjectorIntrinsicsResult, PnpResult, CameraFrame, CameraMode, DenseMap, CameraSelfCal,
 } from '../../../shared/protocol';
 
 // Loads the native OpenCV calibration addon (native/calib/calib.node) in the main process — the
@@ -51,6 +51,8 @@ interface CalibNative {
   selfCalibrateStereo(camX: number[], camY: number[], projX: number[], projY: number[], camW: number, camH: number, projW: number, projH: number): CameraSelfCal;
   /** Open a camera by index via OpenCV's DirectShow backend (for cameras getUserMedia can't drive). */
   cameraOpen(index: number, width: number, height: number, fps: number, fourcc: string): boolean;
+  /** Modes the device at `index` actually advertises (DirectShow); empty when it can't be read. */
+  cameraListModes(index: number): CameraMode[];
   /** Grab one grayscale frame (Buffer of w*h bytes) from the open camera, or null if none ready. */
   cameraGrabGray(): { w: number; h: number; data: Buffer } | null;
   /** Grab one RGBA frame (Buffer of w*h*4 bytes) from the open camera, or null if none ready. */
@@ -204,6 +206,19 @@ export function cameraOpen(index: number, width: number, height: number, fps: nu
   } catch (e) {
     console.warn('[calib] cameraOpen failed:', (e as Error)?.message ?? e);
     return false;
+  }
+}
+
+// Modes the device really advertises, straight from DirectShow. Never throws and never opens the
+// camera: an addon without the export (an older prebuilt .node) or a driver we can't introspect both
+// yield [], and the caller falls back to its static list — i.e. exactly the pre-enumeration behaviour.
+export function cameraListModes(index: number): CameraMode[] {
+  if (!native?.cameraListModes) return [];
+  try {
+    return native.cameraListModes(index) ?? [];
+  } catch (e) {
+    console.warn('[calib] cameraListModes failed:', (e as Error)?.message ?? e);
+    return [];
   }
 }
 

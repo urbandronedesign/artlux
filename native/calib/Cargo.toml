@@ -18,6 +18,20 @@ napi-derive = "2"
 # native/calib/calib.node is committed (NDI precedent) so CI + end users don't need OpenCV at build time.
 opencv = "0.99"
 
+# DirectShow capture-mode enumeration (src/dshow.rs). OpenCV's videoio can only be TOLD a resolution,
+# never ASKED what a device supports, so the mode picker has to come from DirectShow itself. Windows
+# only — the rest of the crate is cross-platform in principle, and `camera_list_modes` degrades to an
+# empty list elsewhere.
+[target.'cfg(windows)'.dependencies.windows]
+version = "0.61"
+features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",        # BITMAPINFOHEADER inside VIDEOINFOHEADER
+    "Win32_Media_DirectShow",    # ICreateDevEnum / IBaseFilter / IPin / IAMStreamConfig
+    "Win32_Media_MediaFoundation", # AM_MEDIA_TYPE / VIDEOINFOHEADER live here in windows-rs
+    "Win32_System_Com",
+]
+
 [build-dependencies]
 napi-build = "2"
 

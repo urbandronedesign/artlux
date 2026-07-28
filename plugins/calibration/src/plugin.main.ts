@@ -27,6 +27,7 @@ export const plugin: MainPlugin = {
     ipc.handle('calib:self-calibrate', (camX, camY, projX, projY, camW, camH, projW, projH) =>
       calib.selfCalibrate(camX as number[], camY as number[], projX as number[], projY as number[], camW as number, camH as number, projW as number, projH as number));
     ipc.handle('calib:camera-open', (index, width, height, fps, fourcc) => calib.cameraOpen(index as number, width as number, height as number, fps as number, fourcc as string));
+    ipc.handle('calib:camera-list-modes', (index) => calib.cameraListModes(index as number));
     ipc.handle('calib:camera-grab', () => calib.cameraGrab());
     ipc.handle('calib:camera-grab-color', () => calib.cameraGrabColor());
     ipc.handle('calib:camera-set-prop', (prop, value) => calib.cameraSetProp(prop as string, value as number));

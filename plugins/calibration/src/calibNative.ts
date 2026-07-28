@@ -6,7 +6,7 @@
 
 import type {
   BoardDetectResult, ArucoDetection, CornerProjMap, ProjectorIntrinsicsResult,
-  PnpResult, DenseMap, CameraSelfCal, CameraFrame,
+  PnpResult, DenseMap, CameraSelfCal, CameraFrame, CameraMode,
 } from '../../../shared/protocol';
 
 async function inv<T>(ch: string, ...args: unknown[]): Promise<T | null> {
@@ -46,6 +46,11 @@ export const calibSelfCalibrate = (camX: number[], camY: number[], projX: number
 
 export const calibCameraOpen = async (index: number, width: number, height: number, fps: number, fourcc: string): Promise<boolean> =>
   !!(await inv<boolean>('calib:camera-open', index, width, height, fps, fourcc));
+
+// Capture modes the device really advertises. `[]` (not null) whenever it can't be read, so callers
+// can treat "no answer" and "nothing advertised" the same way: fall back to a static list.
+export const calibCameraListModes = async (index: number): Promise<CameraMode[]> =>
+  (await inv<CameraMode[]>('calib:camera-list-modes', index)) ?? [];
 
 export const calibCameraGrab = () => inv<CameraFrame>('calib:camera-grab');
 export const calibCameraGrabColor = () => inv<CameraFrame>('calib:camera-grab-color');
