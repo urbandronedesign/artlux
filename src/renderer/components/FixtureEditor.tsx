@@ -1,37 +1,41 @@
-import React, { useRef, useState } from 'react';
-import { Fixture, FixtureTemplate, LedShape, ColorOrder, RGBWMode } from '../types';
-import { Hash, Grid3x3, Cable, Minus, Plus, Save, PackagePlus, Trash2, Library, Route, Upload, Download, Eraser, AlertTriangle } from 'lucide-react';
-import { Field, NumberField, Select, Toggle, Segmented, Button, useToast } from './ui';
+import React, { useRef } from 'react';
+import { Fixture, FixtureTemplate, LedShape } from '../types';
+import { Grid3x3, Save, PackagePlus, Trash2, Library, Route, Upload, Download, Eraser, AlertTriangle } from 'lucide-react';
+import { Segmented, Button, useToast } from './ui';
 import { Tooltip } from './ui/Tooltip';
 import { help } from '../services/helpBus';
 import { fixtureFootprint } from '../services/addressing';
 import { isLight } from '../services/fixtureKind';
 import { FixtureProfilePicker } from './FixtureProfilePicker';
 
-interface Props {
-  fixture: Fixture | null;
-  onUpdateFixture: (id: string, updates: Partial<Fixture>) => void;
-  onAdd: () => void;
-  onAutoPatch: () => void;
-  templates: FixtureTemplate[];
-  onSaveTemplate: () => void;
-  onAddFromTemplate: (t: FixtureTemplate) => void;
-  onRemoveTemplate: (id: string) => void;
-  /** Add a brand-new fixture straight from a library profile. */
-  onAddFromProfile: (profileId: string, modeKey: string) => void;
-}
-
-const Card: React.FC<{ title: string; icon?: React.ReactNode; children: React.ReactNode; className?: string }> = ({
-  title, icon, children, className = '',
-}) => (
-  <div className={`bg-surface-1 border border-line-1 rounded-md flex flex-col min-w-[200px] ${className}`}>
-    <div className="px-3 py-1.5 border-b border-line-1 flex items-center gap-2 text-mini font-semibold uppercase tracking-wider text-fg-2">
-      {icon && <span className="text-fg-3">{icon}</span>}
-      {title}
-    </div>
-    <div className="p-3 space-y-2.5">{children}</div>
-  </div>
-);
+// THE FIXTURE BENCH — what is left after the inspector learned about fixture kinds.
+//
+// This file WAS a seven-card "Fixture Editor" dock: Create, Library, Patch, Pixel Type, Geometry,
+// Wiring, Ledmap. Five of those cards were a second rendering of controls that now live in the
+// parameter column, kind-gated and invariant-guarded — so a moving head was offered a colour order,
+// a serpentine toggle and an LED count, and the same field could be edited in two places with only
+// one of them explaining itself.
+//
+// What was removed, and where it already lives:
+//
+//   Create      → the Mapping action bar (Add Fixture · Auto-patch)
+//   Patch       → core.inspector.fixture.patch      (both kinds; shows the real footprint)
+//   Pixel Type  → core.inspector.fixture.output     (colour order, channels/pixel, RGBW mode)
+//   Geometry    → core.inspector.fixture.output     (Line/Matrix, cols/rows, serpentine)
+//   Reverse     → core.inspector.fixture.mapping
+//
+// What stayed, because it exists NOWHERE ELSE:
+//
+//   · the LIBRARY — the shipped DMX profiles and the operator's own LED templates;
+//   · the WIRING PREVIEW — MatrixPreview and the physical-index strip. This one nearly went: the
+//     plan that proposed the shrink listed only two survivors, and the preview would have been
+//     deleted as duplicated when nothing renders it anywhere else;
+//   · the LEDMAP tools — load / export / clear / generate-serpentine.
+//
+// The last two are ONE dock, deliberately: the preview shows the physical pixel order and the ledmap
+// remaps it. They are the same question asked twice.
+//
+// The file keeps its name so its history stays greppable — the same reason RoutingModal.tsx did.
 
 // Visual wiring preview: physical index per cell, honoring serpentine "assignation".
 const MatrixPreview: React.FC<{ cols: number; rows: number; serpentine: boolean }> = ({ cols, rows, serpentine }) => {
@@ -59,29 +63,113 @@ const MatrixPreview: React.FC<{ cols: number; rows: number; serpentine: boolean 
   );
 };
 
-export const FixtureEditor: React.FC<Props> = ({
-  fixture,
-  onUpdateFixture,
-  onAdd,
-  onAutoPatch,
-  templates,
-  onSaveTemplate,
-  onAddFromTemplate,
-  onRemoveTemplate,
-  onAddFromProfile,
+const Card: React.FC<{ title: string; icon?: React.ReactNode; children: React.ReactNode; className?: string }> = ({
+  title, icon, children, className = '',
+}) => (
+  <div className={`bg-surface-1 border border-line-1 rounded-md flex flex-col min-w-[200px] ${className}`}>
+    <div className="px-3 py-1.5 border-b border-line-1 flex items-center gap-2 text-mini font-semibold uppercase tracking-wider text-fg-2">
+      {icon && <span className="text-fg-3">{icon}</span>}
+      {title}
+    </div>
+    <div className="p-3 space-y-2.5">{children}</div>
+  </div>
+);
+
+// ── THE LIBRARY ─────────────────────────────────────────────────────────────────────────────
+// What am I adding? Two tabs rather than two docks: they answer one question, and splitting them
+// would make the shipped DMX library easy to miss.
+
+interface LibraryProps {
+  /** Only used to decide whether "Save selected" is offered — a template is an LED shape. */
+  fixture: Fixture | null;
+  templates: FixtureTemplate[];
+  onSaveTemplate: () => void;
+  onAddFromTemplate: (t: FixtureTemplate) => void;
+  onRemoveTemplate: (id: string) => void;
+  onAddFromProfile: (profileId: string, modeKey: string) => void;
+}
+
+export const FixtureLibrary: React.FC<LibraryProps> = ({
+  fixture, templates, onSaveTemplate, onAddFromTemplate, onRemoveTemplate, onAddFromProfile,
 }) => {
+  const [tab, setTab] = React.useState<'profiles' | 'templates'>('profiles');
+  return (
+    <div className="h-full overflow-auto p-3 bg-surface-0">
+      <Card title="Library" icon={<Library size={12} />} className="min-w-[240px] max-w-[420px]">
+        <Segmented
+          value={tab}
+          onChange={(v) => setTab(v as 'profiles' | 'templates')}
+          options={[{ value: 'profiles', label: 'Light Fixtures' }, { value: 'templates', label: 'LED Templates' }]}
+        />
+
+        {tab === 'profiles' && (
+          <div className="mt-1">
+            <FixtureProfilePicker maxHeight="max-h-64" onPick={(id, mode) => onAddFromProfile(id, mode)} />
+          </div>
+        )}
+
+        {/* A template is an LED-fixture SHAPE (ledCount, matrix, serpentine, colour order), so it
+            describes nothing about a moving head and would rebuild one as a 1-LED strip. A light's
+            reusable form already exists and is better: its PROFILE plus a mode. */}
+        {tab === 'templates' && <>
+          <Tooltip id="fixtures.save-template">
+            <button
+              onClick={onSaveTemplate}
+              disabled={!fixture || isLight(fixture)}
+              {...help('fixtures.save-template')}
+              className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-sm bg-surface-2 border border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1 text-xs disabled:opacity-40 disabled:cursor-not-allowed"
+              title={fixture && isLight(fixture)
+                ? 'Templates are for LED fixtures — a light is reused through its DMX profile and mode'
+                : 'Save the selected LED fixture as a template'}
+            >
+              <Save size={13} /> Save selected
+            </button>
+          </Tooltip>
+          <div className="space-y-0.5 max-h-64 overflow-y-auto -mx-1 px-1">
+            {templates.map(t => (
+              <div key={t.id} className="flex items-center group px-2 py-1 rounded hover:bg-surface-3 text-fg-2 text-xs">
+                <Tooltip id="fixtures.add-from-template">
+                  <button className="flex-1 flex items-center text-left truncate" onClick={() => onAddFromTemplate(t)} {...help('fixtures.add-from-template')} title="Add a fixture from this template">
+                    <PackagePlus size={12} className="mr-2 text-fg-3" />
+                    {t.name} <span className="text-fg-3 ml-1">({t.ledCount})</span>
+                  </button>
+                </Tooltip>
+                <Tooltip id="fixtures.delete-template">
+                  <button className="opacity-0 group-hover:opacity-100 hover:text-danger text-fg-3" onClick={() => onRemoveTemplate(t.id)} {...help('fixtures.delete-template')} title="Delete template"><Trash2 size={10} /></button>
+                </Tooltip>
+              </div>
+            ))}
+            {templates.length === 0 && <div className="text-fg-3 italic px-2 py-1 text-xs">No templates</div>}
+          </div>
+        </>}
+      </Card>
+    </div>
+  );
+};
+
+// ── WIRING & LEDMAP (LED FIXTURES ONLY) ─────────────────────────────────────────────────────
+// In what ORDER are this fixture's pixels addressed? The preview answers it and the ledmap changes
+// it, which is why they share a dock. Registered `appliesTo: ['fixture.pixel']` — a moving head has
+// named channels, not a pixel order.
+
+interface WiringProps {
+  fixture: Fixture | null;
+  onUpdateFixture: (id: string, updates: Partial<Fixture>) => void;
+}
+
+export const FixtureWiring: React.FC<WiringProps> = ({ fixture, onUpdateFixture }) => {
   const toast = useToast();
-  const [libraryTab, setLibraryTab] = useState<'profiles' | 'templates'>('profiles');
+  const ledmapInput = useRef<HTMLInputElement>(null);
   const up = (updates: Partial<Fixture>) => fixture && onUpdateFixture(fixture.id, updates);
+
   const shape = fixture?.shape ?? LedShape.LINE;
-  const cpp = fixture?.channelsPerPixel ?? 4;
   const cols = fixture?.matrixWidth ?? 8;
   const rows = fixture?.matrixHeight ?? 8;
-  // Via addressing.ts, so the editor's channel count is the same number the patch reserves.
+  const cpp = fixture?.channelsPerPixel ?? 4;
+  // Via addressing.ts, so this readout is the number the patch reserves.
   const totalChannels = fixture ? fixtureFootprint(fixture) : 0;
-
-  // Ledmap — WLED-style physical→geometry remap. See docs/LEDMAP.md.
-  const ledmapInput = useRef<HTMLInputElement>(null);
+  const ledMapLen = fixture?.ledMap?.length ?? 0;
+  const ledMapMismatch = !!fixture?.ledMap && ledMapLen !== fixture.ledCount;
 
   const handleLedmapUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -127,149 +215,14 @@ export const FixtureEditor: React.FC<Props> = ({
     up({ ledMap: map, serpentine: false });
   };
 
-  const ledMapLen = fixture?.ledMap?.length ?? 0;
-  const ledMapMismatch = !!fixture?.ledMap && ledMapLen !== fixture.ledCount;
+  if (!fixture) {
+    return <div className="h-full p-3 bg-surface-0 text-mini text-fg-3 italic">Select an LED fixture to see its wiring.</div>;
+  }
 
   return (
     <div className="h-full overflow-auto p-3 bg-surface-0">
       <div className="flex flex-wrap gap-3 items-start">
-        {/* Create — fixture creation lives next to the editor */}
-        <Card title="Create" icon={<Plus size={12} />} className="min-w-[160px]">
-          <Tooltip id="fixtures.add">
-            <button
-              onClick={onAdd}
-              {...help('fixtures.add')}
-              className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-sm bg-surface-2 border border-line-1 text-fg-1 hover:bg-surface-3 text-xs"
-            >
-              <Plus size={13} /> Add fixture
-            </button>
-          </Tooltip>
-          <Tooltip id="fixtures.auto-patch">
-            <button
-              onClick={onAutoPatch}
-              {...help('fixtures.auto-patch')}
-              className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-sm bg-surface-2 border border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1 text-xs"
-              title="Assign universes/addresses to all fixtures"
-            >
-              <Hash size={13} /> Auto-patch
-            </button>
-          </Tooltip>
-        </Card>
-
-        {/* Library — the shipped DMX fixture library, and the operator's own pixel templates.
-            Two tabs rather than two cards: they answer the same question ("what am I adding?") and
-            splitting them into separate places would make the shipped library easy to miss. */}
-        <Card title="Library" icon={<Library size={12} />} className="min-w-[240px]">
-          <Segmented
-            value={libraryTab}
-            onChange={(v) => setLibraryTab(v as 'profiles' | 'templates')}
-            options={[{ value: 'profiles', label: 'Light Fixtures' }, { value: 'templates', label: 'LED Templates' }]}
-          />
-
-          {libraryTab === 'profiles' && (
-            <div className="mt-1">
-              <FixtureProfilePicker maxHeight="max-h-40" onPick={(id, mode) => onAddFromProfile(id, mode)} />
-            </div>
-          )}
-
-          {/* A template is an LED-fixture SHAPE (ledCount, matrix, serpentine, colour order), so it
-              describes nothing about a moving head and would rebuild one as a 1-LED strip. A light's
-              reusable form already exists and is better: its PROFILE plus a mode. */}
-          {libraryTab === 'templates' && <>
-          <Tooltip id="fixtures.save-template">
-            <button
-              onClick={onSaveTemplate}
-              disabled={!fixture || isLight(fixture)}
-              {...help('fixtures.save-template')}
-              className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-sm bg-surface-2 border border-line-1 text-fg-2 hover:bg-surface-3 hover:text-fg-1 text-xs disabled:opacity-40 disabled:cursor-not-allowed"
-              title={fixture && isLight(fixture)
-                ? 'Templates are for LED fixtures — a light is reused through its DMX profile and mode'
-                : 'Save the selected LED fixture as a template'}
-            >
-              <Save size={13} /> Save selected
-            </button>
-          </Tooltip>
-          <div className="space-y-0.5 max-h-40 overflow-y-auto -mx-1 px-1">
-            {templates.map(t => (
-              <div key={t.id} className="flex items-center group px-2 py-1 rounded hover:bg-surface-3 text-fg-2 text-xs">
-                <Tooltip id="fixtures.add-from-template">
-                  <button className="flex-1 flex items-center text-left truncate" onClick={() => onAddFromTemplate(t)} {...help('fixtures.add-from-template')} title="Add a fixture from this template">
-                    <PackagePlus size={12} className="mr-2 text-fg-3" />
-                    {t.name} <span className="text-fg-3 ml-1">({t.ledCount})</span>
-                  </button>
-                </Tooltip>
-                <Tooltip id="fixtures.delete-template">
-                  <button className="opacity-0 group-hover:opacity-100 hover:text-danger text-fg-3" onClick={() => onRemoveTemplate(t.id)} {...help('fixtures.delete-template')} title="Delete template"><Trash2 size={10} /></button>
-                </Tooltip>
-              </div>
-            ))}
-            {templates.length === 0 && <div className="text-fg-3 italic px-2 py-1 text-xs">No templates</div>}
-          </div>
-          </>}
-        </Card>
-
-        {!fixture && (
-          <div className="flex items-center text-fg-3 text-xs italic px-2 py-6 min-w-[200px]">
-            Select a fixture to edit its pixel structure.
-          </div>
-        )}
-
-        {/* Patch / identity */}
-        {fixture && <>
-        <Card title="Patch" icon={<Hash size={12} />}>
-          <NumberField label="LEDs" value={fixture.ledCount} min={1} step={1} onChange={(v) => up({ ledCount: Math.max(1, Math.round(v)) })} />
-          <NumberField label="Universe" value={fixture.universe} min={0} step={1} onChange={(v) => up({ universe: Math.max(0, Math.round(v)) })} />
-          <NumberField label="Start" value={fixture.startAddress} min={1} max={512} step={1} onChange={(v) => up({ startAddress: Math.max(1, Math.round(v)) })} />
-          <Toggle label="Reverse" checked={fixture.reverse} onChange={(v) => up({ reverse: v })} />
-        </Card>
-
-        {/* Pixel type = color order + channels */}
-        <Card title="Pixel Type" icon={<Cable size={12} />}>
-          <Field label="Order">
-            <Select value={fixture.colorOrder ?? ColorOrder.RGB} onChange={(e) => up({ colorOrder: e.target.value as ColorOrder })}>
-              {Object.values(ColorOrder).map((o) => <option key={o} value={o}>{o}</option>)}
-            </Select>
-          </Field>
-          <Field label="Channels">
-            <Segmented<number>
-              value={cpp}
-              onChange={(v) => up({ channelsPerPixel: v as 3 | 4 })}
-              options={[{ value: 3, label: 'RGB' }, { value: 4, label: 'RGBW' }]}
-            />
-          </Field>
-          {cpp === 4 && (
-            <Field label="White">
-              <Select value={fixture.rgbwMode ?? RGBWMode.SUBTRACT} onChange={(e) => up({ rgbwMode: e.target.value as RGBWMode })}>
-                <option value={RGBWMode.SUBTRACT}>Subtract min</option>
-                <option value={RGBWMode.NONE}>None</option>
-              </Select>
-            </Field>
-          )}
-        </Card>
-
-        {/* Geometry = shape + matrix + serpentine assignation */}
-        <Card title="Geometry" icon={<Grid3x3 size={12} />}>
-          <Field label="Shape">
-            <Segmented<string>
-              value={shape}
-              onChange={(v) => up({ shape: v as LedShape })}
-              options={[
-                { value: LedShape.LINE, label: 'Line', icon: <Minus size={12} /> },
-                { value: LedShape.MATRIX, label: 'Matrix', icon: <Grid3x3 size={12} /> },
-              ]}
-            />
-          </Field>
-          {shape === LedShape.MATRIX && (
-            <>
-              <NumberField label="Cols" value={cols} min={1} step={1} onChange={(v) => up({ matrixWidth: Math.max(1, Math.round(v)) })} />
-              <NumberField label="Rows" value={rows} min={1} step={1} onChange={(v) => up({ matrixHeight: Math.max(1, Math.round(v)) })} />
-              <Toggle label="Serpentine" checked={fixture.serpentine ?? false} onChange={(v) => up({ serpentine: v })} title="Alternate row wiring direction" />
-            </>
-          )}
-        </Card>
-
-        {/* Wiring preview */}
-        <Card title="Wiring" icon={<Cable size={12} />}>
+        <Card title="Wiring" icon={<Route size={12} />}>
           {shape === LedShape.MATRIX ? (
             <>
               <MatrixPreview cols={cols} rows={rows} serpentine={fixture.serpentine ?? false} />
@@ -285,7 +238,10 @@ export const FixtureEditor: React.FC<Props> = ({
               {fixture.ledCount > 64 && <span className="text-micro text-fg-3 self-center ml-1">+{fixture.ledCount - 64}</span>}
             </div>
           )}
+          {/* Shape, cols/rows, serpentine and reverse are AUTHORED in the inspector; this is the
+              picture of what they produced. Saying where they live stops the dock growing them back. */}
           <div className="num text-micro text-fg-3 pt-1">{totalChannels} ch · {fixture.ledCount} px × {cpp}</div>
+          <div className="text-micro text-fg-3">Shape, serpentine and reverse are in the inspector.</div>
         </Card>
 
         {/* Ledmap = WLED-style physical→geometry pixel remap */}
@@ -326,7 +282,6 @@ export const FixtureEditor: React.FC<Props> = ({
             </Button>
           )}
         </Card>
-        </>}
       </div>
     </div>
   );

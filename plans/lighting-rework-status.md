@@ -98,14 +98,21 @@ the measured one in the E4 commit message.
 
 ---
 
-## Undecided, and parked on purpose
+## Decided since
 
-**Is the Fixture Editor dock still the right home?** Raised 2026-07-27, deliberately left open — the
-user will decide later. Since Wave B, everything in that dock except the **Library** and the
-**Ledmap** is a second rendering of the kind-gated inspector. Three options are written up in
-[fixture-editor-split.md](fixture-editor-split.md): split it by kind, shrink it to what is unique, or
-leave it alone. **Do not build Part 1 of that plan until this is answered** — Part 2 (the duplication)
-is independent and can go ahead.
+**Is the Fixture Editor dock still the right home? — ANSWERED 2026-07-27: option B, shrink it.**
+It is now `Library` + `Wiring & Ledmap`; the other five cards were a second rendering of the
+kind-gated inspector, and `core.dock.fixtureEditor` is retired (`layoutRev` 5).
+
+The audit **found the plan had undercounted the unique cards**: it claimed two, there were three —
+the wiring preview (`MatrixPreview` + the physical-index strip) is rendered nowhere else in the tree
+and a literal reading of B would have deleted it. It shipped alongside the ledmap, because the
+preview shows the physical pixel order and the ledmap remaps it. Guarded by *the fixture docks hold
+only what exists nowhere else*.
+
+**Part 2 of [fixture-editor-split.md](fixture-editor-split.md) is still open** — three identical
+copies of `roleValue()`, the duplicated captured-role list, and the dead `allRoles` flag. It is a
+correctness item and independent of anything above.
 
 **Should lighting be a plugin?** Asked and answered *no*, 2026-07-27, with the reasoning recorded in
 the conversation and worth re-deriving if it comes up: the SDK has no fixture-kind / DMX-packing

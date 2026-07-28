@@ -1777,6 +1777,42 @@ check(
   },
 );
 
+// ── Shell: the fixture DOCK does not re-render what the inspector owns ────────────────────────
+check(
+  'the fixture docks hold only what exists nowhere else',
+  'The Fixture Editor was seven cards, five of which were a second rendering of controls the ' +
+  'kind-gated inspector already owns — so the same field could be edited in two places with only ' +
+  'one of them explaining itself, and a moving head was offered a colour order and a serpentine ' +
+  'toggle. It shrank to the two things that exist nowhere else: the LIBRARY (DMX profiles + LED ' +
+  'templates) and WIRING & LEDMAP (the physical-order preview + the remap tools). Those two are one ' +
+  'dock because the preview shows the pixel order and the ledmap changes it. This check is what ' +
+  'stops the removed cards growing back: patching, colour order, channels/pixel, RGBW mode and the ' +
+  'matrix shape are AUTHORED in the inspector, and a second editor for them is how they drift.',
+  () => {
+    const F = 'src/renderer/components/FixtureEditor.tsx';
+    const src = read(F);
+    for (const sym of ['export const FixtureLibrary', 'export const FixtureWiring']) {
+      if (!src.includes(sym)) return `${F} no longer exports ${sym.split(' ').pop()}`;
+    }
+    // A WRITE to any of these is the dock authoring what the inspector owns. Reads are fine — the
+    // wiring preview legitimately reads shape/serpentine/reverse to draw the picture.
+    const AUTHORED = ['channelsPerPixel', 'colorOrder', 'rgbwMode', 'universe', 'startAddress', 'matrixWidth', 'matrixHeight'];
+    const problems = [];
+    for (const field of AUTHORED) {
+      if (new RegExp(`up\\(\\s*\\{[^}]*\\b${field}\\b`).test(src) || new RegExp(`\\{\\s*${field}:`).test(src)) {
+        problems.push(`${F} writes ${field} — that control belongs to the inspector`);
+      }
+    }
+    const CTX = 'src/renderer/contexts/index.tsx';
+    const ctx = read(CTX);
+    if (/core\.dock\.fixtureEditor/.test(ctx))
+      return `${CTX} still registers core.dock.fixtureEditor — it was replaced by fixtureLibrary + fixtureWiring`;
+    if (!/id: 'core\.dock\.fixtureWiring'[^\n]*appliesTo: \['fixture\.pixel'\]/.test(ctx))
+      return 'the wiring/ledmap dock no longer declares appliesTo fixture.pixel — it would show for a moving head';
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);

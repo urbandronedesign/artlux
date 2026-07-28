@@ -10,7 +10,7 @@
 
 import React from 'react';
 import {
-  Layers, Box, Users, SlidersHorizontal, Image as ImageIcon, Film, Lightbulb, MonitorPlay, Crosshair, Clapperboard, Music, Radar, Radio, Activity, Gauge, Hash, Plus, RefreshCw, Workflow, Timer, Network, Settings, FolderOpen, Save, Trash2, Copy, Grid3x3, Cable, Play, Move3d, Diamond, Bookmark,
+  Layers, Box, Users, SlidersHorizontal, Image as ImageIcon, Film, Lightbulb, MonitorPlay, Crosshair, Clapperboard, Music, Radar, Radio, Activity, Gauge, Hash, Plus, RefreshCw, Workflow, Timer, Network, Settings, FolderOpen, Save, Trash2, Copy, Grid3x3, Cable, Play, Move3d, Diamond, Bookmark, Library, Route,
 } from 'lucide-react';
 import { panelRegistry, contextRegistry } from '../host/registries';
 import { SCENE_3D_VIEWPORT } from '../components/shell/WorkspaceShell';
@@ -24,7 +24,7 @@ import {
   FixtureOutputPanel, FixtureRoutingPanel, FixtureLayout3DPanel,
   FixtureProfilePanel, FixtureChannelsPanel, FixturePositionPanel,
 } from './panels/inspector';
-import { MediaBrowserPanel, FixtureEditorDock, MonitorDock, PerfDock, RoutingDock, StateMachineViewport } from './panels/adapters';
+import { MediaBrowserPanel, FixtureLibraryDock, FixtureWiringDock, MonitorDock, PerfDock, RoutingDock, StateMachineViewport } from './panels/adapters';
 import { ProgramPreviewPanel, ProgramMonitorViewport, OutputsPreviewPanel } from './panels/preview';
 import { TimingPanel, TimingHeaderActions } from './panels/timing';
 import { PreferencesViewport } from './panels/adapters';
@@ -109,7 +109,13 @@ export function registerCoreWorkspace(): void {
   panelRegistry.register({ id: 'core.inspector.scene.tracking', mount: 'inspector', title: 'Tracking', icon: <Radar size={12} />, defaultOpen: false, Component: SceneTrackingPanel });
 
   // ── Dock panels ────────────────────────────────────────────────────────────────────────────
-  panelRegistry.register({ id: 'core.dock.fixtureEditor', mount: 'dock', title: 'Fixture Editor', icon: <SlidersHorizontal size={13} />, Component: FixtureEditorDock });
+  // The seven-card Fixture Editor is gone: five of its cards were a second rendering of controls
+  // the kind-gated inspector already owns, and the same field could be edited in two places with
+  // only one of them explaining itself. What is left is the two things that exist nowhere else.
+  panelRegistry.register({ id: 'core.dock.fixtureLibrary', mount: 'dock', title: 'Library', icon: <Library size={13} />, Component: FixtureLibraryDock });
+  // Pixel-only, and gated in its REGISTRATION like every fixture section — a moving head has named
+  // channels, not a pixel order, so the tab is simply absent when one is selected.
+  panelRegistry.register({ id: 'core.dock.fixtureWiring', mount: 'dock', title: 'Wiring & Ledmap', icon: <Route size={13} />, appliesTo: ['fixture.pixel'], Component: FixtureWiringDock });
   panelRegistry.register({ id: 'core.dock.monitor', mount: 'dock', title: 'DMX Monitor', icon: <Activity size={13} />, Component: MonitorDock });
   panelRegistry.register({ id: 'core.dock.perf', mount: 'dock', title: 'Performance', icon: <Gauge size={13} />, Component: PerfDock });
   panelRegistry.register({ id: 'core.dock.routing', mount: 'dock', title: 'Routing', icon: <Network size={13} />, Component: RoutingDock });
@@ -158,11 +164,13 @@ export function registerCoreWorkspace(): void {
       'core.inspector.fixture.position',
       'core.inspector.fixture.layout3d', 'core.inspector.fixture.arrange',
     ],
-    dock: ['core.dock.fixtureEditor', 'core.dock.media', 'core.dock.programPreview', 'core.dock.routing', 'core.dock.monitor', 'core.dock.perf'],
+    dock: ['core.dock.fixtureLibrary', 'core.dock.fixtureWiring', 'core.dock.media', 'core.dock.programPreview', 'core.dock.routing', 'core.dock.monitor', 'core.dock.perf'],
     layout: { showLeft: true, showRight: true, dockOpen: true, splitView: false, bottomOpen: false },
-    // 4: the fixture column gained `patch` (split out of Mapping) and every section now declares a
-    // kind — a banked slice from before that would never show the new section.
-    layoutRev: 4,
+    // 5: the fixture column gained `patch` (split out of Mapping) and every section declares a kind;
+    // then the seven-card Fixture Editor dock became `Library` + `Wiring & Ledmap`. A banked slice
+    // from before still names `core.dock.fixtureEditor`, which no longer resolves — without the bump
+    // the operator keeps an empty tab and never sees either replacement.
+    layoutRev: 5,
     hint: {
       en: 'Place surfaces, map content onto them, then patch fixtures. Ctrl+T pulls the timeline up.',
       fr: 'Placez les surfaces, mappez le contenu dessus, puis patchez les fixtures. Ctrl+T ouvre la timeline.',

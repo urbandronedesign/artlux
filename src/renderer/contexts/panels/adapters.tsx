@@ -1,6 +1,6 @@
 import React from 'react';
 import { MediaPanel } from '../../components/MediaPanel';
-import { FixtureEditor } from '../../components/FixtureEditor';
+import { FixtureLibrary, FixtureWiring } from '../../components/FixtureEditor';
 import { DMXMonitor } from '../../components/DMXMonitor';
 import { PerfPanel } from '../../components/PerfPanel';
 import { RoutingModal } from '../../components/RoutingModal';
@@ -34,20 +34,30 @@ export const MediaBrowserPanel: React.FC = () => {
   );
 };
 
-export const FixtureEditorDock: React.FC = () => {
+// The old seven-card `FixtureEditorDock` is gone — five of its cards were a second rendering of the
+// kind-gated inspector. What is left is two docks, each holding something that exists nowhere else.
+export const FixtureLibraryDock: React.FC = () => {
   const { fixtures, selectedFixtureId, templates } = useEditor();
   const a = useEditorActions();
   return (
-    <FixtureEditor
+    <FixtureLibrary
       fixture={fixtures.find((f) => f.id === selectedFixtureId) ?? null}
-      onUpdateFixture={a.updateFixture}
-      onAdd={a.addFixture}
-      onAutoPatch={a.autoPatch}
       templates={templates}
       onSaveTemplate={a.saveTemplate}
       onAddFromTemplate={a.addFromTemplate}
       onRemoveTemplate={a.removeTemplate}
       onAddFromProfile={a.addFixtureFromProfile}
+    />
+  );
+};
+
+export const FixtureWiringDock: React.FC = () => {
+  const { fixtures, selectedFixtureId } = useEditor();
+  const a = useEditorActions();
+  return (
+    <FixtureWiring
+      fixture={fixtures.find((f) => f.id === selectedFixtureId) ?? null}
+      onUpdateFixture={a.updateFixture}
     />
   );
 };

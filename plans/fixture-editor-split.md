@@ -1,16 +1,56 @@
 # Fixture Editor — two categories, and the duplication behind them
 
-> **Status:** Draft — 2026-07-27. **BLOCKED ON A DECISION (below). Not started.** **Core**. Risk 🟢 Low.
+> **Status: DECIDED (B) AND BUILT — 2026-07-27, on `main`, NOT PUSHED.** Part 1 shipped as **option
+> B**: the seven-card dock became two — `Library` and `Wiring & Ledmap`. **Part 2 (the duplication)
+> is still open and independent.** **Core**. Risk 🟢 Low.
+>
+> ⚠ **The audit found B's premise was slightly wrong.** The plan said two things were unique; there
+> were **three**. See *What the audit changed* below.
 > Follow-on to [fixture-kinds.md](fixture-kinds.md) / [lighting-rework-status.md](lighting-rework-status.md).
 > Two independent problems in one plan because the second is what the first keeps tripping over.
 
 ---
 
-## ⛔ DECIDE THIS FIRST — is the Fixture Editor dock still worth having?
+## ✅ DECIDED — B, shrink it. And what the audit changed
 
-**Undecided as of 2026-07-27, deliberately.** Part 1 below assumes the dock stays and gets split by
-kind. That assumption may be wrong, and building it before answering would be building the expensive
-version of a thing that might be deleted.
+**Chosen 2026-07-27: option B.** The dock is now two panels:
+
+| Dock | Holds | Gated |
+|---|---|---|
+| `core.dock.fixtureLibrary` — **Library** | DMX profiles + LED templates | both kinds (it is about *adding*) |
+| `core.dock.fixtureWiring` — **Wiring & Ledmap** | the physical-order preview + the remap tools | `appliesTo: ['fixture.pixel']` |
+
+`core.dock.fixtureEditor` is retired; `layoutRev` bumped to 5 so a banked slice naming it does not
+leave an operator with an empty tab.
+
+### ⚠ The audit found a third unique thing, and B would have deleted it
+
+This plan claimed only the Library and the Ledmap existed nowhere else. **That was wrong.** The
+`Wiring` card also holds `MatrixPreview` and the linear physical-index strip — and `grep` confirms
+**nothing else in the tree renders either**. Read literally, B would have thrown away the only
+picture of what serpentine and reverse actually produce.
+
+So the shipped shape keeps **three** things, in two docks: the preview lives *with* the ledmap,
+because the preview shows the physical pixel order and the ledmap remaps it. They are the same
+question asked twice, and splitting them would have been the same duplication in a new place.
+
+**The lesson worth keeping:** "everything else exists elsewhere" is a claim to verify per card, not a
+premise to act on. One `grep` for `MatrixPreview` was the difference.
+
+### Verified in the running app
+
+- `Wiring & Ledmap` appears **only** with an LED fixture selected — absent for a moving head and
+  absent with nothing selected. `appliesTo` gating works on a dock tab, not just an inspector section.
+- The wiring body renders the preview (`title="#n"` cells) **and** *Generate serpentine*.
+- `Library` is always present and still offers both *Light Fixtures* and *LED Templates*.
+- Every removed control is reachable in the inspector for an LED strip: Color Order, Channels, Cols,
+  Rows, Serpentine, Universe, Start Addr, LED Count, Reverse Direction, Surface.
+  (*White* is correctly absent — the test fixture is 3-channel RGB. *Line/Matrix* are buttons, which
+  the probe's `label,span,div` query does not reach; confirmed present in source.)
+
+---
+
+## The original decision record (kept — it is why B was chosen)
 
 Since Wave B, **almost everything in the dock exists somewhere else**:
 
