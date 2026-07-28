@@ -76,7 +76,35 @@ export interface AutomationTargetDef {
   step?: number;   // smallest meaningful change — ALSO the sampler's change-detect epsilon
   unit?: string;
   log?: boolean;   // log response: the lane's Y AXIS and its interpolation both run in log space
+  /**
+   * AUTHOR IN ONE UNIT, STORE IN ANOTHER — the axis the operator reads, when it differs from the
+   * one the value is kept in.
+   *
+   * `min`/`max` above are NOT a drawing hint: compileAutomation clamps every keyframe to them and
+   * hands the result straight to `write()`. So a moving head's Pan lane has to be published 0..1,
+   * because that is what lands in `Fixture.dmx` — publishing it as 0..540 would let an operator draw
+   * a curve to 540, clamp nothing, and pin the head at its end stop. The cost was that a Pan lane
+   * read `0.50` while a pose key for the same channel read `270°`: two units for one thing.
+   *
+   * This closes that without touching storage. The map is LINEAR from [min,max] onto
+   * [display.min,display.max] — numbers, not closures, so a def stays inert data — and it changes
+   * only what is DRAWN and TYPED. The stored keyframe, the clamp and the value handed to `write()`
+   * are exactly as before.
+   */
+  display?: { unit: string; min: number; max: number };
 }
+
+/** Storage → what the operator reads. Identity when the target declares no display map. */
+export const toDisplay = (d: AutomationTargetDef, v: number): number =>
+  d.display && d.max !== d.min
+    ? d.display.min + ((v - d.min) / (d.max - d.min)) * (d.display.max - d.display.min)
+    : v;
+
+/** What the operator typed → storage. The exact inverse of `toDisplay`. */
+export const fromDisplay = (d: AutomationTargetDef, v: number): number =>
+  d.display && d.display.max !== d.display.min
+    ? d.min + ((v - d.display.min) / (d.display.max - d.display.min)) * (d.max - d.min)
+    : v;
 export interface AutomationTargetProvider {
   /**
    * The path HEADS this provider owns — e.g. ['audio'], or core's ['surfaces','fixtures','globalBrightness'].

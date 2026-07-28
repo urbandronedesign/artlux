@@ -28,7 +28,10 @@ export function setCoreStateView(get: () => StateView): void { viewRef = get; }
 //     override.
 // What is left below is exactly what is correct end-to-end today: the non-geometry leaves, which reach
 // the output through mapper.updateParams + the composite, with no mapping rebuild.
-const RANGE: Record<string, { min: number; max: number; step: number; unit?: string }> = {
+// `display` is declared here too, though no entry uses one: these leaves are ALREADY authored in the
+// unit they are stored in (a 0..1 opacity, a 0..4 speed), so a display map would be an identity. It
+// keeps the two branches of the `??` below one type rather than a union the push site has to widen.
+const RANGE: Record<string, { min: number; max: number; step: number; unit?: string; display?: { unit: string; min: number; max: number } }> = {
   intensity: { min: 0, max: 1, step: 0.01 },
   speed: { min: 0, max: 4, step: 0.01, unit: '×' },
   'content.opacity': { min: 0, max: 1, step: 0.01 },
@@ -42,14 +45,17 @@ const RANGE: Record<string, { min: number; max: number; step: number; unit?: str
 //
 // So resolve it from the profile instead.
 //
-// ⚠ THE AXIS IS 0..1, NOT DEGREES, and that is deliberate. `min`/`max` on an AutomationTargetDef are
-// not merely a drawing hint — compileAutomation CLAMPS every keyframe to them and then hands the
-// result straight to provider.write(), which lands in `Fixture.dmx` (normalised 0..1, see the type).
-// Publishing a Pan lane as 0..540 would therefore let the operator draw a curve to 540, clamp
-// nothing, and write 540 into a field the packer treats as a fraction — pinning the head at its
-// maximum for the whole curve. Showing degrees needs a display transform in the lane UI (author in
-// unit X, store in unit Y), which does not exist yet; until it does, an honest 0..1 axis beats a
-// unit label that lies. profilePack.physicalValue() converts for read-out in the meantime.
+// ⚠ THE STORED AXIS IS 0..1, NOT DEGREES, and that is deliberate. `min`/`max` on an
+// AutomationTargetDef are not merely a drawing hint — compileAutomation CLAMPS every keyframe to
+// them and then hands the result straight to provider.write(), which lands in `Fixture.dmx`
+// (normalised 0..1, see the type). Publishing a Pan lane as 0..540 would therefore let the operator
+// draw a curve to 540, clamp nothing, and write 540 into a field the packer treats as a fraction —
+// pinning the head at its maximum for the whole curve.
+//
+// So storage stays 0..1 and the DISPLAY map carries the degrees: `display` is read only by the lane
+// UI (axis readout, keyframe values, typed entry) and never by the clamp or by write(). That closes
+// the split this comment used to describe as unfixable — a Pan lane read `0.50` while a pose key for
+// the same channel read `270°`, two units for one thing — without moving a single stored number.
 //
 // What the profile DOES contribute is the step: one DMX byte for a discrete wheel (fractional slots
 // are meaningless), and the channel's true resolution otherwise — which is also the epsilon the
@@ -57,7 +63,7 @@ const RANGE: Record<string, { min: number; max: number; step: number; unit?: str
 function profileChannelRange(
   view: StateView,
   path: string,
-): { min: number; max: number; step: number; unit?: string } | null {
+): { min: number; max: number; step: number; unit?: string; display?: { unit: string; min: number; max: number } } | null {
   const parts = path.split('.');                       // fixtures.<id>.dmx.<key>
   if (parts[0] !== 'fixtures' || parts[2] !== 'dmx' || !parts[3]) return null;
   const fixture = view.fixtures.find((f) => f.id === parts[1]);
@@ -65,7 +71,14 @@ function profileChannelRange(
   const channel = profile?.channels.find((c) => c.key === parts[3]);
   if (!channel) return null;
   const step = channel.ranges?.length ? 1 / 255 : 1 / (256 ** channel.resolution - 1);
-  return { min: 0, max: 1, step };
+  // The channel's own declared physical range becomes the axis the operator reads — the same numbers
+  // a pose key stores, so a Pan lane and a Pan key finally agree. Only when the profile actually
+  // declares one: a channel with no physical range (a gobo wheel, a macro) has no honest unit to
+  // show, and inventing one would be the "unit label that lies" this used to warn about.
+  const display = Number.isFinite(channel.min) && Number.isFinite(channel.max) && channel.unit
+    ? { unit: channel.unit, min: channel.min as number, max: channel.max as number }
+    : undefined;
+  return { min: 0, max: 1, step, display };
 }
 
 export const coreAutomationProvider: AutomationTargetProvider = {
@@ -81,7 +94,7 @@ export const coreAutomationProvider: AutomationTargetProvider = {
       const r = profileChannelRange(view, path) ?? RANGE[leaf] ?? RANGE[leaf.replace(/^segments\.\d+\./, '')];
       if (!r) return;
       const cur = getByPath(view, path);
-      out.push({ path, label, group, min: r.min, max: r.max, step: r.step, unit: r.unit, def: typeof cur === 'number' ? cur : r.min });
+      out.push({ path, label, group, min: r.min, max: r.max, step: r.step, unit: r.unit, display: r.display, def: typeof cur === 'number' ? cur : r.min });
     };
     for (const p of globalParams()) push(p.path, p.label, 'Global');
     for (const s of view.surfaces) for (const p of surfaceParams(s)) push(p.path, p.label, `Surface ▸ ${s.name ?? s.id}`);

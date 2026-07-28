@@ -1847,6 +1847,43 @@ check(
   },
 );
 
+// ── Automation: the display unit is DRAWN, never STORED ───────────────────────────────────────
+check(
+  'a target\'s display map never reaches the clamp or the write path',
+  'A profiled fixture\'s channel is STORED 0..1 — that is what lands in `Fixture.dmx` and what the ' +
+  'packer treats as a fraction — but AUTHORED in degrees. `AutomationTargetDef.display` carries that ' +
+  'second unit so a Pan lane reads 270 deg instead of 0.50, finally agreeing with the pose key for ' +
+  'the same channel. It is a DRAWING concern only. `min`/`max` are what compileAutomation clamps ' +
+  'every keyframe to before handing the value straight to provider.write(), so publishing the ' +
+  'degrees range there instead would let an operator draw a curve to 540, clamp nothing, and pin the ' +
+  'head at its end stop for the whole curve — which is exactly why the axis was 0..1 in the first ' +
+  'place. The map may be read by the lane UI and by nothing else.',
+  () => {
+    const SDK = 'packages/sdk/src/renderer.ts';
+    const sdk = read(SDK);
+    if (!/export const toDisplay/.test(sdk) || !/export const fromDisplay/.test(sdk))
+      return `${SDK} no longer exports toDisplay/fromDisplay`;
+    // The engine side must never consult it.
+    const ENGINE = [
+      'src/renderer/services/timeline.ts',
+      'src/renderer/services/automationOverlay.ts',
+      'src/renderer/services/automation.ts',
+      'src/renderer/engine/frameEngine.ts',
+    ];
+    const problems = [];
+    for (const f of ENGINE) {
+      if (!exists(f)) continue;
+      if (/\btoDisplay\b|\bfromDisplay\b|\.display\b/.test(read(f)))
+        problems.push(`${f} reads the display map — it is a drawing concern, not a stored value`);
+    }
+    // And the provider must still publish 0..1 storage for a profiled channel.
+    const P = 'src/renderer/services/automationTargets.core.ts';
+    if (!/return \{ min: 0, max: 1, step, display \}/.test(read(P)))
+      return `${P} no longer publishes a profiled channel as 0..1 storage with a separate display map`;
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);

@@ -9,7 +9,7 @@
 // re-sync; doing that 60×/s while dragging would be brutal).
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { AutomationLane as Lane, Keyframe } from '../../types';
-import type { AutomationTargetDef } from '@artlux/sdk/renderer';
+import { toDisplay, type AutomationTargetDef } from '@artlux/sdk/renderer';
 import { sampleLane, normValue, denormValue, BEZ_DEFAULT } from '../../services/automation';
 import { timeline as engine } from '../../services/timeline';
 import { GUTTER, clamp } from './geometry';
@@ -19,6 +19,24 @@ import { help } from '../../services/helpBus';
 
 export const AUTO_LANE_H = 64;
 const PAD = 8; // px of headroom top/bottom so a keyframe at min/max is still grabbable
+
+/**
+ * One value readout, in the unit the operator authors in.
+ *
+ * ONE function because the lane prints values twice — the render-free live gutter (which writes
+ * straight to the DOM) and the React keyframe list — and two formatters would eventually disagree
+ * about the same number on the same lane.
+ *
+ * Precision follows the SPAN, not the storage step: a 0..540° axis wants whole degrees, a 0..1
+ * opacity wants two decimals, and the stored `step` (1/65535 for a 16-bit Pan) describes neither.
+ */
+const fmtIn = (d: AutomationTargetDef, v: number): string => {
+  const shown = toDisplay(d, v);
+  const unit = d.display?.unit ?? d.unit;
+  const whole = d.display ? Math.abs(d.display.max - d.display.min) >= 10 : (d.step ?? 0) >= 1;
+  const n = whole ? Math.round(shown) : Number(shown.toFixed(2));
+  return unit ? `${n} ${unit}` : `${n}`;
+};
 
 interface Props {
   lane: Lane;
@@ -142,9 +160,15 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, cl
     const t = clockRef.current === 'show' ? engine.getShowTime() : engine.getPlayhead();
     return kfsRef.current.length ? sampleLane(kfsRef.current, t, { i: -1 }, d?.log ?? false) : (d?.def ?? 0);
   };
+  // FORMAT IN THE OPERATOR'S UNIT, NOT THE STORED ONE. A profiled channel STORES 0..1 — that is what
+  // reaches `Fixture.dmx` and what the clamp works on — but is AUTHORED in degrees, so a Pan lane now
+  // reads `270 deg` where a pose key for the same channel already read 270°. They were `0.50` and
+  // `270°`: two units for one thing. `toDisplay` is the identity for every target that declares no
+  // map, so nothing but a profiled channel changes.
   const fmtNow = (v: number) => {
     const d = defRef.current;
-    return `${(d?.step ?? 0) >= 1 ? Math.round(v) : Number(v.toFixed(2))}${d?.unit ? ` ${d.unit}` : ''}`;
+    if (!d) return String(Number(v.toFixed(2)));
+    return fmtIn(d, v);
   };
   const liveNowRef = useRef(liveNow); liveNowRef.current = liveNow;
   const fmtNowRef = useRef(fmtNow); fmtNowRef.current = fmtNow;
@@ -259,7 +283,7 @@ export const AutomationLane: React.FC<Props> = ({ lane, def, pxPerSec, width, cl
   // The value at MOUNT/RE-RENDER time — the readout's first paint, before the subscription's next tick
   // takes the element over. Everything live goes through `liveNow()`.
   const live = liveNow();
-  const fmt = (v: number) => `${(def.step ?? 0) >= 1 ? Math.round(v) : Number(v.toFixed(2))}${def.unit ? ` ${def.unit}` : ''}`;
+  const fmt = (v: number) => fmtIn(def, v);
 
   // A GLOBAL lane seen from a scene is dimmed; a SHADOWED one (a scene lane owns the same targetPath, so
   // timeline.ts:519 has filtered this one out of the compile) is dimmed harder and struck through. That
