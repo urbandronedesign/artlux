@@ -43,6 +43,15 @@ exempt** — those are data, not chrome, and correctly use raw hex.
 > written from this row rendered **transparent**. Caught when the splash console's well showed no
 > background. The token itself was always fine (`tokens.css`, applied to `<body>` from `index.css`).
 
+> **This failure has a shape, and it is now guarded.** An unknown colour utility compiles to *nothing*:
+> no error, no warning, the element simply inherits, and the screen looks almost right. It happened
+> three times before anyone noticed a pattern — `bg-bg-stage` (above); **`text-fg-4` at 22 sites** across
+> the calibration wizards, for a tier that has never existed (fg-3 is the dimmest **by design**, §1.1);
+> and **`text-fg-0`** in `FixtureProfilePicker`, where the *selected* row asked to be brighter than the
+> top tier and therefore rendered **dimmer than the unselected rows around it**. All three typechecked,
+> linted and shipped. `verify:invariants` now resolves every `text-/bg-/border-…` colour utility against
+> `tailwind.config.js` and fails on one that names nothing.
+
 > `--text-3` was `#6a6a6a` (3.10:1) and failed AA at the 10–11px sizes it is used at — 113 sites. It is now
 > `#8a8a8a`. **Do not** reintroduce a dimmer text color, and **do not** put `text-fg-3` on text smaller than it
 > already carries. Instructional text an operator must read is `text-fg-2` **minimum** — never the dim tier.
@@ -257,7 +266,12 @@ branded the app two ways at once.
 These `check(...)` guards in [`scripts/verify-invariants.cjs`](../scripts/verify-invariants.cjs) keep the
 system from regressing (run by `npm run verify`):
 
-- **No sub-legible dim text** — `text-fg-3` may not co-occur with `text-micro`/`text-mini` on one element.
+- **Colour utilities name real tokens** — every `text-/bg-/border-/ring-…` on an `fg`/`surface`/`line`/
+  `accent`/`state`/`sel` scale must resolve in `tailwind.config.js`. An unknown one renders as nothing
+  (see §1.1: it has shipped three times).
+- **The dim tier stays AA** — `--text-3` / `fg.3` must stay `#8a8a8a`. *(Note: the "may not co-occur with
+  `text-micro`" rule below is a written convention, not a machine check — the guard verifies the token
+  value, not per-element pairings.)*
 - **No native dialogs** — `window.confirm`/`window.alert` are banned in `src/renderer` + `plugins` (route
   through `ConfirmDialog`/`useToast`).
 - **A live region exists** — the StatusBar carries at least one `aria-live` region.

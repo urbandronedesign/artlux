@@ -42,12 +42,58 @@ is a clean future extension into the LiDAR tracking.)
 |---|---|---|
 | **0** | Per-projector markerless geometry (scan → self-cal → picks → raycast venue → resection) + **Auto-Align wizard** | code-complete; **needs hardware validation** |
 | **1** | `native/nvwarp` NVAPI scanout warp/blend addon + ArtLux plumbing | **real build + on-hardware validated** (RTX 6000 Ada, 2026-06-29): `available()`/warp/intensity/clear all OK; renderer per-output apply (`hwWarp`, `nvwarpApply.ts`) + double-warp guard + panic-clear **wired**. Pending: warped geometry + multi-display mapping with a projector attached |
-| **2** | World-space multi-projector **blend computation** (`blendCompute.ts`) | code-complete; **node-validated** (partition of unity); apply-to-outputs + multi-proj capture pending hardware |
-| **3** | **One-click recalibration** via physical markers + brightness/colour uniformity | not started (needs a working hardware loop) |
+| **2** | World-space multi-projector **blend computation** + **apply** | **wired end-to-end 2026-07-28.** Scans are kept (`blendStore` + a sidecar under `<project>/calib/`), `solveRig` feeds `computeBlendMaps`, the result persists as `ProjectorOutput.blend` and is applied by the GPU **or** the scanout — never both. `npm run test:blend` |
+| **3** | **One-click recalibration** via physical markers + unattended self-recalibration | **built 2026-07-28** (was "not started"): per-corner marker registration, a persisted camera profile, a ~5 s dot-based drift check, a conservative validate-better gate, rollback, scheduler/tablet triggers, Prometheus + JSONL audit. **`autoApply` ships OFF.** `npm run test:recal` |
 | **4** | **MPCDI** export/import codec | export code-complete; **round-trip node-validated**; import-to-**apply** pending |
 
 What's proven without hardware: the **blend partition-of-unity** (Σα ≈ 1 in overlaps → no seam) and the
 **MPCDI round-trip** (geometry + alpha exact). Everything else compiles, typechecks, and boots.
+
+### The two bugs Phases 2–3 uncovered (read before trusting an old build)
+
+- **Enabling `useCalibration` silently disabled blending.** Render-from-projector mounts `ProjectorScene`
+  as an opaque overlay *above* the projector window's base GL canvas, and that scene had no alpha stage
+  at all — so `ProjectorGL`'s soft-edge shader never touched the picture, including a feather the
+  operator had set by hand. Two calibrated overlapping projectors doubled up with a hard border. Fixed
+  by a `BlendEffect` in `ProjectorScene`, ordered **after** the distortion pass (the blend map is
+  indexed by physical raster pixels, which only exist once distortion has been applied). Guarded.
+- **`computeBlendMaps` had three defects**, invisible because it had zero callers: its world-voxel
+  association was a hard hash, so cells whose centroids straddled a boundary never found their partner
+  and kept alpha 1.0 *inside the seam* (a bright band); dilating with `max` then biased every value by
+  about a cell; and the voxel was sized from the scene diagonal rather than the cell, so raising
+  `mapW` stopped helping. All three are fixed and asserted — the residual is now provably
+  discretization (3× the resolution cuts it 2.9×).
+
+### Unattended recalibration (Phase 3) — the shape of it
+
+Reachable at **Preferences ▸ Recalibration**, and schedulable as a `recalibrate` Show Control command
+(so the nightly scheduler *and* the tablet reach it with no extra plumbing).
+
+1. **The camera is never an absolute reference.** It is mounted but bumpable, so its pose is re-solved
+   from the ArUco marker map at the start of every run and used only within that session. Everything
+   persisted is in projector/world space. Markers must be registered with **four corners** (`⌗` in the
+   wizard) — a centre pairs all four detected image corners with one 3D point, which is four rays
+   through a point, and the unattended path refuses a pose built that way.
+2. **The nightly check is cheap.** The stored probes are projected as time-multiplexed dots (~6 frames,
+   under 5 s) rather than a 42-plane Gray-code scan, and scored in **millimetres on the surface**.
+3. **A gross fault does not auto-solve.** A knocked projector aimed at the floor still solves
+   "successfully", with a low RMS, and the answer is garbage.
+4. **A low residual is not evidence of a correct solve.** The gate rejects an implausible pose jump
+   *regardless of score*: a projector is bolted, so a large jump means the camera anchor is wrong, and
+   applying it destroys a working install. Same for implausible optics and coverage loss.
+5. **It must be better by a margin**, or nothing changes — hysteresis, so nightly noise never churns a
+   good calibration.
+6. **There is a way back.** An apply keeps `calibrationPrev`; Revert (panel or `calibRevert` command)
+   restores it. Show mode has no undo and no crash-recovery file, so that slot is load-bearing.
+
+> **Commissioning happens by itself.** A successful Auto-Align scan stores the camera intrinsics it used
+> and a reference observation, so calibrating a projector by hand is what enables the unattended path —
+> an operator never has to know this subsystem exists.
+
+**Alerting is pull-based**, on the monitoring box. Two rules matter; the second is the one people miss:
+`artlux_calib_result >= 2` (a fault) and `time() - artlux_calib_last_run_ts > 26*3600` — **a maintenance
+task that silently stopped running**, which over a year is far more likely and otherwise invisible.
+Forensics live in `userData/artlux-calibration.log`.
 
 ---
 
@@ -99,7 +145,13 @@ scene, a **projector output** (windowed or a display), and a **darkened room**.
 | Dense decode / RANSAC PnP / guided resection / self-cal (native) | `native/calib/src/lib.rs` |
 | Camera→world ray, CV↔Three math | `plugins/calibration/src/cvCamera.ts` |
 | Batch venue raycaster | `plugins/calibration/src/venueRaycast.ts` (registered by `Simulator3D/ModelObject.tsx`) |
-| World-space blend | `plugins/calibration/src/blendCompute.ts` |
+| World-space blend (maths) | `plugins/calibration/src/blendCompute.ts` — `npm run test:blend` |
+| Rig blend: keep scans, solve, apply, staleness | `blendStore.ts`, `calibArtifacts.ts`, `blendController.ts`, `components/RigBlendStrip.tsx` |
+| The ONE soft-edge ramp (both GPU paths interpolate it) | `src/renderer/projector/blendGlsl.ts` |
+| Venue meshes with no 3D viewport (`--broadcast`) | `plugins/calibration/src/venueRegistrar.ts` |
+| Unattended recalibration | `autoRecal.ts` (orchestrator), `validateSolve.ts` (the gate), `driftScore.ts` (pure) + `driftCheck.ts` (IO), `RecalPanel.tsx` — `npm run test:recal` |
+| Audit log + in-flight marker + Prometheus gauges | `calibAudit.ts`, `src/main/metrics.ts` `setPluginGauge` |
+| Cross-plugin command seam (`recalibrate`, `calibRevert`) | `plugins/show-control/src/commandExt.ts` |
 | Auto-Align wizard | `plugins/calibration/src/AutoAlignWizard.tsx` (App `calibFlow` switches Board ↔ Auto) |
 | NVAPI addon | `native/nvwarp/` (`src/shim.cpp`, `src/lib.rs`, `build.rs`), `src/main/nvwarpManager.ts` |
 | MPCDI codec / region build | `src/main/mpcdi.ts`, `plugins/calibration/src/mpcdiData.ts` |
