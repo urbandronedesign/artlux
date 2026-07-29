@@ -321,10 +321,23 @@ updates the wiki for free.**
 
 ## 7. Open questions for a human
 
-1. **Screenshots now block the site.** They are knowingly pre-workbench, and re-capture is deferred until
-   the app is stable, as one whole-guide `capture-docs.cjs` pass. That was tolerable for a repo file; a
-   public *usage* site whose every screenshot shows a shell that no longer exists is not. Ship with the
-   banner, or gate Phase 3 on the capture pass?
+1. ~~**Screenshots now block the site.**~~ ✅ **RESOLVED 2026-07-29** — the owner declared feature work
+   finished, which was the stated precondition ("deferred until the app is considered stable"), and the
+   whole guide was re-captured in one pass against the **dockable workbench** shell. Every "⚠ these are
+   outdated" banner and caption is gone from the guide.
+   **The harness had rotted with the shell and had to be repaired first** — it drove the old fixed shell
+   by clicking text inside hard-coded screen regions, and its very first wait hung forever because the
+   app restores the *last used* context. Four traps, each of which cost a run: the restored context; the
+   app's own startup navigation destroying the execution context mid-poll; the renderer **target** being
+   replaced so the `Page` handle detaches; and three shots pointing at controls that had moved
+   (Scenes & Cues and Preferences became workbenches, Media Library became a dock tab) plus one —
+   `09-asset-manager` — pointing at **a panel deleted on 2026-07-23**, which was failing silently rather
+   than saying the panel had gone.
+   **And it published the capturing machine's LAN address and live tablet PIN** into a public repo until
+   a redaction step was added — caught by *looking at the picture* rather than at the ✓ beside it. The
+   first two redaction rules were themselves wrong, rewriting the port field's caption to "default 0000"
+   when the real default is 8788: *a redaction that invents a wrong fact is worse than the exposure it
+   prevents.*
 2. **French.** The help layer is already `{en, fr}`-shaped with FR written for only 5 guides, and Starlight
    has first-class i18n. For an operator audience this is a real decision, not a nicety — is FR a goal?
 3. **Phase 2 depth.** Extract all 18 hybrids, or start with the nine high-value ones and leave the rest

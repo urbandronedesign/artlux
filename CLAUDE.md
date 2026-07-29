@@ -84,8 +84,13 @@ times and the guide's *prose* survived all three while every *screenshot* went s
    reads it. Never copy usage prose into a second file — two copies drift the first time a feature lands.
    `verify:docs` fails a `hybrid` page that marks no contributor region, because an unmarked hybrid is
    not neutral: it silently declares its whole implementation half to be operator documentation.
-3. **Cap and stamp the pictures.** 22 screenshots is a ceiling; prefer hand-authored SVG diagrams (shell-
-   independent) and let `capture-docs.cjs`'s version stamp render the staleness banner automatically.
+3. **Cap and stamp the pictures.** ~18 screenshots is a ceiling; prefer hand-authored SVG diagrams
+   (shell-independent). `npm run docs:capture` re-shoots the whole guide in one pass and stamps
+   `docs/user-guide/images/captured.json` with the app version and a **shell signature** (a hash of the
+   rail, the context manifests, the fallback shell and the dock renderer). `verify:docs` recomputes it
+   and **warns** — never fails — when the shell has moved since. Staleness is measured now, not
+   remembered: the old mechanism was a hand-written "⚠ these are outdated" banner that someone had to
+   think to add and then think to remove, and it survived three shell generations.
 
 Corollary for prose you write: describe **verbs and destinations**, never panel coordinates — that is what
 let the text survive three shell rewrites.

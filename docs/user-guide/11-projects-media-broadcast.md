@@ -40,13 +40,9 @@ tracking takes in one place.
 
 ### Inspecting an asset
 
-> ⚠ The separate **Asset Manager** window is **gone**. Everything it did that was not already in the
-> Media Library — the per‑asset inspector — is now the **bottom section of the library itself**, so
-> there is one place to look instead of two. *Consolidate* is an action‑bar item. The screenshot below
-> is outdated; re‑capture with `node scripts/capture-docs.cjs`.
-
-![The retired Asset Manager](images/09-asset-manager.png)
-*Outdated — the standalone Asset Manager, since folded into the Media Library.*
+The separate **Asset Manager** window is gone. Everything it did that the Media Library did not already
+do — the per‑asset inspector — is the **bottom section of the library itself**, so there is one place to
+look instead of two. *Consolidate* is an action‑bar item.
 
 Select an asset and the inspector shows its size, duration, dimensions, path, and whether it is
 missing on disk. From here you can also see its **usage** (click a surface usage to jump to it), **Relink** a

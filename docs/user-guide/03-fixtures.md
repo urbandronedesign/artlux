@@ -24,12 +24,9 @@ selected. Two things are not in the column and ship as dock tabs in **Map**:
 | **Library** | the shipped DMX profiles, and your own LED templates |
 | **Wiring & Ledmap** | the physical-order preview, and the ledmap tools (LED fixtures only) |
 
-> ⚠ The screenshot below — the seven-card **Fixture Editor** dock — is **outdated**. Five of its
-> cards were a second rendering of controls the parameters column now owns and explains; *Create*
-> moved to the action bar. Re-capture with `node scripts/capture-docs.cjs`.
-
-![The retired Fixture Editor dock](images/04-fixture-editor.png)
-*Outdated — the Fixture Editor dock as it was before the split.*
+![The fixture docks](images/04-fixture-editor.png)
+*The fixture docks. The old seven-card *Fixture Editor* became these two: five of its cards were a
+second rendering of controls the parameters column already owns, and *Create* moved to the action bar.*
 
 ---
 

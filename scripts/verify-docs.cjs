@@ -28,6 +28,7 @@ const ROOT = path.resolve(__dirname, '..');
 const MANIFEST = path.join(ROOT, 'docs', 'manifest.json');
 
 const errors = [];
+const notes = [];   // non-blocking observations, printed after the checks
 const checks = [];
 const fail = (check, msg) => errors.push(`${check}: ${msg}`);
 const pass = (label) => checks.push(label);
@@ -296,8 +297,36 @@ const GUIDE_DIR = path.join(ROOT, ...manifest.guideDir.split('/'));
   pass(`every hybrid page marks its operator/contributor seam (${hybrids.length} pages, ${markers} markers)`);
 }
 
+// ── 11. Do the screenshots still match the shell they were taken against? ─────────────────────────────
+// Layer 4 of the documentation strategy: pictures have the shortest half-life in the docs, so their
+// staleness is MEASURED, not remembered. It went unmeasured for three shell generations behind a
+// hand-written "⚠ these are outdated" banner that someone had to think to add and then think to remove.
+//
+// This REPORTS rather than fails. A one-line change in the shell should make the screenshots suspect,
+// not block a merge behind a three-minute app run — and a check that cries wolf on every CSS tweak is a
+// check that gets deleted. `npm run docs:capture` re-stamps it.
+{
+  const { shellSignature } = require('./lib/shell-signature.cjs');
+  const stampPath = path.join(GUIDE_DIR, 'images', 'captured.json');
+  if (!exists(stampPath)) {
+    notes.push('the guide screenshots carry no capture stamp — run `npm run docs:capture` to create one');
+  } else {
+    const stamp = JSON.parse(read(stampPath));
+    const now = shellSignature();
+    if (stamp.shellSignature !== now) {
+      notes.push(`the editor shell has changed since the screenshots were taken (${stamp.capturedAt}, v${stamp.appVersion}) — re-run \`npm run docs:capture\``);
+    } else {
+      pass(`the guide screenshots match the current shell (captured ${stamp.capturedAt}, v${stamp.appVersion})`);
+    }
+  }
+}
+
 // ── Report ────────────────────────────────────────────────────────────────────────────────────────────
 for (const c of checks) console.log(`\x1b[32m✓\x1b[0m ${c}`);
+// Non-blocking observations. These are things that make the docs SUSPECT rather than wrong — the
+// screenshot staleness signal is the one that matters, and it must not fail a build (a check that cries
+// wolf on every CSS tweak is a check that gets deleted).
+for (const n of notes) console.log(`\x1b[33m⚠\x1b[0m ${n}`);
 if (errors.length) {
   console.error(`\n\x1b[31m✗ ${errors.length} documentation problem${errors.length === 1 ? '' : 's'}:\x1b[0m`);
   for (const e of errors) console.error(`  \x1b[31m•\x1b[0m ${e}`);

@@ -3,12 +3,9 @@
 This page names every part of the editor so the rest of the guide can refer to them. If you only
 read one page first, read this one.
 
-> ⚠ **The screenshots on this page and throughout this guide predate the workspace rewrite** and
-> show the old fixed shell (a Scene/Media tab column, a Stage/3D split, a four-tab dock). The *text*
-> below describes the app as it is now. Re-capture with `node scripts/capture-docs.cjs`.
-
 ![The main editor with its regions](images/00-main-editor.png)
-*The whole editor at a glance.*
+*The whole editor at a glance: the workbench rail on the far left, the browser column, the viewport,
+the dock beneath it, the parameters column on the right, and the timeline drawer along the bottom.*
 
 ---
 

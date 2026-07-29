@@ -19,6 +19,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const puppeteer = require('puppeteer-core');
+const { shellSignature } = require('./lib/shell-signature.cjs');
 
 const ROOT = path.resolve(__dirname, '..');
 const OUT_DIR = path.join(ROOT, 'docs', 'user-guide', 'images');
@@ -275,6 +276,109 @@ async function menuAction(page, menu, item) {
     await click(page, { text: item }); // dropdown item (matches with ellipsis via contains)
 }
 
+// ── WORKBENCH NAVIGATION (2026-07-29) ─────────────────────────────────────────────────────────────────
+// This script was written for the OLD fixed shell — a Scene/Media tab column, a Stage/3D split, a
+// four-tab dock — and it drove that shell by clicking text inside hard-coded screen regions
+// (`maxLeft: 300` was "the left panel"). The app is now NINE workbenches on a left rail, each composing
+// panels that the operator can drag into tabs and splits, so those regions mean nothing and the first
+// wait (`/Logo Wall|FX Panel/`) hung forever: the app restores the LAST USED context, which is very
+// often not the one showing surfaces.
+//
+// So navigation is explicit now. The rail button carries `title="<Context title> — <cluster>  (Ctrl+N)"`
+// (ContextRail.tsx), which is a stable, human-meaningful hook — better than the Ctrl+1..9 accelerators,
+// whose numbering follows the rail's CLUSTER ordering rather than registration order.
+const CONTEXTS = {
+  mapping: 'Mapping',
+  scene3d: 'Venue & Rig',
+  outputs: 'Projection Outputs',
+  calib: 'Calibration',
+  scenes: 'Scenes & Cues',
+  prefs: 'Preferences',
+  machine: 'Show Machine',
+  audio: 'Audio',
+  show: 'Show / Perform',
+};
+
+// After ANY reload, RE-ACQUIRE the renderer target and land somewhere known before waiting on project
+// content. Returns the fresh Page — always assign it back (`page = await settleAfterReload(browser)`).
+//
+// Three traps live here and each cost a run to find:
+//
+// 1. The app restores the LAST context it was in. A reload following the calibration shot comes back on
+//    the Calibration workbench, where no surface name is on screen — so a naive wait for "Logo Wall"
+//    hangs for its full timeout. Choose the workbench first, then wait for content.
+//
+// 2. The app NAVIGATES ITSELF during startup (the same trap engine-decoupling.md records for
+//    `?uiperf=1` not surviving startup). A poll running across that dies with "Execution context was
+//    destroyed", which reads like a broken selector and is not.
+//
+// 3. Worse, the renderer TARGET is replaced, not just its context — so the Page handle captured before
+//    the reload goes stale and every call on it throws "Attempted to use detached Frame". Re-acquiring
+//    the target inside the retry is the only thing that survives this; waiting harder does not.
+async function settleAfterReload(browser) {
+  const RAIL = 'nav[aria-label="Workspace context"] button[title]';
+  let last = null;
+  for (let attempt = 1; attempt <= 8; attempt++) {
+    try {
+      const p = await findRendererTarget(browser, 20000);
+      await p.waitForFunction((sel) => !!document.querySelector(sel), { timeout: 12000 }, RAIL);
+      await goContext(p, 'mapping');
+      await p.waitForFunction(() => /Logo Wall|FX Panel/i.test(document.body.innerText), { timeout: 12000 });
+      return p;
+    } catch (e) {
+      last = e;
+      await sleep(1500);
+    }
+  }
+  throw new Error(`settleAfterReload failed after 8 attempts: ${last && last.message}`);
+}
+
+async function redactPrivate(page) {
+  await page.evaluate(() => {
+    const EXAMPLE_HOST = 'http://192.168.0.10:8788';
+
+    // The LAN URL the tablet is told to open.
+    const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    const hits = [];
+    while (walk.nextNode()) hits.push(walk.currentNode);
+    for (const n of hits) {
+      const t = n.nodeValue || '';
+      const re = /https?:\/\/\d{1,3}(\.\d{1,3}){3}:\d+/g;
+      if (re.test(t)) n.nodeValue = t.replace(/https?:\/\/\d{1,3}(\.\d{1,3}){3}:\d+/g, EXAMPLE_HOST);
+    }
+
+    // The pairing PIN, targeted STRUCTURALLY: the element whose previous sibling is exactly the label
+    // "PIN" (ShowControlSettings.tsx renders <span>PIN</span><span class="num ...">{pin}</span>).
+    //
+    // Two looser rules were tried and both were wrong the same way. "Any lone 4-digit run", and then
+    // "any lone 4-digit run with a PIN label within three ancestors", BOTH rewrote the port field's
+    // caption to "default 0000" when the real default is 8788 - the second because three levels up
+    // reaches the whole Show Control card, which of course contains the word PIN. A redaction that
+    // invents a wrong fact is worse than the exposure it prevents, and the only thing that caught it
+    // was reading the picture instead of trusting the tick beside it.
+    for (const el of document.querySelectorAll('span, div')) {
+      const prev = el.previousElementSibling;
+      if (prev && (prev.textContent || '').trim() === 'PIN' && /\d/.test(el.textContent || '')) {
+        el.textContent = (el.textContent || '').replace(/\d/g, '0');
+      }
+    }
+  });
+}
+
+async function goContext(page, key) {
+  const title = CONTEXTS[key];
+  if (!title) throw new Error(`goContext: unknown context "${key}"`);
+  const ok = await page.evaluate((t) => {
+    const btn = [...document.querySelectorAll('button[title]')]
+      .find((b) => (b.getAttribute('title') || '').startsWith(t + ' —'));
+    if (!btn) return false;
+    btn.click();
+    return true;
+  }, title);
+  if (!ok) throw new Error(`goContext: no rail button for "${title}" — the workbench set changed`);
+  await sleep(700);   // context switch + the dock tree's layout effects
+}
+
 async function shoot(page, name) {
     const file = path.join(OUT_DIR, name);
     await page.screenshot({ path: file });
@@ -323,7 +427,7 @@ async function main() {
         const ver = await waitForCdp(120000);
         console.log(`[capture] CDP up: ${ver.Browser || 'electron'}`);
         browser = await puppeteer.connect({ browserWSEndpoint: ver.webSocketDebuggerUrl, defaultViewport: null });
-        const page = await findRendererTarget(browser, 30000);
+        let page = await findRendererTarget(browser, 30000);
         await page.waitForFunction(() => document.body && /Surfaces|Fixtures/i.test(document.body.innerText), { timeout: 60000 });
 
         // Back up the user's last project, point the app at the demo, reload.
@@ -331,14 +435,19 @@ async function main() {
         console.log(`[capture] backing up lastProjectPath: ${origLastProject}`);
         await page.evaluate((p) => window.artlux.setPrefs({ lastProjectPath: p }), demo);
         await page.reload({ waitUntil: 'domcontentloaded' });
-        await page.waitForFunction(() => /Logo Wall|FX Panel/i.test(document.body.innerText), { timeout: 60000 });
+        page = await settleAfterReload(browser);
         await sleep(2500); // let media decode + first paint settle
         console.log('[capture] demo loaded, capturing contexts …');
 
         if (SPIKE) { await shoot(page, '00-main-editor.png'); console.log('[capture] spike OK'); return; }
 
-        // 1. Shell / interface tour (nothing selected)
-        await safeShoot(page, '00-main-editor.png');
+        // 1. Shell / interface tour. A surface is selected on purpose: with nothing selected the
+        // parameters column on the right is EMPTY, and a tour shot whose right-hand third is blank reads
+        // as a broken app rather than as "this region fills when you select something". Every region of
+        // the workbench should be populated in the one picture chapter 1 uses to name them.
+        await safeShoot(page, '00-main-editor.png', async () => {
+            await click(page, { text: 'Logo Wall', region: { maxLeft: 400 } }, { optional: true });
+        });
 
         // 2. Surface selected → Inspector (content + transform)
         await safeShoot(page, '02-surface-inspector.png', async () => { await click(page, { text: 'Logo Wall', region: { maxLeft: 300 } }); });
@@ -346,34 +455,37 @@ async function main() {
         // 3. Fixture selected → Inspector (mapping / effect / geometry / 3D)
         await safeShoot(page, '03-fixture-inspector.png', async () => { await click(page, { text: 'LED Strip', region: { maxLeft: 300 } }); });
 
-        // 4. Fixture Editor dock — matrix selected (geometry + wiring card)
+        // 4. The fixture docks — matrix selected. The seven-card "Fixture Editor" became TWO docks on
+        // 2026-07-27 (plans/fixture-editor-split.md): "Library" and "Wiring & Ledmap".
         await safeShoot(page, '04-fixture-editor.png', async () => {
             await click(page, { text: 'Matrix 16x16', region: { maxLeft: 300 } });
-            await clickText(page, 'Fixture Editor', { optional: true });
+            await clickText(page, 'Library', { optional: true });
         });
 
         // 5. Timeline dock
         await safeShoot(page, '05-timeline.png', async () => { await clickText(page, 'Timeline'); });
 
         // 6. Scenes & Cues dock
-        await safeShoot(page, '06-scenes-cues.png', async () => { await clickText(page, 'Scenes & Cues'); });
+        // Scenes & Cues is a WORKBENCH now, not a tab whose label sits in the page text.
+        await safeShoot(page, '06-scenes-cues.png', async () => { await goContext(page, 'scenes'); });
+        await goContext(page, 'mapping');
 
         // 7. DMX Monitor dock
         await safeShoot(page, '07-dmx-monitor.png', async () => { await clickText(page, 'DMX Monitor'); });
 
-        // restore Fixture Editor as the default dock tab for later shots
-        await clickText(page, 'Fixture Editor', { optional: true });
+        // restore Library as the default dock tab for later shots
+        await clickText(page, 'Library', { optional: true });
 
         // 8. Media library (left tab — scope to the top-left so we don't hit the
         //    inspector's Media/Effect toggle which also reads "Media").
-        await safeShoot(page, '08-media-library.png', async () => {
-            await click(page, { text: 'media', exact: true, region: { maxLeft: 300, maxTop: 70 } });
-        });
+        // The old left-column "media" tab is gone; Media Library is a DOCK tab (and a browser panel).
+        await safeShoot(page, '08-media-library.png', async () => { await clickText(page, 'Media Library'); });
 
-        // 9. Asset Manager (modal) — opened from the Media panel
-        await safeShoot(page, '09-asset-manager.png', async () => { await clickTitle(page, 'Open full Asset Manager'); });
-        await escClose(page);
-        await click(page, { text: 'scene', exact: true, region: { maxLeft: 300, maxTop: 70 } }, { optional: true });
+        // 9. ⛔ NO 09-asset-manager.png. The separate Asset Manager panel was DELETED on 2026-07-23 and
+        // folded into the Media Library — MediaPanel.tsx:244 says so in as many words ("this is what the
+        // separate Asset Manager panel used to show; it lives here now so there is one [place]"). Shot 8
+        // above IS the asset manager now. Capturing it was silently failing rather than telling anyone
+        // the panel had gone.
 
         // 10. Routing (modal)
         await safeShoot(page, '10-routing.png', async () => { await clickTitle(page, 'Routing'); });
@@ -423,12 +535,16 @@ async function main() {
 
         // Reset all transient overlays (wizard + windowed output) with a clean reload.
         await page.reload({ waitUntil: 'domcontentloaded' });
-        await page.waitForFunction(() => /Logo Wall|FX Panel/i.test(document.body.innerText), { timeout: 60000 });
+        page = await settleAfterReload(browser);
         await sleep(2500);
 
         // 14. Preferences (modal)
-        await safeShoot(page, '14-preferences.png', async () => { await clickTitle(page, 'Preferences'); });
-        await escClose(page);
+        // Preferences is a WORKBENCH now (the APP cluster on the rail), not a modal behind a title.
+        await safeShoot(page, '14-preferences.png', async () => {
+            await goContext(page, 'prefs');
+            await redactPrivate(page);   // this card prints the machine's LAN URL + tablet PIN
+        });
+        await goContext(page, 'mapping');
 
         // 15. OSC Monitor (View ▸ OSC Monitor…)
         await safeShoot(page, '15-osc-monitor.png', async () => { await menuAction(page, 'View', 'OSC Monitor'); });
@@ -438,7 +554,8 @@ async function main() {
         // modal now (F1). Its shot joins the deferred whole-guide re-capture pass.
 
         // 17. About (Help ▸ About ArtLux)
-        await safeShoot(page, '17-about.png', async () => { await menuAction(page, 'Help', 'About ArtLux'); });
+        // The menu item is "About ARTLux" — the brand is set in caps there (src/main/menu.ts).
+        await safeShoot(page, '17-about.png', async () => { await menuAction(page, 'Help', 'About ARTLux'); });
         await escClose(page);
 
         // 18. Audio Bed — the mixer (View ▸ Audio Bed…), for user-guide §7.
@@ -499,6 +616,18 @@ async function main() {
             await page.screenshot(box ? { path: file, clip: box } : { path: file });
             console.log(`[capture]   ✓ 12-3d-scene.png${box ? ' (3D pane)' : ' (full window)'}`);
         } catch (e) { console.warn(`[capture]   ✗ 12-3d-scene.png — ${e.message}`); }
+
+        // Stamp what these pictures were taken against, so their staleness can be MEASURED rather than
+        // remembered. The old mechanism was a hand-written "⚠ these are outdated" banner in the guide,
+        // which someone had to think to add and then think to remove — it survived three shell
+        // generations. `verify:docs` recomputes this and says when it has moved.
+        const stamp = {
+            capturedAt: new Date().toISOString().slice(0, 10),
+            appVersion: require(path.join(ROOT, 'package.json')).version,
+            shellSignature: shellSignature(),
+        };
+        fs.writeFileSync(path.join(OUT_DIR, 'captured.json'), JSON.stringify(stamp, null, 2) + '\n');
+        console.log(`[capture] stamped: v${stamp.appVersion}, shell ${stamp.shellSignature}`);
 
         console.log('[capture] done.');
     } finally {

@@ -12,15 +12,10 @@ page with a screenshot and a walkthrough of what each control does and when you'
 > Screenshots are captured from a small built‑in demo project (two surfaces, a strip + a matrix
 > fixture, a timeline, a 3D scene and an output) so the panels look the way they will in real use.
 
-> ⚠ **The screenshots currently in this guide predate the workspace rewrite** and show the old fixed
-> shell — a Scene/Media tab column, a Stage/3D split, and a four‑tab dock. The **text** on every page
-> describes the app as it is now: nine **workbenches** on a left rail, with every panel draggable into
-> tabs and splits.
->
-> **The re-capture is deliberately deferred until the app is considered stable**, and it is one pass
-> over the whole guide (`node scripts/capture-docs.cjs`) rather than a page at a time — a guide whose
-> screenshots come from three different shells is worse than one that is uniformly out of date and
-> says so.
+> Screenshots were re-captured against the current **dockable workbench** shell on **2026-07-29**, in
+> one pass over the whole guide (`npm run docs:capture`) — a guide whose pictures come from three
+> different shells would be worse than one that is uniformly out of date. If the shell changes again,
+> re-run that one command rather than re-shooting a page at a time.
 
 ---
 
@@ -43,9 +38,8 @@ Keep that order in mind and everything follows: **no surface → nothing to samp
 fixture linked → nothing goes out; fixture linked but content is *None* → it stays black.**
 
 ![The ArtLux main editor](images/00-main-editor.png)
-*Outdated — the pre‑workbench shell. Today: the workbench rail on the far left, then the browser
-column, the viewport, the dock under it, the parameters column on the right, and the timeline drawer
-along the bottom — all rearrangeable.*
+*The workbench rail on the far left, then the browser column, the viewport, the dock under it, the
+parameters column on the right, and the timeline drawer along the bottom — all rearrangeable.*
 
 ---
 
