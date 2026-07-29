@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, ChevronDown, Film, Plus, Save, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Timeline as TL, VideoClip, VideoLayer, SurfaceContent, SourceType, StateMachine, defaultStateMachine, isContentClip, timelineEnd, timelineStart, timelineDuration, hasTimelineRegion, timelineAudioClips, timelineAudioTracks, type AudioClip, type AudioMix, type AudioTrack, type AssetEntry, type VideoClipAudio } from '../../types';
 import { timeline as engine } from '../../services/timeline';
@@ -36,6 +37,7 @@ import { DragMode } from './ClipBlock';
 import { ClipAudioInspector } from './ClipAudioInspector';
 import { useTimelineKeys } from './hooks/useTimelineKeys';
 import { useStableHandlers } from '../../hooks/useStableHandlers';
+import { usePopoverAnchor } from './usePopoverAnchor';
 
 // Fallback length for an audio file the browser cannot decode (some .aiff): place a trimmable clip rather
 // than refuse the drop. A decodable file gets its real length from probeAudioDuration.
@@ -133,6 +135,12 @@ export interface AuthorContext {
 export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, onStateMachineChange, playing, onTogglePlay, maximized = false, onToggleMax, projectPath, onRegisterAsset, scenes = [], cues = [], fixtureGroups = [], rigFixtures = [], rigProfiles, selectedFixtureIds = [], author, audio: audioProp, baseAutomation = [] }) => {
   const [pxPerSec, setPxPerSec] = useState(40);
   const [pillOpen, setPillOpen] = useState(false); // scene/state selector dropdown
+  // The pill menu is portalled (usePopoverAnchor), so it is placed from the button's measured rect
+  // rather than anchored with `absolute top-full`.
+  const pillBtnRef = useRef<HTMLButtonElement>(null);
+  const pillBoxRef = useRef<HTMLDivElement>(null);
+  const closePill = useCallback(() => setPillOpen(false), []);
+  const pillPos = usePopoverAnchor(pillOpen, pillBtnRef, { width: 256, estHeight: 320, boxRef: pillBoxRef, onDismiss: closePill });
   const [selected, setSelected] = useState<string | null>(null);
   // WHICH ARRAY the single `selected` id lives in. It names an id in one of THREE arrays now (the video
   // clips, the bed's clips, this timeline's audio clips), and every consumer of it has to be told which —
@@ -1513,7 +1521,7 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
         <div className="shrink-0 flex items-center gap-2 px-3 h-8 border-b border-line-1 bg-surface-1 relative">
           {/* Scene/state selector pill — the always-visible "which timeline am I editing" indicator. */}
           <Tooltip id="timeline.edit-scene">
-            <button onClick={() => setPillOpen(o => !o)} {...help('timeline.edit-scene')} title="Choose which timeline to edit"
+            <button ref={pillBtnRef} onClick={() => setPillOpen(o => !o)} {...help('timeline.edit-scene')} title="Choose which timeline to edit"
               className="flex items-center gap-1.5 pl-1.5 pr-2 py-1 rounded-sm bg-surface-2 border border-line-1 hover:bg-surface-3 text-mini">
               <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: author.activeAccent }} />
               <span className="text-fg-3">Editing:</span>
@@ -1544,10 +1552,17 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
             </div>
           )}
 
-          {pillOpen && (
+          {/* PORTALLED, ON THE `popover` TIER — see usePopoverAnchor. This one was NOT broken (the author
+              strip is `relative` with no z-index, so it forms no stacking context and the panel escaped
+              upward), but it sat one bad edit away: give that strip a z-index for any reason and the menu
+              would vanish under the toolbar with nothing throwing. Same tier, same portal, one rule. */}
+          {pillOpen && createPortal(
             <>
-              <div className="fixed inset-0 z-40" onClick={() => setPillOpen(false)} />
-              <div className="absolute z-50 top-full left-3 mt-1 w-64 bg-surface-1 border border-line-1 rounded-md p-1 shadow-e2 max-h-80 overflow-auto">
+              <div className="fixed inset-0 z-popover" onClick={() => setPillOpen(false)} />
+              <div ref={pillBoxRef}
+                className="fixed z-popover w-64 bg-surface-1 border border-line-1 rounded-md p-1 shadow-e3 max-h-80 overflow-auto"
+                style={{ left: pillPos?.left ?? 0, top: pillPos?.top ?? 0, visibility: pillPos ? 'visible' : 'hidden' }}
+                onWheel={(e) => e.stopPropagation()}>
                 {/* Picking a scene here is NOT a quiet rebind: onSelect → enterAuthor → handleRecallScene,
                     which recalls the look, starts the fade and restarts the transport. Say so. */}
                 <div className="px-2 pt-1 pb-1.5 text-micro text-fg-3 border-b border-line-1 mb-1">
@@ -1579,7 +1594,8 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
                 <button onClick={() => { author.onNew(); setPillOpen(false); }}
                   className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-mini text-left text-fg-1 hover:bg-surface-2"><Plus size={12} /> New state…</button>
               </div>
-            </>
+            </>,
+            document.body,
           )}
         </div>
       )}
@@ -1779,12 +1795,19 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
         )}
       </div>
 
-      {/* Right-click an empty lane → source-type picker → places a default-length content clip. */}
-      {contentMenu && (
+      {/* Right-click an empty lane → source-type picker → places a default-length content clip.
+          PORTALLED, ON THE `popover` TIER — see usePopoverAnchor. It is already point-anchored from the
+          click, so it keeps its own clamp rather than measuring an element; what it did NOT survive is
+          F-maximise, where the timeline is wrapped in a `fixed inset-0 z-50` and this z-40 backdrop lost
+          to it — exactly the failure AutomationTargetPicker documents (menu won't dismiss, and the
+          dismissal click falls through and scrubs). Not hypothetical here either: maximised is where you
+          right-click a lane to build one. */}
+      {contentMenu && createPortal(
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setContentMenu(null)} onContextMenu={(e) => { e.preventDefault(); setContentMenu(null); }} />
-          <div className="fixed z-50 w-56 bg-surface-1 border border-line-1 rounded-md p-2 shadow-e2"
-            style={{ left: Math.min(contentMenu.x, window.innerWidth - 236), top: Math.min(contentMenu.y, window.innerHeight - 200) }}>
+          <div className="fixed inset-0 z-popover" onClick={() => setContentMenu(null)} onContextMenu={(e) => { e.preventDefault(); setContentMenu(null); }} />
+          <div className="fixed z-popover w-56 bg-surface-1 border border-line-1 rounded-md p-2 shadow-e3"
+            onWheel={(e) => e.stopPropagation()}
+            style={{ left: Math.max(8, Math.min(contentMenu.x, window.innerWidth - 236)), top: Math.max(8, Math.min(contentMenu.y, window.innerHeight - 200)) }}>
             <div className="text-micro font-bold uppercase tracking-wider text-fg-3 mb-1.5 px-0.5">Add clip</div>
             <ContentEditor
               content={{ type: SourceType.NONE }}
@@ -1794,7 +1817,8 @@ export const Timeline: React.FC<Props> = ({ timeline, onChange, stateMachine, on
               onChange={(patch) => { if (patch.type && patch.url !== undefined) createContentClip(contentMenu.layerId, contentMenu.start, { type: patch.type, url: patch.url }); }}
             />
           </div>
-        </>
+        </>,
+        document.body,
       )}
 
       {/* Inspector for a selected generalized-content clip (reuses the surface content editor). */}

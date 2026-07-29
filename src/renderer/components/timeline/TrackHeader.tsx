@@ -1,12 +1,17 @@
-import React, { useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Trash2, Eye, EyeOff, Lock, Unlock, GripVertical, Blend, Volume2, VolumeX } from 'lucide-react';
 import { VideoLayer, LayerBlendMode } from '../../types';
 import { Tooltip } from '../ui/Tooltip';
 import { help } from '../../services/helpBus';
+import { usePopoverAnchor } from './usePopoverAnchor';
 
 const BLEND_MODES: LayerBlendMode[] = ['normal', 'add', 'screen', 'multiply'];
 
 const TRACK_COLORS = ['#27b6c4', '#ff3b3b', '#f5a623', '#7ed321', '#bd10e0', '#4a90e2'];
+
+const FX_W = 176;   // must match w-44
+const FX_M = 8;     // viewport margin
 
 interface Props {
   layer: VideoLayer;
@@ -37,7 +42,12 @@ const Toggle: React.FC<{ on: boolean; label: string; title: string; helpId?: str
 
 const TrackHeaderBase: React.FC<Props> = ({ layer, index, height, onPatch, onRemove, onStartReorder, onStartResize }) => {
   const [fxOpen, setFxOpen] = useState(false);
+  const fxBtnRef = useRef<HTMLButtonElement>(null);
+  const fxBoxRef = useRef<HTMLDivElement>(null);
   const fxActive = (layer.opacity ?? 1) < 1 || (layer.blendMode ?? 'normal') !== 'normal';
+  const closeFx = useCallback(() => setFxOpen(false), []);
+  const fxPos = usePopoverAnchor(fxOpen, fxBtnRef, { width: FX_W, estHeight: 96, boxRef: fxBoxRef, margin: FX_M, onDismiss: closeFx });
+
   const cycleColor = () => {
     const i = layer.color ? TRACK_COLORS.indexOf(layer.color) : -1;
     const next = i + 1 >= TRACK_COLORS.length ? undefined : TRACK_COLORS[i + 1];
@@ -89,17 +99,29 @@ const TrackHeaderBase: React.FC<Props> = ({ layer, index, height, onPatch, onRem
         </Tooltip>
         {/* Opacity + blend for the timeline (Program) composite — popover so it fits any track height. */}
         <Tooltip id="timeline.track-blend">
-          <button title="Opacity & blend in the Timeline (Program) composite" {...help('timeline.track-blend')} onPointerDown={(e) => e.stopPropagation()} onClick={() => setFxOpen(v => !v)}
+          <button ref={fxBtnRef} title="Opacity & blend in the Timeline (Program) composite" {...help('timeline.track-blend')} onPointerDown={(e) => e.stopPropagation()} onClick={() => setFxOpen(v => !v)}
             className={`w-4 h-4 rounded-sm flex items-center justify-center border ${fxActive || fxOpen ? 'text-black border-transparent bg-accent' : 'text-fg-3 border-line-2 hover:text-fg-1'}`}>
             <Blend size={10} />
           </button>
         </Tooltip>
       </div>
-      {fxOpen && (
+      {/* PORTALLED, ON THE `popover` TIER — see usePopoverAnchor for the why. Short version: this row's
+          gutter is `sticky left-0 z-20` in Timeline.tsx, which is a STACKING CONTEXT, so an
+          `absolute … z-50` panel collapsed to z-20 and painted under the NEXT track's header — same z,
+          later sibling, same 188px column. Backdrop and box share the tier and are ordered by DOM
+          (later sibling wins), so keep the box second. */}
+      {fxOpen && createPortal(
         <>
-          <div className="fixed inset-0 z-40" onPointerDown={(e) => { e.stopPropagation(); setFxOpen(false); }} />
-          <div className="absolute left-1.5 top-full -mt-1 z-50 w-44 bg-surface-1 border border-line-1 rounded-md p-2 shadow-e2 space-y-1.5"
-            onPointerDown={(e) => e.stopPropagation()}>
+          <div className="fixed inset-0 z-popover" onPointerDown={(e) => { e.stopPropagation(); setFxOpen(false); }} />
+          <div ref={fxBoxRef}
+            className="fixed z-popover w-44 bg-surface-1 border border-line-1 rounded-md p-2 shadow-e3 space-y-1.5"
+            // Hidden until measured — a first paint at 0,0 flashes the panel in the window corner.
+            style={{ left: fxPos?.left ?? 0, top: fxPos?.top ?? 0, visibility: fxPos ? 'visible' : 'hidden' }}
+            onPointerDown={(e) => e.stopPropagation()}
+            // The portal takes us out of the timeline scroller's subtree, which kills its NON-PASSIVE
+            // native wheel-zoom listener; this stops React's synthetic wheel travelling the React tree
+            // as well, so spinning over the panel can't zoom the timeline underneath it.
+            onWheel={(e) => e.stopPropagation()}>
             <div className="text-micro uppercase tracking-wider text-fg-3">Program composite</div>
             <div className="flex items-center gap-1.5">
               <span className="text-micro text-fg-2 w-10">Opacity</span>
@@ -115,7 +137,8 @@ const TrackHeaderBase: React.FC<Props> = ({ layer, index, height, onPatch, onRem
               </select>
             </div>
           </div>
-        </>
+        </>,
+        document.body,
       )}
       {/* height resize grab strip */}
       <div onPointerDown={(e) => onStartResize(e, layer)} className="absolute left-0 right-0 bottom-0 h-1.5 cursor-ns-resize hover:bg-accent/40" />

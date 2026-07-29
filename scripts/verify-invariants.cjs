@@ -852,6 +852,50 @@ check(
   },
 );
 
+// ── Timeline: every popover escapes the lattice of stacking contexts ──────────────────────────
+check(
+  'timeline popovers are portalled onto the popover tier',
+  'The timeline is a lattice of STACKING CONTEXTS: each track row\'s gutter is `sticky left-0 ' +
+  'z-20`, the ruler row is `sticky top-0 z-30`, and the maximised timeline is wrapped in a `fixed ' +
+  'inset-0 z-50`. position:sticky/fixed WITH a z-index creates one, so a panel written the obvious ' +
+  'way — `absolute … z-50` beside its anchor — is SEALED inside it and its z-index stops meaning ' +
+  'anything globally. Walked into three times here. TrackHeader\'s opacity/blend panel collapsed to ' +
+  'z-20 and painted under the NEXT track\'s header (same z, later sibling, the same 188px gutter ' +
+  'column it drops into), so the button lit up and the operator saw nothing at all; for the bottom ' +
+  'track the scroller\'s overflow-auto clipped it instead. AutomationTargetPicker\'s z-40 backdrop ' +
+  'lost to the maximised wrapper, so its menu could not be dismissed AND the dismissal click fell ' +
+  'through onto the timeline and scrubbed. None of it throws: the panel is in the DOM, at correct ' +
+  'geometry, with correct innerText — only the pixels are wrong, which is why every DOM assertion ' +
+  'passes and only a screenshot finds it. So: portal to document.body, sit on the `popover` tier, ' +
+  'and place from a MEASURED rect (usePopoverAnchor).',
+  () => {
+    const DIR = 'src/renderer/components/timeline';
+    const problems = [];
+    // read() strips comments, so the prose above and in those files (which quotes the very classnames
+    // being banned) cannot false-positive.
+    for (const f of walk(DIR).filter(p => p.endsWith('.tsx'))) {
+      const src = read(f);
+      // A full-viewport click-outside backdrop is the reliable tell of a popover in this directory.
+      const backdrops = src.match(/className="fixed inset-0[^"]*"/g) ?? [];
+      if (!backdrops.length) continue;
+      if (!src.includes('createPortal'))
+        problems.push(`${f} renders a dismiss backdrop but never portals — its z-index is inert inside the timeline's stacking contexts`);
+      for (const b of backdrops)
+        if (!/\bz-popover\b/.test(b))
+          problems.push(`${f} has a backdrop off the popover tier (${b.slice(11, -1)}) — it loses to the maximised-timeline wrapper`);
+      // The paired panel must not be `absolute` — that re-anchors it inside the sealed context.
+      if (/className="[^"]*\babsolute\b[^"]*\bz-(40|50)\b/.test(src) || /className="[^"]*\bz-(40|50)\b[^"]*\babsolute\b/.test(src))
+        problems.push(`${f} positions a layer with absolute + z-40/z-50 — use z-popover inside the portal`);
+    }
+    // The premise. If the gutter ever stops being a stacking context this check's reasoning is stale,
+    // and a silent pass would be worse than a noisy failure.
+    const tl = read('src/renderer/components/timeline/Timeline.tsx').replace(/\s+/g, ' ');
+    if (!/className="sticky left-0 z-\d+[^"]*"[^>]*> <TrackHeader/.test(tl))
+      problems.push('Timeline.tsx no longer wraps TrackHeader in a `sticky left-0 z-*` gutter — re-check this invariant');
+    return problems.length ? problems.join('; ') : null;
+  },
+);
+
 // ── UI: the interaction-state floor ───────────────────────────────────────────────────────────
 check(
   'the interaction-state floor is overridable',
