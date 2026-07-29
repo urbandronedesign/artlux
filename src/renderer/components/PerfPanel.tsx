@@ -13,6 +13,14 @@ import { uiPerfMonitor, type UiPerfStats } from '../services/uiPerfMonitor';
 const HISTORY = 60; // ~1 minute of 1 Hz samples behind the sparklines
 const fmt = (n: number) => (n >= 100 ? n.toFixed(0) : n.toFixed(1));
 
+/**
+ * GPU pass time (µs) → the label. Three states, and the whole point is that none of them collapses
+ * into another: absent is "unavailable" (never measured), a zero is "< 0.1 ms" (measured, but the
+ * pass is shorter than Chrome's ~65 µs timestamp quantum), anything else is the number in ms.
+ */
+const gpuMs = (us: number | undefined): string =>
+  us === undefined ? 'unavailable' : us === 0 ? '< 0.1 ms' : `${fmt(us / 1000)} ms`;
+
 // Minimal dependency-free sparkline: a normalized polyline over a fixed viewBox, scaled to the
 // series max (with a small floor so a flat-low series doesn't blow up). `warn` recolors the trace.
 const Spark: React.FC<{ data: number[]; warn?: boolean }> = ({ data, warn }) => {
@@ -95,6 +103,24 @@ export const PerfPanel: React.FC = () => {
           <Metric label="work p50" value={`${fmt(s.workP50)} ms`} />
           <Metric label="work p99" value={`${fmt(s.workP99)} ms`} warn={s.workP99 > 12} />
           <Metric label="long frames" value={`${s.longFrames} / ${s.samples}`} warn={s.longFrames > 0} />
+          {/* GPU pass time, measured on the GPU's own clock — the reading that separates "the GPU is
+              behind" from "nothing submitted work to it", which every CPU-side number above reports
+              identically.
+
+              THREE STATES, NOT TWO, and collapsing any pair of them is the failure this row exists
+              to avoid:
+                • undefined  → "unavailable": no timestamp-query, or nothing measured yet
+                • 0          → "< 0.1 ms": measured, and quicker than the quantized GPU clock
+                               (~65 µs on Chrome) can resolve
+                • n          → the number
+              Printing 0 ms for the first would say the GPU is free on a machine that never timed it;
+              printing "unavailable" for the second would hide the good news. */}
+          <Metric label="gpu pass p50" value={gpuMs(s.gpuComputeP50Us)} />
+          <Metric
+            label="gpu pass p99"
+            value={gpuMs(s.gpuComputeP99Us)}
+            warn={s.gpuComputeP99Us !== undefined && s.gpuComputeP99Us > 8000}
+          />
         </div>
 
         <div className="min-w-[220px] flex-1 space-y-3">

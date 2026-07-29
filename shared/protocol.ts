@@ -409,6 +409,16 @@ export interface RenderStats {
   longTaskMaxMs?: number;  // ms — the worst single one
   commits?: number;        // React commits in the last second (0 unless profiling)
   commitMs?: number;       // ms — their summed actualDuration
+  // ---- GPU cost (WebGPUMapper timestamp queries) ----
+  // The fields above are all CPU-side, which left "the GPU is behind" and "nothing submitted work to
+  // it" indistinguishable. These are measured on the GPU's own clock across the LED sampling pass.
+  //
+  // ⚠ ABSENT MEANS NOT MEASURED, NEVER ZERO. They are omitted whole when the device has no
+  // `timestamp-query` or nothing has resolved yet, precisely so a consumer cannot paint 0 µs — a
+  // GPU that was never timed and an idle GPU must not read the same.
+  gpuComputeP50Us?: number;  // µs — typical GPU time for the sampling compute pass
+  gpuComputeP99Us?: number;  // µs — worst case over the window
+  gpuSamples?: number;       // measurements in the window (~10 Hz), 0/absent = none
 }
 
 // 'enttec' is a USB-serial DMX interface rather than a network protocol: it carries a COM PORT in

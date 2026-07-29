@@ -2312,6 +2312,34 @@ check(
   },
 );
 
+check(
+  'an unmeasured GPU is absent from the metrics, not zero',
+  'A prom-client Gauge is exported the moment it is CONSTRUCTED, carrying the value 0. So declaring ' +
+  'the GPU-timing gauges at module scope publishes artlux_gpu_compute_p99_us 0 from every machine — ' +
+  'including the ones with no timestamp-query and the ones where the mapper never ran. On a Grafana ' +
+  'panel that is a flat line at the bottom, which reads as "the GPU is free": the single conclusion ' +
+  'this measurement exists to rule out. Shipped exactly that way first time and caught only by ' +
+  'scraping a machine that had taken no measurement at all. The gauges must be created lazily, on ' +
+  'the first real value, so absent means absent.',
+  () => {
+    const F = 'src/main/metrics.ts';
+    const src = read(F);
+    // A module-scope `new Gauge({ name: 'artlux_gpu_...' })` is the regression. The lazy helper
+    // builds its Gauge from a `name` PARAMETER, so the literal never appears in a constructor.
+    const ctor = /new Gauge\(\{[^}]*name:\s*['"]artlux_gpu_[^'"]*['"]/s;
+    if (ctor.test(src))
+      return `${F} constructs a GPU gauge with a literal name — it will export 0 before anything is measured`;
+    if (!/setGpuGauge\s*\(/.test(src))
+      return `${F} no longer routes GPU timing through the lazy setGpuGauge — check absent still means absent`;
+    // And the renderer half: stats() must OMIT the fields rather than defaulting them, or main
+    // receives 0 and the laziness above buys nothing.
+    const pm = read('src/renderer/services/perfMonitor.ts');
+    if (!/gn > 0 \?/.test(pm))
+      return 'perfMonitor no longer omits the GPU fields when nothing was measured — 0 would reach main as a real reading';
+    return null;
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const bad = (m) => console.error(`\x1b[31m✗\x1b[0m ${m}`);

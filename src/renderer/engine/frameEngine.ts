@@ -456,6 +456,12 @@ class FrameEngine {
       } else if (this.composite) {
         mapper.updateSource(this.composite);
       }
+      // Offer the GPU's own measurement of the sampling pass. Cheap and unconditional: the mapper
+      // returns its last value (or null), and perfMonitor de-duplicates, so this costs one call per
+      // frame and records only when a new measurement has actually landed. Without it the CPU work
+      // time below is the only number we have, and a busy CPU and a busy GPU look identical.
+      perfMonitor.noteGpuUs(mapper.gpuSample ? mapper.gpuSample() : null);
+
       const rawBytes = mapper.read();
 
       if (rawBytes) {

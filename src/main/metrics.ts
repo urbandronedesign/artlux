@@ -144,6 +144,29 @@ const uiCommitMs = new Gauge({
     registers: [register],
 });
 
+// ---- GPU cost (WebGPUMapper timestamp queries) ----
+// Everything above is CPU-side, which left the dashboard unable to separate "the GPU is behind" from
+// "nothing submitted work to it". These are the GPU's own clock across the LED sampling pass.
+//
+// ⚠ CREATED LAZILY, ON THE FIRST REAL MEASUREMENT, AND THAT IS THE WHOLE DESIGN. A prom-client Gauge
+// is exported from the moment it is constructed, with the value 0 — so declaring these at module
+// scope publishes `artlux_gpu_compute_p99_us 0` on every machine, including the ones with no
+// `timestamp-query` and the ones where the mapper never ran. That is a flat line at the bottom of a
+// Grafana panel, which reads as "the GPU is free" — the single reading this feature exists to rule
+// out. Absent must mean absent, so the series does not exist until a number does. (Verified, not
+// assumed: the module-scope version was built first and scraped `0` from a machine that had taken no
+// measurement at all.) Same lazy idiom as the plugin gauges below, for the same reason.
+const gpuGauges = new Map<string, Gauge<string>>();
+
+function setGpuGauge(name: string, help: string, value: number): void {
+    let g = gpuGauges.get(name);
+    if (!g) {
+        g = new Gauge({ name, help, registers: [register] });
+        gpuGauges.set(name, g);
+    }
+    g.set(value);
+}
+
 export interface RenderTimingStats {
     fps: number;
     frameP99: number;
@@ -153,6 +176,8 @@ export interface RenderTimingStats {
     longTasks?: number;
     longTaskMs?: number;
     commitMs?: number;
+    gpuComputeP50Us?: number;
+    gpuComputeP99Us?: number;
 }
 
 /** Mirror ~1 Hz renderer frame-time stats into Prometheus gauges. Cheap; safe to call always. */
@@ -167,6 +192,18 @@ export function updateRenderStats(stats: RenderTimingStats | null): void {
     if (stats.longTaskMs !== undefined) uiBlockedMs.set(stats.longTaskMs);
     if (stats.longTasks !== undefined) uiLongTasks.set(stats.longTasks);
     if (stats.commitMs !== undefined) uiCommitMs.set(stats.commitMs);
+    // Same rule, and it matters more here: a machine without `timestamp-query` reports nothing, so
+    // these two series never come into existence rather than reading 0 µs forever. See setGpuGauge.
+    if (stats.gpuComputeP50Us !== undefined) {
+        setGpuGauge('artlux_gpu_compute_p50_us',
+            'GPU time for the LED sampling compute pass, median over the window (microseconds)',
+            stats.gpuComputeP50Us);
+    }
+    if (stats.gpuComputeP99Us !== undefined) {
+        setGpuGauge('artlux_gpu_compute_p99_us',
+            'GPU time for the LED sampling compute pass, p99 over the window (microseconds)',
+            stats.gpuComputeP99Us);
+    }
 }
 
 let server: Server | null = null;

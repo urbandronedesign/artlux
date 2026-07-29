@@ -15,6 +15,9 @@ import { buildPaletteLut } from './palettes';
 const SOURCE_SIZE = 512;      // fallback cell size (uniform-grid fallback + the legacy updateSource path)
 const WORKGROUP = 64;
 const STAGING_COUNT = 3;
+// How often the sampling pass is bracketed with GPU timestamps. ~10 Hz: the number moves slowly, and
+// a resolve + copy + map every frame would be a real cost on the very thing being measured.
+const GPU_TIMING_INTERVAL_MS = 100;
 const FIRE_EFFECT = 4;
 
 // --- Adaptive atlas sizing -----------------------------------------------------------------------
@@ -185,6 +188,31 @@ export class WebGPUMapper implements IPixelMapper {
   private stagingBusy: boolean[] = [];
   private stagingCursor = 0;
 
+  // ── GPU-side timing (optional `timestamp-query` feature) ────────────────────────────────────
+  // The app could measure the frame from inside the CPU and nothing else, so "the GPU is behind"
+  // and "nothing submitted work to it" were the same reading. These two timestamps bracket the
+  // sampling compute pass on the GPU's OWN clock, which is the difference between those two.
+  //
+  // Sampled at ~10 Hz rather than every frame: a resolve + copy + map round-trip per frame would be
+  // a measurable cost on the thing being measured, and this number moves slowly.
+  private timestampQuerySet: GPUQuerySet | null = null;
+  private timestampResolve: GPUBuffer | null = null;  // QUERY_RESOLVE → COPY_SRC
+  private timestampRead: GPUBuffer | null = null;     // COPY_DST → MAP_READ
+  private timestampBusy = false;
+  private nextTimestampAt = 0;
+  /**
+   * Last measured pass duration in microseconds. **null means never measured, and that is not the
+   * same as 0** — the whole reason this exists is that an unmeasured GPU reported as "0 ms" reads
+   * exactly like an idle one. Every consumer must carry the null through rather than default it.
+   *
+   * 0 is a REAL value here and means "shorter than the timer can resolve" — see readTimestamps.
+   */
+  private lastComputeUs: number | null = null;
+  /** Increments per accepted measurement, so a consumer can tell a new reading from a repeated one. */
+  private gpuSeq = 0;
+  /** Did this device actually grant `timestamp-query`? Reported honestly; false disables the rest. */
+  readonly gpuTimingAvailable: boolean;
+
   private totalLeds = 0;
   private segCount = 0;
   private brightness = 1.0;
@@ -208,9 +236,30 @@ export class WebGPUMapper implements IPixelMapper {
   private paramScratch = new ArrayBuffer(32);
   private paramScratchView = new DataView(this.paramScratch);
 
-  private constructor(device: GPUDevice) {
+  private constructor(device: GPUDevice, gpuTiming: boolean) {
     this.device = device;
     this.queue = device.queue;
+    if (gpuTiming) {
+      try {
+        this.timestampQuerySet = device.createQuerySet({ type: 'timestamp', count: 2 });
+        this.timestampResolve = device.createBuffer({
+          size: 16, usage: GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC,
+        });
+        this.timestampRead = device.createBuffer({
+          size: 16, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+        });
+      } catch (e) {
+        // The feature was granted but the query set would not build. Diagnostics must never be able
+        // to stop the mapper, so drop the timing and carry on sampling LEDs.
+        console.warn('[WebGPUMapper] timestamp queries unavailable despite the feature:', e);
+        this.timestampQuerySet = null;
+        this.timestampResolve = null;
+        this.timestampRead = null;
+      }
+    }
+    // Derived from what actually got built, never from what was asked for — a flag that says "timing
+    // available" over a null query set would put a permanent blank row on the panel with no reason.
+    this.gpuTimingAvailable = this.timestampQuerySet !== null;
     this.scratch = document.createElement('canvas');
     this.scratch.width = SOURCE_SIZE; this.scratch.height = SOURCE_SIZE;
     this.scratchCtx = this.scratch.getContext('2d')!;
@@ -251,9 +300,16 @@ export class WebGPUMapper implements IPixelMapper {
     try {
       const adapter = await navigator.gpu.requestAdapter();
       if (!adapter) return null;
-      const device = await adapter.requestDevice();
+      // GPU timing is requested ONLY when the adapter advertises it. `requestDevice` REJECTS on an
+      // unsupported requiredFeature, so asking unconditionally would take the whole mapper down —
+      // and therefore all LED sampling — for the sake of a diagnostic. Ask, then verify on the
+      // device: an adapter advertising a feature does not oblige the device to grant it.
+      const wantTiming = adapter.features.has('timestamp-query');
+      const device = await adapter.requestDevice(wantTiming ? { requiredFeatures: ['timestamp-query'] } : {});
       if (!device) return null;
-      return new WebGPUMapper(device);
+      const hasTiming = wantTiming && device.features.has('timestamp-query');
+      if (!hasTiming) console.log('[WebGPUMapper] no timestamp-query on this device — GPU pass time will read "unavailable", not 0');
+      return new WebGPUMapper(device, hasTiming);
     } catch (e) {
       console.warn('[WebGPUMapper] init failed, will fall back', e);
       return null;
@@ -627,12 +683,27 @@ export class WebGPUMapper implements IPixelMapper {
     this.queue.writeBuffer(this.paramsBuffer, 0, this.paramScratch);
 
     const enc = this.device.createCommandEncoder();
-    const mp = enc.beginComputePass();
+    // Bracket the pass with GPU timestamps when one is due and the previous read has landed. Skipping
+    // is always safe: the reported value simply stays at the last measurement rather than becoming 0.
+    const nowMs = performance.now();
+    const timing = this.timestampQuerySet !== null && !this.timestampBusy && nowMs >= this.nextTimestampAt;
+    const mp = enc.beginComputePass(timing
+      ? { timestampWrites: { querySet: this.timestampQuerySet!, beginningOfPassWriteIndex: 0, endOfPassWriteIndex: 1 } }
+      : {});
     mp.setPipeline(this.mainPipeline);
     mp.setBindGroup(0, this.mainBind);
     mp.dispatchWorkgroups(groups);
     mp.end();
+    if (timing) {
+      enc.resolveQuerySet(this.timestampQuerySet!, 0, 2, this.timestampResolve!, 0);
+      enc.copyBufferToBuffer(this.timestampResolve!, 0, this.timestampRead!, 0, 16);
+    }
     this.queue.submit([enc.finish()]);
+    if (timing) {
+      this.timestampBusy = true;
+      this.nextTimestampAt = nowMs + GPU_TIMING_INTERVAL_MS;
+      this.readTimestamps();
+    }
 
     const idx = this.findFreeStaging();
     if (idx === -1) return;
@@ -652,6 +723,57 @@ export class WebGPUMapper implements IPixelMapper {
 
   read(): Uint8Array | null {
     return this.latest && this.totalLeds > 0 ? this.latest : null;
+  }
+
+  /**
+   * How long the GPU spent on the last timed sampling pass — measured on the GPU's own clock, not
+   * inferred from the CPU.
+   *
+   * **null means no measurement**, either because the device has no `timestamp-query` or because
+   * none has resolved yet. Callers must not coalesce that to 0: a GPU that was never timed and a
+   * GPU that did nothing are the two readings this whole feature exists to tell apart.
+   *
+   * `seq` increments once per accepted measurement. Consumers must de-duplicate on it rather than on
+   * the value, because `us: 0` is a legitimate repeated reading (see below) and de-duplicating by
+   * value would silently drop every one after the first.
+   */
+  gpuSample(): { us: number; seq: number } | null {
+    return this.lastComputeUs === null ? null : { us: this.lastComputeUs, seq: this.gpuSeq };
+  }
+
+  /**
+   * Map the resolved pair back and turn it into a duration. One buffer, one in-flight read, guarded
+   * by `timestampBusy` — mapping a buffer that is already mapped is a validation error, and at 10 Hz
+   * a ring would be machinery for nothing.
+   *
+   * ⚠ THE CLOCK IS QUANTIZED, AND THAT NEARLY MADE THIS FEATURE REPORT NOTHING AT ALL. Chrome rounds
+   * timestamp-query results to a coarse grid to blunt timing attacks — measured on this machine at
+   * **65,536 ns (2^16), i.e. ~65.5 µs**, with every raw timestamp an exact multiple of it. So a pass
+   * quicker than one quantum resolves with `begin == end` and a delta of exactly **0**.
+   *
+   * The first version of this guard read `if (end > begin)`, which threw those away and left the
+   * whole feature silent on the very machines where the answer is "the GPU is not the problem".
+   * "Faster than the timer can see" and "no measurement" are different facts and are distinguished
+   * HERE, once: an unresolved query leaves the timestamps at 0, so `begin > 0` is the liveness test
+   * and a zero delta afterwards is a real reading meaning *under ~65 µs*.
+   */
+  private readTimestamps(): void {
+    const buf = this.timestampRead;
+    if (!buf) { this.timestampBusy = false; return; }
+    buf.mapAsync(GPUMapMode.READ).then(() => {
+      if (this.disposed) return;
+      try {
+        const pair = new BigUint64Array(buf.getMappedRange());
+        const begin = pair[0], end = pair[1];
+        buf.unmap();
+        if (begin > 0n && end >= begin) {
+          this.lastComputeUs = Number(end - begin) / 1000;
+          this.gpuSeq++;
+        }
+      } finally {
+        this.timestampBusy = false;
+      }
+    }).catch(() => { this.timestampBusy = false; });
   }
 
   private findFreeStaging(): number {
@@ -675,6 +797,14 @@ export class WebGPUMapper implements IPixelMapper {
     this.paletteTexture?.destroy();
     for (const s of this.staging) { try { s.destroy(); } catch { /* mapped */ } }
     this.staging = [];
+    // `disposed` is already true, so an in-flight mapAsync resolves into a no-op before touching
+    // these — destroying a buffer with a pending map is the one ordering that would throw here.
+    try { this.timestampQuerySet?.destroy(); } catch { /* already gone */ }
+    try { this.timestampResolve?.destroy(); } catch { /* already gone */ }
+    try { this.timestampRead?.destroy(); } catch { /* mapped */ }
+    this.timestampQuerySet = null;
+    this.timestampResolve = null;
+    this.timestampRead = null;
     this.latest = null;
     this.device.destroy();
   }

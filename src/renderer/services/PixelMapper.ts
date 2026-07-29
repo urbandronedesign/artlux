@@ -16,5 +16,18 @@ export interface IPixelMapper {
   renderSurfaces?(getDrawable: (surfaceId: string) => CanvasImageSource | null, getOpacity?: (surfaceId: string) => number): void;
   /** Returns the latest RGBW bytes (4 per LED, in fixture order), or null if not ready. */
   read(): Uint8Array | null;
+  /**
+   * GPU time for the last timed sampling pass, in microseconds, on the GPU's own clock, plus a
+   * sequence number that increments once per measurement. Optional — only the WebGPU backend can
+   * measure it, and only where the device grants `timestamp-query`.
+   *
+   * **null is "not measured", which is NOT `us: 0`.** Without this the app could not tell a
+   * saturated GPU from one that nothing submitted work to, because both looked like a busy CPU.
+   * `us: 0` is its own third state: the pass was quicker than the (quantized) GPU clock can resolve.
+   * De-duplicate on `seq`, never on `us`.
+   */
+  gpuSample?(): { us: number; seq: number } | null;
+  /** True when the backend is actually able to produce the above. */
+  readonly gpuTimingAvailable?: boolean;
   dispose(): void;
 }

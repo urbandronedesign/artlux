@@ -570,7 +570,10 @@ const App: React.FC = () => {
           longTasks: us.longTasks, longTaskMs: us.longTaskMs, longTaskMaxMs: us.longTaskMaxMs,
           commits: us.commits, commitMs: us.commitMs,
         });
-        if (BROADCAST) console.info(`[perf] fps=${ps.fps.toFixed(0)} frameP99=${ps.frameP99.toFixed(1)}ms workP99=${ps.workP99.toFixed(1)}ms long=${ps.longFrames}/${ps.samples} blocked=${us.longTaskMs.toFixed(0)}ms/${us.longTasks}`);
+        // `gpu=` says n/a rather than 0 when the device cannot time itself — a broadcast log is read
+        // long after the fact, and "0.0ms" would be remembered as a free GPU.
+        const gpu = ps.gpuComputeP99Us === undefined ? 'n/a' : `${(ps.gpuComputeP99Us / 1000).toFixed(2)}ms`;
+        if (BROADCAST) console.info(`[perf] fps=${ps.fps.toFixed(0)} frameP99=${ps.frameP99.toFixed(1)}ms workP99=${ps.workP99.toFixed(1)}ms gpuP99=${gpu} long=${ps.longFrames}/${ps.samples} blocked=${us.longTaskMs.toFixed(0)}ms/${us.longTasks}`);
       }
       animationFrameId = requestAnimationFrame(loop);
     };

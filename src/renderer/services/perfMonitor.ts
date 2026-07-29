@@ -19,6 +19,9 @@ const WINDOW = 240; // frames retained (~2–4 s at 60–120 Hz): enough for a s
 // counting them would wreck p99/max, so they're dropped from the window entirely.
 const MAX_SANE_INTERVAL_MS = 1000;
 const DROP_FACTOR = 1.5; // an interval > 1.5× the median counts as a long (dropped) frame.
+// GPU samples arrive at ~10 Hz (see WebGPUMapper's GPU_TIMING_INTERVAL_MS), so 30 slots is ~3 s —
+// the same horizon as the frame window rather than the same sample count.
+const GPU_WINDOW = 30;
 
 // Fixed-capacity ring of doubles. Reused scratch avoids per-sample and per-stats allocation so the
 // monitor never contributes to the GC pressure it exists to measure.
@@ -57,6 +60,11 @@ class PerfMonitor {
   private scratch = new Float64Array(WINDOW);
   private lastFrameTs = 0;
   private frameStartTs = 0;
+  // GPU pass time, in microseconds, sampled at ~10 Hz by the mapper rather than per frame. A short
+  // ring is right here: at 10 Hz, 240 slots would be 24 s of history and would lag a change badly.
+  private gpu = new Ring(GPU_WINDOW);
+  private gpuScratch = new Float64Array(GPU_WINDOW);
+  private lastGpuSeq = -1;
 
   /** Call at the very top of the frame loop (unconditionally). Records the inter-frame interval. */
   beginFrame(): void {
@@ -72,6 +80,25 @@ class PerfMonitor {
   /** Call once the frame's work is done (before scheduling the next rAF). Records in-frame work. */
   endFrame(): void {
     if (this.frameStartTs > 0) this.work.push(performance.now() - this.frameStartTs);
+  }
+
+  /**
+   * Offer the mapper's latest GPU pass sample. Called every frame with the same sample until a new
+   * measurement lands, so it de-duplicates — pushing the repeat would make the window report a
+   * steady GPU that is really one stale reading held for three seconds.
+   *
+   * De-duplication is on `seq`, NOT on the value: `us: 0` is a legitimate reading (a pass quicker
+   * than the quantized GPU clock can resolve, ~65 µs on Chrome) and it repeats, so a value-based
+   * check would record the first and silently discard every one after it — leaving the window to
+   * age out and the whole feature to report "unavailable" on exactly the machines where the honest
+   * answer is "the GPU is nowhere near the limit".
+   *
+   * `null` (no measurement at all, or no `timestamp-query`) is dropped entirely — see IPixelMapper.
+   */
+  noteGpuUs(sample: { us: number; seq: number } | null): void {
+    if (sample === null || sample.seq === this.lastGpuSeq) return;
+    this.lastGpuSeq = sample.seq;
+    this.gpu.push(sample.us);
   }
 
   /** Compute stats over the current window. Cheap enough to call ~1 Hz; avoid calling per-frame. */
@@ -90,11 +117,18 @@ class PerfMonitor {
     const wn = this.work.snapshotSorted(this.scratch);
     const wAt = (q: number) => (wn === 0 ? 0 : this.scratch[Math.min(wn - 1, Math.max(0, Math.round(q * (wn - 1))))]);
 
+    // GPU pass time. OMITTED ENTIRELY when nothing has been measured — an absent field reaches the
+    // panel as "unavailable" and Prometheus as no sample at all, where a 0 would draw a flat green
+    // line that reads as a free GPU. That distinction is the entire point of the measurement.
+    const gn = this.gpu.snapshotSorted(this.gpuScratch);
+    const gAt = (q: number) => this.gpuScratch[Math.min(gn - 1, Math.max(0, Math.round(q * (gn - 1))))];
+
     return {
       fps: frameP50 > 0 ? 1000 / frameP50 : 0,
       frameP50, frameP99, frameMax,
       workP50: wAt(0.5), workP99: wAt(0.99),
       longFrames, samples: n,
+      ...(gn > 0 ? { gpuComputeP50Us: gAt(0.5), gpuComputeP99Us: gAt(0.99), gpuSamples: gn } : {}),
     };
   }
 
@@ -102,8 +136,10 @@ class PerfMonitor {
   reset(): void {
     this.frames = new Ring(WINDOW);
     this.work = new Ring(WINDOW);
+    this.gpu = new Ring(GPU_WINDOW);
     this.lastFrameTs = 0;
     this.frameStartTs = 0;
+    this.lastGpuSeq = -1;
   }
 }
 
